@@ -10,23 +10,23 @@ serde = { version = "1.0", default_features = false }
 serde_derive = { version = "1.0", optional = true }
 safe-mix = { version = "1.0", default_features = false}
 polkadot-primitives = { path = "../primitives", default_features = false }
-substrate-codec = { path = "../../substrate/codec" }
-substrate-serializer = { path = "../../substrate/serializer" }
-substrate-runtime-std = { path = "../../substrate/runtime-std" }
-substrate-runtime-io = { path = "../../substrate/runtime-io" }
-substrate-runtime-support = { path = "../../substrate/runtime-support" }
-substrate-primitives = { path = "../../substrate/primitives" }
-substrate-keyring = { path = "../../substrate/keyring" }
-substrate-runtime-consensus = { path = "../../substrate/runtime/consensus" }
-substrate-runtime-council = { path = "../../substrate/runtime/council" }
-substrate-runtime-democracy = { path = "../../substrate/runtime/democracy" }
-substrate-runtime-executive = { path = "../../substrate/runtime/executive" }
-substrate-runtime-primitives = { path = "../../substrate/runtime/primitives" }
-substrate-runtime-session = { path = "../../substrate/runtime/session" }
-substrate-runtime-staking = { path = "../../substrate/runtime/staking" }
-substrate-runtime-system = { path = "../../substrate/runtime/system" }
-substrate-runtime-timestamp = { path = "../../substrate/runtime/timestamp" }
-substrate-runtime-version = { path = "../../substrate/runtime/version" }
+substrate-codec = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-serializer = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-std = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-io = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-support = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-primitives = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-keyring = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-consensus = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-council = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-democracy = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-executive = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-primitives = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-session = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-staking = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-system = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-timestamp = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-version = { git = "https://github.com/paritytech/paritysubstrate" }
 
 [dev-dependencies]
 hex-literal = "0.1.0"
