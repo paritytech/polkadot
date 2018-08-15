@@ -21,13 +21,13 @@ sudo apt install make clang pkg-config libssl-dev
 Then, install Polkadot PoC-2:
 
 [source, shell]
-cargo install --git https://github.com/paritytech/polkadot.git --branch v0.2 polkadot
+cargo install --git https://github.com/paritytech/substrate.git --branch v0.2 polkadot
 
 You'll now have a `polkadot` binary installed to your `PATH`. You can drop the
 `--branch v0.2` or run `cargo install --git https://github.com/paritytech/polkadot.git polkadot`
 to get the very latest version of Polkadot, but these instructions might not work in that case.
 
-If you want a specific version of polkadot, say `0.2.2`, you may run `cargo install --git https://github.com/paritytech/polkadot.git --tag v0.2.2 polkadot`.
+If you want a specific version of polkadot, say `0.2.5`, you may run `cargo install --git https://github.com/paritytech/substrate.git --tag v0.2.5 polkadot`.
 
 === Krumme Lanke Testnet
 
