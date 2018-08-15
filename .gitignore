@@ -1,0 +1,9 @@
+**/target/
+**/*.rs.bk
+*.swp
+.wasm-binaries
+polkadot/runtime/wasm/target/
+**/._*
+.vscode
+polkadot.*
+.DS_Store

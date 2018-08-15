@@ -14,5 +14,5 @@ polkadot-runtime = { path = "../runtime", version = "0.1" }
 polkadot-primitives = { path = "../primitives", version = "0.1" }
 polkadot-cli = { path = "../cli" }
 log = "0.4"
-ed25519 = { git = "https://github.com/paritytech/polkadot" }
+ed25519 = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
 tokio = "0.1.7"

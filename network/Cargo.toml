@@ -15,7 +15,7 @@ substrate-codec = { git = "https://github.com/paritytech/polkadot", branch = "sp
 substrate-codec-derive = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
 substrate-network = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-ed25519 = { git = "https://github.com/paritytech/polkadot" }
+ed25519 = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
 futures = "0.1"
 tokio = "0.1.7"
 log = "0.4"

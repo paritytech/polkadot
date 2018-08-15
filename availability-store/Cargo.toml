@@ -10,6 +10,6 @@ parking_lot = "0.4"
 log = "0.3"
 substrate-codec = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-kvdb = { git = "https://github.com/paritytech/parity.git" }
-kvdb-rocksdb = { git = "https://github.com/paritytech/parity.git" }
-kvdb-memorydb = { git = "https://github.com/paritytech/parity.git" }
+kvdb = { git = "https://github.com/paritytech/parity-common.git" }
+kvdb-rocksdb = { git = "https://github.com/paritytech/parity-common.git" }
+kvdb-memorydb = { git = "https://github.com/paritytech/parity-common.git" }

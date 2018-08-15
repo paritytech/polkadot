@@ -6,4 +6,5 @@ description = "Polkadot node implementation in Rust."
 
 [dependencies]
 substrate-executor = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
 polkadot-runtime = { path = "../runtime" }

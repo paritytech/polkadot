@@ -16,4 +16,4 @@ substrate-keyring = { git = "https://github.com/paritytech/polkadot", branch = "
 substrate-extrinsic-pool = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
 substrate-runtime-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-ed25519 = { git = "https://github.com/paritytech/polkadot" }
+ed25519 = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
