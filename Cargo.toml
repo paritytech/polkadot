@@ -43,10 +43,10 @@ exclude = [
 ]
 
 [badges]
-travis-ci = { repository = "paritytech/polkadot", branch = "master" }
+travis-ci = { repository = "paritytech/parity-substrate", branch = "master" }
 maintenance = { status = "actively-developed" }
-is-it-maintained-issue-resolution = { repository = "paritytech/polkadot", branch = "split-substrate" }
-is-it-maintained-open-issues = { repository = "paritytech/polkadot", branch = "split-substrate" }
+is-it-maintained-issue-resolution = { repository = "paritytech/parity-substrate" }
+is-it-maintained-open-issues = { repository = "paritytech/parity-substrate" }
 
 [profile.release]
 # Substrate runtime requires unwinding.

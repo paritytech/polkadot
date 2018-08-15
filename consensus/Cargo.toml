@@ -7,7 +7,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 futures = "0.1.17"
 parking_lot = "0.4"
 tokio = "0.1.7"
-ed25519 = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+ed25519 = { git = "https://github.com/paritytech/parity-substrate" }
 error-chain = "0.12"
 log = "0.3"
 exit-future = "0.1"
@@ -19,12 +19,12 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-statement-table = { path = "../statement-table" }
 polkadot-transaction-pool = { path = "../transaction-pool" }
-substrate-bft = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-codec = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-runtime-support = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-client = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-runtime-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-bft = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-codec = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-primitives = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-runtime-support = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-client = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-runtime-primitives = { git = "https://github.com/paritytech/parity-substrate" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-keyring = { git = "https://github.com/paritytech/parity-substrate" }

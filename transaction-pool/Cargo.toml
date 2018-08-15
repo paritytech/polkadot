@@ -10,10 +10,10 @@ parking_lot = "0.4"
 polkadot-api = { path = "../api" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
-substrate-client = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-codec = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-keyring = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-extrinsic-pool = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-runtime-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-ed25519 = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-client = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-codec = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-keyring = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-extrinsic-pool = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-primitives = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-runtime-primitives = { git = "https://github.com/paritytech/parity-substrate" }
+ed25519 = { git = "https://github.com/paritytech/parity-substrate" }

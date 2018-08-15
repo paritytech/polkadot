@@ -8,14 +8,14 @@ error-chain = "0.12"
 polkadot-executor = { path = "../executor" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-primitives = { path = "../primitives" }
-substrate-codec = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-runtime-io = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-runtime-executive = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-runtime-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-client = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-executor = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-state-machine = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-codec = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-runtime-io = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-runtime-executive = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-runtime-primitives = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-client = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-primitives = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-executor = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-state-machine = { git = "https://github.com/paritytech/parity-substrate" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-keyring = { git = "https://github.com/paritytech/parity-substrate" }

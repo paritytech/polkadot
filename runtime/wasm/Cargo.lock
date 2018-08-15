@@ -84,13 +84,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "ed25519"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ring 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
  "untrusted 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -105,7 +105,7 @@ dependencies = [
 [[package]]
 name = "environmental"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 
 [[package]]
 name = "ethbloom"
@@ -373,11 +373,11 @@ version = "0.1.0"
 dependencies = [
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
@@ -387,21 +387,21 @@ dependencies = [
  "integer-sqrt 0.1.0 (git+https://github.com/paritytech/integer-sqrt-rs.git)",
  "polkadot-primitives 0.1.0",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-council 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-democracy 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-executive 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-session 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-staking 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-timestamp 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-version 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-council 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-democracy 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-executive 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-session 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-staking 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-timestamp 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-version 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
@@ -428,16 +428,16 @@ dependencies = [
 [[package]]
 name = "pwasm-alloc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
- "pwasm-libc 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "pwasm-libc 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
  "rustc_version 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "pwasm-libc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 
 [[package]]
 name = "quote"
@@ -596,7 +596,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "substrate-codec"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "arrayvec 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -604,7 +604,7 @@ dependencies = [
 [[package]]
 name = "substrate-codec-derive"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "proc-macro2 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -614,9 +614,9 @@ dependencies = [
 [[package]]
 name = "substrate-keyring"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
- "ed25519 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "ed25519 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -624,7 +624,7 @@ dependencies = [
 [[package]]
 name = "substrate-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -638,9 +638,9 @@ dependencies = [
  "rustc-hex 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
  "tiny-keccak 1.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "twox-hash 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "uint 0.2.2 (git+https://github.com/paritytech/parity-common)",
@@ -650,249 +650,249 @@ dependencies = [
 [[package]]
 name = "substrate-runtime-consensus"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
 name = "substrate-runtime-council"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "integer-sqrt 0.1.0 (git+https://github.com/paritytech/integer-sqrt-rs.git)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-keyring 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-democracy 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-session 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-staking 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-keyring 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-democracy 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-session 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-staking 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
 name = "substrate-runtime-democracy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-session 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-staking 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-session 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-staking 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
 name = "substrate-runtime-executive"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
 name = "substrate-runtime-io"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
- "ed25519 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "environmental 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "ed25519 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "environmental 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
  "rustc_version 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-state-machine 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-state-machine 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
  "triehash 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-runtime-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "integer-sqrt 0.1.0 (git+https://github.com/paritytech/integer-sqrt-rs.git)",
  "log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
 name = "substrate-runtime-sandbox"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "rustc_version 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
  "wasmi 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-runtime-session"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-keyring 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-timestamp 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-keyring 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-timestamp 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
 name = "substrate-runtime-staking"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-keyring 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-sandbox 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-session 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-timestamp 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-keyring 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-sandbox 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-session 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-timestamp 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
 name = "substrate-runtime-std"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
- "pwasm-alloc 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "pwasm-libc 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "pwasm-alloc 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "pwasm-libc 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
  "rustc_version 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-runtime-support"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
- "ed25519 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "ed25519 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
 name = "substrate-runtime-system"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
 name = "substrate-runtime-timestamp"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
 name = "substrate-runtime-version"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "serde 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
- "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
+ "substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
 ]
 
 [[package]]
 name = "substrate-state-machine"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/polkadot?branch=split-substrate#e3f6cd86348c34f50e9c19b00022836b196cbd29"
+source = "git+https://github.com/paritytech/parity-substrate#54e6d763a5d091ca1c41f431f8c7e76c384263d5"
 dependencies = [
  "byteorder 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "hashdb 0.2.1 (git+https://github.com/paritytech/parity-common)",
@@ -903,7 +903,7 @@ dependencies = [
  "parking_lot 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "patricia-trie 0.2.1 (git+https://github.com/paritytech/parity-common)",
  "rlp 0.2.1 (git+https://github.com/paritytech/parity-common)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)",
  "triehash 0.2.0 (git+https://github.com/paritytech/parity-common)",
 ]
 
@@ -1041,9 +1041,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum crossbeam-epoch 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "927121f5407de9956180ff5e936fe3cf4324279280001cd56b669d28ee7e9150"
 "checksum crossbeam-utils 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "2760899e32a1d58d5abb31129f8fae5de75220bc2176e77ff7c627ae45c918d9"
 "checksum crunchy 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "a2f4a431c5c9f662e1200b7c7f02c34e91361150e382089a8f2dec3ba680cbda"
-"checksum ed25519 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
+"checksum ed25519 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
 "checksum elastic-array 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "88d4851b005ef16de812ea9acdb7bece2f0a40dd86c07b85631d7dafa54537bb"
-"checksum environmental 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
+"checksum environmental 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
 "checksum ethbloom 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1a93a43ce2e9f09071449da36bfa7a1b20b950ee344b6904ff23de493b03b386"
 "checksum ethereum-types 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9c48729b8aea8aedb12cf4cb2e5cef439fdfe2dda4a89e47eeebd15778ef53b6"
 "checksum ethereum-types-serialize 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4ac59a21a9ce98e188f3dace9eb67a6c4a3c67ec7fbc7218cb827852679dc002"
@@ -1080,8 +1080,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum proc-macro-hack 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3ba8d4f9257b85eb6cdf13f055cea3190520aab1409ca2ab43493ea4820c25f0"
 "checksum proc-macro-hack-impl 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d5cb6f960ad471404618e9817c0e5d10b1ae74cfdf01fab89ea0641fe7fb2892"
 "checksum proc-macro2 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)" = "1fa93823f53cfd0f5ac117b189aed6cfdfb2cfc0a9d82e956dd7927595ed7d46"
-"checksum pwasm-alloc 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum pwasm-libc 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
+"checksum pwasm-alloc 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum pwasm-libc 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
 "checksum quote 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "e44651a0dc4cdd99f71c83b561e221f714912d11af1a4dff0631f923d53af035"
 "checksum rand 0.3.22 (registry+https://github.com/rust-lang/crates.io-index)" = "15a732abf9d20f0ad8eeb6f909bf6868722d9a06e1e50802b6a70351f40b4eb1"
 "checksum rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "eba5f8cb59cc50ed56be8880a5c7b496bfd9bd26394e176bc67884094145c2c5"
@@ -1101,25 +1101,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum serde_derive 1.0.64 (registry+https://github.com/rust-lang/crates.io-index)" = "79e4620ba6fbe051fc7506fab6f84205823564d55da18d55b695160fb3479cd8"
 "checksum smallvec 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)" = "211a489e65e94b103926d2054ae515a1cdb5d515ea0ef414fee23b7e043ce748"
 "checksum stable_deref_trait 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "15132e0e364248108c5e2c02e3ab539be8d6f5d52a01ca9bbf27ed657316f02b"
-"checksum substrate-codec 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-keyring 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-council 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-democracy 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-executive 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-sandbox 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-session 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-staking 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-timestamp 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-runtime-version 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
-"checksum substrate-state-machine 0.1.0 (git+https://github.com/paritytech/polkadot?branch=split-substrate)" = "<none>"
+"checksum substrate-codec 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-codec-derive 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-keyring 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-consensus 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-council 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-democracy 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-executive 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-io 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-primitives 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-sandbox 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-session 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-staking 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-std 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-support 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-system 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-timestamp 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-runtime-version 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
+"checksum substrate-state-machine 0.1.0 (git+https://github.com/paritytech/parity-substrate)" = "<none>"
 "checksum syn 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)" = "6dfd71b2be5a58ee30a6f8ea355ba8290d397131c00dfa55c3d34e6e13db5101"
 "checksum tiny-keccak 1.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "e9175261fbdb60781fcd388a4d6cc7e14764a2b629a7ad94abb439aed223a44f"
 "checksum triehash 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "2033893a813c70e7d8a739ca6c36dc0a7a2c913ec718d7cbf84a3837bbe3c7ce"

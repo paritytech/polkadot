@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
-substrate-codec = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-codec-derive = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
-substrate-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-codec = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-codec-derive = { git = "https://github.com/paritytech/parity-substrate" }
+substrate-primitives = { git = "https://github.com/paritytech/parity-substrate" }
 polkadot-primitives = { path = "../primitives" }
