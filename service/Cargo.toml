@@ -11,7 +11,7 @@ log = "0.3"
 slog = "^2"
 tokio = "0.1.7"
 hex-literal = "0.1"
-ed25519 = { git = "https://github.com/paritytech/paritysubstrate/ed25519" }
+ed25519 = { git = "https://github.com/paritytech/polkadot" }
 polkadot-availability-store = { path = "../availability-store" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
@@ -20,10 +20,10 @@ polkadot-executor = { path = "../executor" }
 polkadot-api = { path = "../api" }
 polkadot-transaction-pool = { path = "../transaction-pool" }
 polkadot-network = { path = "../network" }
-substrate-runtime-io = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-primitives = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-network = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-client = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-codec = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-service = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-telemetry = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-runtime-io = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-network = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-client = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-codec = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-service = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-telemetry = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }

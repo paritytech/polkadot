@@ -5,5 +5,5 @@ authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 
 [dependencies]
-substrate-executor = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-executor = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
 polkadot-runtime = { path = "../runtime" }

@@ -14,18 +14,18 @@ tokio = "0.1.7"
 futures = "0.1.17"
 parking_lot = "0.4"
 exit-future = "0.1"
-substrate-cli = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-client = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-codec = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-extrinsic-pool = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-network = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-primitives = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-rpc = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-rpc-servers = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-runtime-primitives = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-service = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-state-machine = { git = "https://github.com/paritytech/paritysubstrate" }
-substrate-telemetry = { git = "https://github.com/paritytech/paritysubstrate" }
+substrate-cli = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-client = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-codec = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-extrinsic-pool = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-network = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-rpc = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-rpc-servers = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-runtime-primitives = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-service = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-state-machine = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
+substrate-telemetry = { git = "https://github.com/paritytech/polkadot", branch = "split-substrate" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-service = { path = "../service" }
