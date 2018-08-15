@@ -6,6 +6,17 @@
 
 Implementation of a https://polkadot.network node in Rust.
 
+== NOTE
+
+We have recently split our implementation of Polkadot from its platform-level component "Substrate".
+When we split them, we split the Polkadot code off into another repo, leaving the substrate repo to
+be what used to be Polkadot, along with its branches and releases.
+
+Things will be a little odd for a while. Polkadot PoC-2 remains as a branch `v0.2` in the **Substrate**
+repo. Polkadot PoC-3 *will be* in branch `v0.3` in the **Polkadot** repo. To play on the ("Krumme Lancke")
+testnet, you'll want the PoC-2 code which is in the **Substrate** repo. These instructions are up to date
+with this, but if you see "substrate" and are wondering why i you need it for Polkadot, now you know.
+
 
 == To play
 
@@ -23,9 +34,8 @@ Then, install Polkadot PoC-2:
 [source, shell]
 cargo install --git https://github.com/paritytech/substrate.git --branch v0.2 polkadot
 
-You'll now have a `polkadot` binary installed to your `PATH`. You can drop the
-`--branch v0.2` or run `cargo install --git https://github.com/paritytech/polkadot.git polkadot`
-to get the very latest version of Polkadot, but these instructions might not work in that case.
+You'll now have a `polkadot` binary installed to your `PATH`. You can run `cargo install --git https://github.com/paritytech/polkadot.git polkadot` to get the very latest version of Polkadot,
+but these instructions will not work in that case.
 
 If you want a specific version of polkadot, say `0.2.5`, you may run `cargo install --git https://github.com/paritytech/substrate.git --tag v0.2.5 polkadot`.
 
