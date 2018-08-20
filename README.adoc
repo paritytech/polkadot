@@ -15,7 +15,7 @@ be what used to be Polkadot, along with its branches and releases.
 Things will be a little odd for a while. Polkadot PoC-2 remains as a branch `v0.2` in the **Substrate**
 repo. Polkadot PoC-3 *will be* in branch `v0.3` in the **Polkadot** repo. To play on the ("Krumme Lancke")
 testnet, you'll want the PoC-2 code which is in the **Substrate** repo. These instructions are up to date
-with this, but if you see "substrate" and are wondering why i you need it for Polkadot, now you know.
+with this, but if you see "substrate" and are wondering why you need it for Polkadot, now you know.
 
 
 == To play
@@ -127,7 +127,7 @@ The easiest/faster option is to use the latest image.
 
 
 .First run
-Let´s first check the version we have. The first time you run this command, the polkadot docker image will be downloaded. This takes a bit of time and bandwidth, be patient:
+Let's first check the version we have. The first time you run this command, the polkadot docker image will be downloaded. This takes a bit of time and bandwidth, be patient:
 
 [source, shell]
 docker run --rm -it chevdor/polkadot:latest polkadot --version
