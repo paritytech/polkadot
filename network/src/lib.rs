@@ -73,7 +73,7 @@ pub const DOT_PROTOCOL_ID: ::substrate_network::ProtocolId = *b"dot";
 type FullStatus = GenericFullStatus<Block>;
 
 /// Specialization of the network service for the polkadot protocol.
-pub type NetworkService = ::substrate_network::Service<Block, PolkadotProtocol>;
+pub type NetworkService = ::substrate_network::Service<Block, PolkadotProtocol, Hash>;
 
 /// Status of a Polkadot node.
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
