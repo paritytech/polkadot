@@ -33,7 +33,12 @@ use primitives::parachain::{DutyRoster, Id as ParaId};
 use substrate_primitives::{KeccakHasher, RlpCodec};
 use {BlockBuilder, PolkadotApi, LocalPolkadotApi, Error, ErrorKind, Result};
 
-fn call<B, R>(client: &Client<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block>, at: &BlockId, method: &'static str, input: &[u8]) -> Result<R>
+fn call<B, R>(
+	client: &Client<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block>,
+	at: &BlockId,
+	function: &'static str,
+	input: &[u8])
+-> Result<R>
 where
 	R: Decode,
 	B: LocalBackend<Block, KeccakHasher, RlpCodec>,
@@ -52,7 +57,7 @@ where
 		let mut overlay = Default::default();
 		let execution_manager = || ExecutionManager::Both(|wasm_result, native_result| {
 			warn!("Consensus error between wasm and native runtime execution at block {:?}", at);
-			warn!("   Method {:?}", method);
+			warn!("   Function {:?}", function);
 			warn!("   Native result {:?}", native_result);
 			warn!("   Wasm result {:?}", wasm_result);
 			wasm_result
@@ -67,12 +72,12 @@ where
 		let (r, _) = client.executor().call_at_state(
 			&state,
 			&mut overlay,
-			method,
+			function,
 			input,
 			execution_manager()
 		)?;
 		Ok(R::decode(&mut &r[..])
-		   .ok_or_else(|| client::error::Error::from(client::error::ErrorKind::CallResultDecode(method)))?)
+		   .ok_or_else(|| client::error::Error::from(client::error::ErrorKind::CallResultDecode(function)))?)
 	})
 }
 
@@ -111,13 +116,12 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, L
 	}
 
 	fn evaluate_block(&self, at: &BlockId, block: Block) -> Result<bool> {
-		use substrate_executor::error::ErrorKind as ExecErrorKind;
 		let encoded = block.encode();
 		let res: Result<()> = call(self, at, "execute_block", &encoded);
 		match res {
 			Ok(()) => Ok(true),
 			Err(err) => match err.kind() {
-				&ErrorKind::Executor(ExecErrorKind::Runtime) => Ok(false),
+				&ErrorKind::Execution(_) => Ok(false),
 				_ => Err(err)
 			}
 		}
