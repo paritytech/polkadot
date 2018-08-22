@@ -97,18 +97,33 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, L
 
 	fn evaluate_block(&self, at: &BlockId, block: Block) -> Result<bool> {
 		use substrate_executor::error::ErrorKind as ExecErrorKind;
-		use codec::{Decode, Encode};
-		use runtime::Block as RuntimeBlock;
+		use codec::Encode;
+		use state_machine::ExecutionManager;
+		use client::CallExecutor;
 
-		let encoded = block.encode();
-		let runtime_block = match RuntimeBlock::decode(&mut &encoded[..]) {
-			Some(x) => x,
-			None => return Ok(false),
-		};
+		let parent = at;
+		let res = self.state_at(&parent).map_err(Error::from).and_then(|state| {
+			let mut overlay = Default::default();
+			let execution_manager = || ExecutionManager::Both(|wasm_result, native_result| {
+				warn!("Consensus error between wasm and native runtime execution at block {:?}", at);
+				warn!("   While executing block {:?}", (block.header.number, block.header.hash()));
+				warn!("   Native result {:?}", native_result);
+				warn!("   Wasm result {:?}", wasm_result);
+				wasm_result
+			});
+			let (r, _) = self.executor().call_at_state(
+				&state,
+				&mut overlay,
+				"execute_block",
+				&block.encode(),
+				execution_manager()
+			)?;
 
-		let res = with_runtime!(self, at, || ::runtime::Executive::execute_block(runtime_block));
+			Ok(r)
+		});
+
 		match res {
-			Ok(()) => Ok(true),
+			Ok(_) => Ok(true),
 			Err(err) => match err.kind() {
 				&ErrorKind::Executor(ExecErrorKind::Runtime) => Ok(false),
 				_ => Err(err)
@@ -148,8 +163,10 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, L
 	fn inherent_extrinsics(&self, at: &BlockId, inherent_data: InherentData) -> Result<Vec<UncheckedExtrinsic>> {
 		use codec::{Encode, Decode};
 
+		let runtime_version = self.runtime_version_at(at)?;
+
 		with_runtime!(self, at, || {
-			let extrinsics = ::runtime::inherent_extrinsics(inherent_data);
+			let extrinsics = ::runtime::inherent_extrinsics(inherent_data, runtime_version);
 			extrinsics.into_iter()
 				.map(|x| x.encode()) // get encoded representation
 				.map(|x| Decode::decode(&mut &x[..])) // get byte-vec equivalent to extrinsic
@@ -229,6 +246,7 @@ mod tests {
 
 		assert_eq!(block.header.number, 1);
 		assert!(block.header.extrinsics_root != Default::default());
+		assert!(client.evaluate_block(&id, block).unwrap());
 	}
 
 	#[test]
@@ -251,6 +269,7 @@ mod tests {
 
 		assert_eq!(block.header.number, 1);
 		assert!(block.header.extrinsics_root != Default::default());
+		assert!(client.evaluate_block(&id, block).unwrap());
 	}
 
 	#[test]
