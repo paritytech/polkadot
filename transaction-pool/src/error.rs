@@ -60,6 +60,11 @@ error_chain! {
 			description("Extrinsic too large"),
 			display("Extrinsic is too large ({} > {})", got, max),
 		}
+		/// Temporarily banned
+		TemporarilyBanned {
+			description("Extrinsic is temporarily banned"),
+			display("Extrinsic is temporarily banned"),
+		}
 	}
 }
 
