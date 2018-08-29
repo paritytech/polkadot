@@ -61,16 +61,17 @@ decl_module! {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait>;
-	// Vector of all parachain IDs.
-	pub Parachains get(active_parachains): b"para:chains" => default Vec<Id>;
-	// The parachains registered at present.
-	pub Code get(parachain_code): b"para:code" => map [ Id => Vec<u8> ];
-	// The heads of the parachains registered at present. these are kept sorted.
-	pub Heads get(parachain_head): b"para:head" => map [ Id => Vec<u8> ];
+	trait Store for Module<T: Trait> as Parachains {
+		// Vector of all parachain IDs.
+		pub Parachains get(active_parachains): default Vec<Id>;
+		// The parachains registered at present.
+		pub Code get(parachain_code): map [ Id => Vec<u8> ];
+		// The heads of the parachains registered at present. these are kept sorted.
+		pub Heads get(parachain_head): map [ Id => Vec<u8> ];
 
-	// Did the parachain heads get updated in this block?
-	DidUpdate: b"para:did" => default bool;
+		// Did the parachain heads get updated in this block?
+		DidUpdate: default bool;
+	}
 }
 
 impl<T: Trait> Module<T> {
