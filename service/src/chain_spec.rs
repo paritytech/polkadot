@@ -63,7 +63,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			balances: endowed_accounts.iter().map(|&k|(k, 1u128 << 60)).collect(),
 			validator_count: 12,
 			sessions_per_era: 12,	// 1 hour per era
-			bonding_duration: 24,	// 1 day per bond.
+			bonding_duration: 24 * 60 * 12,	// 1 day per bond.
 		}),
 		democracy: Some(DemocracyConfig {
 			launch_period: 12 * 60 * 24,	// 1 day per public referendum
@@ -136,7 +136,7 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
 			balances: endowed_accounts.iter().map(|&k|(k, (1u128 << 60))).collect(),
 			validator_count: 2,
 			sessions_per_era: 5,
-			bonding_duration: 2,
+			bonding_duration: 2 * 60 * 12,
 			early_era_slash: 0,
 			session_reward: 0,
 		}),

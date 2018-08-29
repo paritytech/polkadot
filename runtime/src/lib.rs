@@ -128,6 +128,7 @@ impl HasPublicAux for Concrete {
 }
 
 impl system::Trait for Concrete {
+	type PublicAux = <Concrete as HasPublicAux>::PublicAux;
 	type Index = Index;
 	type BlockNumber = BlockNumber;
 	type Hash = Hash;
@@ -140,7 +141,6 @@ impl system::Trait for Concrete {
 pub type System = system::Module<Concrete>;
 
 impl consensus::Trait for Concrete {
-	type PublicAux = <Concrete as HasPublicAux>::PublicAux;
 	type SessionKey = SessionKey;
 }
 /// Consensus module for this concrete runtime.
