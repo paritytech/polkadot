@@ -227,7 +227,6 @@ impl Service {
 						let last_agreement = s.last_agreement();
 						let can_build_upon = last_agreement
 							.map_or(true, |x| !x.live || x.parent_hash != hash);
-
 						if hash == prev_best && can_build_upon {
 							debug!("Starting consensus round after a timeout");
 							start_bft(best_block, s.clone());
