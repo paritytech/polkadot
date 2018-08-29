@@ -231,7 +231,10 @@ fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: Au
 }
 
 /// Polkadot proposer factory.
-pub struct ProposerFactory<C, N, P> {
+pub struct ProposerFactory<C, N, P> 
+	where
+		P: PolkadotApi + Send + Sync + 'static
+{
 	/// The client instance.
 	pub client: Arc<P>,
 	/// The transaction pool.
@@ -407,7 +410,7 @@ struct LocalDuty {
 }
 
 /// The Polkadot proposer logic.
-pub struct Proposer<C: PolkadotApi> {
+pub struct Proposer<C: PolkadotApi + Send + Sync> {
 	client: Arc<C>,
 	dynamic_inclusion: DynamicInclusion,
 	local_key: Arc<ed25519::Pair>,
@@ -587,10 +590,10 @@ impl<C> bft::Proposer<Block> for Proposer<C>
 
 		let local_id = self.local_key.public().0.into();
 		let mut next_index = {
-			let cur_index = self.transaction_pool.cull_and_get_pending(BlockId::hash(self.parent_hash), |pending| pending
-				.filter(|tx| tx.sender().map(|s| s == local_id).unwrap_or(false))
+			let cur_index = self.transaction_pool.cull_and_get_pending(&BlockId::hash(self.parent_hash), |pending| pending
+				.filter(|tx| tx.verified.sender().map(|s| s == local_id).unwrap_or(false))
 				.last()
-				.map(|tx| Ok(tx.index()))
+				.map(|tx| Ok(tx.verified.index()))
 				.unwrap_or_else(|| self.client.index(&self.parent_id, local_id))
 			);
 
@@ -636,9 +639,8 @@ impl<C> bft::Proposer<Block> for Proposer<C>
 				index: extrinsic.index,
 				function: extrinsic.function,
 			};
-			let uxt = UncheckedExtrinsic::new(extrinsic, signature);
-
-			self.transaction_pool.import_unchecked_extrinsic(BlockId::hash(self.parent_hash), uxt)
+			let uxt: Vec<u8> = Decode::decode(&mut UncheckedExtrinsic::new(extrinsic, signature).encode().as_slice()).expect("Encoded extrinsic is valid");
+			self.transaction_pool.submit_one(&BlockId::hash(self.parent_hash), uxt)
 				.expect("locally signed extrinsic is valid; qed");
 		}
 	}
@@ -720,7 +722,7 @@ impl ProposalTiming {
 }
 
 /// Future which resolves upon the creation of a proposal.
-pub struct CreateProposal<C: PolkadotApi>  {
+pub struct CreateProposal<C: PolkadotApi + Send + Sync>  {
 	parent_hash: Hash,
 	parent_number: BlockNumber,
 	parent_id: BlockId,
@@ -732,7 +734,7 @@ pub struct CreateProposal<C: PolkadotApi>  {
 	offline: SharedOfflineTracker,
 }
 
-impl<C> CreateProposal<C> where C: PolkadotApi {
+impl<C> CreateProposal<C> where C: PolkadotApi + Send + Sync {
 	fn propose_with(&self, candidates: Vec<CandidateReceipt>) -> Result<Block, Error> {
 		use polkadot_api::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
@@ -767,18 +769,18 @@ impl<C> CreateProposal<C> where C: PolkadotApi {
 
 		{
 			let mut unqueue_invalid = Vec::new();
-			let result = self.transaction_pool.cull_and_get_pending(BlockId::hash(self.parent_hash), |pending_iterator| {
+			let result = self.transaction_pool.cull_and_get_pending(&BlockId::hash(self.parent_hash), |pending_iterator| {
 				let mut pending_size = 0;
 				for pending in pending_iterator {
-					if pending_size + pending.encoded_size() >= MAX_TRANSACTIONS_SIZE { break }
+					if pending_size + pending.verified.encoded_size() >= MAX_TRANSACTIONS_SIZE { break }
 
-					match block_builder.push_extrinsic(pending.primitive_extrinsic()) {
+					match block_builder.push_extrinsic(pending.original.clone()) {
 						Ok(()) => {
-							pending_size += pending.encoded_size();
+							pending_size += pending.verified.encoded_size();
 						}
 						Err(e) => {
 							trace!(target: "transaction-pool", "Invalid transaction: {}", e);
-							unqueue_invalid.push(pending.hash().clone());
+							unqueue_invalid.push(pending.verified.hash().clone());
 						}
 					}
 				}
@@ -819,7 +821,7 @@ impl<C> CreateProposal<C> where C: PolkadotApi {
 	}
 }
 
-impl<C> Future for CreateProposal<C> where C: PolkadotApi {
+impl<C> Future for CreateProposal<C> where C: PolkadotApi + Send + Sync {
 	type Item = Block;
 	type Error = Error;
 

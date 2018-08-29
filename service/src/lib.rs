@@ -29,7 +29,6 @@ extern crate polkadot_transaction_pool as transaction_pool;
 extern crate polkadot_network;
 extern crate substrate_primitives as primitives;
 extern crate substrate_network as network;
-extern crate substrate_codec as codec;
 extern crate substrate_client as client;
 extern crate substrate_service as service;
 extern crate tokio;
@@ -42,14 +41,12 @@ extern crate hex_literal;
 pub mod chain_spec;
 
 use std::sync::Arc;
-use std::collections::HashMap;
-
-use codec::{Encode, Decode};
+use tokio::prelude::{Stream, Future};
 use transaction_pool::TransactionPool;
 use polkadot_api::{PolkadotApi, light::RemotePolkadotApiWrapper};
 use polkadot_primitives::{parachain, AccountId, Block, BlockId, Hash};
 use polkadot_runtime::GenesisConfig;
-use client::Client;
+use client::{Client, BlockchainEvents};
 use polkadot_network::{PolkadotProtocol, consensus::ConsensusNetwork};
 use tokio::runtime::TaskExecutor;
 use service::FactoryFullConfiguration;
@@ -63,7 +60,7 @@ pub use client::ExecutionStrategy;
 pub type ChainSpec = service::ChainSpec<GenesisConfig>;
 /// Polkadot client type for specialised `Components`.
 pub type ComponentClient<C> = Client<<C as Components>::Backend, <C as Components>::Executor, Block>;
-pub type NetworkService = network::Service<Block, <Factory as service::ServiceFactory>::NetworkProtocol>;
+pub type NetworkService = network::Service<Block, <Factory as service::ServiceFactory>::NetworkProtocol, Hash>;
 
 /// A collection of type to generalise Polkadot specific components over full / light client.
 pub trait Components: service::Components {
@@ -106,16 +103,11 @@ pub struct Factory;
 
 impl service::ServiceFactory for Factory {
 	type Block = Block;
+	type ExtrinsicHash = Hash;
 	type NetworkProtocol = PolkadotProtocol;
 	type RuntimeDispatch = polkadot_executor::Executor;
-	type FullExtrinsicPool = TransactionPoolAdapter<
-		service::FullBackend<Self>,
-		service::FullExecutor<Self>,
-		service::FullClient<Self>
-	>;
-	type LightExtrinsicPool = TransactionPoolAdapter<
-		service::LightBackend<Self>,
-		service::LightExecutor<Self>,
+	type FullExtrinsicPoolApi = transaction_pool::ChainApi<service::FullClient<Self>>;
+	type LightExtrinsicPoolApi = transaction_pool::ChainApi<
 		RemotePolkadotApiWrapper<service::LightBackend<Self>, service::LightExecutor<Self>>
 	>;
 	type Genesis = GenesisConfig;
@@ -124,25 +116,17 @@ impl service::ServiceFactory for Factory {
 	const NETWORK_PROTOCOL_ID: network::ProtocolId = ::polkadot_network::DOT_PROTOCOL_ID;
 
 	fn build_full_extrinsic_pool(config: ExtrinsicPoolOptions, client: Arc<service::FullClient<Self>>)
-		-> Result<Self::FullExtrinsicPool, Error>
+		-> Result<TransactionPool<service::FullClient<Self>>, Error>
 	{
 		let api = client.clone();
-		Ok(TransactionPoolAdapter {
-			pool: Arc::new(TransactionPool::new(config, api)),
-			client: client,
-			imports_external_transactions: true,
-		})
+		Ok(TransactionPool::new(config, transaction_pool::ChainApi::new(api)))
 	}
 
 	fn build_light_extrinsic_pool(config: ExtrinsicPoolOptions, client: Arc<service::LightClient<Self>>)
-		-> Result<Self::LightExtrinsicPool, Error>
+		-> Result<TransactionPool<RemotePolkadotApiWrapper<service::LightBackend<Self>, service::LightExecutor<Self>>>, Error>
 	{
 		let api = Arc::new(RemotePolkadotApiWrapper(client.clone()));
-		Ok(TransactionPoolAdapter {
-			pool: Arc::new(TransactionPool::new(config, api)),
-			client: client,
-			imports_external_transactions: false,
-		})
+		Ok(TransactionPool::new(config, transaction_pool::ChainApi::new(api)))
 	}
 
 	fn build_network_protocol(config: &Configuration)
@@ -182,8 +166,18 @@ impl <C: Components> Service<C> {
 pub fn new_light(config: Configuration, executor: TaskExecutor)
 	-> Result<Service<LightComponents<Factory>>, Error>
 {
-	let service = service::Service::<LightComponents<Factory>>::new(config, executor)?;
+	let service = service::Service::<LightComponents<Factory>>::new(config, executor.clone())?;
 	let api = Arc::new(RemotePolkadotApiWrapper(service.client()));
+	let pool  = service.extrinsic_pool();
+	let events = service.client().import_notification_stream()
+		.for_each(move |notification| {
+			// re-verify all transactions without the sender.
+			pool.retry_verification(&BlockId::hash(notification.hash), None)
+				.map_err(|e| warn!("Error re-verifying transactions: {:?}", e))?;
+			Ok(())
+		})
+		.then(|_| Ok(()));
+	executor.spawn(events);
 	Ok(Service {
 		client: service.client(),
 		network: service.network(),
@@ -212,7 +206,16 @@ pub fn new_full(config: Configuration, executor: TaskExecutor)
 
 	let is_validator = (config.roles & Roles::AUTHORITY) == Roles::AUTHORITY;
 	let service = service::Service::<FullComponents<Factory>>::new(config, executor.clone())?;
-
+	let pool  = service.extrinsic_pool();
+	let events = service.client().import_notification_stream()
+		.for_each(move |notification| {
+			// re-verify all transactions without the sender.
+			pool.retry_verification(&BlockId::hash(notification.hash), None)
+				.map_err(|e| warn!("Error re-verifying transactions: {:?}", e))?;
+			Ok(())
+		})
+		.then(|_| Ok(()));
+	executor.spawn(events);
 	// Spin consensus service if configured
 	let consensus = if is_validator {
 		// Load the first available key
@@ -261,103 +264,3 @@ impl<C: Components> ::std::ops::Deref for Service<C> {
 		&self.inner
 	}
 }
-
-/// Transaction pool adapter.
-pub struct TransactionPoolAdapter<B, E, A> where A: Send + Sync, E: Send + Sync {
-	imports_external_transactions: bool,
-	pool: Arc<TransactionPool<A>>,
-	client: Arc<Client<B, E, Block>>,
-}
-
-impl<B, E, A> TransactionPoolAdapter<B, E, A>
-	where
-		A: Send + Sync,
-		B: client::backend::Backend<Block, KeccakHasher, RlpCodec> + Send + Sync,
-		E: client::CallExecutor<Block, KeccakHasher, RlpCodec> + Send + Sync,
-{
-	fn best_block_id(&self) -> Option<BlockId> {
-		self.client.info()
-			.map(|info| BlockId::hash(info.chain.best_hash))
-			.map_err(|e| {
-				debug!("Error getting best block: {:?}", e);
-			})
-			.ok()
-	}
-}
-
-impl<B, E, A> network::TransactionPool<Block> for TransactionPoolAdapter<B, E, A>
-	where
-		B: client::backend::Backend<Block, KeccakHasher, RlpCodec> + Send + Sync,
-		E: client::CallExecutor<Block, KeccakHasher, RlpCodec> + Send + Sync,
-		A: polkadot_api::PolkadotApi + Send + Sync,
-{
-	fn transactions(&self) -> Vec<(Hash, Vec<u8>)> {
-		let best_block_id = match self.best_block_id() {
-			Some(id) => id,
-			None => return vec![],
-		};
-		self.pool.cull_and_get_pending(best_block_id, |pending| pending
-			.map(|t| {
-				let hash = t.hash().clone();
-				(hash, t.primitive_extrinsic())
-			})
-			.collect()
-		).unwrap_or_else(|e| {
-			warn!("Error retrieving pending set: {}", e);
-			vec![]
-		})
-	}
-
-	fn import(&self, transaction: &Vec<u8>) -> Option<Hash> {
-		if !self.imports_external_transactions {
-			return None;
-		}
-
-		let encoded = transaction.encode();
-		if let Some(uxt) = Decode::decode(&mut &encoded[..]) {
-			let best_block_id = self.best_block_id()?;
-			match self.pool.import_unchecked_extrinsic(best_block_id, uxt) {
-				Ok(xt) => Some(*xt.hash()),
-				Err(e) => match *e.kind() {
-					transaction_pool::ErrorKind::AlreadyImported(hash) => Some(hash[..].into()),
-					_ => {
-						debug!(target: "txpool", "Error adding transaction to the pool: {:?}", e);
-						None
-					},
-				}
-			}
-		} else {
-			debug!(target: "txpool", "Error decoding transaction");
-			None
-		}
-	}
-
-	fn on_broadcasted(&self, propagations: HashMap<Hash, Vec<String>>) {
-		self.pool.on_broadcasted(propagations)
-	}
-}
-
-impl<B, E, A> service::ExtrinsicPool<Block> for TransactionPoolAdapter<B, E, A>
-	where
-		B: client::backend::Backend<Block, KeccakHasher, RlpCodec> + Send + Sync + 'static,
-		E: client::CallExecutor<Block, KeccakHasher, RlpCodec> + Send + Sync + 'static,
-		A: polkadot_api::PolkadotApi + Send + Sync + 'static,
-{
-	type Api = TransactionPool<A>;
-
-	fn prune_imported(&self, hash: &Hash) {
-		let block = BlockId::hash(*hash);
-		if let Err(e) = self.pool.cull(block) {
-			warn!("Culling error: {:?}", e);
-		}
-
-		if let Err(e) = self.pool.retry_verification(block) {
-			warn!("Re-verifying error: {:?}", e);
-		}
-	}
-
-	fn api(&self) -> Arc<Self::Api> {
-		self.pool.clone()
-	}
-}
-
