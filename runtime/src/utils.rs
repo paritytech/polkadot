@@ -25,7 +25,7 @@ use session::Call as SessionCall;
 
 /// Produces the list of inherent extrinsics.
 pub fn inherent_extrinsics(data: ::primitives::InherentData) -> Vec<UncheckedExtrinsic> {
-	let make_inherent = |function|	UncheckedExtrinsic::new(
+	let make_inherent = |function| UncheckedExtrinsic::new(
 		Extrinsic {
 			signed: Default::default(),
 			function,
