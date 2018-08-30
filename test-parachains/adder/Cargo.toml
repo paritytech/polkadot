@@ -6,5 +6,5 @@ description = "Test parachain which adds to a number as its state transition"
 
 [dependencies]
 polkadot-parachain = { path = "../../parachain/", default-features = false }
-substrate-codec-derive = { git = "https://github.com/paritytech/substrate", branch = "polkadot", default-features = false }
+substrate-codec-derive = { git = "https://github.com/paritytech/substrate", default-features = false }
 tiny-keccak = "1.4"

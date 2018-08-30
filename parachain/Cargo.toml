@@ -5,8 +5,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 description = "Types and utilities for creating and working with parachains"
 
 [dependencies]
-substrate-codec = { git = "https://github.com/paritytech/substrate", branch = "polkadot", default-features = false }
-substrate-codec-derive = { git = "https://github.com/paritytech/substrate", branch = "polkadot", default-features = false }
+substrate-codec = { git = "https://github.com/paritytech/substrate", default-features = false }
+substrate-codec-derive = { git = "https://github.com/paritytech/substrate", default-features = false }
 wasmi = { version = "0.4", optional = true }
 error-chain = { version = "0.12", optional = true }
 
