@@ -119,7 +119,7 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, L
 		let encoded = block.encode();
 		let res: Result<()> = call(self, at, "execute_block", &encoded);
 		match res {
-			Ok(()) => Ok(true),
+			Ok(_) => Ok(true),
 			Err(err) => match err.kind() {
 				&ErrorKind::Execution(_) => Ok(false),
 				_ => Err(err)
@@ -165,7 +165,8 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, L
 	}
 
 	fn inherent_extrinsics(&self, at: &BlockId, inherent_data: InherentData) -> Result<Vec<UncheckedExtrinsic>> {
-		inherent_data.using_encoded(|encoded| {
+		let runtime_version = self.runtime_version_at(at)?;
+		(inherent_data, runtime_version.spec_version).using_encoded(|encoded| {
 			call(self, at, "inherent_extrinsics", encoded)
 		})
 	}
@@ -241,6 +242,7 @@ mod tests {
 
 		assert_eq!(block.header.number, 1);
 		assert!(block.header.extrinsics_root != Default::default());
+		assert!(client.evaluate_block(&id, block).unwrap());
 	}
 
 	#[test]
@@ -263,6 +265,7 @@ mod tests {
 
 		assert_eq!(block.header.number, 1);
 		assert!(block.header.extrinsics_root != Default::default());
+		assert!(client.evaluate_block(&id, block).unwrap());
 	}
 
 	#[test]

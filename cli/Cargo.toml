@@ -5,29 +5,9 @@ authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 
 [dependencies]
-clap = { version = "~2.32", features = ["yaml"] }
-error-chain = "0.12"
 log = "0.3"
-slog = "^2"
-lazy_static = "1.0"
 tokio = "0.1.7"
 futures = "0.1.17"
-parking_lot = "0.4"
 exit-future = "0.1"
 substrate-cli = { git = "https://github.com/paritytech/substrate" }
-substrate-client = { git = "https://github.com/paritytech/substrate" }
-substrate-codec = { git = "https://github.com/paritytech/substrate" }
-substrate-extrinsic-pool = { git = "https://github.com/paritytech/substrate" }
-substrate-network = { git = "https://github.com/paritytech/substrate" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate" }
-substrate-rpc = { git = "https://github.com/paritytech/substrate" }
-substrate-rpc-servers = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-primitives = { git = "https://github.com/paritytech/substrate" }
-substrate-service = { git = "https://github.com/paritytech/substrate" }
-substrate-state-machine = { git = "https://github.com/paritytech/substrate" }
-substrate-telemetry = { git = "https://github.com/paritytech/substrate" }
-polkadot-primitives = { path = "../primitives" }
-polkadot-runtime = { path = "../runtime" }
 polkadot-service = { path = "../service" }
-polkadot-transaction-pool = { path = "../transaction-pool" }
-
