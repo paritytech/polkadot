@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use extrinsic_pool::{self, txpool};
+use extrinsic_pool;
 use polkadot_api;
 use primitives::Hash;
 use runtime::{Address, UncheckedExtrinsic};
 
 error_chain! {
 	links {
-		Pool(txpool::Error, txpool::ErrorKind);
+		Pool(extrinsic_pool::Error, extrinsic_pool::ErrorKind);
 		Api(polkadot_api::Error, polkadot_api::ErrorKind);
 	}
 	errors {
@@ -33,7 +33,7 @@ error_chain! {
 		/// Attempted to queue an inherent transaction.
 		IsInherent(xt: UncheckedExtrinsic) {
 			description("Inherent transactions cannot be queued."),
-			display("Inehrent transactions cannot be queued."),
+			display("Inherent transactions cannot be queued."),
 		}
 		/// Attempted to queue a transaction with bad signature.
 		BadSignature(e: &'static str) {
@@ -63,10 +63,10 @@ error_chain! {
 	}
 }
 
-impl extrinsic_pool::api::Error for Error {
-	fn into_pool_error(self) -> ::std::result::Result<txpool::Error, Self> {
+impl extrinsic_pool::IntoPoolError for Error {
+	fn into_pool_error(self) -> ::std::result::Result<extrinsic_pool::Error, Self> {
 		match self {
-			Error(ErrorKind::Pool(e), c) => Ok(txpool::Error(e, c)),
+			Error(ErrorKind::Pool(e), c) => Ok(extrinsic_pool::Error(e, c)),
 			e => Err(e),
 		}
 	}
