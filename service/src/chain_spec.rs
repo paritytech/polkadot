@@ -19,7 +19,7 @@
 use ed25519;
 use primitives::AuthorityId;
 use polkadot_runtime::{GenesisConfig, ConsensusConfig, CouncilConfig, DemocracyConfig,
-	SessionConfig, StakingConfig, TimestampConfig};
+	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig};
 use service::ChainSpec;
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -44,26 +44,29 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			authorities: initial_authorities.clone(),
 		}),
 		system: None,
-		session: Some(SessionConfig {
-			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
-			session_length: 60,	// that's 5 minutes per session.
-			broken_percent_late: 50,
-		}),
-		staking: Some(StakingConfig {
-			current_era: 0,
-			intentions: initial_authorities.iter().cloned().map(Into::into).collect(),
+		balances: Some(BalancesConfig {
 			transaction_base_fee: 100,
 			transaction_byte_fee: 1,
 			existential_deposit: 500,
 			transfer_fee: 0,
 			creation_fee: 0,
 			reclaim_rebate: 0,
+			balances: endowed_accounts.iter().map(|&k|(k, 1u128 << 60)).collect(),
+		}),
+		session: Some(SessionConfig {
+			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
+			session_length: 60,	// that's 5 minutes per session.
+		}),
+		staking: Some(StakingConfig {
+			current_era: 0,
+			intentions: initial_authorities.iter().cloned().map(Into::into).collect(),
 			early_era_slash: 10000,
 			session_reward: 100,
-			balances: endowed_accounts.iter().map(|&k|(k, 1u128 << 60)).collect(),
 			validator_count: 12,
 			sessions_per_era: 12,	// 1 hour per era
 			bonding_duration: 24 * 60 * 12,	// 1 day per bond.
+			offline_slash_grace: 4,
+			minimum_validator_count: 4,
 		}),
 		democracy: Some(DemocracyConfig {
 			launch_period: 12 * 60 * 24,	// 1 day per public referendum
@@ -119,14 +122,7 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
 			authorities: initial_authorities.clone(),
 		}),
 		system: None,
-		session: Some(SessionConfig {
-			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
-			session_length: 10,
-			broken_percent_late: 30,
-		}),
-		staking: Some(StakingConfig {
-			current_era: 0,
-			intentions: initial_authorities.iter().cloned().map(Into::into).collect(),
+		balances: Some(BalancesConfig {
 			transaction_base_fee: 1,
 			transaction_byte_fee: 0,
 			existential_deposit: 500,
@@ -134,11 +130,21 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
 			creation_fee: 0,
 			reclaim_rebate: 0,
 			balances: endowed_accounts.iter().map(|&k|(k, (1u128 << 60))).collect(),
+		}),
+		session: Some(SessionConfig {
+			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
+			session_length: 10,
+		}),
+		staking: Some(StakingConfig {
+			current_era: 0,
+			intentions: initial_authorities.iter().cloned().map(Into::into).collect(),
+			minimum_validator_count: 1,
 			validator_count: 2,
 			sessions_per_era: 5,
 			bonding_duration: 2 * 60 * 12,
 			early_era_slash: 0,
 			session_reward: 0,
+			offline_slash_grace: 0,
 		}),
 		democracy: Some(DemocracyConfig {
 			launch_period: 9,

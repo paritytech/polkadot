@@ -258,7 +258,9 @@ mod tests {
 		type PublicAux = u64;
 	}
 	impl consensus::Trait for Test {
+		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type SessionKey = u64;
+		type OnOfflineValidator = ();
 	}
 	impl system::Trait for Test {
 		type PublicAux = <Self as HasPublicAux>::PublicAux;
@@ -269,11 +271,12 @@ mod tests {
 		type Digest = Digest;
 		type AccountId = u64;
 		type Header = Header;
+		type Event = ();
 	}
 	impl session::Trait for Test {
-		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type ConvertAccountIdToSessionKey = Identity;
 		type OnSessionChange = ();
+		type Event = ();
 	}
 	impl timestamp::Trait for Test {
 		const TIMESTAMP_SET_POSITION: u32 = 0;
@@ -296,7 +299,6 @@ mod tests {
 		t.extend(session::GenesisConfig::<Test>{
 			session_length: 1000,
 			validators: vec![1, 2, 3, 4, 5, 6, 7, 8],
-			broken_percent_late: 100,
 		}.build_storage().unwrap());
 		t.extend(GenesisConfig::<Test>{
 			parachains: parachains,
