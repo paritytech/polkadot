@@ -10,12 +10,12 @@ polkadot-api = { path = "../api" }
 polkadot-availability-store = { path = "../availability-store" }
 polkadot-consensus = { path = "../consensus" }
 polkadot-primitives = { path = "../primitives" }
-substrate-bft = { git = "https://github.com/paritytech/substrate" }
-substrate-codec = { git = "https://github.com/paritytech/substrate" }
-substrate-codec-derive = { git = "https://github.com/paritytech/substrate" }
-substrate-network = { git = "https://github.com/paritytech/substrate" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate" }
-ed25519 = { git = "https://github.com/paritytech/substrate" }
+substrate-bft = { git = "https://github.com/paritytech/substrate", branch = "polkadot" }
+substrate-codec = { git = "https://github.com/paritytech/substrate", branch = "polkadot" }
+substrate-codec-derive = { git = "https://github.com/paritytech/substrate", branch = "polkadot" }
+substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot" }
+ed25519 = { git = "https://github.com/paritytech/substrate", branch = "polkadot" }
 futures = "0.1"
 tokio = "0.1.7"
 log = "0.4"

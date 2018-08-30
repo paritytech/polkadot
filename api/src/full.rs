@@ -121,7 +121,7 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, L
 	}
 
 	fn lookup(&self, at: &BlockId, address: Address) -> Result<Option<AccountId>> {
-		with_runtime!(self, at, || <::runtime::Staking as AuxLookup>::lookup(address).ok())
+		with_runtime!(self, at, || <::runtime::Balances as AuxLookup>::lookup(address).ok())
 	}
 
 	fn active_parachains(&self, at: &BlockId) -> Result<Vec<ParaId>> {

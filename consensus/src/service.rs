@@ -212,7 +212,7 @@ impl Service {
 			let mut prev_best = match client.best_block_header() {
 				Ok(header) => header.hash(),
 				Err(e) => {
-					warn!("Cant's start consensus service. Error reading best block header: {:?}", e);
+					warn!("Can't start consensus service. Error reading best block header: {:?}", e);
 					return;
 				}
 			};

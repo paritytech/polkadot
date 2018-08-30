@@ -549,8 +549,8 @@ impl<C> bft::Proposer<Block> for Proposer<C>
 
 		// refuse to vote if this block says a validator is offline that we
 		// think isn't.
-		let offline = proposal.noted_offline();
-		if !self.offline.read().check_consistency(&self.validators[..], offline) {
+		let missed_proposal = proposal.noted_missed_proposal();
+		if !self.offline.read().check_consistency(&self.validators[..], missed_proposal) {
 			return Box::new(futures::empty());
 		}
 

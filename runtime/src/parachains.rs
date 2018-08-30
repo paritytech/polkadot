@@ -158,7 +158,7 @@ impl<T: Trait> Module<T> {
 		ensure!(aux.is_empty(), "set_heads must not be signed");
 		ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
 		ensure!(
-			<system::Module<T>>::extrinsic_index() == T::SET_POSITION,
+			<system::Module<T>>::extrinsic_index() == Some(T::SET_POSITION),
 			"Parachain heads update extrinsic must be at position {} in the block"
 //			, T::SET_POSITION
 		);

@@ -17,11 +17,11 @@
 //! Utils for block interaction.
 
 use rstd::prelude::*;
-use super::{Call, UncheckedExtrinsic, Extrinsic, Staking};
+use super::{Call, UncheckedExtrinsic, Extrinsic, Balances};
 use runtime_primitives::traits::{Checkable, AuxLookup};
 use timestamp::Call as TimestampCall;
 use parachains::Call as ParachainsCall;
-use session::Call as SessionCall;
+use staking::Call as StakingCall;
 
 /// Produces the list of inherent extrinsics.
 pub fn inherent_extrinsics(data: ::primitives::InherentData) -> Vec<UncheckedExtrinsic> {
@@ -41,7 +41,7 @@ pub fn inherent_extrinsics(data: ::primitives::InherentData) -> Vec<UncheckedExt
 
 	if !data.offline_indices.is_empty() {
 		inherent.push(make_inherent(
-			Call::Session(SessionCall::note_offline(data.offline_indices))
+			Call::Staking(StakingCall::note_missed_proposal(data.offline_indices))
 		));
 	}
 
@@ -50,5 +50,5 @@ pub fn inherent_extrinsics(data: ::primitives::InherentData) -> Vec<UncheckedExt
 
 /// Checks an unchecked extrinsic for validity.
 pub fn check_extrinsic(xt: UncheckedExtrinsic) -> bool {
-	xt.check_with(Staking::lookup).is_ok()
+	xt.check_with(Balances::lookup).is_ok()
 }

@@ -9,5 +9,5 @@ log = "0.3"
 tokio = "0.1.7"
 futures = "0.1.17"
 exit-future = "0.1"
-substrate-cli = { git = "https://github.com/paritytech/substrate" }
+substrate-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot" }
 polkadot-service = { path = "../service" }
