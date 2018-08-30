@@ -88,8 +88,8 @@ pub use primitives::Header;
 pub const TIMESTAMP_SET_POSITION: u32 = 0;
 /// The position of the parachains set extrinsic.
 pub const PARACHAINS_SET_POSITION: u32 = 1;
-/// The position of the note_missed_proposal extrinsic in the block, if it exists.
-pub const NOTE_MISSED_PROPOSAL_POSITION: u32 = 2;
+/// The position of the note_offline in the block, if it exists.
+pub const NOTE_OFFLINE_POSITION: u32 = 2;
 
 /// The address format for describing accounts.
 pub type Address = balances::Address<Concrete>;
@@ -155,7 +155,9 @@ impl balances::Trait for Concrete {
 pub type Balances = balances::Module<Concrete>;
 
 impl consensus::Trait for Concrete {
+	const NOTE_OFFLINE_POSITION: u32 = NOTE_OFFLINE_POSITION;
 	type SessionKey = SessionKey;
+	type OnOfflineValidator = Staking;
 }
 /// Consensus module for this concrete runtime.
 pub type Consensus = consensus::Module<Concrete>;
@@ -184,7 +186,6 @@ impl session::Trait for Concrete {
 pub type Session = session::Module<Concrete>;
 
 impl staking::Trait for Concrete {
-	const NOTE_MISSED_PROPOSAL_POSITION: u32 = NOTE_MISSED_PROPOSAL_POSITION;
 	type Event = Event;
 }
 /// Staking module for this concrete runtime.

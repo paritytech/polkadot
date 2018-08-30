@@ -16,10 +16,10 @@
 
 //! Typesafe block interaction.
 
-use super::{Call, Block, TIMESTAMP_SET_POSITION, PARACHAINS_SET_POSITION, NOTE_MISSED_PROPOSAL_POSITION};
+use super::{Call, Block, TIMESTAMP_SET_POSITION, PARACHAINS_SET_POSITION, NOTE_OFFLINE_POSITION};
 use timestamp::Call as TimestampCall;
 use parachains::Call as ParachainsCall;
-use staking::Call as StakingCall;
+use consensus::Call as ConsensusCall;
 use primitives::parachain::CandidateReceipt;
 
 /// Provides a type-safe wrapper around a structurally valid block.
@@ -91,9 +91,9 @@ impl CheckedBlock {
 	}
 
 	/// Extract the noted missed proposal validator indices (if any) from the block.
-	pub fn noted_missed_proposal(&self) -> &[u32] {
-		self.inner.extrinsics.get(NOTE_MISSED_PROPOSAL_POSITION as usize).and_then(|xt| match xt.extrinsic.function {
-			Call::Staking(StakingCall::note_missed_proposal(ref x)) => Some(&x[..]),
+	pub fn noted_offline(&self) -> &[u32] {
+		self.inner.extrinsics.get(NOTE_OFFLINE_POSITION as usize).and_then(|xt| match xt.extrinsic.function {
+			Call::Consensus(ConsensusCall::note_offline(ref x)) => Some(&x[..]),
 			_ => None,
 		}).unwrap_or(&[])
 	}
