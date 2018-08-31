@@ -61,16 +61,17 @@ decl_module! {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait>;
-	// Vector of all parachain IDs.
-	pub Parachains get(active_parachains): b"para:chains" => default Vec<Id>;
-	// The parachains registered at present.
-	pub Code get(parachain_code): b"para:code" => map [ Id => Vec<u8> ];
-	// The heads of the parachains registered at present. these are kept sorted.
-	pub Heads get(parachain_head): b"para:head" => map [ Id => Vec<u8> ];
+	trait Store for Module<T: Trait> as Parachains {
+		// Vector of all parachain IDs.
+		pub Parachains get(active_parachains): default Vec<Id>;
+		// The parachains registered at present.
+		pub Code get(parachain_code): map [ Id => Vec<u8> ];
+		// The heads of the parachains registered at present. these are kept sorted.
+		pub Heads get(parachain_head): map [ Id => Vec<u8> ];
 
-	// Did the parachain heads get updated in this block?
-	DidUpdate: b"para:did" => default bool;
+		// Did the parachain heads get updated in this block?
+		DidUpdate: default bool;
+	}
 }
 
 impl<T: Trait> Module<T> {
@@ -157,7 +158,7 @@ impl<T: Trait> Module<T> {
 		ensure!(aux.is_empty(), "set_heads must not be signed");
 		ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
 		ensure!(
-			<system::Module<T>>::extrinsic_index() == T::SET_POSITION,
+			<system::Module<T>>::extrinsic_index() == Some(T::SET_POSITION),
 			"Parachain heads update extrinsic must be at position {} in the block"
 //			, T::SET_POSITION
 		);
@@ -257,10 +258,12 @@ mod tests {
 		type PublicAux = u64;
 	}
 	impl consensus::Trait for Test {
-		type PublicAux = <Self as HasPublicAux>::PublicAux;
+		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type SessionKey = u64;
+		type OnOfflineValidator = ();
 	}
 	impl system::Trait for Test {
+		type PublicAux = <Self as HasPublicAux>::PublicAux;
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -268,11 +271,12 @@ mod tests {
 		type Digest = Digest;
 		type AccountId = u64;
 		type Header = Header;
+		type Event = ();
 	}
 	impl session::Trait for Test {
-		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type ConvertAccountIdToSessionKey = Identity;
 		type OnSessionChange = ();
+		type Event = ();
 	}
 	impl timestamp::Trait for Test {
 		const TIMESTAMP_SET_POSITION: u32 = 0;
@@ -295,7 +299,6 @@ mod tests {
 		t.extend(session::GenesisConfig::<Test>{
 			session_length: 1000,
 			validators: vec![1, 2, 3, 4, 5, 6, 7, 8],
-			broken_percent_late: 100,
 		}.build_storage().unwrap());
 		t.extend(GenesisConfig::<Test>{
 			parachains: parachains,

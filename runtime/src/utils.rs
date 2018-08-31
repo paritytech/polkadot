@@ -17,16 +17,15 @@
 //! Utils for block interaction.
 
 use rstd::prelude::*;
-use super::{Call, UncheckedExtrinsic, Extrinsic, Staking};
+use super::{Call, UncheckedExtrinsic, Extrinsic, Balances};
 use runtime_primitives::traits::{Checkable, AuxLookup};
 use timestamp::Call as TimestampCall;
 use parachains::Call as ParachainsCall;
-use session::Call as SessionCall;
-use version::RuntimeVersion;
+use consensus::Call as ConsensusCall;
 
 /// Produces the list of inherent extrinsics.
-pub fn inherent_extrinsics(data: ::primitives::InherentData, runtime_version: RuntimeVersion) -> Vec<UncheckedExtrinsic> {
-	let make_inherent = |function|	UncheckedExtrinsic::new(
+pub fn inherent_extrinsics(data: ::primitives::InherentData, spec_version: u32) -> Vec<UncheckedExtrinsic> {
+	let make_inherent = |function| UncheckedExtrinsic::new(
 		Extrinsic {
 			signed: Default::default(),
 			function,
@@ -40,9 +39,9 @@ pub fn inherent_extrinsics(data: ::primitives::InherentData, runtime_version: Ru
 		make_inherent(Call::Parachains(ParachainsCall::set_heads(data.parachain_heads))),
 	];
 
-	if !data.offline_indices.is_empty() && runtime_version.spec_version == 4 {
+	if !data.offline_indices.is_empty() && spec_version == 4 {
 		inherent.push(make_inherent(
-			Call::Session(SessionCall::note_offline(data.offline_indices))
+			Call::Consensus(ConsensusCall::note_offline(data.offline_indices))
 		));
 	}
 
@@ -51,5 +50,5 @@ pub fn inherent_extrinsics(data: ::primitives::InherentData, runtime_version: Ru
 
 /// Checks an unchecked extrinsic for validity.
 pub fn check_extrinsic(xt: UncheckedExtrinsic) -> bool {
-	xt.check_with(Staking::lookup).is_ok()
+	xt.check_with(Balances::lookup).is_ok()
 }

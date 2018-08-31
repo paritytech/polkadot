@@ -136,7 +136,7 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, L
 	}
 
 	fn lookup(&self, at: &BlockId, address: Address) -> Result<Option<AccountId>> {
-		with_runtime!(self, at, || <::runtime::Staking as AuxLookup>::lookup(address).ok())
+		with_runtime!(self, at, || <::runtime::Balances as AuxLookup>::lookup(address).ok())
 	}
 
 	fn active_parachains(&self, at: &BlockId) -> Result<Vec<ParaId>> {
@@ -166,7 +166,7 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, L
 		let runtime_version = self.runtime_version_at(at)?;
 
 		with_runtime!(self, at, || {
-			let extrinsics = ::runtime::inherent_extrinsics(inherent_data, runtime_version);
+			let extrinsics = ::runtime::inherent_extrinsics(inherent_data, runtime_version.spec_version);
 			extrinsics.into_iter()
 				.map(|x| x.encode()) // get encoded representation
 				.map(|x| Decode::decode(&mut &x[..])) // get byte-vec equivalent to extrinsic
@@ -209,10 +209,10 @@ mod tests {
 				authorities: session_keys(),
 			}),
 			system: None,
+			balances: Some(Default::default()),
 			session: Some(SessionConfig {
 				validators: validators(),
 				session_length: 100,
-				broken_percent_late: 100,
 			}),
 			council: Some(Default::default()),
 			democracy: Some(Default::default()),
