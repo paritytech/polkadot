@@ -205,10 +205,10 @@ mod tests {
 				authorities: session_keys(),
 			}),
 			system: None,
+			balances: Some(Default::default()),
 			session: Some(SessionConfig {
 				validators: validators(),
 				session_length: 100,
-				broken_percent_late: 100,
 			}),
 			council: Some(Default::default()),
 			democracy: Some(Default::default()),

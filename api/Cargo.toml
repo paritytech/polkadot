@@ -17,7 +17,6 @@ substrate-client = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 substrate-executor = { git = "https://github.com/paritytech/substrate" }
 substrate-state-machine = { git = "https://github.com/paritytech/substrate" }
-log = "0.3"
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate" }
