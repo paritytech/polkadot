@@ -275,7 +275,15 @@ pub mod api {
 		finalise_block => |()| super::Executive::finalise_block(),
 		inherent_extrinsics => |(inherent, spec_version)| super::inherent_extrinsics(inherent, spec_version),
 		validator_count => |()| super::Session::validator_count(),
-		validators => |()| super::Session::validators()
+		validators => |()| super::Session::validators(),
+		duty_roster => |()| super::Parachains::calculate_duty_roster(),
+		active_parachains => |()| super::Parachains::active_parachains(),
+		parachain_head => |id| super::Parachains::parachain_head(&id),
+		parachain_code => |id| super::Parachains::parachain_code(&id),
+		timestamp => |()| super::Timestamp::get(),
+		random_seed => |()| super::System::random_seed(),
+		account_nonce => |account| super::System::account_nonce(&account),
+		lookup_address => |address| super::Balances::lookup_address(address)
 	);
 }
 
