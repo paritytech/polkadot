@@ -39,7 +39,7 @@ pub fn inherent_extrinsics(data: ::primitives::InherentData, spec_version: u32) 
 		make_inherent(Call::Parachains(ParachainsCall::set_heads(data.parachain_heads))),
 	];
 
-	if !data.offline_indices.is_empty() && spec_version == 4 {
+	if !data.offline_indices.is_empty() && spec_version == 5 {
 		inherent.push(make_inherent(
 			Call::Consensus(ConsensusCall::note_offline(data.offline_indices))
 		));

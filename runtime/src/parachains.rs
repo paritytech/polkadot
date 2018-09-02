@@ -19,7 +19,7 @@
 use rstd::prelude::*;
 use codec::Decode;
 
-use runtime_primitives::traits::{Hash, BlakeTwo256, Executable, RefInto, MaybeEmpty};
+use runtime_primitives::traits::{Hash, BlakeTwo256, OnFinalise, RefInto, MaybeEmpty};
 use primitives::parachain::{Id, Chain, DutyRoster, CandidateReceipt};
 use {system, session};
 
@@ -186,8 +186,8 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-impl<T: Trait> Executable for Module<T> {
-	fn execute() {
+impl<T: Trait> OnFinalise for Module<T> {
+	fn on_finalise() {
 		assert!(<Self as Store>::DidUpdate::take(), "Parachain heads must be updated once in the block");
 	}
 }
@@ -248,22 +248,19 @@ mod tests {
 	use runtime_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, KeccakHasher};
 	use runtime_primitives::BuildStorage;
-	use runtime_primitives::traits::{HasPublicAux, Identity, BlakeTwo256};
+	use runtime_primitives::traits::{Identity, BlakeTwo256};
 	use runtime_primitives::testing::{Digest, Header};
 	use {consensus, timestamp};
 
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
-	impl HasPublicAux for Test {
-		type PublicAux = u64;
-	}
 	impl consensus::Trait for Test {
 		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type SessionKey = u64;
 		type OnOfflineValidator = ();
 	}
 	impl system::Trait for Test {
-		type PublicAux = <Self as HasPublicAux>::PublicAux;
+		type PublicAux = Self::AccountId;
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -285,7 +282,7 @@ mod tests {
 	impl Trait for Test {
 		const SET_POSITION: u32 = 0;
 
-		type PublicAux = <Self as HasPublicAux>::PublicAux;
+		type PublicAux = <Self as system::Trait>::PublicAux;
 	}
 
 	type Parachains = Module<Test>;
