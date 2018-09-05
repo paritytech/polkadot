@@ -31,6 +31,8 @@ extern crate substrate_primitives as primitives;
 extern crate substrate_network as network;
 extern crate substrate_client as client;
 extern crate substrate_service as service;
+#[macro_use] extern crate substrate_telemetry as telemetry;
+#[macro_use] extern crate slog;	// needed until we can reexport `slog_info` from `substrate_telemetry`
 extern crate tokio;
 
 #[macro_use]
@@ -220,7 +222,10 @@ pub fn new_full(config: Configuration, executor: TaskExecutor)
 	let consensus = if is_validator {
 		// Load the first available key
 		let key = service.keystore().load(&service.keystore().contents()?[0], "")?;
-		info!("Using authority key {}", key.public());
+		let key_formatted = format!("{}", key.public());
+
+		info!("Using authority key {}", &key_formatted);
+		telemetry!("node.validator"; "authority" => &key_formatted);
 
 		let client = service.client();
 
