@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use super::{Call, UncheckedExtrinsic, Extrinsic, Balances};
-use runtime_primitives::traits::{Checkable, AuxLookup};
+use runtime_primitives::traits::{Checkable, Lookup};
 use timestamp::Call as TimestampCall;
 use parachains::Call as ParachainsCall;
 use consensus::Call as ConsensusCall;

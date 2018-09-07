@@ -119,15 +119,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_version: 0,
 };
 
-impl version::Trait for Runtime {
-	const VERSION: RuntimeVersion = VERSION;
-}
-
-/// Version module for this concrete runtime.
-pub type Version = version::Module<Runtime>;
-
 impl system::Trait for Runtime {
-	type PublicAux = Self::AccountId;
+	type Origin = Self::AccountId;
 	type Index = Index;
 	type BlockNumber = BlockNumber;
 	type Hash = Hash;
@@ -202,7 +195,7 @@ pub type CouncilVoting = council::voting::Module<Runtime>;
 impl parachains::Trait for Runtime {
 	const SET_POSITION: u32 = PARACHAINS_SET_POSITION;
 
-	type PublicAux = <Runtime as system::Trait>::PublicAux;
+	type Origin = <Runtime as system::Trait>::Origin;
 }
 pub type Parachains = parachains::Module<Runtime>;
 
@@ -216,7 +209,7 @@ impl_outer_dispatch! {
 	/// Call type for polkadot transactions.
 	#[derive(Clone, PartialEq, Eq)]
 	#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
-	pub enum Call where aux: <Runtime as system::Trait>::PublicAux {
+	pub enum Call where origin: <Runtime as system::Trait>::Origin {
 		Consensus = 0,
 		Balances = 1,
 		Session = 2,
@@ -263,7 +256,7 @@ impl_outer_config! {
 
 pub mod api {
 	impl_stubs!(
-		version => |()| super::Version::version(),
+		version => |()| super::VERSION,
 		authorities => |()| super::Consensus::authorities(),
 		initialise_block => |header| super::Executive::initialise_block(&header),
 		apply_extrinsic => |extrinsic| super::Executive::apply_extrinsic(extrinsic),
