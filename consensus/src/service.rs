@@ -39,7 +39,7 @@ use extrinsic_store::Store as ExtrinsicStore;
 use tokio::executor::current_thread::TaskExecutor as LocalThreadHandle;
 use tokio::runtime::TaskExecutor as ThreadPoolHandle;
 use tokio::runtime::current_thread::Runtime as LocalRuntime;
-use tokio::timer::{Delay, Interval};
+use tokio::timer::Interval;
 
 use super::{Network, Collators, ProposerFactory};
 use error;
@@ -59,35 +59,14 @@ fn start_bft<F, C>(
 	<F::Proposer as bft::Proposer<Block>>::Error: ::std::fmt::Display + Into<error::Error>,
 	<F as bft::Environment<Block>>::Error: ::std::fmt::Display
 {
-	const DELAY_UNTIL: Duration = Duration::from_millis(5000);
-
 	let mut handle = LocalThreadHandle::current();
-	let work = Delay::new(Instant::now() + DELAY_UNTIL)
-		.then(move |res| {
-			if let Err(e) = res {
-				warn!(target: "bft", "Failed to force delay of consensus: {:?}", e);
-			}
-
-			match bft_service.build_upon(&header) {
-				Ok(maybe_bft_work) => {
-					if maybe_bft_work.is_some() {
-						debug!(target: "bft", "Starting agreement. After forced delay for {:?}",
-							DELAY_UNTIL);
-					}
-
-					maybe_bft_work
-				}
-				Err(e) => {
-					warn!(target: "bft", "BFT agreement error: {}", e);
-					None
-				}
-			}
-		})
-		.map(|_| ());
-
-	if let Err(e) = handle.spawn_local(Box::new(work)) {
-    	debug!(target: "bft", "Couldn't initialize BFT agreement: {:?}", e);
-    }
+	match bft_service.build_upon(&header) {
+		Ok(Some(bft_work)) => if let Err(e) = handle.spawn_local(Box::new(bft_work)) {
+		    warn!(target: "bft", "Couldn't initialize BFT agreement: {:?}", e);
+		}
+		Ok(None) => trace!(target: "bft", "Could not start agreement on top of {}", header.hash()),
+		Err(e) => warn!(target: "bft", "BFT agreement error: {}", e),
+	}
 }
 
 // creates a task to prune redundant entries in availability store upon block finalization
@@ -198,6 +177,7 @@ impl Service {
 
 				client.import_notification_stream().for_each(move |notification| {
 					if notification.is_new_best {
+						trace!(target: "bft", "Attempting to start new consensus round after import notification of {:?}", notification.hash);
 						start_bft(notification.header, bft_service.clone());
 					}
 					Ok(())
@@ -212,7 +192,7 @@ impl Service {
 			let mut prev_best = match client.best_block_header() {
 				Ok(header) => header.hash(),
 				Err(e) => {
-					warn!("Cant's start consensus service. Error reading best block header: {:?}", e);
+					warn!("Can't start consensus service. Error reading best block header: {:?}", e);
 					return;
 				}
 			};
@@ -221,11 +201,12 @@ impl Service {
 				let c = client.clone();
 				let s = bft_service.clone();
 
-				interval.map_err(|e| debug!("Timer error: {:?}", e)).for_each(move |_| {
+				interval.map_err(|e| debug!(target: "bft", "Timer error: {:?}", e)).for_each(move |_| {
 					if let Ok(best_block) = c.best_block_header() {
 						let hash = best_block.hash();
-						if hash == prev_best && s.live_agreement() != Some(hash) {
-							debug!("Starting consensus round after a timeout");
+
+						if hash == prev_best {
+							debug!(target: "bft", "Starting consensus round after a timeout");
 							start_bft(best_block, s.clone());
 						}
 						prev_best = hash;
