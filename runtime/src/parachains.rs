@@ -19,7 +19,7 @@
 use rstd::prelude::*;
 use codec::Decode;
 
-use runtime_primitives::traits::{Hash, BlakeTwo256, OnFinalise, RefInto};
+use runtime_primitives::traits::{Hash, BlakeTwo256, OnFinalise};
 use primitives::parachain::{Id, Chain, DutyRoster, CandidateReceipt};
 use {system, session};
 
@@ -40,13 +40,11 @@ use system::{ensure_root, ensure_inherent};
 pub trait Trait: system::Trait<Hash = ::primitives::Hash> + session::Trait {
 	/// The position of the set_heads call in the block.
 	const SET_POSITION: u32;
-
-	type Origin: RefInto<Self::AccountId>;
 }
 
 decl_module! {
 	/// Parachains module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn set_heads(origin, heads: Vec<CandidateReceipt>) -> Result;
 
@@ -122,7 +120,7 @@ impl<T: Trait> Module<T> {
 	/// Register a parachain with given code.
 	/// Fails if given ID is already used.
 	pub fn register_parachain(origin: T::Origin, id: Id, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
-		ensure_root()?;
+		ensure_root(origin)?;
 		let mut parachains = Self::active_parachains();
 		match parachains.binary_search(&id) {
 			Ok(_) => fail!("Parachain already exists"),
@@ -138,7 +136,7 @@ impl<T: Trait> Module<T> {
 
 	/// Deregister a parachain with given id
 	pub fn deregister_parachain(origin: T::Origin, id: Id) -> Result {
-		ensure_root()?;
+		ensure_root(origin)?;
 		let mut parachains = Self::active_parachains();
 		match parachains.binary_search(&id) {
 			Ok(idx) => { parachains.remove(idx); }
@@ -151,8 +149,8 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
-	fn set_heads(origin: <T as Trait>::Origin, heads: Vec<CandidateReceipt>) -> Result {
-		ensure_inherent()?;
+	fn set_heads(origin: T::Origin, heads: Vec<CandidateReceipt>) -> Result {
+		ensure_inherent(origin)?;
 		ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
 		ensure!(
 			<system::Module<T>>::extrinsic_index() == Some(T::SET_POSITION),
@@ -243,7 +241,7 @@ impl<T: Trait> runtime_primitives::BuildStorage for GenesisConfig<T>
 mod tests {
 	use super::*;
 	use runtime_io::{TestExternalities, with_externalities};
-	use substrate_primitives::{H256, KeccakHasher};
+	use substrate_primitives::{H256, Blake2Hasher};
 	use runtime_primitives::BuildStorage;
 	use runtime_primitives::traits::{Identity, BlakeTwo256};
 	use runtime_primitives::testing::{Digest, Header};
@@ -288,7 +286,7 @@ mod tests {
 
 	type Parachains = Module<Test>;
 
-	fn new_test_ext(parachains: Vec<(Id, Vec<u8>, Vec<u8>)>) -> TestExternalities<KeccakHasher> {
+	fn new_test_ext(parachains: Vec<(Id, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		t.extend(consensus::GenesisConfig::<Test>{
 			code: vec![],

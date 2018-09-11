@@ -23,14 +23,16 @@ use polkadot_executor::Executor as LocalDispatch;
 use substrate_executor::NativeExecutor;
 use state_machine;
 
+//use runtime::{Block, Header, Address, BlockId};
 use runtime::Address;
 use runtime_primitives::traits::Lookup;
 use primitives::{
-	AccountId, Block, Header, BlockId, Hash, Index, InherentData,
+	Block, Header, BlockId,
+	AccountId, Hash, Index, InherentData,
 	SessionKey, Timestamp, UncheckedExtrinsic,
 };
 use primitives::parachain::{DutyRoster, Id as ParaId};
-use substrate_primitives::{KeccakHasher, RlpCodec};
+use substrate_primitives::{Blake2Hasher, RlpCodec};
 
 use {BlockBuilder, PolkadotApi, LocalPolkadotApi, ErrorKind, Error, Result};
 
@@ -61,7 +63,7 @@ macro_rules! with_runtime {
 	}}
 }
 
-impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> BlockBuilder for ClientBlockBuilder<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block, KeccakHasher, RlpCodec> {
+impl<B: LocalBackend<Block, Blake2Hasher, RlpCodec>> BlockBuilder for ClientBlockBuilder<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block, Blake2Hasher, RlpCodec> {
 	fn push_extrinsic(&mut self, extrinsic: UncheckedExtrinsic) -> Result<()> {
 		self.push(extrinsic).map_err(Into::into)
 	}
@@ -72,8 +74,8 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> BlockBuilder for ClientBloc
 	}
 }
 
-impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block> {
-	type BlockBuilder = ClientBlockBuilder<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block, KeccakHasher, RlpCodec>;
+impl<B: LocalBackend<Block, Blake2Hasher, RlpCodec>> PolkadotApi for Client<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block> {
+	type BlockBuilder = ClientBlockBuilder<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block, Blake2Hasher, RlpCodec>;
 
 	fn session_keys(&self, at: &BlockId) -> Result<Vec<SessionKey>> {
 		with_runtime!(self, at, ::runtime::Consensus::authorities)
@@ -176,7 +178,7 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, L
 	}
 }
 
-impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> LocalPolkadotApi for Client<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block>
+impl<B: LocalBackend<Block, Blake2Hasher, RlpCodec>> LocalPolkadotApi for Client<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block>
 {}
 
 #[cfg(test)]
@@ -202,7 +204,7 @@ mod tests {
 		]
 	}
 
-	fn client() -> Client<InMemory<Block, KeccakHasher, RlpCodec>, LocalCallExecutor<InMemory<Block, KeccakHasher, RlpCodec>, NativeExecutor<LocalDispatch>>, Block> {
+	fn client() -> Client<InMemory<Block, Blake2Hasher, RlpCodec>, LocalCallExecutor<InMemory<Block, Blake2Hasher, RlpCodec>, NativeExecutor<LocalDispatch>>, Block> {
 		let genesis_config = GenesisConfig {
 			consensus: Some(ConsensusConfig {
 				code: LocalDispatch::native_equivalent().to_vec(),

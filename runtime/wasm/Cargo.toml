@@ -26,31 +26,8 @@ substrate-runtime-session = { git = "https://github.com/paritytech/substrate", d
 substrate-runtime-staking = { git = "https://github.com/paritytech/substrate", default-features = false }
 substrate-runtime-system = { git = "https://github.com/paritytech/substrate", default-features = false }
 substrate-runtime-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false }
+substrate-runtime-treasury = { git = "https://github.com/paritytech/substrate", default-features = false }
 substrate-runtime-version = { git = "https://github.com/paritytech/substrate", default-features = false }
-
-[features]
-default = []
-std = [
-	"polkadot-primitives/std",
-	"safe-mix/std",
-	"substrate-codec/std",
-	"substrate-codec-derive/std",
-	"substrate-primitives/std",
-	"substrate-runtime-std/std",
-	"substrate-runtime-io/std",
-	"substrate-runtime-support/std",
-	"substrate-runtime-balances/std",
-	"substrate-runtime-consensus/std",
-	"substrate-runtime-council/std",
-	"substrate-runtime-democracy/std",
-	"substrate-runtime-executive/std",
-	"substrate-runtime-primitives/std",
-	"substrate-runtime-session/std",
-	"substrate-runtime-staking/std",
-	"substrate-runtime-system/std",
-	"substrate-runtime-timestamp/std",
-	"substrate-runtime-version/std",
-]
 
 [profile.release]
 panic = "abort"
