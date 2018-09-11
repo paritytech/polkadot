@@ -593,8 +593,7 @@ impl<C> bft::Proposer<Block> for Proposer<C>
 	fn import_misbehavior(&self, misbehavior: Vec<(AuthorityId, bft::Misbehavior<Hash>)>) {
 		use rhododendron::Misbehavior as GenericMisbehavior;
 		use runtime_primitives::bft::{MisbehaviorKind, MisbehaviorReport};
-		use runtime_primitives::MaybeUnsigned;
-		use polkadot_runtime::{Call, Extrinsic, BareExtrinsic, UncheckedExtrinsic, ConsensusCall};
+		use polkadot_runtime::{Call, UncheckedExtrinsic, ConsensusCall, RawAddress};
 
 		let local_id = self.local_key.public().0.into();
 		let mut next_index = {
@@ -632,23 +631,18 @@ impl<C> bft::Proposer<Block> for Proposer<C>
 						=> MisbehaviorKind::BftDoubleCommit(round as u32, (h1, s1.signature), (h2, s2.signature)),
 				}
 			};
-			let extrinsic = BareExtrinsic {
-				signed: local_id,
-				index: next_index,
-				function: Call::Consensus(ConsensusCall::report_misbehavior(report)),
-			};
-
+			let payload = (next_index, Call::Consensus(ConsensusCall::report_misbehavior(report)));
+			let signature = self.local_key.sign(&payload.encode()).into();
 			next_index += 1;
 
-			let signature = MaybeUnsigned(self.local_key.sign(&extrinsic.encode()).into());
-
-			let extrinsic = Extrinsic {
-				signed: extrinsic.signed.into(),
-				index: extrinsic.index,
-				function: extrinsic.function,
+			let local_id = self.local_key.public().0.into();
+			let extrinsic = UncheckedExtrinsic {
+				signature: Some((RawAddress::Id(local_id), signature)),
+				index: payload.0,
+				function: payload.1,
 			};
-			let uxt: Vec<u8> = Decode::decode(&mut UncheckedExtrinsic::new(extrinsic, signature).encode().as_slice()).expect("Encoded extrinsic is valid");
-			self.transaction_pool.submit_one(&BlockId::hash(self.parent_hash), uxt)
+			let uxt: Vec<u8> = Decode::decode(&mut extrinsic.encode().as_slice()).expect("Encoded extrinsic is valid");
+			self.transaction_pool.submit_one(&BlockId::hash(self.parent_hash), polkadot_primitives::UncheckedExtrinsic(uxt))
 				.expect("locally signed extrinsic is valid; qed");
 		}
 	}

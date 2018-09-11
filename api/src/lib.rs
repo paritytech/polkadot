@@ -60,6 +60,11 @@ error_chain! {
 			description("Unknown block")
 			display("Unknown block {}", b)
 		}
+		/// Execution error.
+		Execution(e: String) {
+			description("Execution error")
+			display("Execution error: {}", e)
+		}
 		/// Some other error.
 		// TODO: allow to be specified as associated type of PolkadotApi
 		Other(e: Box<::std::error::Error + Send>) {
@@ -67,16 +72,14 @@ error_chain! {
 			display("Other error: {}", e.description())
 		}
 	}
-
-	links {
-		Executor(substrate_executor::error::Error, substrate_executor::error::ErrorKind);
-	}
 }
 
 impl From<client::error::Error> for Error {
 	fn from(e: client::error::Error) -> Error {
 		match e {
 			client::error::Error(client::error::ErrorKind::UnknownBlock(b), _) => Error::from_kind(ErrorKind::UnknownBlock(b)),
+			client::error::Error(client::error::ErrorKind::Execution(e), _) =>
+				Error::from_kind(ErrorKind::Execution(format!("{}", e))),
 			other => Error::from_kind(ErrorKind::Other(Box::new(other) as Box<_>)),
 		}
 	}

@@ -92,6 +92,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		timestamp: Some(TimestampConfig {
 			period: 5,					// 5 second block time.
 		}),
+		treasury: Some(Default::default()),
 	}
 }
 
@@ -170,6 +171,7 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
 		timestamp: Some(TimestampConfig {
 			period: 5,					// 5 second block time.
 		}),
+		treasury: Some(Default::default()),
 	}
 }
 

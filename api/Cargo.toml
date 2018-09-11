@@ -5,6 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
 error-chain = "0.12"
+log = "0.3"
 polkadot-executor = { path = "../executor" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-primitives = { path = "../primitives" }
@@ -16,7 +17,6 @@ substrate-client = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 substrate-executor = { git = "https://github.com/paritytech/substrate" }
 substrate-state-machine = { git = "https://github.com/paritytech/substrate" }
-log = "0.3"
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate" }

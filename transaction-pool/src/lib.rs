@@ -182,7 +182,10 @@ impl<A> extrinsic_pool::ChainApi for ChainApi<A> where
 			Err(Self::NO_ACCOUNT) => None,
 			Err(e) => bail!(e),
 		};
-		let sender = inner.as_ref().map(|x| x.signed.clone());
+		let sender = match inner.as_ref().map(|x| x.signed.clone()) {
+			Some(s) => s,
+			None => bail!(ErrorKind::IsInherent(uxt)),
+		};
 
 		if encoded_size < 1024 {
 			debug!(target: "transaction-pool", "Transaction verified: {} => {:?}", hash, uxt);
@@ -191,7 +194,7 @@ impl<A> extrinsic_pool::ChainApi for ChainApi<A> where
 		}
 
 		Ok(VerifiedTransaction {
-			index: uxt.extrinsic.index,
+			index: uxt.index,
 			inner,
 			sender,
 			hash,
