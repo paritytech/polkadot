@@ -361,7 +361,7 @@ mod tests {
 	use codec::{Encode, Decode};
 	use substrate_primitives::hexdisplay::HexDisplay;
 	use substrate_serializer as ser;
-	use runtime_primitives::traits::{Digest as DigestT, Header as HeaderT};
+	use runtime_primitives::traits::Header as HeaderT;
 	type Digest = generic::Digest<Log>;
 
 	#[test]
@@ -371,7 +371,7 @@ mod tests {
 			number: 67,
 			state_root: 3.into(),
 			extrinsics_root: 6.into(),
-			digest: { let mut d = Digest::default(); d.push(Log(vec![1])); d },
+			digest: Digest::default(),
 		};
 
 		assert_eq!(ser::to_string_pretty(&header), r#"{
@@ -379,11 +379,7 @@ mod tests {
   "number": 67,
   "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000003",
   "extrinsicsRoot": "0x0000000000000000000000000000000000000000000000000000000000000006",
-  "digest": {
-    "logs": [
-      "0x01"
-    ]
-  }
+  "digest": { }
 }"#);
 
 		let v = header.encode();
@@ -395,13 +391,9 @@ mod tests {
 		let mut block = Block {
 			header: Header::new(1, Default::default(), Default::default(), Default::default(), Default::default()),
 			extrinsics: vec![
-				UncheckedExtrinsic::new(
-					generic::Extrinsic {
-						function: Call::Timestamp(timestamp::Call::set(100_000_000)),
-						signed: Default::default(),
-						index: Default::default(),
-					},
+				UncheckedExtrinsic::new_unsigned(
 					Default::default(),
+					Call::Timestamp(timestamp::Call::set(100_000_000))
 				)
 			],
 		};
@@ -411,13 +403,9 @@ mod tests {
 
 		assert_eq!(block, decoded);
 
-		block.extrinsics.push(UncheckedExtrinsic::new(
-			generic::Extrinsic {
-				function: Call::Staking(staking::Call::stake()),
-				signed: Default::default(),
-				index: 10101,
-			},
-			Default::default(),
+		block.extrinsics.push(UncheckedExtrinsic::new_unsigned(
+			10101,
+			Call::Staking(staking::Call::stake())
 		));
 
 		let raw = block.encode();
@@ -431,24 +419,16 @@ mod tests {
 		let mut block = Block {
 			header: Header::new(1, Default::default(), Default::default(), Default::default(), Default::default()),
 			extrinsics: vec![
-				UncheckedExtrinsic::new(
-					generic::Extrinsic {
-						function: Call::Timestamp(timestamp::Call::set(100_000_000)),
-						signed: Default::default(),
-						index: Default::default(),
-					},
+				UncheckedExtrinsic::new_unsigned(
 					Default::default(),
+					Call::Timestamp(timestamp::Call::set(100_000_000))
 				)
 			],
 		};
 
-		block.extrinsics.push(UncheckedExtrinsic::new(
-			generic::Extrinsic {
-				function: Call::Staking(staking::Call::stake()),
-				signed: Default::default(),
-				index: 10101,
-			},
-			Default::default()
+		block.extrinsics.push(UncheckedExtrinsic::new_unsigned(
+			10101,
+			Call::Staking(staking::Call::stake())
 		));
 
 		let raw = block.encode();
@@ -461,12 +441,10 @@ mod tests {
 
 	#[test]
 	fn serialize_unchecked() {
-		let tx = UncheckedExtrinsic::new(
-			Extrinsic {
-				signed: AccountId::from([1; 32]).into(),
-				index: 999,
-				function: Call::Timestamp(TimestampCall::set(135135)),
-			},
+		let tx = UncheckedExtrinsic::new_signed(
+			999,
+			Call::Timestamp(TimestampCall::set(135135)),
+			AccountId::from([1; 32]).into(),
 			runtime_primitives::Ed25519Signature(primitives::hash::H512([0; 64])).into()
 		);
 
@@ -481,21 +459,6 @@ mod tests {
 		assert_eq!(&v[..], &hex!["6f000000ff0101010101010101010101010101010101010101010101010101010101010101e70300000400df0f02000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"][..]);
 		println!("{}", HexDisplay::from(&v));
 		assert_eq!(UncheckedExtrinsic::decode(&mut &v[..]).unwrap(), tx);
-	}
-
-	#[test]
-	fn serialize_checked() {
-		let xt = Extrinsic {
-			signed: AccountId::from(hex!["0d71d1a9cad6f2ab773435a7dec1bac019994d05d1dd5eb3108211dcf25c9d1e"]).into(),
-			index: 0,
-			function: Call::CouncilVoting(council::voting::Call::propose(Box::new(
-				Call::Consensus(consensus::Call::set_code(
-					vec![]
-				))
-			))),
-		};
-		let v = Encode::encode(&xt);
-		assert_eq!(Extrinsic::decode(&mut &v[..]).unwrap(), xt);
 	}
 
 	#[test]

@@ -257,9 +257,10 @@ mod tests {
 		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type SessionKey = u64;
 		type OnOfflineValidator = ();
+		type Log = u64;
 	}
 	impl system::Trait for Test {
-		type Origin = Self::AccountId;
+		type Origin = Origin;
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -280,8 +281,6 @@ mod tests {
 	}
 	impl Trait for Test {
 		const SET_POSITION: u32 = 0;
-
-		type Origin = <Self as system::Trait>::Origin;
 	}
 
 	type Parachains = Module<Test>;
