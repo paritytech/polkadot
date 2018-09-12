@@ -181,9 +181,12 @@ impl<A> extrinsic_pool::ChainApi for ChainApi<A> where
 			Err(Self::NO_ACCOUNT) => None,
 			Err(e) => bail!(e),
 		};
-		let sender = match inner.as_ref().map(|x| x.signed.clone()) {
-			Some(s) => s,
-			None => bail!(ErrorKind::IsInherent(uxt)),
+		let sender = match inner.as_ref() {
+			Some(cxt) => match cxt.signed {
+				Some(ref sender) => Some(sender.clone()),
+				None => bail!(ErrorKind::IsInherent(uxt))
+			},
+			None => None,
 		};
 
 		if encoded_size < 1024 {

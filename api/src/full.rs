@@ -215,6 +215,6 @@ mod tests {
 		let client = client();
 
 		let id = BlockId::number(0);
-		assert!(client.random_seed(&id).is_ok());
+		client.random_seed(&id).unwrap();
 	}
 }
