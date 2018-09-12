@@ -10,47 +10,24 @@ crate-type = ["cdylib"]
 integer-sqrt = { git = "https://github.com/paritytech/integer-sqrt-rs.git", branch = "master" }
 polkadot-primitives = { path = "../../primitives", default-features = false }
 safe-mix = { version = "1.0", default-features = false }
-substrate-codec = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-codec-derive = { git = "https://github.com/paritytech/substrate", default-features = false }
+parity-codec = { git = "https://github.com/paritytech/substrate", default-features = false }
+parity-codec-derive = { git = "https://github.com/paritytech/substrate", default-features = false }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-std = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-io = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-support = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-balances = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-consensus = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-council = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-democracy = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-executive = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-session = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-staking = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-system = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-runtime-version = { git = "https://github.com/paritytech/substrate", default-features = false }
-
-[features]
-default = []
-std = [
-	"polkadot-primitives/std",
-	"safe-mix/std",
-	"substrate-codec/std",
-	"substrate-codec-derive/std",
-	"substrate-primitives/std",
-	"substrate-runtime-std/std",
-	"substrate-runtime-io/std",
-	"substrate-runtime-support/std",
-	"substrate-runtime-balances/std",
-	"substrate-runtime-consensus/std",
-	"substrate-runtime-council/std",
-	"substrate-runtime-democracy/std",
-	"substrate-runtime-executive/std",
-	"substrate-runtime-primitives/std",
-	"substrate-runtime-session/std",
-	"substrate-runtime-staking/std",
-	"substrate-runtime-system/std",
-	"substrate-runtime-timestamp/std",
-	"substrate-runtime-version/std",
-]
+sr-std = { git = "https://github.com/paritytech/substrate", default-features = false }
+sr-io = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-support = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-balances = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-consensus = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-council = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-democracy = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-executive = { git = "https://github.com/paritytech/substrate", default-features = false }
+sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-session = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-staking = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-system = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-treasury = { git = "https://github.com/paritytech/substrate", default-features = false }
+sr-version = { git = "https://github.com/paritytech/substrate", default-features = false }
 
 [profile.release]
 panic = "abort"

@@ -17,29 +17,22 @@
 //! Utils for block interaction.
 
 use rstd::prelude::*;
-use super::{Call, UncheckedExtrinsic, Extrinsic, Balances};
-use runtime_primitives::traits::{Checkable, AuxLookup};
+use super::{Call, UncheckedExtrinsic, Balances};
+use runtime_primitives::traits::{Checkable, Lookup};
 use timestamp::Call as TimestampCall;
 use parachains::Call as ParachainsCall;
 use consensus::Call as ConsensusCall;
 
 /// Produces the list of inherent extrinsics.
 pub fn inherent_extrinsics(data: ::primitives::InherentData, spec_version: u32) -> Vec<UncheckedExtrinsic> {
-	let make_inherent = |function| UncheckedExtrinsic::new(
-		Extrinsic {
-			signed: Default::default(),
-			function,
-			index: 0,
-		},
-		Default::default(),
-	);
+	let make_inherent = |function| UncheckedExtrinsic::new_unsigned(0, function);
 
 	let mut inherent = vec![
 		make_inherent(Call::Timestamp(TimestampCall::set(data.timestamp))),
 		make_inherent(Call::Parachains(ParachainsCall::set_heads(data.parachain_heads))),
 	];
 
-	if !data.offline_indices.is_empty() && spec_version == 4 {
+	if !data.offline_indices.is_empty() && spec_version == 5 {
 		inherent.push(make_inherent(
 			Call::Consensus(ConsensusCall::note_offline(data.offline_indices))
 		));

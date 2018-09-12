@@ -11,9 +11,8 @@ polkadot-api = { path = "../api" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 substrate-client = { git = "https://github.com/paritytech/substrate" }
-substrate-codec = { git = "https://github.com/paritytech/substrate" }
+parity-codec = { git = "https://github.com/paritytech/substrate" }
 substrate-keyring = { git = "https://github.com/paritytech/substrate" }
 substrate-extrinsic-pool = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-primitives = { git = "https://github.com/paritytech/substrate" }
-ed25519 = { git = "https://github.com/paritytech/substrate" }
+sr-primitives = { git = "https://github.com/paritytech/substrate" }

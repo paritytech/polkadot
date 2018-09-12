@@ -18,7 +18,6 @@
 
 //! Polkadot service. Specialized wrapper over substrate service.
 
-extern crate ed25519;
 extern crate polkadot_availability_store as av_store;
 extern crate polkadot_primitives;
 extern crate polkadot_runtime;
@@ -50,7 +49,7 @@ use client::{Client, BlockchainEvents};
 use polkadot_network::{PolkadotProtocol, consensus::ConsensusNetwork};
 use tokio::runtime::TaskExecutor;
 use service::FactoryFullConfiguration;
-use primitives::{KeccakHasher, RlpCodec};
+use primitives::{Blake2Hasher, RlpCodec};
 
 pub use service::{Roles, PruningMode, ExtrinsicPoolOptions,
 	ErrorKind, Error, ComponentBlock, LightComponents, FullComponents};
@@ -67,9 +66,9 @@ pub trait Components: service::Components {
 	/// Polkadot API.
 	type Api: 'static + PolkadotApi + Send + Sync;
 	/// Client backend.
-	type Backend: 'static + client::backend::Backend<Block, KeccakHasher, RlpCodec>;
+	type Backend: 'static + client::backend::Backend<Block, Blake2Hasher, RlpCodec>;
 	/// Client executor.
-	type Executor: 'static + client::CallExecutor<Block, KeccakHasher, RlpCodec> + Send + Sync;
+	type Executor: 'static + client::CallExecutor<Block, Blake2Hasher, RlpCodec> + Send + Sync;
 }
 
 impl Components for service::LightComponents<Factory> {

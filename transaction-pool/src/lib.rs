@@ -14,12 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-extern crate ed25519;
 extern crate substrate_client as client;
-extern crate substrate_codec as codec;
+extern crate parity_codec as codec;
 extern crate substrate_extrinsic_pool as extrinsic_pool;
 extern crate substrate_primitives;
-extern crate substrate_runtime_primitives;
+extern crate sr_primitives;
 extern crate polkadot_runtime as runtime;
 extern crate polkadot_primitives as primitives;
 extern crate polkadot_api;
@@ -47,7 +46,7 @@ use extrinsic_pool::{Readiness, scoring::{Change, Choice}, VerifiedFor, Extrinsi
 use polkadot_api::PolkadotApi;
 use primitives::{AccountId, BlockId, Block, Hash, Index};
 use runtime::{Address, UncheckedExtrinsic};
-use substrate_runtime_primitives::traits::{Bounded, Checkable, Hash as HashT, BlakeTwo256};
+use sr_primitives::traits::{Bounded, Checkable, Hash as HashT, BlakeTwo256};
 
 pub use extrinsic_pool::{Options, Status, LightStatus, VerifiedTransaction as VerifiedTransactionOps};
 pub use error::{Error, ErrorKind, Result};
@@ -182,7 +181,13 @@ impl<A> extrinsic_pool::ChainApi for ChainApi<A> where
 			Err(Self::NO_ACCOUNT) => None,
 			Err(e) => bail!(e),
 		};
-		let sender = inner.as_ref().map(|x| x.signed.clone());
+		let sender = match inner.as_ref() {
+			Some(cxt) => match cxt.signed {
+				Some(ref sender) => Some(sender.clone()),
+				None => bail!(ErrorKind::IsInherent(uxt))
+			},
+			None => None,
+		};
 
 		if encoded_size < 1024 {
 			debug!(target: "transaction-pool", "Transaction verified: {} => {:?}", hash, uxt);
@@ -191,7 +196,7 @@ impl<A> extrinsic_pool::ChainApi for ChainApi<A> where
 		}
 
 		Ok(VerifiedTransaction {
-			index: uxt.extrinsic.index,
+			index: uxt.index,
 			inner,
 			sender,
 			hash,
@@ -291,9 +296,9 @@ mod tests {
 	use polkadot_api::{PolkadotApi, BlockBuilder, Result};
 	use primitives::{AccountId, AccountIndex, Block, BlockId, Hash, Index, SessionKey,
 		UncheckedExtrinsic as FutureProofUncheckedExtrinsic};
-	use runtime::{RawAddress, Call, TimestampCall, BareExtrinsic, Extrinsic, UncheckedExtrinsic};
+	use runtime::{RawAddress, Call, TimestampCall, UncheckedExtrinsic};
 	use primitives::parachain::{DutyRoster, Id as ParaId};
-	use substrate_runtime_primitives::{MaybeUnsigned, generic};
+	use sr_primitives::generic;
 	use extrinsic_pool::Pool;
 	use super::ChainApi;
 
@@ -340,7 +345,7 @@ mod tests {
 		fn parachain_code(&self, _at: &BlockId, _parachain: ParaId) -> Result<Option<Vec<u8>>> { unimplemented!() }
 		fn parachain_head(&self, _at: &BlockId, _parachain: ParaId) -> Result<Option<Vec<u8>>> { unimplemented!() }
 		fn build_block(&self, _at: &BlockId, _inherent: ::primitives::InherentData) -> Result<Self::BlockBuilder> { unimplemented!() }
-		fn inherent_extrinsics(&self, _at: &BlockId, _inherent: ::primitives::InherentData) -> Result<Vec<Vec<u8>>> { unimplemented!() }
+		fn inherent_extrinsics(&self, _at: &BlockId, _inherent: ::primitives::InherentData) -> Result<Vec<::primitives::UncheckedExtrinsic>> { unimplemented!() }
 
 		fn index(&self, _at: &BlockId, _account: AccountId) -> Result<Index> {
 			Ok((_account[0] as u32) + number_of(_at))
@@ -366,28 +371,24 @@ mod tests {
 	}
 
 	fn uxt(who: Keyring, nonce: Index, use_id: bool) -> FutureProofUncheckedExtrinsic {
-		let sxt = BareExtrinsic {
-			signed: who.to_raw_public().into(),
-			index: nonce,
-			function: Call::Timestamp(TimestampCall::set(0)),
-		};
+		let sxt = (nonce, Call::Timestamp(TimestampCall::set(0)));
 		let sig = sxt.using_encoded(|e| who.sign(e));
-		UncheckedExtrinsic::new(Extrinsic {
-			signed: if use_id { RawAddress::Id(sxt.signed) } else { RawAddress::Index(
-				match who {
-					Alice => 0,
-					Bob => 1,
-					Charlie => 2,
-					Dave => 3,
-					Eve => 4,
-					Ferdie => 5,
-					One => 6,
-					Two => 7,
-				}
-			)},
-			index: sxt.index,
-			function: sxt.function,
-		}, MaybeUnsigned(sig.into())).using_encoded(|e| FutureProofUncheckedExtrinsic::decode(&mut &e[..])).unwrap()
+		let signed = who.to_raw_public().into();
+		let sender = if use_id { RawAddress::Id(signed) } else { RawAddress::Index(
+			match who {
+				Alice => 0,
+				Bob => 1,
+				Charlie => 2,
+				Dave => 3,
+				Eve => 4,
+				Ferdie => 5,
+				One => 6,
+				Two => 7,
+			}
+		)};
+		UncheckedExtrinsic::new_signed(sxt.0, sxt.1, sender, sig.into())
+			.using_encoded(|e| FutureProofUncheckedExtrinsic::decode(&mut &e[..]))
+			.unwrap()
 	}
 
 	fn pool(api: &TestPolkadotApi) -> Pool<ChainApi<TestPolkadotApi>> {
