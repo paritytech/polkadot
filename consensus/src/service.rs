@@ -29,7 +29,7 @@ use std::sync::Arc;
 
 use bft::{self, BftService};
 use client::{BlockchainEvents, ChainHead, BlockBody};
-use ed25519;
+use primitives::ed25519;
 use futures::prelude::*;
 use polkadot_api::LocalPolkadotApi;
 use polkadot_primitives::{Block, Header};

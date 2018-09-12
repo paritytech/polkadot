@@ -21,16 +21,16 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), feature(alloc))]
 
-extern crate substrate_codec as codec;
+extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;
-extern crate substrate_runtime_primitives as runtime_primitives;
-extern crate substrate_runtime_std as rstd;
+extern crate sr_primitives as runtime_primitives;
+extern crate sr_std as rstd;
 
 #[cfg(test)]
 extern crate substrate_serializer;
 
 #[macro_use]
-extern crate substrate_codec_derive;
+extern crate parity_codec_derive;
 
 #[cfg(feature = "std")]
 #[macro_use]

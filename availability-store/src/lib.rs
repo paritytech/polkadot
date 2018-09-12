@@ -18,7 +18,7 @@
 
 extern crate polkadot_primitives;
 extern crate parking_lot;
-extern crate substrate_codec as codec;
+extern crate parity_codec as codec;
 extern crate substrate_primitives;
 extern crate kvdb;
 extern crate kvdb_rocksdb;

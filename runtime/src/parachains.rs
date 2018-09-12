@@ -23,8 +23,8 @@ use runtime_primitives::traits::{Hash, BlakeTwo256, OnFinalise};
 use primitives::parachain::{Id, Chain, DutyRoster, CandidateReceipt};
 use {system, session};
 
-use substrate_runtime_support::{StorageValue, StorageMap};
-use substrate_runtime_support::dispatch::Result;
+use srml_support::{StorageValue, StorageMap};
+use srml_support::dispatch::Result;
 
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;

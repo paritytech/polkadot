@@ -14,12 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-extern crate ed25519;
 extern crate substrate_client as client;
-extern crate substrate_codec as codec;
+extern crate parity_codec as codec;
 extern crate substrate_extrinsic_pool as extrinsic_pool;
 extern crate substrate_primitives;
-extern crate substrate_runtime_primitives;
+extern crate sr_primitives;
 extern crate polkadot_runtime as runtime;
 extern crate polkadot_primitives as primitives;
 extern crate polkadot_api;
@@ -47,7 +46,7 @@ use extrinsic_pool::{Readiness, scoring::{Change, Choice}, VerifiedFor, Extrinsi
 use polkadot_api::PolkadotApi;
 use primitives::{AccountId, BlockId, Block, Hash, Index};
 use runtime::{Address, UncheckedExtrinsic};
-use substrate_runtime_primitives::traits::{Bounded, Checkable, Hash as HashT, BlakeTwo256};
+use sr_primitives::traits::{Bounded, Checkable, Hash as HashT, BlakeTwo256};
 
 pub use extrinsic_pool::{Options, Status, LightStatus, VerifiedTransaction as VerifiedTransactionOps};
 pub use error::{Error, ErrorKind, Result};
@@ -296,7 +295,7 @@ mod tests {
 		UncheckedExtrinsic as FutureProofUncheckedExtrinsic};
 	use runtime::{RawAddress, Call, TimestampCall, BareExtrinsic, Extrinsic, UncheckedExtrinsic};
 	use primitives::parachain::{DutyRoster, Id as ParaId};
-	use substrate_runtime_primitives::{MaybeUnsigned, generic};
+	use sr_primitives::{MaybeUnsigned, generic};
 	use extrinsic_pool::Pool;
 	use super::ChainApi;
 

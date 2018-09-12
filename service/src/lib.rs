@@ -18,7 +18,6 @@
 
 //! Polkadot service. Specialized wrapper over substrate service.
 
-extern crate ed25519;
 extern crate polkadot_availability_store as av_store;
 extern crate polkadot_primitives;
 extern crate polkadot_runtime;

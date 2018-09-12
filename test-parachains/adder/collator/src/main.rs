@@ -17,10 +17,10 @@
 //! Collator for polkadot
 
 extern crate adder;
+extern crate substrate_primitives;
 extern crate polkadot_parachain as parachain;
 extern crate polkadot_primitives as primitives;
 extern crate polkadot_collator as collator;
-extern crate ed25519;
 extern crate parking_lot;
 extern crate ctrlc;
 extern crate futures;
@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
-use ed25519::Pair;
+use substrate_primitives::ed25519::Pair;
 use parachain::codec::{Encode, Decode};
 use primitives::parachain::{HeadData, BlockData, Id as ParaId, Message};
 use collator::{InvalidHead, ParachainContext, VersionInfo};

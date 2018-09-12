@@ -16,8 +16,7 @@
 
 //! Polkadot chain configurations.
 
-use ed25519;
-use primitives::AuthorityId;
+use primitives::{AuthorityId, ed25519};
 use polkadot_runtime::{GenesisConfig, ConsensusConfig, CouncilConfig, DemocracyConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig};
 use service::ChainSpec;

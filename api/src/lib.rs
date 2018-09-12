@@ -20,19 +20,18 @@
 extern crate polkadot_executor;
 extern crate polkadot_primitives as primitives;
 extern crate polkadot_runtime as runtime;
-extern crate substrate_codec as codec;
-extern crate substrate_runtime_io as runtime_io;
+extern crate parity_codec as codec;
+extern crate sr_io as runtime_io;
 extern crate substrate_client as client;
 extern crate substrate_executor as substrate_executor;
-extern crate substrate_runtime_executive;
+extern crate srml_executive;
 extern crate substrate_primitives;
-extern crate substrate_runtime_primitives as runtime_primitives;
+extern crate sr_primitives as runtime_primitives;
 extern crate substrate_state_machine as state_machine;
 
 #[macro_use]
 extern crate error_chain;
 
-#[macro_use]
 extern crate log;
 
 #[cfg(test)]

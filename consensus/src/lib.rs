@@ -29,7 +29,6 @@
 //!
 //! Groups themselves may be compromised by malicious authorities.
 
-extern crate ed25519;
 extern crate parking_lot;
 extern crate polkadot_api;
 extern crate polkadot_availability_store as extrinsic_store;
@@ -40,10 +39,10 @@ extern crate polkadot_runtime;
 extern crate polkadot_primitives;
 
 extern crate substrate_bft as bft;
-extern crate substrate_codec as codec;
+extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;
-extern crate substrate_runtime_support as runtime_support;
-extern crate substrate_runtime_primitives as runtime_primitives;
+extern crate srml_support as runtime_support;
+extern crate sr_primitives as runtime_primitives;
 extern crate substrate_client as client;
 
 extern crate exit_future;
@@ -71,7 +70,7 @@ use extrinsic_store::Store as ExtrinsicStore;
 use polkadot_api::PolkadotApi;
 use polkadot_primitives::{AccountId, Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
-use primitives::AuthorityId;
+use primitives::{AuthorityId, ed25519};
 use transaction_pool::TransactionPool;
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
@@ -657,7 +656,7 @@ impl<C> bft::Proposer<Block> for Proposer<C>
 		// this is determined by checking if our local validator would have been forced to skip the round.
 		let consider_online = was_proposed || {
 			let forced_delay = self.dynamic_inclusion.acceptable_in(Instant::now(), self.table.includable_count());
-			let public = ::ed25519::Public::from_raw(primary_validator.0);
+			let public = ed25519::Public::from_raw(primary_validator.0);
 			match forced_delay {
 				None => info!(
 					"Potential Offline Validator: {} failed to propose during assigned slot: {}",

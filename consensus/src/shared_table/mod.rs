@@ -30,6 +30,7 @@ use futures::{future, prelude::*};
 
 use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
+use primitives::ed25519;
 
 mod includable;
 
@@ -39,7 +40,7 @@ pub use table::generic::Statement as GenericStatement;
 
 struct TableContext {
 	parent_hash: Hash,
-	key: Arc<::ed25519::Pair>,
+	key: Arc<ed25519::Pair>,
 	groups: HashMap<ParaId, GroupInfo>,
 }
 
@@ -320,7 +321,7 @@ impl SharedTable {
 	/// block being built.
 	pub fn new(
 		groups: HashMap<ParaId, GroupInfo>,
-		key: Arc<::ed25519::Pair>,
+		key: Arc<ed25519::Pair>,
 		parent_hash: Hash,
 		extrinsic_store: ExtrinsicStore,
 	) -> Self {

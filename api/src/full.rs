@@ -18,22 +18,20 @@
 
 use client::backend::LocalBackend;
 use client::block_builder::BlockBuilder as ClientBlockBuilder;
-use client::{self, Client, LocalCallExecutor, CallExecutor};
-use codec::{Encode, Decode};
+use client::{Client, LocalCallExecutor};
 use polkadot_executor::Executor as LocalDispatch;
 use substrate_executor::NativeExecutor;
-use state_machine::ExecutionManager;
 
 //use runtime::{Block, Header, Address, BlockId};
 use runtime::Address;
 use primitives::{
-	Block, Header, BlockId,
+	Block, BlockId,
 	AccountId, Hash, Index, InherentData,
 	SessionKey, Timestamp, UncheckedExtrinsic,
 };
 use primitives::parachain::{DutyRoster, Id as ParaId};
 use substrate_primitives::{Blake2Hasher, RlpCodec};
-use {BlockBuilder, PolkadotApi, LocalPolkadotApi, Error, ErrorKind, Result};
+use {BlockBuilder, PolkadotApi, LocalPolkadotApi, ErrorKind, Result};
 
 impl<B: LocalBackend<Block, Blake2Hasher, RlpCodec>> BlockBuilder for ClientBlockBuilder<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block, Blake2Hasher, RlpCodec> {
 	fn push_extrinsic(&mut self, extrinsic: UncheckedExtrinsic) -> Result<()> {
