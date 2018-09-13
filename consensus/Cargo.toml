@@ -19,7 +19,7 @@ polkadot-runtime = { path = "../runtime" }
 polkadot-statement-table = { path = "../statement-table" }
 polkadot-transaction-pool = { path = "../transaction-pool" }
 substrate-bft = { git = "https://github.com/paritytech/substrate" }
-parity-codec = { git = "https://github.com/paritytech/substrate" }
+parity-codec = "~1.0"
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 srml-support = { git = "https://github.com/paritytech/substrate" }
 substrate-client = { git = "https://github.com/paritytech/substrate" }
