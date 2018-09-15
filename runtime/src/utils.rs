@@ -24,7 +24,7 @@ use parachains::Call as ParachainsCall;
 use consensus::Call as ConsensusCall;
 
 /// Produces the list of inherent extrinsics.
-pub fn inherent_extrinsics(data: ::primitives::InherentData, spec_version: u32) -> Vec<UncheckedExtrinsic> {
+pub fn inherent_extrinsics(data: ::primitives::InherentData) -> Vec<UncheckedExtrinsic> {
 	let make_inherent = |function| UncheckedExtrinsic::new_unsigned(0, function);
 
 	let mut inherent = vec![
@@ -32,7 +32,7 @@ pub fn inherent_extrinsics(data: ::primitives::InherentData, spec_version: u32) 
 		make_inherent(Call::Parachains(ParachainsCall::set_heads(data.parachain_heads))),
 	];
 
-	if !data.offline_indices.is_empty() && spec_version == 5 {
+	if !data.offline_indices.is_empty() {
 		inherent.push(make_inherent(
 			Call::Consensus(ConsensusCall::note_offline(data.offline_indices))
 		));

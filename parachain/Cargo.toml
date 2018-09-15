@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 description = "Types and utilities for creating and working with parachains"
 
 [dependencies]
-parity-codec = "~1.0"
+parity-codec = "1.1"
 parity-codec-derive = "~1.0"
 wasmi = { version = "0.4", optional = true }
 error-chain = { version = "0.12", optional = true }

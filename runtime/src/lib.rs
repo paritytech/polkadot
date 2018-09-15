@@ -78,7 +78,7 @@ use codec::{Encode, Decode, Input};
 use substrate_primitives::u32_trait::{_2, _4};
 use primitives::{AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, SessionKey, Signature};
 use runtime_primitives::{generic, traits::{Convert, BlakeTwo256, DigestItem}};
-use version::RuntimeVersion;
+use version::{ApiId, RuntimeVersion};
 use council::{motions as council_motions, voting as council_voting};
 
 #[cfg(feature = "std")]
@@ -114,6 +114,8 @@ pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 #[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
 pub struct Runtime;
 
+const NODEAUTH: ApiId = *b"nodeauth";
+
 /// Polkadot runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: ver_str!("polkadot"),
@@ -121,6 +123,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	authoring_version: 1,
 	spec_version: 101,
 	impl_version: 0,
+	apis: apis_vec!([(NODEAUTH, 1)]),
 };
 
 impl system::Trait for Runtime {
