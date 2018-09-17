@@ -33,7 +33,7 @@ cache:
 
 #### stage:                        test
 
-test:rust:stable:                  &test
+test:rust:stable:
   stage:                           test
   variables:
     RUST_TOOLCHAIN: stable
@@ -49,9 +49,8 @@ test:rust:stable:                  &test
 
 #### stage:                        build
 
-build:linux:ubuntu:amd64:          &build
+build:linux:ubuntu:amd64:
   stage:                           build
-  only:                            master
   variables:
     CARGO_TARGET:                  x86_64-unknown-linux-gnu
     TARGET:                        native
@@ -62,6 +61,8 @@ build:linux:ubuntu:amd64:          &build
     - ./scripts/build.sh 
     - cargo build --release
   <<:                              *collect_artifacts
+  only:
+    - master
   tags:
     - rust-stable
 
