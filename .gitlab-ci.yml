@@ -43,6 +43,14 @@ test:rust:stable:
     - export PATH="${CI_PROJECT_DIR}/cargo/bin/:$PATH"
     - ./scripts/build.sh
     - time cargo test --all --release
+  only:
+    - triggers
+    - tags
+    - master
+    - schedules
+    - /^pr-.*$/
+  except:
+    - branches
   tags:
     - rust-stable 
 
