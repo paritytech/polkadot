@@ -11,7 +11,7 @@ polkadot-api = { path = "../api" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 substrate-client = { git = "https://github.com/paritytech/substrate" }
-parity-codec = "~2.0.1"
+parity-codec = "2.0"
 substrate-keyring = { git = "https://github.com/paritytech/substrate" }
 substrate-transaction-pool = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }

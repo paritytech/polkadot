@@ -11,8 +11,8 @@ polkadot-availability-store = { path = "../availability-store" }
 polkadot-consensus = { path = "../consensus" }
 polkadot-primitives = { path = "../primitives" }
 substrate-bft = { git = "https://github.com/paritytech/substrate" }
-parity-codec = "~2.0.1"
-parity-codec-derive = "~2.0.1"
+parity-codec = "2.0"
+parity-codec-derive = "2.0"
 substrate-network = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 futures = "0.1"

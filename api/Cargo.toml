@@ -9,7 +9,7 @@ log = "0.3"
 polkadot-executor = { path = "../executor" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-primitives = { path = "../primitives" }
-parity-codec = "~2.0.1"
+parity-codec = "2.0"
 sr-io = { git = "https://github.com/paritytech/substrate" }
 srml-executive = { git = "https://github.com/paritytech/substrate" }
 sr-primitives = { git = "https://github.com/paritytech/substrate" }
