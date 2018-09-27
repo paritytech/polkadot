@@ -6,8 +6,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 [dependencies]
 serde = { version = "1.0", default_features = false }
 serde_derive = { version = "1.0", optional = true }
-parity-codec = "1.1"
-parity-codec-derive = "~1.0"
+parity-codec = "~2.0.1"
+parity-codec-derive = "~2.0.1"
 substrate-primitives = { git = "https://github.com/paritytech/substrate", default_features = false }
 sr-std = { git = "https://github.com/paritytech/substrate", default_features = false }
 sr-primitives = { git = "https://github.com/paritytech/substrate", default_features = false }

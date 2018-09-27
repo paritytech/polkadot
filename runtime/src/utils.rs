@@ -43,5 +43,5 @@ pub fn inherent_extrinsics(data: ::primitives::InherentData) -> Vec<UncheckedExt
 
 /// Checks an unchecked extrinsic for validity.
 pub fn check_extrinsic(xt: UncheckedExtrinsic) -> bool {
-	xt.check_with(Balances::lookup).is_ok()
+	xt.check(Balances::lookup).is_ok()
 }

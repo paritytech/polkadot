@@ -16,7 +16,7 @@
 
 extern crate substrate_client as client;
 extern crate parity_codec as codec;
-extern crate substrate_extrinsic_pool as extrinsic_pool;
+extern crate substrate_transaction_pool as transaction_pool;
 extern crate substrate_primitives;
 extern crate sr_primitives;
 extern crate polkadot_runtime as runtime;
@@ -42,13 +42,13 @@ use std::{
 };
 
 use codec::{Decode, Encode};
-use extrinsic_pool::{Readiness, scoring::{Change, Choice}, VerifiedFor, ExtrinsicFor};
+use transaction_pool::{Readiness, scoring::{Change, Choice}, VerifiedFor, ExtrinsicFor};
 use polkadot_api::PolkadotApi;
 use primitives::{AccountId, BlockId, Block, Hash, Index};
 use runtime::{Address, UncheckedExtrinsic};
 use sr_primitives::traits::{Bounded, Checkable, Hash as HashT, BlakeTwo256};
 
-pub use extrinsic_pool::{Options, Status, LightStatus, VerifiedTransaction as VerifiedTransactionOps};
+pub use transaction_pool::{Options, Status, LightStatus, VerifiedTransaction as VerifiedTransactionOps};
 pub use error::{Error, ErrorKind, Result};
 
 /// Maximal size of a single encoded extrinsic.
@@ -60,7 +60,7 @@ const MAX_TRANSACTION_SIZE: usize = 4 * 1024 * 1024;
 pub type CheckedExtrinsic = <UncheckedExtrinsic as Checkable<fn(Address) -> std::result::Result<AccountId, &'static str>>>::Checked;
 
 /// Type alias for polkadot transaction pool.
-pub type TransactionPool<A> = extrinsic_pool::Pool<ChainApi<A>>;
+pub type TransactionPool<A> = transaction_pool::Pool<ChainApi<A>>;
 
 /// A verified transaction which should be includable and non-inherent.
 #[derive(Clone, Debug)]
@@ -104,7 +104,7 @@ impl VerifiedTransaction {
 	}
 }
 
-impl extrinsic_pool::VerifiedTransaction for VerifiedTransaction {
+impl transaction_pool::VerifiedTransaction for VerifiedTransaction {
 	type Hash = Hash;
 	type Sender = Option<AccountId>;
 
@@ -150,7 +150,7 @@ impl<A> ChainApi<A> where
 	}
 }
 
-impl<A> extrinsic_pool::ChainApi for ChainApi<A> where
+impl<A> transaction_pool::ChainApi for ChainApi<A> where
 	A: PolkadotApi + Send + Sync,
 {
 	type Block = Block;
@@ -175,7 +175,7 @@ impl<A> extrinsic_pool::ChainApi for ChainApi<A> where
 		}
 
 		debug!(target: "transaction-pool", "Transaction submitted: {}", ::substrate_primitives::hexdisplay::HexDisplay::from(&encoded));
-		let inner = match uxt.clone().check_with(|a| self.lookup(at, a)) {
+		let inner = match uxt.clone().check(|a| self.lookup(at, a)) {
 			Ok(xt) => Some(xt),
 			// keep the transaction around in the future pool and attempt to promote it later.
 			Err(Self::NO_ACCOUNT) => None,
@@ -262,7 +262,7 @@ impl<A> extrinsic_pool::ChainApi for ChainApi<A> where
 	}
 
 	fn update_scores(
-		xts: &[extrinsic_pool::Transaction<VerifiedFor<Self>>],
+		xts: &[transaction_pool::Transaction<VerifiedFor<Self>>],
 		scores: &mut [Self::Score],
 		_change: Change<()>
 	) {
@@ -299,7 +299,7 @@ mod tests {
 	use runtime::{RawAddress, Call, TimestampCall, UncheckedExtrinsic};
 	use primitives::parachain::{DutyRoster, Id as ParaId};
 	use sr_primitives::generic;
-	use extrinsic_pool::Pool;
+	use transaction_pool::Pool;
 	use super::ChainApi;
 
 	struct TestBlockBuilder;

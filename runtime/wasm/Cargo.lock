@@ -77,7 +77,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "plain_hasher"
+name = "hash256-std-hasher"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
@@ -483,7 +483,7 @@ dependencies = [
  "hashdb 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 0.1.0 (git+https://github.com/paritytech/substrate)",
  "parity-codec-derive 0.1.0 (git+https://github.com/paritytech/substrate)",
- "plain_hasher 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hash256_std_hasher 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-hex 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.75 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-std 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -528,7 +528,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum num-traits 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)" = "630de1ef5cc79d0cdd78b7e33b81f083cbfe90de0f4b2b2f07f905867c70e9fe"
 "checksum parity-codec 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum parity-codec-derive 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum plain_hasher 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "95fa6386b1d34aaf0adb9b7dd2885dbe7c34190e6263785e5a7ec2b19044a90f"
+"checksum hash256_std_hasher 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "95fa6386b1d34aaf0adb9b7dd2885dbe7c34190e6263785e5a7ec2b19044a90f"
 "checksum proc-macro-hack 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3ba8d4f9257b85eb6cdf13f055cea3190520aab1409ca2ab43493ea4820c25f0"
 "checksum proc-macro-hack-impl 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d5cb6f960ad471404618e9817c0e5d10b1ae74cfdf01fab89ea0641fe7fb2892"
 "checksum proc-macro2 0.4.15 (registry+https://github.com/rust-lang/crates.io-index)" = "295af93acfb1d5be29c16ca5b3f82d863836efd9cb0c14fd83811eb9a110e452"

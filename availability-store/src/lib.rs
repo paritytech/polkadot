@@ -101,7 +101,7 @@ impl Store {
 	/// Create a new `Store` in-memory. Useful for tests.
 	pub fn new_in_memory() -> Self {
 		Store {
-			inner: Arc::new(::kvdb_memorydb::create(::columns::NUM_COLUMNS)),
+			inner: Arc::new(::kvdb_memory_db::create(::columns::NUM_COLUMNS)),
 		}
 	}
 
