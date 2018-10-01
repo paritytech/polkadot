@@ -48,7 +48,6 @@ test:rust:stable:
     - master
     - schedules
     - web
-    # - /^pr-.*$/
   tags:
     - rust-stable 
 
