@@ -6,14 +6,14 @@ image:                             parity/rust:nightly
 
 variables:
   CI_SERVER_NAME:                  "GitLab CI"
-  CARGO_HOME:                      "${CI_PROJECT_DIR}/cargo"
+  CARGO_HOME:                      "${CI_PROJECT_DIR}/.cargo"
 
 
 cache:
   key:                             "${CI_JOB_NAME}"
   paths:
-    - target/
-    - cargo/
+    - ./target/
+    - ./.cargo/
 
 
 .collect_artifacts:                &collect_artifacts
@@ -37,9 +37,6 @@ before_script:
 
 test:rust:stable:
   stage:                           test
-  variables:
-    RUST_TOOLCHAIN: stable
-    TARGET: native
   script:
     - time cargo test --all --release
   only:
@@ -56,10 +53,6 @@ test:rust:stable:
 
 build:linux:ubuntu:amd64:
   stage:                           build
-  variables:
-    CARGO_TARGET:                  x86_64-unknown-linux-gnu
-    TARGET:                        native
-    RUST_TOOLCHAIN:                stable
   script:
     - cargo build --release
   <<:                              *collect_artifacts
