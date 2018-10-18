@@ -43,11 +43,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), feature(alloc))]
 
-/// Re-export of substrate-codec.
-pub extern crate substrate_codec as codec;
+/// Re-export of parity-codec.
+pub extern crate parity_codec as codec;
 
 #[macro_use]
-extern crate substrate_codec_derive;
+extern crate parity_codec_derive;
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;

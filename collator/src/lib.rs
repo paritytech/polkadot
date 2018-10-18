@@ -46,9 +46,8 @@
 
 extern crate futures;
 extern crate substrate_client as client;
-extern crate substrate_codec as codec;
+extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;
-extern crate ed25519;
 extern crate tokio;
 
 extern crate polkadot_api;
@@ -67,6 +66,7 @@ use std::time::{Duration, Instant};
 use futures::{future, stream, Stream, Future, IntoFuture};
 use client::BlockchainEvents;
 use polkadot_api::PolkadotApi;
+use primitives::ed25519;
 use polkadot_primitives::{AccountId, BlockId, SessionKey};
 use polkadot_primitives::parachain::{self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId};
 use polkadot_cli::{ServiceComponents, Service, CustomConfiguration};

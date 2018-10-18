@@ -10,25 +10,26 @@ serde = { version = "1.0", default_features = false }
 serde_derive = { version = "1.0", optional = true }
 safe-mix = { version = "1.0", default_features = false}
 polkadot-primitives = { path = "../primitives", default_features = false }
-substrate-codec = { git = "https://github.com/paritytech/substrate" }
-substrate-codec-derive = { git = "https://github.com/paritytech/substrate" }
+parity-codec = { git = "https://github.com/paritytech/substrate" }
+parity-codec-derive = { git = "https://github.com/paritytech/substrate" }
 substrate-serializer = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-std = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-io = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-support = { git = "https://github.com/paritytech/substrate" }
+sr-std = { git = "https://github.com/paritytech/substrate" }
+sr-io = { git = "https://github.com/paritytech/substrate" }
+srml-support = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 substrate-keyring = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-balances = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-consensus = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-council = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-democracy = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-executive = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-primitives = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-session = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-staking = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-system = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-timestamp = { git = "https://github.com/paritytech/substrate" }
-substrate-runtime-version = { git = "https://github.com/paritytech/substrate" }
+srml-balances = { git = "https://github.com/paritytech/substrate" }
+srml-consensus = { git = "https://github.com/paritytech/substrate" }
+srml-council = { git = "https://github.com/paritytech/substrate" }
+srml-democracy = { git = "https://github.com/paritytech/substrate" }
+srml-executive = { git = "https://github.com/paritytech/substrate" }
+sr-primitives = { git = "https://github.com/paritytech/substrate" }
+srml-session = { git = "https://github.com/paritytech/substrate" }
+srml-staking = { git = "https://github.com/paritytech/substrate" }
+srml-system = { git = "https://github.com/paritytech/substrate" }
+srml-timestamp = { git = "https://github.com/paritytech/substrate" }
+srml-treasury = { git = "https://github.com/paritytech/substrate" }
+sr-version = { git = "https://github.com/paritytech/substrate" }
 
 [dev-dependencies]
 hex-literal = "0.1.0"
@@ -37,23 +38,24 @@ hex-literal = "0.1.0"
 default = ["std"]
 std = [
 	"polkadot-primitives/std",
-	"substrate-codec/std",
-	"substrate-codec-derive/std",
+	"parity-codec/std",
+	"parity-codec-derive/std",
 	"substrate-primitives/std",
-	"substrate-runtime-std/std",
-	"substrate-runtime-io/std",
-	"substrate-runtime-support/std",
-	"substrate-runtime-balances/std",
-	"substrate-runtime-consensus/std",
-	"substrate-runtime-council/std",
-	"substrate-runtime-democracy/std",
-	"substrate-runtime-executive/std",
-	"substrate-runtime-primitives/std",
-	"substrate-runtime-session/std",
-	"substrate-runtime-staking/std",
-	"substrate-runtime-system/std",
-	"substrate-runtime-timestamp/std",
-	"substrate-runtime-version/std",
+	"sr-std/std",
+	"sr-io/std",
+	"srml-support/std",
+	"srml-balances/std",
+	"srml-consensus/std",
+	"srml-council/std",
+	"srml-democracy/std",
+	"srml-executive/std",
+	"sr-primitives/std",
+	"srml-session/std",
+	"srml-staking/std",
+	"srml-system/std",
+	"srml-timestamp/std",
+	"srml-treasury/std",
+	"sr-version/std",
 	"serde_derive",
 	"serde/std",
 	"log",

@@ -11,11 +11,10 @@ polkadot-availability-store = { path = "../availability-store" }
 polkadot-consensus = { path = "../consensus" }
 polkadot-primitives = { path = "../primitives" }
 substrate-bft = { git = "https://github.com/paritytech/substrate" }
-substrate-codec = { git = "https://github.com/paritytech/substrate" }
-substrate-codec-derive = { git = "https://github.com/paritytech/substrate" }
+parity-codec = { git = "https://github.com/paritytech/substrate" }
+parity-codec-derive = { git = "https://github.com/paritytech/substrate" }
 substrate-network = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
-ed25519 = { git = "https://github.com/paritytech/substrate" }
 futures = "0.1"
 tokio = "0.1.7"
 log = "0.4"

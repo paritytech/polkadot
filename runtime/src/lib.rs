@@ -26,13 +26,13 @@ extern crate serde_derive;
 extern crate serde;
 
 #[macro_use]
-extern crate substrate_runtime_io as runtime_io;
+extern crate sr_io as runtime_io;
 
 #[macro_use]
-extern crate substrate_runtime_support;
+extern crate srml_support;
 
 #[macro_use]
-extern crate substrate_runtime_primitives as runtime_primitives;
+extern crate sr_primitives as runtime_primitives;
 
 #[cfg(test)]
 #[macro_use]
@@ -44,23 +44,24 @@ extern crate substrate_serializer;
 extern crate substrate_primitives;
 
 #[macro_use]
-extern crate substrate_runtime_std as rstd;
+extern crate sr_std as rstd;
 #[macro_use]
-extern crate substrate_codec_derive;
+extern crate parity_codec_derive;
 
 extern crate polkadot_primitives as primitives;
-extern crate substrate_codec as codec;
-extern crate substrate_runtime_balances as balances;
-extern crate substrate_runtime_consensus as consensus;
-extern crate substrate_runtime_council as council;
-extern crate substrate_runtime_democracy as democracy;
-extern crate substrate_runtime_executive as executive;
-extern crate substrate_runtime_session as session;
-extern crate substrate_runtime_staking as staking;
-extern crate substrate_runtime_system as system;
-extern crate substrate_runtime_timestamp as timestamp;
+extern crate parity_codec as codec;
+extern crate srml_balances as balances;
+extern crate srml_consensus as consensus;
+extern crate srml_council as council;
+extern crate srml_democracy as democracy;
+extern crate srml_executive as executive;
+extern crate srml_session as session;
+extern crate srml_staking as staking;
+extern crate srml_system as system;
+extern crate srml_timestamp as timestamp;
+extern crate srml_treasury as treasury;
 #[macro_use]
-extern crate substrate_runtime_version as version;
+extern crate sr_version as version;
 
 #[cfg(feature = "std")]
 mod checked_block;
@@ -72,9 +73,13 @@ pub use checked_block::CheckedBlock;
 pub use utils::{inherent_extrinsics, check_extrinsic};
 pub use balances::address::Address as RawAddress;
 
-use primitives::{AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, Log, SessionKey, Signature};
-use runtime_primitives::{generic, traits::{HasPublicAux, BlakeTwo256, Convert}};
+use rstd::prelude::*;
+use codec::{Encode, Decode, Input};
+use substrate_primitives::u32_trait::{_2, _4};
+use primitives::{AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, SessionKey, Signature};
+use runtime_primitives::{generic, traits::{Convert, BlakeTwo256, DigestItem}};
 use version::RuntimeVersion;
+use council::{motions as council_motions, voting as council_voting};
 
 #[cfg(feature = "std")]
 pub use runtime_primitives::BuildStorage;
@@ -82,7 +87,6 @@ pub use runtime_primitives::BuildStorage;
 pub use consensus::Call as ConsensusCall;
 pub use timestamp::Call as TimestampCall;
 pub use parachains::Call as ParachainsCall;
-pub use primitives::Header;
 
 /// The position of the timestamp set extrinsic.
 pub const TIMESTAMP_SET_POSITION: u32 = 0;
@@ -91,24 +95,24 @@ pub const PARACHAINS_SET_POSITION: u32 = 1;
 /// The position of the note_offline in the block, if it exists.
 pub const NOTE_OFFLINE_POSITION: u32 = 2;
 
+/// Block header type as expected by this runtime.
+pub type Header = generic::Header<BlockNumber, BlakeTwo256, Log>;
 /// The address format for describing accounts.
-pub type Address = balances::Address<Concrete>;
+pub type Address = balances::Address<Runtime>;
 /// Block Id type for this block.
 pub type BlockId = generic::BlockId<Block>;
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Index, Call, Signature>;
-/// Extrinsic type as expected by this runtime. This is not the type that is signed.
-pub type Extrinsic = generic::Extrinsic<Address, Index, Call>;
-/// Extrinsic type that is signed.
-pub type BareExtrinsic = generic::Extrinsic<AccountId, Index, Call>;
+/// Extrinsic type that has already been checked.
+pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Index, Call>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 
-/// Concrete runtime type used to parameterize the various modules.
+/// Runtime runtime type used to parameterize the various modules.
 // Workaround for https://github.com/rust-lang/rust/issues/26925 . Remove when sorted.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
-pub struct Concrete;
+pub struct Runtime;
 
 /// Polkadot runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
@@ -119,19 +123,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_version: 0,
 };
 
-impl version::Trait for Concrete {
-	const VERSION: RuntimeVersion = VERSION;
-}
-
-/// Version module for this concrete runtime.
-pub type Version = version::Module<Concrete>;
-
-impl HasPublicAux for Concrete {
-	type PublicAux = AccountId;	// TODO: Option<AccountId>
-}
-
-impl system::Trait for Concrete {
-	type PublicAux = <Concrete as HasPublicAux>::PublicAux;
+impl system::Trait for Runtime {
+	type Origin = Origin;
 	type Index = Index;
 	type BlockNumber = BlockNumber;
 	type Hash = Hash;
@@ -142,9 +135,9 @@ impl system::Trait for Concrete {
 	type Event = Event;
 }
 /// System module for this concrete runtime.
-pub type System = system::Module<Concrete>;
+pub type System = system::Module<Runtime>;
 
-impl balances::Trait for Concrete {
+impl balances::Trait for Runtime {
 	type Balance = Balance;
 	type AccountIndex = AccountIndex;
 	type OnFreeBalanceZero = Staking;
@@ -152,22 +145,23 @@ impl balances::Trait for Concrete {
 	type Event = Event;
 }
 /// Staking module for this concrete runtime.
-pub type Balances = balances::Module<Concrete>;
+pub type Balances = balances::Module<Runtime>;
 
-impl consensus::Trait for Concrete {
+impl consensus::Trait for Runtime {
 	const NOTE_OFFLINE_POSITION: u32 = NOTE_OFFLINE_POSITION;
+	type Log = Log;
 	type SessionKey = SessionKey;
 	type OnOfflineValidator = Staking;
 }
 /// Consensus module for this concrete runtime.
-pub type Consensus = consensus::Module<Concrete>;
+pub type Consensus = consensus::Module<Runtime>;
 
-impl timestamp::Trait for Concrete {
+impl timestamp::Trait for Runtime {
 	const TIMESTAMP_SET_POSITION: u32 = TIMESTAMP_SET_POSITION;
 	type Moment = u64;
 }
 /// Timestamp module for this concrete runtime.
-pub type Timestamp = timestamp::Module<Concrete>;
+pub type Timestamp = timestamp::Module<Runtime>;
 
 /// Session key conversion.
 pub struct SessionKeyConversion;
@@ -177,82 +171,111 @@ impl Convert<AccountId, SessionKey> for SessionKeyConversion {
 	}
 }
 
-impl session::Trait for Concrete {
+impl session::Trait for Runtime {
 	type ConvertAccountIdToSessionKey = SessionKeyConversion;
 	type OnSessionChange = Staking;
 	type Event = Event;
 }
 /// Session module for this concrete runtime.
-pub type Session = session::Module<Concrete>;
+pub type Session = session::Module<Runtime>;
 
-impl staking::Trait for Concrete {
+impl staking::Trait for Runtime {
+	type OnRewardMinted = Treasury;
 	type Event = Event;
 }
 /// Staking module for this concrete runtime.
-pub type Staking = staking::Module<Concrete>;
+pub type Staking = staking::Module<Runtime>;
 
-impl democracy::Trait for Concrete {
-	type Proposal = PrivCall;
+impl democracy::Trait for Runtime {
+	type Proposal = Call;
+	type Event = Event;
 }
 /// Democracy module for this concrete runtime.
-pub type Democracy = democracy::Module<Concrete>;
+pub type Democracy = democracy::Module<Runtime>;
 
-impl council::Trait for Concrete {}
-/// Council module for this concrete runtime.
-pub type Council = council::Module<Concrete>;
-/// Council voting module for this concrete runtime.
-pub type CouncilVoting = council::voting::Module<Concrete>;
-
-impl parachains::Trait for Concrete {
-	const SET_POSITION: u32 = PARACHAINS_SET_POSITION;
-
-	type PublicAux = <Concrete as HasPublicAux>::PublicAux;
+impl council::Trait for Runtime {
+	type Event = Event;
 }
-pub type Parachains = parachains::Module<Concrete>;
+
+/// Council module for this concrete runtime.
+pub type Council = council::Module<Runtime>;
+
+impl council::voting::Trait for Runtime {
+	type Event = Event;
+}
+
+/// Council voting module for this concrete runtime.
+pub type CouncilVoting = council::voting::Module<Runtime>;
+
+impl council::motions::Trait for Runtime {
+	type Origin = Origin;
+	type Proposal = Call;
+	type Event = Event;
+}
+
+/// Council motions module for this concrete runtime.
+pub type CouncilMotions = council_motions::Module<Runtime>;
+
+impl treasury::Trait for Runtime {
+	type ApproveOrigin = council_motions::EnsureMembers<_4>;
+	type RejectOrigin = council_motions::EnsureMembers<_2>;
+	type Event = Event;
+}
+
+/// Treasury module for this concrete runtime.
+pub type Treasury = treasury::Module<Runtime>;
+
+impl parachains::Trait for Runtime {
+	const SET_POSITION: u32 = PARACHAINS_SET_POSITION;
+}
+pub type Parachains = parachains::Module<Runtime>;
 
 impl_outer_event! {
-	pub enum Event for Concrete {
-		balances, session, staking
+	pub enum Event for Runtime {
+		//consensus,
+		balances,
+		//timetstamp,
+		session,
+		staking,
+		democracy,
+		council,
+		council_voting,
+		council_motions,
+		treasury
+	}
+}
+
+impl_outer_log! {
+	pub enum Log(InternalLog: DigestItem<SessionKey>) for Runtime {
+		consensus(AuthoritiesChange)
+	}
+}
+
+impl_outer_origin! {
+	pub enum Origin for Runtime {
+		council_motions
 	}
 }
 
 impl_outer_dispatch! {
 	/// Call type for polkadot transactions.
-	#[derive(Clone, PartialEq, Eq)]
-	#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
-	pub enum Call where aux: <Concrete as HasPublicAux>::PublicAux {
-		Consensus = 0,
-		Balances = 1,
-		Session = 2,
-		Staking = 3,
-		Timestamp = 4,
-		Democracy = 5,
-		Council = 6,
-		CouncilVoting = 7,
-		Parachains = 8,
-	}
-
-	/// Internal calls.
-	#[derive(Clone, PartialEq, Eq)]
-	#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
-	pub enum PrivCall {
-		Consensus = 0,
-		Balances = 1,
-		Session = 2,
-		Staking = 3,
-		Democracy = 5,
-		Council = 6,
-		CouncilVoting = 7,
-		Parachains = 8,
+	pub enum Call where origin: <Runtime as system::Trait>::Origin {
+		Consensus,
+		Balances,
+		Session,
+		Staking,
+		Timestamp,
+		Democracy,
+		Council,
+		CouncilVoting,
+		CouncilMotions,
+		Parachains,
+		Treasury,
 	}
 }
 
-/// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Concrete, Block, Balances, Balances,
-	(((((((), Parachains), Council), Democracy), Staking), Session), Timestamp)>;
-
 impl_outer_config! {
-	pub struct GenesisConfig for Concrete {
+	pub struct GenesisConfig for Runtime {
 		ConsensusConfig => consensus,
 		SystemConfig => system,
 		BalancesConfig => balances,
@@ -261,13 +284,58 @@ impl_outer_config! {
 		DemocracyConfig => democracy,
 		CouncilConfig => council,
 		TimestampConfig => timestamp,
+		TreasuryConfig => treasury,
 		ParachainsConfig => parachains,
 	}
 }
 
+type AllModules = (
+	Consensus,
+	Balances,
+	Session,
+	Staking,
+	Timestamp,
+	Democracy,
+	Council,
+	CouncilVoting,
+	CouncilMotions,
+	Parachains,
+	Treasury,
+);
+
+impl_json_metadata!(
+	for Runtime with modules
+		system::Module with Storage,
+		consensus::Module with Storage,
+		balances::Module with Storage,
+		timestamp::Module with Storage,
+		session::Module with Storage,
+		staking::Module with Storage,
+		democracy::Module with Storage,
+		council::Module with Storage,
+		council_voting::Module with Storage,
+		council_motions::Module with Storage,
+		treasury::Module with Storage,
+		parachains::Module with Storage,
+);
+
+impl DigestItem for Log {
+	type AuthorityId = SessionKey;
+
+	fn as_authorities_change(&self) -> Option<&[Self::AuthorityId]> {
+		match self.0 {
+			InternalLog::consensus(ref item) => item.as_authorities_change(),
+		}
+	}
+}
+
+/// Executive: handles dispatch to the various modules.
+pub type Executive = executive::Executive<Runtime, Block, Balances, Balances, AllModules>;
+
 pub mod api {
 	impl_stubs!(
-		version => |()| super::Version::version(),
+		version => |()| super::VERSION,
+		json_metadata => |()| super::Runtime::json_metadata(),
 		authorities => |()| super::Consensus::authorities(),
 		initialise_block => |header| super::Executive::initialise_block(&header),
 		apply_extrinsic => |extrinsic| super::Executive::apply_extrinsic(extrinsic),
@@ -276,14 +344,14 @@ pub mod api {
 		inherent_extrinsics => |(inherent, spec_version)| super::inherent_extrinsics(inherent, spec_version),
 		validator_count => |()| super::Session::validator_count(),
 		validators => |()| super::Session::validators(),
-		duty_roster => |()| super::Parachains::calculate_duty_roster(),
-		active_parachains => |()| super::Parachains::active_parachains(),
-		parachain_head => |id| super::Parachains::parachain_head(&id),
-		parachain_code => |id| super::Parachains::parachain_code(&id),
 		timestamp => |()| super::Timestamp::get(),
 		random_seed => |()| super::System::random_seed(),
 		account_nonce => |account| super::System::account_nonce(&account),
-		lookup_address => |address| super::Balances::lookup_address(address)
+		lookup_address => |address| super::Balances::lookup_address(address),
+		duty_roster => |()| super::Parachains::calculate_duty_roster(),
+		active_parachains => |()| super::Parachains::active_parachains(),
+		parachain_head => |id| super::Parachains::parachain_head(&id),
+		parachain_code => |id| super::Parachains::parachain_code(&id)
 	);
 }
 
@@ -294,7 +362,7 @@ mod tests {
 	use codec::{Encode, Decode};
 	use substrate_primitives::hexdisplay::HexDisplay;
 	use substrate_serializer as ser;
-	use runtime_primitives::traits::{Digest as DigestT, Header as HeaderT};
+	use runtime_primitives::traits::Header as HeaderT;
 	type Digest = generic::Digest<Log>;
 
 	#[test]
@@ -304,7 +372,7 @@ mod tests {
 			number: 67,
 			state_root: 3.into(),
 			extrinsics_root: 6.into(),
-			digest: { let mut d = Digest::default(); d.push(Log(vec![1])); d },
+			digest: Digest::default(),
 		};
 
 		assert_eq!(ser::to_string_pretty(&header), r#"{
@@ -313,9 +381,7 @@ mod tests {
   "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000003",
   "extrinsicsRoot": "0x0000000000000000000000000000000000000000000000000000000000000006",
   "digest": {
-    "logs": [
-      "0x01"
-    ]
+    "logs": []
   }
 }"#);
 
@@ -328,13 +394,9 @@ mod tests {
 		let mut block = Block {
 			header: Header::new(1, Default::default(), Default::default(), Default::default(), Default::default()),
 			extrinsics: vec![
-				UncheckedExtrinsic::new(
-					generic::Extrinsic {
-						function: Call::Timestamp(timestamp::Call::set(100_000_000)),
-						signed: Default::default(),
-						index: Default::default(),
-					},
+				UncheckedExtrinsic::new_unsigned(
 					Default::default(),
+					Call::Timestamp(timestamp::Call::set(100_000_000))
 				)
 			],
 		};
@@ -344,13 +406,9 @@ mod tests {
 
 		assert_eq!(block, decoded);
 
-		block.extrinsics.push(UncheckedExtrinsic::new(
-			generic::Extrinsic {
-				function: Call::Staking(staking::Call::stake()),
-				signed: Default::default(),
-				index: 10101,
-			},
-			Default::default(),
+		block.extrinsics.push(UncheckedExtrinsic::new_unsigned(
+			10101,
+			Call::Staking(staking::Call::stake())
 		));
 
 		let raw = block.encode();
@@ -364,24 +422,16 @@ mod tests {
 		let mut block = Block {
 			header: Header::new(1, Default::default(), Default::default(), Default::default(), Default::default()),
 			extrinsics: vec![
-				UncheckedExtrinsic::new(
-					generic::Extrinsic {
-						function: Call::Timestamp(timestamp::Call::set(100_000_000)),
-						signed: Default::default(),
-						index: Default::default(),
-					},
+				UncheckedExtrinsic::new_unsigned(
 					Default::default(),
+					Call::Timestamp(timestamp::Call::set(100_000_000))
 				)
 			],
 		};
 
-		block.extrinsics.push(UncheckedExtrinsic::new(
-			generic::Extrinsic {
-				function: Call::Staking(staking::Call::stake()),
-				signed: Default::default(),
-				index: 10101,
-			},
-			Default::default()
+		block.extrinsics.push(UncheckedExtrinsic::new_unsigned(
+			10101,
+			Call::Staking(staking::Call::stake())
 		));
 
 		let raw = block.encode();
@@ -394,12 +444,10 @@ mod tests {
 
 	#[test]
 	fn serialize_unchecked() {
-		let tx = UncheckedExtrinsic::new(
-			Extrinsic {
-				signed: AccountId::from([1; 32]).into(),
-				index: 999,
-				function: Call::Timestamp(TimestampCall::set(135135)),
-			},
+		let tx = UncheckedExtrinsic::new_signed(
+			999,
+			Call::Timestamp(TimestampCall::set(135135)),
+			AccountId::from([1; 32]).into(),
 			runtime_primitives::Ed25519Signature(primitives::hash::H512([0; 64])).into()
 		);
 
@@ -411,29 +459,14 @@ mod tests {
 		// 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 		let v = Encode::encode(&tx);
-		assert_eq!(&v[..], &hex!["6f000000ff0101010101010101010101010101010101010101010101010101010101010101e70300000400df0f02000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"][..]);
+		assert_eq!(&v[..], &hex!["7000000001ff010101010101010101010101010101010101010101010101010101010101010100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e70300000400df0f020000000000"][..]);
 		println!("{}", HexDisplay::from(&v));
 		assert_eq!(UncheckedExtrinsic::decode(&mut &v[..]).unwrap(), tx);
 	}
 
 	#[test]
-	fn serialize_checked() {
-		let xt = Extrinsic {
-			signed: AccountId::from(hex!["0d71d1a9cad6f2ab773435a7dec1bac019994d05d1dd5eb3108211dcf25c9d1e"]).into(),
-			index: 0,
-			function: Call::CouncilVoting(council::voting::Call::propose(Box::new(
-				PrivCall::Consensus(consensus::PrivCall::set_code(
-					vec![]
-				))
-			))),
-		};
-		let v = Encode::encode(&xt);
-		assert_eq!(Extrinsic::decode(&mut &v[..]).unwrap(), xt);
-	}
-
-	#[test]
 	fn parachain_calls_are_privcall() {
-		let _register = PrivCall::Parachains(parachains::PrivCall::register_parachain(0.into(), vec![1, 2, 3], vec![]));
-		let _deregister = PrivCall::Parachains(parachains::PrivCall::deregister_parachain(0.into()));
+		let _register = Call::Parachains(parachains::Call::register_parachain(0.into(), vec![1, 2, 3], vec![]));
+		let _deregister = Call::Parachains(parachains::Call::deregister_parachain(0.into()));
 	}
 }

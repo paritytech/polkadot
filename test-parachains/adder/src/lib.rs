@@ -19,7 +19,7 @@
 #![no_std]
 
 #[macro_use]
-extern crate substrate_codec_derive;
+extern crate parity_codec_derive;
 
 extern crate polkadot_parachain as parachain;
 extern crate tiny_keccak;

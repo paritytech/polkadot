@@ -21,7 +21,7 @@
 //! and more.
 
 extern crate substrate_bft as bft;
-extern crate substrate_codec as codec;
+extern crate parity_codec as codec;
 extern crate substrate_network;
 extern crate substrate_primitives;
 
@@ -30,7 +30,6 @@ extern crate polkadot_availability_store as av_store;
 extern crate polkadot_consensus;
 extern crate polkadot_primitives;
 
-extern crate ed25519;
 extern crate futures;
 extern crate parking_lot;
 extern crate tokio;
@@ -39,7 +38,7 @@ extern crate rhododendron;
 #[macro_use]
 extern crate log;
 #[macro_use]
-extern crate substrate_codec_derive;
+extern crate parity_codec_derive;
 
 mod collator_pool;
 mod local_collations;

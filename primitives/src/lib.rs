@@ -21,16 +21,16 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), feature(alloc))]
 
-extern crate substrate_codec as codec;
+extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;
-extern crate substrate_runtime_primitives as runtime_primitives;
-extern crate substrate_runtime_std as rstd;
+extern crate sr_primitives as runtime_primitives;
+extern crate sr_std as rstd;
 
 #[cfg(test)]
 extern crate substrate_serializer;
 
 #[macro_use]
-extern crate substrate_codec_derive;
+extern crate parity_codec_derive;
 
 #[cfg(feature = "std")]
 #[macro_use]
@@ -39,27 +39,12 @@ extern crate serde_derive;
 #[cfg(feature = "std")]
 extern crate serde;
 
-#[cfg(feature = "std")]
-use primitives::bytes;
-
 use rstd::prelude::*;
-use runtime_primitives::traits::BlakeTwo256;
-use runtime_primitives::generic;
-
+use runtime_primitives::{generic, traits::BlakeTwo256};
 pub mod parachain;
 
-/// Block header type as expected by this runtime.
-pub type Header = generic::Header<BlockNumber, BlakeTwo256, Log>;
-
-/// Opaque, encoded, unchecked extrinsic.
-pub type UncheckedExtrinsic = Vec<u8>;
-
-/// A "future-proof" block type for Polkadot. This will be resilient to upgrades in transaction
-/// format, because it doesn't attempt to decode extrinsics.
-///
-/// Specialized code needs to link to (at least one version of) the runtime directly
-/// in order to handle the extrinsics within.
-pub type Block = generic::Block<Header, UncheckedExtrinsic>;
+#[cfg(feature = "std")]
+use primitives::bytes;
 
 /// An index to a block.
 /// 32-bits will allow for 136 years of blocks assuming 1 block per second.
@@ -88,7 +73,7 @@ pub type Index = u32;
 
 /// Alias to 512-bit hash when used in the context of a signature on the relay chain.
 /// Equipped with logic for possibly "unsigned" messages.
-pub type Signature = runtime_primitives::MaybeUnsigned<runtime_primitives::Ed25519Signature>;
+pub type Signature = runtime_primitives::Ed25519Signature;
 
 /// A timestamp: seconds since the unix epoch.
 pub type Timestamp = u64;
@@ -102,14 +87,17 @@ pub type Timestamp = u64;
 /// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
 pub type Balance = u128;
 
-/// "generic" block ID for the future-proof block type.
-// TODO: parameterize blockid only as necessary.
+/// Header type.
+pub type Header = generic::Header<BlockNumber, BlakeTwo256, generic::DigestItem<()>>;
+/// Block type.
+pub type Block = generic::Block<Header, UncheckedExtrinsic>;
+/// Block ID.
 pub type BlockId = generic::BlockId<Block>;
 
-/// A log entry in the block.
+/// Opaque, encoded, unchecked extrinsic.
 #[derive(PartialEq, Eq, Clone, Default, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct Log(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+pub struct UncheckedExtrinsic(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Inherent data to include in a block.
 #[derive(Encode, Decode)]

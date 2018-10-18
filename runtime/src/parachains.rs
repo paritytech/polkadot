@@ -19,12 +19,12 @@
 use rstd::prelude::*;
 use codec::Decode;
 
-use runtime_primitives::traits::{Hash, BlakeTwo256, Executable, RefInto, MaybeEmpty};
+use runtime_primitives::traits::{Hash, BlakeTwo256, OnFinalise};
 use primitives::parachain::{Id, Chain, DutyRoster, CandidateReceipt};
 use {system, session};
 
-use substrate_runtime_support::{StorageValue, StorageMap};
-use substrate_runtime_support::dispatch::Result;
+use srml_support::{StorageValue, StorageMap};
+use srml_support::dispatch::Result;
 
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
@@ -35,28 +35,21 @@ use runtime_primitives;
 #[cfg(any(feature = "std", test))]
 use std::collections::HashMap;
 
+use system::{ensure_root, ensure_inherent};
+
 pub trait Trait: system::Trait<Hash = ::primitives::Hash> + session::Trait {
 	/// The position of the set_heads call in the block.
 	const SET_POSITION: u32;
-
-	type PublicAux: RefInto<Self::AccountId> + MaybeEmpty;
 }
 
 decl_module! {
 	/// Parachains module.
-	pub struct Module<T: Trait>;
-	/// Call type for parachains.
-	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-	pub enum Call where aux: <T as Trait>::PublicAux {
-		// provide candidate receipts for parachains, in ascending order by id.
-		fn set_heads(aux, heads: Vec<CandidateReceipt>) -> Result = 0;
-	}
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+		/// Provide candidate receipts for parachains, in ascending order by id.
+		fn set_heads(origin, heads: Vec<CandidateReceipt>) -> Result;
 
-	/// Private calls for parachains.
-	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-	pub enum PrivCall {
-		fn register_parachain(id: Id, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result = 0;
-		fn deregister_parachain(id: Id) -> Result = 1;
+		fn register_parachain(origin, id: Id, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result;
+		fn deregister_parachain(origin, id: Id) -> Result;
 	}
 }
 
@@ -126,7 +119,8 @@ impl<T: Trait> Module<T> {
 
 	/// Register a parachain with given code.
 	/// Fails if given ID is already used.
-	pub fn register_parachain(id: Id, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
+	pub fn register_parachain(origin: T::Origin, id: Id, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
+		ensure_root(origin)?;
 		let mut parachains = Self::active_parachains();
 		match parachains.binary_search(&id) {
 			Ok(_) => fail!("Parachain already exists"),
@@ -141,7 +135,8 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Deregister a parachain with given id
-	pub fn deregister_parachain(id: Id) -> Result {
+	pub fn deregister_parachain(origin: T::Origin, id: Id) -> Result {
+		ensure_root(origin)?;
 		let mut parachains = Self::active_parachains();
 		match parachains.binary_search(&id) {
 			Ok(idx) => { parachains.remove(idx); }
@@ -154,8 +149,8 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
-	fn set_heads(aux: &<T as Trait>::PublicAux, heads: Vec<CandidateReceipt>) -> Result {
-		ensure!(aux.is_empty(), "set_heads must not be signed");
+	fn set_heads(origin: T::Origin, heads: Vec<CandidateReceipt>) -> Result {
+		ensure_inherent(origin)?;
 		ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
 		ensure!(
 			<system::Module<T>>::extrinsic_index() == Some(T::SET_POSITION),
@@ -186,8 +181,8 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-impl<T: Trait> Executable for Module<T> {
-	fn execute() {
+impl<T: Trait> OnFinalise<T::BlockNumber> for Module<T> {
+	fn on_finalise(_n: T::BlockNumber) {
 		assert!(<Self as Store>::DidUpdate::take(), "Parachain heads must be updated once in the block");
 	}
 }
@@ -246,24 +241,26 @@ impl<T: Trait> runtime_primitives::BuildStorage for GenesisConfig<T>
 mod tests {
 	use super::*;
 	use runtime_io::{TestExternalities, with_externalities};
-	use substrate_primitives::{H256, KeccakHasher};
+	use substrate_primitives::{H256, Blake2Hasher};
 	use runtime_primitives::BuildStorage;
-	use runtime_primitives::traits::{HasPublicAux, Identity, BlakeTwo256};
+	use runtime_primitives::traits::{Identity, BlakeTwo256};
 	use runtime_primitives::testing::{Digest, Header};
 	use {consensus, timestamp};
 
+	impl_outer_origin! {
+		pub enum Origin for Test {}
+	}
+
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
-	impl HasPublicAux for Test {
-		type PublicAux = u64;
-	}
 	impl consensus::Trait for Test {
 		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type SessionKey = u64;
 		type OnOfflineValidator = ();
+		type Log = u64;
 	}
 	impl system::Trait for Test {
-		type PublicAux = <Self as HasPublicAux>::PublicAux;
+		type Origin = Origin;
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -284,13 +281,11 @@ mod tests {
 	}
 	impl Trait for Test {
 		const SET_POSITION: u32 = 0;
-
-		type PublicAux = <Self as HasPublicAux>::PublicAux;
 	}
 
 	type Parachains = Module<Test>;
 
-	fn new_test_ext(parachains: Vec<(Id, Vec<u8>, Vec<u8>)>) -> TestExternalities<KeccakHasher> {
+	fn new_test_ext(parachains: Vec<(Id, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		t.extend(consensus::GenesisConfig::<Test>{
 			code: vec![],
@@ -334,12 +329,12 @@ mod tests {
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
 
-			Parachains::register_parachain(99u32.into(), vec![7,8,9], vec![1, 1, 1]).unwrap();
+			assert_ok!(Parachains::register_parachain(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1]));
 
 			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
-			Parachains::deregister_parachain(5u32.into()).unwrap();
+			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 5u32.into()));
 
 			assert_eq!(Parachains::active_parachains(), vec![99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), None);

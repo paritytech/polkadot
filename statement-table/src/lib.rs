@@ -14,12 +14,12 @@
 //! propose and attest to validity of candidates, and those who can only attest
 //! to availability.
 
-extern crate substrate_codec as codec;
+extern crate parity_codec as codec;
 extern crate substrate_primitives;
 extern crate polkadot_primitives as primitives;
 
 #[macro_use]
-extern crate substrate_codec_derive;
+extern crate parity_codec_derive;
 
 pub mod generic;
 

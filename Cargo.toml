@@ -39,7 +39,6 @@ members = [
 exclude = [
 	"runtime/wasm",
 	"test-parachains/adder/wasm",
-	"demo/runtime/wasm",
 ]
 
 [badges]

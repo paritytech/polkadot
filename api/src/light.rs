@@ -27,7 +27,7 @@ use primitives::{
 use runtime::Address;
 use primitives::parachain::{DutyRoster, Id as ParaId};
 use {PolkadotApi, BlockBuilder, RemotePolkadotApi, Result, ErrorKind};
-use substrate_primitives::{KeccakHasher, RlpCodec};
+use substrate_primitives::{Blake2Hasher, RlpCodec};
 
 /// Light block builder. TODO: make this work (efficiently)
 #[derive(Clone, Copy)]
@@ -44,9 +44,9 @@ impl BlockBuilder for LightBlockBuilder {
 }
 
 /// Remote polkadot API implementation.
-pub struct RemotePolkadotApiWrapper<B: Backend<Block, KeccakHasher, RlpCodec>, E: CallExecutor<Block, KeccakHasher, RlpCodec>>(pub Arc<Client<B, E, Block>>);
+pub struct RemotePolkadotApiWrapper<B: Backend<Block, Blake2Hasher, RlpCodec>, E: CallExecutor<Block, Blake2Hasher, RlpCodec>>(pub Arc<Client<B, E, Block>>);
 
-impl<B: Backend<Block, KeccakHasher, RlpCodec>, E: CallExecutor<Block, KeccakHasher, RlpCodec>> PolkadotApi for RemotePolkadotApiWrapper<B, E> {
+impl<B: Backend<Block, Blake2Hasher, RlpCodec>, E: CallExecutor<Block, Blake2Hasher, RlpCodec>> PolkadotApi for RemotePolkadotApiWrapper<B, E> {
 	type BlockBuilder = LightBlockBuilder;
 
 	fn session_keys(&self, at: &BlockId) -> Result<Vec<SessionKey>> {
@@ -100,9 +100,9 @@ impl<B: Backend<Block, KeccakHasher, RlpCodec>, E: CallExecutor<Block, KeccakHas
 		Err(ErrorKind::UnknownRuntime.into())
 	}
 
-	fn inherent_extrinsics(&self, _at: &BlockId, _inherent: InherentData) -> Result<Vec<Vec<u8>>> {
+	fn inherent_extrinsics(&self, _at: &BlockId, _inherent: InherentData) -> Result<Vec<UncheckedExtrinsic>> {
 		Err(ErrorKind::UnknownRuntime.into())
 	}
 }
 
-impl<B: RemoteBackend<Block, KeccakHasher, RlpCodec>, E: CallExecutor<Block, KeccakHasher, RlpCodec>> RemotePolkadotApi for RemotePolkadotApiWrapper<B, E> {}
+impl<B: RemoteBackend<Block, Blake2Hasher, RlpCodec>, E: CallExecutor<Block, Blake2Hasher, RlpCodec>> RemotePolkadotApi for RemotePolkadotApiWrapper<B, E> {}

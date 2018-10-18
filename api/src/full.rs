@@ -18,70 +18,22 @@
 
 use client::backend::LocalBackend;
 use client::block_builder::BlockBuilder as ClientBlockBuilder;
-use client::{self, Client, LocalCallExecutor, CallExecutor};
-use codec::{Encode, Decode};
+use client::{Client, LocalCallExecutor};
 use polkadot_executor::Executor as LocalDispatch;
 use substrate_executor::NativeExecutor;
-use state_machine::ExecutionManager;
 
+//use runtime::{Block, Header, Address, BlockId};
 use runtime::Address;
 use primitives::{
-	AccountId, Block, Header, BlockId, Hash, Index, InherentData,
+	Block, BlockId,
+	AccountId, Hash, Index, InherentData,
 	SessionKey, Timestamp, UncheckedExtrinsic,
 };
 use primitives::parachain::{DutyRoster, Id as ParaId};
-use substrate_primitives::{KeccakHasher, RlpCodec};
-use {BlockBuilder, PolkadotApi, LocalPolkadotApi, Error, ErrorKind, Result};
+use substrate_primitives::{Blake2Hasher, RlpCodec};
+use {BlockBuilder, PolkadotApi, LocalPolkadotApi, ErrorKind, Result};
 
-fn call<B, R>(
-	client: &Client<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block>,
-	at: &BlockId,
-	function: &'static str,
-	input: &[u8])
--> Result<R>
-where
-	R: Decode,
-	B: LocalBackend<Block, KeccakHasher, RlpCodec>,
-{
-	let parent = at;
-	let header = Header {
-		parent_hash: client.block_hash_from_id(&parent)?
-			.ok_or_else(|| ErrorKind::UnknownBlock(format!("{:?}", parent)))?,
-			number: client.block_number_from_id(&parent)?
-				.ok_or_else(|| ErrorKind::UnknownBlock(format!("{:?}", parent)))? + 1,
-				state_root: Default::default(),
-				extrinsics_root: Default::default(),
-				digest: Default::default(),
-	};
-	client.state_at(&parent).map_err(Error::from).and_then(|state| {
-		let mut overlay = Default::default();
-		let execution_manager = || ExecutionManager::Both(|wasm_result, native_result| {
-			warn!("Consensus error between wasm and native runtime execution at block {:?}", at);
-			warn!("   Function {:?}", function);
-			warn!("   Native result {:?}", native_result);
-			warn!("   Wasm result {:?}", wasm_result);
-			wasm_result
-		});
-		client.executor().call_at_state(
-			&state,
-			&mut overlay,
-			"initialise_block",
-			&header.encode(),
-			execution_manager()
-		)?;
-		let (r, _) = client.executor().call_at_state(
-			&state,
-			&mut overlay,
-			function,
-			input,
-			execution_manager()
-		)?;
-		Ok(R::decode(&mut &r[..])
-		   .ok_or_else(|| client::error::Error::from(client::error::ErrorKind::CallResultDecode(function)))?)
-	})
-}
-
-impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> BlockBuilder for ClientBlockBuilder<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block, KeccakHasher, RlpCodec> {
+impl<B: LocalBackend<Block, Blake2Hasher, RlpCodec>> BlockBuilder for ClientBlockBuilder<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block, Blake2Hasher, RlpCodec> {
 	fn push_extrinsic(&mut self, extrinsic: UncheckedExtrinsic) -> Result<()> {
 		self.push(extrinsic).map_err(Into::into)
 	}
@@ -92,32 +44,31 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> BlockBuilder for ClientBloc
 	}
 }
 
-impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block> {
-	type BlockBuilder = ClientBlockBuilder<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block, KeccakHasher, RlpCodec>;
+impl<B: LocalBackend<Block, Blake2Hasher, RlpCodec>> PolkadotApi for Client<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block> {
+	type BlockBuilder = ClientBlockBuilder<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block, Blake2Hasher, RlpCodec>;
 
 	fn session_keys(&self, at: &BlockId) -> Result<Vec<SessionKey>> {
 		Ok(self.authorities_at(at)?)
 	}
 
 	fn validators(&self, at: &BlockId) -> Result<Vec<AccountId>> {
-		call(self, at, "validators", &[])
+		Ok(self.call_api_at(at, "validators", &())?)
 	}
 
 	fn random_seed(&self, at: &BlockId) -> Result<Hash> {
-		call(self, at, "random_seed", &[])
+		Ok(self.call_api_at(at, "random_seed", &())?)
 	}
 
 	fn duty_roster(&self, at: &BlockId) -> Result<DutyRoster> {
-		call(self, at, "duty_roster", &[])
+		Ok(self.call_api_at(at, "duty_roster", &())?)
 	}
 
 	fn timestamp(&self, at: &BlockId) -> Result<Timestamp> {
-		call(self, at, "timestamp", &[])
+		Ok(self.call_api_at(at, "timestamp", &())?)
 	}
 
 	fn evaluate_block(&self, at: &BlockId, block: Block) -> Result<bool> {
-		let encoded = block.encode();
-		let res: Result<()> = call(self, at, "execute_block", &encoded);
+		let res: Result<()> = self.call_api_at(at, "execute_block", &block).map_err(From::from);
 		match res {
 			Ok(_) => Ok(true),
 			Err(err) => match err.kind() {
@@ -128,31 +79,23 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, L
 	}
 
 	fn index(&self, at: &BlockId, account: AccountId) -> Result<Index> {
-		account.using_encoded(|encoded| {
-			call(self, at, "account_nonce", encoded)
-		})
+		Ok(self.call_api_at(at, "account_nonce", &account)?)
 	}
 
 	fn lookup(&self, at: &BlockId, address: Address) -> Result<Option<AccountId>> {
-		address.using_encoded(|encoded| {
-			call(self, at, "lookup_address", encoded)
-		})
+		Ok(self.call_api_at(at, "lookup_address", &address)?)
 	}
 
 	fn active_parachains(&self, at: &BlockId) -> Result<Vec<ParaId>> {
-		call(self, at, "active_parachains", &[])
+		Ok(self.call_api_at(at, "active_parachains", &())?)
 	}
 
 	fn parachain_code(&self, at: &BlockId, parachain: ParaId) -> Result<Option<Vec<u8>>> {
-		parachain.using_encoded(|encoded| {
-			call(self, at, "parachain_code", encoded)
-		})
+		Ok(self.call_api_at(at, "parachain_code", &parachain)?)
 	}
 
 	fn parachain_head(&self, at: &BlockId, parachain: ParaId) -> Result<Option<Vec<u8>>> {
-		parachain.using_encoded(|encoded| {
-			call(self, at, "parachain_head", encoded)
-		})
+		Ok(self.call_api_at(at, "parachain_head", &parachain)?)
 	}
 
 	fn build_block(&self, at: &BlockId, inherent_data: InherentData) -> Result<Self::BlockBuilder> {
@@ -166,13 +109,11 @@ impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> PolkadotApi for Client<B, L
 
 	fn inherent_extrinsics(&self, at: &BlockId, inherent_data: InherentData) -> Result<Vec<UncheckedExtrinsic>> {
 		let runtime_version = self.runtime_version_at(at)?;
-		(inherent_data, runtime_version.spec_version).using_encoded(|encoded| {
-			call(self, at, "inherent_extrinsics", encoded)
-		})
+		Ok(self.call_api_at(at, "inherent_extrinsics", &(inherent_data, runtime_version.spec_version))?)
 	}
 }
 
-impl<B: LocalBackend<Block, KeccakHasher, RlpCodec>> LocalPolkadotApi for Client<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block>
+impl<B: LocalBackend<Block, Blake2Hasher, RlpCodec>> LocalPolkadotApi for Client<B, LocalCallExecutor<B, NativeExecutor<LocalDispatch>>, Block>
 {}
 
 #[cfg(test)]
@@ -198,7 +139,7 @@ mod tests {
 		]
 	}
 
-	fn client() -> Client<InMemory<Block, KeccakHasher, RlpCodec>, LocalCallExecutor<InMemory<Block, KeccakHasher, RlpCodec>, NativeExecutor<LocalDispatch>>, Block> {
+	fn client() -> Client<InMemory<Block, Blake2Hasher, RlpCodec>, LocalCallExecutor<InMemory<Block, Blake2Hasher, RlpCodec>, NativeExecutor<LocalDispatch>>, Block> {
 		let genesis_config = GenesisConfig {
 			consensus: Some(ConsensusConfig {
 				code: LocalDispatch::native_equivalent().to_vec(),
@@ -215,9 +156,10 @@ mod tests {
 			parachains: Some(Default::default()),
 			staking: Some(Default::default()),
 			timestamp: Some(Default::default()),
+			treasury: Some(Default::default()),
 		};
 
-		::client::new_in_mem(LocalDispatch::with_heap_pages(8), genesis_config).unwrap()
+		::client::new_in_mem(LocalDispatch::new(), genesis_config).unwrap()
 	}
 
 	#[test]
@@ -273,6 +215,6 @@ mod tests {
 		let client = client();
 
 		let id = BlockId::number(0);
-		assert!(client.random_seed(&id).is_ok());
+		client.random_seed(&id).unwrap();
 	}
 }
