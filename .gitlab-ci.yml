@@ -1,7 +1,9 @@
 stages:
   - test
   - build
+  - publish
 
+# default release in rust:nightly image is stable
 image:                             parity/rust:nightly
 
 variables:
@@ -12,7 +14,6 @@ variables:
 cache:
   key:                             "${CI_JOB_NAME}"
   paths:
-    - ./target/
     - ./.cargo/
 
 
@@ -25,8 +26,8 @@ cache:
     - target/release/polkadot
 
 .determine_version: &determine_version |
-  export VERSION="$(sed -r -n '1,/^version/s/^version = "([^"]+)".*$/\1/p' Cargo.toml)"
-  echo "Version" $VERSION
+  export VERSION="$(sed -r -n '1,/^version/s/^version = "([^"]+)".*$/\1/p' Cargo.toml)";
+  echo "Version = " $VERSION
 
 
 before_script:
@@ -35,10 +36,8 @@ before_script:
 
 #### stage:                        test
 
-test:rust:stable:
+test:rust:release:
   stage:                           test
-  script:
-    - time cargo test --all --release
   only:
     - triggers
     - tags
@@ -46,19 +45,55 @@ test:rust:stable:
     - schedules
     - web
   tags:
-    - rust-stable 
+    - rust
+  script:
+    - time cargo test --all --release
 
 
 #### stage:                        build
 
-build:linux:ubuntu:amd64:
+build:rust:linux:release:
   stage:                           build
-  script:
-    - cargo build --release
   <<:                              *collect_artifacts
   only:
     - master
     - tags
+    - web
   tags:
-    - rust-stable
+    - rust
+  script:
+    - cargo build --release
+
+
+#### stage:                        publish
+
+dockerize:release:
+  stage:                           publish
+  dependencies:
+    - build:rust:linux:release
+  cache: {}
+  only:
+    - master
+    - tags
+    - web
+  tags:
+    - shell
+  # image: docker:stable
+  # services:
+  #   - docker:dind
+  variables:
+    # DOCKER_HOST: tcp://localhost:2375
+    # DOCKER_DRIVER: overlay2
+    DOCKERFILE: scripts/docker/Dockerfile
+    CONTAINER_IMAGE: parity/polkadot
+  before_script:
+    - docker login -u $Docker_Hub_User_Parity -p $Docker_Hub_Pass_Parity
+    - docker info
+  script:
+    - CONTAINER_TAG="${CI_COMMIT_TAG:-latest}"
+    - docker build --tag $CONTAINER_IMAGE:$CI_BUILD_REF --tag $CONTAINER_IMAGE:$CONTAINER_TAG -f $DOCKERFILE ./target/release/
+    - docker push $CONTAINER_IMAGE:$CONTAINER_TAG
+    - docker push $CONTAINER_IMAGE:$CI_BUILD_REF
+    - docker logout
+
 
