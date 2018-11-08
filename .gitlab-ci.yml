@@ -9,6 +9,8 @@ image:                             parity/rust:nightly
 variables:
   CI_SERVER_NAME:                  "GitLab CI"
   CARGO_HOME:                      "${CI_PROJECT_DIR}/.cargo"
+  SUBSTRATE_REPO:                  "https://github.com/paritytech/substrate.git"
+  POLKADOT_BRANCH:                 "v0.2"
 
 
 cache:
@@ -47,7 +49,9 @@ test:rust:release:
   tags:
     - rust
   script:
-    - time cargo test --all --release
+    # - time cargo test --all --release
+    - test -z "${TAG}" && time cargo test --all --release --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot
+    - test -n "${TAG}" && time cargo test --all --release --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot
 
 
 #### stage:                        build
@@ -62,7 +66,9 @@ build:rust:linux:release:
   tags:
     - rust
   script:
-    - cargo build --release
+    - test -z "${TAG}" && time cargo build --release --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot
+    - test -n "${TAG}" && time cargo build --release --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot
+    - ./target/release/polkadot --version
 
 
 #### stage:                        publish
@@ -89,11 +95,16 @@ dockerize:release:
   before_script:
     - docker login -u $Docker_Hub_User_Parity -p $Docker_Hub_Pass_Parity
     - docker info
+    - VERSION="$(./target/release/polkadot --version | sed -n -r 's/^polkadot ([0-9.]+-[0-9a-f]+)-.*$/\1/p')"
+    - export VERSION
+    - echo "Polkadot version = ${VERSION}"
   script:
-    - CONTAINER_TAG="${CI_COMMIT_TAG:-latest}"
-    - docker build --tag $CONTAINER_IMAGE:$CI_BUILD_REF --tag $CONTAINER_IMAGE:$CONTAINER_TAG -f $DOCKERFILE ./target/release/
-    - docker push $CONTAINER_IMAGE:$CONTAINER_TAG
-    - docker push $CONTAINER_IMAGE:$CI_BUILD_REF
+    # - CONTAINER_TAG="${CI_COMMIT_TAG:-latest}"
+    # - docker build --tag $CONTAINER_IMAGE:$CI_BUILD_REF --tag $CONTAINER_IMAGE:$CONTAINER_TAG -f $DOCKERFILE ./target/release/
+    # - docker push $CONTAINER_IMAGE:$CONTAINER_TAG
+    - test -z "${VERSION}" && exit 1
+    - docker build --tag $CONTAINER_IMAGE:$VERSION -f $DOCKERFILE ./target/release/
+    - docker push $CONTAINER_IMAGE:$VERSION
     - docker logout
 
 
