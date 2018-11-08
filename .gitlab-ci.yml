@@ -4,7 +4,8 @@ stages:
   - publish
 
 # default release in rust:nightly image is stable
-image:                             parity/rust:nightly
+# image:                             parity/rust:nightly
+image:                             parity/rust:nightly-20181101
 
 variables:
   CI_SERVER_NAME:                  "GitLab CI"
