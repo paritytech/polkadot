@@ -32,8 +32,8 @@ cache:
   echo "Version = " $VERSION
 
 
-before_script:
-  - ./scripts/build.sh
+# before_script:
+#   - ./scripts/build.sh
 
 
 #### stage:                        test
