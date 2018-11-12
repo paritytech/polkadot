@@ -66,8 +66,12 @@ build:rust:linux:release:
   tags:
     - rust
   script:
-    - test -z "${TAG}" && time cargo build --release --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot
-    - test -n "${TAG}" && time cargo build --release --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot
+    # - test -z "${TAG}" && time cargo build --release --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot
+    # - test -n "${TAG}" && time cargo build --release --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot
+    - test -z "${TAG}" && time cargo install --root ./target/release/ --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot
+    - test -n "${TAG}" && time cargo install --root ./target/release/ --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot
+    - mv ./target/release/bin/polkadot ./target/release/polkadot
+    - rm -d ./target/release/bin
     - ./target/release/polkadot --version
 
 
