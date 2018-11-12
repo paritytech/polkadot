@@ -32,29 +32,29 @@ cache:
   echo "Version = " $VERSION
 
 
+# disabled as there are bugs
 # before_script:
 #   - ./scripts/build.sh
 
 
-#### stage:                        test
 
-test:rust:release:
-  stage:                           test
-  only:
-    - triggers
-    - tags
-    - master
-    - schedules
-    - web
-  tags:
-    - rust
-  script:
-    # - time cargo test --all --release
-    - test -z "${TAG}" && time cargo test --all --release --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot
-    - test -n "${TAG}" && time cargo test --all --release --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot
+# disable tests, as they cannot be run for v0.2 from here
+# test:rust:release:
+#   stage:                           test
+#   only:
+#     - triggers
+#     - tags
+#     - master
+#     - schedules
+#     - web
+#   tags:
+#     - rust
+#   script:
+#     # - time cargo test --all --release
+#     - test -z "${TAG}" && time cargo test --all --release --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot
+#     - test -n "${TAG}" && time cargo test --all --release --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot
 
 
-#### stage:                        build
 
 build:rust:linux:release:
   stage:                           build
