@@ -4,7 +4,10 @@ LABEL description="Paritytech Polkadot Node Implementation"
 
 RUN apt-get update && \
     apt-get upgrade -y && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y libssl1.0.0 && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+		libssl1.0.0 \
+		ca-certificates \
+		curl && \
     apt-get autoremove -y && \
     apt-get clean
     
