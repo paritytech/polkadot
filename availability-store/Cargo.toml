@@ -8,7 +8,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 polkadot-primitives = { path = "../primitives" }
 parking_lot = "0.4"
 log = "0.3"
-parity-codec = { git = "https://github.com/paritytech/substrate" }
+parity-codec = "2.1"
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 kvdb = { git = "https://github.com/paritytech/parity-common.git" }
 kvdb-rocksdb = { git = "https://github.com/paritytech/parity-common.git" }

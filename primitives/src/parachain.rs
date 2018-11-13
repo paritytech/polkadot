@@ -110,7 +110,7 @@ impl CandidateReceipt {
 	pub fn check_signature(&self) -> Result<(), ()> {
 		use runtime_primitives::traits::Verify;
 
-		if self.signature.verify(&self.block_data_hash.0[..], &self.collator) {
+		if self.signature.verify(self.block_data_hash.as_ref(), &self.collator) {
 			Ok(())
 		} else {
 			Err(())
@@ -204,4 +204,16 @@ pub enum Statement {
 	Invalid(Hash),
 	/// Vote to advance round after inactive primary.
 	Available(Hash),
+}
+
+/// The API for querying the state of parachains on-chain.
+pub trait ParachainHost {
+	/// Get the current duty roster.
+	fn duty_roster() -> DutyRoster;
+	/// Get the currently active parachains.
+	fn active_parachains() -> Vec<Id>;
+	/// Get the given parachain's head data blob.
+	fn parachain_head(id: Id) -> Option<Vec<u8>>;
+	/// Get the given parachain's head code blob.
+	fn parachain_code(id: Id) -> Option<Vec<u8>>;
 }
