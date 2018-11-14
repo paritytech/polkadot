@@ -40,7 +40,7 @@ extern crate serde_derive;
 extern crate serde;
 
 use rstd::prelude::*;
-use runtime_primitives::{generic, traits::BlakeTwo256};
+use runtime_primitives::{generic, traits::{Extrinsic, BlakeTwo256}};
 pub mod parachain;
 
 #[cfg(feature = "std")]
@@ -98,6 +98,8 @@ pub type BlockId = generic::BlockId<Block>;
 #[derive(PartialEq, Eq, Clone, Default, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct UncheckedExtrinsic(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+
+impl Extrinsic for UncheckedExtrinsic {}
 
 /// Inherent data to include in a block.
 #[derive(Encode, Decode)]
