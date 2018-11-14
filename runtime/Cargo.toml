@@ -18,6 +18,7 @@ sr-io = { git = "https://github.com/paritytech/substrate" }
 srml-support = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 substrate-keyring = { git = "https://github.com/paritytech/substrate" }
+substrate-client = { git = "https://github.com/paritytech/substrate" }
 srml-balances = { git = "https://github.com/paritytech/substrate" }
 srml-consensus = { git = "https://github.com/paritytech/substrate" }
 srml-council = { git = "https://github.com/paritytech/substrate" }

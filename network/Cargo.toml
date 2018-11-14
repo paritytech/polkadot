@@ -10,7 +10,7 @@ polkadot-api = { path = "../api" }
 polkadot-availability-store = { path = "../availability-store" }
 polkadot-consensus = { path = "../consensus" }
 polkadot-primitives = { path = "../primitives" }
-substrate-bft = { git = "https://github.com/paritytech/substrate" }
+substrate-consensus-aura = { git = "https://github.com/paritytech/substrate" }
 parity-codec = "2.1"
 parity-codec-derive = "2.1"
 substrate-network = { git = "https://github.com/paritytech/substrate" }

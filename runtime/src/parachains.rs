@@ -31,7 +31,7 @@ use srml_support::dispatch::Result;
 use rstd::marker::PhantomData;
 
 #[cfg(any(feature = "std", test))]
-use sr_primitives;
+use sr_primitives::{self, ChildrenStorageMap};
 
 #[cfg(any(feature = "std", test))]
 use std::collections::HashMap;
@@ -54,6 +54,27 @@ decl_storage! {
 
 		// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
+	}
+	add_extra_genesis {
+		config(parachains): Vec<(Id, Vec<u8>, Vec<u8>)>;
+		build(|storage: &mut StorageMap, _: &mut ChildrenStorageMap, config: &GenesisConfig<T>| {
+			use codec::Encode;
+
+			config.parachains.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
+			config.parachains.dedup_by_key(|&mut (ref id, _, _)| id.clone());
+
+			let only_ids: Vec<_> = config.parachains.iter().map(|&(ref id, _, _)| id).cloned().collect();
+
+			storage.insert(GenesisConfig::<T>::hash(<Parachains<T>>::key()).to_vec(), only_ids.encode());
+
+			for (id, code, genesis) in config.parachains {
+				let code_key = GenesisConfig::<T>::hash(&<Code<T>>::key_for(&id)).to_vec();
+				let head_key = GenesisConfig::<T>::hash(&<Heads<T>>::key_for(&id)).to_vec();
+
+				storage.insert(code_key, code.encode());
+				storage.insert(head_key, genesis.encode());
+			}
+		});
 	}
 }
 
@@ -220,58 +241,6 @@ impl<T: Trait> ProvideInherent for Module<T> {
 		if !has_heads { return Err("No valid parachains inherent in block") }
 
 		Ok(())
-	}
-}
-
-// TODO: Move the following over into the new GenesisConfig API
-
-/// Parachains module genesis configuration.
-#[cfg(any(feature = "std", test))]
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[serde(deny_unknown_fields)]
-pub struct GenesisConfig<T: Trait> {
-	/// The initial parachains, mapped to code and initial head data
-	pub parachains: Vec<(Id, Vec<u8>, Vec<u8>)>,
-	/// Phantom data.
-	#[serde(skip)]
-	pub phantom: PhantomData<T>,
-}
-
-#[cfg(any(feature = "std", test))]
-impl<T: Trait> Default for GenesisConfig<T> {
-	fn default() -> Self {
-		GenesisConfig {
-			parachains: Vec::new(),
-			phantom: PhantomData,
-		}
-	}
-}
-
-#[cfg(any(feature = "std", test))]
-impl<T: Trait> sr_primitives::BuildStorage for GenesisConfig<T>
-{
-	fn build_storage(mut self) -> ::std::result::Result<HashMap<Vec<u8>, Vec<u8>>, String> {
-		use codec::Encode;
-
-		self.parachains.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
-		self.parachains.dedup_by_key(|&mut (ref id, _, _)| id.clone());
-
-		let only_ids: Vec<_> = self.parachains.iter().map(|&(ref id, _, _)| id).cloned().collect();
-
-		let mut map: HashMap<_, _> = map![
-			Self::hash(<Parachains<T>>::key()).to_vec() => only_ids.encode()
-		];
-
-		for (id, code, genesis) in self.parachains {
-			let code_key = Self::hash(&<Code<T>>::key_for(&id)).to_vec();
-			let head_key = Self::hash(&<Heads<T>>::key_for(&id)).to_vec();
-
-			map.insert(code_key, code.encode());
-			map.insert(head_key, genesis.encode());
-		}
-
-		Ok(map)
 	}
 }
 
