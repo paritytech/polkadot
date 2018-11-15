@@ -5,14 +5,10 @@ image:
   pullPolicy: Always
   basepath: /polkadot
 
-# see below
-# replicas: 1
+
 
 nodes:
-  # number of external ip addresses will determine the number of replicas
-  externalIPs:
-    - 35.198.131.6
-    - 35.242.245.237
+  replicas: 2
   args:
     - --chain
     - krummelanke

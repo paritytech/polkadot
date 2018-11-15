@@ -9,7 +9,7 @@ spec:
     matchLabels:
       app: polkadot
   serviceName: polkadot
-  replicas: {{ len .Values.nodes.externalIPs }}
+  replicas: {{ .Values.nodes.replicas }}
   updateStrategy:
     type: RollingUpdate
   podManagementPolicy: Parallel

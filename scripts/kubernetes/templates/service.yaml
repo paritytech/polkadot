@@ -19,25 +19,21 @@ spec:
   sessionAffinity: None
   type: ClusterIP
   clusterIP: None
-{{- range $index, $element := .Values.nodes.externalIPs }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: polkadot-{{ $index }}
+  name: polkadot
 spec:
   ports:
   - port: 30333
     name: p2p
-    targetPort: 30333
     nodePort: 30333
     protocol: TCP
   selector:
-    statefulset.kubernetes.io/pod-name: polkadot-{{ $index }}
+    app: polkadot
   sessionAffinity: None
-  type: LoadBalancer
+  type: NodePort
   # don't route exteral traffic to non-local pods
   externalTrafficPolicy: Local
-  loadBalancerIP: {{ $element }}
-{{- end }}
 
