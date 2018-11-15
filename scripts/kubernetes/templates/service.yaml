@@ -1,0 +1,43 @@
+# see:
+# https://kubernetes.io/docs/tutorials/services/
+# https://kubernetes.io/docs/concepts/services-networking/service/
+# headless service for rpc
+apiVersion: v1
+kind: Service
+metadata:
+  name: polkadot-rpc
+  labels:
+    app: polkadot
+spec:
+  ports:
+  - port: 9933
+    name: http-rpc
+  - port: 9944
+    name: websocket-rpc
+  selector:
+    app: polkadot
+  sessionAffinity: None
+  type: ClusterIP
+  clusterIP: None
+{{- range $index, $element := .Values.nodes.externalIPs }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: polkadot-{{ $index }}
+spec:
+  ports:
+  - port: 30333
+    name: p2p
+    targetPort: 30333
+    nodePort: 30333
+    protocol: TCP
+  selector:
+    statefulset.kubernetes.io/pod-name: polkadot-{{ $index }}
+  sessionAffinity: None
+  type: LoadBalancer
+  # don't route exteral traffic to non-local pods
+  externalTrafficPolicy: Local
+  loadBalancerIP: {{ $element }}
+{{- end }}
+
