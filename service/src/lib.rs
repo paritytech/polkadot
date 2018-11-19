@@ -49,9 +49,9 @@ use client::{Client, BlockchainEvents};
 use polkadot_network::{PolkadotProtocol, consensus::ConsensusNetwork};
 use tokio::runtime::TaskExecutor;
 use service::FactoryFullConfiguration;
-use primitives::{Blake2Hasher, RlpCodec};
+use primitives::{Blake2Hasher};
 
-pub use service::{Roles, PruningMode, ExtrinsicPoolOptions,
+pub use service::{Roles, PruningMode, TransactionPoolOptions,
 	ErrorKind, Error, ComponentBlock, LightComponents, FullComponents};
 pub use client::ExecutionStrategy;
 
@@ -66,9 +66,9 @@ pub trait Components: service::Components {
 	/// Polkadot API.
 	type Api: 'static + PolkadotApi + Send + Sync;
 	/// Client backend.
-	type Backend: 'static + client::backend::Backend<Block, Blake2Hasher, RlpCodec>;
+	type Backend: 'static + client::backend::Backend<Block, Blake2Hasher>;
 	/// Client executor.
-	type Executor: 'static + client::CallExecutor<Block, Blake2Hasher, RlpCodec> + Send + Sync;
+	type Executor: 'static + client::CallExecutor<Block, Blake2Hasher> + Send + Sync;
 }
 
 impl Components for service::LightComponents<Factory> {
@@ -105,8 +105,8 @@ impl service::ServiceFactory for Factory {
 	type ExtrinsicHash = Hash;
 	type NetworkProtocol = PolkadotProtocol;
 	type RuntimeDispatch = polkadot_executor::Executor;
-	type FullExtrinsicPoolApi = transaction_pool::ChainApi<service::FullClient<Self>>;
-	type LightExtrinsicPoolApi = transaction_pool::ChainApi<
+	type FullTransactionPoolApi = transaction_pool::ChainApi<service::FullClient<Self>>;
+	type LightTransactionPoolApi = transaction_pool::ChainApi<
 		RemotePolkadotApiWrapper<service::LightBackend<Self>, service::LightExecutor<Self>>
 	>;
 	type Genesis = GenesisConfig;
@@ -114,14 +114,14 @@ impl service::ServiceFactory for Factory {
 
 	const NETWORK_PROTOCOL_ID: network::ProtocolId = ::polkadot_network::DOT_PROTOCOL_ID;
 
-	fn build_full_extrinsic_pool(config: ExtrinsicPoolOptions, client: Arc<service::FullClient<Self>>)
+	fn build_full_transaction_pool(config: TransactionPoolOptions, client: Arc<service::FullClient<Self>>)
 		-> Result<TransactionPool<service::FullClient<Self>>, Error>
 	{
 		let api = client.clone();
 		Ok(TransactionPool::new(config, transaction_pool::ChainApi::new(api)))
 	}
 
-	fn build_light_extrinsic_pool(config: ExtrinsicPoolOptions, client: Arc<service::LightClient<Self>>)
+	fn build_light_transaction_pool(config: TransactionPoolOptions, client: Arc<service::LightClient<Self>>)
 		-> Result<TransactionPool<RemotePolkadotApiWrapper<service::LightBackend<Self>, service::LightExecutor<Self>>>, Error>
 	{
 		let api = Arc::new(RemotePolkadotApiWrapper(client.clone()));
@@ -167,7 +167,7 @@ pub fn new_light(config: Configuration, executor: TaskExecutor)
 {
 	let service = service::Service::<LightComponents<Factory>>::new(config, executor.clone())?;
 	let api = Arc::new(RemotePolkadotApiWrapper(service.client()));
-	let pool  = service.extrinsic_pool();
+	let pool  = service.transaction_pool();
 	let events = service.client().import_notification_stream()
 		.for_each(move |notification| {
 			// re-verify all transactions without the sender.
@@ -205,7 +205,7 @@ pub fn new_full(config: Configuration, executor: TaskExecutor)
 
 	let is_validator = (config.roles & Roles::AUTHORITY) == Roles::AUTHORITY;
 	let service = service::Service::<FullComponents<Factory>>::new(config, executor.clone())?;
-	let pool  = service.extrinsic_pool();
+	let pool  = service.transaction_pool();
 	let events = service.client().import_notification_stream()
 		.for_each(move |notification| {
 			// re-verify all transactions without the sender.
@@ -228,7 +228,7 @@ pub fn new_full(config: Configuration, executor: TaskExecutor)
 			client.clone(),
 			client.clone(),
 			consensus_net,
-			service.extrinsic_pool(),
+			service.transaction_pool(),
 			executor,
 			::std::time::Duration::from_secs(4), // TODO: dynamic
 			key,
