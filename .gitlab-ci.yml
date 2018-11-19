@@ -71,21 +71,19 @@ build:rust:linux:release:
     - rust
   script:
     - >
+      set -x;
       if [ "${POLKADOT_BRANCH}" = "v0.2" ]; then
         if [ -z "${TAG}" ]; then
-          time cargo install --root ./target/release/ --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot;
+          time cargo install --verbose --root ./target/release/ --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot;
         else
-          time cargo install --root ./target/release/ --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot;
+          time cargo install --verbose --root ./target/release/ --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot;
         fi;
         mv ./target/release/bin/polkadot ./target/release/polkadot;
         rm -d ./target/release/bin;
       else
-        if [ -z "${TAG}" ]; then
-          time cargo build --release --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot;
-        else
-          time cargo build --release --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot;
-        fi;
-      fi
+        time cargo build --release --verbose;
+      fi;
+      set +x
     - ./target/release/polkadot --version
 
 
