@@ -2,6 +2,7 @@ stages:
   - test
   - build
   - publish
+  - deploy
 
 # default release in rust:nightly image is stable
 image:                             parity/rust:nightly
@@ -10,7 +11,7 @@ variables:
   CI_SERVER_NAME:                  "GitLab CI"
   CARGO_HOME:                      "${CI_PROJECT_DIR}/.cargo"
   SUBSTRATE_REPO:                  "https://github.com/paritytech/substrate.git"
-  POLKADOT_BRANCH:                 "v0.2"
+  # POLKADOT_BRANCH:                 "v0.2"
 
 
 cache:
@@ -38,21 +39,24 @@ cache:
 
 
 
-# disable tests, as they cannot be run for v0.2 from here
-# test:rust:release:
-#   stage:                           test
-#   only:
-#     - triggers
-#     - tags
-#     - master
-#     - schedules
-#     - web
-#   tags:
-#     - rust
-#   script:
-#     # - time cargo test --all --release
-#     - test -z "${TAG}" && time cargo test --all --release --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot
-#     - test -n "${TAG}" && time cargo test --all --release --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot
+# test will be run for ci on the current repo
+# for version v0.2 branch tests are located in substrate repository and 
+# therefore not generically testable
+test:rust:release:
+  stage:                           test
+  only:
+    - triggers
+    - tags
+    - master
+    - schedules
+    - web
+  except:
+    variables:
+      - $POLKADOT_BRANCH == "v0.2"
+  tags:
+    - rust
+  script:
+    - time cargo test --all --release --verbose
 
 
 
@@ -66,16 +70,25 @@ build:rust:linux:release:
   tags:
     - rust
   script:
-    # - test -z "${TAG}" && time cargo build --release --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot
-    # - test -n "${TAG}" && time cargo build --release --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot
-    - test -z "${TAG}" && time cargo install --root ./target/release/ --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot
-    - test -n "${TAG}" && time cargo install --root ./target/release/ --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot
-    - mv ./target/release/bin/polkadot ./target/release/polkadot
-    - rm -d ./target/release/bin
+    - >
+      if [ "${POLKADOT_BRANCH}" = "v0.2" ]; then
+        if [ -z "${TAG}" ]; then
+          time cargo install --root ./target/release/ --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot;
+        else
+          time cargo install --root ./target/release/ --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot;
+        fi;
+        mv ./target/release/bin/polkadot ./target/release/polkadot;
+        rm -d ./target/release/bin;
+      else
+        if [ -z "${TAG}" ]; then
+          time cargo build --release --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot;
+        else
+          time cargo build --release --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot;
+        fi;
+      fi
     - ./target/release/polkadot --version
 
 
-#### stage:                        publish
 
 dockerize:release:
   stage:                           publish
@@ -110,5 +123,34 @@ dockerize:release:
     - docker build --tag $CONTAINER_IMAGE:$VERSION -f $DOCKERFILE ./target/release/
     - docker push $CONTAINER_IMAGE:$VERSION
     - docker logout
+
+
+deploy:a:
+  stage:                           deploy
+  when:                            manual
+  cache:                           {}
+  image: dtzar/helm-kubectl:$HELM_VERSION
+  only:
+    - master
+    - tags
+    - web
+  tags:
+    - kubernetes
+  script:
+    - echo "Polkadot version = ${VERSION}"
+
+deploy:b:
+  stage:                           deploy
+  when:                            manual
+  cache:                           {}
+  image: dtzar/helm-kubectl:$HELM_VERSION
+  only:
+    - master
+    - tags
+    - web
+  tags:
+    - kubernetes
+  script:
+    - echo "Polkadot version = ${VERSION}"
 
 

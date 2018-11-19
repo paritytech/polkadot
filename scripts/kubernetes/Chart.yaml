@@ -1,6 +1,6 @@
-name: prometheus
+name: polkadot
 version: 0.1
-appVersion: 0.3.0
+appVersion: 0.2.0
 description: Polkadot Node Implementation
 home: https://polkadot.network/
 icon: https://polkadot.network/favicon.ico
