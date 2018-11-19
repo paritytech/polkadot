@@ -30,6 +30,8 @@ extern crate substrate_client as client;
 
 #[macro_use]
 extern crate sr_std as rstd;
+#[cfg(test)]
+extern crate sr_io;
 #[macro_use]
 extern crate sr_version as version;
 #[macro_use]

@@ -243,11 +243,11 @@ impl<T: Trait> ProvideInherent for Module<T> {
 mod tests {
 	use super::*;
 	use rstd::marker::PhantomData;
-	use runtime_io::{TestExternalities, with_externalities};
+	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use sr_primitives::BuildStorage;
 	use sr_primitives::traits::{Identity, BlakeTwo256};
-	use sr_primitives::testing::{Digest, Header};
+	use sr_primitives::testing::{Digest, Header, DigestItem};
 	use {consensus, timestamp};
 
 	impl_outer_origin! {
@@ -260,7 +260,7 @@ mod tests {
 		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type SessionKey = u64;
 		type OnOfflineValidator = ();
-		type Log = u64;
+		type Log = DigestItem;
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
@@ -272,6 +272,7 @@ mod tests {
 		type AccountId = u64;
 		type Header = Header;
 		type Event = ();
+		type Log = DigestItem;
 	}
 	impl session::Trait for Test {
 		type ConvertAccountIdToSessionKey = Identity;
@@ -289,19 +290,21 @@ mod tests {
 	type Parachains = Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(Id, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap();
+		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
 		t.extend(consensus::GenesisConfig::<Test>{
 			code: vec![],
 			authorities: vec![1, 2, 3],
-		}.build_storage().unwrap());
+			_genesis_phantom_data: PhantomData,
+		}.build_storage().unwrap().0);
 		t.extend(session::GenesisConfig::<Test>{
 			session_length: 1000,
 			validators: vec![1, 2, 3, 4, 5, 6, 7, 8],
-		}.build_storage().unwrap());
+			_genesis_phantom_data: PhantomData,
+		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			parachains: parachains,
-			phantom: PhantomData,
-		}.build_storage().unwrap());
+			_genesis_phantom_data: PhantomData,
+		}.build_storage().unwrap().0);
 		t.into()
 	}
 
@@ -332,12 +335,12 @@ mod tests {
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
 
-			assert_ok!(Parachains::register_parachain(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1]));
+			assert_ok!(Parachains::register_parachain(99u32.into(), vec![7,8,9], vec![1, 1, 1]));
 
 			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
-			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 5u32.into()));
+			assert_ok!(Parachains::deregister_parachain(5u32.into()));
 
 			assert_eq!(Parachains::active_parachains(), vec![99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
