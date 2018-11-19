@@ -20,10 +20,6 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit="256"]
 
-#[cfg(feature = "std")]
-#[macro_use]
-extern crate serde_derive;
-
 #[macro_use]
 extern crate parity_codec_derive;
 extern crate parity_codec as codec;
@@ -109,7 +105,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: apis_vec!([
 		(BLOCK_BUILDER, 1),
 		(TAGGED_TRANSACTION_QUEUE, 1),
-		(METADATA, 1)
+		(METADATA, 1),
+		(PARACHAIN_HOST, 1),
 	]),
 };
 

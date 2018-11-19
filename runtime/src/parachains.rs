@@ -20,21 +20,15 @@ use rstd::prelude::*;
 use codec::Decode;
 
 use sr_primitives::{RuntimeString, traits::{Extrinsic, Block as BlockT,
-	Hash, BlakeTwo256, ProvideInherent}, StorageMap};
+	Hash, BlakeTwo256, ProvideInherent}};
 use primitives::parachain::{Id, Chain, DutyRoster, CandidateReceipt};
 use {system, session};
 
-use srml_support::{StorageValue, StorageMap as StorageMapTrait};
+use srml_support::{StorageValue, StorageMap};
 use srml_support::dispatch::Result;
 
 #[cfg(any(feature = "std", test))]
-use rstd::marker::PhantomData;
-
-#[cfg(any(feature = "std", test))]
 use sr_primitives::{self, ChildrenStorageMap};
-
-#[cfg(any(feature = "std", test))]
-use std::collections::HashMap;
 
 use system::ensure_inherent;
 
@@ -57,7 +51,7 @@ decl_storage! {
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(Id, Vec<u8>, Vec<u8>)>;
-		build(|storage: &mut StorageMap, _: &mut ChildrenStorageMap, config: &GenesisConfig<T>| {
+		build(|storage: &mut sr_primitives::StorageMap, _: &mut ChildrenStorageMap, config: &GenesisConfig<T>| {
 			use codec::Encode;
 
 			let mut p = config.parachains.clone();
@@ -248,6 +242,7 @@ impl<T: Trait> ProvideInherent for Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use rstd::marker::PhantomData;
 	use runtime_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use sr_primitives::BuildStorage;
