@@ -20,11 +20,11 @@ use rstd::prelude::*;
 use codec::Decode;
 
 use sr_primitives::{RuntimeString, traits::{Extrinsic, Block as BlockT,
-	Hash, BlakeTwo256, ProvideInherent}};
+	Hash, BlakeTwo256, ProvideInherent}, StorageMap};
 use primitives::parachain::{Id, Chain, DutyRoster, CandidateReceipt};
 use {system, session};
 
-use srml_support::{StorageValue, StorageMap};
+use srml_support::{StorageValue, StorageMap as StorageMapTrait};
 use srml_support::dispatch::Result;
 
 #[cfg(any(feature = "std", test))]
@@ -60,14 +60,15 @@ decl_storage! {
 		build(|storage: &mut StorageMap, _: &mut ChildrenStorageMap, config: &GenesisConfig<T>| {
 			use codec::Encode;
 
-			config.parachains.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
-			config.parachains.dedup_by_key(|&mut (ref id, _, _)| id.clone());
+			let mut p = config.parachains.clone();
+			p.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
+			p.dedup_by_key(|&mut (ref id, _, _)| id.clone());
 
-			let only_ids: Vec<_> = config.parachains.iter().map(|&(ref id, _, _)| id).cloned().collect();
+			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
 			storage.insert(GenesisConfig::<T>::hash(<Parachains<T>>::key()).to_vec(), only_ids.encode());
 
-			for (id, code, genesis) in config.parachains {
+			for (id, code, genesis) in p {
 				let code_key = GenesisConfig::<T>::hash(&<Code<T>>::key_for(&id)).to_vec();
 				let head_key = GenesisConfig::<T>::hash(&<Heads<T>>::key_for(&id)).to_vec();
 
@@ -238,7 +239,7 @@ impl<T: Trait> ProvideInherent for Module<T> {
 			}
 		});
 
-		if !has_heads { return Err("No valid parachains inherent in block") }
+		if !has_heads { return Err("No valid parachains inherent in block".into()) }
 
 		Ok(())
 	}

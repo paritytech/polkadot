@@ -25,6 +25,7 @@ extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;
 extern crate sr_primitives as runtime_primitives;
 extern crate sr_std as rstd;
+extern crate sr_version;
 
 #[cfg(test)]
 extern crate substrate_serializer;
@@ -38,6 +39,9 @@ extern crate serde_derive;
 
 #[cfg(feature = "std")]
 extern crate serde;
+
+#[macro_use]
+extern crate substrate_client;
 
 use rstd::prelude::*;
 use runtime_primitives::{generic, traits::{Extrinsic, BlakeTwo256}};

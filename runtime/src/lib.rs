@@ -62,7 +62,7 @@ use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, SessionKey, Signature,
-	parachain, parachain::ParachainHost
+	parachain, parachain::runtime::ParachainHost, parachain::id::PARACHAIN_HOST
 };
 #[cfg(feature = "std")]
 use primitives::Block as GBlock;
@@ -391,17 +391,17 @@ impl client::runtime_api::Metadata<GBlock> for ClientWithApi {
 }
 
 #[cfg(feature = "std")]
-impl ParachainHost for ClientWithApi {
+impl ::primitives::parachain::ParachainHost<GBlock> for ClientWithApi {
 	fn duty_roster(&self, at: &GBlockId) -> Result<primitives::parachain::DutyRoster, client::error::Error> {
 		self.call_api_at(at, "calculate_duty_roster", &())
 	}
 	fn active_parachains(&self, at: &GBlockId) -> Result<Vec<parachain::Id>, client::error::Error> {
 		self.call_api_at(at, "active_parachains", &())
 	}
-	fn parachain_head(&self, at: &GBlockId, id: &parachain::Id) -> Result<Vec<u8>, client::error::Error> {
+	fn parachain_head(&self, at: &GBlockId, id: &parachain::Id) -> Result<Option<Vec<u8>>, client::error::Error> {
 		self.call_api_at(at, "parachain_head", &id)
 	}
-	fn parachain_code(&self, at: &GBlockId, id: &parachain::Id) -> Result<Vec<u8>, client::error::Error> {
+	fn parachain_code(&self, at: &GBlockId, id: &parachain::Id) -> Result<Option<Vec<u8>>, client::error::Error> {
 		self.call_api_at(at, "parachain_code", &id)
 	}
 }

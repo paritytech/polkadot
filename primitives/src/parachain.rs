@@ -206,14 +206,22 @@ pub enum Statement {
 	Available(Hash),
 }
 
-/// The API for querying the state of parachains on-chain.
-pub trait ParachainHost {
-	/// Get the current duty roster.
-	fn duty_roster() -> DutyRoster;
-	/// Get the currently active parachains.
-	fn active_parachains() -> Vec<Id>;
-	/// Get the given parachain's head data blob.
-	fn parachain_head(id: Id) -> Option<Vec<u8>>;
-	/// Get the given parachain's head code blob.
-	fn parachain_code(id: Id) -> Option<Vec<u8>>;
+decl_runtime_apis! {
+	/// The API for querying the state of parachains on-chain.
+	pub trait ParachainHost {
+		/// Get the current duty roster.
+		fn duty_roster() -> DutyRoster;
+		/// Get the currently active parachains.
+		fn active_parachains() -> Vec<Id>;
+		/// Get the given parachain's head data blob.
+		fn parachain_head(id: Id) -> Option<Vec<u8>>;
+		/// Get the given parachain's head code blob.
+		fn parachain_code(id: Id) -> Option<Vec<u8>>;
+	}
+}
+
+pub mod id {
+	use sr_version::ApiId;
+
+	pub const PARACHAIN_HOST: ApiId = *b"parahost";
 }
