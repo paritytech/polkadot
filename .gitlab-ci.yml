@@ -1,8 +1,17 @@
+#
+# pipelines can be triggered manually in the web
+# setting POLKADOT_BUILD to v0.2 will result in a poc2 build
+# setting DEPLOY_TAG will only deploy the tagged image
+
+
 stages:
   - test
   - build
   - publish
   - deploy
+
+
+
 
 # default release in rust:nightly image is stable
 image:                             parity/rust:nightly
@@ -26,7 +35,7 @@ cache:
     when:                          on_success
     expire_in:                     7 days
     paths:
-    - target/release/polkadot
+    - target/release/
 
 .determine_version: &determine_version |
   export VERSION="$(sed -r -n '1,/^version/s/^version = "([^"]+)".*$/\1/p' Cargo.toml)";
@@ -53,6 +62,7 @@ test:rust:release:
   except:
     variables:
       - $POLKADOT_BRANCH == "v0.2"
+      - $DEPLOY_TAG != ""
   tags:
     - rust
   script:
@@ -67,6 +77,9 @@ build:rust:linux:release:
     - master
     - tags
     - web
+  except:
+    variables:
+      - $DEPLOY_TAG != ""
   tags:
     - rust
   script:
@@ -97,6 +110,9 @@ dockerize:release:
     - master
     - tags
     - web
+  except:
+    variables:
+      - $DEPLOY_TAG != ""
   tags:
     - shell
   # image: docker:stable
@@ -108,6 +124,8 @@ dockerize:release:
     DOCKERFILE: scripts/docker/Dockerfile
     CONTAINER_IMAGE: parity/polkadot
   before_script:
+    - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity" \
+        || ( echo "no docker credentials provided"; exit 1" )
     - docker login -u $Docker_Hub_User_Parity -p $Docker_Hub_Pass_Parity
     - docker info
     - VERSION="$(./target/release/polkadot --version | sed -n -r 's/^polkadot ([0-9.]+-[0-9a-f]+)-.*$/\1/p')"
@@ -121,6 +139,11 @@ dockerize:release:
     - docker build --tag $CONTAINER_IMAGE:$VERSION -f $DOCKERFILE ./target/release/
     - docker push $CONTAINER_IMAGE:$VERSION
     - docker logout
+    - rm -f ./target/release/polkadot
+    - echo "${VERSION}" > ./target/release/VERSION
+  # use artifacts here to transport the version to the next stage
+  <<:                              *collect_artifacts
+
 
 
 deploy:a:
@@ -135,7 +158,9 @@ deploy:a:
   tags:
     - kubernetes
   script:
+    - test -f ./target/release/VERSION && VERSION="$(cat ./target/release/VERSION)"
     - echo "Polkadot version = ${VERSION}"
+    - echo "DEPLOY_TAG = $DEPLOY_TAG"
 
 deploy:b:
   stage:                           deploy
@@ -150,5 +175,6 @@ deploy:b:
     - kubernetes
   script:
     - echo "Polkadot version = ${VERSION}"
+    - echo "DEPLOY_TAG = $DEPLOY_TAG"
 
 
