@@ -146,7 +146,7 @@ dockerize:release:
 
 
 
-deploy:a:
+deploy:ew3:
   stage:                           deploy
   when:                            manual
   cache:                           {}
@@ -157,12 +157,15 @@ deploy:a:
     - web
   tags:
     - kubernetes
+  before_script:
+    - test -z "${DEPLOY_TAG}" && 
+      test -f ./target/release/VERSION && 
+      DEPLOY_TAG="$(cat ./target/release/VERSION)"
+    - echo "Polkadot version = ${DEPLOY_TAG}"
   script:
-    - test -f ./target/release/VERSION && VERSION="$(cat ./target/release/VERSION)"
-    - echo "Polkadot version = ${VERSION}"
-    - echo "DEPLOY_TAG = $DEPLOY_TAG"
+    - test "${DEPLOY_TAG}" || ( echo "Neither DEPLOY_TAG nor VERSION information available"; exit 1 )
 
-deploy:b:
+deploy:ue1:
   stage:                           deploy
   when:                            manual
   cache:                           {}
@@ -173,8 +176,12 @@ deploy:b:
     - web
   tags:
     - kubernetes
+  before_script:
+    - test -z "${DEPLOY_TAG}" && 
+      test -f ./target/release/VERSION && 
+      DEPLOY_TAG="$(cat ./target/release/VERSION)"
+    - echo "Polkadot version = ${DEPLOY_TAG}"
   script:
-    - echo "Polkadot version = ${VERSION}"
-    - echo "DEPLOY_TAG = $DEPLOY_TAG"
+    - test "${DEPLOY_TAG}" || ( echo "Neither DEPLOY_TAG nor VERSION information available"; exit 1 )
 
 
