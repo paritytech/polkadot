@@ -62,7 +62,7 @@ test:rust:release:
   except:
     variables:
       - $POLKADOT_BRANCH == "v0.2"
-      - $DEPLOY_TAG != ""
+      - $DEPLOY_TAG
   tags:
     - rust
   script:
@@ -79,7 +79,7 @@ build:rust:linux:release:
     - web
   except:
     variables:
-      - $DEPLOY_TAG != ""
+      - $DEPLOY_TAG
   tags:
     - rust
   script:
@@ -112,7 +112,7 @@ dockerize:release:
     - web
   except:
     variables:
-      - $DEPLOY_TAG != ""
+      - $DEPLOY_TAG
   tags:
     - shell
   # image: docker:stable
