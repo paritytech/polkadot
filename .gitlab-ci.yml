@@ -125,7 +125,7 @@ dockerize:release:
     CONTAINER_IMAGE: parity/polkadot
   before_script:
     - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity"
-        || ( echo "no docker credentials provided"; exit 1" )
+        || ( echo "no docker credentials provided"; exit 1 )
     - docker login -u $Docker_Hub_User_Parity -p $Docker_Hub_Pass_Parity
     - docker info
     - VERSION="$(./target/release/polkadot --version | sed -n -r 's/^polkadot ([0-9.]+-[0-9a-f]+)-.*$/\1/p')"
