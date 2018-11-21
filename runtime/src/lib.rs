@@ -391,6 +391,9 @@ impl client::runtime_api::Metadata<GBlock> for ClientWithApi {
 
 #[cfg(feature = "std")]
 impl ::primitives::parachain::ParachainHost<GBlock> for ClientWithApi {
+	fn validators(&self, at: &GBlockId) -> Result<Vec<primitives::AccountId>, client::error::Error> {
+		self.call_api_at(at, "validators", &())
+	}
 	fn duty_roster(&self, at: &GBlockId) -> Result<primitives::parachain::DutyRoster, client::error::Error> {
 		self.call_api_at(at, "calculate_duty_roster", &())
 	}
@@ -459,6 +462,9 @@ impl_runtime_apis! {
 	}
 
 	impl ParachainHost for Runtime {
+		fn validators() -> Vec<AccountId> {
+			Session::validators()
+		}
 		fn duty_roster() -> parachain::DutyRoster {
 			Parachains::calculate_duty_roster()
 		}

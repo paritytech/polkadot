@@ -20,8 +20,7 @@ use primitives::AuthorityId;
 
 error_chain! {
 	links {
-		PolkadotApi(::polkadot_api::Error, ::polkadot_api::ErrorKind);
-		Bft(::bft::Error, ::bft::ErrorKind);
+		Client(::client::error::Error, ::client::error::ErrorKind);
 	}
 
 	errors {

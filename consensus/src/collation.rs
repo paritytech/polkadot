@@ -21,11 +21,11 @@
 
 use std::sync::Arc;
 
-use polkadot_api::PolkadotApi;
 use polkadot_primitives::{Hash, AccountId, BlockId};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic};
 
 use futures::prelude::*;
+use super::ConsensusApi;
 
 /// Encapsulates connections to collators and allows collation on any parachain.
 ///
@@ -52,7 +52,7 @@ pub trait Collators: Clone {
 /// A future which resolves when a collation is available.
 ///
 /// This future is fused.
-pub struct CollationFetch<C: Collators, P: PolkadotApi> {
+pub struct CollationFetch<C: Collators, P: ConsensusApi> {
 	parachain: ParaId,
 	relay_parent_hash: Hash,
 	relay_parent: BlockId,
@@ -61,7 +61,7 @@ pub struct CollationFetch<C: Collators, P: PolkadotApi> {
 	client: Arc<P>,
 }
 
-impl<C: Collators, P: PolkadotApi> CollationFetch<C, P> {
+impl<C: Collators, P: ConsensusApi> CollationFetch<C, P> {
 	/// Create a new collation fetcher for the given chain.
 	pub fn new(parachain: ParaId, relay_parent: BlockId, relay_parent_hash: Hash, collators: C, client: Arc<P>) -> Self {
 		CollationFetch {
@@ -80,7 +80,7 @@ impl<C: Collators, P: PolkadotApi> CollationFetch<C, P> {
 	}
 }
 
-impl<C: Collators, P: PolkadotApi> Future for CollationFetch<C, P> {
+impl<C: Collators, P: ConsensusApi> Future for CollationFetch<C, P> {
 	type Item = (Collation, Extrinsic);
 	type Error = C::Error;
 
@@ -133,12 +133,12 @@ error_chain! {
 	}
 
 	links {
-		PolkadotApi(::polkadot_api::Error, ::polkadot_api::ErrorKind);
+		Client(::client::error::Error, ::client::error::ErrorKind);
 	}
 }
 
 /// Check whether a given collation is valid. Returns `Ok`  on success, error otherwise.
-pub fn validate_collation<P: PolkadotApi>(client: &P, relay_parent: &BlockId, collation: &Collation) -> Result<(), Error> {
+pub fn validate_collation<P: ConsensusApi>(client: &P, relay_parent: &BlockId, collation: &Collation) -> Result<(), Error> {
 	use parachain::{self, ValidationParams};
 
 	let para_id = collation.receipt.parachain_index;

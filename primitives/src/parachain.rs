@@ -20,6 +20,8 @@ use rstd::prelude::*;
 use rstd::cmp::Ordering;
 use super::Hash;
 
+use {AccountId};
+
 #[cfg(feature = "std")]
 use primitives::bytes;
 
@@ -209,6 +211,8 @@ pub enum Statement {
 decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost {
+		/// Get the current validators.
+		fn validators() -> Vec<AccountId>;
 		/// Get the current duty roster.
 		fn duty_roster() -> DutyRoster;
 		/// Get the currently active parachains.
