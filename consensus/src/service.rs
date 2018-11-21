@@ -27,13 +27,13 @@ use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::Arc;
 
-use consensus_common as consensus;
+use bft::{self, BftService};
 use client::{BlockchainEvents, ChainHead, BlockBody};
 use primitives::ed25519;
 use futures::prelude::*;
 use polkadot_api::LocalPolkadotApi;
 use polkadot_primitives::{Block, Header};
-use transaction_pool::txpool::{self, Pool as TransactionPool};
+use transaction_pool::TransactionPool;
 use extrinsic_store::Store as ExtrinsicStore;
 
 use tokio::executor::current_thread::TaskExecutor as LocalThreadHandle;
@@ -79,6 +79,7 @@ fn prune_unneeded_availability<C>(client: Arc<C>, extrinsic_store: ExtrinsicStor
 {
 	use codec::{Encode, Decode};
 	use polkadot_primitives::BlockId;
+	use polkadot_runtime::CheckedBlock;
 
 	enum NotifyError {
 		NoBody,
@@ -107,7 +108,8 @@ fn prune_unneeded_availability<C>(client: Arc<C>, extrinsic_store: ExtrinsicStor
 				.and_then(|maybe_body| maybe_body.ok_or(NotifyError::NoBody))
 				.map(|extrinsics| Block { header: notification.header, extrinsics })
 				.map(|b: Block| ::polkadot_runtime::Block::decode(&mut b.encode().as_slice()))
-				.and_then(|maybe_block| maybe_block.ok_or(NotifyError::UnexpectedFormat));
+				.and_then(|maybe_block| maybe_block.ok_or(NotifyError::UnexpectedFormat))
+				.and_then(|block| CheckedBlock::new(block).map_err(|_| NotifyError::ExtrinsicsWrong));
 
 			match checked_block {
 				Ok(block) => {
