@@ -19,18 +19,14 @@ vergen = "0.1"
 
 [workspace]
 members = [
-	"api",
 	"availability-store",
 	"cli",
 	"collator",
-	"consensus",
 	"executor",
-	"network",
 	"primitives",
 	"runtime",
 	"service",
 	"statement-table",
-	"transaction-pool",
 	"service",
 
 	"test-parachains/adder",
@@ -42,11 +38,8 @@ exclude = [
 ]
 
 [badges]
-travis-ci = { repository = "paritytech/substrate", branch = "master" }
 maintenance = { status = "actively-developed" }
-is-it-maintained-issue-resolution = { repository = "paritytech/substrate" }
-is-it-maintained-open-issues = { repository = "paritytech/substrate" }
 
 [profile.release]
-# Substrate runtime requires unwinding.
+# Polkadot runtime requires unwinding.
 panic = "unwind"

@@ -19,15 +19,11 @@
 use super::MAX_TRANSACTIONS_SIZE;
 
 use codec::{Decode, Encode};
-use polkadot_runtime::{Block as PolkadotGenericBlock, CheckedBlock};
+use polkadot_runtime::{Block as PolkadotGenericBlock};
 use polkadot_primitives::{Block, Hash, BlockNumber, Timestamp};
 use polkadot_primitives::parachain::Id as ParaId;
 
 error_chain! {
-	links {
-		PolkadotApi(::polkadot_api::Error, ::polkadot_api::ErrorKind);
-	}
-
 	errors {
 		ProposalNotForPolkadot {
 			description("Proposal provided not a Polkadot block."),
@@ -75,12 +71,11 @@ pub fn evaluate_initial(
 	parent_hash: &Hash,
 	parent_number: BlockNumber,
 	active_parachains: &[ParaId],
-) -> Result<CheckedBlock> {
+) -> Result<> {
 	const MAX_TIMESTAMP_DRIFT: Timestamp = 60;
 
 	let encoded = Encode::encode(proposal);
 	let proposal = PolkadotGenericBlock::decode(&mut &encoded[..])
-		.and_then(|b| CheckedBlock::new(b).ok())
 		.ok_or_else(|| ErrorKind::ProposalNotForPolkadot)?;
 
 	let transactions_size = proposal.extrinsics.iter().fold(0, |a, tx| {
@@ -129,5 +124,5 @@ pub fn evaluate_initial(
 		}
 	}
 
-	Ok(proposal)
+	Ok()
 }

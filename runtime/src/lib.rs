@@ -60,7 +60,7 @@ use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, SessionKey, Signature,
-	parachain, parachain::runtime::ParachainHost, parachain::id::PARACHAIN_HOST
+	parachain, parachain::runtime::ParachainHost, parachain::id::PARACHAIN_HOST,
 };
 #[cfg(feature = "std")]
 use primitives::Block as GBlock;

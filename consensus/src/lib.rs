@@ -30,20 +30,18 @@
 //! Groups themselves may be compromised by malicious authorities.
 
 extern crate parking_lot;
-extern crate polkadot_api;
 extern crate polkadot_availability_store as extrinsic_store;
 extern crate polkadot_statement_table as table;
 extern crate polkadot_parachain as parachain;
-extern crate polkadot_transaction_pool as transaction_pool;
 extern crate polkadot_runtime;
 extern crate polkadot_primitives;
 
-extern crate substrate_bft as bft;
 extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;
 extern crate srml_support as runtime_support;
 extern crate sr_primitives as runtime_primitives;
 extern crate substrate_client as client;
+extern crate substrate_transaction_pool as transaction_pool;
 
 extern crate exit_future;
 extern crate tokio;
@@ -67,11 +65,10 @@ use std::time::{self, Duration, Instant};
 
 use codec::{Decode, Encode};
 use extrinsic_store::Store as ExtrinsicStore;
-use polkadot_api::PolkadotApi;
 use polkadot_primitives::{AccountId, Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use primitives::{AuthorityId, ed25519};
-use transaction_pool::TransactionPool;
+use transaction_pool::txpool::{self, Pool as TransactionPool};
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 
@@ -90,7 +87,6 @@ pub use service::Service;
 mod dynamic_inclusion;
 mod evaluation;
 mod error;
-mod offline_tracker;
 mod service;
 mod shared_table;
 
@@ -137,6 +133,26 @@ pub trait Network {
 
 	/// Instantiate a table router using the given shared table and task executor.
 	fn communication_for(&self, validators: &[SessionKey], table: Arc<SharedTable>, task_executor: TaskExecutor) -> (Self::TableRouter, Self::Input, Self::Output);
+}
+
+/// Local client abstraction for the consensus.
+pub trait AuthoringApi:
+	Send +
+	Sync +
+	BlockBuilderAPI<Block, Error=<Self as AuthoringApi>::Error> +
+	Core<Block, AuthorityId, Error=<Self as AuthoringApi>::Error> +
+	OldTxQueue<Block, Error=<Self as AuthoringApi>::Error> +
+{
+	/// The error used by this API type.
+	type Error: std::error::Error;
+
+	/// Build a block on top of the given, with inherent extrinsics pre-pushed.
+	fn build_block<F: FnMut(&mut BlockBuilder<Block>) -> ()>(
+		&self,
+		at: &BlockId<Block>,
+		inherent_data: InherentData,
+		build_ctx: F,
+		) -> Result<Block, Error>;
 }
 
 /// Information about a specific group.
@@ -230,14 +246,15 @@ fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: Au
 }
 
 /// Polkadot proposer factory.
-pub struct ProposerFactory<C, N, P> 
+pub struct ProposerFactory<C, N, P, T>
 	where
-		P: PolkadotApi + Send + Sync + 'static
+		P: AutoringApi + Send + Sync + 'static,
+		T: txpool::ChainApi,
 {
 	/// The client instance.
 	pub client: Arc<P>,
 	/// The transaction pool.
-	pub transaction_pool: Arc<TransactionPool<P>>,
+	pub transaction_pool: Arc<TransactionPool<T>>,
 	/// The backing network handle.
 	pub network: N,
 	/// Parachain collators.
@@ -252,15 +269,16 @@ pub struct ProposerFactory<C, N, P>
 	pub offline: SharedOfflineTracker,
 }
 
-impl<C, N, P> bft::Environment<Block> for ProposerFactory<C, N, P>
+impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P, T>
 	where
 		C: Collators + Send + 'static,
 		N: Network,
-		P: PolkadotApi + Send + Sync + 'static,
+		P: AutoringApi + Send + Sync + 'static,
+		T: txpool::ChainApi + Send + Sync + 'static,
 		<C::Collation as IntoFuture>::Future: Send + 'static,
 		N::TableRouter: Send + 'static,
 {
-	type Proposer = Proposer<P>;
+	type Proposer = Proposer<P, T>;
 	type Input = N::Input;
 	type Output = N::Output;
 	type Error = Error;
@@ -362,7 +380,7 @@ fn dispatch_collation_work<R, C, P>(
 	extrinsic_store: ExtrinsicStore,
 ) -> exit_future::Signal where
 	C: Collators + Send + 'static,
-	P: PolkadotApi + Send + Sync + 'static,
+	P: AuthoringApi + Send + Sync + 'static,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	R: TableRouter + Send + 'static,
 {
@@ -413,7 +431,7 @@ struct LocalDuty {
 }
 
 /// The Polkadot proposer logic.
-pub struct Proposer<C: PolkadotApi + Send + Sync> {
+pub struct Proposer<C: AuthoringApi, A: txpool::ChainApi> {
 	client: Arc<C>,
 	dynamic_inclusion: DynamicInclusion,
 	local_key: Arc<ed25519::Pair>,
@@ -422,14 +440,14 @@ pub struct Proposer<C: PolkadotApi + Send + Sync> {
 	parent_number: BlockNumber,
 	random_seed: Hash,
 	table: Arc<SharedTable>,
-	transaction_pool: Arc<TransactionPool<C>>,
+	transaction_pool: Arc<TransactionPool<A>>,
 	offline: SharedOfflineTracker,
 	validators: Vec<AccountId>,
 	minimum_timestamp: u64,
 	_drop_signal: exit_future::Signal,
 }
 
-impl<C: PolkadotApi + Send + Sync> Proposer<C> {
+impl<C: AuthoringApi, A: txpool::ChainApi> Proposer<C, A> {
 	fn primary_index(&self, round_number: usize, len: usize) -> usize {
 		use primitives::uint::U256;
 
@@ -440,9 +458,10 @@ impl<C: PolkadotApi + Send + Sync> Proposer<C> {
 	}
 }
 
-impl<C> bft::Proposer<Block> for Proposer<C>
+impl<C, A> consensus::Proposer<Block> for Proposer<C, A, T>
 	where
-		C: PolkadotApi + Send + Sync,
+		C: AuthoringApi + Send + Sync,
+		T: txpool::ChainApi,
 {
 	type Error = Error;
 	type Create = future::Either<
@@ -483,7 +502,7 @@ impl<C> bft::Proposer<Block> for Proposer<C>
 	}
 
 	fn evaluate(&self, unchecked_proposal: &Block) -> Self::Evaluate {
-		debug!(target: "bft", "evaluating block on top of parent ({}, {:?})", self.parent_number, self.parent_hash);
+		debug!(target: "consensus", "evaluating block on top of parent ({}, {:?})", self.parent_number, self.parent_hash);
 
 		let active_parachains = match self.client.active_parachains(&self.parent_id) {
 			Ok(x) => x,
@@ -505,7 +524,7 @@ impl<C> bft::Proposer<Block> for Proposer<C>
 			Ok(p) => p,
 			Err(e) => {
 				// TODO: these errors are easily re-checked in runtime.
-				debug!(target: "bft", "Invalid proposal: {:?}", e);
+				debug!(target: "consensus", "Invalid proposal: {:?}", e);
 				return Box::new(future::ok(false));
 			}
 		};
@@ -533,7 +552,7 @@ impl<C> bft::Proposer<Block> for Proposer<C>
 			let proposed_timestamp = ::std::cmp::max(self.minimum_timestamp, proposal.timestamp());
 			let timestamp_delay = if proposed_timestamp > current_timestamp {
 				let delay_s = proposed_timestamp - current_timestamp;
-				debug!(target: "bft", "Delaying evaluation of proposal for {} seconds", delay_s);
+				debug!(target: "consensus", "Delaying evaluation of proposal for {} seconds", delay_s);
 				Some(now + Duration::from_secs(delay_s))
 			} else {
 				None
@@ -584,12 +603,12 @@ impl<C> bft::Proposer<Block> for Proposer<C>
 	fn round_proposer(&self, round_number: usize, authorities: &[AuthorityId]) -> AuthorityId {
 		let offset = self.primary_index(round_number, authorities.len());
 		let proposer = authorities[offset].clone();
-		trace!(target: "bft", "proposer for round {} is {}", round_number, proposer);
+		trace!(target: "consensus", "proposer for round {} is {}", round_number, proposer);
 
 		proposer
 	}
 
-	fn import_misbehavior(&self, misbehavior: Vec<(AuthorityId, bft::Misbehavior<Hash>)>) {
+	fn import_misbehavior(&self, misbehavior: Vec<(AuthorityId, consensus::Misbehavior<Hash>)>) {
 		use rhododendron::Misbehavior as GenericMisbehavior;
 		use runtime_primitives::bft::{MisbehaviorKind, MisbehaviorReport};
 		use polkadot_runtime::{Call, UncheckedExtrinsic, ConsensusCall, RawAddress};
@@ -721,12 +740,12 @@ impl ProposalTiming {
 }
 
 /// Future which resolves upon the creation of a proposal.
-pub struct CreateProposal<C: PolkadotApi + Send + Sync>  {
+pub struct CreateProposal<C: AuthoringApi + Send + Sync, T: txpool::ChainApi>  {
 	parent_hash: Hash,
 	parent_number: BlockNumber,
 	parent_id: BlockId,
 	client: Arc<C>,
-	transaction_pool: Arc<TransactionPool<C>>,
+	transaction_pool: Arc<TransactionPool<T>>,
 	table: Arc<SharedTable>,
 	timing: ProposalTiming,
 	validators: Vec<AccountId>,
@@ -734,9 +753,8 @@ pub struct CreateProposal<C: PolkadotApi + Send + Sync>  {
 	minimum_timestamp: Timestamp,
 }
 
-impl<C> CreateProposal<C> where C: PolkadotApi + Send + Sync {
+impl<C, T> CreateProposal<C, T> where C: AuthoringApi + Send + Sync, T: txpool::ChainApi {
 	fn propose_with(&self, candidates: Vec<CandidateReceipt>) -> Result<Block, Error> {
-		use polkadot_api::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 		use polkadot_primitives::InherentData;
 
@@ -821,7 +839,7 @@ impl<C> CreateProposal<C> where C: PolkadotApi + Send + Sync {
 	}
 }
 
-impl<C> Future for CreateProposal<C> where C: PolkadotApi + Send + Sync {
+impl<C, T> Future for CreateProposal<C, T> where C: AuthoringApi + Send + Sync, T: txool::ChainApi {
 	type Item = Block;
 	type Error = Error;
 

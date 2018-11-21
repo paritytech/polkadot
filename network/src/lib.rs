@@ -20,14 +20,11 @@
 //! parachain block and extrinsic data fetching, communication between collators and validators,
 //! and more.
 
-extern crate substrate_bft as bft;
 extern crate parity_codec as codec;
 extern crate substrate_network;
 extern crate substrate_primitives;
 
-extern crate polkadot_api;
 extern crate polkadot_availability_store as av_store;
-extern crate polkadot_consensus;
 extern crate polkadot_primitives;
 
 extern crate futures;
@@ -42,7 +39,6 @@ extern crate parity_codec_derive;
 
 mod collator_pool;
 mod local_collations;
-mod router;
 pub mod consensus;
 
 use codec::{Decode, Encode};
@@ -54,7 +50,7 @@ use polkadot_primitives::parachain::{Id as ParaId, BlockData, Extrinsic, Candida
 use substrate_network::{NodeIndex, RequestId, Context, Severity};
 use substrate_network::consensus_gossip::ConsensusGossip;
 use substrate_network::{message, generic_message};
-use substrate_network::specialization::Specialization;
+use substrate_network::specialization::NetworkSpecialization as Specialization;
 use substrate_network::StatusMessage as GenericFullStatus;
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;

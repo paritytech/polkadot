@@ -31,14 +31,14 @@ extern crate log;
 
 mod chain_spec;
 
-pub use cli::error;
-
+use std::ops::Deref;
 use chain_spec::ChainSpec;
-
 use futures::Future;
 use tokio::runtime::Runtime;
-pub use service::{Components as ServiceComponents, Service, CustomConfiguration};
+
+pub use service::{Components as ServiceComponents, Service, CustomConfiguration, ServiceFactory, Factory};
 pub use cli::{VersionInfo, IntoExit};
+pub use cli::error;
 
 fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
@@ -92,19 +92,21 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 			let mut runtime = Runtime::new()?;
 			let executor = runtime.executor();
 			match config.roles == service::Roles::LIGHT {
-				true => run_until_exit(&mut runtime, service::new_light(config, executor)?, worker)?,
-				false => run_until_exit(&mut runtime, service::new_full(config, executor)?, worker)?,
+				true => run_until_exit(&mut runtime, Factory::new_light(config, executor)?, worker)?,
+				false => run_until_exit(&mut runtime, Factory::new_full(config, executor)?, worker)?,
 			}
 		}
 	}
 	Ok(())
 }
-fn run_until_exit<C, W>(
+
+fn run_until_exit<T, C, W>(
 	runtime: &mut Runtime,
-	service: service::Service<C>,
+	service: T,
 	worker: W,
 ) -> error::Result<()>
 	where
+	    T: Deref<Target=Service<C>>,
 		C: service::Components,
 		W: Worker,
 {
@@ -117,3 +119,4 @@ fn run_until_exit<C, W>(
 	exit_send.fire();
 	Ok(())
 }
+
