@@ -20,12 +20,12 @@ use super::MAX_TRANSACTIONS_SIZE;
 
 use codec::{Decode, Encode};
 use polkadot_runtime::{Block as PolkadotGenericBlock, CheckedBlock};
-use polkadot_primitives::{Block, Hash, BlockNumber, Timestamp};
+use polkadot_primitives::{Block, Compact, Hash, BlockNumber, Timestamp};
 use polkadot_primitives::parachain::Id as ParaId;
 
 error_chain! {
 	links {
-		PolkadotApi(::polkadot_api::Error, ::polkadot_api::ErrorKind);
+		Client(::client::error::Error, ::client::error::ErrorKind);
 	}
 
 	errors {
@@ -76,7 +76,7 @@ pub fn evaluate_initial(
 	parent_number: BlockNumber,
 	active_parachains: &[ParaId],
 ) -> Result<CheckedBlock> {
-	const MAX_TIMESTAMP_DRIFT: Timestamp = 60;
+	const MAX_TIMESTAMP_DRIFT: Timestamp = Compact(60);
 
 	let encoded = Encode::encode(proposal);
 	let proposal = PolkadotGenericBlock::decode(&mut &encoded[..])
@@ -102,7 +102,7 @@ pub fn evaluate_initial(
 	let block_timestamp = proposal.timestamp();
 
 	// lenient maximum -- small drifts will just be delayed using a timer.
-	if block_timestamp > now + MAX_TIMESTAMP_DRIFT {
+	if block_timestamp.0 > now.0 + MAX_TIMESTAMP_DRIFT.0 {
 		bail!(ErrorKind::TimestampInFuture)
 	}
 

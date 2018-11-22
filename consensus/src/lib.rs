@@ -64,12 +64,16 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
+use client::blockchain::HeaderBackend;
+use client::runtime_api::TaggedTransactionQueue;
+use client::block_builder::api::BlockBuilder;
 use codec::{Decode, Encode};
 use extrinsic_store::Store as ExtrinsicStore;
 use polkadot_primitives::{AccountId, Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::ParachainHost;
 use primitives::{AuthorityId, ed25519};
+use runtime_primitives::traits::ProvideRuntimeApi;
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 
@@ -81,21 +85,22 @@ use parking_lot::RwLock;
 
 pub use self::collation::{validate_collation, Collators};
 pub use self::error::{ErrorKind, Error};
-pub use self::offline_tracker::OfflineTracker;
+//pub use self::offline_tracker::OfflineTracker;
 pub use self::shared_table::{SharedTable, StatementProducer, ProducedStatements, Statement, SignedStatement, GenericStatement};
-pub use service::Service;
+//pub use service::Service;
 
 mod dynamic_inclusion;
 mod evaluation;
 mod error;
-mod offline_tracker;
+//mod offline_tracker;
 //mod service;
 mod shared_table;
 
 pub mod collation;
 
 /// Shared offline validator tracker.
-pub type SharedOfflineTracker = Arc<RwLock<OfflineTracker>>;
+// TODO [now]: reintroduce
+//pub type SharedOfflineTracker = Arc<RwLock<OfflineTracker>>;
 
 // block size limit.
 const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
@@ -137,10 +142,6 @@ pub trait Network {
 	) -> Self::TableRouter;
 }
 
-/// Combined runtime APIs necessary for consensus.
-pub trait ConsensusApi: ParachainHost + BlockBuilder<Block> { }
-impl<T: ParachainHost + BlockBuilder<Block>> ConsensusApi for { }
-
 /// Information about a specific group.
 #[derive(Debug, Clone, Default)]
 pub struct GroupInfo {
@@ -159,7 +160,7 @@ pub struct GroupInfo {
 /// parent hash.
 pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_hash: &Hash) -> CandidateSignature {
 	let mut encoded = statement.encode();
-	encoded.extend(&parent_hash.0);
+	encoded.extend(parent_hash.as_ref());
 
 	key.sign(&encoded).into()
 }
@@ -169,7 +170,7 @@ pub fn check_statement(statement: &Statement, signature: &CandidateSignature, si
 	use runtime_primitives::traits::Verify;
 
 	let mut encoded = statement.encode();
-	encoded.extend(&parent_hash.0);
+	encoded.extend(parent_hash.as_ref());
 
 	signature.verify(&encoded[..], &signer.into())
 }
@@ -232,10 +233,7 @@ fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: Au
 }
 
 /// Polkadot proposer factory.
-pub struct ProposerFactory<C, N, P>
-	where
-		P: ConsensusApi + Send + Sync + 'static
-{
+pub struct ProposerFactory<C, N, P> {
 	/// The client instance.
 	pub client: Arc<P>,
 	// TODO [now]: reintroduce transaction pool.
@@ -249,15 +247,16 @@ pub struct ProposerFactory<C, N, P>
 	pub parachain_empty_duration: Duration,
 	/// Store for extrinsic data.
 	pub extrinsic_store: ExtrinsicStore,
-	/// Offline-tracker.
-	pub offline: SharedOfflineTracker,
+	// /// Offline-tracker.
+	//pub offline: SharedOfflineTracker,
 }
 
 // impl<C, N, P> bft::Environment<Block> for ProposerFactory<C, N, P>
 // 	where
 // 		C: Collators + Send + 'static,
 // 		N: Network,
-// 		P: ConsensusApi + Send + Sync + 'static,
+// 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+//		P::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
 // 		<C::Collation as IntoFuture>::Future: Send + 'static,
 // 		N::TableRouter: Send + 'static,
 // {
@@ -363,7 +362,8 @@ fn dispatch_collation_work<R, C, P>(
 	extrinsic_store: ExtrinsicStore,
 ) -> exit_future::Signal where
 	C: Collators + Send + 'static,
-	P: ConsensusApi + Send + Sync + 'static,
+	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+	P::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	R: TableRouter + Send + 'static,
 {
@@ -414,7 +414,7 @@ struct LocalDuty {
 }
 
 /// The Polkadot proposer logic.
-pub struct Proposer<C: ConsensusApi + Send + Sync> {
+pub struct Proposer<C: Send + Sync> {
 	client: Arc<C>,
 	dynamic_inclusion: DynamicInclusion,
 	local_key: Arc<ed25519::Pair>,
@@ -424,18 +424,18 @@ pub struct Proposer<C: ConsensusApi + Send + Sync> {
 	random_seed: Hash,
 	table: Arc<SharedTable>,
 	//transaction_pool: Arc<TransactionPool<C>>,
-	offline: SharedOfflineTracker,
+	//offline: SharedOfflineTracker,
 	validators: Vec<AccountId>,
 	minimum_timestamp: u64,
 	_drop_signal: exit_future::Signal,
 }
 
-impl<C: ConsensusApi + Send + Sync> Proposer<C> {
+impl<C: Send + Sync> Proposer<C> {
 	fn primary_index(&self, round_number: usize, len: usize) -> usize {
 		use primitives::uint::U256;
 
 		let big_len = U256::from(len);
-		let offset = U256::from_big_endian(&self.random_seed.0) % big_len;
+		let offset = U256::from_big_endian(&self.random_seed.as_ref()) % big_len;
 		let offset = offset.low_u64() as usize + round_number;
 		offset % len
 	}
@@ -443,7 +443,8 @@ impl<C: ConsensusApi + Send + Sync> Proposer<C> {
 
 // impl<C> bft::Proposer<Block> for Proposer<C>
 // 	where
-// 		C: ConsensusApi + Send + Sync,
+// 		C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
+//		C::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
 // {
 // 	type Error = Error;
 // 	type Create = future::Either<
@@ -682,6 +683,7 @@ fn current_timestamp() -> Timestamp {
 	time::SystemTime::now().duration_since(time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
 		.as_secs()
+		.into()
 }
 
 struct ProposalTiming {
@@ -722,7 +724,7 @@ impl ProposalTiming {
 }
 
 /// Future which resolves upon the creation of a proposal.
-pub struct CreateProposal<C: ConsensusApi + Send + Sync>  {
+pub struct CreateProposal<C: Send + Sync>  {
 	parent_hash: Hash,
 	parent_number: BlockNumber,
 	parent_id: BlockId,
@@ -731,26 +733,30 @@ pub struct CreateProposal<C: ConsensusApi + Send + Sync>  {
 	table: Arc<SharedTable>,
 	timing: ProposalTiming,
 	validators: Vec<AccountId>,
-	offline: SharedOfflineTracker,
+	//offline: SharedOfflineTracker,
 	minimum_timestamp: Timestamp,
 }
 
-impl<C> CreateProposal<C> where C: ConsensusApi + Send + Sync {
+impl<C> CreateProposal<C> where
+	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
+	C::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
+{
 	fn propose_with(&self, candidates: Vec<CandidateReceipt>) -> Result<Block, Error> {
-		use polkadot_api::BlockBuilder;
+		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 		use polkadot_primitives::InherentData;
 
 		const MAX_VOTE_OFFLINE_SECONDS: Duration = Duration::from_secs(60);
 
 		// TODO: handle case when current timestamp behind that in state.
-		let timestamp = ::std::cmp::max(self.minimum_timestamp, current_timestamp());
+		let timestamp = ::std::cmp::max(self.minimum_timestamp.0, current_timestamp().0).into();
 
 		let elapsed_since_start = self.timing.dynamic_inclusion.started_at().elapsed();
 		let offline_indices = if elapsed_since_start > MAX_VOTE_OFFLINE_SECONDS {
 			Vec::new()
 		} else {
-			self.offline.read().reports(&self.validators[..])
+			Vec::new()
+			//self.offline.read().reports(&self.validators[..])
 		};
 
 		if !offline_indices.is_empty() {
@@ -766,7 +772,7 @@ impl<C> CreateProposal<C> where C: ConsensusApi + Send + Sync {
 			offline_indices,
 		};
 
-		let mut block_builder = self.client.build_block(&self.parent_id, inherent_data)?;
+		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client)?;
 
 		// {
 		// 	let mut unqueue_invalid = Vec::new();
@@ -809,7 +815,7 @@ impl<C> CreateProposal<C> where C: ConsensusApi + Send + Sync {
 			.expect("polkadot blocks defined to serialize to substrate blocks correctly; qed");
 
 		// TODO: full re-evaluation
-		let active_parachains = self.client.active_parachains(&self.parent_id)?;
+		let active_parachains = self.client.runtime_api().active_parachains(&self.parent_id)?;
 		assert!(evaluation::evaluate_initial(
 			&substrate_block,
 			timestamp,
@@ -822,7 +828,10 @@ impl<C> CreateProposal<C> where C: ConsensusApi + Send + Sync {
 	}
 }
 
-impl<C> Future for CreateProposal<C> where C: PolkadotApi + Send + Sync {
+impl<C> Future for CreateProposal<C> where
+	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
+	C::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
+{
 	type Item = Block;
 	type Error = Error;
 

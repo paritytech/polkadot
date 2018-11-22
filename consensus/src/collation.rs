@@ -21,11 +21,12 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::{Hash, AccountId, BlockId};
+use polkadot_primitives::{Block, Hash, AccountId, BlockId};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic};
+use polkadot_primitives::parachain::ParachainHost;
+use runtime_primitives::traits::ProvideRuntimeApi;
 
 use futures::prelude::*;
-use super::ConsensusApi;
 
 /// Encapsulates connections to collators and allows collation on any parachain.
 ///
@@ -52,7 +53,7 @@ pub trait Collators: Clone {
 /// A future which resolves when a collation is available.
 ///
 /// This future is fused.
-pub struct CollationFetch<C: Collators, P: ConsensusApi> {
+pub struct CollationFetch<C: Collators, P: ProvideRuntimeApi> {
 	parachain: ParaId,
 	relay_parent_hash: Hash,
 	relay_parent: BlockId,
@@ -61,7 +62,7 @@ pub struct CollationFetch<C: Collators, P: ConsensusApi> {
 	client: Arc<P>,
 }
 
-impl<C: Collators, P: ConsensusApi> CollationFetch<C, P> {
+impl<C: Collators, P: ProvideRuntimeApi> CollationFetch<C, P> {
 	/// Create a new collation fetcher for the given chain.
 	pub fn new(parachain: ParaId, relay_parent: BlockId, relay_parent_hash: Hash, collators: C, client: Arc<P>) -> Self {
 		CollationFetch {
@@ -80,7 +81,9 @@ impl<C: Collators, P: ConsensusApi> CollationFetch<C, P> {
 	}
 }
 
-impl<C: Collators, P: ConsensusApi> Future for CollationFetch<C, P> {
+impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
+	where P::Api: ParachainHost<Block>,
+{
 	type Item = (Collation, Extrinsic);
 	type Error = C::Error;
 
@@ -138,14 +141,22 @@ error_chain! {
 }
 
 /// Check whether a given collation is valid. Returns `Ok`  on success, error otherwise.
-pub fn validate_collation<P: ConsensusApi>(client: &P, relay_parent: &BlockId, collation: &Collation) -> Result<(), Error> {
+pub fn validate_collation<P>(
+	client: &P,
+	relay_parent: &BlockId,
+	collation: &Collation
+) -> Result<(), Error> where
+	P: ProvideRuntimeApi,
+	P::Api: ParachainHost<Block>
+{
 	use parachain::{self, ValidationParams};
 
+	let api = client.runtime_api();
 	let para_id = collation.receipt.parachain_index;
-	let validation_code = client.parachain_code(relay_parent, para_id)?
+	let validation_code = api.parachain_code(relay_parent, &para_id)?
 		.ok_or_else(|| ErrorKind::InactiveParachain(para_id))?;
 
-	let chain_head = client.parachain_head(relay_parent, para_id)?
+	let chain_head = api.parachain_head(relay_parent, &para_id)?
 		.ok_or_else(|| ErrorKind::InactiveParachain(para_id))?;
 
 	let params = ValidationParams {
