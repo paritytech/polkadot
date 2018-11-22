@@ -47,6 +47,7 @@ extern crate tokio;
 extern crate substrate_consensus_common as consensus;
 extern crate substrate_consensus_aura as aura;
 extern crate substrate_finality_grandpa as grandpa;
+extern crate substrate_transaction_pool as transaction_pool;
 
 #[macro_use]
 extern crate error_chain;
@@ -78,6 +79,7 @@ use primitives::{AuthorityId, ed25519};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
+use transaction_pool::{txpool::Pool, ChainApi as PoolChainApi};
 
 use futures::prelude::*;
 use futures::future;
@@ -232,7 +234,6 @@ fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: Au
 pub(crate) struct ParachainConsensus<C, N, P> {
 	/// The client instance.
 	pub(crate) client: Arc<P>,
-	// TODO [now]: reintroduce transaction pool.
 	/// The backing network handle.
 	pub(crate) network: N,
 	/// Parachain collators.
@@ -241,8 +242,11 @@ pub(crate) struct ParachainConsensus<C, N, P> {
 	pub(crate) handle: TaskExecutor,
 	/// Store for extrinsic data.
 	pub(crate) extrinsic_store: ExtrinsicStore,
+	/// The time after which no parachains may be included.
+	pub(crate) parachain_empty_duration: Duration,
 	/// Live agreements.
-	pub(crate) live_instances: Mutex<HashMap<Hash, AttestationTracker>>,
+	pub(crate) live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
+
 }
 
 impl<C, N, P> ParachainConsensus<C, N, P> where
@@ -257,19 +261,19 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	///
 	/// This starts a parachain agreement process for given parent hash if
 	/// one has not already started.
-	pub(crate) fn get_or_instantiate_table(
+	pub(crate) fn get_or_instantiate(
 		&self,
 		parent_hash: Hash,
 		authorities: &[AuthorityId],
 		sign_with: Arc<ed25519::Pair>,
 	)
-		-> Result<Arc<SharedTable>, Error>
+		-> Result<Arc<AttestationTracker>, Error>
 	{
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
 		let mut live_instances = self.live_instances.lock();
 		if let Some(tracker) = live_instances.get(&parent_hash) {
-			return Ok(tracker.table.clone());
+			return Ok(tracker.clone());
 		}
 
 		let id = BlockId::hash(parent_hash);
@@ -320,10 +324,22 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 			self.extrinsic_store.clone(),
 		);
 
-		let tracker = AttestationTracker { table: table.clone(), _drop_signal: drop_signal };
-		live_instances.insert(parent_hash, tracker);
+		let now = Instant::now();
+		let dynamic_inclusion = DynamicInclusion::new(
+			table.num_parachains(),
+			now,
+			self.parachain_empty_duration.clone(),
+		);
 
-		Ok(table)
+		let tracker = Arc::new(AttestationTracker {
+			table,
+			dynamic_inclusion,
+			_drop_signal: drop_signal
+		});
+
+		live_instances.insert(parent_hash, tracker.clone());
+
+		Ok(tracker)
 	}
 }
 
@@ -331,14 +347,32 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 pub(crate) struct AttestationTracker {
 	_drop_signal: exit_future::Signal,
 	table: Arc<SharedTable>,
+	dynamic_inclusion: DynamicInclusion,
 }
 
 /// Polkadot proposer factory.
-pub(crate) struct ProposerFactory<C, N, P> {
-	/// A handle to the parachain consensus manager.
-	pub(crate) parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
-	/// The duration after which parachain-empty blocks will be allowed.
-	pub(crate) parachain_empty_duration: Duration,
+pub(crate) struct ProposerFactory<C, N, P> where
+	P: ProvideRuntimeApi + HeaderBackend<Block>,
+	P::Api: TaggedTransactionQueue<Block>,
+{
+	parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
+	transaction_pool: Arc<Pool<PoolChainApi<P, Block>>>,
+}
+
+impl<C, N, P> ProposerFactory<C, N, P> where
+	P: ProvideRuntimeApi + HeaderBackend<Block>,
+	P::Api: TaggedTransactionQueue<Block>,
+{
+	/// Create a new proposer factory.
+	pub(crate) fn new(
+		parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
+	) -> Self {
+		let chain_api = PoolChainApi::new(parachain_consensus.client.clone());
+		ProposerFactory {
+			parachain_consensus,
+			transaction_pool: Arc::new(Pool::new(Default::default(), chain_api)),
+		}
+	}
 }
 
 impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P> where
@@ -363,28 +397,19 @@ impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P> where
 
 		let parent_hash = parent_header.hash();
 		let parent_id = BlockId::hash(parent_hash);
-		let table = self.parachain_consensus.get_or_instantiate_table(
+		let tracker = self.parachain_consensus.get_or_instantiate(
 			parent_hash,
 			authorities,
-			sign_with.clone(),
+			sign_with,
 		)?;
-
-		let now = Instant::now();
-		let dynamic_inclusion = DynamicInclusion::new(
-			table.num_parachains(),
-			now,
-			self.parachain_empty_duration.clone(),
-		);
 
 		Ok(Proposer {
 			client: self.parachain_consensus.client.clone(),
-			dynamic_inclusion,
-			local_key: sign_with,
+			tracker,
 			parent_hash,
 			parent_id,
 			parent_number: parent_header.number,
-			table,
-			//transaction_pool: self.transaction_pool.clone(),
+			transaction_pool: self.transaction_pool.clone(),
 			minimum_timestamp: current_timestamp().0 + FORCE_DELAY.0,
 		})
 	}
@@ -451,15 +476,16 @@ struct LocalDuty {
 }
 
 /// The Polkadot proposer logic.
-pub struct Proposer<C: Send + Sync> {
+pub struct Proposer<C: Send + Sync> where
+	C: ProvideRuntimeApi + HeaderBackend<Block>,
+	C::Api: TaggedTransactionQueue<Block>,
+{
 	client: Arc<C>,
-	dynamic_inclusion: DynamicInclusion,
-	local_key: Arc<ed25519::Pair>,
 	parent_hash: Hash,
 	parent_id: BlockId,
 	parent_number: BlockNumber,
-	table: Arc<SharedTable>,
-	//transaction_pool: Arc<TransactionPool<C>>,
+	tracker: Arc<AttestationTracker>,
+	transaction_pool: Arc<Pool<PoolChainApi<C, Block>>>,
 	minimum_timestamp: u64,
 }
 
@@ -477,9 +503,9 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 	fn propose(&self) -> Self::Create {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
 
-		let initial_included = self.table.includable_count();
+		let initial_included = self.tracker.table.includable_count();
 		let now = Instant::now();
-		let enough_candidates = self.dynamic_inclusion.acceptable_in(
+		let enough_candidates = self.tracker.dynamic_inclusion.acceptable_in(
 			now,
 			initial_included,
 		).unwrap_or_else(|| now + Duration::from_millis(1));
@@ -487,7 +513,7 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 		let timing = ProposalTiming {
 			attempt_propose: Interval::new(now + ATTEMPT_PROPOSE_EVERY, ATTEMPT_PROPOSE_EVERY),
 			enough_candidates: Delay::new(enough_candidates),
-			dynamic_inclusion: self.dynamic_inclusion.clone(),
+			dynamic_inclusion: self.tracker.dynamic_inclusion.clone(),
 			last_included: initial_included,
 		};
 
@@ -496,8 +522,8 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 			parent_number: self.parent_number.clone(),
 			parent_id: self.parent_id.clone(),
 			client: self.client.clone(),
-			//transaction_pool: self.transaction_pool.clone(),
-			table: self.table.clone(),
+			transaction_pool: self.transaction_pool.clone(),
+			table: self.tracker.table.clone(),
 			minimum_timestamp: self.minimum_timestamp.into(),
 			timing,
 		})
@@ -646,12 +672,15 @@ impl ProposalTiming {
 }
 
 /// Future which resolves upon the creation of a proposal.
-pub struct CreateProposal<C: Send + Sync>  {
+pub struct CreateProposal<C: Send + Sync> where
+	C: ProvideRuntimeApi + HeaderBackend<Block>,
+	C::Api: TaggedTransactionQueue<Block>,
+{
 	parent_hash: Hash,
 	parent_number: BlockNumber,
 	parent_id: BlockId,
 	client: Arc<C>,
-	//transaction_pool: Arc<TransactionPool<C>>,
+	transaction_pool: Arc<Pool<PoolChainApi<C, Block>>>,
 	table: Arc<SharedTable>,
 	timing: ProposalTiming,
 	minimum_timestamp: Timestamp,
@@ -678,30 +707,30 @@ impl<C> CreateProposal<C> where
 
 		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client)?;
 
-		// {
-		// 	let mut unqueue_invalid = Vec::new();
-		// 	let result = self.transaction_pool.cull_and_get_pending(&BlockId::hash(self.parent_hash), |pending_iterator| {
-		// 		let mut pending_size = 0;
-		// 		for pending in pending_iterator {
-		// 			if pending_size + pending.verified.encoded_size() >= MAX_TRANSACTIONS_SIZE { break }
+		{
+			let mut unqueue_invalid = Vec::new();
+			let mut pending_size = 0;
 
-		// 			match block_builder.push_extrinsic(pending.original.clone()) {
-		// 				Ok(()) => {
-		// 					pending_size += pending.verified.encoded_size();
-		// 				}
-		// 				Err(e) => {
-		// 					trace!(target: "transaction-pool", "Invalid transaction: {}", e);
-		// 					unqueue_invalid.push(pending.verified.hash().clone());
-		// 				}
-		// 			}
-		// 		}
-		// 	});
-		// 	if let Err(e) = result {
-		// 		warn!("Unable to get the pending set: {:?}", e);
-		// 	}
+			let ready_iter = self.transaction_pool.ready();
+			for ready in ready_iter {
+				let encoded_size = ready.data.encode().len();
+				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
+					break
+				}
 
-		// 	self.transaction_pool.remove(&unqueue_invalid, false);
-		// }
+				match block_builder.push(ready.data.clone()) {
+					Ok(()) => {
+						pending_size += encoded_size;
+					}
+					Err(e) => {
+						trace!(target: "transaction-pool", "Invalid transaction: {}", e);
+						unqueue_invalid.push(ready.hash);
+					}
+				}
+			}
+
+			self.transaction_pool.remove_invalid(&unqueue_invalid);
+		}
 
 		let polkadot_block = block_builder.bake()?;
 
