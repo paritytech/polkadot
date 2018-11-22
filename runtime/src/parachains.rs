@@ -87,15 +87,29 @@ decl_module! {
 			);
 
 			let active_parachains = Self::active_parachains();
-			let mut iter = active_parachains.iter();
 
-			// perform this check before writing to storage.
-			for head in &heads {
-				ensure!(
-					iter.find(|&p| p == &head.parachain_index).is_some(),
-					"Submitted candidate for unregistered or out-of-order parachain {}"
-	//				, head.parachain_index.into_inner()
-				);
+			// perform integrity checks before writing to storage.
+			{
+				let n_parachains = active_parachains.len();
+				ensure!(heads.len() <= n_parachains, "Too many parachain candidates");
+
+				let mut last_id = None;
+				let mut iter = active_parachains.iter();
+				for head in &heads {
+					// proposed heads must be ascending order by parachain ID without duplicate.
+					ensure!(
+						last_id.as_ref().map_or(true, |x| x < &head.parachain_index),
+						"Parachain candidates out of order by ID"
+					);
+
+					// must be unknown since active parachains are always sorted.
+					ensure!(
+						iter.find(|x| x == &&head.parachain_index).is_some(),
+						"Submitted candidate for unregistered or out-of-order parachain {}"
+					);
+
+					last_id = Some(head.parachain_index);
+				}
 			}
 
 			for head in heads {

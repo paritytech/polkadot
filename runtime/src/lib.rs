@@ -55,9 +55,6 @@ extern crate polkadot_primitives as primitives;
 mod parachains;
 
 #[cfg(feature = "std")]
-mod checked_block;
-
-#[cfg(feature = "std")]
 use codec::{Encode, Decode};
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
@@ -95,9 +92,6 @@ pub use parachains::Call as ParachainsCall;
 pub use sr_primitives::{Permill, Perbill};
 pub use timestamp::BlockPeriod;
 pub use srml_support::{StorageValue, RuntimeMetadata};
-
-#[cfg(feature = "std")]
-pub use checked_block::CheckedBlock;
 
 const TIMESTAMP_SET_POSITION: u32 = 0;
 const NOTE_OFFLINE_POSITION: u32 = 1;
