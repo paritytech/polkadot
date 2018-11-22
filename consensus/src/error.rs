@@ -21,6 +21,7 @@ use primitives::AuthorityId;
 error_chain! {
 	links {
 		Client(::client::error::Error, ::client::error::ErrorKind);
+		Consensus(::consensus::error::Error, ::consensus::error::ErrorKind);
 	}
 
 	errors {

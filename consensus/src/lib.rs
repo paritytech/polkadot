@@ -70,6 +70,7 @@ use client::block_builder::api::BlockBuilder;
 use codec::{Decode, Encode};
 use extrinsic_store::Store as ExtrinsicStore;
 use polkadot_primitives::{AccountId, Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
+use polkadot_primitives::Compact;
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::ParachainHost;
 use primitives::{AuthorityId, ed25519};
@@ -251,107 +252,103 @@ pub struct ProposerFactory<C, N, P> {
 	//pub offline: SharedOfflineTracker,
 }
 
-// impl<C, N, P> bft::Environment<Block> for ProposerFactory<C, N, P>
-// 	where
-// 		C: Collators + Send + 'static,
-// 		N: Network,
-// 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-//		P::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
-// 		<C::Collation as IntoFuture>::Future: Send + 'static,
-// 		N::TableRouter: Send + 'static,
-// {
-// 	type Proposer = Proposer<P>;
-// 	type Input = N::Input;
-// 	type Output = N::Output;
-// 	type Error = Error;
+impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P>
+	where
+		C: Collators + Send + 'static,
+		N: Network,
+		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+		P::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
+		<C::Collation as IntoFuture>::Future: Send + 'static,
+		N::TableRouter: Send + 'static,
+{
+	type Proposer = Proposer<P>;
+	type Error = Error;
 
-// 	fn init(
-// 		&self,
-// 		parent_header: &Header,
-// 		authorities: &[AuthorityId],
-// 		sign_with: Arc<ed25519::Pair>,
-// 	) -> Result<(Self::Proposer, Self::Input, Self::Output), Error> {
-// 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
+	fn init(
+		&self,
+		parent_header: &Header,
+		authorities: &[AuthorityId],
+		sign_with: Arc<ed25519::Pair>,
+	) -> Result<Self::Proposer, Error> {
+		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
-// 		// force delay in evaluation this long.
-// 		const FORCE_DELAY: Timestamp = 5;
+		// force delay in evaluation this long.
+		const FORCE_DELAY: Timestamp = Compact(5);
 
-// 		let parent_hash = parent_header.hash().into();
+		let parent_hash = parent_header.hash().into();
 
-// 		let id = BlockId::hash(parent_hash);
-// 		let duty_roster = self.client.duty_roster(&id)?;
-// 		let random_seed = self.client.random_seed(&id)?;
-// 		let random_seed = BlakeTwo256::hash(&*random_seed);
+		let id = BlockId::hash(parent_hash);
+		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
+		let random_seed = self.client.runtime_api().random_seed(&id)?;
+		let random_seed = BlakeTwo256::hash(random_seed.as_ref());
 
-// 		let validators = self.client.validators(&id)?;
-// 		self.offline.write().note_new_block(&validators[..]);
+		let validators = self.client.runtime_api().validators(&id)?;
+		//self.offline.write().note_new_block(&validators[..]);
 
-// 		let (group_info, local_duty) = make_group_info(
-// 			duty_roster,
-// 			authorities,
-// 			sign_with.public().into(),
-// 		)?;
+		let (group_info, local_duty) = make_group_info(
+			duty_roster,
+			authorities,
+			sign_with.public().into(),
+		)?;
 
-// 		info!("Starting consensus session on top of parent {:?}. Local parachain duty is {:?}",
-// 			parent_hash, local_duty.validation);
+		info!("Starting consensus session on top of parent {:?}. Local parachain duty is {:?}",
+			parent_hash, local_duty.validation);
 
-// 		let active_parachains = self.client.active_parachains(&id)?;
+		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
 
-// 		debug!(target: "consensus", "Active parachains: {:?}", active_parachains);
+		debug!(target: "consensus", "Active parachains: {:?}", active_parachains);
 
-// 		let n_parachains = active_parachains.len();
-// 		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
-// 		let (router, input, output) = self.network.communication_for(
-// 			authorities,
-// 			table.clone(),
-// 			self.handle.clone()
-// 		);
+		let n_parachains = active_parachains.len();
+		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
+		let router = self.network.communication_for(
+			authorities,
+			table.clone(),
+			self.handle.clone()
+		);
 
-// 		let now = Instant::now();
-// 		let dynamic_inclusion = DynamicInclusion::new(
-// 			n_parachains,
-// 			now,
-// 			self.parachain_empty_duration.clone(),
-// 		);
+		let now = Instant::now();
+		let dynamic_inclusion = DynamicInclusion::new(
+			n_parachains,
+			now,
+			self.parachain_empty_duration.clone(),
+		);
 
-// 		let validation_para = match local_duty.validation {
-// 			Chain::Relay => None,
-// 			Chain::Parachain(id) => Some(id),
-// 		};
+		let validation_para = match local_duty.validation {
+			Chain::Relay => None,
+			Chain::Parachain(id) => Some(id),
+		};
 
-// 		let collation_work = validation_para.map(|para| CollationFetch::new(
-// 			para,
-// 			id.clone(),
-// 			parent_hash.clone(),
-// 			self.collators.clone(),
-// 			self.client.clone(),
-// 		));
-// 		let drop_signal = dispatch_collation_work(
-// 			router.clone(),
-// 			&self.handle,
-// 			collation_work,
-// 			self.extrinsic_store.clone(),
-// 		);
+		let collation_work = validation_para.map(|para| CollationFetch::new(
+			para,
+			id.clone(),
+			parent_hash.clone(),
+			self.collators.clone(),
+			self.client.clone(),
+		));
+		let drop_signal = dispatch_collation_work(
+			router.clone(),
+			&self.handle,
+			collation_work,
+			self.extrinsic_store.clone(),
+		);
 
-// 		let proposer = Proposer {
-// 			client: self.client.clone(),
-// 			dynamic_inclusion,
-// 			local_key: sign_with,
-// 			parent_hash,
-// 			parent_id: id,
-// 			parent_number: parent_header.number,
-// 			random_seed,
-// 			table,
-// 			transaction_pool: self.transaction_pool.clone(),
-// 			offline: self.offline.clone(),
-// 			validators,
-// 			minimum_timestamp: current_timestamp() + FORCE_DELAY,
-// 			_drop_signal: drop_signal,
-// 		};
-
-// 		Ok((proposer, input, output))
-// 	}
-// }
+		Ok(Proposer {
+			client: self.client.clone(),
+			dynamic_inclusion,
+			local_key: sign_with,
+			parent_hash,
+			parent_id: id,
+			parent_number: parent_header.number,
+			random_seed,
+			table,
+			//transaction_pool: self.transaction_pool.clone(),
+			//offline: self.offline.clone(),
+			validators,
+			minimum_timestamp: current_timestamp().0 + FORCE_DELAY.0,
+			_drop_signal: drop_signal,
+		})
+	}
+}
 
 // dispatch collation work to be done in the background. returns a signal object
 // that should fire when the collation work is no longer necessary (e.g. when the proposer object is dropped)
@@ -441,48 +438,49 @@ impl<C: Send + Sync> Proposer<C> {
 	}
 }
 
-// impl<C> bft::Proposer<Block> for Proposer<C>
-// 	where
-// 		C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-//		C::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
-// {
-// 	type Error = Error;
-// 	type Create = future::Either<
-// 		CreateProposal<C>,
-// 		future::FutureResult<Block, Error>,
-// 	>;
-// 	type Evaluate = Box<Future<Item=bool, Error=Error>>;
+impl<C> consensus::Proposer<Block> for Proposer<C>
+	where
+		C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
+		C::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
+{
+	type Error = Error;
+	type Create = future::Either<
+		CreateProposal<C>,
+		future::FutureResult<Block, Error>,
+	>;
+	//type Evaluate = Box<Future<Item=bool, Error=Error>>;
 
-// 	fn propose(&self) -> Self::Create {
-// 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
+	fn propose(&self) -> Self::Create {
+		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
 
-// 		let initial_included = self.table.includable_count();
-// 		let now = Instant::now();
-// 		let enough_candidates = self.dynamic_inclusion.acceptable_in(
-// 			now,
-// 			initial_included,
-// 		).unwrap_or_else(|| now + Duration::from_millis(1));
+		let initial_included = self.table.includable_count();
+		let now = Instant::now();
+		let enough_candidates = self.dynamic_inclusion.acceptable_in(
+			now,
+			initial_included,
+		).unwrap_or_else(|| now + Duration::from_millis(1));
 
-// 		let timing = ProposalTiming {
-// 			attempt_propose: Interval::new(now + ATTEMPT_PROPOSE_EVERY, ATTEMPT_PROPOSE_EVERY),
-// 			enough_candidates: Delay::new(enough_candidates),
-// 			dynamic_inclusion: self.dynamic_inclusion.clone(),
-// 			last_included: initial_included,
-// 		};
+		let timing = ProposalTiming {
+			attempt_propose: Interval::new(now + ATTEMPT_PROPOSE_EVERY, ATTEMPT_PROPOSE_EVERY),
+			enough_candidates: Delay::new(enough_candidates),
+			dynamic_inclusion: self.dynamic_inclusion.clone(),
+			last_included: initial_included,
+		};
 
-// 		future::Either::A(CreateProposal {
-// 			parent_hash: self.parent_hash.clone(),
-// 			parent_number: self.parent_number.clone(),
-// 			parent_id: self.parent_id.clone(),
-// 			client: self.client.clone(),
-// 			transaction_pool: self.transaction_pool.clone(),
-// 			table: self.table.clone(),
-// 			offline: self.offline.clone(),
-// 			validators: self.validators.clone(),
-// 			minimum_timestamp: self.minimum_timestamp,
-// 			timing,
-// 		})
-// 	}
+		future::Either::A(CreateProposal {
+			parent_hash: self.parent_hash.clone(),
+			parent_number: self.parent_number.clone(),
+			parent_id: self.parent_id.clone(),
+			client: self.client.clone(),
+			//transaction_pool: self.transaction_pool.clone(),
+			table: self.table.clone(),
+			//offline: self.offline.clone(),
+			validators: self.validators.clone(),
+			minimum_timestamp: self.minimum_timestamp.into(),
+			timing,
+		})
+	}
+}
 
 // 	fn evaluate(&self, unchecked_proposal: &Block) -> Self::Evaluate {
 // 		debug!(target: "bft", "evaluating block on top of parent ({}, {:?})", self.parent_number, self.parent_hash);
@@ -495,7 +493,7 @@ impl<C: Send + Sync> Proposer<C> {
 // 		let current_timestamp = current_timestamp();
 
 // 		// do initial serialization and structural integrity checks.
-// 		let maybe_proposal = evaluation::evaluate_initial(
+// 		evaluation::evaluate_initial(
 // 			unchecked_proposal,
 // 			current_timestamp,
 // 			&self.parent_hash,

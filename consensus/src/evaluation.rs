@@ -19,7 +19,7 @@
 use super::MAX_TRANSACTIONS_SIZE;
 
 use codec::{Decode, Encode};
-use polkadot_runtime::{Block as PolkadotGenericBlock, CheckedBlock};
+use polkadot_runtime::{Block as PolkadotGenericBlock};
 use polkadot_primitives::{Block, Compact, Hash, BlockNumber, Timestamp};
 use polkadot_primitives::parachain::Id as ParaId;
 
@@ -32,10 +32,6 @@ error_chain! {
 		ProposalNotForPolkadot {
 			description("Proposal provided not a Polkadot block."),
 			display("Proposal provided not a Polkadot block."),
-		}
-		TimestampInFuture {
-			description("Proposal had timestamp too far in the future."),
-			display("Proposal had timestamp too far in the future."),
 		}
 		TooManyCandidates(expected: usize, got: usize) {
 			description("Proposal included more candidates than is possible."),
@@ -75,14 +71,7 @@ pub fn evaluate_initial(
 	parent_hash: &Hash,
 	parent_number: BlockNumber,
 	active_parachains: &[ParaId],
-) -> Result<CheckedBlock> {
-	const MAX_TIMESTAMP_DRIFT: Timestamp = Compact(60);
-
-	let encoded = Encode::encode(proposal);
-	let proposal = PolkadotGenericBlock::decode(&mut &encoded[..])
-		.and_then(|b| CheckedBlock::new(b).ok())
-		.ok_or_else(|| ErrorKind::ProposalNotForPolkadot)?;
-
+) -> Result<()> {
 	let transactions_size = proposal.extrinsics.iter().fold(0, |a, tx| {
 		a + Encode::encode(tx).len()
 	});
@@ -99,35 +88,5 @@ pub fn evaluate_initial(
 		bail!(ErrorKind::WrongNumber(parent_number + 1, proposal.header.number));
 	}
 
-	let block_timestamp = proposal.timestamp();
-
-	// lenient maximum -- small drifts will just be delayed using a timer.
-	if block_timestamp.0 > now.0 + MAX_TIMESTAMP_DRIFT.0 {
-		bail!(ErrorKind::TimestampInFuture)
-	}
-
-	{
-		let n_parachains = active_parachains.len();
-		if proposal.parachain_heads().len() > n_parachains {
-			bail!(ErrorKind::TooManyCandidates(n_parachains, proposal.parachain_heads().len()));
-		}
-
-		let mut last_id = None;
-		let mut iter = active_parachains.iter();
-		for head in proposal.parachain_heads() {
-			// proposed heads must be ascending order by parachain ID without duplicate.
-			if last_id.as_ref().map_or(false, |x| x >= &head.parachain_index) {
-				bail!(ErrorKind::ParachainOutOfOrder);
-			}
-
-			if !iter.any(|x| x == &head.parachain_index) {
-				// must be unknown since active parachains are always sorted.
-				bail!(ErrorKind::UnknownParachain(head.parachain_index))
-			}
-
-			last_id = Some(head.parachain_index);
-		}
-	}
-
-	Ok(proposal)
+	Ok(())
 }
