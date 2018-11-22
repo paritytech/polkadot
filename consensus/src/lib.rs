@@ -65,6 +65,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
+use aura::ExtraVerification;
 use client::blockchain::HeaderBackend;
 use client::runtime_api::TaggedTransactionQueue;
 use client::block_builder::api::BlockBuilder;
@@ -72,7 +73,7 @@ use codec::{Decode, Encode};
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{AccountId, Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
-use polkadot_primitives::Compact;
+use polkadot_primitives::{Compact, UncheckedExtrinsic};
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::ParachainHost;
 use primitives::{AuthorityId, ed25519};
@@ -82,7 +83,7 @@ use tokio::timer::{Delay, Interval};
 use transaction_pool::{txpool::Pool, ChainApi as PoolChainApi};
 
 use futures::prelude::*;
-use futures::future;
+use futures::future::{self, Either};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use parking_lot::RwLock;
@@ -495,7 +496,7 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 		C::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
 {
 	type Error = Error;
-	type Create = future::Either<
+	type Create = Either<
 		CreateProposal<C>,
 		future::FutureResult<Block, Error>,
 	>;
@@ -517,7 +518,7 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 			last_included: initial_included,
 		};
 
-		future::Either::A(CreateProposal {
+		Either::A(CreateProposal {
 			parent_hash: self.parent_hash.clone(),
 			parent_number: self.parent_number.clone(),
 			parent_id: self.parent_id.clone(),
@@ -527,6 +528,54 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 			minimum_timestamp: self.minimum_timestamp.into(),
 			timing,
 		})
+	}
+}
+
+/// Does verification before importing blocks.
+pub(crate) struct BlockVerifier;
+
+impl ExtraVerification<Block> for BlockVerifier {
+	type Verified = Either<
+		future::FutureResult<(), String>,
+		Box<dyn Future<Item=(), Error=String>>,
+	>;
+
+	fn verify(&self, _header: &Header, body: Option<&[UncheckedExtrinsic]>) -> Self::Verified {
+		use polkadot_runtime::{Call, UncheckedExtrinsic, TimestampCall};
+
+		let body = match body {
+			None => return Either::A(future::ok(())),
+			Some(body) => body,
+		};
+
+		// TODO: reintroduce or revisit necessaity for includability tracker.
+		let timestamp = current_timestamp();
+
+		let maybe_in_block = body.iter()
+			.filter_map(|ex| {
+				let encoded = ex.encode();
+				let runtime_ex = UncheckedExtrinsic::decode(&mut &encoded[..])?;
+				match runtime_ex.function {
+					Call::Timestamp(TimestampCall::set(t)) => Some(t),
+					_ => None,
+				}
+			})
+			.next();
+
+		let timestamp_in_block = match maybe_in_block {
+			None => return Either::A(future::ok(())),
+			Some(t) => t,
+		};
+
+		// we wait until the block timestamp is earlier than current.
+		if timestamp.0 < timestamp_in_block.0 {
+			let diff_secs = timestamp_in_block.0 - timestamp.0;
+			let delay = Delay::new(Instant::now() + Duration::from_secs(diff_secs))
+				.map_err(move |e| format!("Error waiting for {} seconds: {:?}", diff_secs, e));
+			Either::B(Box::new(delay))
+		} else {
+			Either::A(future::ok(()))
+		}
 	}
 }
 
@@ -593,10 +642,10 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 // 			let max_delay = ::std::cmp::max(timestamp_delay, count_delay);
 
 // 			let temporary_delay = match max_delay {
-// 				Some(duration) => future::Either::A(
+// 				Some(duration) => Either::A(
 // 					Delay::new(duration).map_err(|e| Error::from(ErrorKind::Timer(e)))
 // 				),
-// 				None => future::Either::B(future::ok(())),
+// 				None => Either::B(future::ok(())),
 // 			};
 
 // 			includability_tracker.join(temporary_delay)
@@ -612,18 +661,14 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 // 			let end_result = future::ok(good);
 // 			if good {
 // 				// delay a "good" vote.
-// 				future::Either::A(vote_delays.and_then(|_| end_result))
+// 				Either::A(vote_delays.and_then(|_| end_result))
 // 			} else {
 // 				// don't delay a "bad" evaluation.
-// 				future::Either::B(end_result)
+// 				Either::B(end_result)
 // 			}
 // 		});
 
 // 		Box::new(future) as Box<_>
-// 	}
-
-// 	fn on_round_end(&self, _: usize, _: bool) {
-
 // 	}
 // }
 
