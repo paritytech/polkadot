@@ -86,22 +86,16 @@ use parking_lot::RwLock;
 
 pub use self::collation::{validate_collation, Collators};
 pub use self::error::{ErrorKind, Error};
-//pub use self::offline_tracker::OfflineTracker;
 pub use self::shared_table::{SharedTable, StatementProducer, ProducedStatements, Statement, SignedStatement, GenericStatement};
 //pub use service::Service;
 
 mod dynamic_inclusion;
 mod evaluation;
 mod error;
-//mod offline_tracker;
 //mod service;
 mod shared_table;
 
 pub mod collation;
-
-/// Shared offline validator tracker.
-// TODO [now]: reintroduce
-//pub type SharedOfflineTracker = Arc<RwLock<OfflineTracker>>;
 
 // block size limit.
 const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
@@ -248,8 +242,6 @@ pub struct ProposerFactory<C, N, P> {
 	pub parachain_empty_duration: Duration,
 	/// Store for extrinsic data.
 	pub extrinsic_store: ExtrinsicStore,
-	// /// Offline-tracker.
-	//pub offline: SharedOfflineTracker,
 }
 
 impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P>
@@ -283,7 +275,6 @@ impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P>
 		let random_seed = BlakeTwo256::hash(random_seed.as_ref());
 
 		let validators = self.client.runtime_api().validators(&id)?;
-		//self.offline.write().note_new_block(&validators[..]);
 
 		let (group_info, local_duty) = make_group_info(
 			duty_roster,
@@ -342,7 +333,6 @@ impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P>
 			random_seed,
 			table,
 			//transaction_pool: self.transaction_pool.clone(),
-			//offline: self.offline.clone(),
 			validators,
 			minimum_timestamp: current_timestamp().0 + FORCE_DELAY.0,
 			_drop_signal: drop_signal,
@@ -421,7 +411,6 @@ pub struct Proposer<C: Send + Sync> {
 	random_seed: Hash,
 	table: Arc<SharedTable>,
 	//transaction_pool: Arc<TransactionPool<C>>,
-	//offline: SharedOfflineTracker,
 	validators: Vec<AccountId>,
 	minimum_timestamp: u64,
 	_drop_signal: exit_future::Signal,
@@ -448,7 +437,6 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 		CreateProposal<C>,
 		future::FutureResult<Block, Error>,
 	>;
-	//type Evaluate = Box<Future<Item=bool, Error=Error>>;
 
 	fn propose(&self) -> Self::Create {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
@@ -474,7 +462,6 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 			client: self.client.clone(),
 			//transaction_pool: self.transaction_pool.clone(),
 			table: self.table.clone(),
-			//offline: self.offline.clone(),
 			validators: self.validators.clone(),
 			minimum_timestamp: self.minimum_timestamp.into(),
 			timing,
@@ -553,13 +540,6 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 
 // 			includability_tracker.join(temporary_delay)
 // 		};
-
-// 		// refuse to vote if this block says a validator is offline that we
-// 		// think isn't.
-// 		let offline = proposal.noted_offline();
-// 		if !self.offline.read().check_consistency(&self.validators[..], offline) {
-// 			return Box::new(futures::empty());
-// 		}
 
 // 		// evaluate whether the block is actually valid.
 // 		// TODO: is it better to delay this until the delays are finished?
@@ -646,34 +626,8 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 // 		}
 // 	}
 
-// 	fn on_round_end(&self, round_number: usize, was_proposed: bool) {
-// 		let primary_validator = self.validators[
-// 			self.primary_index(round_number, self.validators.len())
-// 		];
+// 	fn on_round_end(&self, _: usize, _: bool) {
 
-
-// 		// alter the message based on whether we think the empty proposer was forced to skip the round.
-// 		// this is determined by checking if our local validator would have been forced to skip the round.
-// 		let consider_online = was_proposed || {
-// 			let forced_delay = self.dynamic_inclusion.acceptable_in(Instant::now(), self.table.includable_count());
-// 			let public = ed25519::Public::from_raw(primary_validator.0);
-// 			match forced_delay {
-// 				None => info!(
-// 					"Potential Offline Validator: {} failed to propose during assigned slot: {}",
-// 					public,
-// 					round_number,
-// 				),
-// 				Some(_) => info!(
-// 					"Potential Offline Validator {} potentially forced to skip assigned slot: {}",
-// 					public,
-// 					round_number,
-// 				),
-// 			}
-
-// 			forced_delay.is_some()
-// 		};
-
-// 		self.offline.write().note_round_end(primary_validator, consider_online);
 // 	}
 // }
 
@@ -731,7 +685,6 @@ pub struct CreateProposal<C: Send + Sync>  {
 	table: Arc<SharedTable>,
 	timing: ProposalTiming,
 	validators: Vec<AccountId>,
-	//offline: SharedOfflineTracker,
 	minimum_timestamp: Timestamp,
 }
 
@@ -744,30 +697,14 @@ impl<C> CreateProposal<C> where
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 		use polkadot_primitives::InherentData;
 
-		const MAX_VOTE_OFFLINE_SECONDS: Duration = Duration::from_secs(60);
-
 		// TODO: handle case when current timestamp behind that in state.
 		let timestamp = ::std::cmp::max(self.minimum_timestamp.0, current_timestamp().0).into();
 
 		let elapsed_since_start = self.timing.dynamic_inclusion.started_at().elapsed();
-		let offline_indices = if elapsed_since_start > MAX_VOTE_OFFLINE_SECONDS {
-			Vec::new()
-		} else {
-			Vec::new()
-			//self.offline.read().reports(&self.validators[..])
-		};
-
-		if !offline_indices.is_empty() {
-			info!(
-				"Submitting offline validators {:?} for slash-vote",
-				offline_indices.iter().map(|&i| self.validators[i as usize]).collect::<Vec<_>>(),
-			)
-		}
 
 		let inherent_data = InherentData {
 			timestamp,
 			parachain_heads: candidates,
-			offline_indices,
 		};
 
 		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client)?;

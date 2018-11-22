@@ -114,6 +114,4 @@ pub struct InherentData {
 	pub timestamp: Timestamp,
 	/// Parachain heads update.
 	pub parachain_heads: Vec<::parachain::CandidateReceipt>,
-	/// Indices of offline validators.
-	pub offline_indices: Vec<u32>,
 }
