@@ -18,9 +18,8 @@
 
 use super::MAX_TRANSACTIONS_SIZE;
 
-use codec::{Decode, Encode};
-use polkadot_runtime::{Block as PolkadotGenericBlock};
-use polkadot_primitives::{Block, Compact, Hash, BlockNumber, Timestamp};
+use codec::Encode;
+use polkadot_primitives::{Block, Hash, BlockNumber, Timestamp};
 use polkadot_primitives::parachain::Id as ParaId;
 
 error_chain! {
@@ -67,10 +66,10 @@ error_chain! {
 /// upon any initial validity checks failing.
 pub fn evaluate_initial(
 	proposal: &Block,
-	now: Timestamp,
+	_now: Timestamp,
 	parent_hash: &Hash,
 	parent_number: BlockNumber,
-	active_parachains: &[ParaId],
+	_active_parachains: &[ParaId],
 ) -> Result<()> {
 	let transactions_size = proposal.extrinsics.iter().fold(0, |a, tx| {
 		a + Encode::encode(tx).len()

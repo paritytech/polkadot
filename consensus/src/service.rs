@@ -27,7 +27,6 @@ use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::Arc;
 
-use bft::{self, BftService};
 use client::{BlockchainEvents, ChainHead, BlockBody};
 use primitives::ed25519;
 use futures::prelude::*;
@@ -35,6 +34,7 @@ use polkadot_api::LocalPolkadotApi;
 use polkadot_primitives::{Block, Header};
 use transaction_pool::TransactionPool;
 use extrinsic_store::Store as ExtrinsicStore;
+use runtime_primitives::
 
 use tokio::executor::current_thread::TaskExecutor as LocalThreadHandle;
 use tokio::runtime::TaskExecutor as ThreadPoolHandle;
@@ -46,28 +46,6 @@ use error;
 
 const TIMER_DELAY_MS: u64 = 5000;
 const TIMER_INTERVAL_MS: u64 = 500;
-
-// spin up an instance of BFT agreement on the current thread's executor.
-// panics if there is no current thread executor.
-fn start_bft<F, C>(
-	header: Header,
-	bft_service: Arc<BftService<Block, F, C>>,
-) where
-	F: bft::Environment<Block> + 'static,
-	C: bft::BlockImport<Block> + bft::Authorities<Block> + 'static,
-	F::Error: ::std::fmt::Debug,
-	<F::Proposer as bft::Proposer<Block>>::Error: ::std::fmt::Display + Into<error::Error>,
-	<F as bft::Environment<Block>>::Error: ::std::fmt::Display
-{
-	let mut handle = LocalThreadHandle::current();
-	match bft_service.build_upon(&header) {
-		Ok(Some(bft_work)) => if let Err(e) = handle.spawn_local(Box::new(bft_work)) {
-		    warn!(target: "bft", "Couldn't initialize BFT agreement: {:?}", e);
-		}
-		Ok(None) => trace!(target: "bft", "Could not start agreement on top of {}", header.hash()),
-		Err(e) => warn!(target: "bft", "BFT agreement error: {}", e),
-	}
-}
 
 // creates a task to prune redundant entries in availability store upon block finalization
 //
@@ -146,7 +124,8 @@ impl Service {
 		where
 			A: LocalPolkadotApi + Send + Sync + 'static,
 			C: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
-			C: bft::BlockImport<Block> + bft::Authorities<Block> + Send + Sync + 'static,
+			C: ProvideRuntimeApi + Send + Sync + 'static,
+			C::Api: ParachainHost<Block> + TaggedTransactionQueue<Block> + BlockBuilder<Block>,
 			N: Network + Collators + Send + 'static,
 			N::TableRouter: Send + 'static,
 			<N::Collation as IntoFuture>::Future: Send + 'static,

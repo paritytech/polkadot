@@ -72,7 +72,7 @@ use client::block_builder::api::BlockBuilder;
 use codec::{Decode, Encode};
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
-use polkadot_primitives::{AccountId, Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
+use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
 use polkadot_primitives::{Compact, UncheckedExtrinsic};
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::ParachainHost;
@@ -80,13 +80,12 @@ use primitives::{AuthorityId, ed25519};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
-use transaction_pool::{txpool::Pool, ChainApi as PoolChainApi};
+use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
 
 use futures::prelude::*;
 use futures::future::{self, Either};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
-use parking_lot::RwLock;
 
 pub use self::collation::{validate_collation, Collators};
 pub use self::error::{ErrorKind, Error};
@@ -280,9 +279,9 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 		let id = BlockId::hash(parent_hash);
 		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
 		let random_seed = self.client.runtime_api().random_seed(&id)?;
-		let random_seed = BlakeTwo256::hash(random_seed.as_ref());
+		let _random_seed = BlakeTwo256::hash(random_seed.as_ref());
 
-		let validators = self.client.runtime_api().validators(&id)?;
+		let _validators = self.client.runtime_api().validators(&id)?;
 
 		let (group_info, local_duty) = make_group_info(
 			duty_roster,
@@ -297,7 +296,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		debug!(target: "consensus", "Active parachains: {:?}", active_parachains);
 
-		let n_parachains = active_parachains.len();
+		let _n_parachains = active_parachains.len();
 		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
 			authorities,
@@ -352,39 +351,36 @@ pub(crate) struct AttestationTracker {
 }
 
 /// Polkadot proposer factory.
-pub(crate) struct ProposerFactory<C, N, P> where
-	P: ProvideRuntimeApi + HeaderBackend<Block>,
-	P::Api: TaggedTransactionQueue<Block>,
-{
+pub(crate) struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
 	parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
-	transaction_pool: Arc<Pool<PoolChainApi<P, Block>>>,
+	transaction_pool: Arc<Pool<TxApi>>,
 }
 
-impl<C, N, P> ProposerFactory<C, N, P> where
-	P: ProvideRuntimeApi + HeaderBackend<Block>,
-	P::Api: TaggedTransactionQueue<Block>,
+impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
+	TxApi: PoolChainApi,
 {
 	/// Create a new proposer factory.
 	pub(crate) fn new(
 		parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
+		transaction_pool: Arc<Pool<TxApi>>,
 	) -> Self {
-		let chain_api = PoolChainApi::new(parachain_consensus.client.clone());
 		ProposerFactory {
 			parachain_consensus,
-			transaction_pool: Arc::new(Pool::new(Default::default(), chain_api)),
+			transaction_pool,
 		}
 	}
 }
 
-impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P> where
+impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, TxApi> where
 	C: Collators + Send + 'static,
 	N: Network,
+	TxApi: PoolChainApi<Block=Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilder<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 {
-	type Proposer = Proposer<P>;
+	type Proposer = Proposer<P, TxApi>;
 	type Error = Error;
 
 	fn init(
@@ -477,27 +473,26 @@ struct LocalDuty {
 }
 
 /// The Polkadot proposer logic.
-pub struct Proposer<C: Send + Sync> where
+pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 	C: ProvideRuntimeApi + HeaderBackend<Block>,
-	C::Api: TaggedTransactionQueue<Block>,
 {
 	client: Arc<C>,
 	parent_hash: Hash,
 	parent_id: BlockId,
 	parent_number: BlockNumber,
 	tracker: Arc<AttestationTracker>,
-	transaction_pool: Arc<Pool<PoolChainApi<C, Block>>>,
+	transaction_pool: Arc<Pool<TxApi>>,
 	minimum_timestamp: u64,
 }
 
-impl<C> consensus::Proposer<Block> for Proposer<C>
-	where
-		C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-		C::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
+impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
+	TxApi: PoolChainApi<Block=Block>,
+	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
+	C::Api: ParachainHost<Block> + BlockBuilder<Block>,
 {
 	type Error = Error;
 	type Create = Either<
-		CreateProposal<C>,
+		CreateProposal<C, TxApi>,
 		future::FutureResult<Block, Error>,
 	>;
 
@@ -579,99 +574,6 @@ impl ExtraVerification<Block> for BlockVerifier {
 	}
 }
 
-// 	fn evaluate(&self, unchecked_proposal: &Block) -> Self::Evaluate {
-// 		debug!(target: "bft", "evaluating block on top of parent ({}, {:?})", self.parent_number, self.parent_hash);
-
-// 		let active_parachains = match self.client.active_parachains(&self.parent_id) {
-// 			Ok(x) => x,
-// 			Err(e) => return Box::new(future::err(e.into())) as Box<_>,
-// 		};
-
-// 		let current_timestamp = current_timestamp();
-
-// 		// do initial serialization and structural integrity checks.
-// 		evaluation::evaluate_initial(
-// 			unchecked_proposal,
-// 			current_timestamp,
-// 			&self.parent_hash,
-// 			self.parent_number,
-// 			&active_parachains,
-// 		);
-
-// 		let proposal = match maybe_proposal {
-// 			Ok(p) => p,
-// 			Err(e) => {
-// 				// TODO: these errors are easily re-checked in runtime.
-// 				debug!(target: "bft", "Invalid proposal: {:?}", e);
-// 				return Box::new(future::ok(false));
-// 			}
-// 		};
-
-// 		let vote_delays = {
-// 			let now = Instant::now();
-
-// 			let included_candidate_hashes = proposal
-// 				.parachain_heads()
-// 				.iter()
-// 				.map(|candidate| candidate.hash());
-
-// 			// delay casting vote until we have proof that all candidates are
-// 			// includable.
-// 			let includability_tracker = self.table.track_includability(included_candidate_hashes)
-// 				.map_err(|_| ErrorKind::PrematureDestruction.into());
-
-// 			// the duration at which the given number of parachains is acceptable.
-// 			let count_delay = self.dynamic_inclusion.acceptable_in(
-// 				now,
-// 				proposal.parachain_heads().len(),
-// 			);
-
-// 			// the duration until the given timestamp is current
-// 			let proposed_timestamp = ::std::cmp::max(self.minimum_timestamp, proposal.timestamp());
-// 			let timestamp_delay = if proposed_timestamp > current_timestamp {
-// 				let delay_s = proposed_timestamp - current_timestamp;
-// 				debug!(target: "bft", "Delaying evaluation of proposal for {} seconds", delay_s);
-// 				Some(now + Duration::from_secs(delay_s))
-// 			} else {
-// 				None
-// 			};
-
-// 			// delay casting vote until able according to minimum block time,
-// 			// timestamp delay, and count delay.
-// 			// construct a future from the maximum of the two durations.
-// 			let max_delay = ::std::cmp::max(timestamp_delay, count_delay);
-
-// 			let temporary_delay = match max_delay {
-// 				Some(duration) => Either::A(
-// 					Delay::new(duration).map_err(|e| Error::from(ErrorKind::Timer(e)))
-// 				),
-// 				None => Either::B(future::ok(())),
-// 			};
-
-// 			includability_tracker.join(temporary_delay)
-// 		};
-
-// 		// evaluate whether the block is actually valid.
-// 		// TODO: is it better to delay this until the delays are finished?
-// 		let evaluated = self.client
-// 			.evaluate_block(&self.parent_id, unchecked_proposal.clone())
-// 			.map_err(Into::into);
-
-// 		let future = future::result(evaluated).and_then(move |good| {
-// 			let end_result = future::ok(good);
-// 			if good {
-// 				// delay a "good" vote.
-// 				Either::A(vote_delays.and_then(|_| end_result))
-// 			} else {
-// 				// don't delay a "bad" evaluation.
-// 				Either::B(end_result)
-// 			}
-// 		});
-
-// 		Box::new(future) as Box<_>
-// 	}
-// }
-
 fn current_timestamp() -> Timestamp {
 	time::SystemTime::now().duration_since(time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
@@ -717,23 +619,21 @@ impl ProposalTiming {
 }
 
 /// Future which resolves upon the creation of a proposal.
-pub struct CreateProposal<C: Send + Sync> where
-	C: ProvideRuntimeApi + HeaderBackend<Block>,
-	C::Api: TaggedTransactionQueue<Block>,
-{
+pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 	parent_hash: Hash,
 	parent_number: BlockNumber,
 	parent_id: BlockId,
 	client: Arc<C>,
-	transaction_pool: Arc<Pool<PoolChainApi<C, Block>>>,
+	transaction_pool: Arc<Pool<TxApi>>,
 	table: Arc<SharedTable>,
 	timing: ProposalTiming,
 	minimum_timestamp: Timestamp,
 }
 
-impl<C> CreateProposal<C> where
+impl<C, TxApi> CreateProposal<C, TxApi> where
+	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilder<Block>,
 {
 	fn propose_with(&self, candidates: Vec<CandidateReceipt>) -> Result<Block, Error> {
 		use client::block_builder::BlockBuilder;
@@ -743,9 +643,9 @@ impl<C> CreateProposal<C> where
 		// TODO: handle case when current timestamp behind that in state.
 		let timestamp = ::std::cmp::max(self.minimum_timestamp.0, current_timestamp().0).into();
 
-		let elapsed_since_start = self.timing.dynamic_inclusion.started_at().elapsed();
+		let _elapsed_since_start = self.timing.dynamic_inclusion.started_at().elapsed();
 
-		let inherent_data = InherentData {
+		let _inherent_data = InherentData {
 			timestamp,
 			parachain_heads: candidates,
 		};
@@ -769,7 +669,7 @@ impl<C> CreateProposal<C> where
 					}
 					Err(e) => {
 						trace!(target: "transaction-pool", "Invalid transaction: {}", e);
-						unqueue_invalid.push(ready.hash);
+						unqueue_invalid.push(ready.hash.clone());
 					}
 				}
 			}
@@ -806,9 +706,10 @@ impl<C> CreateProposal<C> where
 	}
 }
 
-impl<C> Future for CreateProposal<C> where
+impl<C, TxApi> Future for CreateProposal<C, TxApi> where
+	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilder<Block>,
 {
 	type Item = Block;
 	type Error = Error;
