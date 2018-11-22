@@ -449,6 +449,11 @@ impl SharedTable {
 		f(inner.table.proposed_candidates(&*self.context))
 	}
 
+	/// Get the number of total parachains.
+	pub fn num_parachains(&self) -> usize {
+		self.group_info().len()
+	}
+
 	/// Get the number of parachains which have available candidates.
 	pub fn includable_count(&self) -> usize {
 		self.inner.lock().table.includable_count()

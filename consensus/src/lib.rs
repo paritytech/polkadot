@@ -69,6 +69,7 @@ use client::runtime_api::TaggedTransactionQueue;
 use client::block_builder::api::BlockBuilder;
 use codec::{Decode, Encode};
 use extrinsic_store::Store as ExtrinsicStore;
+use parking_lot::Mutex;
 use polkadot_primitives::{AccountId, Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
 use polkadot_primitives::Compact;
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
@@ -227,47 +228,49 @@ fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: Au
 	}
 }
 
-/// Polkadot proposer factory.
-pub struct ProposerFactory<C, N, P> {
+/// Constructs parachain-agreement instances.
+pub(crate) struct ParachainConsensus<C, N, P> {
 	/// The client instance.
-	pub client: Arc<P>,
+	pub(crate) client: Arc<P>,
 	// TODO [now]: reintroduce transaction pool.
 	/// The backing network handle.
-	pub network: N,
+	pub(crate) network: N,
 	/// Parachain collators.
-	pub collators: C,
+	pub(crate) collators: C,
 	/// handle to remote task executor
-	pub handle: TaskExecutor,
-	/// The duration after which parachain-empty blocks will be allowed.
-	pub parachain_empty_duration: Duration,
+	pub(crate) handle: TaskExecutor,
 	/// Store for extrinsic data.
-	pub extrinsic_store: ExtrinsicStore,
+	pub(crate) extrinsic_store: ExtrinsicStore,
+	/// Live agreements.
+	pub(crate) live_instances: Mutex<HashMap<Hash, AttestationTracker>>,
 }
 
-impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P>
-	where
-		C: Collators + Send + 'static,
-		N: Network,
-		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
-		<C::Collation as IntoFuture>::Future: Send + 'static,
-		N::TableRouter: Send + 'static,
+impl<C, N, P> ParachainConsensus<C, N, P> where
+	C: Collators + Send + 'static,
+	N: Network,
+	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+	P::Api: ParachainHost<Block> + BlockBuilder<Block>,
+	<C::Collation as IntoFuture>::Future: Send + 'static,
+	N::TableRouter: Send + 'static,
 {
-	type Proposer = Proposer<P>;
-	type Error = Error;
-
-	fn init(
+	/// Get an attestation table for given parent hash.
+	///
+	/// This starts a parachain agreement process for given parent hash if
+	/// one has not already started.
+	pub(crate) fn get_or_instantiate_table(
 		&self,
-		parent_header: &Header,
+		parent_hash: Hash,
 		authorities: &[AuthorityId],
 		sign_with: Arc<ed25519::Pair>,
-	) -> Result<Self::Proposer, Error> {
+	)
+		-> Result<Arc<SharedTable>, Error>
+	{
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
-		// force delay in evaluation this long.
-		const FORCE_DELAY: Timestamp = Compact(5);
-
-		let parent_hash = parent_header.hash().into();
+		let mut live_instances = self.live_instances.lock();
+		if let Some(tracker) = live_instances.get(&parent_hash) {
+			return Ok(tracker.table.clone());
+		}
 
 		let id = BlockId::hash(parent_hash);
 		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
@@ -282,7 +285,7 @@ impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P>
 			sign_with.public().into(),
 		)?;
 
-		info!("Starting consensus session on top of parent {:?}. Local parachain duty is {:?}",
+		info!("Starting parachain attestation session on top of parent {:?}. Local parachain duty is {:?}",
 			parent_hash, local_duty.validation);
 
 		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
@@ -297,13 +300,6 @@ impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P>
 			self.handle.clone()
 		);
 
-		let now = Instant::now();
-		let dynamic_inclusion = DynamicInclusion::new(
-			n_parachains,
-			now,
-			self.parachain_empty_duration.clone(),
-		);
-
 		let validation_para = match local_duty.validation {
 			Chain::Relay => None,
 			Chain::Parachain(id) => Some(id),
@@ -316,6 +312,7 @@ impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P>
 			self.collators.clone(),
 			self.client.clone(),
 		));
+
 		let drop_signal = dispatch_collation_work(
 			router.clone(),
 			&self.handle,
@@ -323,19 +320,72 @@ impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P>
 			self.extrinsic_store.clone(),
 		);
 
+		let tracker = AttestationTracker { table: table.clone(), _drop_signal: drop_signal };
+		live_instances.insert(parent_hash, tracker);
+
+		Ok(table)
+	}
+}
+
+/// Parachain consensus for a single block.
+pub(crate) struct AttestationTracker {
+	_drop_signal: exit_future::Signal,
+	table: Arc<SharedTable>,
+}
+
+/// Polkadot proposer factory.
+pub(crate) struct ProposerFactory<C, N, P> {
+	/// A handle to the parachain consensus manager.
+	pub(crate) parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
+	/// The duration after which parachain-empty blocks will be allowed.
+	pub(crate) parachain_empty_duration: Duration,
+}
+
+impl<C, N, P> consensus::Environment<Block> for ProposerFactory<C, N, P> where
+	C: Collators + Send + 'static,
+	N: Network,
+	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+	P::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
+	<C::Collation as IntoFuture>::Future: Send + 'static,
+	N::TableRouter: Send + 'static,
+{
+	type Proposer = Proposer<P>;
+	type Error = Error;
+
+	fn init(
+		&self,
+		parent_header: &Header,
+		authorities: &[AuthorityId],
+		sign_with: Arc<ed25519::Pair>,
+	) -> Result<Self::Proposer, Error> {
+		// force delay in evaluation this long.
+		const FORCE_DELAY: Timestamp = Compact(5);
+
+		let parent_hash = parent_header.hash();
+		let parent_id = BlockId::hash(parent_hash);
+		let table = self.parachain_consensus.get_or_instantiate_table(
+			parent_hash,
+			authorities,
+			sign_with.clone(),
+		)?;
+
+		let now = Instant::now();
+		let dynamic_inclusion = DynamicInclusion::new(
+			table.num_parachains(),
+			now,
+			self.parachain_empty_duration.clone(),
+		);
+
 		Ok(Proposer {
-			client: self.client.clone(),
+			client: self.parachain_consensus.client.clone(),
 			dynamic_inclusion,
 			local_key: sign_with,
 			parent_hash,
-			parent_id: id,
+			parent_id,
 			parent_number: parent_header.number,
-			random_seed,
 			table,
 			//transaction_pool: self.transaction_pool.clone(),
-			validators,
 			minimum_timestamp: current_timestamp().0 + FORCE_DELAY.0,
-			_drop_signal: drop_signal,
 		})
 	}
 }
@@ -350,7 +400,7 @@ fn dispatch_collation_work<R, C, P>(
 ) -> exit_future::Signal where
 	C: Collators + Send + 'static,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilder<Block> + TaggedTransactionQueue<Block>,
+	P::Api: ParachainHost<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	R: TableRouter + Send + 'static,
 {
@@ -408,23 +458,9 @@ pub struct Proposer<C: Send + Sync> {
 	parent_hash: Hash,
 	parent_id: BlockId,
 	parent_number: BlockNumber,
-	random_seed: Hash,
 	table: Arc<SharedTable>,
 	//transaction_pool: Arc<TransactionPool<C>>,
-	validators: Vec<AccountId>,
 	minimum_timestamp: u64,
-	_drop_signal: exit_future::Signal,
-}
-
-impl<C: Send + Sync> Proposer<C> {
-	fn primary_index(&self, round_number: usize, len: usize) -> usize {
-		use primitives::uint::U256;
-
-		let big_len = U256::from(len);
-		let offset = U256::from_big_endian(&self.random_seed.as_ref()) % big_len;
-		let offset = offset.low_u64() as usize + round_number;
-		offset % len
-	}
 }
 
 impl<C> consensus::Proposer<Block> for Proposer<C>
@@ -462,7 +498,6 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 			client: self.client.clone(),
 			//transaction_pool: self.transaction_pool.clone(),
 			table: self.table.clone(),
-			validators: self.validators.clone(),
 			minimum_timestamp: self.minimum_timestamp.into(),
 			timing,
 		})
@@ -561,71 +596,6 @@ impl<C> consensus::Proposer<Block> for Proposer<C>
 // 		Box::new(future) as Box<_>
 // 	}
 
-// 	fn round_proposer(&self, round_number: usize, authorities: &[AuthorityId]) -> AuthorityId {
-// 		let offset = self.primary_index(round_number, authorities.len());
-// 		let proposer = authorities[offset].clone();
-// 		trace!(target: "bft", "proposer for round {} is {}", round_number, proposer);
-
-// 		proposer
-// 	}
-
-// 	fn import_misbehavior(&self, misbehavior: Vec<(AuthorityId, bft::Misbehavior<Hash>)>) {
-// 		use rhododendron::Misbehavior as GenericMisbehavior;
-// 		use runtime_primitives::bft::{MisbehaviorKind, MisbehaviorReport};
-// 		use polkadot_runtime::{Call, UncheckedExtrinsic, ConsensusCall, RawAddress};
-
-// 		let local_id = self.local_key.public().0.into();
-// 		let mut next_index = {
-// 			let cur_index = self.transaction_pool.cull_and_get_pending(&BlockId::hash(self.parent_hash), |pending| pending
-// 				.filter(|tx| tx.verified.sender().map(|s| s == local_id).unwrap_or(false))
-// 				.last()
-// 				.map(|tx| Ok(tx.verified.index()))
-// 				.unwrap_or_else(|| self.client.index(&self.parent_id, local_id))
-// 			);
-
-// 			match cur_index {
-// 				Ok(Ok(cur_index)) => cur_index + 1,
-// 				Ok(Err(e)) => {
-// 					warn!(target: "consensus", "Error computing next transaction index: {}", e);
-// 					return;
-// 				}
-// 				Err(e) => {
-// 					warn!(target: "consensus", "Error computing next transaction index: {}", e);
-// 					return;
-// 				}
-// 			}
-// 		};
-
-// 		for (target, misbehavior) in misbehavior {
-// 			let report = MisbehaviorReport {
-// 				parent_hash: self.parent_hash,
-// 				parent_number: self.parent_number,
-// 				target,
-// 				misbehavior: match misbehavior {
-// 					GenericMisbehavior::ProposeOutOfTurn(_, _, _) => continue,
-// 					GenericMisbehavior::DoublePropose(_, _, _) => continue,
-// 					GenericMisbehavior::DoublePrepare(round, (h1, s1), (h2, s2))
-// 						=> MisbehaviorKind::BftDoublePrepare(round as u32, (h1, s1.signature), (h2, s2.signature)),
-// 					GenericMisbehavior::DoubleCommit(round, (h1, s1), (h2, s2))
-// 						=> MisbehaviorKind::BftDoubleCommit(round as u32, (h1, s1.signature), (h2, s2.signature)),
-// 				}
-// 			};
-// 			let payload = (next_index, Call::Consensus(ConsensusCall::report_misbehavior(report)));
-// 			let signature = self.local_key.sign(&payload.encode()).into();
-// 			next_index += 1;
-
-// 			let local_id = self.local_key.public().0.into();
-// 			let extrinsic = UncheckedExtrinsic {
-// 				signature: Some((RawAddress::Id(local_id), signature)),
-// 				index: payload.0,
-// 				function: payload.1,
-// 			};
-// 			let uxt: Vec<u8> = Decode::decode(&mut extrinsic.encode().as_slice()).expect("Encoded extrinsic is valid");
-// 			self.transaction_pool.submit_one(&BlockId::hash(self.parent_hash), polkadot_primitives::UncheckedExtrinsic(uxt))
-// 				.expect("locally signed extrinsic is valid; qed");
-// 		}
-// 	}
-
 // 	fn on_round_end(&self, _: usize, _: bool) {
 
 // 	}
@@ -684,7 +654,6 @@ pub struct CreateProposal<C: Send + Sync>  {
 	//transaction_pool: Arc<TransactionPool<C>>,
 	table: Arc<SharedTable>,
 	timing: ProposalTiming,
-	validators: Vec<AccountId>,
 	minimum_timestamp: Timestamp,
 }
 
