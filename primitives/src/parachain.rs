@@ -224,8 +224,10 @@ decl_runtime_apis! {
 	}
 }
 
+/// Runtime ID module.
 pub mod id {
 	use sr_version::ApiId;
 
+	/// Parachain host runtime API id.
 	pub const PARACHAIN_HOST: ApiId = *b"parahost";
 }

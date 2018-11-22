@@ -47,6 +47,8 @@ use rstd::prelude::*;
 use runtime_primitives::{generic, traits::{Extrinsic, BlakeTwo256}};
 pub mod parachain;
 
+pub use codec::Compact;
+
 #[cfg(feature = "std")]
 use primitives::bytes;
 
@@ -80,7 +82,7 @@ pub type Index = u32;
 pub type Signature = runtime_primitives::Ed25519Signature;
 
 /// A timestamp: seconds since the unix epoch.
-pub type Timestamp = u64;
+pub type Timestamp = Compact<u64>;
 
 /// The balance of an account.
 /// 128-bits (or 38 significant decimal figures) will allow for 10m currency (10^7) at a resolution
