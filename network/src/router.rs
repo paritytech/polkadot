@@ -82,11 +82,6 @@ impl<P> Router<P> {
 	pub(crate) fn gossip_topic(&self) -> Hash {
 		self.attestation_topic
 	}
-
-	/// Get the session key used for the table.
-	pub(crate) fn session_key(&self) -> SessionKey {
-		self.table.session_key()
-	}
 }
 
 impl<P> Clone for Router<P> {
