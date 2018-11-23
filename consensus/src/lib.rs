@@ -90,12 +90,12 @@ use dynamic_inclusion::DynamicInclusion;
 pub use self::collation::{validate_collation, Collators};
 pub use self::error::{ErrorKind, Error};
 pub use self::shared_table::{SharedTable, StatementProducer, ProducedStatements, Statement, SignedStatement, GenericStatement};
-//pub use service::Service;
+pub use service::Service;
 
 mod dynamic_inclusion;
 mod evaluation;
 mod error;
-//mod service;
+mod service;
 mod shared_table;
 
 pub mod collation;
@@ -231,21 +231,21 @@ fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: Au
 }
 
 /// Constructs parachain-agreement instances.
-pub(crate) struct ParachainConsensus<C, N, P> {
+struct ParachainConsensus<C, N, P> {
 	/// The client instance.
-	pub(crate) client: Arc<P>,
+	client: Arc<P>,
 	/// The backing network handle.
-	pub(crate) network: N,
+	network: N,
 	/// Parachain collators.
-	pub(crate) collators: C,
+	collators: C,
 	/// handle to remote task executor
-	pub(crate) handle: TaskExecutor,
+	handle: TaskExecutor,
 	/// Store for extrinsic data.
-	pub(crate) extrinsic_store: ExtrinsicStore,
+	extrinsic_store: ExtrinsicStore,
 	/// The time after which no parachains may be included.
-	pub(crate) parachain_empty_duration: Duration,
+	parachain_empty_duration: Duration,
 	/// Live agreements.
-	pub(crate) live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
+	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
 
 }
 
@@ -261,7 +261,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	///
 	/// This starts a parachain agreement process for given parent hash if
 	/// one has not already started.
-	pub(crate) fn get_or_instantiate(
+	fn get_or_instantiate(
 		&self,
 		parent_hash: Hash,
 		authorities: &[AuthorityId],
@@ -341,17 +341,22 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		Ok(tracker)
 	}
+
+	/// Retain consensus sessions matching predicate.
+	fn retain<F: FnMut(&Hash) -> bool>(&self, mut pred: F) {
+		self.live_instances.lock().retain(|k, _| pred(k))
+	}
 }
 
 /// Parachain consensus for a single block.
-pub(crate) struct AttestationTracker {
+struct AttestationTracker {
 	_drop_signal: exit_future::Signal,
 	table: Arc<SharedTable>,
 	dynamic_inclusion: DynamicInclusion,
 }
 
 /// Polkadot proposer factory.
-pub(crate) struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
+struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
 	parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
 }
@@ -360,7 +365,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 	TxApi: PoolChainApi,
 {
 	/// Create a new proposer factory.
-	pub(crate) fn new(
+	fn new(
 		parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
 		transaction_pool: Arc<Pool<TxApi>>,
 	) -> Self {
@@ -527,7 +532,8 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 }
 
 /// Does verification before importing blocks.
-pub(crate) struct BlockVerifier;
+/// Should be used for further verification in aura.
+pub struct BlockVerifier;
 
 impl ExtraVerification<Block> for BlockVerifier {
 	type Verified = Either<
