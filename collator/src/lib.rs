@@ -68,7 +68,7 @@ use primitives::ed25519;
 use polkadot_primitives::{AccountId, BlockId, SessionKey};
 use polkadot_primitives::parachain::{self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId};
 use polkadot_cli::{Service, CustomConfiguration};
-use polkadot_cli::{Worker, IntoExit, Factory};
+use polkadot_cli::{Worker, IntoExit, ServiceComponents};
 use tokio::timer::Timeout;
 
 pub use polkadot_cli::VersionInfo;
@@ -260,7 +260,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 	}
 
 	fn work<C>(self, service: &Service<C>) -> Self::Work
-		where C: ServiceComponents<Factory=Factory>
+		where C: ServiceComponents
 	{
 		let CollationNode { parachain_context, exit, para_id, key } = self;
 		let client = service.client();
@@ -318,7 +318,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 				let deadlined = Timeout::new(work, COLLATION_TIMEOUT);
 				let silenced = deadlined.then(|res| match res {
 					Ok(()) => Ok(()),
-					Err(()) => {
+					Err(_) => {
 						warn!("Collation failure: timeout");
 						Ok(())
 					}

@@ -65,7 +65,7 @@ pub trait Worker: IntoExit {
 
 	/// Do work and schedule exit.
 	fn work<C: service::Components>(self, service: &service::Service<C>) -> Self::Work
-		where C: service::Components<Factory=Factory>;
+		where C: service::Components;
 }
 
 /// Parse command line arguments into service configuration.
@@ -126,7 +126,7 @@ fn run_until_exit<T, C, W>(
 ) -> error::Result<()>
 	where
 	    T: Deref<Target=Service<C>>,
-		C: service::Components<Factory=Factory>,
+		C: service::Components,
 		W: Worker,
 {
 	let (exit_send, exit) = exit_future::signal();
@@ -138,4 +138,3 @@ fn run_until_exit<T, C, W>(
 	exit_send.fire();
 	Ok(())
 }
-
