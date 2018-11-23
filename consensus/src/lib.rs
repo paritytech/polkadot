@@ -67,7 +67,6 @@ use std::time::{self, Duration, Instant};
 
 use aura::ExtraVerification;
 use client::blockchain::HeaderBackend;
-use client::runtime_api::TaggedTransactionQueue;
 use client::block_builder::api::BlockBuilder;
 use codec::{Decode, Encode};
 use extrinsic_store::Store as ExtrinsicStore;

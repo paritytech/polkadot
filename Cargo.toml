@@ -24,6 +24,7 @@ members = [
 	"collator",
 	"consensus",
 	"executor",
+	"network",
 	"primitives",
 	"runtime",
 	"service",

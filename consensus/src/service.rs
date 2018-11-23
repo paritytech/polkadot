@@ -33,19 +33,17 @@ use client::blockchain::HeaderBackend;
 use client::runtime_api::Core;
 use primitives::ed25519;
 use futures::prelude::*;
-use polkadot_primitives::{Block, BlockId, Header};
+use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::ParachainHost;
 use extrinsic_store::Store as ExtrinsicStore;
 use runtime_primitives::traits::ProvideRuntimeApi;
 use transaction_pool::txpool::{ChainApi as PoolChainApi, Pool};
 
-use tokio::executor::current_thread::TaskExecutor as LocalThreadHandle;
 use tokio::runtime::TaskExecutor as ThreadPoolHandle;
 use tokio::runtime::current_thread::Runtime as LocalRuntime;
 use tokio::timer::Interval;
 
 use super::{Network, Collators, ProposerFactory};
-use error;
 
 // creates a task to prune redundant entries in availability store upon block finalization
 //
@@ -62,7 +60,6 @@ fn prune_unneeded_availability<C>(client: Arc<C>, extrinsic_store: ExtrinsicStor
 		NoBody,
 		BodyFetch(::client::error::Error),
 		UnexpectedFormat,
-		ExtrinsicsWrong,
 	}
 
 	impl NotifyError {
@@ -71,7 +68,6 @@ fn prune_unneeded_availability<C>(client: Arc<C>, extrinsic_store: ExtrinsicStor
 				NotifyError::NoBody => warn!("No block body for imported block {:?}", hash),
 				NotifyError::BodyFetch(ref err) => warn!("Failed to fetch block body for imported block {:?}: {:?}", hash, err),
 				NotifyError::UnexpectedFormat => warn!("Consensus outdated: Block {:?} has unexpected body format", hash),
-				NotifyError::ExtrinsicsWrong => warn!("Consensus outdated: Extrinsics cannot be decoded for {:?}", hash),
 			}
 		}
 	}
@@ -141,7 +137,7 @@ impl Service {
 			<N::Collation as IntoFuture>::Future: Send + 'static,
 			TxApi: PoolChainApi<Block=Block> + Send + 'static,
 	{
-		use parking_lot::{Mutex, RwLock};
+		use parking_lot::Mutex;
 		use std::collections::HashMap;
 
 		const TIMER_DELAY: Duration = Duration::from_secs(5);
@@ -217,6 +213,7 @@ impl Service {
 					.map_err(|e| warn!("Timer error {:?}", e))
 			};
 
+			runtime.spawn(notifications);
 			thread_pool.spawn(prune_old_sessions);
 
 			let prune_available = prune_unneeded_availability(client, extrinsic_store)
