@@ -25,7 +25,7 @@ extern crate futures;
 #[macro_use]
 extern crate error_chain;
 
-use cli::{ServiceComponents, Service, VersionInfo};
+use cli::{PolkadotService, VersionInfo};
 use futures::sync::oneshot;
 use futures::{future, Future};
 
@@ -57,7 +57,7 @@ impl cli::IntoExit for Worker {
 
 impl cli::Worker for Worker {
 	type Work = <Self as cli::IntoExit>::Exit;
-	fn work<C: ServiceComponents>(self, _service: &Service<C>) -> Self::Work {
+	fn work<S: PolkadotService>(self, _service: &S) -> Self::Work {
 		use cli::IntoExit;
 		self.into_exit()
 	}

@@ -22,6 +22,8 @@ extern crate polkadot_availability_store as av_store;
 extern crate polkadot_primitives;
 extern crate polkadot_runtime;
 extern crate polkadot_executor;
+extern crate polkadot_network;
+extern crate sr_primitives;
 extern crate substrate_primitives as primitives;
 #[macro_use]
 extern crate substrate_network as network;
@@ -47,19 +49,20 @@ use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor,
 use transaction_pool::txpool::{Pool as TransactionPool};
 use consensus::{import_queue, start_aura, Config as AuraConfig, AuraImportQueue, NothingExtra};
 
-pub use service::{Roles, PruningMode, TransactionPoolOptions,
+pub use service::{
+	Roles, PruningMode, TransactionPoolOptions, ComponentClient,
 	ErrorKind, Error, ComponentBlock, LightComponents, FullComponents,
-	FullClient, LightClient, Components, Service, ServiceFactory};
+	FullClient, LightClient, Components, Service, ServiceFactory
+};
 pub use service::config::full_version_from_strs;
-pub use client::ExecutionStrategy;
+pub use client::{backend::Backend, runtime_api::Core as CoreApi, ExecutionStrategy};
+pub use polkadot_network::{PolkadotProtocol, NetworkService};
+pub use polkadot_primitives::parachain::ParachainHost;
+pub use primitives::{Blake2Hasher};
+pub use sr_primitives::traits::ProvideRuntimeApi;
 pub use chain_spec::ChainSpec;
 
 const AURA_SLOT_DURATION: u64 = 6;
-
-construct_simple_protocol! {
-	/// Demo protocol attachment for substrate.
-	pub struct PolkadotProtocol where Block = Block { }
-}
 
 /// All configuration for the polkadot node.
 pub type Configuration = FactoryFullConfiguration<Factory>;
@@ -72,16 +75,71 @@ pub struct CustomConfiguration {
 	pub collating_for: Option<(AccountId, parachain::Id)>,
 }
 
+/// Chain API type for the transaction pool.
+pub type TxChainApi<Backend, Executor> = transaction_pool::ChainApi<
+	client::Client<Backend, Executor, Block, ClientWithApi>,
+	Block,
+>;
+
+/// Provides polkadot types.
+pub trait PolkadotService {
+	/// The client's backend type.
+	type Backend: 'static + client::backend::Backend<Block, Blake2Hasher>;
+	/// The client's call executor type.
+	type Executor: 'static + client::CallExecutor<Block, Blake2Hasher> + Send + Sync + Clone;
+
+	/// Get a handle to the client.
+	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, ClientWithApi>>;
+
+	/// Get a handle to the network.
+	fn network(&self) -> Arc<NetworkService>;
+
+	/// Get a handle to the transaction pool.
+	fn transaction_pool(&self) -> Arc<TransactionPool<TxChainApi<Self::Backend, Self::Executor>>>;
+}
+
+impl PolkadotService for Service<FullComponents<Factory>> {
+	type Backend = <FullComponents<Factory> as Components>::Backend;
+	type Executor = <FullComponents<Factory> as Components>::Executor;
+
+	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, ClientWithApi>> {
+		Service::client(self)
+	}
+	fn network(&self) -> Arc<NetworkService> {
+		Service::network(self)
+	}
+
+	fn transaction_pool(&self) -> Arc<TransactionPool<TxChainApi<Self::Backend, Self::Executor>>> {
+		Service::transaction_pool(self)
+	}
+}
+
+impl PolkadotService for Service<LightComponents<Factory>> {
+	type Backend = <LightComponents<Factory> as Components>::Backend;
+	type Executor = <LightComponents<Factory> as Components>::Executor;
+
+	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, ClientWithApi>> {
+		Service::client(self)
+	}
+	fn network(&self) -> Arc<NetworkService> {
+		Service::network(self)
+	}
+
+	fn transaction_pool(&self) -> Arc<TransactionPool<TxChainApi<Self::Backend, Self::Executor>>> {
+		Service::transaction_pool(self)
+	}
+}
+
 construct_service_factory! {
 	struct Factory {
 		Block = Block,
 		RuntimeApi = ClientWithApi,
-		NetworkProtocol = PolkadotProtocol { |config| Ok(PolkadotProtocol::new()) },
+		NetworkProtocol = PolkadotProtocol { |config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for)) },
 		RuntimeDispatch = polkadot_executor::Executor,
-		FullTransactionPoolApi = transaction_pool::ChainApi<client::Client<FullBackend<Self>, FullExecutor<Self>, Block, ClientWithApi>, Block>
-			{ |config, client| Ok(TransactionPool::new(config, transaction_pool::ChainApi::new(client))) },
-		LightTransactionPoolApi = transaction_pool::ChainApi<client::Client<LightBackend<Self>, LightExecutor<Self>, Block, ClientWithApi>, Block>
-			{ |config, client| Ok(TransactionPool::new(config, transaction_pool::ChainApi::new(client))) },
+		FullTransactionPoolApi = TxChainApi<FullBackend<Self>, FullExecutor<Self>>
+			{ |config, client| Ok(TransactionPool::new(config, TxChainApi::new(client))) },
+		LightTransactionPoolApi = TxChainApi<LightBackend<Self>, LightExecutor<Self>>
+			{ |config, client| Ok(TransactionPool::new(config, TxChainApi::new(client))) },
 		Genesis = GenesisConfig,
 		Configuration = CustomConfiguration,
 		FullService = FullComponents<Self>

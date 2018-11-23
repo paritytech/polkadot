@@ -37,8 +37,13 @@ use chain_spec::ChainSpec;
 use futures::Future;
 use tokio::runtime::Runtime;
 use structopt::StructOpt;
+use service::Service as BareService;
 
-pub use service::{Components as ServiceComponents, Service, CustomConfiguration, ServiceFactory, Factory};
+pub use service::{
+	Components as ServiceComponents, PolkadotService, CustomConfiguration, ServiceFactory, Factory,
+	ProvideRuntimeApi, CoreApi, ParachainHost,
+};
+
 pub use cli::{VersionInfo, IntoExit};
 pub use cli::error;
 
@@ -64,8 +69,7 @@ pub trait Worker: IntoExit {
 	fn configuration(&self) -> service::CustomConfiguration { Default::default() }
 
 	/// Do work and schedule exit.
-	fn work<C: service::Components>(self, service: &service::Service<C>) -> Self::Work
-		where C: service::Components;
+	fn work<S: PolkadotService>(self, service: &S) -> Self::Work;
 }
 
 /// Parse command line arguments into service configuration.
@@ -125,8 +129,9 @@ fn run_until_exit<T, C, W>(
 	worker: W,
 ) -> error::Result<()>
 	where
-	    T: Deref<Target=Service<C>>,
+	    T: Deref<Target=BareService<C>>,
 		C: service::Components,
+		BareService<C>: PolkadotService,
 		W: Worker,
 {
 	let (exit_send, exit) = exit_future::signal();
@@ -134,7 +139,7 @@ fn run_until_exit<T, C, W>(
 	let executor = runtime.executor();
 	cli::informant::start(&service, exit.clone(), executor.clone());
 
-	let _ = runtime.block_on(worker.work(&service));
+	let _ = runtime.block_on(worker.work(&*service));
 	exit_send.fire();
 	Ok(())
 }

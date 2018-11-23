@@ -15,7 +15,9 @@ polkadot-availability-store = { path = "../availability-store" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-executor = { path = "../executor" }
+polkadot-network = { path = "../network"  }
 sr-io = { git = "https://github.com/paritytech/substrate" }
+sr-primitives = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 substrate-network = { git = "https://github.com/paritytech/substrate" }
 substrate-client = { git = "https://github.com/paritytech/substrate" }

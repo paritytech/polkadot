@@ -67,8 +67,8 @@ use client::BlockchainEvents;
 use primitives::ed25519;
 use polkadot_primitives::{AccountId, BlockId, SessionKey};
 use polkadot_primitives::parachain::{self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId};
-use polkadot_cli::{Service, CustomConfiguration};
-use polkadot_cli::{Worker, IntoExit, ServiceComponents};
+use polkadot_cli::{PolkadotService, CustomConfiguration, CoreApi, ParachainHost};
+use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi};
 use tokio::timer::Timeout;
 
 pub use polkadot_cli::VersionInfo;
@@ -215,7 +215,7 @@ pub fn collate<'a, R, P>(
 struct ApiContext;
 
 impl RelayChainContext for ApiContext {
-	type Error = ();
+	type Error = client::error::Error;
 	type FutureEgress = Result<Vec<Vec<Message>>, Self::Error>;
 
 	fn routing_parachains(&self) -> BTreeSet<ParaId> {
@@ -259,12 +259,12 @@ impl<P, E> Worker for CollationNode<P, E> where
 		config
 	}
 
-	fn work<C>(self, service: &Service<C>) -> Self::Work
-		where C: ServiceComponents
+	fn work<S>(self, service: &S) -> Self::Work
+		where S: PolkadotService,
 	{
+
 		let CollationNode { parachain_context, exit, para_id, key } = self;
 		let client = service.client();
-		let api = service.api();
 		let network = service.network();
 
 		let work = client.import_notification_stream()
@@ -282,19 +282,20 @@ impl<P, E> Worker for CollationNode<P, E> where
 				let id = BlockId::hash(relay_parent);
 
 				let network = network.clone();
-				let api = api.clone();
+				let client = client.clone();
 				let key = key.clone();
 				let parachain_context = parachain_context.clone();
 
 				let work = future::lazy(move || {
-					let last_head = match try_fr!(api.parachain_head(&id, para_id)) {
+					let api = client.runtime_api();
+					let last_head = match try_fr!(api.parachain_head(&id, &para_id)) {
 						Some(last_head) => last_head,
 						None => return future::Either::A(future::ok(())),
 					};
 
 					let targets = compute_targets(
 						para_id,
-						try_fr!(api.session_keys(&id)).as_slice(),
+						try_fr!(api.authorities(&id)).as_slice(),
 						try_fr!(api.duty_roster(&id)),
 					);
 
