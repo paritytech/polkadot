@@ -2,6 +2,7 @@
 name = "adder"
 version = "0.1.0"
 dependencies = [
+ "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec-derive 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-parachain 0.1.0",
  "tiny-keccak 1.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1915,6 +1916,7 @@ dependencies = [
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-service 0.3.0",
+ "structopt 0.2.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "substrate-cli 0.3.0 (git+https://github.com/paritytech/substrate)",
  "tokio 0.1.11 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

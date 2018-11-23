@@ -25,6 +25,7 @@ extern crate tokio;
 extern crate substrate_cli as cli;
 extern crate polkadot_service as service;
 extern crate exit_future;
+extern crate structopt;
 
 #[macro_use]
 extern crate log;
@@ -35,6 +36,7 @@ use std::ops::Deref;
 use chain_spec::ChainSpec;
 use futures::Future;
 use tokio::runtime::Runtime;
+use structopt::StructOpt;
 
 pub use service::{Components as ServiceComponents, Service, CustomConfiguration, ServiceFactory, Factory};
 pub use cli::{VersionInfo, IntoExit};
@@ -62,7 +64,8 @@ pub trait Worker: IntoExit {
 	fn configuration(&self) -> service::CustomConfiguration { Default::default() }
 
 	/// Do work and schedule exit.
-	fn work<C: service::Components>(self, service: &service::Service<C>) -> Self::Work;
+	fn work<C: service::Components>(self, service: &service::Service<C>) -> Self::Work
+		where C: service::Components<Factory=Factory>;
 }
 
 /// Parse command line arguments into service configuration.
@@ -78,10 +81,26 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 	T: Into<std::ffi::OsString> + Clone,
 	W: Worker,
 {
+	let full_version = polkadot_service::full_version_from_strs(
+		version.version,
+		version.commit
+	);
 
-	match cli::prepare_execution::<service::Factory, _, _, _, _>(args, worker, version, load_spec, "parity-polkadot")? {
+	let matches = match cli::CoreParams::clap()
+		.name(version.executable_name)
+		.author(version.author)
+		.about(version.description)
+		.version(&(full_version + "\n")[..])
+		.get_matches_from_safe(args) {
+			Ok(m) => m,
+			Err(e) => e.exit(),
+		};
+
+	let (spec, mut config) = cli::parse_matches::<service::Factory, _>(load_spec, version, "parity-polkadot", &matches)?;
+
+	match cli::execute_default::<service::Factory, _,>(spec, worker, &matches)? {
 		cli::Action::ExecutedInternally => (),
-		cli::Action::RunService((mut config, worker)) => {
+		cli::Action::RunService(worker) => {
 			info!("Parity ·:· Polkadot");
 			info!("  version {}", config.full_version());
 			info!("  by Parity Technologies, 2017, 2018");
@@ -107,7 +126,7 @@ fn run_until_exit<T, C, W>(
 ) -> error::Result<()>
 	where
 	    T: Deref<Target=Service<C>>,
-		C: service::Components,
+		C: service::Components<Factory=Factory>,
 		W: Worker,
 {
 	let (exit_send, exit) = exit_future::signal();

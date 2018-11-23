@@ -50,6 +50,7 @@ use consensus::{import_queue, start_aura, Config as AuraConfig, AuraImportQueue,
 pub use service::{Roles, PruningMode, TransactionPoolOptions,
 	ErrorKind, Error, ComponentBlock, LightComponents, FullComponents,
 	FullClient, LightClient, Components, Service, ServiceFactory};
+pub use service::config::full_version_from_strs;
 pub use client::ExecutionStrategy;
 pub use chain_spec::ChainSpec;
 
@@ -110,6 +111,7 @@ construct_service_factory! {
 				})
 			}
 		},
+		AuthoritySetup = { |service, _, _| Ok(service) },
 		LightService = LightComponents<Self>
 			{ |config, executor| <LightComponents<Factory>>::new(config, executor) },
 		FullImportQueue = AuraImportQueue<Self::Block, FullClient<Self>, NothingExtra>
