@@ -24,7 +24,7 @@ extern crate parity_codec;
 extern crate polkadot_parachain as parachain;
 extern crate tiny_keccak;
 
-use parity_codec::{Encode, Decode};
+use parity_codec::Encode;
 
 /// Head data for this parachain.
 #[derive(Default, Clone, Hash, Eq, PartialEq, Encode, Decode)]
