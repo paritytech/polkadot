@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
-use super::{Hash, Signature, SessionKey};
+use super::{Hash, SessionKey};
 
 use {AccountId};
 
@@ -215,28 +215,28 @@ pub enum Statement {
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
 #[derive(Clone, PartialEq, Decode)]
-#[cfg_attr(feature = "std", derive(Encode, Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(Debug, Encode, Serialize, Deserialize))]
 pub enum ValidityAttestation {
 	/// implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
 	#[codec(index = "1")]
-	Implicit(Signature),
+	Implicit(CandidateSignature),
 	/// An explicit attestation. This corresponds to issuance of a
 	/// `Valid` statement.
 	#[codec(index = "2")]
-	Explicit(Signature),
+	Explicit(CandidateSignature),
 }
 
 /// An attested candidate.
 #[derive(Clone, PartialEq, Decode)]
-#[cfg_attr(feature = "std", derive(Encode, Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(Debug, Encode, Serialize, Deserialize))]
 pub struct AttestedCandidate {
 	/// The candidate data.
 	pub candidate: CandidateReceipt,
 	/// Validity attestations.
 	pub validity_votes: Vec<(SessionKey, ValidityAttestation)>,
 	/// Availability attestations.
-	pub availability_votes: Vec<(SessionKey, Signature)>,
+	pub availability_votes: Vec<(SessionKey, CandidateSignature)>,
 }
 
 impl AttestedCandidate {
@@ -248,15 +248,6 @@ impl AttestedCandidate {
 	/// Get the group ID of the candidate.
 	pub fn parachain_index(&self) -> Id {
 		self.candidate.parachain_index
-	}
-
-	/// Whether the attested candidate is valid under the given functions
-	/// for checking validity and availability.
-	pub fn is_valid<F, G>(&self, check_validity: F, check_availability: G) -> bool where
-		F: FnOnce(&[(SessionKey, ValidityAttestation)]) -> bool,
-		G: FnOnce(&[(SessionKey, Signature)]) -> bool,
-	{
-		check_validity(&self.validity_votes) && check_availability(&self.availability_votes)
 	}
 }
 

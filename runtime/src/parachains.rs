@@ -19,9 +19,10 @@
 use rstd::prelude::*;
 use codec::Decode;
 
-use sr_primitives::{RuntimeString, traits::{Extrinsic, Block as BlockT,
-	Hash, BlakeTwo256, ProvideInherent}};
-use primitives::parachain::{Id, Chain, DutyRoster, CandidateReceipt};
+use sr_primitives::{RuntimeString, traits::{
+	Extrinsic, Block as BlockT, Hash as HashT, BlakeTwo256, ProvideInherent,
+}};
+use primitives::parachain::{Id, Chain, DutyRoster, AttestedCandidate};
 use {system, session};
 
 use srml_support::{StorageValue, StorageMap};
@@ -77,7 +78,7 @@ decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
-		fn set_heads(origin, heads: Vec<CandidateReceipt>) -> Result {
+		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
 			ensure_inherent(origin)?;
 			ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
 			ensure!(
@@ -98,23 +99,26 @@ decl_module! {
 				for head in &heads {
 					// proposed heads must be ascending order by parachain ID without duplicate.
 					ensure!(
-						last_id.as_ref().map_or(true, |x| x < &head.parachain_index),
+						last_id.as_ref().map_or(true, |x| x < &head.parachain_index()),
 						"Parachain candidates out of order by ID"
 					);
 
 					// must be unknown since active parachains are always sorted.
 					ensure!(
-						iter.find(|x| x == &&head.parachain_index).is_some(),
+						iter.find(|x| x == &&head.parachain_index()).is_some(),
 						"Submitted candidate for unregistered or out-of-order parachain {}"
 					);
 
-					last_id = Some(head.parachain_index);
+					last_id = Some(head.parachain_index());
 				}
 			}
 
+			Self::check_attestations(&heads)?;
+
+
 			for head in heads {
-				let id = head.parachain_index.clone();
-				<Heads<T>>::insert(id, head.head_data.0);
+				let id = head.parachain_index();
+				<Heads<T>>::insert(id, head.candidate.head_data.0);
 			}
 
 			<DidUpdate<T>>::put(true);
@@ -208,6 +212,160 @@ impl<T: Trait> Module<T> {
 		}
 	}
 
+	// check the attestations on these candidates. The candidates should have been checked
+	// that each candidates' chain ID is valid.
+	fn check_attestations(attested_candidates: &[AttestedCandidate]) -> Result {
+		use primitives::SessionKey;
+		use primitives::parachain::{Statement, ValidityAttestation};
+		use sr_primitives::traits::Verify;
+
+		// returns groups of slices that have the same chain ID.
+		// assumes the inner slice is sorted by id.
+		struct GroupedDutyIter<'a> {
+			next_idx: usize,
+			inner: &'a [(SessionKey, Id)],
+		}
+
+		impl<'a> GroupedDutyIter<'a> {
+			fn new(inner: &'a [(SessionKey, Id)]) -> Self {
+				GroupedDutyIter { next_idx: 0, inner }
+			}
+
+			fn group_for(&mut self, wanted_id: Id) -> Option<&'a [(SessionKey, Id)]> {
+				while let Some((id, keys)) = self.next() {
+					if wanted_id == id {
+						return Some(keys)
+					}
+				}
+
+				None
+			}
+		}
+
+		impl<'a> Iterator for GroupedDutyIter<'a> {
+			type Item = (Id, &'a [(SessionKey, Id)]);
+
+			fn next(&mut self) -> Option<Self::Item> {
+				if self.next_idx == self.inner.len() { return None }
+				let start_idx = self.next_idx;
+				self.next_idx += 1;
+				let start_id = self.inner[start_idx].1;
+
+				while self.inner.get(self.next_idx).map_or(false, |&(_, ref id)| id == &start_id) {
+					self.next_idx += 1;
+				}
+
+				Some((start_id, &self.inner[start_idx..self.next_idx]))
+			}
+		}
+
+		let authorities = super::Consensus::authorities();
+		let duty_roster = Self::calculate_duty_roster();
+
+		// convert a duty roster, which is originally a Vec<Chain>, where each
+		// item corresponds to the same position in the session keys, into
+		// a list containing parachain duty and indices in the session keys.
+		// this list is sorted ascending by parachain duty.
+		let make_sorted_duties = |duty: &[Chain]| {
+			let mut sorted_duties = Vec::with_capacity(duty.len());
+			for (val_idx, duty) in duty.iter().enumerate() {
+				let id = match duty {
+					Chain::Relay => continue,
+					Chain::Parachain(id) => id,
+				};
+
+				let idx = sorted_duties.binary_search_by_key(&id, |&(_, ref id)| id)
+					.unwrap_or_else(|idx| idx);
+
+				sorted_duties.insert(idx, (authorities[val_idx], *id));
+			}
+
+			sorted_duties
+		};
+
+		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
+		let sorted_guarantors = make_sorted_duties(&duty_roster.guarantor_duty);
+
+		let parent_hash = super::System::parent_hash();
+		let localized_payload = |statement: Statement| {
+			use codec::Encode;
+
+			let mut encoded = statement.encode();
+			encoded.extend(parent_hash.as_ref());
+			encoded
+		};
+
+		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
+		let mut guarantor_groups = GroupedDutyIter::new(&sorted_guarantors[..]);
+
+		for candidate in attested_candidates {
+			let validator_group = validator_groups.group_for(candidate.parachain_index())
+				.ok_or("no validator group for parachain")?;
+
+			let availability_group = guarantor_groups.group_for(candidate.parachain_index())
+				.ok_or("no availability group for parachain")?;
+
+			let mut candidate_hash = None;
+			let mut encoded_implicit = None;
+			let mut encoded_explicit = None;
+			for (auth_id, validity_attestation) in &candidate.validity_votes {
+				ensure!(
+					validator_group.iter().position(|&(ref a, _)| a == auth_id).is_some(),
+					"Attesting validator not on this chain's validation duty."
+				);
+
+				let (payload, sig) = match validity_attestation {
+					ValidityAttestation::Implicit(sig) => {
+						let payload = encoded_implicit.get_or_insert_with(|| localized_payload(
+							Statement::Candidate(candidate.candidate.clone()),
+						));
+
+						(payload, sig)
+					}
+					ValidityAttestation::Explicit(sig) => {
+						let hash = candidate_hash
+							.get_or_insert_with(|| candidate.candidate.hash())
+							.clone();
+
+						let payload = encoded_explicit.get_or_insert_with(|| localized_payload(
+							Statement::Valid(hash),
+						));
+
+						(payload, sig)
+					}
+				};
+
+				ensure!(
+					sig.verify(&payload[..], &auth_id.0.into()),
+					"Candidate validity attestation signature is bad."
+				);
+			}
+
+			let mut encoded_available = None;
+			for (auth_id, sig) in &candidate.availability_votes {
+				ensure!(
+					availability_group.iter().position(|&(ref a, _)| a == auth_id).is_some(),
+					"Attesting validator not on this chain's availability duty."
+				);
+
+				let hash = candidate_hash
+					.get_or_insert_with(|| candidate.candidate.hash())
+					.clone();
+
+				let payload = encoded_available.get_or_insert_with(|| localized_payload(
+					Statement::Available(hash),
+				));
+
+				ensure!(
+					sig.verify(&payload[..], &auth_id.0.into()),
+					"Candidate availability attestation signature is bad."
+				)
+			}
+		}
+
+		Ok(())
+	}
+
 /*
 	// TODO: Consider integrating if needed.
 	/// Extract the parachain heads from the block.
@@ -226,7 +384,7 @@ impl<T: Trait> Module<T> {
 }
 
 impl<T: Trait> ProvideInherent for Module<T> {
-	type Inherent = Vec<CandidateReceipt>;
+	type Inherent = Vec<AttestedCandidate>;
 	type Call = Call<T>;
 	type Error = RuntimeString;
 
