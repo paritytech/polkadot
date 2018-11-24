@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
+bitvec = { git = "https://github.com/rphmeier/bitvec", branch = "rh-no-std", default-features = false }
 rustc-hex = "1.0"
 log = { version = "0.3", optional = true }
 serde = { version = "1.0", default-features = false }
@@ -38,6 +39,7 @@ hex-literal = "0.1.0"
 [features]
 default = ["std"]
 std = [
+	"bitvec/std",
 	"polkadot-primitives/std",
 	"parity-codec/std",
 	"parity-codec-derive/std",

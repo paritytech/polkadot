@@ -214,7 +214,7 @@ pub enum Statement {
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
 #[derive(Clone, PartialEq, Decode, Encode)]
-#[cfg_attr(feature = "std", derive(Debug, Encode, Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
 pub enum ValidityAttestation {
 	/// implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.

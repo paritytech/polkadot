@@ -21,6 +21,9 @@
 #![recursion_limit="256"]
 
 #[macro_use]
+extern crate bitvec;
+
+#[macro_use]
 extern crate parity_codec_derive;
 extern crate parity_codec as codec;
 

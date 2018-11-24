@@ -19,6 +19,7 @@
 use rstd::prelude::*;
 use codec::Decode;
 
+use bitvec::BigEndian;
 use sr_primitives::{RuntimeString, traits::{
 	Extrinsic, Block as BlockT, Hash as HashT, BlakeTwo256, ProvideInherent,
 }};
@@ -162,6 +163,10 @@ decl_module! {
 	}
 }
 
+fn majority_of(list_len: usize) -> usize {
+	list_len / 2 + list_len % 2
+}
+
 impl<T: Trait> Module<T> {
 	/// Calculate the current block's duty roster using system's random seed.
 	pub fn calculate_duty_roster() -> DutyRoster {
@@ -215,7 +220,6 @@ impl<T: Trait> Module<T> {
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
 	fn check_attestations(attested_candidates: &[AttestedCandidate]) -> Result {
-		use primitives::SessionKey;
 		use primitives::parachain::{Statement, ValidityAttestation};
 		use sr_primitives::traits::Verify;
 
@@ -223,15 +227,15 @@ impl<T: Trait> Module<T> {
 		// assumes the inner slice is sorted by id.
 		struct GroupedDutyIter<'a> {
 			next_idx: usize,
-			inner: &'a [(SessionKey, Id)],
+			inner: &'a [(usize, Id)],
 		}
 
 		impl<'a> GroupedDutyIter<'a> {
-			fn new(inner: &'a [(SessionKey, Id)]) -> Self {
+			fn new(inner: &'a [(usize, Id)]) -> Self {
 				GroupedDutyIter { next_idx: 0, inner }
 			}
 
-			fn group_for(&mut self, wanted_id: Id) -> Option<&'a [(SessionKey, Id)]> {
+			fn group_for(&mut self, wanted_id: Id) -> Option<&'a [(usize, Id)]> {
 				while let Some((id, keys)) = self.next() {
 					if wanted_id == id {
 						return Some(keys)
@@ -243,7 +247,7 @@ impl<T: Trait> Module<T> {
 		}
 
 		impl<'a> Iterator for GroupedDutyIter<'a> {
-			type Item = (Id, &'a [(SessionKey, Id)]);
+			type Item = (Id, &'a [(usize, Id)]);
 
 			fn next(&mut self) -> Option<Self::Item> {
 				if self.next_idx == self.inner.len() { return None }
@@ -277,7 +281,7 @@ impl<T: Trait> Module<T> {
 				let idx = sorted_duties.binary_search_by_key(&id, |&(_, ref id)| id)
 					.unwrap_or_else(|idx| idx);
 
-				sorted_duties.insert(idx, (authorities[val_idx], *id));
+				sorted_duties.insert(idx, (val_idx, *id));
 			}
 
 			sorted_duties
@@ -305,14 +309,34 @@ impl<T: Trait> Module<T> {
 			let availability_group = guarantor_groups.group_for(candidate.parachain_index())
 				.ok_or("no availability group for parachain")?;
 
+			ensure!(
+				candidate.validity_votes.len() >= majority_of(validator_group.len()),
+				"Not enough validity attestations"
+			);
+
+			ensure!(
+				candidate.availability_votes.len() >= majority_of(availability_group.len()),
+				"Not enough availability attestations"
+			);
+
 			let mut candidate_hash = None;
 			let mut encoded_implicit = None;
 			let mut encoded_explicit = None;
+
+			// track which voters have voted already. the first `authorities.len()`
+			// bits is for validity, the next are for availability.
+			let mut track_voters = bitvec![0; authorities.len() * 2];
 			for (auth_id, validity_attestation) in &candidate.validity_votes {
-				ensure!(
-					validator_group.iter().position(|&(ref a, _)| a == auth_id).is_some(),
-					"Attesting validator not on this chain's validation duty."
-				);
+				// protect against double-votes.
+				match validator_group.iter().find(|&(idx, _)| &authorities[*idx] == auth_id) {
+					None => return Err("Attesting validator not on this chain's validation duty."),
+					Some(&(idx, _)) => {
+						if track_voters.get(idx) {
+							return Err("Voter already attested validity once")
+						}
+						track_voters.set(idx, true)
+					}
+				}
 
 				let (payload, sig) = match validity_attestation {
 					ValidityAttestation::Implicit(sig) => {
@@ -343,10 +367,15 @@ impl<T: Trait> Module<T> {
 
 			let mut encoded_available = None;
 			for (auth_id, sig) in &candidate.availability_votes {
-				ensure!(
-					availability_group.iter().position(|&(ref a, _)| a == auth_id).is_some(),
-					"Attesting validator not on this chain's availability duty."
-				);
+				match availability_group.iter().find(|&(idx, _)| &authorities[*idx] == auth_id) {
+					None => return Err("Attesting validator not on this chain's availability duty."),
+					Some(&(idx, _)) => {
+						if track_voters.get(authorities.len() + idx) {
+							return Err("Voter already attested validity once")
+						}
+						track_voters.set(authorities.len() + idx, true)
+					}
+				}
 
 				let hash = candidate_hash
 					.get_or_insert_with(|| candidate.candidate.hash())
