@@ -113,6 +113,6 @@ impl Extrinsic for UncheckedExtrinsic {}
 pub struct InherentData {
 	/// Current timestamp.
 	pub timestamp: Timestamp,
-	/// Parachain heads update.
-	pub parachain_heads: Vec<::parachain::CandidateReceipt>,
+	/// Parachain heads update. This contains fully-attested candidates.
+	pub parachain_heads: Vec<::parachain::AttestedCandidate>,
 }

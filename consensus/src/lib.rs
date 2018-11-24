@@ -74,7 +74,7 @@ use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
 use polkadot_primitives::{Compact, UncheckedExtrinsic};
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
-use polkadot_primitives::parachain::ParachainHost;
+use polkadot_primitives::parachain::{AttestedCandidate, ParachainHost};
 use primitives::{AuthorityId, ed25519};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use tokio::runtime::TaskExecutor;
@@ -640,7 +640,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
 	C::Api: ParachainHost<Block> + BlockBuilder<Block>,
 {
-	fn propose_with(&self, candidates: Vec<CandidateReceipt>) -> Result<Block, Error> {
+	fn propose_with(&self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 		use polkadot_primitives::InherentData;
@@ -726,9 +726,7 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 		try_ready!(self.timing.poll(included));
 
 		// 2. propose
-		let proposed_candidates = self.table.with_proposal(|proposed_set| {
-			proposed_set.into_iter().cloned().collect()
-		});
+		let proposed_candidates = self.table.proposed_set();
 
 		self.propose_with(proposed_candidates).map(Async::Ready)
 	}
