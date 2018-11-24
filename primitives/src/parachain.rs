@@ -102,7 +102,6 @@ pub struct CandidateReceipt {
 
 impl CandidateReceipt {
 	/// Get the blake2_256 hash
-	#[cfg(feature = "std")]
 	pub fn hash(&self) -> Hash {
 		use runtime_primitives::traits::{BlakeTwo256, Hash};
 		BlakeTwo256::hash_of(self)
@@ -214,7 +213,7 @@ pub enum Statement {
 
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
-#[derive(Clone, PartialEq, Decode)]
+#[derive(Clone, PartialEq, Decode, Encode)]
 #[cfg_attr(feature = "std", derive(Debug, Encode, Serialize, Deserialize))]
 pub enum ValidityAttestation {
 	/// implicit validity attestation by issuing.
@@ -228,8 +227,8 @@ pub enum ValidityAttestation {
 }
 
 /// An attested candidate.
-#[derive(Clone, PartialEq, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Encode, Serialize, Deserialize))]
+#[derive(Clone, PartialEq, Decode, Encode)]
+#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
 pub struct AttestedCandidate {
 	/// The candidate data.
 	pub candidate: CandidateReceipt,
