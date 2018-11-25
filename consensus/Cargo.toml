@@ -10,17 +10,17 @@ tokio = "0.1.7"
 error-chain = "0.12"
 log = "0.3"
 exit-future = "0.1"
-rhododendron = "0.3"
-polkadot-api = { path = "../api" }
+parity-codec = "2.1"
 polkadot-availability-store = { path = "../availability-store" }
 polkadot-parachain = { path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-statement-table = { path = "../statement-table" }
-polkadot-transaction-pool = { path = "../transaction-pool" }
-substrate-bft = { git = "https://github.com/paritytech/substrate" }
-parity-codec = { git = "https://github.com/paritytech/substrate" }
+substrate-consensus-aura = { git = "https://github.com/paritytech/substrate" }
+substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate" }
+substrate-consensus-common = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
+substrate-transaction-pool = { git = "https://github.com/paritytech/substrate" }
 srml-support = { git = "https://github.com/paritytech/substrate" }
 substrate-client = { git = "https://github.com/paritytech/substrate" }
 sr-primitives = { git = "https://github.com/paritytech/substrate" }

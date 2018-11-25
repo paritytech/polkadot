@@ -20,14 +20,13 @@
 //! parachain block and extrinsic data fetching, communication between collators and validators,
 //! and more.
 
-extern crate substrate_bft as bft;
 extern crate parity_codec as codec;
 extern crate substrate_network;
 extern crate substrate_primitives;
+extern crate sr_primitives;
 
-extern crate polkadot_api;
-extern crate polkadot_availability_store as av_store;
 extern crate polkadot_consensus;
+extern crate polkadot_availability_store as av_store;
 extern crate polkadot_primitives;
 
 extern crate futures;
@@ -48,13 +47,12 @@ pub mod consensus;
 use codec::{Decode, Encode};
 use futures::sync::oneshot;
 use parking_lot::Mutex;
-use polkadot_consensus::{Statement, SignedStatement, GenericStatement};
+use polkadot_consensus::{Statement, GenericStatement};
 use polkadot_primitives::{AccountId, Block, SessionKey, Hash, Header};
 use polkadot_primitives::parachain::{Id as ParaId, BlockData, Extrinsic, CandidateReceipt, Collation};
 use substrate_network::{NodeIndex, RequestId, Context, Severity};
-use substrate_network::consensus_gossip::ConsensusGossip;
 use substrate_network::{message, generic_message};
-use substrate_network::specialization::Specialization;
+use substrate_network::specialization::NetworkSpecialization as Specialization;
 use substrate_network::StatusMessage as GenericFullStatus;
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
@@ -185,8 +183,6 @@ impl CurrentConsensus {
 /// Polkadot-specific messages.
 #[derive(Debug, Encode, Decode)]
 pub enum Message {
-	/// signed statement and localized parent hash.
-	Statement(Hash, SignedStatement),
 	/// As a validator, tell the peer your current session key.
 	// TODO: do this with a cryptographic proof of some kind
 	SessionKey(SessionKey),
@@ -210,7 +206,6 @@ fn send_polkadot_message(ctx: &mut Context<Block>, to: NodeIndex, message: Messa
 pub struct PolkadotProtocol {
 	peers: HashMap<NodeIndex, PeerInfo>,
 	collating_for: Option<(AccountId, ParaId)>,
-	consensus_gossip: ConsensusGossip<Block>,
 	collators: CollatorPool,
 	validators: HashMap<SessionKey, NodeIndex>,
 	local_collations: LocalCollations<Collation>,
@@ -226,7 +221,6 @@ impl PolkadotProtocol {
 	pub fn new(collating_for: Option<(AccountId, ParaId)>) -> Self {
 		PolkadotProtocol {
 			peers: HashMap::new(),
-			consensus_gossip: ConsensusGossip::new(),
 			collators: CollatorPool::new(),
 			collating_for,
 			validators: HashMap::new(),
@@ -237,13 +231,6 @@ impl PolkadotProtocol {
 			extrinsic_store: None,
 			next_req_id: 1,
 		}
-	}
-
-	/// Gossip a consensus statement.
-	fn gossip_statement(&mut self, ctx: &mut Context<Block>, parent_hash: Hash, statement: SignedStatement) {
-		// TODO: something more targeted than gossip.
-		let raw = Message::Statement(parent_hash, statement).encode();
-		self.consensus_gossip.multicast_chain_specific(ctx, raw, parent_hash);
 	}
 
 	/// Fetch block data by candidate receipt.
@@ -279,7 +266,6 @@ impl PolkadotProtocol {
 		}
 
 		self.live_consensus = Some(consensus);
-		self.consensus_gossip.collect_garbage(old_data.as_ref().map(|&(ref hash, _)| hash));
 	}
 
 	fn dispatch_pending_requests(&mut self, ctx: &mut Context<Block>) {
@@ -332,11 +318,9 @@ impl PolkadotProtocol {
 		self.pending = new_pending;
 	}
 
-	fn on_polkadot_message(&mut self, ctx: &mut Context<Block>, who: NodeIndex, raw: Vec<u8>, msg: Message) {
+	fn on_polkadot_message(&mut self, ctx: &mut Context<Block>, who: NodeIndex, msg: Message) {
 		trace!(target: "p_net", "Polkadot message from {}: {:?}", who, msg);
 		match msg {
-			Message::Statement(parent_hash, _statement) =>
-				self.consensus_gossip.on_chain_specific(ctx, who, raw, parent_hash),
 			Message::SessionKey(key) => self.on_session_key(ctx, who, key),
 			Message::RequestBlockData(req_id, relay_parent, candidate_hash) => {
 				let block_data = self.live_consensus.as_ref()
@@ -445,7 +429,7 @@ impl Specialization<Block> for PolkadotProtocol {
 			}
 		};
 
-		let validator = status.roles.contains(substrate_network::Roles::AUTHORITY);
+		let validator = status.roles.contains(substrate_network::config::Roles::AUTHORITY);
 		let send_key = validator || local_status.collating_for.is_some();
 
 		let mut peer_info = PeerInfo {
@@ -479,7 +463,6 @@ impl Specialization<Block> for PolkadotProtocol {
 		}
 
 		self.peers.insert(who, peer_info);
-		self.consensus_gossip.new_peer(ctx, who, status.roles);
 		self.dispatch_pending_requests(ctx);
 	}
 
@@ -521,37 +504,30 @@ impl Specialization<Block> for PolkadotProtocol {
 					retain
 				});
 			}
-			self.consensus_gossip.peer_disconnected(ctx, who);
 			self.dispatch_pending_requests(ctx);
 		}
 	}
 
-	fn on_message(&mut self, ctx: &mut Context<Block>, who: NodeIndex, message: message::Message<Block>) {
-		match message {
-			generic_message::Message::BftMessage(msg) => {
-				trace!(target: "p_net", "Polkadot BFT message from {}: {:?}", who, msg);
-				// TODO: check signature here? what if relevant block is unknown?
-				self.consensus_gossip.on_bft_message(ctx, who, msg)
-			}
-			generic_message::Message::ChainSpecific(raw) => {
+	fn on_message(&mut self, ctx: &mut Context<Block>, who: NodeIndex, message: &mut Option<message::Message<Block>>) {
+		match message.take() {
+			Some(generic_message::Message::ChainSpecific(raw)) => {
 				match Message::decode(&mut raw.as_slice()) {
-					Some(msg) => self.on_polkadot_message(ctx, who, raw, msg),
+					Some(msg) => self.on_polkadot_message(ctx, who, msg),
 					None => {
 						trace!(target: "p_net", "Bad message from {}", who);
 						ctx.report_peer(who, Severity::Bad("Invalid polkadot protocol message format"));
+						*message = Some(generic_message::Message::ChainSpecific(raw));
 					}
 				}
 			}
+			Some(other) => *message = Some(other),
 			_ => {}
 		}
 	}
 
-	fn on_abort(&mut self) {
-		self.consensus_gossip.abort();
-	}
+	fn on_abort(&mut self) { }
 
 	fn maintain_peers(&mut self, ctx: &mut Context<Block>) {
-		self.consensus_gossip.collect_garbage(None);
 		self.collators.collect_garbage(None);
 		self.local_collations.collect_garbage(None);
 		self.dispatch_pending_requests(ctx);

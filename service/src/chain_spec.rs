@@ -17,13 +17,16 @@
 //! Polkadot chain configurations.
 
 use primitives::{AuthorityId, ed25519};
-use polkadot_runtime::{GenesisConfig, ConsensusConfig, CouncilConfig, DemocracyConfig,
-	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig};
-use service::ChainSpec;
+use polkadot_runtime::{GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig,
+	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill, CouncilVotingConfig};
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
+const DEFAULT_PROTOCOL_ID: &str = "dot";
 
-pub fn poc_1_testnet_config() -> Result<ChainSpec<GenesisConfig>, String> {
+/// Specialised `ChainSpec`.
+pub type ChainSpec = ::service::ChainSpec<GenesisConfig>;
+
+pub fn poc_1_testnet_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_embedded(include_bytes!("../res/krummelanke.json"))
 }
 
@@ -41,6 +44,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		consensus: Some(ConsensusConfig {
 			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/polkadot_runtime.compact.wasm").to_vec(),	// TODO change
 			authorities: initial_authorities.clone(),
+			_genesis_phantom_data: Default::default(),
 		}),
 		system: None,
 		balances: Some(BalancesConfig {
@@ -51,28 +55,34 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			creation_fee: 0,
 			reclaim_rebate: 0,
 			balances: endowed_accounts.iter().map(|&k|(k, 1u128 << 60)).collect(),
+			_genesis_phantom_data: Default::default(),
 		}),
 		session: Some(SessionConfig {
 			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
 			session_length: 60,	// that's 5 minutes per session.
+			_genesis_phantom_data: Default::default(),
 		}),
 		staking: Some(StakingConfig {
 			current_era: 0,
 			intentions: initial_authorities.iter().cloned().map(Into::into).collect(),
-			offline_slash: 10000,
-			session_reward: 100,
+			offline_slash: Perbill::from_billionths(1_000_000),
+			session_reward: Perbill::from_billionths(60),
+			current_offline_slash: 0,
+			current_session_reward: 0,
 			validator_count: 12,
 			sessions_per_era: 12,	// 1 hour per era
 			bonding_duration: 24 * 60 * 12,	// 1 day per bond.
 			offline_slash_grace: 4,
 			minimum_validator_count: 4,
+			_genesis_phantom_data: Default::default(),
 		}),
 		democracy: Some(DemocracyConfig {
 			launch_period: 12 * 60 * 24,	// 1 day per public referendum
 			voting_period: 12 * 60 * 24 * 3,	// 3 days to discuss & vote on an active referendum
 			minimum_deposit: 5000,	// 12000 as the minimum deposit for a referendum
+			_genesis_phantom_data: Default::default(),
 		}),
-		council: Some(CouncilConfig {
+		council_seats: Some(CouncilSeatsConfig {
 			active_council: vec![],
 			candidacy_bond: 5000,	// 5000 to become a council candidate
 			voter_bond: 1000,		// 1000 down to vote for a candidate
@@ -83,20 +93,24 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			term_duration: 12 * 60 * 24 * 24,	// 24 day term duration for the council.
 			desired_seats: 0, // start with no council: we'll raise this once the stake has been dispersed a bit.
 			inactive_grace_period: 1,	// one addition vote should go by before an inactive voter can be reaped.
-
-			cooloff_period: 12 * 60 * 24 * 4, // 4 day cooling off period if council member vetoes a proposal.
-			voting_period: 12 * 60 * 24, // 1 day voting period for council members.
+			_genesis_phantom_data: Default::default(),
+		}),
+		council_voting: Some(CouncilVotingConfig {
+			cooloff_period: 75,
+			voting_period: 20,
+			_genesis_phantom_data: Default::default(),
 		}),
 		parachains: Some(Default::default()),
 		timestamp: Some(TimestampConfig {
 			period: 5,					// 5 second block time.
+			_genesis_phantom_data: Default::default(),
 		}),
 		treasury: Some(Default::default()),
 	}
 }
 
 /// Staging testnet config.
-pub fn staging_testnet_config() -> ChainSpec<GenesisConfig> {
+pub fn staging_testnet_config() -> ChainSpec {
 	let boot_nodes = vec![];
 	ChainSpec::from_genesis(
 		"Staging Testnet",
@@ -104,6 +118,9 @@ pub fn staging_testnet_config() -> ChainSpec<GenesisConfig> {
 		staging_testnet_config_genesis,
 		boot_nodes,
 		Some(STAGING_TELEMETRY_URL.into()),
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		None,
 	)
 }
 
@@ -120,6 +137,7 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
 		consensus: Some(ConsensusConfig {
 			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/polkadot_runtime.compact.wasm").to_vec(),
 			authorities: initial_authorities.clone(),
+			_genesis_phantom_data: Default::default(),
 		}),
 		system: None,
 		balances: Some(BalancesConfig {
@@ -130,10 +148,12 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
 			creation_fee: 0,
 			reclaim_rebate: 0,
 			balances: endowed_accounts.iter().map(|&k|(k, (1u128 << 60))).collect(),
+			_genesis_phantom_data: Default::default(),
 		}),
 		session: Some(SessionConfig {
 			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
 			session_length: 10,
+			_genesis_phantom_data: Default::default(),
 		}),
 		staking: Some(StakingConfig {
 			current_era: 0,
@@ -142,17 +162,21 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
 			validator_count: 2,
 			sessions_per_era: 5,
 			bonding_duration: 2 * 60 * 12,
-			offline_slash: 0,
-			session_reward: 0,
+			offline_slash: Perbill::zero(),
+			session_reward: Perbill::zero(),
+			current_offline_slash: 0,
+			current_session_reward: 0,
 			offline_slash_grace: 0,
+			_genesis_phantom_data: Default::default(),
 		}),
 		democracy: Some(DemocracyConfig {
 			launch_period: 9,
 			voting_period: 18,
 			minimum_deposit: 10,
+			_genesis_phantom_data: Default::default(),
 		}),
-		council: Some(CouncilConfig {
-			active_council: endowed_accounts.iter().filter(|a| initial_authorities.iter().find(|&b| a.0 == b.0).is_none()).map(|a| (a.clone(), 1000000)).collect(),
+		council_seats: Some(CouncilSeatsConfig {
+			active_council: endowed_accounts.iter().filter(|a| initial_authorities.iter().find(|&b| a[..] == b.0).is_none()).map(|a| (a.clone(), 1000000)).collect(),
 			candidacy_bond: 10,
 			voter_bond: 2,
 			present_slash_per_voter: 1,
@@ -162,13 +186,17 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
 			term_duration: 1000000,
 			desired_seats: (endowed_accounts.len() - initial_authorities.len()) as u32,
 			inactive_grace_period: 1,
-
+			_genesis_phantom_data: Default::default(),
+		}),
+		council_voting: Some(CouncilVotingConfig {
 			cooloff_period: 75,
 			voting_period: 20,
+			_genesis_phantom_data: Default::default(),
 		}),
 		parachains: Some(Default::default()),
 		timestamp: Some(TimestampConfig {
 			period: 5,					// 5 second block time.
+			_genesis_phantom_data: Default::default(),
 		}),
 		treasury: Some(Default::default()),
 	}
@@ -181,8 +209,17 @@ fn development_config_genesis() -> GenesisConfig {
 }
 
 /// Development config (single validator Alice)
-pub fn development_config() -> ChainSpec<GenesisConfig> {
-	ChainSpec::from_genesis("Development", "development", development_config_genesis, vec![], None)
+pub fn development_config() -> ChainSpec {
+	ChainSpec::from_genesis(
+		"Development",
+		"development",
+		development_config_genesis,
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		None,
+	)
 }
 
 fn local_testnet_genesis() -> GenesisConfig {
@@ -193,6 +230,15 @@ fn local_testnet_genesis() -> GenesisConfig {
 }
 
 /// Local testnet config (multivalidator Alice + Bob)
-pub fn local_testnet_config() -> ChainSpec<GenesisConfig> {
-	ChainSpec::from_genesis("Local Testnet", "local_testnet", local_testnet_genesis, vec![], None)
+pub fn local_testnet_config() -> ChainSpec {
+	ChainSpec::from_genesis(
+		"Local Testnet",
+		"local_testnet",
+		local_testnet_genesis,
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		None,
+	)
 }

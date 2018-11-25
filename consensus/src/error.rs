@@ -20,8 +20,8 @@ use primitives::AuthorityId;
 
 error_chain! {
 	links {
-		PolkadotApi(::polkadot_api::Error, ::polkadot_api::ErrorKind);
-		Bft(::bft::Error, ::bft::ErrorKind);
+		Client(::client::error::Error, ::client::error::ErrorKind);
+		Consensus(::consensus::error::Error, ::consensus::error::ErrorKind);
 	}
 
 	errors {
@@ -48,8 +48,8 @@ error_chain! {
 	}
 }
 
-impl From<::bft::InputStreamConcluded> for Error {
-	fn from(err: ::bft::InputStreamConcluded) -> Self {
-		::bft::Error::from(err).into()
-	}
-}
+// impl From<::bft::InputStreamConcluded> for Error {
+// 	fn from(err: ::bft::InputStreamConcluded) -> Self {
+// 		::bft::Error::from(err).into()
+// 	}
+// }

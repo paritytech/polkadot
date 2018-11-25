@@ -24,7 +24,11 @@ use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{CandidateReceipt, HeadData, BlockData};
 use substrate_primitives::H512;
 use codec::Encode;
-use substrate_network::{Severity, NodeIndex, PeerInfo, ClientHandle, Context, Roles, message::Message as SubstrateMessage, specialization::Specialization, generic_message::Message as GenericMessage};
+use substrate_network::{
+	Severity, NodeIndex, PeerInfo, ClientHandle, Context, config::Roles,
+	message::Message as SubstrateMessage, specialization::NetworkSpecialization,
+	generic_message::Message as GenericMessage
+};
 
 use std::sync::Arc;
 use futures::Future;
@@ -93,7 +97,7 @@ fn make_consensus(parent_hash: Hash, local_key: SessionKey) -> (CurrentConsensus
 
 fn on_message(protocol: &mut PolkadotProtocol, ctx: &mut TestContext, from: NodeIndex, message: Message) {
 	let encoded = message.encode();
-	protocol.on_message(ctx, from, GenericMessage::ChainSpecific(encoded));
+	protocol.on_message(ctx, from, &mut Some(GenericMessage::ChainSpecific(encoded)));
 }
 
 #[test]

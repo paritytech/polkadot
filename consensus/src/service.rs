@@ -27,47 +27,23 @@ use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::Arc;
 
-use bft::{self, BftService};
 use client::{BlockchainEvents, ChainHead, BlockBody};
+use client::block_builder::api::BlockBuilder;
+use client::blockchain::HeaderBackend;
+use client::runtime_api::Core;
 use primitives::ed25519;
 use futures::prelude::*;
-use polkadot_api::LocalPolkadotApi;
-use polkadot_primitives::{Block, Header};
-use transaction_pool::TransactionPool;
+use polkadot_primitives::{Block, BlockId};
+use polkadot_primitives::parachain::ParachainHost;
 use extrinsic_store::Store as ExtrinsicStore;
+use runtime_primitives::traits::ProvideRuntimeApi;
+use transaction_pool::txpool::{ChainApi as PoolChainApi, Pool};
 
-use tokio::executor::current_thread::TaskExecutor as LocalThreadHandle;
 use tokio::runtime::TaskExecutor as ThreadPoolHandle;
 use tokio::runtime::current_thread::Runtime as LocalRuntime;
 use tokio::timer::Interval;
 
 use super::{Network, Collators, ProposerFactory};
-use error;
-
-const TIMER_DELAY_MS: u64 = 5000;
-const TIMER_INTERVAL_MS: u64 = 500;
-
-// spin up an instance of BFT agreement on the current thread's executor.
-// panics if there is no current thread executor.
-fn start_bft<F, C>(
-	header: Header,
-	bft_service: Arc<BftService<Block, F, C>>,
-) where
-	F: bft::Environment<Block> + 'static,
-	C: bft::BlockImport<Block> + bft::Authorities<Block> + 'static,
-	F::Error: ::std::fmt::Debug,
-	<F::Proposer as bft::Proposer<Block>>::Error: ::std::fmt::Display + Into<error::Error>,
-	<F as bft::Environment<Block>>::Error: ::std::fmt::Display
-{
-	let mut handle = LocalThreadHandle::current();
-	match bft_service.build_upon(&header) {
-		Ok(Some(bft_work)) => if let Err(e) = handle.spawn_local(Box::new(bft_work)) {
-		    warn!(target: "bft", "Couldn't initialize BFT agreement: {:?}", e);
-		}
-		Ok(None) => trace!(target: "bft", "Could not start agreement on top of {}", header.hash()),
-		Err(e) => warn!(target: "bft", "BFT agreement error: {}", e),
-	}
-}
 
 // creates a task to prune redundant entries in availability store upon block finalization
 //
@@ -79,13 +55,11 @@ fn prune_unneeded_availability<C>(client: Arc<C>, extrinsic_store: ExtrinsicStor
 {
 	use codec::{Encode, Decode};
 	use polkadot_primitives::BlockId;
-	use polkadot_runtime::CheckedBlock;
 
 	enum NotifyError {
 		NoBody,
 		BodyFetch(::client::error::Error),
 		UnexpectedFormat,
-		ExtrinsicsWrong,
 	}
 
 	impl NotifyError {
@@ -94,31 +68,43 @@ fn prune_unneeded_availability<C>(client: Arc<C>, extrinsic_store: ExtrinsicStor
 				NotifyError::NoBody => warn!("No block body for imported block {:?}", hash),
 				NotifyError::BodyFetch(ref err) => warn!("Failed to fetch block body for imported block {:?}: {:?}", hash, err),
 				NotifyError::UnexpectedFormat => warn!("Consensus outdated: Block {:?} has unexpected body format", hash),
-				NotifyError::ExtrinsicsWrong => warn!("Consensus outdated: Extrinsics cannot be decoded for {:?}", hash),
 			}
 		}
 	}
 
-	client.import_notification_stream()
+	client.finality_notification_stream()
 		.for_each(move |notification| {
+			use polkadot_runtime::{Call, ParachainsCall};
+
 			let hash = notification.hash;
 			let parent_hash = notification.header.parent_hash;
-			let checked_block = client.block_body(&BlockId::hash(hash))
+			let runtime_block = client.block_body(&BlockId::hash(hash))
 				.map_err(NotifyError::BodyFetch)
 				.and_then(|maybe_body| maybe_body.ok_or(NotifyError::NoBody))
 				.map(|extrinsics| Block { header: notification.header, extrinsics })
 				.map(|b: Block| ::polkadot_runtime::Block::decode(&mut b.encode().as_slice()))
-				.and_then(|maybe_block| maybe_block.ok_or(NotifyError::UnexpectedFormat))
-				.and_then(|block| CheckedBlock::new(block).map_err(|_| NotifyError::ExtrinsicsWrong));
+				.and_then(|maybe_block| maybe_block.ok_or(NotifyError::UnexpectedFormat));
 
-			match checked_block {
-				Ok(block) => {
-					let candidate_hashes = block.parachain_heads().iter().map(|c| c.hash()).collect();
-					if let Err(e) = extrinsic_store.candidates_finalized(parent_hash, candidate_hashes) {
-						warn!(target: "consensus", "Failed to prune unneeded available data: {:?}", e);
-					}
-				}
-				Err(e) => e.log(&hash)
+			let runtime_block = match runtime_block {
+				Ok(r) => r,
+				Err(e) => { e.log(&hash); return Ok(()) }
+			};
+
+			let candidate_hashes = match runtime_block.extrinsics
+				.iter()
+				.filter_map(|ex| match ex.function {
+					Call::Parachains(ParachainsCall::set_heads(ref heads)) =>
+						Some(heads.iter().map(|c| c.hash()).collect()),
+					_ => None,
+				})
+				.next()
+			{
+				Some(x) => x,
+				None => return Ok(()),
+			};
+
+			if let Err(e) = extrinsic_store.candidates_finalized(parent_hash, candidate_hashes) {
+				warn!(target: "consensus", "Failed to prune unneeded available data: {:?}", e);
 			}
 
 			Ok(())
@@ -133,90 +119,102 @@ pub struct Service {
 
 impl Service {
 	/// Create and start a new instance.
-	pub fn new<A, C, N>(
+	pub fn new<C, N, TxApi>(
 		client: Arc<C>,
-		api: Arc<A>,
 		network: N,
-		transaction_pool: Arc<TransactionPool<A>>,
+		transaction_pool: Arc<Pool<TxApi>>,
 		thread_pool: ThreadPoolHandle,
 		parachain_empty_duration: Duration,
 		key: ed25519::Pair,
 		extrinsic_store: ExtrinsicStore,
 	) -> Service
 		where
-			A: LocalPolkadotApi + Send + Sync + 'static,
 			C: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
-			C: bft::BlockImport<Block> + bft::Authorities<Block> + Send + Sync + 'static,
-			N: Network + Collators + Send + 'static,
+			C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+			C::Api: ParachainHost<Block> + Core<Block> + BlockBuilder<Block>,
+			N: Network + Collators + Send + Sync + 'static,
 			N::TableRouter: Send + 'static,
 			<N::Collation as IntoFuture>::Future: Send + 'static,
+			TxApi: PoolChainApi<Block=Block> + Send + 'static,
 	{
-		use parking_lot::RwLock;
-		use super::OfflineTracker;
+		use parking_lot::Mutex;
+		use std::collections::HashMap;
+
+		const TIMER_DELAY: Duration = Duration::from_secs(5);
+		const TIMER_INTERVAL: Duration = Duration::from_secs(30);
 
 		let (signal, exit) = ::exit_future::signal();
 		let thread = thread::spawn(move || {
 			let mut runtime = LocalRuntime::new().expect("Could not create local runtime");
 			let key = Arc::new(key);
 
-			let factory = ProposerFactory {
-				client: api.clone(),
-				transaction_pool: transaction_pool.clone(),
+			let parachain_consensus = Arc::new(::ParachainConsensus{
+				client: client.clone(),
+				network: network.clone(),
 				collators: network.clone(),
-				network,
-				parachain_empty_duration,
 				handle: thread_pool.clone(),
 				extrinsic_store: extrinsic_store.clone(),
-				offline: Arc::new(RwLock::new(OfflineTracker::new())),
-			};
-			let bft_service = Arc::new(BftService::new(client.clone(), key, factory));
+				parachain_empty_duration,
+				live_instances: Mutex::new(HashMap::new()),
+			});
+
+			let factory = ProposerFactory::new(
+				parachain_consensus.clone(),
+				transaction_pool
+			);
 
 			let notifications = {
 				let client = client.clone();
-				let bft_service = bft_service.clone();
+				let consensus = parachain_consensus.clone();
+				let key = key.clone();
 
 				client.import_notification_stream().for_each(move |notification| {
+					let parent_hash = notification.hash;
 					if notification.is_new_best {
-						trace!(target: "bft", "Attempting to start new consensus round after import notification of {:?}", notification.hash);
-						start_bft(notification.header, bft_service.clone());
-					}
-					Ok(())
-				})
-			};
+						let res = client
+							.runtime_api()
+							.authorities(&BlockId::hash(parent_hash))
+							.map_err(Into::into)
+							.and_then(|authorities| {
+								consensus.get_or_instantiate(
+									parent_hash,
+									&authorities,
+									key.clone(),
+								)
+							});
 
-			let interval = Interval::new(
-				Instant::now() + Duration::from_millis(TIMER_DELAY_MS),
-				Duration::from_millis(TIMER_INTERVAL_MS),
-			);
-
-			let mut prev_best = match client.best_block_header() {
-				Ok(header) => header.hash(),
-				Err(e) => {
-					warn!("Can't start consensus service. Error reading best block header: {:?}", e);
-					return;
-				}
-			};
-
-			let timed = {
-				let c = client.clone();
-				let s = bft_service.clone();
-
-				interval.map_err(|e| debug!(target: "bft", "Timer error: {:?}", e)).for_each(move |_| {
-					if let Ok(best_block) = c.best_block_header() {
-						let hash = best_block.hash();
-
-						if hash == prev_best {
-							debug!(target: "bft", "Starting consensus round after a timeout");
-							start_bft(best_block, s.clone());
+						if let Err(e) = res {
+							warn!("Unable to start parachain consensus on top of {:?}: {}",
+								parent_hash, e);
 						}
-						prev_best = hash;
 					}
 					Ok(())
 				})
+			};
+
+			let prune_old_sessions = {
+				let client = client.clone();
+				let interval = Interval::new(
+					Instant::now() + TIMER_DELAY,
+					TIMER_INTERVAL,
+				);
+
+				interval
+					.for_each(move |_| match client.leaves() {
+						Ok(leaves) => {
+							parachain_consensus.retain(|h| leaves.contains(h));
+							Ok(())
+						}
+						Err(e) => {
+							warn!("Error fetching leaves from client: {:?}", e);
+							Ok(())
+						}
+					})
+					.map_err(|e| warn!("Timer error {:?}", e))
 			};
 
 			runtime.spawn(notifications);
-			runtime.spawn(timed);
+			thread_pool.spawn(prune_old_sessions);
 
 			let prune_available = prune_unneeded_availability(client, extrinsic_store)
 				.select(exit.clone())

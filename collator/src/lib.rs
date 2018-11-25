@@ -50,7 +50,6 @@ extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;
 extern crate tokio;
 
-extern crate polkadot_api;
 extern crate polkadot_cli;
 extern crate polkadot_runtime;
 extern crate polkadot_primitives;
@@ -61,17 +60,16 @@ extern crate log;
 use std::collections::{BTreeSet, BTreeMap, HashSet};
 use std::fmt;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures::{future, stream, Stream, Future, IntoFuture};
 use client::BlockchainEvents;
-use polkadot_api::PolkadotApi;
 use primitives::ed25519;
 use polkadot_primitives::{AccountId, BlockId, SessionKey};
 use polkadot_primitives::parachain::{self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId};
-use polkadot_cli::{ServiceComponents, Service, CustomConfiguration};
-use polkadot_cli::{Worker, IntoExit};
-use tokio::timer::Deadline;
+use polkadot_cli::{PolkadotService, CustomConfiguration, CoreApi, ParachainHost};
+use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi};
+use tokio::timer::Timeout;
 
 pub use polkadot_cli::VersionInfo;
 
@@ -193,7 +191,7 @@ pub fn collate<'a, R, P>(
 		).map_err(Error::Collator)?;
 
 		let block_data_hash = block_data.hash();
-		let signature = key.sign(&block_data_hash.0[..]).into();
+		let signature = key.sign(block_data_hash.as_ref()).into();
 
 		let receipt = parachain::CandidateReceipt {
 			parachain_index: local_id,
@@ -217,7 +215,7 @@ pub fn collate<'a, R, P>(
 struct ApiContext;
 
 impl RelayChainContext for ApiContext {
-	type Error = ::polkadot_api::Error;
+	type Error = client::error::Error;
 	type FutureEgress = Result<Vec<Vec<Message>>, Self::Error>;
 
 	fn routing_parachains(&self) -> BTreeSet<ParaId> {
@@ -261,10 +259,12 @@ impl<P, E> Worker for CollationNode<P, E> where
 		config
 	}
 
-	fn work<C: ServiceComponents>(self, service: &Service<C>) -> Self::Work {
+	fn work<S>(self, service: &S) -> Self::Work
+		where S: PolkadotService,
+	{
+
 		let CollationNode { parachain_context, exit, para_id, key } = self;
 		let client = service.client();
-		let api = service.api();
 		let network = service.network();
 
 		let work = client.import_notification_stream()
@@ -282,19 +282,20 @@ impl<P, E> Worker for CollationNode<P, E> where
 				let id = BlockId::hash(relay_parent);
 
 				let network = network.clone();
-				let api = api.clone();
+				let client = client.clone();
 				let key = key.clone();
 				let parachain_context = parachain_context.clone();
 
 				let work = future::lazy(move || {
-					let last_head = match try_fr!(api.parachain_head(&id, para_id)) {
+					let api = client.runtime_api();
+					let last_head = match try_fr!(api.parachain_head(&id, &para_id)) {
 						Some(last_head) => last_head,
 						None => return future::Either::A(future::ok(())),
 					};
 
 					let targets = compute_targets(
 						para_id,
-						try_fr!(api.session_keys(&id)).as_slice(),
+						try_fr!(api.authorities(&id)).as_slice(),
 						try_fr!(api.duty_roster(&id)),
 					);
 
@@ -315,11 +316,11 @@ impl<P, E> Worker for CollationNode<P, E> where
 
 					future::Either::B(collation_work)
 				});
-				let deadlined = Deadline::new(work, Instant::now() + COLLATION_TIMEOUT);
+				let deadlined = Timeout::new(work, COLLATION_TIMEOUT);
 				let silenced = deadlined.then(|res| match res {
 					Ok(()) => Ok(()),
-					Err(e) => {
-						warn!("Collation failure: {}", e);
+					Err(_) => {
+						warn!("Collation failure: timeout");
 						Ok(())
 					}
 				});

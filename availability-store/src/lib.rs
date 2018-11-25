@@ -110,7 +110,7 @@ impl Store {
 		let mut tx = DBTransaction::new();
 
 		// note the meta key.
-		let mut v = match self.inner.get(columns::META, &*data.relay_parent) {
+		let mut v = match self.inner.get(columns::META, data.relay_parent.as_ref()) {
 			Ok(Some(raw)) => Vec::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed"),
 			Ok(None) => Vec::new(),
 			Err(e) => {

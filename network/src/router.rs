@@ -22,11 +22,12 @@
 //! the `TableRouter` trait from `polkadot-consensus`, which is expected to call into a shared statement table
 //! and dispatch evaluation work as necessary when new statements come in.
 
-use polkadot_api::{PolkadotApi, LocalPolkadotApi};
+use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
 use polkadot_consensus::{SharedTable, TableRouter, SignedStatement, GenericStatement, StatementProducer};
-use polkadot_primitives::{Hash, BlockId, SessionKey};
-use polkadot_primitives::parachain::{BlockData, Extrinsic, CandidateReceipt};
+use polkadot_primitives::{Block, Hash, BlockId, SessionKey};
+use polkadot_primitives::parachain::{BlockData, Extrinsic, CandidateReceipt, ParachainHost};
 
+use codec::Encode;
 use futures::prelude::*;
 use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
@@ -37,18 +38,26 @@ use std::sync::Arc;
 
 use super::{NetworkService, Knowledge};
 
+fn attestation_topic(parent_hash: Hash) -> Hash {
+	let mut v = parent_hash.as_ref().to_vec();
+	v.extend(b"attestations");
+
+	BlakeTwo256::hash(&v[..])
+}
+
 /// Table routing implementation.
-pub struct Router<P: PolkadotApi> {
+pub struct Router<P> {
 	table: Arc<SharedTable>,
 	network: Arc<NetworkService>,
 	api: Arc<P>,
 	task_executor: TaskExecutor,
 	parent_hash: Hash,
+	attestation_topic: Hash,
 	knowledge: Arc<Mutex<Knowledge>>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 }
 
-impl<P: PolkadotApi> Router<P> {
+impl<P> Router<P> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
 		network: Arc<NetworkService>,
@@ -63,17 +72,19 @@ impl<P: PolkadotApi> Router<P> {
 			api,
 			task_executor,
 			parent_hash,
+			attestation_topic: attestation_topic(parent_hash),
 			knowledge,
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
 		}
 	}
 
-	pub(crate) fn session_key(&self) -> SessionKey {
-		self.table.session_key()
+	/// Get the attestation topic for gossip.
+	pub(crate) fn gossip_topic(&self) -> Hash {
+		self.attestation_topic
 	}
 }
 
-impl<P: PolkadotApi> Clone for Router<P> {
+impl<P> Clone for Router<P> {
 	fn clone(&self) -> Self {
 		Router {
 			table: self.table.clone(),
@@ -81,13 +92,16 @@ impl<P: PolkadotApi> Clone for Router<P> {
 			api: self.api.clone(),
 			task_executor: self.task_executor.clone(),
 			parent_hash: self.parent_hash.clone(),
+			attestation_topic: self.attestation_topic.clone(),
 			deferred_statements: self.deferred_statements.clone(),
 			knowledge: self.knowledge.clone(),
 		}
 	}
 }
 
-impl<P: LocalPolkadotApi + Send + Sync + 'static> Router<P> {
+impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
+	where P::Api: ParachainHost<Block>
+{
 	/// Import a statement whose signature has been checked already.
 	pub(crate) fn import_statement(&self, statement: SignedStatement) {
 		trace!(target: "p_net", "importing consensus statement {:?}", statement.statement);
@@ -156,6 +170,7 @@ impl<P: LocalPolkadotApi + Send + Sync + 'static> Router<P> {
 		let table = self.table.clone();
 		let network = self.network.clone();
 		let knowledge = self.knowledge.clone();
+		let attestation_topic = self.attestation_topic.clone();
 
 		let work = producer.prime(validate)
 			.map(move |produced| {
@@ -166,15 +181,26 @@ impl<P: LocalPolkadotApi + Send + Sync + 'static> Router<P> {
 					produced.extrinsic
 				);
 
+				if produced.validity.is_none() && produced.availability.is_none() {
+					return
+				}
+
+				let mut gossip = network.consensus_gossip().write();
+
 				// propagate the statements
+				// consider something more targeted than gossip in the future.
 				if let Some(validity) = produced.validity {
 					let signed = table.sign_and_import(validity.clone()).0;
-					network.with_spec(|spec, ctx| spec.gossip_statement(ctx, parent_hash, signed));
+					network.with_spec(|_, ctx|
+						gossip.multicast(ctx, attestation_topic, signed.encode())
+					);
 				}
 
 				if let Some(availability) = produced.availability {
 					let signed = table.sign_and_import(availability).0;
-					network.with_spec(|spec, ctx| spec.gossip_statement(ctx, parent_hash, signed));
+					network.with_spec(|_, ctx|
+						gossip.multicast(ctx, attestation_topic, signed.encode())
+					);
 				}
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e));
@@ -183,7 +209,9 @@ impl<P: LocalPolkadotApi + Send + Sync + 'static> Router<P> {
 	}
 }
 
-impl<P: LocalPolkadotApi + Send> TableRouter for Router<P> {
+impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
+	where P::Api: ParachainHost<Block>
+{
 	type Error = io::Error;
 	type FetchCandidate = BlockDataReceiver;
 	type FetchExtrinsic = Result<Extrinsic, Self::Error>;
@@ -194,10 +222,11 @@ impl<P: LocalPolkadotApi + Send> TableRouter for Router<P> {
 		let (candidate, availability) = self.table.sign_and_import(GenericStatement::Candidate(receipt));
 
 		self.knowledge.lock().note_candidate(hash, Some(block_data), Some(extrinsic));
-		self.network.with_spec(|spec, ctx| {
-			spec.gossip_statement(ctx, self.parent_hash, candidate);
+		let mut gossip = self.network.consensus_gossip().write();
+		self.network.with_spec(|_spec, ctx| {
+			gossip.multicast(ctx, self.attestation_topic, candidate.encode());
 			if let Some(availability) = availability {
-				spec.gossip_statement(ctx, self.parent_hash, availability);
+				gossip.multicast(ctx, self.attestation_topic, availability.encode());
 			}
 		});
 	}
@@ -215,7 +244,7 @@ impl<P: LocalPolkadotApi + Send> TableRouter for Router<P> {
 
 /// Receiver for block data.
 pub struct BlockDataReceiver {
-	inner: Option<::futures::sync::oneshot::Receiver<BlockData>>,
+	inner: ::futures::sync::oneshot::Receiver<BlockData>,
 }
 
 impl Future for BlockDataReceiver {
@@ -223,16 +252,10 @@ impl Future for BlockDataReceiver {
 	type Error = io::Error;
 
 	fn poll(&mut self) -> Poll<BlockData, io::Error> {
-		match self.inner {
-			Some(ref mut inner) => inner.poll().map_err(|_| io::Error::new(
-				io::ErrorKind::Other,
-				"Sending end of channel hung up",
-			)),
-			None => return Err(io::Error::new(
-				io::ErrorKind::Other,
-				"Network service is unavailable",
-			)),
-		}
+		self.inner.poll().map_err(|_| io::Error::new(
+			io::ErrorKind::Other,
+			"Sending end of channel hung up",
+		))
 	}
 }
 
@@ -303,7 +326,7 @@ mod tests {
 	fn deferred_statements_works() {
 		let mut deferred = DeferredStatements::new();
 		let hash = [1; 32].into();
-		let sig = H512([2; 64]).into();
+		let sig = H512::from([2; 64]).into();
 		let sender = [255; 32].into();
 
 		let statement = SignedStatement {

@@ -25,20 +25,27 @@ extern crate tokio;
 extern crate substrate_cli as cli;
 extern crate polkadot_service as service;
 extern crate exit_future;
+extern crate structopt;
 
 #[macro_use]
 extern crate log;
 
 mod chain_spec;
 
-pub use cli::error;
-
+use std::ops::Deref;
 use chain_spec::ChainSpec;
-
 use futures::Future;
 use tokio::runtime::Runtime;
-pub use service::{Components as ServiceComponents, Service, CustomConfiguration};
+use structopt::StructOpt;
+use service::Service as BareService;
+
+pub use service::{
+	Components as ServiceComponents, PolkadotService, CustomConfiguration, ServiceFactory, Factory,
+	ProvideRuntimeApi, CoreApi, ParachainHost,
+};
+
 pub use cli::{VersionInfo, IntoExit};
+pub use cli::error;
 
 fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
@@ -62,7 +69,7 @@ pub trait Worker: IntoExit {
 	fn configuration(&self) -> service::CustomConfiguration { Default::default() }
 
 	/// Do work and schedule exit.
-	fn work<C: service::Components>(self, service: &service::Service<C>) -> Self::Work;
+	fn work<S: PolkadotService>(self, service: &S) -> Self::Work;
 }
 
 /// Parse command line arguments into service configuration.
@@ -78,10 +85,26 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 	T: Into<std::ffi::OsString> + Clone,
 	W: Worker,
 {
+	let full_version = polkadot_service::full_version_from_strs(
+		version.version,
+		version.commit
+	);
 
-	match cli::prepare_execution::<service::Factory, _, _, _, _>(args, worker, version, load_spec, "parity-polkadot")? {
+	let matches = match cli::CoreParams::clap()
+		.name(version.executable_name)
+		.author(version.author)
+		.about(version.description)
+		.version(&(full_version + "\n")[..])
+		.get_matches_from_safe(args) {
+			Ok(m) => m,
+			Err(e) => e.exit(),
+		};
+
+	let (spec, mut config) = cli::parse_matches::<service::Factory, _>(load_spec, version, "parity-polkadot", &matches)?;
+
+	match cli::execute_default::<service::Factory, _,>(spec, worker, &matches)? {
 		cli::Action::ExecutedInternally => (),
-		cli::Action::RunService((mut config, worker)) => {
+		cli::Action::RunService(worker) => {
 			info!("Parity ·:· Polkadot");
 			info!("  version {}", config.full_version());
 			info!("  by Parity Technologies, 2017, 2018");
@@ -92,20 +115,23 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 			let mut runtime = Runtime::new()?;
 			let executor = runtime.executor();
 			match config.roles == service::Roles::LIGHT {
-				true => run_until_exit(&mut runtime, service::new_light(config, executor)?, worker)?,
-				false => run_until_exit(&mut runtime, service::new_full(config, executor)?, worker)?,
+				true => run_until_exit(&mut runtime, Factory::new_light(config, executor)?, worker)?,
+				false => run_until_exit(&mut runtime, Factory::new_full(config, executor)?, worker)?,
 			}
 		}
 	}
 	Ok(())
 }
-fn run_until_exit<C, W>(
+
+fn run_until_exit<T, C, W>(
 	runtime: &mut Runtime,
-	service: service::Service<C>,
+	service: T,
 	worker: W,
 ) -> error::Result<()>
 	where
+	    T: Deref<Target=BareService<C>>,
 		C: service::Components,
+		BareService<C>: PolkadotService,
 		W: Worker,
 {
 	let (exit_send, exit) = exit_future::signal();
@@ -113,7 +139,7 @@ fn run_until_exit<C, W>(
 	let executor = runtime.executor();
 	cli::informant::start(&service, exit.clone(), executor.clone());
 
-	let _ = runtime.block_on(worker.work(&service));
+	let _ = runtime.block_on(worker.work(&*service));
 	exit_send.fire();
 	Ok(())
 }

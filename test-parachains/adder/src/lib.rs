@@ -20,11 +20,11 @@
 
 #[macro_use]
 extern crate parity_codec_derive;
-
+extern crate parity_codec;
 extern crate polkadot_parachain as parachain;
 extern crate tiny_keccak;
 
-use parachain::codec::{self, Encode};
+use parity_codec::Encode;
 
 /// Head data for this parachain.
 #[derive(Default, Clone, Hash, Eq, PartialEq, Encode, Decode)]

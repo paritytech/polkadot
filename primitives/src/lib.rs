@@ -25,6 +25,7 @@ extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;
 extern crate sr_primitives as runtime_primitives;
 extern crate sr_std as rstd;
+extern crate sr_version;
 
 #[cfg(test)]
 extern crate substrate_serializer;
@@ -39,9 +40,15 @@ extern crate serde_derive;
 #[cfg(feature = "std")]
 extern crate serde;
 
+#[macro_use]
+extern crate substrate_client;
+
 use rstd::prelude::*;
-use runtime_primitives::{generic, traits::BlakeTwo256};
+use runtime_primitives::{generic, traits::{Extrinsic, BlakeTwo256}};
+
 pub mod parachain;
+
+pub use codec::Compact;
 
 #[cfg(feature = "std")]
 use primitives::bytes;
@@ -76,7 +83,7 @@ pub type Index = u32;
 pub type Signature = runtime_primitives::Ed25519Signature;
 
 /// A timestamp: seconds since the unix epoch.
-pub type Timestamp = u64;
+pub type Timestamp = Compact<u64>;
 
 /// The balance of an account.
 /// 128-bits (or 38 significant decimal figures) will allow for 10m currency (10^7) at a resolution
@@ -88,7 +95,7 @@ pub type Timestamp = u64;
 pub type Balance = u128;
 
 /// Header type.
-pub type Header = generic::Header<BlockNumber, BlakeTwo256, generic::DigestItem<()>>;
+pub type Header = generic::Header<BlockNumber, BlakeTwo256, generic::DigestItem<Hash, AccountId>>;
 /// Block type.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// Block ID.
@@ -99,6 +106,8 @@ pub type BlockId = generic::BlockId<Block>;
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct UncheckedExtrinsic(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
+impl Extrinsic for UncheckedExtrinsic {}
+
 /// Inherent data to include in a block.
 #[derive(Encode, Decode)]
 pub struct InherentData {
@@ -106,6 +115,4 @@ pub struct InherentData {
 	pub timestamp: Timestamp,
 	/// Parachain heads update.
 	pub parachain_heads: Vec<::parachain::CandidateReceipt>,
-	/// Indices of offline validators.
-	pub offline_indices: Vec<u32>,
 }

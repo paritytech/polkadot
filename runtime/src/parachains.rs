@@ -19,7 +19,8 @@
 use rstd::prelude::*;
 use codec::Decode;
 
-use runtime_primitives::traits::{Hash, BlakeTwo256, OnFinalise};
+use sr_primitives::{RuntimeString, traits::{Extrinsic, Block as BlockT,
+	Hash, BlakeTwo256, ProvideInherent}};
 use primitives::parachain::{Id, Chain, DutyRoster, CandidateReceipt};
 use {system, session};
 
@@ -27,43 +28,133 @@ use srml_support::{StorageValue, StorageMap};
 use srml_support::dispatch::Result;
 
 #[cfg(any(feature = "std", test))]
-use rstd::marker::PhantomData;
+use sr_primitives::{self, ChildrenStorageMap};
 
-#[cfg(any(feature = "std", test))]
-use runtime_primitives;
+use system::ensure_inherent;
 
-#[cfg(any(feature = "std", test))]
-use std::collections::HashMap;
-
-use system::{ensure_root, ensure_inherent};
-
-pub trait Trait: system::Trait<Hash = ::primitives::Hash> + session::Trait {
+pub trait Trait: session::Trait {
 	/// The position of the set_heads call in the block.
 	const SET_POSITION: u32;
+}
+
+decl_storage! {
+	trait Store for Module<T: Trait> as Parachains {
+		// Vector of all parachain IDs.
+		pub Parachains get(active_parachains): Vec<Id>;
+		// The parachains registered at present.
+		pub Code get(parachain_code): map Id => Option<Vec<u8>>;
+		// The heads of the parachains registered at present. these are kept sorted.
+		pub Heads get(parachain_head): map Id => Option<Vec<u8>>;
+
+		// Did the parachain heads get updated in this block?
+		DidUpdate: bool;
+	}
+	add_extra_genesis {
+		config(parachains): Vec<(Id, Vec<u8>, Vec<u8>)>;
+		build(|storage: &mut sr_primitives::StorageMap, _: &mut ChildrenStorageMap, config: &GenesisConfig<T>| {
+			use codec::Encode;
+
+			let mut p = config.parachains.clone();
+			p.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
+			p.dedup_by_key(|&mut (ref id, _, _)| id.clone());
+
+			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
+
+			storage.insert(GenesisConfig::<T>::hash(<Parachains<T>>::key()).to_vec(), only_ids.encode());
+
+			for (id, code, genesis) in p {
+				let code_key = GenesisConfig::<T>::hash(&<Code<T>>::key_for(&id)).to_vec();
+				let head_key = GenesisConfig::<T>::hash(&<Heads<T>>::key_for(&id)).to_vec();
+
+				storage.insert(code_key, code.encode());
+				storage.insert(head_key, genesis.encode());
+			}
+		});
+	}
 }
 
 decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
-		fn set_heads(origin, heads: Vec<CandidateReceipt>) -> Result;
+		fn set_heads(origin, heads: Vec<CandidateReceipt>) -> Result {
+			ensure_inherent(origin)?;
+			ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
+			ensure!(
+				<system::Module<T>>::extrinsic_index() == Some(T::SET_POSITION),
+				"Parachain heads update extrinsic must be at position {} in the block"
+	//			, T::SET_POSITION
+			);
 
-		fn register_parachain(origin, id: Id, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result;
-		fn deregister_parachain(origin, id: Id) -> Result;
-	}
-}
+			let active_parachains = Self::active_parachains();
 
-decl_storage! {
-	trait Store for Module<T: Trait> as Parachains {
-		// Vector of all parachain IDs.
-		pub Parachains get(active_parachains): default Vec<Id>;
-		// The parachains registered at present.
-		pub Code get(parachain_code): map [ Id => Vec<u8> ];
-		// The heads of the parachains registered at present. these are kept sorted.
-		pub Heads get(parachain_head): map [ Id => Vec<u8> ];
+			// perform integrity checks before writing to storage.
+			{
+				let n_parachains = active_parachains.len();
+				ensure!(heads.len() <= n_parachains, "Too many parachain candidates");
 
-		// Did the parachain heads get updated in this block?
-		DidUpdate: default bool;
+				let mut last_id = None;
+				let mut iter = active_parachains.iter();
+				for head in &heads {
+					// proposed heads must be ascending order by parachain ID without duplicate.
+					ensure!(
+						last_id.as_ref().map_or(true, |x| x < &head.parachain_index),
+						"Parachain candidates out of order by ID"
+					);
+
+					// must be unknown since active parachains are always sorted.
+					ensure!(
+						iter.find(|x| x == &&head.parachain_index).is_some(),
+						"Submitted candidate for unregistered or out-of-order parachain {}"
+					);
+
+					last_id = Some(head.parachain_index);
+				}
+			}
+
+			for head in heads {
+				let id = head.parachain_index.clone();
+				<Heads<T>>::insert(id, head.head_data.0);
+			}
+
+			<DidUpdate<T>>::put(true);
+
+			Ok(())
+		}
+
+		/// Register a parachain with given code.
+		/// Fails if given ID is already used.
+		pub fn register_parachain(id: Id, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
+			let mut parachains = Self::active_parachains();
+			match parachains.binary_search(&id) {
+				Ok(_) => fail!("Parachain already exists"),
+				Err(idx) => parachains.insert(idx, id),
+			}
+
+			<Code<T>>::insert(id, code);
+			<Parachains<T>>::put(parachains);
+			<Heads<T>>::insert(id, initial_head_data);
+
+			Ok(())
+		}
+
+		/// Deregister a parachain with given id
+		pub fn deregister_parachain(id: Id) -> Result {
+			let mut parachains = Self::active_parachains();
+			match parachains.binary_search(&id) {
+				Ok(idx) => { parachains.remove(idx); }
+				Err(_) => {}
+			}
+
+			<Code<T>>::remove(id);
+			<Heads<T>>::remove(id);
+			<Parachains<T>>::put(parachains);
+			Ok(())
+		}
+
+		fn on_finalise(_n: T::BlockNumber) {
+			assert!(<Self as Store>::DidUpdate::take(), "Parachain heads must be updated once in the block");
+		}
 	}
 }
 
@@ -85,7 +176,7 @@ impl<T: Trait> Module<T> {
 
 		let mut roles_gua = roles_val.clone();
 
-		let mut random_seed = system::Module::<T>::random_seed().to_vec();
+		let mut random_seed = system::Module::<T>::random_seed().as_ref().to_vec();
 		random_seed.extend(b"validator_role_pairs");
 		let mut seed = BlakeTwo256::hash(&random_seed);
 
@@ -103,7 +194,7 @@ impl<T: Trait> Module<T> {
 
 			if offset == 24 {
 				// into the last 8 bytes - rehash to gather new entropy
-				seed = BlakeTwo256::hash(&seed);
+				seed = BlakeTwo256::hash(seed.as_ref());
 			}
 
 			// exchange last item with randomly chosen first.
@@ -117,134 +208,60 @@ impl<T: Trait> Module<T> {
 		}
 	}
 
-	/// Register a parachain with given code.
-	/// Fails if given ID is already used.
-	pub fn register_parachain(origin: T::Origin, id: Id, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
-		ensure_root(origin)?;
-		let mut parachains = Self::active_parachains();
-		match parachains.binary_search(&id) {
-			Ok(_) => fail!("Parachain already exists"),
-			Err(idx) => parachains.insert(idx, id),
-		}
+/*
+	// TODO: Consider integrating if needed.
+	/// Extract the parachain heads from the block.
+	pub fn parachain_heads(&self) -> &[CandidateReceipt] {
+		let x = self.inner.extrinsics.get(PARACHAINS_SET_POSITION as usize).and_then(|xt| match xt.function {
+			Call::Parachains(ParachainsCall::set_heads(ref x)) => Some(&x[..]),
+			_ => None
+		});
 
-		<Code<T>>::insert(id, code);
-		<Parachains<T>>::put(parachains);
-		<Heads<T>>::insert(id, initial_head_data);
+		match x {
+			Some(x) => x,
+			None => panic!("Invalid polkadot block asserted at {:?}", self.file_line),
+		}
+	}
+*/
+}
+
+impl<T: Trait> ProvideInherent for Module<T> {
+	type Inherent = Vec<CandidateReceipt>;
+	type Call = Call<T>;
+	type Error = RuntimeString;
+
+	fn create_inherent_extrinsics(data: Self::Inherent) -> Vec<(u32, Self::Call)> {
+		vec![(T::SET_POSITION, Call::set_heads(data))]
+	}
+
+	fn check_inherent<Block: BlockT, F: Fn(&Block::Extrinsic) -> Option<&Self::Call>>(
+		block: &Block, _data: Self::Inherent, extract_function: &F
+	) -> ::rstd::result::Result<(), Self::Error> {
+		let has_heads = block
+			.extrinsics()
+			.get(T::SET_POSITION as usize)
+			.map_or(false, |xt| {
+			xt.is_signed() == Some(true) && match extract_function(&xt) {
+				Some(Call::set_heads(_)) => true,
+				_ => false,
+			}
+		});
+
+		if !has_heads { return Err("No valid parachains inherent in block".into()) }
 
 		Ok(())
-	}
-
-	/// Deregister a parachain with given id
-	pub fn deregister_parachain(origin: T::Origin, id: Id) -> Result {
-		ensure_root(origin)?;
-		let mut parachains = Self::active_parachains();
-		match parachains.binary_search(&id) {
-			Ok(idx) => { parachains.remove(idx); }
-			Err(_) => {}
-		}
-
-		<Code<T>>::remove(id);
-		<Heads<T>>::remove(id);
-		<Parachains<T>>::put(parachains);
-		Ok(())
-	}
-
-	fn set_heads(origin: T::Origin, heads: Vec<CandidateReceipt>) -> Result {
-		ensure_inherent(origin)?;
-		ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
-		ensure!(
-			<system::Module<T>>::extrinsic_index() == Some(T::SET_POSITION),
-			"Parachain heads update extrinsic must be at position {} in the block"
-//			, T::SET_POSITION
-		);
-
-		let active_parachains = Self::active_parachains();
-		let mut iter = active_parachains.iter();
-
-		// perform this check before writing to storage.
-		for head in &heads {
-			ensure!(
-				iter.find(|&p| p == &head.parachain_index).is_some(),
-				"Submitted candidate for unregistered or out-of-order parachain {}"
-//				, head.parachain_index.into_inner()
-			);
-		}
-
-		for head in heads {
-			let id = head.parachain_index.clone();
-			<Heads<T>>::insert(id, head.head_data.0);
-		}
-
-		<DidUpdate<T>>::put(true);
-
-		Ok(())
-	}
-}
-
-impl<T: Trait> OnFinalise<T::BlockNumber> for Module<T> {
-	fn on_finalise(_n: T::BlockNumber) {
-		assert!(<Self as Store>::DidUpdate::take(), "Parachain heads must be updated once in the block");
-	}
-}
-
-/// Parachains module genesis configuration.
-#[cfg(any(feature = "std", test))]
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[serde(deny_unknown_fields)]
-pub struct GenesisConfig<T: Trait> {
-	/// The initial parachains, mapped to code and initial head data
-	pub parachains: Vec<(Id, Vec<u8>, Vec<u8>)>,
-	/// Phantom data.
-	#[serde(skip)]
-	pub phantom: PhantomData<T>,
-}
-
-#[cfg(any(feature = "std", test))]
-impl<T: Trait> Default for GenesisConfig<T> {
-	fn default() -> Self {
-		GenesisConfig {
-			parachains: Vec::new(),
-			phantom: PhantomData,
-		}
-	}
-}
-
-#[cfg(any(feature = "std", test))]
-impl<T: Trait> runtime_primitives::BuildStorage for GenesisConfig<T>
-{
-	fn build_storage(mut self) -> ::std::result::Result<HashMap<Vec<u8>, Vec<u8>>, String> {
-		use codec::Encode;
-
-		self.parachains.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
-		self.parachains.dedup_by_key(|&mut (ref id, _, _)| id.clone());
-
-		let only_ids: Vec<_> = self.parachains.iter().map(|&(ref id, _, _)| id).cloned().collect();
-
-		let mut map: HashMap<_, _> = map![
-			Self::hash(<Parachains<T>>::key()).to_vec() => only_ids.encode()
-		];
-
-		for (id, code, genesis) in self.parachains {
-			let code_key = Self::hash(&<Code<T>>::key_for(&id)).to_vec();
-			let head_key = Self::hash(&<Heads<T>>::key_for(&id)).to_vec();
-
-			map.insert(code_key, code.encode());
-			map.insert(head_key, genesis.encode());
-		}
-
-		Ok(map)
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use runtime_io::{TestExternalities, with_externalities};
+	use rstd::marker::PhantomData;
+	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
-	use runtime_primitives::BuildStorage;
-	use runtime_primitives::traits::{Identity, BlakeTwo256};
-	use runtime_primitives::testing::{Digest, Header};
+	use sr_primitives::BuildStorage;
+	use sr_primitives::traits::{Identity, BlakeTwo256};
+	use sr_primitives::testing::{Digest, Header, DigestItem};
 	use {consensus, timestamp};
 
 	impl_outer_origin! {
@@ -257,7 +274,7 @@ mod tests {
 		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type SessionKey = u64;
 		type OnOfflineValidator = ();
-		type Log = u64;
+		type Log = DigestItem;
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
@@ -269,6 +286,7 @@ mod tests {
 		type AccountId = u64;
 		type Header = Header;
 		type Event = ();
+		type Log = DigestItem;
 	}
 	impl session::Trait for Test {
 		type ConvertAccountIdToSessionKey = Identity;
@@ -286,19 +304,21 @@ mod tests {
 	type Parachains = Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(Id, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap();
+		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
 		t.extend(consensus::GenesisConfig::<Test>{
 			code: vec![],
 			authorities: vec![1, 2, 3],
-		}.build_storage().unwrap());
+			_genesis_phantom_data: PhantomData,
+		}.build_storage().unwrap().0);
 		t.extend(session::GenesisConfig::<Test>{
 			session_length: 1000,
 			validators: vec![1, 2, 3, 4, 5, 6, 7, 8],
-		}.build_storage().unwrap());
+			_genesis_phantom_data: PhantomData,
+		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			parachains: parachains,
-			phantom: PhantomData,
-		}.build_storage().unwrap());
+			_genesis_phantom_data: PhantomData,
+		}.build_storage().unwrap().0);
 		t.into()
 	}
 
@@ -329,12 +349,12 @@ mod tests {
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
 
-			assert_ok!(Parachains::register_parachain(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1]));
+			assert_ok!(Parachains::register_parachain(99u32.into(), vec![7,8,9], vec![1, 1, 1]));
 
 			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
-			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 5u32.into()));
+			assert_ok!(Parachains::deregister_parachain(5u32.into()));
 
 			assert_eq!(Parachains::active_parachains(), vec![99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
