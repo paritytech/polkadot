@@ -55,6 +55,9 @@ extern crate srml_treasury as treasury;
 
 extern crate polkadot_primitives as primitives;
 
+#[cfg(test)]
+extern crate substrate_keyring as keyring;
+
 mod parachains;
 
 #[cfg(feature = "std")]

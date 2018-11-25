@@ -23,7 +23,7 @@ use bitvec::BigEndian;
 use sr_primitives::{RuntimeString, traits::{
 	Extrinsic, Block as BlockT, Hash as HashT, BlakeTwo256, ProvideInherent,
 }};
-use primitives::parachain::{Id, Chain, DutyRoster, AttestedCandidate};
+use primitives::parachain::{Id, Chain, DutyRoster, AttestedCandidate, Statement};
 use {system, session};
 
 use srml_support::{StorageValue, StorageMap};
@@ -167,6 +167,14 @@ fn majority_of(list_len: usize) -> usize {
 	list_len / 2 + list_len % 2
 }
 
+fn localized_payload(statement: Statement, parent_hash: ::primitives::Hash) -> Vec<u8> {
+	use codec::Encode;
+
+	let mut encoded = statement.encode();
+	encoded.extend(parent_hash.as_ref());
+	encoded
+}
+
 impl<T: Trait> Module<T> {
 	/// Calculate the current block's duty roster using system's random seed.
 	pub fn calculate_duty_roster() -> DutyRoster {
@@ -220,7 +228,7 @@ impl<T: Trait> Module<T> {
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
 	fn check_attestations(attested_candidates: &[AttestedCandidate]) -> Result {
-		use primitives::parachain::{Statement, ValidityAttestation};
+		use primitives::parachain::ValidityAttestation;
 		use sr_primitives::traits::Verify;
 
 		// returns groups of slices that have the same chain ID.
@@ -268,8 +276,9 @@ impl<T: Trait> Module<T> {
 
 		// convert a duty roster, which is originally a Vec<Chain>, where each
 		// item corresponds to the same position in the session keys, into
-		// a list containing parachain duty and indices in the session keys.
-		// this list is sorted ascending by parachain duty.
+		// a list containing (index, parachain duty) where indices are into the session keys.
+		// this list is sorted ascending by parachain duty, just like the
+		// parachain candidates are.
 		let make_sorted_duties = |duty: &[Chain]| {
 			let mut sorted_duties = Vec::with_capacity(duty.len());
 			for (val_idx, duty) in duty.iter().enumerate() {
@@ -291,13 +300,7 @@ impl<T: Trait> Module<T> {
 		let sorted_guarantors = make_sorted_duties(&duty_roster.guarantor_duty);
 
 		let parent_hash = super::System::parent_hash();
-		let localized_payload = |statement: Statement| {
-			use codec::Encode;
-
-			let mut encoded = statement.encode();
-			encoded.extend(parent_hash.as_ref());
-			encoded
-		};
+		let localized_payload = |statement: Statement| localized_payload(statement, parent_hash);
 
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
 		let mut guarantor_groups = GroupedDutyIter::new(&sorted_guarantors[..]);
@@ -446,9 +449,10 @@ mod tests {
 	use rstd::marker::PhantomData;
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
-	use sr_primitives::BuildStorage;
-	use sr_primitives::traits::{Identity, BlakeTwo256};
-	use sr_primitives::testing::{Digest, Header, DigestItem};
+	use sr_primitives::{generic, BuildStorage};
+	use sr_primitives::traits::BlakeTwo256;
+	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey};
+	use keyring::Keyring;
 	use {consensus, timestamp};
 
 	impl_outer_origin! {
@@ -459,24 +463,24 @@ mod tests {
 	pub struct Test;
 	impl consensus::Trait for Test {
 		const NOTE_OFFLINE_POSITION: u32 = 1;
-		type SessionKey = u64;
+		type SessionKey = SessionKey;
 		type OnOfflineValidator = ();
-		type Log = DigestItem;
+		type Log = ::Log;
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
-		type Index = u64;
+		type Index = ::Index;
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
-		type Digest = Digest;
-		type AccountId = u64;
-		type Header = Header;
+		type Digest = generic::Digest<::Log>;
+		type AccountId = ::AccountId;
+		type Header = ::Header;
 		type Event = ();
-		type Log = DigestItem;
+		type Log = ::Log;
 	}
 	impl session::Trait for Test {
-		type ConvertAccountIdToSessionKey = Identity;
+		type ConvertAccountIdToSessionKey = ::SessionKeyConversion;
 		type OnSessionChange = ();
 		type Event = ();
 	}
@@ -492,14 +496,25 @@ mod tests {
 
 	fn new_test_ext(parachains: Vec<(Id, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
+		let authority_keys = [
+			Keyring::Alice,
+			Keyring::Bob,
+			Keyring::Charlie,
+			Keyring::Dave,
+			Keyring::Eve,
+			Keyring::Ferdie,
+			Keyring::One,
+			Keyring::Two,
+		];
+
 		t.extend(consensus::GenesisConfig::<Test>{
 			code: vec![],
-			authorities: vec![1, 2, 3],
+			authorities: authority_keys.iter().map(|k| k.to_raw_public().into()).collect(),
 			_genesis_phantom_data: PhantomData,
 		}.build_storage().unwrap().0);
 		t.extend(session::GenesisConfig::<Test>{
 			session_length: 1000,
-			validators: vec![1, 2, 3, 4, 5, 6, 7, 8],
+			validators: authority_keys.iter().map(|k| k.to_raw_public().into()).collect(),
 			_genesis_phantom_data: PhantomData,
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
@@ -507,6 +522,55 @@ mod tests {
 			_genesis_phantom_data: PhantomData,
 		}.build_storage().unwrap().0);
 		t.into()
+	}
+
+	fn make_attestations(candidate: &mut AttestedCandidate) {
+		let mut vote_implicit = false;
+		let parent_hash = ::System::parent_hash();
+
+		let duty_roster = Parachains::calculate_duty_roster();
+		let candidate_hash = candidate.candidate.hash();
+
+		let authorities = ::Consensus::authorities();
+		let extract_key = |public: SessionKey| {
+			Keyring::from_raw_public(public.0).unwrap()
+		};
+
+		let validation_entries = duty_roster.validator_duty.iter()
+			.enumerate()
+			.map(|(i, d)| (i, d, true));
+
+		let availability_entries = duty_roster.guarantor_duty.iter()
+			.enumerate()
+			.map(|(i, d)| (i, d, false));
+
+		for (idx, &duty, is_validation) in validation_entries.chain(availability_entries) {
+			if duty != Chain::Parachain(candidate.parachain_index()) { continue }
+			if is_validation { vote_implicit = !vote_implicit };
+
+			let key = extract_key(authorities[idx]);
+
+			let statement = if is_validation && vote_implicit {
+				Statement::Candidate(candidate.candidate.clone())
+			} else if is_validation {
+				Statement::Valid(candidate_hash.clone())
+			} else {
+				Statement::Available(candidate_hash.clone())
+			};
+
+			let payload = localized_payload(statement, parent_hash);
+			let signature = key.sign(&payload[..]).into();
+
+			if is_validation {
+				candidate.validity_votes.push((authorities[idx], if vote_implicit {
+					ValidityAttestation::Implicit(signature)
+				} else {
+					ValidityAttestation::Explicit(signature)
+				}));
+			} else {
+				candidate.availability_votes.push((authorities[idx], signature));
+			}
+		}
 	}
 
 	#[test]
@@ -582,6 +646,132 @@ mod tests {
 			check_roster(&duty_roster_2);
 			assert!(duty_roster_0 != duty_roster_2);
 			assert!(duty_roster_1 != duty_roster_2);
+		});
+	}
+
+	#[test]
+	fn unattested_candidate_is_rejected() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			let candidate = AttestedCandidate {
+				validity_votes: vec![],
+				availability_votes: vec![],
+				candidate: CandidateReceipt {
+					parachain_index: 0.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					balance_uploads: vec![],
+					egress_queue_roots: vec![],
+					fees: 0,
+					block_data_hash: Default::default(),
+				}
+			};
+
+			assert!(Parachains::dispatch(Call::set_heads(vec![candidate]), Origin::INHERENT).is_err());
+		})
+	}
+
+	#[test]
+	fn attested_candidates_accepted_in_order() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			let mut candidate_a = AttestedCandidate {
+				validity_votes: vec![],
+				availability_votes: vec![],
+				candidate: CandidateReceipt {
+					parachain_index: 0.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					balance_uploads: vec![],
+					egress_queue_roots: vec![],
+					fees: 0,
+					block_data_hash: Default::default(),
+				}
+			};
+
+			let mut candidate_b = AttestedCandidate {
+				validity_votes: vec![],
+				availability_votes: vec![],
+				candidate: CandidateReceipt {
+					parachain_index: 1.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![2, 3, 4]),
+					balance_uploads: vec![],
+					egress_queue_roots: vec![],
+					fees: 0,
+					block_data_hash: Default::default(),
+				}
+			};
+
+			make_attestations(&mut candidate_a);
+			make_attestations(&mut candidate_b);
+
+			assert!(Parachains::dispatch(
+				Call::set_heads(vec![candidate_b.clone(), candidate_a.clone()]),
+				Origin::INHERENT,
+			).is_err());
+
+			assert!(Parachains::dispatch(
+				Call::set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
+				Origin::INHERENT,
+			).is_ok());
+		});
+	}
+
+	#[test]
+	fn duplicate_vote_is_rejected() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			let mut candidate = AttestedCandidate {
+				validity_votes: vec![],
+				availability_votes: vec![],
+				candidate: CandidateReceipt {
+					parachain_index: 0.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					balance_uploads: vec![],
+					egress_queue_roots: vec![],
+					fees: 0,
+					block_data_hash: Default::default(),
+				}
+			};
+
+			make_attestations(&mut candidate);
+
+			let mut double_validity = candidate.clone();
+			double_validity.validity_votes.push(candidate.validity_votes[0].clone());
+
+			assert!(Parachains::dispatch(
+				Call::set_heads(vec![double_validity]),
+				Origin::INHERENT,
+			).is_err());
+
+			let mut double_availability = candidate.clone();
+			double_availability.availability_votes.push(candidate.availability_votes[0].clone());
+
+			assert!(Parachains::dispatch(
+				Call::set_heads(vec![double_availability]),
+				Origin::INHERENT,
+			).is_err());
 		});
 	}
 }
