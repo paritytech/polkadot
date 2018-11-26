@@ -53,7 +53,7 @@ use substrate_network::{NodeIndex, RequestId, Context, Severity};
 use substrate_network::{message, generic_message};
 use substrate_network::specialization::NetworkSpecialization as Specialization;
 use substrate_network::StatusMessage as GenericFullStatus;
-use self::consensus::LiveConsensusInstances;
+use self::consensus::{LiveConsensusInstances, RecentSessionKeys, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
 
@@ -90,29 +90,39 @@ struct BlockDataRequest {
 enum CollatorState {
 	Fresh,
 	RolePending(Role),
-	Primed,
+	Primed(Option<Role>),
 }
 
 impl CollatorState {
 	fn send_key<F: FnMut(Message)>(&mut self, key: SessionKey, mut f: F) {
 		f(Message::SessionKey(key));
-		if let CollatorState::RolePending(role) = ::std::mem::replace(self, CollatorState::Primed) {
+		if let CollatorState::RolePending(role) = *self {
 			f(Message::CollatorRole(role));
+			*self = CollatorState::Primed(Some(role));
 		}
 	}
 
 	fn set_role<F: FnMut(Message)>(&mut self, role: Role, mut f: F) {
-		if let CollatorState::Primed = *self {
+		if let CollatorState::Primed(ref mut r) = *self {
 			f(Message::CollatorRole(role));
+			*r = Some(role);
 		} else {
 			*self = CollatorState::RolePending(role);
+		}
+	}
+
+	fn role(&self) -> Option<Role> {
+		match *self {
+			CollatorState::Fresh => None,
+			CollatorState::RolePending(role) => Some(role),
+			CollatorState::Primed(role) => role,
 		}
 	}
 }
 
 struct PeerInfo {
 	collating_for: Option<(AccountId, ParaId)>,
-	validator_key: Option<SessionKey>,
+	validator_keys: RecentSessionKeys,
 	claimed_validator: bool,
 	collator_state: CollatorState,
 }
@@ -305,18 +315,26 @@ impl PolkadotProtocol {
 				return;
 			}
 
-			if let Some(old_key) = ::std::mem::replace(&mut info.validator_key, Some(key)) {
-				self.validators.remove(&old_key);
-
-				for (relay_parent, collation) in self.local_collations.fresh_key(&old_key, &key) {
-					send_polkadot_message(
-						ctx,
-						who,
-						Message::Collation(relay_parent, collation),
-					)
+			let local_collations = &mut self.local_collations;
+			let new_collations = match info.validator_keys.insert(key) {
+				InsertedRecentKey::AlreadyKnown => Vec::new(),
+				InsertedRecentKey::New(Some(old_key)) => {
+					self.validators.remove(&old_key);
+					local_collations.fresh_key(&old_key, &key)
 				}
+				InsertedRecentKey::New(None) => info.collator_state.role()
+					.map(|r| local_collations.note_validator_role(key, r))
+					.unwrap_or_else(Vec::new),
+			};
 
+			for (relay_parent, collation) in new_collations {
+				send_polkadot_message(
+					ctx,
+					who,
+					Message::Collation(relay_parent, collation),
+				)
 			}
+
 			self.validators.insert(key, who);
 		}
 
@@ -342,7 +360,7 @@ impl PolkadotProtocol {
 
 	// when a validator sends us (a collator) a new role.
 	fn on_new_role(&mut self, ctx: &mut Context<Block>, who: NodeIndex, role: Role) {
-		let info = match self.peers.get(&who) {
+		let info = match self.peers.get_mut(&who) {
 			Some(peer) => peer,
 			None => {
 				trace!(target: "p_net", "Network inconsistency: message received from unconnected peer {}", who);
@@ -352,19 +370,27 @@ impl PolkadotProtocol {
 
 		debug!(target: "p_net", "New collator role {:?} from {}", role, who);
 
-		match info.validator_key {
-			None => ctx.report_peer(
+		if info.validator_keys.as_slice().is_empty() {
+			ctx.report_peer(
 				who,
 				Severity::Bad("Sent collator role without registering first as validator"),
-			),
-			Some(key) => for (relay_parent, collation) in self.local_collations.note_validator_role(key, role) {
+			);
+		} else {
+			// update role for all saved session keys for this validator.
+			let local_collations = &mut self.local_collations;
+			for (relay_parent, collation) in info.validator_keys
+				.as_slice()
+				.iter()
+				.cloned()
+				.flat_map(|k| local_collations.note_validator_role(k, role))
+			{
 				debug!(target: "p_net", "Broadcasting collation on relay parent {:?}", relay_parent);
 				send_polkadot_message(
 					ctx,
 					who,
 					Message::Collation(relay_parent, collation),
 				)
-			},
+			}
 		}
 	}
 }
@@ -386,7 +412,7 @@ impl Specialization<Block> for PolkadotProtocol {
 
 		let mut peer_info = PeerInfo {
 			collating_for: local_status.collating_for,
-			validator_key: None,
+			validator_keys: Default::default(),
 			claimed_validator: validator,
 			collator_state: CollatorState::Fresh,
 		};
@@ -436,9 +462,9 @@ impl Specialization<Block> for PolkadotProtocol {
 				}
 			}
 
-			if let Some(validator_key) = info.validator_key {
-				self.validators.remove(&validator_key);
-				self.local_collations.on_disconnect(&validator_key);
+			for key in info.validator_keys.as_slice().iter() {
+				self.validators.remove(key);
+				self.local_collations.on_disconnect(key);
 			}
 
 			{
