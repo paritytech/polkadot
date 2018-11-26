@@ -36,7 +36,8 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 
-use super::{NetworkService, Knowledge};
+use consensus::Knowledge;
+use super::NetworkService;
 
 fn attestation_topic(parent_hash: Hash) -> Hash {
 	let mut v = parent_hash.as_ref().to_vec();
@@ -239,6 +240,13 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 
 	fn fetch_extrinsic_data(&self, _candidate: &CandidateReceipt) -> Self::FetchExtrinsic {
 		Ok(Extrinsic)
+	}
+}
+
+impl<P> Drop for Router<P> {
+	fn drop(&mut self) {
+		let parent_hash = &self.parent_hash;
+		self.network.with_spec(|spec, _| spec.remove_consensus(parent_hash));
 	}
 }
 
