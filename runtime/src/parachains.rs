@@ -374,7 +374,7 @@ impl<T: Trait> Module<T> {
 					None => return Err("Attesting validator not on this chain's availability duty."),
 					Some(&(idx, _)) => {
 						if track_voters.get(authorities.len() + idx) {
-							return Err("Voter already attested validity once")
+							return Err("Voter already attested availability once")
 						}
 						track_voters.set(authorities.len() + idx, true)
 					}
