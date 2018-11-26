@@ -195,7 +195,7 @@ pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8
 
 /// Statements which can be made about parachain candidates.
 #[derive(Clone, PartialEq, Eq, Encode)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub enum Statement {
 	/// Proposal of a parachain candidate.
 	#[codec(index = "1")]
@@ -214,7 +214,7 @@ pub enum Statement {
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
 #[derive(Clone, PartialEq, Decode, Encode)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub enum ValidityAttestation {
 	/// implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
@@ -228,7 +228,7 @@ pub enum ValidityAttestation {
 
 /// An attested candidate.
 #[derive(Clone, PartialEq, Decode, Encode)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct AttestedCandidate {
 	/// The candidate data.
 	pub candidate: CandidateReceipt,
