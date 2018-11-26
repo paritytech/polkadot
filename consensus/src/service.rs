@@ -94,7 +94,7 @@ fn prune_unneeded_availability<C>(client: Arc<C>, extrinsic_store: ExtrinsicStor
 				.iter()
 				.filter_map(|ex| match ex.function {
 					Call::Parachains(ParachainsCall::set_heads(ref heads)) =>
-						Some(heads.iter().map(|c| c.hash()).collect()),
+						Some(heads.iter().map(|c| c.candidate.hash()).collect()),
 					_ => None,
 				})
 				.next()

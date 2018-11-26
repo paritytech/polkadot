@@ -23,7 +23,10 @@ use std::sync::Arc;
 use extrinsic_store::{Data, Store as ExtrinsicStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Hash, SessionKey};
-use polkadot_primitives::parachain::{Id as ParaId, BlockData, Collation, Extrinsic, CandidateReceipt};
+use polkadot_primitives::parachain::{
+	Id as ParaId, BlockData, Collation, Extrinsic, CandidateReceipt,
+	AttestedCandidate,
+};
 
 use parking_lot::Mutex;
 use futures::{future, prelude::*};
@@ -439,14 +442,25 @@ impl SharedTable {
 		f(inner.table.get_candidate(digest))
 	}
 
-	/// Execute a closure using the current proposed set.
-	///
-	/// Deadlocks if called recursively.
-	pub fn with_proposal<F, U>(&self, f: F) -> U
-		where F: FnOnce(Vec<&CandidateReceipt>) -> U
-	{
-		let inner = self.inner.lock();
-		f(inner.table.proposed_candidates(&*self.context))
+	/// Get a set of candidates that can be proposed.
+	pub fn proposed_set(&self) -> Vec<AttestedCandidate> {
+		use table::generic::{ValidityAttestation as GAttestation};
+		use polkadot_primitives::parachain::ValidityAttestation;
+
+		// we transform the types of the attestations gathered from the table
+		// into the type expected by the runtime. This may do signature
+		// aggregation in the future.
+		let table_attestations = self.inner.lock().table.proposed_candidates(&*self.context);
+		table_attestations.into_iter()
+			.map(|attested| AttestedCandidate {
+				candidate: attested.candidate,
+				availability_votes: attested.availability_votes,
+				validity_votes: attested.validity_votes.into_iter().map(|(a, v)| match v {
+					GAttestation::Implicit(s) => (a, ValidityAttestation::Implicit(s)),
+					GAttestation::Explicit(s) => (a, ValidityAttestation::Explicit(s)),
+				}).collect(),
+			})
+			.collect()
 	}
 
 	/// Get the number of total parachains.

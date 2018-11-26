@@ -25,7 +25,9 @@ pub mod generic;
 
 pub use generic::Table;
 
-use primitives::parachain::{Id, CandidateReceipt, CandidateSignature as Signature};
+use primitives::parachain::{
+	Id, CandidateReceipt, CandidateSignature as Signature, Statement as PrimitiveStatement,
+};
 use primitives::{SessionKey, Hash};
 
 /// Statements about candidates on the network.
@@ -84,5 +86,16 @@ impl<C: Context> generic::Context for C {
 
 	fn requisite_votes(&self, group: &Id) -> (usize, usize) {
 		Context::requisite_votes(self, group)
+	}
+}
+
+impl From<Statement> for PrimitiveStatement {
+	fn from(s: Statement) -> PrimitiveStatement {
+		match s {
+			generic::Statement::Valid(s) => PrimitiveStatement::Valid(s),
+			generic::Statement::Invalid(s) => PrimitiveStatement::Invalid(s),
+			generic::Statement::Candidate(s) => PrimitiveStatement::Candidate(s),
+			generic::Statement::Available(s) => PrimitiveStatement::Available(s),
+		}
 	}
 }

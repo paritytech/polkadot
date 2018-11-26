@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
-use super::Hash;
+use super::{Hash, SessionKey};
 
 use {AccountId};
 
@@ -102,7 +102,6 @@ pub struct CandidateReceipt {
 
 impl CandidateReceipt {
 	/// Get the blake2_256 hash
-	#[cfg(feature = "std")]
 	pub fn hash(&self) -> Hash {
 		use runtime_primitives::traits::{BlakeTwo256, Hash};
 		BlakeTwo256::hash_of(self)
@@ -189,23 +188,66 @@ pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
-/// Activitiy bit field
+/// Activity bit field
 #[derive(PartialEq, Eq, Clone, Default, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Statements which can be made about parachain candidates.
-#[derive(Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug, Serialize, Deserialize))]
+#[derive(Clone, PartialEq, Eq, Encode)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub enum Statement {
 	/// Proposal of a parachain candidate.
+	#[codec(index = "1")]
 	Candidate(CandidateReceipt),
 	/// State that a parachain candidate is valid.
+	#[codec(index = "2")]
 	Valid(Hash),
-	/// Vote to commit to a candidate.
+	/// State a candidate is invalid.
+	#[codec(index = "3")]
 	Invalid(Hash),
-	/// Vote to advance round after inactive primary.
+	/// State a candidate's associated data is unavailable.
+	#[codec(index = "4")]
 	Available(Hash),
+}
+
+/// An either implicit or explicit attestation to the validity of a parachain
+/// candidate.
+#[derive(Clone, PartialEq, Decode, Encode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub enum ValidityAttestation {
+	/// implicit validity attestation by issuing.
+	/// This corresponds to issuance of a `Candidate` statement.
+	#[codec(index = "1")]
+	Implicit(CandidateSignature),
+	/// An explicit attestation. This corresponds to issuance of a
+	/// `Valid` statement.
+	#[codec(index = "2")]
+	Explicit(CandidateSignature),
+}
+
+/// An attested candidate.
+#[derive(Clone, PartialEq, Decode, Encode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct AttestedCandidate {
+	/// The candidate data.
+	pub candidate: CandidateReceipt,
+	/// Validity attestations.
+	pub validity_votes: Vec<(SessionKey, ValidityAttestation)>,
+	/// Availability attestations.
+	pub availability_votes: Vec<(SessionKey, CandidateSignature)>,
+}
+
+impl AttestedCandidate {
+	/// Get the candidate.
+	pub fn candidate(&self) -> &CandidateReceipt {
+		&self.candidate
+	}
+
+	/// Get the group ID of the candidate.
+	pub fn parachain_index(&self) -> Id {
+		self.candidate.parachain_index
+	}
 }
 
 decl_runtime_apis! {

@@ -74,7 +74,7 @@ use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
 use polkadot_primitives::{Compact, UncheckedExtrinsic};
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
-use polkadot_primitives::parachain::ParachainHost;
+use polkadot_primitives::parachain::{AttestedCandidate, ParachainHost, Statement as PrimitiveStatement};
 use primitives::{AuthorityId, ed25519};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use tokio::runtime::TaskExecutor;
@@ -156,7 +156,10 @@ pub struct GroupInfo {
 /// The actual message signed is the encoded statement concatenated with the
 /// parent hash.
 pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_hash: &Hash) -> CandidateSignature {
-	let mut encoded = statement.encode();
+	// we sign using the primitive statement type because that's what the runtime
+	// expects. These types probably encode the same way so this clone could be optimized
+	// out in the future.
+	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
 	encoded.extend(parent_hash.as_ref());
 
 	key.sign(&encoded).into()
@@ -166,7 +169,7 @@ pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_h
 pub fn check_statement(statement: &Statement, signature: &CandidateSignature, signer: SessionKey, parent_hash: &Hash) -> bool {
 	use runtime_primitives::traits::Verify;
 
-	let mut encoded = statement.encode();
+	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
 	encoded.extend(parent_hash.as_ref());
 
 	signature.verify(&encoded[..], &signer.into())
@@ -640,7 +643,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
 	C::Api: ParachainHost<Block> + BlockBuilder<Block>,
 {
-	fn propose_with(&self, candidates: Vec<CandidateReceipt>) -> Result<Block, Error> {
+	fn propose_with(&self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 		use polkadot_primitives::InherentData;
@@ -726,9 +729,7 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 		try_ready!(self.timing.poll(included));
 
 		// 2. propose
-		let proposed_candidates = self.table.with_proposal(|proposed_set| {
-			proposed_set.into_iter().cloned().collect()
-		});
+		let proposed_candidates = self.table.proposed_set();
 
 		self.propose_with(proposed_candidates).map(Async::Ready)
 	}
@@ -738,6 +739,7 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 mod tests {
 	use super::*;
 	use substrate_keyring::Keyring;
+	use polkadot_primitives::parachain::Statement as PStatement;
 
 	#[test]
 	fn sign_and_check_statement() {
