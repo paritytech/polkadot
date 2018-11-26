@@ -207,7 +207,8 @@ pub(crate) struct Knowledge {
 }
 
 impl Knowledge {
-	fn new() -> Self {
+	/// Create a new knowledge instance.
+	pub(crate) fn new() -> Self {
 		Knowledge {
 			candidates: HashMap::new(),
 		}
@@ -248,6 +249,14 @@ pub(crate) struct CurrentConsensus {
 }
 
 impl CurrentConsensus {
+	#[cfg(test)]
+	pub(crate) fn new(knowledge: Arc<Mutex<Knowledge>>, local_session_key: SessionKey) -> Self {
+		CurrentConsensus {
+			knowledge,
+			local_session_key
+		}
+	}
+
 	// execute a closure with locally stored block data for a candidate, or a slice of session identities
 	// we believe should have the data.
 	fn with_block_data<F, U>(&self, hash: &Hash, f: F) -> U
@@ -268,6 +277,7 @@ impl CurrentConsensus {
 const RECENT_SESSIONS: usize = 3;
 
 /// Result when inserting recent session key.
+#[derive(PartialEq, Eq)]
 pub(crate) enum InsertedRecentKey {
 	/// Key was already known.
 	AlreadyKnown,
@@ -360,6 +370,61 @@ impl LiveConsensusInstances {
 		match self.live_instances.get(parent_hash) {
 			Some(c) => c.with_block_data(c_hash, |res| f(res.map_err(Some))),
 			None => f(Err(None))
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn last_keys_works() {
+		let a = [1; 32].into();
+		let b = [2; 32].into();
+		let c = [3; 32].into();
+		let d = [4; 32].into();
+
+		let mut recent = RecentSessionKeys::default();
+
+		match recent.insert(a) {
+			InsertedRecentKey::New(None) => {},
+			_ => panic!("is new, not at capacity"),
+		}
+
+		match recent.insert(a) {
+			InsertedRecentKey::AlreadyKnown => {},
+			_ => panic!("not new"),
+		}
+
+		match recent.insert(b) {
+			InsertedRecentKey::New(None) => {},
+			_ => panic!("is new, not at capacity"),
+		}
+
+		match recent.insert(b) {
+			InsertedRecentKey::AlreadyKnown => {},
+			_ => panic!("not new"),
+		}
+
+		match recent.insert(c) {
+			InsertedRecentKey::New(None) => {},
+			_ => panic!("is new, not at capacity"),
+		}
+
+		match recent.insert(c) {
+			InsertedRecentKey::AlreadyKnown => {},
+			_ => panic!("not new"),
+		}
+
+		match recent.insert(d) {
+			InsertedRecentKey::New(Some(old)) => assert_eq!(old, a),
+			_ => panic!("is new, and at capacity"),
+		}
+
+		match recent.insert(d) {
+			InsertedRecentKey::AlreadyKnown => {},
+			_ => panic!("not new"),
 		}
 	}
 }
