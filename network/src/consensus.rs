@@ -311,6 +311,10 @@ impl RecentSessionKeys {
 	pub(crate) fn as_slice(&self) -> &[SessionKey] {
 		&*self.inner
 	}
+
+	fn remove(&mut self, key: &SessionKey) {
+		self.inner.retain(|k| k != key)
+	}
 }
 
 /// Manages requests and session keys for live consensus instances.
@@ -351,7 +355,14 @@ impl LiveConsensusInstances {
 
 	/// Remove consensus session.
 	pub(crate) fn remove(&mut self, parent_hash: &Hash) {
-		self.live_instances.remove(parent_hash);
+		if let Some(consensus) = self.live_instances.remove(parent_hash) {
+			let key_still_used = self.live_instances.values()
+				.any(|c| c.local_session_key == consensus.local_session_key);
+
+			if !key_still_used {
+				self.recent.remove(&consensus.local_session_key)
+			}
+		}
 	}
 
 	/// Recent session keys as a slice.

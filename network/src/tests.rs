@@ -276,3 +276,49 @@ fn remove_bad_collator() {
 		assert!(ctx.disabled.contains(&who));
 	}
 }
+
+#[test]
+fn many_session_keys() {
+	let mut protocol = PolkadotProtocol::new(None);
+
+	let parent_a = [1; 32].into();
+	let parent_b = [2; 32].into();
+
+	let local_key_a = [3; 32].into();
+	let local_key_b = [4; 32].into();
+
+	let (consensus_a, _knowledge_a) = make_consensus(local_key_a);
+	let (consensus_b, _knowledge_b) = make_consensus(local_key_b);
+
+	protocol.new_consensus(&mut TestContext::default(), parent_a, consensus_a);
+	protocol.new_consensus(&mut TestContext::default(), parent_b, consensus_b);
+
+	assert_eq!(protocol.live_consensus.recent_keys(), &[local_key_a, local_key_b]);
+
+	let peer_a = 1;
+
+	// when connecting a peer, we should get both those keys.
+	{
+		let mut ctx = TestContext::default();
+
+		let status = Status { collating_for: None };
+		protocol.on_connect(&mut ctx, peer_a, make_status(&status, Roles::AUTHORITY));
+
+		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_a)));
+		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_b)));
+	}
+
+	let peer_b = 2;
+
+	protocol.remove_consensus(&parent_a);
+
+	{
+		let mut ctx = TestContext::default();
+
+		let status = Status { collating_for: None };
+		protocol.on_connect(&mut ctx, peer_b, make_status(&status, Roles::AUTHORITY));
+
+		assert!(!ctx.has_message(peer_b, Message::SessionKey(local_key_a)));
+		assert!(ctx.has_message(peer_b, Message::SessionKey(local_key_b)));
+	}
+}
