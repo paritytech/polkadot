@@ -5,6 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot-specific networking protocol"
 
 [dependencies]
+arrayvec = "0.4"
 parking_lot = "0.4"
 polkadot-availability-store = { path = "../availability-store" }
 polkadot-consensus = { path = "../consensus" }
