@@ -37,10 +37,11 @@ cache:
     paths:
     - target/release/
 
-.determine_version: &determine_version |
-  export VERSION="$(sed -r -n '1,/^version/s/^version = "([^"]+)".*$/\1/p' Cargo.toml)";
-  echo "Version = " $VERSION
 
+# not needed atm
+# .determine_version: &determine_version |
+#   export VERSION="$(sed -r -n '1,/^version/s/^version = "([^"]+)".*$/\1/p' Cargo.toml)";
+#   echo "Version = " $VERSION
 
 # disabled as there are bugs
 # before_script:
@@ -126,7 +127,7 @@ dockerize:release:
   before_script:
     - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity"
         || ( echo "no docker credentials provided"; exit 1 )
-    - docker login -u $Docker_Hub_User_Parity -p $Docker_Hub_Pass_Parity
+    - docker login -u "$Docker_Hub_User_Parity" -p "$Docker_Hub_Pass_Parity"
     - docker info
     - VERSION="$(./target/release/polkadot --version | sed -n -r 's/^polkadot ([0-9.]+-[0-9a-f]+)-.*$/\1/p')"
     - export VERSION
@@ -138,18 +139,22 @@ dockerize:release:
     - test -z "${VERSION}" && exit 1
     - docker build --tag $CONTAINER_IMAGE:$VERSION -f $DOCKERFILE ./target/release/
     - docker push $CONTAINER_IMAGE:$VERSION
-    - docker logout
     - rm -f ./target/release/polkadot
     - echo "${VERSION}" > ./target/release/VERSION
+  after_script:
+    - docker logout
   # use artifacts here to transport the version to the next stage
   <<:                              *collect_artifacts
 
 
 
-deploy:ew3:
+
+
+.deploy:template:                  &deploy
   stage:                           deploy
   when:                            manual
   cache:                           {}
+  retry:                           1
   image: dtzar/helm-kubectl:$HELM_VERSION
   only:
     - master
@@ -161,27 +166,19 @@ deploy:ew3:
     - test -z "${DEPLOY_TAG}" && 
       test -f ./target/release/VERSION && 
       DEPLOY_TAG="$(cat ./target/release/VERSION)"
-    - echo "Polkadot version = ${DEPLOY_TAG}"
-  script:
     - test "${DEPLOY_TAG}" || ( echo "Neither DEPLOY_TAG nor VERSION information available"; exit 1 )
+  script:
+    - echo "Polkadot version = ${DEPLOY_TAG}"
+
+
+deploy:ew3:
+  <<:                              *deploy
+  variables:
+    - ABC
 
 deploy:ue1:
-  stage:                           deploy
-  when:                            manual
-  cache:                           {}
-  image: dtzar/helm-kubectl:$HELM_VERSION
-  only:
-    - master
-    - tags
-    - web
-  tags:
-    - kubernetes
-  before_script:
-    - test -z "${DEPLOY_TAG}" && 
-      test -f ./target/release/VERSION && 
-      DEPLOY_TAG="$(cat ./target/release/VERSION)"
-    - echo "Polkadot version = ${DEPLOY_TAG}"
-  script:
-    - test "${DEPLOY_TAG}" || ( echo "Neither DEPLOY_TAG nor VERSION information available"; exit 1 )
+  <<:                              *deploy
+  variables:
+    - ABC
 
 
