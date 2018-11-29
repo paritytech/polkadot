@@ -62,6 +62,7 @@ test:rust:release:
     - master
     - schedules
     - web
+    - /^[0-9]+$/
   except:
     variables:
       - $POLKADOT_BRANCH == "v0.2"
