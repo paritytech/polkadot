@@ -9,6 +9,11 @@ spec:
     matchLabels:
       app: polkadot
   serviceName: polkadot
+  {{- if .Values.rbac.enabled }}
+  serviceAccountName: {{ .Values.rbac.name }}
+  {{- else }}
+  serviceAccountName: default
+  {{- end }}
   replicas: {{ .Values.nodes.replicas }}
   updateStrategy:
     type: RollingUpdate

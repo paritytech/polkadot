@@ -6,6 +6,11 @@ image:
   basepath: /polkadot
 
 
+# if set to true a service account for polkadot will be created
+rbac:
+  enabled: false
+  name: polkadot
+
 
 nodes:
   replicas: 2

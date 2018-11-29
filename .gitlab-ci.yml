@@ -1,3 +1,4 @@
+# .gitlab-ci.yml
 #
 # pipelines can be triggered manually in the web
 # setting POLKADOT_BUILD to v0.2 will result in a poc2 build
@@ -21,6 +22,7 @@ variables:
   CARGO_HOME:                      "${CI_PROJECT_DIR}/.cargo"
   SUBSTRATE_REPO:                  "https://github.com/paritytech/substrate.git"
   # POLKADOT_BRANCH:                 "v0.2"
+
 
 
 cache:
@@ -137,8 +139,9 @@ dockerize:release:
     # - docker build --tag $CONTAINER_IMAGE:$CI_BUILD_REF --tag $CONTAINER_IMAGE:$CONTAINER_TAG -f $DOCKERFILE ./target/release/
     # - docker push $CONTAINER_IMAGE:$CONTAINER_TAG
     - test -z "${VERSION}" && exit 1
-    - docker build --tag $CONTAINER_IMAGE:$VERSION -f $DOCKERFILE ./target/release/
+    - docker build --tag $CONTAINER_IMAGE:$VERSION --tag $CONTAINER_IMAGE:latest -f $DOCKERFILE ./target/release/
     - docker push $CONTAINER_IMAGE:$VERSION
+    - docker push $CONTAINER_IMAGE:latest
     - rm -f ./target/release/polkadot
     - echo "${VERSION}" > ./target/release/VERSION
   after_script:
@@ -169,16 +172,25 @@ dockerize:release:
     - test "${DEPLOY_TAG}" || ( echo "Neither DEPLOY_TAG nor VERSION information available"; exit 1 )
   script:
     - echo "Polkadot version = ${DEPLOY_TAG}"
+    # - cat scripts/kubernetes/deployment.tmpl.yaml | envsubst | kubectl apply -f -
+    # or use helm to render the template
+    - helm template 
+      --values ./scripts/kubernetes/values.yaml 
+      --set image.tag=${DEPLOY_TAG}
+      ./scripts/kubernetes | kubectl apply -f - --dry-run=true
 
+
+
+# have environment:url eventually point to the logs
 
 deploy:ew3:
   <<:                              *deploy
-  variables:
-    - ABC
+  environment:
+    name: gke-beta-ew3
 
 deploy:ue1:
   <<:                              *deploy
-  variables:
-    - ABC
+  environment:
+    name: gke-beta-ue1
 
 
