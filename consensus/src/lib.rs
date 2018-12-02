@@ -691,32 +691,29 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			self.transaction_pool.remove_invalid(&unqueue_invalid);
 		}
 
-		let polkadot_block = block_builder.bake()?;
+		let new_block = block_builder.bake()?;
 
 		info!("Proposing block [number: {}; hash: {}; parent_hash: {}; extrinsics: [{}]]",
-			polkadot_block.header.number,
-			Hash::from(polkadot_block.header.hash()),
-			polkadot_block.header.parent_hash,
-			polkadot_block.extrinsics.iter()
+			new_block.header.number,
+			Hash::from(new_block.header.hash()),
+			new_block.header.parent_hash,
+			new_block.extrinsics.iter()
 				.map(|xt| format!("{}", BlakeTwo256::hash_of(xt)))
 				.collect::<Vec<_>>()
 				.join(", ")
 		);
 
-		let substrate_block = Decode::decode(&mut polkadot_block.encode().as_slice())
-			.expect("polkadot blocks defined to serialize to substrate blocks correctly; qed");
-
 		// TODO: full re-evaluation
 		let active_parachains = runtime_api.active_parachains(&self.parent_id)?;
 		assert!(evaluation::evaluate_initial(
-			&substrate_block,
+			&new_block,
 			timestamp,
 			&self.parent_hash,
 			self.parent_number,
 			&active_parachains,
 		).is_ok());
 
-		Ok(substrate_block)
+		Ok(new_block)
 	}
 }
 
