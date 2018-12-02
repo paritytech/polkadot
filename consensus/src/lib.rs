@@ -67,7 +67,7 @@ use std::time::{self, Duration, Instant};
 
 use aura::ExtraVerification;
 use client::blockchain::HeaderBackend;
-use client::block_builder::api::BlockBuilder;
+use client::block_builder::api::BlockBuilder as BlockBuilderApi;
 use codec::{Decode, Encode};
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
@@ -255,7 +255,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilder<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 {
@@ -383,7 +383,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilder<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 {
@@ -495,7 +495,7 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilder<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
 	type Error = Error;
 	type Create = Either<
@@ -641,7 +641,7 @@ pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 impl<C, TxApi> CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilder<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
 	fn propose_with(&self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
 		use client::block_builder::BlockBuilder;
@@ -653,12 +653,18 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 
 		let _elapsed_since_start = self.timing.dynamic_inclusion.started_at().elapsed();
 
-		let _inherent_data = InherentData {
+		let inherent_data = InherentData {
 			timestamp,
 			parachain_heads: candidates,
 		};
 
+		let runtime_api = self.client.runtime_api();
+
 		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client)?;
+
+		for inherent in runtime_api.inherent_extrinsics(&self.parent_id, &inherent_data)? {
+			block_builder.push(inherent)?;
+		}
 
 		{
 			let mut unqueue_invalid = Vec::new();
@@ -701,7 +707,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			.expect("polkadot blocks defined to serialize to substrate blocks correctly; qed");
 
 		// TODO: full re-evaluation
-		let active_parachains = self.client.runtime_api().active_parachains(&self.parent_id)?;
+		let active_parachains = runtime_api.active_parachains(&self.parent_id)?;
 		assert!(evaluation::evaluate_initial(
 			&substrate_block,
 			timestamp,
@@ -717,7 +723,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilder<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
 	type Item = Block;
 	type Error = Error;

@@ -215,7 +215,8 @@ construct_runtime!(
 	{
 		System: system::{default, Log(ChangesTrieRoot)},
 		Timestamp: timestamp::{Module, Call, Storage, Config<T>, Inherent},
-		Consensus: consensus::{Module, Call, Storage, Config<T>, Log(AuthoritiesChange), Inherent},
+		// consensus' Inherent is not provided because it assumes instant-finality blocks.
+		Consensus: consensus::{Module, Call, Storage, Config<T>, Log(AuthoritiesChange) },
 		Balances: balances,
 		Session: session,
 		Staking: staking,
