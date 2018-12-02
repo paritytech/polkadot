@@ -26,7 +26,6 @@ extern crate polkadot_executor;
 extern crate polkadot_network;
 extern crate sr_primitives;
 extern crate substrate_primitives as primitives;
-extern crate substrate_network as network;
 extern crate substrate_client as client;
 #[macro_use]
 extern crate substrate_service as service;
