@@ -19,18 +19,18 @@
 //! Polkadot service. Specialized wrapper over substrate service.
 
 extern crate polkadot_availability_store as av_store;
+extern crate polkadot_consensus as consensus;
 extern crate polkadot_primitives;
 extern crate polkadot_runtime;
 extern crate polkadot_executor;
 extern crate polkadot_network;
 extern crate sr_primitives;
 extern crate substrate_primitives as primitives;
-#[macro_use]
 extern crate substrate_network as network;
 extern crate substrate_client as client;
 #[macro_use]
 extern crate substrate_service as service;
-extern crate substrate_consensus_aura as consensus;
+extern crate substrate_consensus_aura as aura;
 extern crate substrate_transaction_pool as transaction_pool;
 extern crate tokio;
 
@@ -42,12 +42,14 @@ extern crate hex_literal;
 pub mod chain_spec;
 
 use std::sync::Arc;
+use std::time::Duration;
 use polkadot_primitives::{parachain, AccountId, Block};
 use polkadot_runtime::{GenesisConfig, ClientWithApi};
+use primitives::ed25519;
 use tokio::runtime::TaskExecutor;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
 use transaction_pool::txpool::{Pool as TransactionPool};
-use consensus::{import_queue, start_aura, Config as AuraConfig, AuraImportQueue, NothingExtra};
+use aura::{import_queue, start_aura, Config as AuraConfig, AuraImportQueue};
 
 pub use service::{
 	Roles, PruningMode, TransactionPoolOptions, ComponentClient,
@@ -56,6 +58,7 @@ pub use service::{
 };
 pub use service::config::full_version_from_strs;
 pub use client::{backend::Backend, runtime_api::Core as CoreApi, ExecutionStrategy};
+pub use consensus::BlockVerifier;
 pub use polkadot_network::{PolkadotProtocol, NetworkService};
 pub use polkadot_primitives::parachain::ParachainHost;
 pub use primitives::{Blake2Hasher};
@@ -63,6 +66,7 @@ pub use sr_primitives::traits::ProvideRuntimeApi;
 pub use chain_spec::ChainSpec;
 
 const AURA_SLOT_DURATION: u64 = 6;
+const PARACHAIN_EMPTY_DURATION: Duration = Duration::from_secs(4);
 
 /// All configuration for the polkadot node.
 pub type Configuration = FactoryFullConfiguration<Factory>;
@@ -121,6 +125,7 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, ClientWithApi>> {
 		Service::client(self)
 	}
+
 	fn network(&self) -> Arc<NetworkService> {
 		Service::network(self)
 	}
@@ -143,53 +148,71 @@ construct_service_factory! {
 		Genesis = GenesisConfig,
 		Configuration = CustomConfiguration,
 		FullService = FullComponents<Self>
-			{ |config: FactoryFullConfiguration<Self>, executor: TaskExecutor| {
-				let is_auth = config.roles == Roles::AUTHORITY;
-				FullComponents::<Factory>::new(config, executor.clone()).map(move |service|{
-					if is_auth {
-						if let Ok(Some(Ok(key))) = service.keystore().contents()
-							.map(|keys| keys.get(0).map(|k| service.keystore().load(k, "")))
-						{
-							info!("Using authority key {}", key.public());
-							let task = start_aura(
-								AuraConfig {
-									local_key:  Some(Arc::new(key)),
-									slot_duration: AURA_SLOT_DURATION,
-								},
-								service.client(),
-								service.proposer(),
-								service.network(),
-							);
+			{ |config: FactoryFullConfiguration<Self>, executor: TaskExecutor|
+				FullComponents::<Factory>::new(config, executor)
+			},
+		AuthoritySetup = { |service: Self::FullService, executor: TaskExecutor, key: Arc<ed25519::Pair>| {
+				use polkadot_network::consensus::ConsensusNetwork;
 
-							executor.spawn(task);
-						}
-					}
+				let extrinsic_store = {
+					use std::path::PathBuf;
 
-					service
-				})
-			}
-		},
-		AuthoritySetup = { |service, _, _| Ok(service) },
+					let mut path = PathBuf::from(service.config.database_path.clone());
+					path.push("availability");
+
+					::av_store::Store::new(::av_store::Config {
+						cache_size: None,
+						path,
+					})?
+				};
+
+				// collator connections and consensus network both fulfilled by this
+				let consensus_network = ConsensusNetwork::new(service.network(), service.client());
+				let proposer_factory = ::consensus::ProposerFactory::new(
+					service.client(),
+					consensus_network.clone(),
+					consensus_network,
+					service.transaction_pool(),
+					executor.clone(),
+					PARACHAIN_EMPTY_DURATION,
+					key.clone(),
+					extrinsic_store,
+				);
+
+				info!("Using authority key {}", key.public());
+				let task = start_aura(
+					AuraConfig {
+						local_key:  Some(key),
+						slot_duration: AURA_SLOT_DURATION,
+					},
+					service.client(),
+					service.proposer(),
+					service.network(),
+				);
+
+				executor.spawn(task);
+				Ok(service)
+			}},
 		LightService = LightComponents<Self>
 			{ |config, executor| <LightComponents<Factory>>::new(config, executor) },
-		FullImportQueue = AuraImportQueue<Self::Block, FullClient<Self>, NothingExtra>
+		FullImportQueue = AuraImportQueue<Self::Block, FullClient<Self>, BlockVerifier>
 			{ |config, client| Ok(import_queue(
 				AuraConfig {
 					local_key: None,
 					slot_duration: 5
 				},
 				client,
-				NothingExtra,
+				BlockVerifier,
 			))
 			},
-		LightImportQueue = AuraImportQueue<Self::Block, LightClient<Self>, NothingExtra>
+		LightImportQueue = AuraImportQueue<Self::Block, LightClient<Self>, BlockVerifier>
 			{ |config, client| Ok(import_queue(
 				AuraConfig {
 					local_key: None,
 					slot_duration: 5
 				},
 				client,
-				NothingExtra,
+				BlockVerifier,
 			))
 			},
 	}

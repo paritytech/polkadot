@@ -384,7 +384,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 		transaction_pool: Arc<Pool<TxApi>>,
 		thread_pool: TaskExecutor,
 		parachain_empty_duration: Duration,
-		key: ed25519::Pair,
+		key: Arc<ed25519::Pair>,
 		extrinsic_store: ExtrinsicStore,
 	) -> Self {
 		let parachain_consensus = Arc::new(ParachainConsensus {

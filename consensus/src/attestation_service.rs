@@ -121,7 +121,7 @@ pub(crate) fn start<C, N, P>(
 	client: Arc<P>,
 	parachain_consensus: Arc<::ParachainConsensus<C, N, P>>,
 	thread_pool: TaskExecutor,
-	key: ed25519::Pair,
+	key: Arc<ed25519::Pair>,
 	extrinsic_store: ExtrinsicStore,
 ) -> ServiceHandle
 	where
@@ -139,8 +139,6 @@ pub(crate) fn start<C, N, P>(
 	let (signal, exit) = ::exit_future::signal();
 	let thread = thread::spawn(move || {
 		let mut runtime = LocalRuntime::new().expect("Could not create local runtime");
-		let key = Arc::new(key);
-
 		let notifications = {
 			let client = client.clone();
 			let consensus = parachain_consensus.clone();
