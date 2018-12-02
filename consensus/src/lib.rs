@@ -773,6 +773,40 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 	}
 }
 
+/// Wraps a value in a generic way to transform the error type into the consensus
+/// error type for common consensus trait implementations.
+pub struct Wrapper<T>(T);
+
+impl<T> From<T> for Wrapper<T> {
+	fn from(t: T) -> Self { Wrapper(t) }
+}
+
+impl<T> consensus::Authorities<Block> for Wrapper<T> where
+	T: consensus::Authorities<Block>,
+	Error: From<T::Error>,
+{
+	type Error = Error;
+
+	fn authorities(&self, at: &BlockId) -> ::error::Result<Vec<AuthorityId>> {
+		self.0.authorities(at).map_err(Into::into)
+	}
+}
+
+impl<T> consensus::BlockImport<Block> for Wrapper<T> where
+	T: consensus::BlockImport<Block>,
+	Error: From<T::Error>,
+{
+	type Error = Error;
+
+	fn import_block(
+		&self,
+		block: consensus::ImportBlock<Block>,
+		new_authorities: Option<Vec<AuthorityId>>,
+	) -> ::error::Result<consensus::ImportResult> {
+		self.0.import_block(block, new_authorities).map_err(Into::into)
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

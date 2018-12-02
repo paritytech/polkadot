@@ -178,14 +178,17 @@ construct_service_factory! {
 					extrinsic_store,
 				);
 
+				let wrapper = Arc::new(consensus::Wrapper::from(service.client()));
+
 				info!("Using authority key {}", key.public());
 				let task = start_aura(
 					AuraConfig {
 						local_key:  Some(key),
 						slot_duration: AURA_SLOT_DURATION,
 					},
-					service.client(),
-					service.proposer(),
+					wrapper.clone(),
+					wrapper.clone(),
+					Arc::new(proposer_factory),
 					service.network(),
 				);
 
