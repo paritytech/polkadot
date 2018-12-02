@@ -66,8 +66,10 @@ use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
 use aura::ExtraVerification;
+use client::{BlockchainEvents, ChainHead, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
+use client::runtime_api::Core;
 use codec::{Decode, Encode};
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
@@ -81,6 +83,7 @@ use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
 
+use attestation_service::ServiceHandle;
 use futures::prelude::*;
 use futures::future::{self, Either};
 use collation::CollationFetch;
@@ -89,12 +92,11 @@ use dynamic_inclusion::DynamicInclusion;
 pub use self::collation::{validate_collation, Collators};
 pub use self::error::{ErrorKind, Error};
 pub use self::shared_table::{SharedTable, StatementProducer, ProducedStatements, Statement, SignedStatement, GenericStatement};
-pub use service::Service;
 
+mod attestation_service;
 mod dynamic_inclusion;
 mod evaluation;
 mod error;
-mod service;
 mod shared_table;
 
 pub mod collation;
@@ -358,22 +360,55 @@ struct AttestationTracker {
 }
 
 /// Polkadot proposer factory.
-struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
+pub struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
 	parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
+	_service_handle: ServiceHandle,
 }
 
 impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
+	C: Collators + Send + Sync + 'static,
+	<C::Collation as IntoFuture>::Future: Send + 'static,
+	P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
+	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block>,
+	N: Network + Send + Sync + 'static,
+	N::TableRouter: Send + 'static,
 	TxApi: PoolChainApi,
 {
 	/// Create a new proposer factory.
-	fn new(
-		parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
+	pub fn new(
+		client: Arc<P>,
+		network: N,
+		collators: C,
 		transaction_pool: Arc<Pool<TxApi>>,
+		thread_pool: TaskExecutor,
+		parachain_empty_duration: Duration,
+		key: ed25519::Pair,
+		extrinsic_store: ExtrinsicStore,
 	) -> Self {
+		let parachain_consensus = Arc::new(ParachainConsensus {
+			client: client.clone(),
+			network,
+			collators,
+			handle: thread_pool.clone(),
+			extrinsic_store: extrinsic_store.clone(),
+			parachain_empty_duration,
+			live_instances: Mutex::new(HashMap::new()),
+		});
+
+		let service_handle = ::attestation_service::start(
+			client,
+			parachain_consensus.clone(),
+			thread_pool,
+			key,
+			extrinsic_store,
+		);
+
 		ProposerFactory {
 			parachain_consensus,
 			transaction_pool,
+			_service_handle: service_handle,
 		}
 	}
 }

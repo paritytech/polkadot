@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Consensus service.
+//! Attestation service.
 
-/// Consensus service. A long running service that manages BFT agreement and parachain
-/// candidate agreement over the network.
+/// Attestation service. A long running service that creates and manages parachain attestation
+/// instances.
 ///
 /// This uses a handle to an underlying thread pool to dispatch heavy work
 /// such as candidate verification while performing event-driven work
@@ -37,21 +37,20 @@ use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::ParachainHost;
 use extrinsic_store::Store as ExtrinsicStore;
 use runtime_primitives::traits::ProvideRuntimeApi;
-use transaction_pool::txpool::{ChainApi as PoolChainApi, Pool};
 
-use tokio::runtime::TaskExecutor as ThreadPoolHandle;
+use tokio::runtime::TaskExecutor;
 use tokio::runtime::current_thread::Runtime as LocalRuntime;
 use tokio::timer::Interval;
 
-use super::{Network, Collators, ProposerFactory};
+use super::{Network, Collators};
 
 // creates a task to prune redundant entries in availability store upon block finalization
 //
 // NOTE: this will need to be changed to finality notification rather than
 // block import notifications when the consensus switches to non-instant finality.
-fn prune_unneeded_availability<C>(client: Arc<C>, extrinsic_store: ExtrinsicStore)
+fn prune_unneeded_availability<P>(client: Arc<P>, extrinsic_store: ExtrinsicStore)
 	-> impl Future<Item=(),Error=()> + Send
-	where C: Send + Sync + BlockchainEvents<Block> + BlockBody<Block> + 'static
+	where P: Send + Sync + BlockchainEvents<Block> + BlockBody<Block> + 'static
 {
 	use codec::{Encode, Decode};
 	use polkadot_primitives::BlockId;
@@ -111,130 +110,109 @@ fn prune_unneeded_availability<C>(client: Arc<C>, extrinsic_store: ExtrinsicStor
 		})
 }
 
-/// Consensus service. Starts working when created.
-pub struct Service {
+/// Parachain candidate attestation service handle.
+pub(crate) struct ServiceHandle {
 	thread: Option<thread::JoinHandle<()>>,
 	exit_signal: Option<::exit_future::Signal>,
 }
 
-impl Service {
-	/// Create and start a new instance.
-	pub fn new<C, N, TxApi>(
-		client: Arc<C>,
-		network: N,
-		transaction_pool: Arc<Pool<TxApi>>,
-		thread_pool: ThreadPoolHandle,
-		parachain_empty_duration: Duration,
-		key: ed25519::Pair,
-		extrinsic_store: ExtrinsicStore,
-	) -> Service
-		where
-			C: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
-			C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-			C::Api: ParachainHost<Block> + Core<Block> + BlockBuilder<Block>,
-			N: Network + Collators + Send + Sync + 'static,
-			N::TableRouter: Send + 'static,
-			<N::Collation as IntoFuture>::Future: Send + 'static,
-			TxApi: PoolChainApi<Block=Block> + Send + 'static,
-	{
-		use parking_lot::Mutex;
-		use std::collections::HashMap;
+/// Create and start a new instance of the attestation service.
+pub(crate) fn start<C, N, P>(
+	client: Arc<P>,
+	parachain_consensus: Arc<::ParachainConsensus<C, N, P>>,
+	thread_pool: TaskExecutor,
+	key: ed25519::Pair,
+	extrinsic_store: ExtrinsicStore,
+) -> ServiceHandle
+	where
+		C: Collators + Send + Sync + 'static,
+		<C::Collation as IntoFuture>::Future: Send + 'static,
+		P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
+		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+		P::Api: ParachainHost<Block> + Core<Block> + BlockBuilder<Block>,
+		N: Network + Send + Sync + 'static,
+		N::TableRouter: Send + 'static,
+{
+	const TIMER_DELAY: Duration = Duration::from_secs(5);
+	const TIMER_INTERVAL: Duration = Duration::from_secs(30);
 
-		const TIMER_DELAY: Duration = Duration::from_secs(5);
-		const TIMER_INTERVAL: Duration = Duration::from_secs(30);
+	let (signal, exit) = ::exit_future::signal();
+	let thread = thread::spawn(move || {
+		let mut runtime = LocalRuntime::new().expect("Could not create local runtime");
+		let key = Arc::new(key);
 
-		let (signal, exit) = ::exit_future::signal();
-		let thread = thread::spawn(move || {
-			let mut runtime = LocalRuntime::new().expect("Could not create local runtime");
-			let key = Arc::new(key);
+		let notifications = {
+			let client = client.clone();
+			let consensus = parachain_consensus.clone();
+			let key = key.clone();
 
-			let parachain_consensus = Arc::new(::ParachainConsensus{
-				client: client.clone(),
-				network: network.clone(),
-				collators: network.clone(),
-				handle: thread_pool.clone(),
-				extrinsic_store: extrinsic_store.clone(),
-				parachain_empty_duration,
-				live_instances: Mutex::new(HashMap::new()),
-			});
+			client.import_notification_stream().for_each(move |notification| {
+				let parent_hash = notification.hash;
+				if notification.is_new_best {
+					let res = client
+						.runtime_api()
+						.authorities(&BlockId::hash(parent_hash))
+						.map_err(Into::into)
+						.and_then(|authorities| {
+							consensus.get_or_instantiate(
+								parent_hash,
+								&authorities,
+								key.clone(),
+							)
+						});
 
-			let factory = ProposerFactory::new(
-				parachain_consensus.clone(),
-				transaction_pool
+					if let Err(e) = res {
+						warn!("Unable to start parachain consensus on top of {:?}: {}",
+							parent_hash, e);
+					}
+				}
+				Ok(())
+			})
+		};
+
+		let prune_old_sessions = {
+			let client = client.clone();
+			let interval = Interval::new(
+				Instant::now() + TIMER_DELAY,
+				TIMER_INTERVAL,
 			);
 
-			let notifications = {
-				let client = client.clone();
-				let consensus = parachain_consensus.clone();
-				let key = key.clone();
-
-				client.import_notification_stream().for_each(move |notification| {
-					let parent_hash = notification.hash;
-					if notification.is_new_best {
-						let res = client
-							.runtime_api()
-							.authorities(&BlockId::hash(parent_hash))
-							.map_err(Into::into)
-							.and_then(|authorities| {
-								consensus.get_or_instantiate(
-									parent_hash,
-									&authorities,
-									key.clone(),
-								)
-							});
-
-						if let Err(e) = res {
-							warn!("Unable to start parachain consensus on top of {:?}: {}",
-								parent_hash, e);
-						}
+			interval
+				.for_each(move |_| match client.leaves() {
+					Ok(leaves) => {
+						parachain_consensus.retain(|h| leaves.contains(h));
+						Ok(())
 					}
-					Ok(())
+					Err(e) => {
+						warn!("Error fetching leaves from client: {:?}", e);
+						Ok(())
+					}
 				})
-			};
+				.map_err(|e| warn!("Timer error {:?}", e))
+		};
 
-			let prune_old_sessions = {
-				let client = client.clone();
-				let interval = Interval::new(
-					Instant::now() + TIMER_DELAY,
-					TIMER_INTERVAL,
-				);
+		runtime.spawn(notifications);
+		thread_pool.spawn(prune_old_sessions);
 
-				interval
-					.for_each(move |_| match client.leaves() {
-						Ok(leaves) => {
-							parachain_consensus.retain(|h| leaves.contains(h));
-							Ok(())
-						}
-						Err(e) => {
-							warn!("Error fetching leaves from client: {:?}", e);
-							Ok(())
-						}
-					})
-					.map_err(|e| warn!("Timer error {:?}", e))
-			};
+		let prune_available = prune_unneeded_availability(client, extrinsic_store)
+			.select(exit.clone())
+			.then(|_| Ok(()));
 
-			runtime.spawn(notifications);
-			thread_pool.spawn(prune_old_sessions);
+		// spawn this on the tokio executor since it's fine on a thread pool.
+		thread_pool.spawn(prune_available);
 
-			let prune_available = prune_unneeded_availability(client, extrinsic_store)
-				.select(exit.clone())
-				.then(|_| Ok(()));
-
-			// spawn this on the tokio executor since it's fine on a thread pool.
-			thread_pool.spawn(prune_available);
-
-			if let Err(e) = runtime.block_on(exit) {
-				debug!("BFT event loop error {:?}", e);
-			}
-		});
-		Service {
-			thread: Some(thread),
-			exit_signal: Some(signal),
+		if let Err(e) = runtime.block_on(exit) {
+			debug!("BFT event loop error {:?}", e);
 		}
+	});
+
+	ServiceHandle {
+		thread: Some(thread),
+		exit_signal: Some(signal),
 	}
 }
 
-impl Drop for Service {
+impl Drop for ServiceHandle {
 	fn drop(&mut self) {
 		if let Some(signal) = self.exit_signal.take() {
 			signal.fire();
