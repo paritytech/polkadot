@@ -73,7 +73,9 @@ use client::runtime_api::Core;
 use codec::{Decode, Encode};
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
-use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
+use polkadot_primitives::{
+	Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey, InherentData
+};
 use polkadot_primitives::{Compact, UncheckedExtrinsic};
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::{AttestedCandidate, ParachainHost, Statement as PrimitiveStatement};
@@ -257,7 +259,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 {
@@ -371,7 +373,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block>,
+	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block, InherentData>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	TxApi: PoolChainApi,
@@ -418,7 +420,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 {
@@ -530,7 +532,7 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
 {
 	type Error = Error;
 	type Create = Either<
@@ -676,20 +678,17 @@ pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 impl<C, TxApi> CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
 {
 	fn propose_with(&self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
-		use polkadot_primitives::InherentData;
 
 		// TODO: handle case when current timestamp behind that in state.
-		let timestamp = ::std::cmp::max(self.minimum_timestamp.0, current_timestamp().0).into();
-
-		let _elapsed_since_start = self.timing.dynamic_inclusion.started_at().elapsed();
+		let timestamp = ::std::cmp::max(self.minimum_timestamp.0, current_timestamp().0);
 
 		let inherent_data = InherentData {
-			timestamp: timestamp.0,
+			timestamp,
 			parachains: candidates,
 		};
 
@@ -697,11 +696,12 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 
 		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client)?;
 
-		for inherent in runtime_api.inherent_extrinsics(&self.parent_id, &inherent_data)? {
-			block_builder.push(inherent)?;
-		}
-
 		{
+			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, &inherent_data)?;
+			for inherent in inherents {
+				block_builder.push(inherent)?;
+			}
+
 			let mut unqueue_invalid = Vec::new();
 			let mut pending_size = 0;
 
@@ -742,7 +742,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let active_parachains = runtime_api.active_parachains(&self.parent_id)?;
 		assert!(evaluation::evaluate_initial(
 			&new_block,
-			timestamp,
+			timestamp.into(),
 			&self.parent_hash,
 			self.parent_number,
 			&active_parachains,
@@ -755,7 +755,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
 {
 	type Item = Block;
 	type Error = Error;
@@ -773,57 +773,10 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 	}
 }
 
-/// Wraps a value in a generic way to transform the error type into the consensus
-/// error type for common consensus trait implementations.
-pub struct Wrapper<T>(T);
-
-impl<T> From<T> for Wrapper<T> {
-	fn from(t: T) -> Self { Wrapper(t) }
-}
-
-impl<T> consensus::Authorities<Block> for Wrapper<T> where
-	T: consensus::Authorities<Block>,
-	Error: From<T::Error>,
-{
-	type Error = Error;
-
-	fn authorities(&self, at: &BlockId) -> ::error::Result<Vec<AuthorityId>> {
-		self.0.authorities(at).map_err(Into::into)
-	}
-}
-
-impl<T> consensus::BlockImport<Block> for Wrapper<T> where
-	T: consensus::BlockImport<Block>,
-	Error: From<T::Error>,
-{
-	type Error = Error;
-
-	fn import_block(
-		&self,
-		block: consensus::ImportBlock<Block>,
-		new_authorities: Option<Vec<AuthorityId>>,
-	) -> ::error::Result<consensus::ImportResult> {
-		self.0.import_block(block, new_authorities).map_err(Into::into)
-	}
-}
-
-impl<T> ChainHead<Block> for Wrapper<T> where
-	T: ChainHead<Block>,
-{
-	fn best_block_header(&self) -> ::client::error::Result<Header> {
-		self.0.best_block_header()
-	}
-
-	fn leaves(&self) -> ::client::error::Result<Vec<Hash>> {
-		self.0.leaves()
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use substrate_keyring::Keyring;
-	use polkadot_primitives::parachain::Statement as PStatement;
 
 	#[test]
 	fn sign_and_check_statement() {

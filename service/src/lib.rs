@@ -43,7 +43,7 @@ pub mod chain_spec;
 use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, AccountId, Block};
-use polkadot_runtime::{GenesisConfig, ClientWithApi};
+use polkadot_runtime::{GenesisConfig, RuntimeApi};
 use primitives::ed25519;
 use tokio::runtime::TaskExecutor;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
@@ -80,7 +80,7 @@ pub struct CustomConfiguration {
 
 /// Chain API type for the transaction pool.
 pub type TxChainApi<Backend, Executor> = transaction_pool::ChainApi<
-	client::Client<Backend, Executor, Block, ClientWithApi>,
+	client::Client<Backend, Executor, Block, RuntimeApi>,
 	Block,
 >;
 
@@ -92,7 +92,7 @@ pub trait PolkadotService {
 	type Executor: 'static + client::CallExecutor<Block, Blake2Hasher> + Send + Sync + Clone;
 
 	/// Get a handle to the client.
-	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, ClientWithApi>>;
+	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>>;
 
 	/// Get a handle to the network.
 	fn network(&self) -> Arc<NetworkService>;
@@ -105,7 +105,7 @@ impl PolkadotService for Service<FullComponents<Factory>> {
 	type Backend = <FullComponents<Factory> as Components>::Backend;
 	type Executor = <FullComponents<Factory> as Components>::Executor;
 
-	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, ClientWithApi>> {
+	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>> {
 		Service::client(self)
 	}
 	fn network(&self) -> Arc<NetworkService> {
@@ -121,7 +121,7 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 	type Backend = <LightComponents<Factory> as Components>::Backend;
 	type Executor = <LightComponents<Factory> as Components>::Executor;
 
-	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, ClientWithApi>> {
+	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>> {
 		Service::client(self)
 	}
 
@@ -137,7 +137,7 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 construct_service_factory! {
 	struct Factory {
 		Block = Block,
-		RuntimeApi = ClientWithApi,
+		RuntimeApi = RuntimeApi,
 		NetworkProtocol = PolkadotProtocol { |config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for)) },
 		RuntimeDispatch = polkadot_executor::Executor,
 		FullTransactionPoolApi = TxChainApi<FullBackend<Self>, FullExecutor<Self>>
@@ -178,16 +178,14 @@ construct_service_factory! {
 					extrinsic_store,
 				);
 
-				let wrapper = Arc::new(consensus::Wrapper::from(service.client()));
-
 				info!("Using authority key {}", key.public());
 				let task = start_aura(
 					AuraConfig {
 						local_key:  Some(key),
 						slot_duration: AURA_SLOT_DURATION,
 					},
-					wrapper.clone(),
-					wrapper,
+					service.client(),
+					service.client(),
 					Arc::new(proposer_factory),
 					service.network(),
 				);

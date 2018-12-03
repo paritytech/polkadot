@@ -93,8 +93,8 @@ pub use timestamp::BlockPeriod;
 pub use srml_support::{StorageValue, RuntimeMetadata};
 
 const TIMESTAMP_SET_POSITION: u32 = 0;
-const NOTE_OFFLINE_POSITION: u32 = 1;
-const PARACHAINS_SET_POSITION: u32 = 2;
+const PARACHAINS_SET_POSITION: u32 = 1;
+const NOTE_OFFLINE_POSITION: u32 = 2; // this should be reintroduced
 
 /// Runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
