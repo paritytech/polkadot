@@ -689,8 +689,8 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let _elapsed_since_start = self.timing.dynamic_inclusion.started_at().elapsed();
 
 		let inherent_data = InherentData {
-			timestamp,
-			parachain_heads: candidates,
+			timestamp: timestamp.0,
+			parachains: candidates,
 		};
 
 		let runtime_api = self.client.runtime_api();

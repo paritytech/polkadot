@@ -187,6 +187,7 @@ construct_service_factory! {
 						slot_duration: AURA_SLOT_DURATION,
 					},
 					wrapper.clone(),
+					wrapper,
 					Arc::new(proposer_factory),
 					service.network(),
 				);

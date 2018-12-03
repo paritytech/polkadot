@@ -66,14 +66,17 @@ use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, SessionKey, Signature,
-	parachain, parachain::runtime::ParachainHost, parachain::id::PARACHAIN_HOST,
+	parachain, parachain::id::PARACHAIN_HOST,
 };
 #[cfg(feature = "std")]
 use primitives::Block as GBlock;
-use client::{block_builder::api::runtime::*, runtime_api::{runtime::*, id::*}};
+use client::{
+	block_builder::api as block_builder_api,
+	runtime_api::{self as client_api, id::*},
+};
 #[cfg(feature = "std")]
 use client::runtime_api::ApiExt;
-use sr_primitives::ApplyResult;
+use sr_primitives::{ApplyResult, CheckInherentError};
 use sr_primitives::transaction_validity::TransactionValidity;
 use sr_primitives::generic;
 use sr_primitives::traits::{Convert, BlakeTwo256, Block as BlockT};
@@ -211,7 +214,8 @@ impl parachains::Trait for Runtime {
 construct_runtime!(
 	pub enum Runtime with Log(InternalLog: DigestItem<Hash, SessionKey>) where
 		Block = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
+		NodeBlock = primitives::Block,
+		InherentData = primitives::InherentData
 	{
 		System: system::{default, Log(ChangesTrieRoot)},
 		Timestamp: timestamp::{Module, Call, Storage, Config<T>, Inherent},
@@ -249,174 +253,8 @@ pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Index, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = executive::Executive<Runtime, Block, balances::ChainContext<Runtime>, Balances, AllModules>;
 
-#[cfg(feature = "std")]
-pub struct ClientWithApi {
-	call: ::std::ptr::NonNull<client::runtime_api::CallApiAt<GBlock>>,
-	commit_on_success: ::std::cell::RefCell<bool>,
-	initialised_block: ::std::cell::RefCell<Option<GBlockId>>,
-	changes: ::std::cell::RefCell<client::runtime_api::OverlayedChanges>,
-}
-
-#[cfg(feature = "std")]
-unsafe impl Send for ClientWithApi {}
-#[cfg(feature = "std")]
-unsafe impl Sync for ClientWithApi {}
-
-#[cfg(feature = "std")]
-impl ApiExt for ClientWithApi {
-	fn map_api_result<F: FnOnce(&Self) -> Result<R, E>, R, E>(&self, map_call: F) -> Result<R, E> {
-		*self.commit_on_success.borrow_mut() = false;
-		let res = map_call(self);
-		*self.commit_on_success.borrow_mut() = true;
-
-		self.commit_on_ok(&res);
-
-		res
-	}
-}
-
-#[cfg(feature = "std")]
-impl client::runtime_api::ConstructRuntimeApi<GBlock> for ClientWithApi {
-	fn construct_runtime_api<'a, T: client::runtime_api::CallApiAt<GBlock>>(call: &'a T) -> ApiRef<'a, Self> {
-		ClientWithApi {
-			call: unsafe {
-				::std::ptr::NonNull::new_unchecked(
-					::std::mem::transmute(
-						call as &client::runtime_api::CallApiAt<GBlock>
-					)
-				)
-			},
-			commit_on_success: true.into(),
-			initialised_block: None.into(),
-			changes: Default::default(),
-		}.into()
-	}
-}
-
-#[cfg(feature = "std")]
-impl ClientWithApi {
-	fn call_api_at<A: Encode, R: Decode>(
-		&self,
-		at: &GBlockId,
-		function: &'static str,
-		args: &A
-	) -> client::error::Result<R> {
-		let res = unsafe {
-			self.call.as_ref().call_api_at(
-				at,
-				function,
-				args.encode(),
-				&mut *self.changes.borrow_mut(),
-				&mut *self.initialised_block.borrow_mut()
-			).and_then(|r|
-				R::decode(&mut &r[..])
-					.ok_or_else(||
-						client::error::ErrorKind::CallResultDecode(function).into()
-					)
-			)
-		};
-
-		self.commit_on_ok(&res);
-		res
-	}
-
-	fn commit_on_ok<R, E>(&self, res: &Result<R, E>) {
-		if *self.commit_on_success.borrow() {
-			if res.is_err() {
-				self.changes.borrow_mut().discard_prospective();
-			} else {
-				self.changes.borrow_mut().commit_prospective();
-			}
-		}
-	}
-}
-
-#[cfg(feature = "std")]
-type GBlockId = generic::BlockId<GBlock>;
-
-#[cfg(feature = "std")]
-impl client::runtime_api::Core<GBlock> for ClientWithApi {
-	fn version(&self, at: &GBlockId) -> Result<RuntimeVersion, client::error::Error> {
-		self.call_api_at(at, "version", &())
-	}
-
-	fn authorities(&self, at: &GBlockId) -> Result<Vec<AuthorityId>, client::error::Error> {
-		self.call_api_at(at, "authorities", &())
-	}
-
-	fn execute_block(&self, at: &GBlockId, block: &GBlock) -> Result<(), client::error::Error> {
-		self.call_api_at(at, "execute_block", block)
-	}
-
-	fn initialise_block(&self, at: &GBlockId, header: &<GBlock as BlockT>::Header) -> Result<(), client::error::Error> {
-		self.call_api_at(at, "initialise_block", header)
-	}
-}
-
-#[cfg(feature = "std")]
-impl client::block_builder::api::BlockBuilder<GBlock> for ClientWithApi {
-	fn apply_extrinsic(&self, at: &GBlockId, extrinsic: &<GBlock as BlockT>::Extrinsic) -> Result<ApplyResult, client::error::Error> {
-		self.call_api_at(at, "apply_extrinsic", extrinsic)
-	}
-
-	fn finalise_block(&self, at: &GBlockId) -> Result<<GBlock as BlockT>::Header, client::error::Error> {
-		self.call_api_at(at, "finalise_block", &())
-	}
-
-	fn inherent_extrinsics<Inherent: Decode + Encode, Unchecked: Decode + Encode>(
-		&self, at: &GBlockId, inherent: &Inherent
-	) -> Result<Vec<Unchecked>, client::error::Error> {
-		self.call_api_at(at, "inherent_extrinsics", inherent)
-	}
-
-	fn check_inherents<Inherent: Decode + Encode, Error: Decode + Encode>(&self, at: &GBlockId, block: &GBlock, inherent: &Inherent) -> Result<Result<(), Error>, client::error::Error> {
-		self.call_api_at(at, "check_inherents", &(block, inherent))
-	}
-
-	fn random_seed(&self, at: &GBlockId) -> Result<<GBlock as BlockT>::Hash, client::error::Error> {
-		self.call_api_at(at, "random_seed", &())
-	}
-}
-
-#[cfg(feature = "std")]
-impl client::runtime_api::TaggedTransactionQueue<GBlock> for ClientWithApi {
-	fn validate_transaction(
-		&self,
-		at: &GBlockId,
-		utx: &<GBlock as BlockT>::Extrinsic
-	) -> Result<TransactionValidity, client::error::Error> {
-		self.call_api_at(at, "validate_transaction", utx)
-	}
-}
-
-#[cfg(feature = "std")]
-impl client::runtime_api::Metadata<GBlock> for ClientWithApi {
-	fn metadata(&self, at: &GBlockId) -> Result<OpaqueMetadata, client::error::Error> {
-		self.call_api_at(at, "metadata", &())
-	}
-}
-
-#[cfg(feature = "std")]
-impl ::primitives::parachain::ParachainHost<GBlock> for ClientWithApi {
-	fn validators(&self, at: &GBlockId) -> Result<Vec<primitives::AccountId>, client::error::Error> {
-		self.call_api_at(at, "validators", &())
-	}
-	fn duty_roster(&self, at: &GBlockId) -> Result<primitives::parachain::DutyRoster, client::error::Error> {
-		self.call_api_at(at, "calculate_duty_roster", &())
-	}
-	fn active_parachains(&self, at: &GBlockId) -> Result<Vec<parachain::Id>, client::error::Error> {
-		self.call_api_at(at, "active_parachains", &())
-	}
-	fn parachain_head(&self, at: &GBlockId, id: &parachain::Id) -> Result<Option<Vec<u8>>, client::error::Error> {
-		self.call_api_at(at, "parachain_head", &id)
-	}
-	fn parachain_code(&self, at: &GBlockId, id: &parachain::Id) -> Result<Option<Vec<u8>>, client::error::Error> {
-		self.call_api_at(at, "parachain_code", &id)
-	}
-}
-
 impl_runtime_apis! {
-	impl Core<Block> for Runtime {
+	impl client_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION
 		}
@@ -434,13 +272,13 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl Metadata for Runtime {
+	impl client_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
 			Runtime::metadata().into()
 		}
 	}
 
-	impl BlockBuilder<Block, InherentData, UncheckedExtrinsic, InherentData, InherentError> for Runtime {
+	impl block_builder_api::BlockBuilder<Block, primitives::InherentData> for Runtime {
 		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyResult {
 			Executive::apply_extrinsic(extrinsic)
 		}
@@ -449,12 +287,12 @@ impl_runtime_apis! {
 			Executive::finalise_block()
 		}
 
-		fn inherent_extrinsics(data: InherentData) -> Vec<UncheckedExtrinsic> {
-			data.create_inherent_extrinsics()
+		fn inherent_extrinsics(data: primitives::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
+			unimplemented!()
 		}
 
-		fn check_inherents(block: Block, data: InherentData) -> Result<(), InherentError> {
-			data.check_inherents(block)
+		fn check_inherents(block: Block, data: primitives::InherentData) -> Result<(), CheckInherentError> {
+			Runtime::check_inherents(block, data)
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
@@ -462,13 +300,13 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl TaggedTransactionQueue<Block> for Runtime {
+	impl client_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(tx: <Block as BlockT>::Extrinsic) -> TransactionValidity {
 			Executive::validate_transaction(tx)
 		}
 	}
 
-	impl ParachainHost for Runtime {
+	impl parachain::ParachainHost<Block> for Runtime {
 		fn validators() -> Vec<AccountId> {
 			Session::validators()
 		}

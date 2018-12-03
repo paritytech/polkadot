@@ -20,6 +20,7 @@ use rstd::prelude::*;
 use codec::Decode;
 
 use bitvec::BigEndian;
+use sr_primitives::CheckInherentError;
 use sr_primitives::{RuntimeString, traits::{
 	Extrinsic, Block as BlockT, Hash as HashT, BlakeTwo256, ProvideInherent,
 }};
@@ -418,7 +419,6 @@ impl<T: Trait> Module<T> {
 impl<T: Trait> ProvideInherent for Module<T> {
 	type Inherent = Vec<AttestedCandidate>;
 	type Call = Call<T>;
-	type Error = RuntimeString;
 
 	fn create_inherent_extrinsics(data: Self::Inherent) -> Vec<(u32, Self::Call)> {
 		vec![(T::SET_POSITION, Call::set_heads(data))]
@@ -426,7 +426,7 @@ impl<T: Trait> ProvideInherent for Module<T> {
 
 	fn check_inherent<Block: BlockT, F: Fn(&Block::Extrinsic) -> Option<&Self::Call>>(
 		block: &Block, _data: Self::Inherent, extract_function: &F
-	) -> ::rstd::result::Result<(), Self::Error> {
+	) -> ::rstd::result::Result<(), CheckInherentError> {
 		let has_heads = block
 			.extrinsics()
 			.get(T::SET_POSITION as usize)
@@ -437,7 +437,11 @@ impl<T: Trait> ProvideInherent for Module<T> {
 			}
 		});
 
-		if !has_heads { return Err("No valid parachains inherent in block".into()) }
+		if !has_heads {
+			return Err(CheckInherentError::Other(
+				"No valid parachains inherent in block".into()
+			));
+		}
 
 		Ok(())
 	}
