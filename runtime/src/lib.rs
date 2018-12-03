@@ -47,6 +47,7 @@ extern crate srml_consensus as consensus;
 extern crate srml_council as council;
 extern crate srml_democracy as democracy;
 extern crate srml_executive as executive;
+extern crate srml_grandpa as grandpa;
 extern crate srml_session as session;
 extern crate srml_staking as staking;
 extern crate srml_system as system;
@@ -73,8 +74,9 @@ use client::{
 use sr_primitives::{ApplyResult, CheckInherentError};
 use sr_primitives::transaction_validity::TransactionValidity;
 use sr_primitives::generic;
-use sr_primitives::traits::{Convert, BlakeTwo256, Block as BlockT};
+use sr_primitives::traits::{Convert, BlakeTwo256, Block as BlockT, DigestFor};
 use version::RuntimeVersion;
+use grandpa::fg_primitives::{self, ScheduledChange, id::*};
 use council::{motions as council_motions, voting as council_voting};
 #[cfg(feature = "std")]
 use council::seats as council_seats;
@@ -108,6 +110,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 		(TAGGED_TRANSACTION_QUEUE, 1),
 		(METADATA, 1),
 		(PARACHAIN_HOST, 1),
+		(GRANDPA_API, 1),
 	]),
 };
 
@@ -163,7 +166,7 @@ impl Convert<AccountId, SessionKey> for SessionKeyConversion {
 
 impl session::Trait for Runtime {
 	type ConvertAccountIdToSessionKey = SessionKeyConversion;
-	type OnSessionChange = Staking;
+	type OnSessionChange = (Staking, grandpa::SyncedAuthorities<Runtime>);
 	type Event = Event;
 }
 
@@ -197,6 +200,12 @@ impl treasury::Trait for Runtime {
 	type Event = Event;
 }
 
+impl grandpa::Trait for Runtime {
+	type SessionKey = SessionKey;
+	type Log = Log;
+	type Event = Event;
+}
+
 impl parachains::Trait for Runtime {
 	const SET_POSITION: u32 = PARACHAINS_SET_POSITION;
 }
@@ -215,6 +224,7 @@ construct_runtime!(
 		Session: session,
 		Staking: staking,
 		Democracy: democracy,
+		Grandpa: grandpa::{Module, Call, Storage, Config<T>, Log(), Event<T>},
 		Council: council::{Module, Call, Storage, Event<T>},
 		CouncilVoting: council_voting,
 		CouncilMotions: council_motions::{Module, Call, Storage, Event<T>, Origin},
@@ -328,6 +338,26 @@ impl_runtime_apis! {
 		}
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)
+		}
+	}
+
+	impl fg_primitives::GrandpaApi<Block> for Runtime {
+		fn grandpa_pending_change(digest: DigestFor<Block>)
+			-> Option<ScheduledChange<BlockNumber>>
+		{
+			for log in digest.logs.iter().filter_map(|l| match l {
+				Log(InternalLog::grandpa(grandpa_signal)) => Some(grandpa_signal),
+				_=> None
+			}) {
+				if let Some(change) = Grandpa::scrape_digest_change(log) {
+					return Some(change);
+				}
+			}
+			None
+		}
+
+		fn grandpa_authorities() -> Vec<(SessionKey, u64)> {
+			Grandpa::grandpa_authorities()
 		}
 	}
 }

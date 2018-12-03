@@ -23,6 +23,7 @@ srml-consensus = { git = "https://github.com/paritytech/substrate", branch = "rh
 srml-council = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent", default-features = false }
 srml-democracy = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent", default-features = false }
 srml-executive = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent", default-features = false }
+srml-grandpa = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent", default-features = false }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent", default-features = false }
 srml-session = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent", default-features = false }
 srml-staking = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent", default-features = false }
