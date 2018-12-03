@@ -178,7 +178,15 @@ dockerize:release:
     - helm template 
       --values ./scripts/kubernetes/values.yaml 
       --set image.tag=${DEPLOY_TAG}
-      ./scripts/kubernetes | kubectl apply -f - --dry-run=false
+      ./scripts/kubernetes | kubectl apply -f - --dry-run=true
+    - echo "# polkadot namespace"
+    - kubectl -n polkadot get all
+    - echo "# polkadot's nodes' external ip addresses:"
+    - kubectl get nodes -l node=polkadot
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range @.status.addresses[?(@.type=="ExternalIP")]}{.address}{"\n"}{end}'
+    - echo "# polkadots' nodes"
+    - kubectl -n polkadot get pods 
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.nodeName}{"\n"}{end}'
 
 
 
