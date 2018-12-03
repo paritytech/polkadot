@@ -17,12 +17,12 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-executor = { path = "../executor" }
 polkadot-network = { path = "../network"  }
-sr-io = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
-substrate-client = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
-substrate-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
-substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
-substrate-service = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
-substrate-telemetry = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
-substrate-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
+sr-io = { git = "https://github.com/paritytech/substrate" }
+sr-primitives = { git = "https://github.com/paritytech/substrate" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate" }
+substrate-client = { git = "https://github.com/paritytech/substrate" }
+substrate-consensus-aura = { git = "https://github.com/paritytech/substrate" }
+substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate" }
+substrate-service = { git = "https://github.com/paritytech/substrate" }
+substrate-telemetry = { git = "https://github.com/paritytech/substrate" }
+substrate-transaction-pool = { git = "https://github.com/paritytech/substrate" }
