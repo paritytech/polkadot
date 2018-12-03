@@ -60,30 +60,20 @@ extern crate substrate_keyring as keyring;
 
 mod parachains;
 
-#[cfg(feature = "std")]
-use codec::{Encode, Decode};
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, SessionKey, Signature,
 	parachain, parachain::id::PARACHAIN_HOST,
 };
-#[cfg(feature = "std")]
-use primitives::Block as GBlock;
 use client::{
 	block_builder::api as block_builder_api,
 	runtime_api::{self as client_api, id::*},
 };
-#[cfg(feature = "std")]
-use client::runtime_api::ApiExt;
 use sr_primitives::{ApplyResult, CheckInherentError};
 use sr_primitives::transaction_validity::TransactionValidity;
 use sr_primitives::generic;
 use sr_primitives::traits::{Convert, BlakeTwo256, Block as BlockT};
-#[cfg(feature = "std")]
-use sr_primitives::traits::ApiRef;
-#[cfg(feature = "std")]
-use substrate_primitives::AuthorityId;
 use version::RuntimeVersion;
 use council::{motions as council_motions, voting as council_voting};
 #[cfg(feature = "std")]
@@ -288,7 +278,24 @@ impl_runtime_apis! {
 		}
 
 		fn inherent_extrinsics(data: primitives::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
-			unimplemented!()
+			use sr_primitives::traits::ProvideInherent;
+
+			let mut inherent = Vec::new();
+
+			inherent.extend(
+				Timestamp::create_inherent_extrinsics(data.timestamp)
+					.into_iter()
+					.map(|v| (v.0, UncheckedExtrinsic::new_unsigned(Call::Timestamp(v.1))))
+			);
+
+			inherent.extend(
+				Parachains::create_inherent_extrinsics(data.parachains)
+					.into_iter()
+					.map(|v| (v.0, UncheckedExtrinsic::new_unsigned(Call::Parachains(v.1))))
+			);
+
+			inherent.as_mut_slice().sort_unstable_by_key(|v| v.0);
+			inherent.into_iter().map(|v| v.1).collect()
 		}
 
 		fn check_inherents(block: Block, data: primitives::InherentData) -> Result<(), CheckInherentError> {

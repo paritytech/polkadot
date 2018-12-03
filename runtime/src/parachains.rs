@@ -21,9 +21,9 @@ use codec::Decode;
 
 use bitvec::BigEndian;
 use sr_primitives::CheckInherentError;
-use sr_primitives::{RuntimeString, traits::{
+use sr_primitives::traits::{
 	Extrinsic, Block as BlockT, Hash as HashT, BlakeTwo256, ProvideInherent,
-}};
+};
 use primitives::parachain::{Id, Chain, DutyRoster, AttestedCandidate, Statement};
 use {system, session};
 
