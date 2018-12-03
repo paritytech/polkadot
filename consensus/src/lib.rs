@@ -807,6 +807,18 @@ impl<T> consensus::BlockImport<Block> for Wrapper<T> where
 	}
 }
 
+impl<T> ChainHead<Block> for Wrapper<T> where
+	T: ChainHead<Block>,
+{
+	fn best_block_header(&self) -> ::client::error::Result<Header> {
+		self.0.best_block_header()
+	}
+
+	fn leaves(&self) -> ::client::error::Result<Vec<Hash>> {
+		self.0.leaves()
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
