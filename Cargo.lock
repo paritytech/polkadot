@@ -2081,6 +2081,7 @@ dependencies = [
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate?branch=rh-generic-inherent)",
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate?branch=rh-generic-inherent)",
  "substrate-consensus-aura 0.1.0 (git+https://github.com/paritytech/substrate?branch=rh-generic-inherent)",
+ "substrate-finality-grandpa 0.1.0 (git+https://github.com/paritytech/substrate?branch=rh-generic-inherent)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate?branch=rh-generic-inherent)",
  "substrate-service 0.3.0 (git+https://github.com/paritytech/substrate?branch=rh-generic-inherent)",
  "substrate-telemetry 0.3.0 (git+https://github.com/paritytech/substrate?branch=rh-generic-inherent)",

@@ -22,6 +22,7 @@ sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "rh-
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
 substrate-client = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
 substrate-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
+substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
 substrate-service = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
 substrate-telemetry = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }
 substrate-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rh-generic-inherent" }

@@ -17,8 +17,10 @@
 //! Polkadot chain configurations.
 
 use primitives::{AuthorityId, ed25519};
-use polkadot_runtime::{GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig,
-	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill, CouncilVotingConfig};
+use polkadot_runtime::{
+	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig,
+	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill, CouncilVotingConfig, GrandpaConfig
+};
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";
@@ -80,6 +82,10 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			launch_period: 12 * 60 * 24,	// 1 day per public referendum
 			voting_period: 12 * 60 * 24 * 3,	// 3 days to discuss & vote on an active referendum
 			minimum_deposit: 5000,	// 12000 as the minimum deposit for a referendum
+			_genesis_phantom_data: Default::default(),
+		}),
+		grandpa: Some(GrandpaConfig {
+			authorities: initial_authorities.clone().into_iter().map(|k| (k, 1)).collect(),
 			_genesis_phantom_data: Default::default(),
 		}),
 		council_seats: Some(CouncilSeatsConfig {
@@ -173,6 +179,10 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
 			launch_period: 9,
 			voting_period: 18,
 			minimum_deposit: 10,
+			_genesis_phantom_data: Default::default(),
+		}),
+		grandpa: Some(GrandpaConfig {
+			authorities: initial_authorities.clone().into_iter().map(|k| (k, 1)).collect(),
 			_genesis_phantom_data: Default::default(),
 		}),
 		council_seats: Some(CouncilSeatsConfig {

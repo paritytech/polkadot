@@ -30,6 +30,7 @@ extern crate substrate_client as client;
 #[macro_use]
 extern crate substrate_service as service;
 extern crate substrate_consensus_aura as aura;
+extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
 extern crate tokio;
 
@@ -76,6 +77,14 @@ pub struct CustomConfiguration {
 	/// Set to `Some` with a collator `AccountId` and desired parachain
 	/// if the network protocol should be started in collator mode.
 	pub collating_for: Option<(AccountId, parachain::Id)>,
+
+	/// Intermediate state during setup. Will be removed in future. Set to `None`.
+	// FIXME: rather than putting this on the config, let's have an actual intermediate setup state
+	// https://github.com/paritytech/substrate/issues/1134
+	pub grandpa_import_setup: Option<(
+		Arc<grandpa::BlockImportForService<Factory>>,
+		grandpa::LinkHalfForService<Factory>
+	)>,
 }
 
 /// Chain API type for the transaction pool.
@@ -147,11 +156,29 @@ construct_service_factory! {
 		Genesis = GenesisConfig,
 		Configuration = CustomConfiguration,
 		FullService = FullComponents<Self>
-			{ |config: FactoryFullConfiguration<Self>, executor: TaskExecutor|
+			{ |config: FactoryFullConfiguration<Self>, executor: TaskExecutor| {
 				FullComponents::<Factory>::new(config, executor)
-			},
-		AuthoritySetup = { |service: Self::FullService, executor: TaskExecutor, key: Arc<ed25519::Pair>| {
+			} },
+		AuthoritySetup = { |mut service: Self::FullService, executor: TaskExecutor, key: Arc<ed25519::Pair>| {
 				use polkadot_network::consensus::ConsensusNetwork;
+
+				let (block_import, link_half) = service.config.custom.grandpa_import_setup.take()
+					.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
+
+				{
+					info!("Running Grandpa session as Authority {}", key.public());
+					let grandpa_fut = grandpa::run_grandpa(
+						grandpa::Config {
+							gossip_duration: Duration::new(4, 0), // FIXME: make this available through chainspec?
+							local_key: Some(key.clone()),
+							name: Some(service.config.name.clone())
+						},
+						link_half,
+						grandpa::NetworkBridge::new(service.network())
+					)?;
+
+					executor.spawn(grandpa_fut);
+				}
 
 				let extrinsic_store = {
 					use std::path::PathBuf;
@@ -195,16 +222,21 @@ construct_service_factory! {
 			}},
 		LightService = LightComponents<Self>
 			{ |config, executor| <LightComponents<Factory>>::new(config, executor) },
-		FullImportQueue = AuraImportQueue<Self::Block, FullClient<Self>, BlockVerifier>
-			{ |config, client| Ok(import_queue(
-				AuraConfig {
-					local_key: None,
-					slot_duration: 5
-				},
-				client,
-				BlockVerifier,
-			))
-			},
+		FullImportQueue = AuraImportQueue<Self::Block, grandpa::BlockImportForService<Self>, BlockVerifier>
+			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
+				let (block_import, link_half) = grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>>(client.clone(), client)?;
+				let block_import = Arc::new(block_import);
+
+				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
+				Ok(import_queue(
+					AuraConfig {
+						local_key: None,
+						slot_duration: 5
+					},
+					block_import,
+					BlockVerifier,
+				))
+			}},
 		LightImportQueue = AuraImportQueue<Self::Block, LightClient<Self>, BlockVerifier>
 			{ |config, client| Ok(import_queue(
 				AuraConfig {
