@@ -9,11 +9,6 @@ spec:
     matchLabels:
       app: polkadot
   serviceName: polkadot
-  {{- if .Values.rbac.enabled }}
-  serviceAccountName: {{ .Values.rbac.name }}
-  {{- else }}
-  serviceAccountName: default
-  {{- end }}
   replicas: {{ .Values.nodes.replicas }}
   updateStrategy:
     type: RollingUpdate
@@ -23,6 +18,11 @@ spec:
       labels:
         app: polkadot
     spec:
+      {{- if .Values.rbac.enable }}
+      serviceAccountName: {{ .Values.rbac.name }}
+      {{- else }}
+      serviceAccountName: default
+      {{- end }}
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
