@@ -178,7 +178,7 @@ dockerize:release:
     - helm template 
       --values ./scripts/kubernetes/values.yaml 
       --set image.tag=${DEPLOY_TAG}
-      ./scripts/kubernetes | kubectl apply -f - --dry-run=true
+      ./scripts/kubernetes | kubectl apply -f - --dry-run=false
 
 
 
