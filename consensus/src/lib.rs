@@ -275,8 +275,6 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	)
 		-> Result<Arc<AttestationTracker>, Error>
 	{
-		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
-
 		let mut live_instances = self.live_instances.lock();
 		if let Some(tracker) = live_instances.get(&parent_hash) {
 			return Ok(tracker.clone());
@@ -284,10 +282,6 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		let id = BlockId::hash(parent_hash);
 		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
-		let random_seed = self.client.runtime_api().random_seed(&id)?;
-		let _random_seed = BlakeTwo256::hash(random_seed.as_ref());
-
-		let _validators = self.client.runtime_api().validators(&id)?;
 
 		let (group_info, local_duty) = make_group_info(
 			duty_roster,
@@ -302,7 +296,6 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		debug!(target: "consensus", "Active parachains: {:?}", active_parachains);
 
-		let _n_parachains = active_parachains.len();
 		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
 			authorities,
@@ -642,7 +635,7 @@ impl ProposalTiming {
 		//
 		// this interval is just meant to produce periodic task wakeups
 		// that lead to the `dynamic_inclusion` getting updated as necessary.
-		if let Async::Ready(x) = self.attempt_propose.poll().map_err(ErrorKind::Timer)? {
+		while let Async::Ready(x) = self.attempt_propose.poll().map_err(ErrorKind::Timer)? {
 			x.expect("timer still alive; intervals never end; qed");
 		}
 
