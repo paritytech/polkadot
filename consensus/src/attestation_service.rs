@@ -56,41 +56,34 @@ fn prune_unneeded_availability<P>(client: Arc<P>, extrinsic_store: ExtrinsicStor
 	use polkadot_primitives::BlockId;
 
 	enum NotifyError {
-		NoBody,
 		BodyFetch(::client::error::Error),
-		UnexpectedFormat,
 	}
 
 	impl NotifyError {
 		fn log(&self, hash: &::polkadot_primitives::Hash) {
 			match *self {
-				NotifyError::NoBody => warn!("No block body for imported block {:?}", hash),
 				NotifyError::BodyFetch(ref err) => warn!("Failed to fetch block body for imported block {:?}: {:?}", hash, err),
-				NotifyError::UnexpectedFormat => warn!("Consensus outdated: Block {:?} has unexpected body format", hash),
 			}
 		}
 	}
 
 	client.finality_notification_stream()
 		.for_each(move |notification| {
-			use polkadot_runtime::{Call, ParachainsCall};
+			use polkadot_runtime::{Call, ParachainsCall, UncheckedExtrinsic as RuntimeExtrinsic};
 
 			let hash = notification.hash;
 			let parent_hash = notification.header.parent_hash;
-			let runtime_block = client.block_body(&BlockId::hash(hash))
-				.map_err(NotifyError::BodyFetch)
-				.and_then(|maybe_body| maybe_body.ok_or(NotifyError::NoBody))
-				.map(|extrinsics| Block { header: notification.header, extrinsics })
-				.map(|b: Block| ::polkadot_runtime::Block::decode(&mut b.encode().as_slice()))
-				.and_then(|maybe_block| maybe_block.ok_or(NotifyError::UnexpectedFormat));
+			let extrinsics = client.block_body(&BlockId::hash(hash))
+				.map_err(NotifyError::BodyFetch);
 
-			let runtime_block = match runtime_block {
+			let extrinsics = match extrinsics {
 				Ok(r) => r,
 				Err(e) => { e.log(&hash); return Ok(()) }
 			};
 
-			let candidate_hashes = match runtime_block.extrinsics
+			let candidate_hashes = match extrinsics
 				.iter()
+				.filter_map(|ex| RuntimeExtrinsic::decode(&mut ex.encode().as_slice()))
 				.filter_map(|ex| match ex.function {
 					Call::Parachains(ParachainsCall::set_heads(ref heads)) =>
 						Some(heads.iter().map(|c| c.candidate.hash()).collect()),
