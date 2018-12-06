@@ -1,7 +1,7 @@
 # .gitlab-ci.yml
 #
 # pipelines can be triggered manually in the web
-# setting POLKADOT_BUILD to v0.2 will result in a poc2 build
+# setting POLKADOT_BRANCH to v0.2 will result in a poc2 build
 # setting DEPLOY_TAG will only deploy the tagged image
 
 
@@ -21,7 +21,6 @@ variables:
   CI_SERVER_NAME:                  "GitLab CI"
   CARGO_HOME:                      "${CI_PROJECT_DIR}/.cargo"
   SUBSTRATE_REPO:                  "https://github.com/paritytech/substrate.git"
-  # POLKADOT_BRANCH:                 "v0.2"
 
 
 
@@ -40,10 +39,6 @@ cache:
     - target/release/
 
 
-# not needed atm
-# .determine_version: &determine_version |
-#   export VERSION="$(sed -r -n '1,/^version/s/^version = "([^"]+)".*$/\1/p' Cargo.toml)";
-#   echo "Version = " $VERSION
 
 # disabled as there are bugs
 # before_script:
@@ -119,12 +114,7 @@ dockerize:release:
       - $DEPLOY_TAG
   tags:
     - shell
-  # image: docker:stable
-  # services:
-  #   - docker:dind
   variables:
-    # DOCKER_HOST: tcp://localhost:2375
-    # DOCKER_DRIVER: overlay2
     DOCKERFILE: scripts/docker/Dockerfile
     CONTAINER_IMAGE: parity/polkadot
   before_script:
@@ -136,9 +126,6 @@ dockerize:release:
     - export VERSION
     - echo "Polkadot version = ${VERSION}"
   script:
-    # - CONTAINER_TAG="${CI_COMMIT_TAG:-latest}"
-    # - docker build --tag $CONTAINER_IMAGE:$CI_BUILD_REF --tag $CONTAINER_IMAGE:$CONTAINER_TAG -f $DOCKERFILE ./target/release/
-    # - docker push $CONTAINER_IMAGE:$CONTAINER_TAG
     - test -z "${VERSION}" && exit 1
     - docker build --tag $CONTAINER_IMAGE:$VERSION --tag $CONTAINER_IMAGE:latest -f $DOCKERFILE ./target/release/
     - docker push $CONTAINER_IMAGE:$VERSION
@@ -173,7 +160,6 @@ dockerize:release:
     - test "${DEPLOY_TAG}" || ( echo "Neither DEPLOY_TAG nor VERSION information available"; exit 1 )
   script:
     - echo "Polkadot version = ${DEPLOY_TAG}"
-    # - cat scripts/kubernetes/deployment.tmpl.yaml | envsubst | kubectl apply -f -
     # or use helm to render the template
     - helm template 
       --values ./scripts/kubernetes/values.yaml 
