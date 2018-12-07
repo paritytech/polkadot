@@ -1,0 +1,37 @@
+# set tag manually --set image.tag=latest
+image:
+  repository: parity/polkadot
+  tag: latest
+  pullPolicy: Always
+  basepath: /polkadot
+
+
+# if set to true a service account for polkadot will be created
+rbac:
+  enable: true
+  name: polkadot
+
+
+nodes:
+  replicas: 2
+  args:
+    - --chain
+    - krummelanke
+    # serve rpc within the local network
+    # - fenced off the world via firewall
+    # - used for health checks
+    - --rpc-external
+    - --ws-external
+    # - --log
+    # - sub-libp2p=trace
+    # - --validator
+    # - --key
+    # - key_name
+
+
+
+# maybe adopt resource limits here to the nodes of the pool
+# resources:
+#   memory: "5Gi"
+#   cpu: "1.5"
+

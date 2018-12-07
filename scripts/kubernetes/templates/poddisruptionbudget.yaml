@@ -1,0 +1,10 @@
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: polkadot
+spec:
+  selector:
+    matchLabels:
+      app: polkadot
+  maxUnavailable: 1
+
