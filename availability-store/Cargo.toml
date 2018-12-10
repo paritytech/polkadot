@@ -10,6 +10,6 @@ parking_lot = "0.4"
 log = "0.3"
 parity-codec = "2.1"
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
-kvdb = { git = "https://github.com/paritytech/parity-common.git" }
-kvdb-rocksdb = { git = "https://github.com/paritytech/parity-common.git" }
-kvdb-memorydb = { git = "https://github.com/paritytech/parity-common.git" }
+kvdb = { git = "https://github.com/paritytech/parity-common", rev="616b40150ded71f57f650067fcbc5c99d7c343e6" }
+kvdb-rocksdb = { git = "https://github.com/paritytech/parity-common", rev="616b40150ded71f57f650067fcbc5c99d7c343e6" }
+kvdb-memorydb = { git = "https://github.com/paritytech/parity-common", rev="616b40150ded71f57f650067fcbc5c99d7c343e6" }

@@ -69,14 +69,14 @@ use primitives::{
 };
 use client::{
 	block_builder::api as block_builder_api,
-	runtime_api::{self as client_api, id::*},
+	runtime_api as client_api,
 };
 use sr_primitives::{ApplyResult, CheckInherentError};
 use sr_primitives::transaction_validity::TransactionValidity;
 use sr_primitives::generic;
 use sr_primitives::traits::{Convert, BlakeTwo256, Block as BlockT, DigestFor};
 use version::RuntimeVersion;
-use grandpa::fg_primitives::{self, ScheduledChange, id::*};
+use grandpa::fg_primitives::{self, ScheduledChange};
 use council::{motions as council_motions, voting as council_voting};
 #[cfg(feature = "std")]
 use council::seats as council_seats;
@@ -100,18 +100,12 @@ const NOTE_OFFLINE_POSITION: u32 = 2; // this should be reintroduced
 
 /// Runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: ver_str!("polkadot"),
-	impl_name: ver_str!("parity-polkadot"),
+	spec_name: create_runtime_str!("polkadot"),
+	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 1,
 	spec_version: 101,
 	impl_version: 0,
-	apis: apis_vec!([
-		(BLOCK_BUILDER, 1),
-		(TAGGED_TRANSACTION_QUEUE, 1),
-		(METADATA, 1),
-		(PARACHAIN_HOST, 1),
-		(GRANDPA_API, 1),
-	]),
+	apis: RUNTIME_API_VERSIONS,
 };
 
 /// Native version.
@@ -148,7 +142,10 @@ impl consensus::Trait for Runtime {
 	const NOTE_OFFLINE_POSITION: u32 = NOTE_OFFLINE_POSITION;
 	type Log = Log;
 	type SessionKey = SessionKey;
-	type OnOfflineValidator = Staking;
+
+	// the aura module handles offline-reports internally
+	// rather than using an explicit report system.
+	type InherentOfflineReport = ();
 }
 
 impl timestamp::Trait for Runtime {
