@@ -27,6 +27,7 @@ extern crate bitvec;
 extern crate parity_codec_derive;
 extern crate parity_codec as codec;
 
+extern crate substrate_consensus_aura_primitives as consensus_aura;
 extern crate substrate_primitives;
 #[macro_use]
 extern crate substrate_client as client;
@@ -42,6 +43,7 @@ extern crate sr_primitives;
 
 #[macro_use]
 extern crate srml_support;
+extern crate srml_aura as aura;
 extern crate srml_balances as balances;
 extern crate srml_consensus as consensus;
 extern crate srml_council as council;
@@ -65,12 +67,13 @@ use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, SessionKey, Signature,
-	parachain, parachain::id::PARACHAIN_HOST,
+	parachain,
 };
 use client::{
 	block_builder::api as block_builder_api,
 	runtime_api as client_api,
 };
+use consensus_aura::api as aura_api;
 use sr_primitives::{ApplyResult, CheckInherentError};
 use sr_primitives::transaction_validity::TransactionValidity;
 use sr_primitives::generic;
@@ -130,6 +133,10 @@ impl system::Trait for Runtime {
 	type Log = Log;
 }
 
+impl aura::Trait for Runtime {
+	type HandleReport = aura::StakingSlasher<Runtime>;
+}
+
 impl balances::Trait for Runtime {
 	type Balance = Balance;
 	type AccountIndex = AccountIndex;
@@ -151,6 +158,7 @@ impl consensus::Trait for Runtime {
 impl timestamp::Trait for Runtime {
 	const TIMESTAMP_SET_POSITION: u32 = TIMESTAMP_SET_POSITION;
 	type Moment = u64;
+	type OnTimestampSet = Aura;
 }
 
 /// Session key conversion.
@@ -214,6 +222,7 @@ construct_runtime!(
 		InherentData = primitives::InherentData
 	{
 		System: system::{default, Log(ChangesTrieRoot)},
+		Aura: aura::{Module},
 		Timestamp: timestamp::{Module, Call, Storage, Config<T>, Inherent},
 		// consensus' Inherent is not provided because it assumes instant-finality blocks.
 		Consensus: consensus::{Module, Call, Storage, Config<T>, Log(AuthoritiesChange) },
@@ -227,7 +236,7 @@ construct_runtime!(
 		CouncilMotions: council_motions::{Module, Call, Storage, Event<T>, Origin},
 		CouncilSeats: council_seats::{Config<T>},
 		Treasury: treasury,
-		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
+		Parachains: parachains::{Module, Call, Storage, Config, Inherent},
 	}
 );
 
@@ -355,6 +364,12 @@ impl_runtime_apis! {
 
 		fn grandpa_authorities() -> Vec<(SessionKey, u64)> {
 			Grandpa::grandpa_authorities()
+		}
+	}
+
+	impl aura_api::AuraApi<Block> for Runtime {
+		fn slot_duration() -> u64 {
+			Aura::slot_duration()
 		}
 	}
 }
