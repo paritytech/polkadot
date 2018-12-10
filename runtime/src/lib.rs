@@ -236,7 +236,7 @@ construct_runtime!(
 		CouncilMotions: council_motions::{Module, Call, Storage, Event<T>, Origin},
 		CouncilSeats: council_seats::{Config<T>},
 		Treasury: treasury,
-		Parachains: parachains::{Module, Call, Storage, Config, Inherent},
+		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
 	}
 );
 

@@ -17,6 +17,7 @@
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
 use rstd::prelude::*;
+use rstd::marker::PhantomData;
 use codec::Decode;
 
 use bitvec::BigEndian;
@@ -54,7 +55,8 @@ decl_storage! {
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(Id, Vec<u8>, Vec<u8>)>;
-		build(|storage: &mut sr_primitives::StorageMap, _: &mut ChildrenStorageMap, config: &GenesisConfig| {
+		config(_phdata): PhantomData<T>;
+		build(|storage: &mut sr_primitives::StorageMap, _: &mut ChildrenStorageMap, config: &GenesisConfig<T>| {
 			use codec::Encode;
 
 			let mut p = config.parachains.clone();
@@ -63,11 +65,11 @@ decl_storage! {
 
 			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-			storage.insert(GenesisConfig::hash(Parachains::key()).to_vec(), only_ids.encode());
+			storage.insert(Self::hash(<Parachains<T>>::key()).to_vec(), only_ids.encode());
 
 			for (id, code, genesis) in p {
-				let code_key = GenesisConfig::hash(&Code::key_for(&id)).to_vec();
-				let head_key = GenesisConfig::hash(&Heads::key_for(&id)).to_vec();
+				let code_key = Self::hash(&<Code<T>>::key_for(&id)).to_vec();
+				let head_key = Self::hash(&<Heads<T>>::key_for(&id)).to_vec();
 
 				storage.insert(code_key, code.encode());
 				storage.insert(head_key, genesis.encode());
