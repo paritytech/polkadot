@@ -17,7 +17,6 @@
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
 use rstd::prelude::*;
-use rstd::marker::PhantomData;
 use codec::Decode;
 
 use bitvec::BigEndian;
@@ -33,6 +32,9 @@ use srml_support::dispatch::Result;
 
 #[cfg(any(feature = "std", test))]
 use sr_primitives::{self, ChildrenStorageMap};
+
+#[cfg(any(feature = "std", test))]
+use rstd::marker::PhantomData;
 
 use system::ensure_inherent;
 

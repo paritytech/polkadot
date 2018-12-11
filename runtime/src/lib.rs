@@ -36,7 +36,6 @@ extern crate substrate_client as client;
 extern crate sr_std as rstd;
 #[cfg(test)]
 extern crate sr_io;
-#[macro_use]
 extern crate sr_version as version;
 #[macro_use]
 extern crate sr_primitives;
@@ -315,7 +314,26 @@ impl_runtime_apis! {
 		}
 
 		fn check_inherents(block: Block, data: primitives::InherentData) -> Result<(), CheckInherentError> {
-			Runtime::check_inherents(block, data)
+			let expected_slot = data.aura_expected_slot;
+
+			// draw timestamp out from extrinsics.
+			let set_timestamp = block.extrinsics()
+				.get(TIMESTAMP_SET_POSITION as usize)
+				.and_then(|xt: &UncheckedExtrinsic| match xt.function {
+					Call::Timestamp(TimestampCall::set(ref t)) => Some(t.clone()),
+					_ => None,
+				})
+				.ok_or_else(|| CheckInherentError::Other("No valid timestamp in block.".into()))?;
+
+			// take the "worse" result of normal verification and the timestamp vs. seal
+			// check.
+			CheckInherentError::combine_results(
+				Runtime::check_inherents(block, data),
+				|| {
+					Aura::verify_inherent(set_timestamp.into(), expected_slot)
+						.map_err(|s| CheckInherentError::Other(s.into()))
+				},
+			)
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {

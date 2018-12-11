@@ -1979,7 +1979,6 @@ dependencies = [
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "srml-support 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
- "substrate-consensus-aura 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-consensus-common 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-finality-grandpa 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-keyring 0.1.0 (git+https://github.com/paritytech/substrate)",

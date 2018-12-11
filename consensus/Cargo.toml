@@ -16,7 +16,6 @@ polkadot-parachain = { path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-statement-table = { path = "../statement-table" }
-substrate-consensus-aura = { git = "https://github.com/paritytech/substrate" }
 substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate" }
 substrate-consensus-common = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }

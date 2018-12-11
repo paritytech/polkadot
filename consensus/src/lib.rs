@@ -45,7 +45,6 @@ extern crate substrate_client as client;
 extern crate exit_future;
 extern crate tokio;
 extern crate substrate_consensus_common as consensus;
-extern crate substrate_consensus_aura as aura;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
 
@@ -65,18 +64,17 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
-use aura::ExtraVerification;
 use client::{BlockchainEvents, ChainHead, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
 use client::runtime_api::Core;
-use codec::{Decode, Encode};
+use codec::Encode;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{
 	Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey, InherentData
 };
-use polkadot_primitives::{Compact, UncheckedExtrinsic};
+use polkadot_primitives::Compact;
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::{AttestedCandidate, ParachainHost, Statement as PrimitiveStatement};
 use primitives::{AuthorityId, ed25519};
@@ -563,55 +561,6 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	}
 }
 
-/// Does verification before importing blocks.
-/// Should be used for further verification in aura.
-pub struct BlockVerifier;
-
-impl ExtraVerification<Block> for BlockVerifier {
-	type Verified = Either<
-		future::FutureResult<(), String>,
-		Box<dyn Future<Item=(), Error=String>>,
-	>;
-
-	fn verify(&self, _header: &Header, body: Option<&[UncheckedExtrinsic]>) -> Self::Verified {
-		use polkadot_runtime::{Call, UncheckedExtrinsic, TimestampCall};
-
-		let body = match body {
-			None => return Either::A(future::ok(())),
-			Some(body) => body,
-		};
-
-		// TODO: reintroduce or revisit necessaity for includability tracker.
-		let timestamp = current_timestamp();
-
-		let maybe_in_block = body.iter()
-			.filter_map(|ex| {
-				let encoded = ex.encode();
-				let runtime_ex = UncheckedExtrinsic::decode(&mut &encoded[..])?;
-				match runtime_ex.function {
-					Call::Timestamp(TimestampCall::set(t)) => Some(t),
-					_ => None,
-				}
-			})
-			.next();
-
-		let timestamp_in_block = match maybe_in_block {
-			None => return Either::A(future::ok(())),
-			Some(t) => t,
-		};
-
-		// we wait until the block timestamp is earlier than current.
-		if timestamp.0 < timestamp_in_block.0 {
-			let diff_secs = timestamp_in_block.0 - timestamp.0;
-			let delay = Delay::new(Instant::now() + Duration::from_secs(diff_secs))
-				.map_err(move |e| format!("Error waiting for {} seconds: {:?}", diff_secs, e));
-			Either::B(Box::new(delay))
-		} else {
-			Either::A(future::ok(()))
-		}
-	}
-}
-
 fn current_timestamp() -> Timestamp {
 	time::SystemTime::now().duration_since(time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
@@ -683,6 +632,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let inherent_data = InherentData {
 			timestamp,
 			parachains: candidates,
+			aura_expected_slot: 0, // not required here.
 		};
 
 		let runtime_api = self.client.runtime_api();

@@ -115,4 +115,6 @@ pub struct InherentData {
 	pub timestamp: u64,
 	/// Parachain heads update. This contains fully-attested candidates.
 	pub parachains: Vec<::parachain::AttestedCandidate>,
+	/// Expected slot for aura authorship.
+	pub aura_expected_slot: u64,
 }
