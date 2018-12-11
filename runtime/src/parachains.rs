@@ -454,7 +454,6 @@ impl<T: Trait> ProvideInherent for Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use rstd::marker::PhantomData;
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use sr_primitives::{generic, BuildStorage};
@@ -472,7 +471,7 @@ mod tests {
 	impl consensus::Trait for Test {
 		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type SessionKey = SessionKey;
-		type OnOfflineValidator = ();
+		type InherentOfflineReport = ();
 		type Log = ::Log;
 	}
 	impl system::Trait for Test {
@@ -495,6 +494,7 @@ mod tests {
 	impl timestamp::Trait for Test {
 		const TIMESTAMP_SET_POSITION: u32 = 0;
 		type Moment = u64;
+		type OnTimestampSet = ();
 	}
 	impl Trait for Test {
 		const SET_POSITION: u32 = 0;
@@ -518,16 +518,14 @@ mod tests {
 		t.extend(consensus::GenesisConfig::<Test>{
 			code: vec![],
 			authorities: authority_keys.iter().map(|k| k.to_raw_public().into()).collect(),
-			_genesis_phantom_data: PhantomData,
 		}.build_storage().unwrap().0);
 		t.extend(session::GenesisConfig::<Test>{
 			session_length: 1000,
 			validators: authority_keys.iter().map(|k| k.to_raw_public().into()).collect(),
-			_genesis_phantom_data: PhantomData,
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			parachains: parachains,
-			_genesis_phantom_data: PhantomData,
+			_phdata: Default::default(),
 		}.build_storage().unwrap().0);
 		t.into()
 	}
