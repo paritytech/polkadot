@@ -45,7 +45,6 @@ extern crate substrate_client as client;
 extern crate exit_future;
 extern crate tokio;
 extern crate substrate_consensus_common as consensus;
-extern crate substrate_consensus_aura as aura;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
 
@@ -65,14 +64,17 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
-use aura::ExtraVerification;
+use client::{BlockchainEvents, ChainHead, BlockBody};
 use client::blockchain::HeaderBackend;
-use client::block_builder::api::BlockBuilder;
-use codec::{Decode, Encode};
+use client::block_builder::api::BlockBuilder as BlockBuilderApi;
+use client::runtime_api::Core;
+use codec::Encode;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
-use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey};
-use polkadot_primitives::{Compact, UncheckedExtrinsic};
+use polkadot_primitives::{
+	Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey, InherentData
+};
+use polkadot_primitives::Compact;
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::{AttestedCandidate, ParachainHost, Statement as PrimitiveStatement};
 use primitives::{AuthorityId, ed25519};
@@ -81,6 +83,7 @@ use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
 
+use attestation_service::ServiceHandle;
 use futures::prelude::*;
 use futures::future::{self, Either};
 use collation::CollationFetch;
@@ -89,12 +92,11 @@ use dynamic_inclusion::DynamicInclusion;
 pub use self::collation::{validate_collation, Collators};
 pub use self::error::{ErrorKind, Error};
 pub use self::shared_table::{SharedTable, StatementProducer, ProducedStatements, Statement, SignedStatement, GenericStatement};
-pub use service::Service;
 
+mod attestation_service;
 mod dynamic_inclusion;
 mod evaluation;
 mod error;
-mod service;
 mod shared_table;
 
 pub mod collation;
@@ -255,7 +257,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilder<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 {
@@ -271,8 +273,6 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	)
 		-> Result<Arc<AttestationTracker>, Error>
 	{
-		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
-
 		let mut live_instances = self.live_instances.lock();
 		if let Some(tracker) = live_instances.get(&parent_hash) {
 			return Ok(tracker.clone());
@@ -280,10 +280,6 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		let id = BlockId::hash(parent_hash);
 		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
-		let random_seed = self.client.runtime_api().random_seed(&id)?;
-		let _random_seed = BlakeTwo256::hash(random_seed.as_ref());
-
-		let _validators = self.client.runtime_api().validators(&id)?;
 
 		let (group_info, local_duty) = make_group_info(
 			duty_roster,
@@ -298,7 +294,6 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		debug!(target: "consensus", "Active parachains: {:?}", active_parachains);
 
-		let _n_parachains = active_parachains.len();
 		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
 			authorities,
@@ -358,22 +353,55 @@ struct AttestationTracker {
 }
 
 /// Polkadot proposer factory.
-struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
+pub struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
 	parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
+	_service_handle: ServiceHandle,
 }
 
 impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
+	C: Collators + Send + Sync + 'static,
+	<C::Collation as IntoFuture>::Future: Send + 'static,
+	P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
+	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block, InherentData>,
+	N: Network + Send + Sync + 'static,
+	N::TableRouter: Send + 'static,
 	TxApi: PoolChainApi,
 {
 	/// Create a new proposer factory.
-	fn new(
-		parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
+	pub fn new(
+		client: Arc<P>,
+		network: N,
+		collators: C,
 		transaction_pool: Arc<Pool<TxApi>>,
+		thread_pool: TaskExecutor,
+		parachain_empty_duration: Duration,
+		key: Arc<ed25519::Pair>,
+		extrinsic_store: ExtrinsicStore,
 	) -> Self {
+		let parachain_consensus = Arc::new(ParachainConsensus {
+			client: client.clone(),
+			network,
+			collators,
+			handle: thread_pool.clone(),
+			extrinsic_store: extrinsic_store.clone(),
+			parachain_empty_duration,
+			live_instances: Mutex::new(HashMap::new()),
+		});
+
+		let service_handle = ::attestation_service::start(
+			client,
+			parachain_consensus.clone(),
+			thread_pool,
+			key,
+			extrinsic_store,
+		);
+
 		ProposerFactory {
 			parachain_consensus,
 			transaction_pool,
+			_service_handle: service_handle,
 		}
 	}
 }
@@ -383,7 +411,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilder<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 {
@@ -495,7 +523,7 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilder<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
 {
 	type Error = Error;
 	type Create = Either<
@@ -533,55 +561,6 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	}
 }
 
-/// Does verification before importing blocks.
-/// Should be used for further verification in aura.
-pub struct BlockVerifier;
-
-impl ExtraVerification<Block> for BlockVerifier {
-	type Verified = Either<
-		future::FutureResult<(), String>,
-		Box<dyn Future<Item=(), Error=String>>,
-	>;
-
-	fn verify(&self, _header: &Header, body: Option<&[UncheckedExtrinsic]>) -> Self::Verified {
-		use polkadot_runtime::{Call, UncheckedExtrinsic, TimestampCall};
-
-		let body = match body {
-			None => return Either::A(future::ok(())),
-			Some(body) => body,
-		};
-
-		// TODO: reintroduce or revisit necessaity for includability tracker.
-		let timestamp = current_timestamp();
-
-		let maybe_in_block = body.iter()
-			.filter_map(|ex| {
-				let encoded = ex.encode();
-				let runtime_ex = UncheckedExtrinsic::decode(&mut &encoded[..])?;
-				match runtime_ex.function {
-					Call::Timestamp(TimestampCall::set(t)) => Some(t),
-					_ => None,
-				}
-			})
-			.next();
-
-		let timestamp_in_block = match maybe_in_block {
-			None => return Either::A(future::ok(())),
-			Some(t) => t,
-		};
-
-		// we wait until the block timestamp is earlier than current.
-		if timestamp.0 < timestamp_in_block.0 {
-			let diff_secs = timestamp_in_block.0 - timestamp.0;
-			let delay = Delay::new(Instant::now() + Duration::from_secs(diff_secs))
-				.map_err(move |e| format!("Error waiting for {} seconds: {:?}", diff_secs, e));
-			Either::B(Box::new(delay))
-		} else {
-			Either::A(future::ok(()))
-		}
-	}
-}
-
 fn current_timestamp() -> Timestamp {
 	time::SystemTime::now().duration_since(time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
@@ -605,7 +584,7 @@ impl ProposalTiming {
 		//
 		// this interval is just meant to produce periodic task wakeups
 		// that lead to the `dynamic_inclusion` getting updated as necessary.
-		if let Async::Ready(x) = self.attempt_propose.poll().map_err(ErrorKind::Timer)? {
+		while let Async::Ready(x) = self.attempt_propose.poll().map_err(ErrorKind::Timer)? {
 			x.expect("timer still alive; intervals never end; qed");
 		}
 
@@ -641,26 +620,31 @@ pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 impl<C, TxApi> CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilder<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
 {
 	fn propose_with(&self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
-		use polkadot_primitives::InherentData;
 
 		// TODO: handle case when current timestamp behind that in state.
-		let timestamp = ::std::cmp::max(self.minimum_timestamp.0, current_timestamp().0).into();
+		let timestamp = ::std::cmp::max(self.minimum_timestamp.0, current_timestamp().0);
 
-		let _elapsed_since_start = self.timing.dynamic_inclusion.started_at().elapsed();
-
-		let _inherent_data = InherentData {
+		let inherent_data = InherentData {
 			timestamp,
-			parachain_heads: candidates,
+			parachains: candidates,
+			aura_expected_slot: 0, // not required here.
 		};
+
+		let runtime_api = self.client.runtime_api();
 
 		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client)?;
 
 		{
+			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, &inherent_data)?;
+			for inherent in inherents {
+				block_builder.push(inherent)?;
+			}
+
 			let mut unqueue_invalid = Vec::new();
 			let mut pending_size = 0;
 
@@ -685,39 +669,36 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			self.transaction_pool.remove_invalid(&unqueue_invalid);
 		}
 
-		let polkadot_block = block_builder.bake()?;
+		let new_block = block_builder.bake()?;
 
 		info!("Proposing block [number: {}; hash: {}; parent_hash: {}; extrinsics: [{}]]",
-			polkadot_block.header.number,
-			Hash::from(polkadot_block.header.hash()),
-			polkadot_block.header.parent_hash,
-			polkadot_block.extrinsics.iter()
+			new_block.header.number,
+			Hash::from(new_block.header.hash()),
+			new_block.header.parent_hash,
+			new_block.extrinsics.iter()
 				.map(|xt| format!("{}", BlakeTwo256::hash_of(xt)))
 				.collect::<Vec<_>>()
 				.join(", ")
 		);
 
-		let substrate_block = Decode::decode(&mut polkadot_block.encode().as_slice())
-			.expect("polkadot blocks defined to serialize to substrate blocks correctly; qed");
-
 		// TODO: full re-evaluation
-		let active_parachains = self.client.runtime_api().active_parachains(&self.parent_id)?;
+		let active_parachains = runtime_api.active_parachains(&self.parent_id)?;
 		assert!(evaluation::evaluate_initial(
-			&substrate_block,
-			timestamp,
+			&new_block,
+			timestamp.into(),
 			&self.parent_hash,
 			self.parent_number,
 			&active_parachains,
 		).is_ok());
 
-		Ok(substrate_block)
+		Ok(new_block)
 	}
 }
 
 impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilder<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
 {
 	type Item = Block;
 	type Error = Error;
@@ -739,7 +720,6 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 mod tests {
 	use super::*;
 	use substrate_keyring::Keyring;
-	use polkadot_primitives::parachain::Statement as PStatement;
 
 	#[test]
 	fn sign_and_check_statement() {

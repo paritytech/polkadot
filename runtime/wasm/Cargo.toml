@@ -15,14 +15,17 @@ parity-codec = { version = "2.1", default-features = false }
 parity-codec-derive = { version = "2.1", default-features = false }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
 substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false }
+substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
 sr-std = { git = "https://github.com/paritytech/substrate", default-features = false }
 sr-io = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-support = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-aura = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-balances = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-consensus = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-council = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-democracy = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-executive = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false }
 sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-session = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-staking = { git = "https://github.com/paritytech/substrate", default-features = false }

@@ -20,9 +20,10 @@ use rstd::prelude::*;
 use codec::Decode;
 
 use bitvec::BigEndian;
-use sr_primitives::{RuntimeString, traits::{
+use sr_primitives::CheckInherentError;
+use sr_primitives::traits::{
 	Extrinsic, Block as BlockT, Hash as HashT, BlakeTwo256, ProvideInherent,
-}};
+};
 use primitives::parachain::{Id, Chain, DutyRoster, AttestedCandidate, Statement};
 use {system, session};
 
@@ -31,6 +32,9 @@ use srml_support::dispatch::Result;
 
 #[cfg(any(feature = "std", test))]
 use sr_primitives::{self, ChildrenStorageMap};
+
+#[cfg(any(feature = "std", test))]
+use rstd::marker::PhantomData;
 
 use system::ensure_inherent;
 
@@ -53,6 +57,7 @@ decl_storage! {
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(Id, Vec<u8>, Vec<u8>)>;
+		config(_phdata): PhantomData<T>;
 		build(|storage: &mut sr_primitives::StorageMap, _: &mut ChildrenStorageMap, config: &GenesisConfig<T>| {
 			use codec::Encode;
 
@@ -62,11 +67,11 @@ decl_storage! {
 
 			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-			storage.insert(GenesisConfig::<T>::hash(<Parachains<T>>::key()).to_vec(), only_ids.encode());
+			storage.insert(Self::hash(<Parachains<T>>::key()).to_vec(), only_ids.encode());
 
 			for (id, code, genesis) in p {
-				let code_key = GenesisConfig::<T>::hash(&<Code<T>>::key_for(&id)).to_vec();
-				let head_key = GenesisConfig::<T>::hash(&<Heads<T>>::key_for(&id)).to_vec();
+				let code_key = Self::hash(&<Code<T>>::key_for(&id)).to_vec();
+				let head_key = Self::hash(&<Heads<T>>::key_for(&id)).to_vec();
 
 				storage.insert(code_key, code.encode());
 				storage.insert(head_key, genesis.encode());
@@ -418,7 +423,6 @@ impl<T: Trait> Module<T> {
 impl<T: Trait> ProvideInherent for Module<T> {
 	type Inherent = Vec<AttestedCandidate>;
 	type Call = Call<T>;
-	type Error = RuntimeString;
 
 	fn create_inherent_extrinsics(data: Self::Inherent) -> Vec<(u32, Self::Call)> {
 		vec![(T::SET_POSITION, Call::set_heads(data))]
@@ -426,7 +430,7 @@ impl<T: Trait> ProvideInherent for Module<T> {
 
 	fn check_inherent<Block: BlockT, F: Fn(&Block::Extrinsic) -> Option<&Self::Call>>(
 		block: &Block, _data: Self::Inherent, extract_function: &F
-	) -> ::rstd::result::Result<(), Self::Error> {
+	) -> ::rstd::result::Result<(), CheckInherentError> {
 		let has_heads = block
 			.extrinsics()
 			.get(T::SET_POSITION as usize)
@@ -437,7 +441,11 @@ impl<T: Trait> ProvideInherent for Module<T> {
 			}
 		});
 
-		if !has_heads { return Err("No valid parachains inherent in block".into()) }
+		if !has_heads {
+			return Err(CheckInherentError::Other(
+				"No valid parachains inherent in block".into()
+			));
+		}
 
 		Ok(())
 	}
@@ -446,7 +454,6 @@ impl<T: Trait> ProvideInherent for Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use rstd::marker::PhantomData;
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use sr_primitives::{generic, BuildStorage};
@@ -464,7 +471,7 @@ mod tests {
 	impl consensus::Trait for Test {
 		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type SessionKey = SessionKey;
-		type OnOfflineValidator = ();
+		type InherentOfflineReport = ();
 		type Log = ::Log;
 	}
 	impl system::Trait for Test {
@@ -487,6 +494,7 @@ mod tests {
 	impl timestamp::Trait for Test {
 		const TIMESTAMP_SET_POSITION: u32 = 0;
 		type Moment = u64;
+		type OnTimestampSet = ();
 	}
 	impl Trait for Test {
 		const SET_POSITION: u32 = 0;
@@ -510,16 +518,14 @@ mod tests {
 		t.extend(consensus::GenesisConfig::<Test>{
 			code: vec![],
 			authorities: authority_keys.iter().map(|k| k.to_raw_public().into()).collect(),
-			_genesis_phantom_data: PhantomData,
 		}.build_storage().unwrap().0);
 		t.extend(session::GenesisConfig::<Test>{
 			session_length: 1000,
 			validators: authority_keys.iter().map(|k| k.to_raw_public().into()).collect(),
-			_genesis_phantom_data: PhantomData,
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			parachains: parachains,
-			_genesis_phantom_data: PhantomData,
+			_phdata: Default::default(),
 		}.build_storage().unwrap().0);
 		t.into()
 	}

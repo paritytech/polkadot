@@ -27,6 +27,7 @@ extern crate bitvec;
 extern crate parity_codec_derive;
 extern crate parity_codec as codec;
 
+extern crate substrate_consensus_aura_primitives as consensus_aura;
 extern crate substrate_primitives;
 #[macro_use]
 extern crate substrate_client as client;
@@ -35,18 +36,19 @@ extern crate substrate_client as client;
 extern crate sr_std as rstd;
 #[cfg(test)]
 extern crate sr_io;
-#[macro_use]
 extern crate sr_version as version;
 #[macro_use]
 extern crate sr_primitives;
 
 #[macro_use]
 extern crate srml_support;
+extern crate srml_aura as aura;
 extern crate srml_balances as balances;
 extern crate srml_consensus as consensus;
 extern crate srml_council as council;
 extern crate srml_democracy as democracy;
 extern crate srml_executive as executive;
+extern crate srml_grandpa as grandpa;
 extern crate srml_session as session;
 extern crate srml_staking as staking;
 extern crate srml_system as system;
@@ -60,28 +62,23 @@ extern crate substrate_keyring as keyring;
 
 mod parachains;
 
-#[cfg(feature = "std")]
-use codec::{Encode, Decode};
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, SessionKey, Signature,
-	parachain, parachain::runtime::ParachainHost, parachain::id::PARACHAIN_HOST,
+	parachain,
 };
-#[cfg(feature = "std")]
-use primitives::Block as GBlock;
-use client::{block_builder::api::runtime::*, runtime_api::{runtime::*, id::*}};
-#[cfg(feature = "std")]
-use client::runtime_api::ApiExt;
-use sr_primitives::ApplyResult;
+use client::{
+	block_builder::api as block_builder_api,
+	runtime_api as client_api,
+};
+use consensus_aura::api as aura_api;
+use sr_primitives::{ApplyResult, CheckInherentError};
 use sr_primitives::transaction_validity::TransactionValidity;
 use sr_primitives::generic;
-use sr_primitives::traits::{Convert, BlakeTwo256, Block as BlockT};
-#[cfg(feature = "std")]
-use sr_primitives::traits::ApiRef;
-#[cfg(feature = "std")]
-use substrate_primitives::AuthorityId;
+use sr_primitives::traits::{Convert, BlakeTwo256, Block as BlockT, DigestFor};
 use version::RuntimeVersion;
+use grandpa::fg_primitives::{self, ScheduledChange};
 use council::{motions as council_motions, voting as council_voting};
 #[cfg(feature = "std")]
 use council::seats as council_seats;
@@ -100,22 +97,17 @@ pub use timestamp::BlockPeriod;
 pub use srml_support::{StorageValue, RuntimeMetadata};
 
 const TIMESTAMP_SET_POSITION: u32 = 0;
-const NOTE_OFFLINE_POSITION: u32 = 1;
-const PARACHAINS_SET_POSITION: u32 = 2;
+const PARACHAINS_SET_POSITION: u32 = 1;
+const NOTE_OFFLINE_POSITION: u32 = 2; // this should be reintroduced
 
 /// Runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: ver_str!("polkadot"),
-	impl_name: ver_str!("parity-polkadot"),
+	spec_name: create_runtime_str!("polkadot"),
+	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 1,
 	spec_version: 101,
 	impl_version: 0,
-	apis: apis_vec!([
-		(BLOCK_BUILDER, 1),
-		(TAGGED_TRANSACTION_QUEUE, 1),
-		(METADATA, 1),
-		(PARACHAIN_HOST, 1),
-	]),
+	apis: RUNTIME_API_VERSIONS,
 };
 
 /// Native version.
@@ -140,6 +132,10 @@ impl system::Trait for Runtime {
 	type Log = Log;
 }
 
+impl aura::Trait for Runtime {
+	type HandleReport = aura::StakingSlasher<Runtime>;
+}
+
 impl balances::Trait for Runtime {
 	type Balance = Balance;
 	type AccountIndex = AccountIndex;
@@ -152,12 +148,16 @@ impl consensus::Trait for Runtime {
 	const NOTE_OFFLINE_POSITION: u32 = NOTE_OFFLINE_POSITION;
 	type Log = Log;
 	type SessionKey = SessionKey;
-	type OnOfflineValidator = Staking;
+
+	// the aura module handles offline-reports internally
+	// rather than using an explicit report system.
+	type InherentOfflineReport = ();
 }
 
 impl timestamp::Trait for Runtime {
 	const TIMESTAMP_SET_POSITION: u32 = TIMESTAMP_SET_POSITION;
 	type Moment = u64;
+	type OnTimestampSet = Aura;
 }
 
 /// Session key conversion.
@@ -170,7 +170,7 @@ impl Convert<AccountId, SessionKey> for SessionKeyConversion {
 
 impl session::Trait for Runtime {
 	type ConvertAccountIdToSessionKey = SessionKeyConversion;
-	type OnSessionChange = Staking;
+	type OnSessionChange = (Staking, grandpa::SyncedAuthorities<Runtime>);
 	type Event = Event;
 }
 
@@ -204,6 +204,12 @@ impl treasury::Trait for Runtime {
 	type Event = Event;
 }
 
+impl grandpa::Trait for Runtime {
+	type SessionKey = SessionKey;
+	type Log = Log;
+	type Event = Event;
+}
+
 impl parachains::Trait for Runtime {
 	const SET_POSITION: u32 = PARACHAINS_SET_POSITION;
 }
@@ -211,15 +217,19 @@ impl parachains::Trait for Runtime {
 construct_runtime!(
 	pub enum Runtime with Log(InternalLog: DigestItem<Hash, SessionKey>) where
 		Block = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
+		NodeBlock = primitives::Block,
+		InherentData = primitives::InherentData
 	{
 		System: system::{default, Log(ChangesTrieRoot)},
+		Aura: aura::{Module},
 		Timestamp: timestamp::{Module, Call, Storage, Config<T>, Inherent},
-		Consensus: consensus::{Module, Call, Storage, Config<T>, Log(AuthoritiesChange), Inherent},
+		// consensus' Inherent is not provided because it assumes instant-finality blocks.
+		Consensus: consensus::{Module, Call, Storage, Config<T>, Log(AuthoritiesChange) },
 		Balances: balances,
 		Session: session,
 		Staking: staking,
 		Democracy: democracy,
+		Grandpa: grandpa::{Module, Call, Storage, Config<T>, Log(), Event<T>},
 		Council: council::{Module, Call, Storage, Event<T>},
 		CouncilVoting: council_voting,
 		CouncilMotions: council_motions::{Module, Call, Storage, Event<T>, Origin},
@@ -248,174 +258,8 @@ pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Index, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = executive::Executive<Runtime, Block, balances::ChainContext<Runtime>, Balances, AllModules>;
 
-#[cfg(feature = "std")]
-pub struct ClientWithApi {
-	call: ::std::ptr::NonNull<client::runtime_api::CallApiAt<GBlock>>,
-	commit_on_success: ::std::cell::RefCell<bool>,
-	initialised_block: ::std::cell::RefCell<Option<GBlockId>>,
-	changes: ::std::cell::RefCell<client::runtime_api::OverlayedChanges>,
-}
-
-#[cfg(feature = "std")]
-unsafe impl Send for ClientWithApi {}
-#[cfg(feature = "std")]
-unsafe impl Sync for ClientWithApi {}
-
-#[cfg(feature = "std")]
-impl ApiExt for ClientWithApi {
-	fn map_api_result<F: FnOnce(&Self) -> Result<R, E>, R, E>(&self, map_call: F) -> Result<R, E> {
-		*self.commit_on_success.borrow_mut() = false;
-		let res = map_call(self);
-		*self.commit_on_success.borrow_mut() = true;
-
-		self.commit_on_ok(&res);
-
-		res
-	}
-}
-
-#[cfg(feature = "std")]
-impl client::runtime_api::ConstructRuntimeApi<GBlock> for ClientWithApi {
-	fn construct_runtime_api<'a, T: client::runtime_api::CallApiAt<GBlock>>(call: &'a T) -> ApiRef<'a, Self> {
-		ClientWithApi {
-			call: unsafe {
-				::std::ptr::NonNull::new_unchecked(
-					::std::mem::transmute(
-						call as &client::runtime_api::CallApiAt<GBlock>
-					)
-				)
-			},
-			commit_on_success: true.into(),
-			initialised_block: None.into(),
-			changes: Default::default(),
-		}.into()
-	}
-}
-
-#[cfg(feature = "std")]
-impl ClientWithApi {
-	fn call_api_at<A: Encode, R: Decode>(
-		&self,
-		at: &GBlockId,
-		function: &'static str,
-		args: &A
-	) -> client::error::Result<R> {
-		let res = unsafe {
-			self.call.as_ref().call_api_at(
-				at,
-				function,
-				args.encode(),
-				&mut *self.changes.borrow_mut(),
-				&mut *self.initialised_block.borrow_mut()
-			).and_then(|r|
-				R::decode(&mut &r[..])
-					.ok_or_else(||
-						client::error::ErrorKind::CallResultDecode(function).into()
-					)
-			)
-		};
-
-		self.commit_on_ok(&res);
-		res
-	}
-
-	fn commit_on_ok<R, E>(&self, res: &Result<R, E>) {
-		if *self.commit_on_success.borrow() {
-			if res.is_err() {
-				self.changes.borrow_mut().discard_prospective();
-			} else {
-				self.changes.borrow_mut().commit_prospective();
-			}
-		}
-	}
-}
-
-#[cfg(feature = "std")]
-type GBlockId = generic::BlockId<GBlock>;
-
-#[cfg(feature = "std")]
-impl client::runtime_api::Core<GBlock> for ClientWithApi {
-	fn version(&self, at: &GBlockId) -> Result<RuntimeVersion, client::error::Error> {
-		self.call_api_at(at, "version", &())
-	}
-
-	fn authorities(&self, at: &GBlockId) -> Result<Vec<AuthorityId>, client::error::Error> {
-		self.call_api_at(at, "authorities", &())
-	}
-
-	fn execute_block(&self, at: &GBlockId, block: &GBlock) -> Result<(), client::error::Error> {
-		self.call_api_at(at, "execute_block", block)
-	}
-
-	fn initialise_block(&self, at: &GBlockId, header: &<GBlock as BlockT>::Header) -> Result<(), client::error::Error> {
-		self.call_api_at(at, "initialise_block", header)
-	}
-}
-
-#[cfg(feature = "std")]
-impl client::block_builder::api::BlockBuilder<GBlock> for ClientWithApi {
-	fn apply_extrinsic(&self, at: &GBlockId, extrinsic: &<GBlock as BlockT>::Extrinsic) -> Result<ApplyResult, client::error::Error> {
-		self.call_api_at(at, "apply_extrinsic", extrinsic)
-	}
-
-	fn finalise_block(&self, at: &GBlockId) -> Result<<GBlock as BlockT>::Header, client::error::Error> {
-		self.call_api_at(at, "finalise_block", &())
-	}
-
-	fn inherent_extrinsics<Inherent: Decode + Encode, Unchecked: Decode + Encode>(
-		&self, at: &GBlockId, inherent: &Inherent
-	) -> Result<Vec<Unchecked>, client::error::Error> {
-		self.call_api_at(at, "inherent_extrinsics", inherent)
-	}
-
-	fn check_inherents<Inherent: Decode + Encode, Error: Decode + Encode>(&self, at: &GBlockId, block: &GBlock, inherent: &Inherent) -> Result<Result<(), Error>, client::error::Error> {
-		self.call_api_at(at, "check_inherents", &(block, inherent))
-	}
-
-	fn random_seed(&self, at: &GBlockId) -> Result<<GBlock as BlockT>::Hash, client::error::Error> {
-		self.call_api_at(at, "random_seed", &())
-	}
-}
-
-#[cfg(feature = "std")]
-impl client::runtime_api::TaggedTransactionQueue<GBlock> for ClientWithApi {
-	fn validate_transaction(
-		&self,
-		at: &GBlockId,
-		utx: &<GBlock as BlockT>::Extrinsic
-	) -> Result<TransactionValidity, client::error::Error> {
-		self.call_api_at(at, "validate_transaction", utx)
-	}
-}
-
-#[cfg(feature = "std")]
-impl client::runtime_api::Metadata<GBlock> for ClientWithApi {
-	fn metadata(&self, at: &GBlockId) -> Result<OpaqueMetadata, client::error::Error> {
-		self.call_api_at(at, "metadata", &())
-	}
-}
-
-#[cfg(feature = "std")]
-impl ::primitives::parachain::ParachainHost<GBlock> for ClientWithApi {
-	fn validators(&self, at: &GBlockId) -> Result<Vec<primitives::AccountId>, client::error::Error> {
-		self.call_api_at(at, "validators", &())
-	}
-	fn duty_roster(&self, at: &GBlockId) -> Result<primitives::parachain::DutyRoster, client::error::Error> {
-		self.call_api_at(at, "calculate_duty_roster", &())
-	}
-	fn active_parachains(&self, at: &GBlockId) -> Result<Vec<parachain::Id>, client::error::Error> {
-		self.call_api_at(at, "active_parachains", &())
-	}
-	fn parachain_head(&self, at: &GBlockId, id: &parachain::Id) -> Result<Option<Vec<u8>>, client::error::Error> {
-		self.call_api_at(at, "parachain_head", &id)
-	}
-	fn parachain_code(&self, at: &GBlockId, id: &parachain::Id) -> Result<Option<Vec<u8>>, client::error::Error> {
-		self.call_api_at(at, "parachain_code", &id)
-	}
-}
-
 impl_runtime_apis! {
-	impl Core<Block> for Runtime {
+	impl client_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION
 		}
@@ -433,13 +277,13 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl Metadata for Runtime {
+	impl client_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
 			Runtime::metadata().into()
 		}
 	}
 
-	impl BlockBuilder<Block, InherentData, UncheckedExtrinsic, InherentData, InherentError> for Runtime {
+	impl block_builder_api::BlockBuilder<Block, primitives::InherentData> for Runtime {
 		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyResult {
 			Executive::apply_extrinsic(extrinsic)
 		}
@@ -448,12 +292,48 @@ impl_runtime_apis! {
 			Executive::finalise_block()
 		}
 
-		fn inherent_extrinsics(data: InherentData) -> Vec<UncheckedExtrinsic> {
-			data.create_inherent_extrinsics()
+		fn inherent_extrinsics(data: primitives::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
+			use sr_primitives::traits::ProvideInherent;
+
+			let mut inherent = Vec::new();
+
+			inherent.extend(
+				Timestamp::create_inherent_extrinsics(data.timestamp)
+					.into_iter()
+					.map(|v| (v.0, UncheckedExtrinsic::new_unsigned(Call::Timestamp(v.1))))
+			);
+
+			inherent.extend(
+				Parachains::create_inherent_extrinsics(data.parachains)
+					.into_iter()
+					.map(|v| (v.0, UncheckedExtrinsic::new_unsigned(Call::Parachains(v.1))))
+			);
+
+			inherent.as_mut_slice().sort_unstable_by_key(|v| v.0);
+			inherent.into_iter().map(|v| v.1).collect()
 		}
 
-		fn check_inherents(block: Block, data: InherentData) -> Result<(), InherentError> {
-			data.check_inherents(block)
+		fn check_inherents(block: Block, data: primitives::InherentData) -> Result<(), CheckInherentError> {
+			let expected_slot = data.aura_expected_slot;
+
+			// draw timestamp out from extrinsics.
+			let set_timestamp = block.extrinsics()
+				.get(TIMESTAMP_SET_POSITION as usize)
+				.and_then(|xt: &UncheckedExtrinsic| match xt.function {
+					Call::Timestamp(TimestampCall::set(ref t)) => Some(t.clone()),
+					_ => None,
+				})
+				.ok_or_else(|| CheckInherentError::Other("No valid timestamp in block.".into()))?;
+
+			// take the "worse" result of normal verification and the timestamp vs. seal
+			// check.
+			CheckInherentError::combine_results(
+				Runtime::check_inherents(block, data),
+				|| {
+					Aura::verify_inherent(set_timestamp.into(), expected_slot)
+						.map_err(|s| CheckInherentError::Other(s.into()))
+				},
+			)
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
@@ -461,13 +341,13 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl TaggedTransactionQueue<Block> for Runtime {
+	impl client_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(tx: <Block as BlockT>::Extrinsic) -> TransactionValidity {
 			Executive::validate_transaction(tx)
 		}
 	}
 
-	impl ParachainHost for Runtime {
+	impl parachain::ParachainHost<Block> for Runtime {
 		fn validators() -> Vec<AccountId> {
 			Session::validators()
 		}
@@ -482,6 +362,32 @@ impl_runtime_apis! {
 		}
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)
+		}
+	}
+
+	impl fg_primitives::GrandpaApi<Block> for Runtime {
+		fn grandpa_pending_change(digest: DigestFor<Block>)
+			-> Option<ScheduledChange<BlockNumber>>
+		{
+			for log in digest.logs.iter().filter_map(|l| match l {
+				Log(InternalLog::grandpa(grandpa_signal)) => Some(grandpa_signal),
+				_=> None
+			}) {
+				if let Some(change) = Grandpa::scrape_digest_change(log) {
+					return Some(change);
+				}
+			}
+			None
+		}
+
+		fn grandpa_authorities() -> Vec<(SessionKey, u64)> {
+			Grandpa::grandpa_authorities()
+		}
+	}
+
+	impl aura_api::AuraApi<Block> for Runtime {
+		fn slot_duration() -> u64 {
+			Aura::slot_duration()
 		}
 	}
 }

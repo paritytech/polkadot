@@ -112,7 +112,9 @@ impl Extrinsic for UncheckedExtrinsic {}
 #[derive(Encode, Decode)]
 pub struct InherentData {
 	/// Current timestamp.
-	pub timestamp: Timestamp,
+	pub timestamp: u64,
 	/// Parachain heads update. This contains fully-attested candidates.
-	pub parachain_heads: Vec<::parachain::AttestedCandidate>,
+	pub parachains: Vec<::parachain::AttestedCandidate>,
+	/// Expected slot for aura authorship.
+	pub aura_expected_slot: u64,
 }

@@ -19,18 +19,18 @@
 //! Polkadot service. Specialized wrapper over substrate service.
 
 extern crate polkadot_availability_store as av_store;
+extern crate polkadot_consensus as consensus;
 extern crate polkadot_primitives;
 extern crate polkadot_runtime;
 extern crate polkadot_executor;
 extern crate polkadot_network;
 extern crate sr_primitives;
 extern crate substrate_primitives as primitives;
-#[macro_use]
-extern crate substrate_network as network;
 extern crate substrate_client as client;
 #[macro_use]
 extern crate substrate_service as service;
-extern crate substrate_consensus_aura as consensus;
+extern crate substrate_consensus_aura as aura;
+extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
 extern crate tokio;
 
@@ -42,12 +42,14 @@ extern crate hex_literal;
 pub mod chain_spec;
 
 use std::sync::Arc;
-use polkadot_primitives::{parachain, AccountId, Block};
-use polkadot_runtime::{GenesisConfig, ClientWithApi};
+use std::time::Duration;
+use polkadot_primitives::{parachain, AccountId, Block, InherentData};
+use polkadot_runtime::{GenesisConfig, RuntimeApi};
+use primitives::ed25519;
 use tokio::runtime::TaskExecutor;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
 use transaction_pool::txpool::{Pool as TransactionPool};
-use consensus::{import_queue, start_aura, Config as AuraConfig, AuraImportQueue, NothingExtra};
+use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration, NothingExtra, InherentProducingFn};
 
 pub use service::{
 	Roles, PruningMode, TransactionPoolOptions, ComponentClient,
@@ -62,7 +64,7 @@ pub use primitives::{Blake2Hasher};
 pub use sr_primitives::traits::ProvideRuntimeApi;
 pub use chain_spec::ChainSpec;
 
-const AURA_SLOT_DURATION: u64 = 6;
+const PARACHAIN_EMPTY_DURATION: Duration = Duration::from_secs(4);
 
 /// All configuration for the polkadot node.
 pub type Configuration = FactoryFullConfiguration<Factory>;
@@ -73,11 +75,19 @@ pub struct CustomConfiguration {
 	/// Set to `Some` with a collator `AccountId` and desired parachain
 	/// if the network protocol should be started in collator mode.
 	pub collating_for: Option<(AccountId, parachain::Id)>,
+
+	/// Intermediate state during setup. Will be removed in future. Set to `None`.
+	// FIXME: rather than putting this on the config, let's have an actual intermediate setup state
+	// https://github.com/paritytech/substrate/issues/1134
+	pub grandpa_import_setup: Option<(
+		Arc<grandpa::BlockImportForService<Factory>>,
+		grandpa::LinkHalfForService<Factory>
+	)>,
 }
 
 /// Chain API type for the transaction pool.
 pub type TxChainApi<Backend, Executor> = transaction_pool::ChainApi<
-	client::Client<Backend, Executor, Block, ClientWithApi>,
+	client::Client<Backend, Executor, Block, RuntimeApi>,
 	Block,
 >;
 
@@ -89,7 +99,7 @@ pub trait PolkadotService {
 	type Executor: 'static + client::CallExecutor<Block, Blake2Hasher> + Send + Sync + Clone;
 
 	/// Get a handle to the client.
-	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, ClientWithApi>>;
+	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>>;
 
 	/// Get a handle to the network.
 	fn network(&self) -> Arc<NetworkService>;
@@ -102,7 +112,7 @@ impl PolkadotService for Service<FullComponents<Factory>> {
 	type Backend = <FullComponents<Factory> as Components>::Backend;
 	type Executor = <FullComponents<Factory> as Components>::Executor;
 
-	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, ClientWithApi>> {
+	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>> {
 		Service::client(self)
 	}
 	fn network(&self) -> Arc<NetworkService> {
@@ -118,9 +128,10 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 	type Backend = <LightComponents<Factory> as Components>::Backend;
 	type Executor = <LightComponents<Factory> as Components>::Executor;
 
-	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, ClientWithApi>> {
+	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>> {
 		Service::client(self)
 	}
+
 	fn network(&self) -> Arc<NetworkService> {
 		Service::network(self)
 	}
@@ -130,10 +141,18 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 	}
 }
 
+fn inherent_data_import_queue(timestamp: u64, slot: u64) -> InherentData {
+	InherentData {
+		parachains: Vec::new(),
+		timestamp,
+		aura_expected_slot: slot,
+	}
+}
+
 construct_service_factory! {
 	struct Factory {
 		Block = Block,
-		RuntimeApi = ClientWithApi,
+		RuntimeApi = RuntimeApi,
 		NetworkProtocol = PolkadotProtocol { |config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for)) },
 		RuntimeDispatch = polkadot_executor::Executor,
 		FullTransactionPoolApi = TxChainApi<FullBackend<Self>, FullExecutor<Self>>
@@ -144,54 +163,108 @@ construct_service_factory! {
 		Configuration = CustomConfiguration,
 		FullService = FullComponents<Self>
 			{ |config: FactoryFullConfiguration<Self>, executor: TaskExecutor| {
-				let is_auth = config.roles == Roles::AUTHORITY;
-				FullComponents::<Factory>::new(config, executor.clone()).map(move |service|{
-					if is_auth {
-						if let Ok(Some(Ok(key))) = service.keystore().contents()
-							.map(|keys| keys.get(0).map(|k| service.keystore().load(k, "")))
-						{
-							info!("Using authority key {}", key.public());
-							let task = start_aura(
-								AuraConfig {
-									local_key:  Some(Arc::new(key)),
-									slot_duration: AURA_SLOT_DURATION,
-								},
-								service.client(),
-								service.proposer(),
-								service.network(),
-							);
+				FullComponents::<Factory>::new(config, executor)
+			} },
+		AuthoritySetup = { |mut service: Self::FullService, executor: TaskExecutor, key: Arc<ed25519::Pair>| {
+				use polkadot_network::consensus::ConsensusNetwork;
 
-							executor.spawn(task);
-						}
-					}
+				let (block_import, link_half) = service.config.custom.grandpa_import_setup.take()
+					.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
 
-					service
-				})
-			}
-		},
-		AuthoritySetup = { |service, _, _| Ok(service) },
+				{
+					info!("Running Grandpa session as Authority {}", key.public());
+					let (voter, oracle) = grandpa::run_grandpa(
+						grandpa::Config {
+							gossip_duration: Duration::new(4, 0), // FIXME: make this available through chainspec?
+							local_key: Some(key.clone()),
+							name: Some(service.config.name.clone())
+						},
+						link_half,
+						grandpa::NetworkBridge::new(service.network()),
+					)?;
+
+					executor.spawn(oracle);
+					executor.spawn(voter);
+				}
+
+				let extrinsic_store = {
+					use std::path::PathBuf;
+
+					let mut path = PathBuf::from(service.config.database_path.clone());
+					path.push("availability");
+
+					::av_store::Store::new(::av_store::Config {
+						cache_size: None,
+						path,
+					})?
+				};
+
+				let client = service.client();
+
+				// collator connections and consensus network both fulfilled by this
+				let consensus_network = ConsensusNetwork::new(service.network(), service.client());
+				let proposer_factory = ::consensus::ProposerFactory::new(
+					client.clone(),
+					consensus_network.clone(),
+					consensus_network,
+					service.transaction_pool(),
+					executor.clone(),
+					PARACHAIN_EMPTY_DURATION,
+					key.clone(),
+					extrinsic_store,
+				);
+
+				info!("Using authority key {}", key.public());
+				let task = start_aura(
+					SlotDuration::get_or_compute(&*client)?,
+					key,
+					client.clone(),
+					client,
+					Arc::new(proposer_factory),
+					service.network(),
+				);
+
+				executor.spawn(task);
+				Ok(service)
+			}},
 		LightService = LightComponents<Self>
 			{ |config, executor| <LightComponents<Factory>>::new(config, executor) },
-		FullImportQueue = AuraImportQueue<Self::Block, FullClient<Self>, NothingExtra>
-			{ |config, client| Ok(import_queue(
-				AuraConfig {
-					local_key: None,
-					slot_duration: 5
-				},
-				client,
-				NothingExtra,
-			))
-			},
-		LightImportQueue = AuraImportQueue<Self::Block, LightClient<Self>, NothingExtra>
-			{ |config, client| Ok(import_queue(
-				AuraConfig {
-					local_key: None,
-					slot_duration: 5
-				},
-				client,
-				NothingExtra,
-			))
-			},
+		FullImportQueue = AuraImportQueue<
+			Self::Block,
+			grandpa::BlockImportForService<Self>,
+			NothingExtra,
+			InherentProducingFn<InherentData>,
+		>
+			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
+				let slot_duration = SlotDuration::get_or_compute(&*client)?;
+
+				let (block_import, link_half) = grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>>(client.clone(), client)?;
+				let block_import = Arc::new(block_import);
+
+				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
+				Ok(import_queue(
+					slot_duration,
+					block_import,
+					NothingExtra,
+					inherent_data_import_queue as _,
+				))
+			}},
+		LightImportQueue = AuraImportQueue<
+			Self::Block,
+			LightClient<Self>,
+			NothingExtra,
+			InherentProducingFn<InherentData>,
+		>
+			{ |config, client: Arc<LightClient<Self>>| {
+				let slot_duration = SlotDuration::get_or_compute(&*client)?;
+
+				Ok(import_queue(
+					slot_duration,
+					client,
+					NothingExtra,
+					inherent_data_import_queue as _,
+				))
+			}},
 	}
 }
 

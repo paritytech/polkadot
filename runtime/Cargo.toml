@@ -19,11 +19,14 @@ sr-io = { git = "https://github.com/paritytech/substrate" }
 srml-support = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 substrate-client = { git = "https://github.com/paritytech/substrate" }
+substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-aura = { git = "https://github.com/paritytech/substrate" }
 srml-balances = { git = "https://github.com/paritytech/substrate" }
 srml-consensus = { git = "https://github.com/paritytech/substrate" }
 srml-council = { git = "https://github.com/paritytech/substrate" }
 srml-democracy = { git = "https://github.com/paritytech/substrate" }
 srml-executive = { git = "https://github.com/paritytech/substrate" }
+srml-grandpa = { git = "https://github.com/paritytech/substrate" }
 sr-primitives = { git = "https://github.com/paritytech/substrate" }
 srml-session = { git = "https://github.com/paritytech/substrate" }
 srml-staking = { git = "https://github.com/paritytech/substrate" }
@@ -52,6 +55,7 @@ std = [
 	"srml-council/std",
 	"srml-democracy/std",
 	"srml-executive/std",
+	"srml-grandpa/std",
 	"sr-primitives/std",
 	"srml-session/std",
 	"srml-staking/std",

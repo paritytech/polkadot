@@ -77,7 +77,7 @@ fn extrinsic_key(relay_parent: &Hash, candidate_hash: &Hash) -> Vec<u8> {
 /// Handle to the availability store.
 #[derive(Clone)]
 pub struct Store {
-	inner: Arc<KeyValueDB>,
+	inner: Arc<dyn KeyValueDB>,
 }
 
 impl Store {
