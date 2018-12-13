@@ -43,6 +43,8 @@ pub enum Error {
 	TooManyValidators,
 	/// Cannot encode something for no validators
 	EmptyValidators,
+	/// Cannot reconstruct: wrong number of validators.
+	WrongValidatorCount,
 	/// Not enough chunks present.
 	NotEnoughChunks,
 	/// Too many chunks present.
@@ -118,7 +120,7 @@ pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, extrinsic: &Ex
 
 	let mut shards = params.make_shards_for(&encoded[..]);
 	params.make_encoder().encode_shards(&mut shards[..])
-		.expect("Payload non-empty and validator numbers checked; qed");
+		.expect("Payload non-empty, shard sizes are uniform, and validator numbers checked; qed");
 
 	Ok(shards)
 }
@@ -153,11 +155,12 @@ pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
 
 	if let Err(e) = params.make_encoder().reconstruct_shards(&mut shards[..]) {
 		match e {
-			reed_solomon::Error::TooFewShards => Err(Error::NotEnoughChunks)?,
+			reed_solomon::Error::TooFewShardsPresent => Err(Error::NotEnoughChunks)?,
+			reed_solomon::Error::InvalidShardFlags => Err(Error::WrongValidatorCount)?,
 			reed_solomon::Error::TooManyShards => Err(Error::TooManyChunks)?,
 			reed_solomon::Error::EmptyShard => panic!("chunks are all non-empty; this is checked above; qed"),
 			reed_solomon::Error::IncorrectShardSize => panic!("chunks are all same len; this is checked above; qed"),
-			e => panic!("reed_solomon encoder returns no more variants for this function: {:?}", e),
+			_ => panic!("reed_solomon encoder returns no more variants for this function; qed"),
 		}
 	}
 
@@ -229,6 +232,8 @@ mod tests {
 				(&*chunks[9], 9),
 			].iter().cloned(),
 		).unwrap();
+
+
 
 		assert_eq!(reconstructed, (block_data, Extrinsic));
 	}
