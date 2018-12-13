@@ -1,0 +1,10 @@
+[package]
+name = "polkadot-erasure-coding"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+polkadot-primitives = { path = "../primitives" }
+reed-solomon-erasure = "3.1.1"
+parity-codec = "2.1"
