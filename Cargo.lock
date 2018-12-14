@@ -2038,6 +2038,8 @@ dependencies = [
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-primitives 0.1.0",
  "reed-solomon-erasure 3.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-trie 0.4.0 (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]

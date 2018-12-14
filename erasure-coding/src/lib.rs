@@ -27,10 +27,15 @@
 extern crate polkadot_primitives as primitives;
 extern crate reed_solomon_erasure as reed_solomon;
 extern crate parity_codec as codec;
+extern crate substrate_primitives;
+extern crate substrate_trie as trie;
 
 use codec::{Encode, Decode};
 use reed_solomon::ReedSolomon;
+use primitives::{Hash as H256, BlakeTwo256, HashT};
 use primitives::parachain::{BlockData, Extrinsic};
+use substrate_primitives::Blake2Hasher;
+use trie::{MemoryDB, Trie, TrieMut, TrieDB, TrieDBMut};
 
 // unfortunate requirement due to use of GF(256) in the reed-solomon
 // implementation.
@@ -169,6 +174,74 @@ pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
 		data_shards: params.data_shards,
 		cursor: (0, 0),
 	}).ok_or_else(|| Error::BadPayload)
+}
+
+/// An iterator that yields merkle branches and chunk data for all chunks to
+/// be sent to other validators.
+pub struct Branches<'a> {
+	trie_storage: MemoryDB<Blake2Hasher>,
+	root: H256,
+	chunks: Vec<&'a [u8]>,
+	current_pos: usize,
+}
+
+impl<'a> Branches<'a> {
+	/// Get the trie root.
+	pub fn root(&self) -> H256 { self.root.clone() }
+}
+
+impl<'a> Iterator for Branches<'a> {
+	type Item = (Vec<Vec<u8>>, &'a [u8]);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		use trie::Recorder;
+
+		let trie = TrieDB::new(&self.trie_storage, &self.root)
+			.expect("`Branches` is only created with a valid memorydb that contains all nodes for the trie with given root; qed");
+
+		let mut recorder = Recorder::new();
+		let res = (self.current_pos as u32).using_encoded(|s|
+			trie.get_with(s, &mut recorder)
+		);
+
+		match res.expect("all nodes in trie present; qed") {
+			Some(_) => {
+				let nodes = recorder.drain().into_iter().map(|r| r.data).collect();
+				let chunk = &self.chunks.get(self.current_pos)
+					.expect("there is a one-to-one mapping of chunks to valid merkle branches; qed");
+
+				self.current_pos += 1;
+				Some((nodes, chunk))
+			}
+			None => None,
+		}
+	}
+}
+
+/// Construct a trie from chunks of an erasure-coded value. This returns the root hash and an
+/// iterator of merkle proofs, one for each validator.
+pub fn branches<'a>(chunks: Vec<&'a [u8]>) -> Branches<'a> {
+	let mut trie_storage: MemoryDB<Blake2Hasher> = MemoryDB::default();
+	let mut root = H256::default();
+
+	// construct trie mapping each chunk's index to its hash.
+	{
+		let mut trie = TrieDBMut::new(&mut trie_storage, &mut root);
+		for (i, &chunk) in chunks.iter().enumerate() {
+			(i as u32).using_encoded(|encoded_index| {
+				let chunk_hash = BlakeTwo256::hash(chunk);
+				trie.insert(encoded_index, chunk_hash.as_ref())
+					.expect("a fresh trie stored in memory cannot have errors loading nodes; qed");
+			})
+		}
+	}
+
+	Branches {
+		trie_storage,
+		root,
+		chunks,
+		current_pos: 0,
+	}
 }
 
 // input for `parity_codec` which draws data from the data shards
