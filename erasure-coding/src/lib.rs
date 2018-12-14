@@ -60,6 +60,10 @@ pub enum Error {
 	ChunkIndexOutOfBounds(usize, usize),
 	/// Bad payload in reconstructed bytes.
 	BadPayload,
+	/// Invalid branch proof.
+	InvalidBranchProof,
+	/// Branch out of bounds.
+	BranchOutOfBounds,
 }
 
 struct CodeParams {
@@ -244,6 +248,27 @@ pub fn branches<'a>(chunks: Vec<&'a [u8]>) -> Branches<'a> {
 	}
 }
 
+/// Verify a markle branch, yielding the chunk hash meant to be present at that
+/// index.
+pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Result<H256, Error> {
+	let mut trie_storage: MemoryDB<Blake2Hasher> = MemoryDB::default();
+	for node in branch_nodes.iter() {
+		(&mut trie_storage as &mut trie::HashDB<_>).insert(node.as_slice());
+	}
+
+	let trie = TrieDB::new(&trie_storage, &root).map_err(|_| Error::InvalidBranchProof)?;
+	let res = (index as u32).using_encoded(|key|
+		trie.get_with(key, |raw_hash: &[u8]| H256::decode(&mut &raw_hash[..]))
+	);
+
+	match res {
+		Ok(Some(Some(hash))) => Ok(hash),
+		Ok(Some(None)) => Err(Error::InvalidBranchProof), // hash failed to decode
+		Ok(None) => Err(Error::BranchOutOfBounds),
+		Err(_) => Err(Error::InvalidBranchProof),
+	}
+}
+
 // input for `parity_codec` which draws data from the data shards
 struct ShardInput {
 	shards: Vec<Option<Box<[u8]>>>,
@@ -306,8 +331,26 @@ mod tests {
 			].iter().cloned(),
 		).unwrap();
 
-
-
 		assert_eq!(reconstructed, (block_data, Extrinsic));
+	}
+
+	#[test]
+	fn construct_valid_branches() {
+		let block_data = BlockData(vec![2; 256]);
+		let chunks = obtain_chunks(10, &block_data, &Extrinsic).unwrap();
+		let chunks: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
+
+		assert_eq!(chunks.len(), 10);
+
+		let branches = branches(chunks.clone());
+		let root = branches.root();
+
+		let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+
+		assert_eq!(proofs.len(), 10);
+
+		for (i, proof) in proofs.into_iter().enumerate() {
+			assert_eq!(branch_hash(&root, &proof, i).unwrap(), BlakeTwo256::hash(chunks[i]));
+		}
 	}
 }
