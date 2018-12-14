@@ -64,7 +64,8 @@ pub use primitives::{Blake2Hasher};
 pub use sr_primitives::traits::ProvideRuntimeApi;
 pub use chain_spec::ChainSpec;
 
-const PARACHAIN_EMPTY_DURATION: Duration = Duration::from_secs(4);
+// wait 1.5 seconds for parachain candidates before releasing a block.
+const PARACHAIN_EMPTY_DURATION: Duration = Duration::from_millis(1500);
 
 /// All configuration for the polkadot node.
 pub type Configuration = FactoryFullConfiguration<Factory>;
