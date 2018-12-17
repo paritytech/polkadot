@@ -435,11 +435,11 @@ impl<T: Trait> ProvideInherent for Module<T> {
 			.extrinsics()
 			.get(T::SET_POSITION as usize)
 			.map_or(false, |xt| {
-			xt.is_signed() == Some(true) && match extract_function(&xt) {
-				Some(Call::set_heads(_)) => true,
-				_ => false,
-			}
-		});
+				xt.is_signed() == Some(false) && match extract_function(&xt) {
+					Some(Call::set_heads(_)) => true,
+					_ => false,
+				}
+			});
 
 		if !has_heads {
 			return Err(CheckInherentError::Other(
