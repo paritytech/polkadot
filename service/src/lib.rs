@@ -64,9 +64,6 @@ pub use primitives::{Blake2Hasher};
 pub use sr_primitives::traits::ProvideRuntimeApi;
 pub use chain_spec::ChainSpec;
 
-// wait 1.5 seconds for parachain candidates before releasing a block.
-const PARACHAIN_EMPTY_DURATION: Duration = Duration::from_millis(1500);
-
 /// All configuration for the polkadot node.
 pub type Configuration = FactoryFullConfiguration<Factory>;
 
@@ -166,25 +163,24 @@ construct_service_factory! {
 			{ |config: FactoryFullConfiguration<Self>, executor: TaskExecutor| {
 				FullComponents::<Factory>::new(config, executor)
 			} },
-		AuthoritySetup = { |mut service: Self::FullService, executor: TaskExecutor, key: Arc<ed25519::Pair>| {
+		AuthoritySetup = { |mut service: Self::FullService, executor: TaskExecutor, key: Option<Arc<ed25519::Pair>>| {
 				use polkadot_network::consensus::ConsensusNetwork;
 
 				let (block_import, link_half) = service.config.custom.grandpa_import_setup.take()
 					.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
 
+				// always run GRANDPA in order to sync.
 				{
-					info!("Running Grandpa session as Authority {}", key.public());
-					let (voter, oracle) = grandpa::run_grandpa(
+					let voter = grandpa::run_grandpa(
 						grandpa::Config {
 							gossip_duration: Duration::new(4, 0), // FIXME: make this available through chainspec?
-							local_key: Some(key.clone()),
+							local_key: key.clone(),
 							name: Some(service.config.name.clone())
 						},
 						link_half,
 						grandpa::NetworkBridge::new(service.network()),
 					)?;
 
-					executor.spawn(oracle);
 					executor.spawn(voter);
 				}
 
@@ -200,6 +196,12 @@ construct_service_factory! {
 					})?
 				};
 
+				// run authorship only if authority.
+				let key = match key {
+					Some(key) => key,
+					None => return Ok(service),
+				};
+
 				let client = service.client();
 
 				// collator connections and consensus network both fulfilled by this
@@ -210,7 +212,6 @@ construct_service_factory! {
 					consensus_network,
 					service.transaction_pool(),
 					executor.clone(),
-					PARACHAIN_EMPTY_DURATION,
 					key.clone(),
 					extrinsic_store,
 				);

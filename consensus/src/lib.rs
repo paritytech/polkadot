@@ -45,6 +45,7 @@ extern crate substrate_client as client;
 extern crate exit_future;
 extern crate tokio;
 extern crate substrate_consensus_common as consensus;
+extern crate substrate_consensus_aura_primitives as aura_primitives;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
 
@@ -74,7 +75,6 @@ use parking_lot::Mutex;
 use polkadot_primitives::{
 	Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey, InherentData
 };
-use polkadot_primitives::Compact;
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::{AttestedCandidate, ParachainHost, Statement as PrimitiveStatement};
 use primitives::{AuthorityId, ed25519};
@@ -82,6 +82,7 @@ use runtime_primitives::traits::ProvideRuntimeApi;
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
+use aura_primitives::AuraConsensusData;
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
@@ -246,8 +247,6 @@ struct ParachainConsensus<C, N, P> {
 	handle: TaskExecutor,
 	/// Store for extrinsic data.
 	extrinsic_store: ExtrinsicStore,
-	/// The time after which no parachains may be included.
-	parachain_empty_duration: Duration,
 	/// Live agreements.
 	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
 
@@ -321,16 +320,9 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 			self.extrinsic_store.clone(),
 		);
 
-		let now = Instant::now();
-		let dynamic_inclusion = DynamicInclusion::new(
-			table.num_parachains(),
-			now,
-			self.parachain_empty_duration.clone(),
-		);
-
 		let tracker = Arc::new(AttestationTracker {
 			table,
-			dynamic_inclusion,
+			started: Instant::now(),
 			_drop_signal: drop_signal
 		});
 
@@ -349,7 +341,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 struct AttestationTracker {
 	_drop_signal: exit_future::Signal,
 	table: Arc<SharedTable>,
-	dynamic_inclusion: DynamicInclusion,
+	started: Instant,
 }
 
 /// Polkadot proposer factory.
@@ -376,7 +368,6 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 		collators: C,
 		transaction_pool: Arc<Pool<TxApi>>,
 		thread_pool: TaskExecutor,
-		parachain_empty_duration: Duration,
 		key: Arc<ed25519::Pair>,
 		extrinsic_store: ExtrinsicStore,
 	) -> Self {
@@ -386,7 +377,6 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 			collators,
 			handle: thread_pool.clone(),
 			extrinsic_store: extrinsic_store.clone(),
-			parachain_empty_duration,
 			live_instances: Mutex::new(HashMap::new()),
 		});
 
@@ -406,7 +396,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 	}
 }
 
-impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, TxApi> where
+impl<C, N, P, TxApi> consensus::Environment<Block, AuraConsensusData> for ProposerFactory<C, N, P, TxApi> where
 	C: Collators + Send + 'static,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
@@ -424,9 +414,6 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 		authorities: &[AuthorityId],
 		sign_with: Arc<ed25519::Pair>,
 	) -> Result<Self::Proposer, Error> {
-		// force delay in evaluation this long.
-		const FORCE_DELAY: Timestamp = Compact(5);
-
 		let parent_hash = parent_header.hash();
 		let parent_id = BlockId::hash(parent_hash);
 		let tracker = self.parachain_consensus.get_or_instantiate(
@@ -442,7 +429,6 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 			parent_id,
 			parent_number: parent_header.number,
 			transaction_pool: self.transaction_pool.clone(),
-			minimum_timestamp: current_timestamp().0 + FORCE_DELAY.0,
 		})
 	}
 }
@@ -517,10 +503,9 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 	parent_number: BlockNumber,
 	tracker: Arc<AttestationTracker>,
 	transaction_pool: Arc<Pool<TxApi>>,
-	minimum_timestamp: u64,
 }
 
-impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
+impl<C, TxApi> consensus::Proposer<Block, AuraConsensusData> for Proposer<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
@@ -531,20 +516,41 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		future::FutureResult<Block, Error>,
 	>;
 
-	fn propose(&self) -> Self::Create {
+	fn propose(&self, consensus_data: AuraConsensusData) -> Self::Create {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
+		const SLOT_DURATION_DENOMINATOR: u64 = 3; // wait up to 1/3 of the slot for candidates.
 
 		let initial_included = self.tracker.table.includable_count();
 		let now = Instant::now();
-		let enough_candidates = self.tracker.dynamic_inclusion.acceptable_in(
+
+		let dynamic_inclusion = DynamicInclusion::new(
+			self.tracker.table.num_parachains(),
+			self.tracker.started,
+			Duration::from_secs(consensus_data.slot_duration / SLOT_DURATION_DENOMINATOR),
+		);
+
+		let enough_candidates = dynamic_inclusion.acceptable_in(
 			now,
 			initial_included,
 		).unwrap_or_else(|| now + Duration::from_millis(1));
 
+		let believed_timestamp = consensus_data.timestamp;
+
+		// set up delay until next allowed timestamp.
+		let current_timestamp = current_timestamp();
+		let delay_future = if current_timestamp.0 >= believed_timestamp {
+			None
+		} else {
+			Some(Delay::new(
+				Instant::now() + Duration::from_secs(current_timestamp.0 - believed_timestamp)
+			))
+		};
+
 		let timing = ProposalTiming {
+			minimum: delay_future,
 			attempt_propose: Interval::new(now + ATTEMPT_PROPOSE_EVERY, ATTEMPT_PROPOSE_EVERY),
 			enough_candidates: Delay::new(enough_candidates),
-			dynamic_inclusion: self.tracker.dynamic_inclusion.clone(),
+			dynamic_inclusion,
 			last_included: initial_included,
 		};
 
@@ -555,7 +561,8 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 			client: self.client.clone(),
 			transaction_pool: self.transaction_pool.clone(),
 			table: self.tracker.table.clone(),
-			minimum_timestamp: self.minimum_timestamp.into(),
+			believed_minimum_timestamp: believed_timestamp,
+			consensus_data,
 			timing,
 		})
 	}
@@ -569,6 +576,7 @@ fn current_timestamp() -> Timestamp {
 }
 
 struct ProposalTiming {
+	minimum: Option<Delay>,
 	attempt_propose: Interval,
 	dynamic_inclusion: DynamicInclusion,
 	enough_candidates: Delay,
@@ -586,6 +594,14 @@ impl ProposalTiming {
 		// that lead to the `dynamic_inclusion` getting updated as necessary.
 		while let Async::Ready(x) = self.attempt_propose.poll().map_err(ErrorKind::Timer)? {
 			x.expect("timer still alive; intervals never end; qed");
+		}
+
+		// wait until the minimum time has passed.
+		if let Some(mut minimum) = self.minimum.take() {
+			if let Async::NotReady = minimum.poll().map_err(ErrorKind::Timer)? {
+				self.minimum = Some(minimum);
+				return Ok(Async::NotReady);
+			}
 		}
 
 		if included == self.last_included {
@@ -614,7 +630,8 @@ pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 	transaction_pool: Arc<Pool<TxApi>>,
 	table: Arc<SharedTable>,
 	timing: ProposalTiming,
-	minimum_timestamp: Timestamp,
+	believed_minimum_timestamp: u64,
+	consensus_data: AuraConsensusData,
 }
 
 impl<C, TxApi> CreateProposal<C, TxApi> where
@@ -626,13 +643,10 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
-		// TODO: handle case when current timestamp behind that in state.
-		let timestamp = ::std::cmp::max(self.minimum_timestamp.0, current_timestamp().0);
-
 		let inherent_data = InherentData {
-			timestamp,
+			timestamp: self.believed_minimum_timestamp,
 			parachains: candidates,
-			aura_expected_slot: 0, // not required here.
+			aura_expected_slot: self.consensus_data.slot,
 		};
 
 		let runtime_api = self.client.runtime_api();
@@ -685,7 +699,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let active_parachains = runtime_api.active_parachains(&self.parent_id)?;
 		assert!(evaluation::evaluate_initial(
 			&new_block,
-			timestamp.into(),
+			self.believed_minimum_timestamp.into(),
 			&self.parent_hash,
 			self.parent_number,
 			&active_parachains,
