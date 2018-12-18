@@ -481,13 +481,13 @@ mod tests {
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type Digest = generic::Digest<::Log>;
-		type AccountParaId = ::AccountParaId;
+		type AccountId = ::AccountId;
 		type Header = ::Header;
 		type Event = ();
 		type Log = ::Log;
 	}
 	impl session::Trait for Test {
-		type ConvertAccountParaIdToSessionKey = ::SessionKeyConversion;
+		type ConvertAccountIdToSessionKey = ::SessionKeyConversion;
 		type OnSessionChange = ();
 		type Event = ();
 	}
