@@ -175,6 +175,7 @@ dependencies = [
  "srml-system 0.1.0 (git+https://github.com/paritytech/substrate)",
  "srml-timestamp 0.1.0 (git+https://github.com/paritytech/substrate)",
  "srml-treasury 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "srml-upgrade-key 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-consensus-aura-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -588,6 +589,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "srml-upgrade-key"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/substrate#873e8c7df9b041b98255683a2e91626169ce5209"
+dependencies = [
+ "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-codec-derive 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sr-io 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "sr-std 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "srml-consensus 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "srml-support 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "srml-support-procedural 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "srml-system 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
 name = "static_assertions"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -738,6 +758,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum srml-system 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum srml-timestamp 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum srml-treasury 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
+"checksum srml-upgrade-key 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum static_assertions 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)" = "c19be23126415861cb3a23e501d34a708f7f9b2183c5252d690941c2e69199d5"
 "checksum substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum substrate-consensus-aura-primitives 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"

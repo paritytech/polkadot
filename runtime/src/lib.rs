@@ -54,6 +54,7 @@ extern crate srml_staking as staking;
 extern crate srml_system as system;
 extern crate srml_timestamp as timestamp;
 extern crate srml_treasury as treasury;
+extern crate srml_upgrade_key as upgrade_key;
 
 extern crate polkadot_primitives as primitives;
 
@@ -214,6 +215,11 @@ impl parachains::Trait for Runtime {
 	const SET_POSITION: u32 = PARACHAINS_SET_POSITION;
 }
 
+impl upgrade_key::Trait for Runtime {
+	/// The uniquitous event type.
+	type Event = Event;
+}
+
 construct_runtime!(
 	pub enum Runtime with Log(InternalLog: DigestItem<Hash, SessionKey>) where
 		Block = Block,
@@ -236,6 +242,7 @@ construct_runtime!(
 		CouncilSeats: council_seats::{Config<T>},
 		Treasury: treasury,
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
+		UpgradeKey: upgrade_key,
 	}
 );
 

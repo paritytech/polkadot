@@ -33,6 +33,7 @@ srml-staking = { git = "https://github.com/paritytech/substrate" }
 srml-system = { git = "https://github.com/paritytech/substrate" }
 srml-timestamp = { git = "https://github.com/paritytech/substrate" }
 srml-treasury = { git = "https://github.com/paritytech/substrate" }
+srml-upgrade-key = { git = "https://github.com/paritytech/substrate" }
 sr-version = { git = "https://github.com/paritytech/substrate" }
 
 [dev-dependencies]

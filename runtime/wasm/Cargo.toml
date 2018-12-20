@@ -32,6 +32,7 @@ srml-staking = { git = "https://github.com/paritytech/substrate", default-featur
 srml-system = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-treasury = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-upgrade-key = { git = "https://github.com/paritytech/substrate", default-features = false }
 sr-version = { git = "https://github.com/paritytech/substrate", default-features = false }
 
 [profile.release]

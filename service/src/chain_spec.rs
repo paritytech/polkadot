@@ -16,10 +16,11 @@
 
 //! Polkadot chain configurations.
 
-use primitives::{AuthorityId, ed25519};
+use primitives::{H256, AuthorityId, ed25519};
 use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig,
-	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill, CouncilVotingConfig, GrandpaConfig
+	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
+	CouncilVotingConfig, GrandpaConfig, UpgradeKeyConfig
 };
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -28,8 +29,8 @@ const DEFAULT_PROTOCOL_ID: &str = "dot";
 /// Specialised `ChainSpec`.
 pub type ChainSpec = ::service::ChainSpec<GenesisConfig>;
 
-pub fn poc_1_testnet_config() -> Result<ChainSpec, String> {
-	ChainSpec::from_embedded(include_bytes!("../res/krummelanke.json"))
+pub fn poc_3_testnet_config() -> Result<ChainSpec, String> {
+	ChainSpec::from_embedded(include_bytes!("../res/alexander.json"))
 }
 
 fn staging_testnet_config_genesis() -> GenesisConfig {
@@ -106,6 +107,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			period: 2,					// 2*2=4 second block time.
 		}),
 		treasury: Some(Default::default()),
+		upgrade_key: Some(UpgradeKeyConfig {
+			key: endowed_accounts[0],
+		}),
 	}
 }
 
@@ -124,7 +128,7 @@ pub fn staging_testnet_config() -> ChainSpec {
 	)
 }
 
-fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
+fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> GenesisConfig {
 	let endowed_accounts = vec![
 		ed25519::Pair::from_seed(b"Alice                           ").public().0.into(),
 		ed25519::Pair::from_seed(b"Bob                             ").public().0.into(),
@@ -197,13 +201,19 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
 			period: 2,					// 2*2=4 second block time.
 		}),
 		treasury: Some(Default::default()),
+		upgrade_key: Some(UpgradeKeyConfig {
+			key: upgrade_key,
+		}),
 	}
 }
 
 fn development_config_genesis() -> GenesisConfig {
-	testnet_genesis(vec![
-		ed25519::Pair::from_seed(b"Alice                           ").public().into(),
-	])
+	testnet_genesis(
+		vec![
+			ed25519::Pair::from_seed(b"Alice                           ").public().into(),
+		],
+		ed25519::Pair::from_seed(b"Alice                           ").public().0.into()
+	)
 }
 
 /// Development config (single validator Alice)
@@ -221,10 +231,13 @@ pub fn development_config() -> ChainSpec {
 }
 
 fn local_testnet_genesis() -> GenesisConfig {
-	testnet_genesis(vec![
-		ed25519::Pair::from_seed(b"Alice                           ").public().into(),
-		ed25519::Pair::from_seed(b"Bob                             ").public().into(),
-	])
+	testnet_genesis(
+		vec![
+			ed25519::Pair::from_seed(b"Alice                           ").public().into(),
+			ed25519::Pair::from_seed(b"Bob                             ").public().into(),
+		],
+		ed25519::Pair::from_seed(b"Alice                           ").public().0.into()
+	)
 }
 
 /// Local testnet config (multivalidator Alice + Bob)
