@@ -24,7 +24,7 @@ use sr_primitives::CheckInherentError;
 use sr_primitives::traits::{
 	Extrinsic, Block as BlockT, Hash as HashT, BlakeTwo256, ProvideInherent,
 };
-use primitives::parachain::{Id, Chain, DutyRoster, AttestedCandidate, Statement};
+use primitives::parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement};
 use {system, session};
 
 use srml_support::{StorageValue, StorageMap};
@@ -46,17 +46,17 @@ pub trait Trait: session::Trait {
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		// Vector of all parachain IDs.
-		pub Parachains get(active_parachains): Vec<Id>;
+		pub Parachains get(active_parachains): Vec<ParaId>;
 		// The parachains registered at present.
-		pub Code get(parachain_code): map Id => Option<Vec<u8>>;
+		pub Code get(parachain_code): map ParaId => Option<Vec<u8>>;
 		// The heads of the parachains registered at present. these are kept sorted.
-		pub Heads get(parachain_head): map Id => Option<Vec<u8>>;
+		pub Heads get(parachain_head): map ParaId => Option<Vec<u8>>;
 
 		// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
 	}
 	add_extra_genesis {
-		config(parachains): Vec<(Id, Vec<u8>, Vec<u8>)>;
+		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
 		build(|storage: &mut sr_primitives::StorageMap, _: &mut ChildrenStorageMap, config: &GenesisConfig<T>| {
 			use codec::Encode;
@@ -134,7 +134,7 @@ decl_module! {
 
 		/// Register a parachain with given code.
 		/// Fails if given ID is already used.
-		pub fn register_parachain(id: Id, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
+		pub fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
 			let mut parachains = Self::active_parachains();
 			match parachains.binary_search(&id) {
 				Ok(_) => fail!("Parachain already exists"),
@@ -149,7 +149,7 @@ decl_module! {
 		}
 
 		/// Deregister a parachain with given id
-		pub fn deregister_parachain(id: Id) -> Result {
+		pub fn deregister_parachain(id: ParaId) -> Result {
 			let mut parachains = Self::active_parachains();
 			match parachains.binary_search(&id) {
 				Ok(idx) => { parachains.remove(idx); }
@@ -240,15 +240,15 @@ impl<T: Trait> Module<T> {
 		// assumes the inner slice is sorted by id.
 		struct GroupedDutyIter<'a> {
 			next_idx: usize,
-			inner: &'a [(usize, Id)],
+			inner: &'a [(usize, ParaId)],
 		}
 
 		impl<'a> GroupedDutyIter<'a> {
-			fn new(inner: &'a [(usize, Id)]) -> Self {
+			fn new(inner: &'a [(usize, ParaId)]) -> Self {
 				GroupedDutyIter { next_idx: 0, inner }
 			}
 
-			fn group_for(&mut self, wanted_id: Id) -> Option<&'a [(usize, Id)]> {
+			fn group_for(&mut self, wanted_id: ParaId) -> Option<&'a [(usize, ParaId)]> {
 				while let Some((id, keys)) = self.next() {
 					if wanted_id == id {
 						return Some(keys)
@@ -260,7 +260,7 @@ impl<T: Trait> Module<T> {
 		}
 
 		impl<'a> Iterator for GroupedDutyIter<'a> {
-			type Item = (Id, &'a [(usize, Id)]);
+			type Item = (ParaId, &'a [(usize, ParaId)]);
 
 			fn next(&mut self) -> Option<Self::Item> {
 				if self.next_idx == self.inner.len() { return None }
@@ -435,11 +435,11 @@ impl<T: Trait> ProvideInherent for Module<T> {
 			.extrinsics()
 			.get(T::SET_POSITION as usize)
 			.map_or(false, |xt| {
-			xt.is_signed() == Some(true) && match extract_function(&xt) {
-				Some(Call::set_heads(_)) => true,
-				_ => false,
-			}
-		});
+				xt.is_signed() == Some(false) && match extract_function(&xt) {
+					Some(Call::set_heads(_)) => true,
+					_ => false,
+				}
+			});
 
 		if !has_heads {
 			return Err(CheckInherentError::Other(
@@ -502,7 +502,7 @@ mod tests {
 
 	type Parachains = Module<Test>;
 
-	fn new_test_ext(parachains: Vec<(Id, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
+	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
 		let authority_keys = [
 			Keyring::Alice,
@@ -629,7 +629,7 @@ mod tests {
 			let check_roster = |duty_roster: &DutyRoster| {
 				assert_eq!(duty_roster.validator_duty.len(), 8);
 				assert_eq!(duty_roster.guarantor_duty.len(), 8);
-				for i in (0..2).map(Id::from) {
+				for i in (0..2).map(ParaId::from) {
 					assert_eq!(duty_roster.validator_duty.iter().filter(|&&j| j == Chain::Parachain(i)).count(), 3);
 					assert_eq!(duty_roster.guarantor_duty.iter().filter(|&&j| j == Chain::Parachain(i)).count(), 3);
 				}

@@ -17,6 +17,7 @@
 //! Errors that can occur during the consensus process.
 
 use primitives::AuthorityId;
+use runtime_primitives::RuntimeString;
 
 error_chain! {
 	links {
@@ -32,6 +33,10 @@ error_chain! {
 		NotValidator(id: AuthorityId) {
 			description("Local account ID not a validator at this block."),
 			display("Local account ID ({:?}) not a validator at this block.", id),
+		}
+		InherentError(reason: RuntimeString) {
+			description("Unexpected error while checking inherents"),
+			display("Unexpected error while checking inherents: {}", reason),
 		}
 		PrematureDestruction {
 			description("Proposer destroyed before finishing proposing or evaluating"),

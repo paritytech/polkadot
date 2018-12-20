@@ -193,14 +193,14 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 				if let Some(validity) = produced.validity {
 					let signed = table.sign_and_import(validity.clone()).0;
 					network.with_spec(|_, ctx|
-						gossip.multicast(ctx, attestation_topic, signed.encode())
+						gossip.multicast(ctx, attestation_topic, signed.encode(), false)
 					);
 				}
 
 				if let Some(availability) = produced.availability {
 					let signed = table.sign_and_import(availability).0;
 					network.with_spec(|_, ctx|
-						gossip.multicast(ctx, attestation_topic, signed.encode())
+						gossip.multicast(ctx, attestation_topic, signed.encode(), false)
 					);
 				}
 			})
@@ -225,9 +225,9 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 		self.knowledge.lock().note_candidate(hash, Some(block_data), Some(extrinsic));
 		let mut gossip = self.network.consensus_gossip().write();
 		self.network.with_spec(|_spec, ctx| {
-			gossip.multicast(ctx, self.attestation_topic, candidate.encode());
+			gossip.multicast(ctx, self.attestation_topic, candidate.encode(), false);
 			if let Some(availability) = availability {
-				gossip.multicast(ctx, self.attestation_topic, availability.encode());
+				gossip.multicast(ctx, self.attestation_topic, availability.encode(), false);
 			}
 		});
 	}

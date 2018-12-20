@@ -78,7 +78,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			launch_period: 12 * 60 * 24,	// 1 day per public referendum
 			voting_period: 12 * 60 * 24 * 3,	// 3 days to discuss & vote on an active referendum
 			minimum_deposit: 5000,	// 12000 as the minimum deposit for a referendum
-			public_delay: 0,
+			public_delay: 10 * 60,
+			max_lock_periods: 6,
 		}),
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.clone().into_iter().map(|k| (k, 1)).collect(),
@@ -168,7 +169,8 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>) -> GenesisConfig {
 			launch_period: 9,
 			voting_period: 18,
 			minimum_deposit: 10,
-			public_delay: 0,
+			public_delay: 10 * 60,
+			max_lock_periods: 6,
 		}),
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.clone().into_iter().map(|k| (k, 1)).collect(),

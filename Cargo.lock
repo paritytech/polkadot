@@ -977,7 +977,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "jsonrpc-core"
 version = "9.0.0"
-source = "git+https://github.com/paritytech/jsonrpc.git#0d78b8f145c18f08c1103f6b0b51991a89fb0a6f"
+source = "git+https://github.com/paritytech/jsonrpc.git#cd27b905868d7919bed6ec8113e846c459e93831"
 dependencies = [
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -989,7 +989,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc-http-server"
 version = "9.0.0"
-source = "git+https://github.com/paritytech/jsonrpc.git#0d78b8f145c18f08c1103f6b0b51991a89fb0a6f"
+source = "git+https://github.com/paritytech/jsonrpc.git#cd27b905868d7919bed6ec8113e846c459e93831"
 dependencies = [
  "hyper 0.12.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 9.0.0 (git+https://github.com/paritytech/jsonrpc.git)",
@@ -1002,7 +1002,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc-macros"
 version = "9.0.0"
-source = "git+https://github.com/paritytech/jsonrpc.git#0d78b8f145c18f08c1103f6b0b51991a89fb0a6f"
+source = "git+https://github.com/paritytech/jsonrpc.git#cd27b905868d7919bed6ec8113e846c459e93831"
 dependencies = [
  "jsonrpc-core 9.0.0 (git+https://github.com/paritytech/jsonrpc.git)",
  "jsonrpc-pubsub 9.0.0 (git+https://github.com/paritytech/jsonrpc.git)",
@@ -1012,7 +1012,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc-pubsub"
 version = "9.0.0"
-source = "git+https://github.com/paritytech/jsonrpc.git#0d78b8f145c18f08c1103f6b0b51991a89fb0a6f"
+source = "git+https://github.com/paritytech/jsonrpc.git#cd27b905868d7919bed6ec8113e846c459e93831"
 dependencies = [
  "jsonrpc-core 9.0.0 (git+https://github.com/paritytech/jsonrpc.git)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1022,7 +1022,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc-server-utils"
 version = "9.0.0"
-source = "git+https://github.com/paritytech/jsonrpc.git#0d78b8f145c18f08c1103f6b0b51991a89fb0a6f"
+source = "git+https://github.com/paritytech/jsonrpc.git#cd27b905868d7919bed6ec8113e846c459e93831"
 dependencies = [
  "bytes 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "globset 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1038,7 +1038,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc-ws-server"
 version = "9.0.0"
-source = "git+https://github.com/paritytech/jsonrpc.git#0d78b8f145c18f08c1103f6b0b51991a89fb0a6f"
+source = "git+https://github.com/paritytech/jsonrpc.git#cd27b905868d7919bed6ec8113e846c459e93831"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 9.0.0 (git+https://github.com/paritytech/jsonrpc.git)",
@@ -1445,7 +1445,7 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "yamux 0.1.2 (git+https://github.com/paritytech/yamux)",
+ "yamux 0.1.3 (git+https://github.com/paritytech/yamux)",
 ]
 
 [[package]]
@@ -1979,6 +1979,7 @@ dependencies = [
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "srml-support 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-consensus-aura-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-consensus-common 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-finality-grandpa 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-keyring 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -2651,7 +2652,7 @@ dependencies = [
 [[package]]
 name = "sr-api-macros"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 0.4.24 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2662,7 +2663,7 @@ dependencies = [
 [[package]]
 name = "sr-io"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "environmental 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hash-db 0.9.0 (git+https://github.com/paritytech/trie)",
@@ -2677,7 +2678,7 @@ dependencies = [
 [[package]]
 name = "sr-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "integer-sqrt 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2694,7 +2695,7 @@ dependencies = [
 [[package]]
 name = "sr-std"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -2702,7 +2703,7 @@ dependencies = [
 [[package]]
 name = "sr-version"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec-derive 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2715,7 +2716,7 @@ dependencies = [
 [[package]]
 name = "srml-aura"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2735,7 +2736,7 @@ dependencies = [
 [[package]]
 name = "srml-balances"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2754,7 +2755,7 @@ dependencies = [
 [[package]]
 name = "srml-consensus"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2771,7 +2772,7 @@ dependencies = [
 [[package]]
 name = "srml-council"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2791,7 +2792,7 @@ dependencies = [
 [[package]]
 name = "srml-democracy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2810,7 +2811,7 @@ dependencies = [
 [[package]]
 name = "srml-executive"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2826,7 +2827,7 @@ dependencies = [
 [[package]]
 name = "srml-grandpa"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2846,7 +2847,7 @@ dependencies = [
 [[package]]
 name = "srml-metadata"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec-derive 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2859,7 +2860,7 @@ dependencies = [
 [[package]]
 name = "srml-session"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2879,7 +2880,7 @@ dependencies = [
 [[package]]
 name = "srml-staking"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2902,7 +2903,7 @@ dependencies = [
 [[package]]
 name = "srml-support"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mashup 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2919,7 +2920,7 @@ dependencies = [
 [[package]]
 name = "srml-support-procedural"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "proc-macro2 0.4.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2931,7 +2932,7 @@ dependencies = [
 [[package]]
 name = "srml-support-procedural-tools"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "proc-macro2 0.4.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2942,7 +2943,7 @@ dependencies = [
 [[package]]
 name = "srml-support-procedural-tools-derive"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "proc-macro2 0.4.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2952,7 +2953,7 @@ dependencies = [
 [[package]]
 name = "srml-system"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2969,7 +2970,7 @@ dependencies = [
 [[package]]
 name = "srml-timestamp"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2986,7 +2987,7 @@ dependencies = [
 [[package]]
 name = "srml-treasury"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3101,7 +3102,7 @@ dependencies = [
 [[package]]
 name = "substrate-cli"
 version = "0.3.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "ansi_term 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "app_dirs 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3125,7 +3126,7 @@ dependencies = [
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-service 0.3.0 (git+https://github.com/paritytech/substrate)",
  "substrate-telemetry 0.3.0 (git+https://github.com/paritytech/substrate)",
- "sysinfo 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sysinfo 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.11 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -3133,7 +3134,7 @@ dependencies = [
 [[package]]
 name = "substrate-client"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3162,7 +3163,7 @@ dependencies = [
 [[package]]
 name = "substrate-client-db"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hash-db 0.9.0 (git+https://github.com/paritytech/trie)",
  "kvdb 0.1.0 (git+https://github.com/paritytech/parity-common?rev=616b40150ded71f57f650067fcbc5c99d7c343e6)",
@@ -3183,7 +3184,7 @@ dependencies = [
 [[package]]
 name = "substrate-consensus-aura"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3206,7 +3207,7 @@ dependencies = [
 [[package]]
 name = "substrate-consensus-aura-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-io 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -3220,7 +3221,7 @@ dependencies = [
 [[package]]
 name = "substrate-consensus-common"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3235,7 +3236,7 @@ dependencies = [
 [[package]]
 name = "substrate-executor"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "byteorder 1.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3257,7 +3258,7 @@ dependencies = [
 [[package]]
 name = "substrate-finality-grandpa"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "finality-grandpa 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3279,7 +3280,7 @@ dependencies = [
 [[package]]
 name = "substrate-finality-grandpa-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec-derive 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3292,7 +3293,7 @@ dependencies = [
 [[package]]
 name = "substrate-keyring"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hex-literal 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3302,7 +3303,7 @@ dependencies = [
 [[package]]
 name = "substrate-keystore"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3318,7 +3319,7 @@ dependencies = [
 [[package]]
 name = "substrate-network"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3341,7 +3342,7 @@ dependencies = [
 [[package]]
 name = "substrate-network-libp2p"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "bytes 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3364,7 +3365,7 @@ dependencies = [
 [[package]]
 name = "substrate-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3390,7 +3391,7 @@ dependencies = [
 [[package]]
 name = "substrate-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 9.0.0 (git+https://github.com/paritytech/jsonrpc.git)",
@@ -3399,11 +3400,14 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.33 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "sr-version 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-executor 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-network 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-transaction-pool 0.1.0 (git+https://github.com/paritytech/substrate)",
  "tokio 0.1.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3412,7 +3416,7 @@ dependencies = [
 [[package]]
 name = "substrate-rpc-servers"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "jsonrpc-http-server 9.0.0 (git+https://github.com/paritytech/jsonrpc.git)",
  "jsonrpc-pubsub 9.0.0 (git+https://github.com/paritytech/jsonrpc.git)",
@@ -3426,7 +3430,7 @@ dependencies = [
 [[package]]
 name = "substrate-serializer"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "serde 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.33 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3435,7 +3439,7 @@ dependencies = [
 [[package]]
 name = "substrate-service"
 version = "0.3.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "exit-future 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3452,12 +3456,12 @@ dependencies = [
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-client-db 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-consensus-aura-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-consensus-common 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-executor 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-keystore 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-network 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
- "substrate-rpc 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-rpc-servers 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-telemetry 0.3.0 (git+https://github.com/paritytech/substrate)",
  "substrate-transaction-pool 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -3468,7 +3472,7 @@ dependencies = [
 [[package]]
 name = "substrate-state-db"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3480,7 +3484,7 @@ dependencies = [
 [[package]]
 name = "substrate-state-machine"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hash-db 0.9.0 (git+https://github.com/paritytech/trie)",
  "heapsize 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3497,7 +3501,7 @@ dependencies = [
 [[package]]
 name = "substrate-telemetry"
 version = "0.3.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "lazy_static 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3512,7 +3516,7 @@ dependencies = [
 [[package]]
 name = "substrate-transaction-graph"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3526,7 +3530,7 @@ dependencies = [
 [[package]]
 name = "substrate-transaction-pool"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3542,7 +3546,7 @@ dependencies = [
 [[package]]
 name = "substrate-trie"
 version = "0.4.0"
-source = "git+https://github.com/paritytech/substrate#3329915cd5458bd065c9f921891487e71511097c"
+source = "git+https://github.com/paritytech/substrate#9dfe0066dcb260eead79b0ba7fceeb1fb479ad7b"
 dependencies = [
  "hash-db 0.9.0 (git+https://github.com/paritytech/trie)",
  "memory-db 0.9.0 (git+https://github.com/paritytech/trie)",
@@ -3625,7 +3629,7 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.6.2"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cfg-if 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4264,8 +4268,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "yamux"
-version = "0.1.2"
-source = "git+https://github.com/paritytech/yamux#8cec810d4e2bbe77cf9ec8b82962e878e854e53e"
+version = "0.1.3"
+source = "git+https://github.com/paritytech/yamux#152063358daeebc5efbae47ef1bc91558ed6fb45"
 dependencies = [
  "bytes 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4610,7 +4614,7 @@ dependencies = [
 "checksum syntex_errors 0.58.1 (registry+https://github.com/rust-lang/crates.io-index)" = "867cc5c2d7140ae7eaad2ae9e8bf39cb18a67ca651b7834f88d46ca98faadb9c"
 "checksum syntex_pos 0.58.1 (registry+https://github.com/rust-lang/crates.io-index)" = "13ad4762fe52abc9f4008e85c4fb1b1fe3aa91ccb99ff4826a439c7c598e1047"
 "checksum syntex_syntax 0.58.1 (registry+https://github.com/rust-lang/crates.io-index)" = "6e0e4dbae163dd98989464c23dd503161b338790640e11537686f2ef0f25c791"
-"checksum sysinfo 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "11c5f6e8a7a7146f26ffed9a5ff8bab2706f1ac8a413a415e1d211b819d5c24d"
+"checksum sysinfo 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4c747a1fbe091faa7bf76c19f40099f9f12495384c811485d81cf3d60c0eae62"
 "checksum take_mut 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 "checksum target_info 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c63f48baada5c52e65a29eef93ab4f8982681b67f9e8d29c7b05abcfec2b9ffe"
 "checksum tempfile 3.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "55c1195ef8513f3273d55ff59fe5da6940287a0d7a98331254397f464833675b"
@@ -4681,4 +4685,4 @@ dependencies = [
 "checksum ws 0.7.9 (registry+https://github.com/rust-lang/crates.io-index)" = "329d3e6dd450a9c5c73024e1047f0be7e24121a68484eb0b5368977bee3cf8c3"
 "checksum ws2_32-sys 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "d59cefebd0c892fa2dd6de581e937301d8552cb44489cdff035c6187cb63fa5e"
 "checksum xdg 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a66b7c2281ebde13cf4391d70d4c7e5946c3c25e72a7b859ca8f677dcd0b0c61"
-"checksum yamux 0.1.2 (git+https://github.com/paritytech/yamux)" = "<none>"
+"checksum yamux 0.1.3 (git+https://github.com/paritytech/yamux)" = "<none>"
