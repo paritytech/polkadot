@@ -205,7 +205,11 @@ construct_service_factory! {
 				let client = service.client();
 
 				// collator connections and consensus network both fulfilled by this
-				let consensus_network = ConsensusNetwork::new(service.network(), service.client());
+				let consensus_network = ConsensusNetwork::new(
+					service.network(),
+					service.on_exit(),
+					service.client(),
+				);
 				let proposer_factory = ::consensus::ProposerFactory::new(
 					client.clone(),
 					consensus_network.clone(),
