@@ -20,7 +20,7 @@ use primitives::{H256, AuthorityId, ed25519};
 use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
-	CouncilVotingConfig, GrandpaConfig, UpgradeKeyConfig
+	CouncilVotingConfig, GrandpaConfig, UpgradeKeyConfig, SudoConfig
 };
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -108,6 +108,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		treasury: Some(Default::default()),
 		upgrade_key: Some(UpgradeKeyConfig {
+			key: endowed_accounts[0],
+		}),
+		sudo: Some(SudoConfig {
 			key: endowed_accounts[0],
 		}),
 	}
@@ -202,6 +205,9 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> 
 		}),
 		treasury: Some(Default::default()),
 		upgrade_key: Some(UpgradeKeyConfig {
+			key: upgrade_key,
+		}),
+		sudo: Some(SudoConfig {
 			key: upgrade_key,
 		}),
 	}

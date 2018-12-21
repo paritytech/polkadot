@@ -30,6 +30,7 @@ srml-grandpa = { git = "https://github.com/paritytech/substrate" }
 sr-primitives = { git = "https://github.com/paritytech/substrate" }
 srml-session = { git = "https://github.com/paritytech/substrate" }
 srml-staking = { git = "https://github.com/paritytech/substrate" }
+srml-sudo = { git = "https://github.com/paritytech/substrate" }
 srml-system = { git = "https://github.com/paritytech/substrate" }
 srml-timestamp = { git = "https://github.com/paritytech/substrate" }
 srml-treasury = { git = "https://github.com/paritytech/substrate" }
@@ -60,9 +61,11 @@ std = [
 	"sr-primitives/std",
 	"srml-session/std",
 	"srml-staking/std",
+	"srml-sudo/std",
 	"srml-system/std",
 	"srml-timestamp/std",
 	"srml-treasury/std",
+	"srml-upgrade-key/std",
 	"sr-version/std",
 	"serde_derive",
 	"serde/std",

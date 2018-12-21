@@ -29,6 +29,7 @@ srml-grandpa = { git = "https://github.com/paritytech/substrate", default-featur
 sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-session = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-staking = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-sudo = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-system = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-treasury = { git = "https://github.com/paritytech/substrate", default-features = false }

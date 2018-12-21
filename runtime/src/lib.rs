@@ -51,6 +51,7 @@ extern crate srml_executive as executive;
 extern crate srml_grandpa as grandpa;
 extern crate srml_session as session;
 extern crate srml_staking as staking;
+extern crate srml_sudo as sudo;
 extern crate srml_system as system;
 extern crate srml_timestamp as timestamp;
 extern crate srml_treasury as treasury;
@@ -216,8 +217,12 @@ impl parachains::Trait for Runtime {
 }
 
 impl upgrade_key::Trait for Runtime {
-	/// The uniquitous event type.
 	type Event = Event;
+}
+
+impl sudo::Trait for Runtime {
+	type Event = Event;
+	type Proposal = Call;
 }
 
 construct_runtime!(
@@ -242,6 +247,7 @@ construct_runtime!(
 		CouncilSeats: council_seats::{Config<T>},
 		Treasury: treasury,
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
+		Sudo: sudo,
 		UpgradeKey: upgrade_key,
 	}
 );
