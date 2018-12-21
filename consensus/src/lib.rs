@@ -73,7 +73,7 @@ use codec::Encode;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{
-	Hash, Block, BlockId, BlockNumber, Header, Timestamp, SessionKey, InherentData
+	Hash, Block, BlockId, BlockNumber, Header, SessionKey, InherentData
 };
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::{AttestedCandidate, ParachainHost, Statement as PrimitiveStatement};
@@ -538,11 +538,11 @@ impl<C, TxApi> consensus::Proposer<Block, AuraConsensusData> for Proposer<C, TxA
 
 		// set up delay until next allowed timestamp.
 		let current_timestamp = current_timestamp();
-		let delay_future = if current_timestamp.0 >= believed_timestamp {
+		let delay_future = if current_timestamp >= believed_timestamp {
 			None
 		} else {
 			Some(Delay::new(
-				Instant::now() + Duration::from_secs(current_timestamp.0 - believed_timestamp)
+				Instant::now() + Duration::from_secs(current_timestamp - believed_timestamp)
 			))
 		};
 
@@ -568,7 +568,7 @@ impl<C, TxApi> consensus::Proposer<Block, AuraConsensusData> for Proposer<C, TxA
 	}
 }
 
-fn current_timestamp() -> Timestamp {
+fn current_timestamp() -> u64 {
 	time::SystemTime::now().duration_since(time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
 		.as_secs()
@@ -699,7 +699,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let active_parachains = runtime_api.active_parachains(&self.parent_id)?;
 		assert!(evaluation::evaluate_initial(
 			&new_block,
-			self.believed_minimum_timestamp.into(),
+			self.believed_minimum_timestamp,
 			&self.parent_hash,
 			self.parent_number,
 			&active_parachains,

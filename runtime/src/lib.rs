@@ -66,7 +66,7 @@ mod parachains;
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
 use primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, SessionKey, Signature,
+	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, SessionKey, Signature,
 	parachain,
 };
 use client::{
@@ -122,7 +122,7 @@ pub fn native_version() -> NativeVersion {
 
 impl system::Trait for Runtime {
 	type Origin = Origin;
-	type Index = Index;
+	type Index = Nonce;
 	type BlockNumber = BlockNumber;
 	type Hash = Hash;
 	type Hashing = BlakeTwo256;
@@ -259,9 +259,9 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedMortalExtrinsic<Address, Index, Call, Signature>;
+pub type UncheckedExtrinsic = generic::UncheckedMortalExtrinsic<Address, Nonce, Call, Signature>;
 /// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Index, Call>;
+pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = executive::Executive<Runtime, Block, balances::ChainContext<Runtime>, Balances, AllModules>;
 

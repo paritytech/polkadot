@@ -63,7 +63,7 @@ pub type AccountId = primitives::hash::H256;
 
 /// The type for looking up accounts. We don't expect more than 4 billion of them, but you
 /// never know...
-pub type AccountIndex = u64;
+pub type AccountIndex = u32;
 
 /// The Ed25519 pub key of an session that belongs to an authority of the relay chain. This is
 /// exactly equivalent to what the substrate calls an "authority".
@@ -76,14 +76,11 @@ pub type ChainId = u32;
 pub type Hash = primitives::H256;
 
 /// Index of a transaction in the relay chain. 32-bit should be plenty.
-pub type Index = u32;
+pub type Nonce = u64;
 
 /// Alias to 512-bit hash when used in the context of a signature on the relay chain.
 /// Equipped with logic for possibly "unsigned" messages.
 pub type Signature = runtime_primitives::Ed25519Signature;
-
-/// A timestamp: seconds since the unix epoch.
-pub type Timestamp = Compact<u64>;
 
 /// The balance of an account.
 /// 128-bits (or 38 significant decimal figures) will allow for 10m currency (10^7) at a resolution

@@ -19,7 +19,7 @@
 use super::MAX_TRANSACTIONS_SIZE;
 
 use codec::Encode;
-use polkadot_primitives::{Block, Hash, BlockNumber, Timestamp};
+use polkadot_primitives::{Block, Hash, BlockNumber};
 use polkadot_primitives::parachain::Id as ParaId;
 
 error_chain! {
@@ -66,7 +66,7 @@ error_chain! {
 /// upon any initial validity checks failing.
 pub fn evaluate_initial(
 	proposal: &Block,
-	_now: Timestamp,
+	_now: u64,
 	parent_hash: &Hash,
 	parent_number: BlockNumber,
 	_active_parachains: &[ParaId],
