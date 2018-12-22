@@ -16,7 +16,7 @@ nodes:
   replicas: 2
   args:
     - --chain
-    - krummelanke
+    - alex
     # serve rpc within the local network
     # - fenced off the world via firewall
     # - used for health checks
