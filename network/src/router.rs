@@ -104,7 +104,9 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 	where P::Api: ParachainHost<Block>
 {
 	/// Import a statement whose signature has been checked already.
-	pub(crate) fn import_statement(&self, statement: SignedStatement) {
+	pub(crate) fn import_statement<Exit>(&self, statement: SignedStatement, exit: Exit)
+		where Exit: Future<Item=(),Error=()> + Clone + Send + 'static
+	{
 		trace!(target: "p_net", "importing consensus statement {:?}", statement.statement);
 
 		// defer any statements for which we haven't imported the candidate yet
@@ -143,14 +145,16 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 		for (producer, statement) in producers.into_iter().zip(statements) {
 			self.knowledge.lock().note_statement(statement.sender, &statement.statement);
 
-			if let Some(producer) = producer {
+			if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
 				trace!(target: "consensus", "driving statement work to completion");
-				self.dispatch_work(c_hash, producer);
+				self.task_executor.spawn(work.select(exit.clone()).then(|_| Ok(())));
 			}
 		}
 	}
 
-	fn dispatch_work<D, E>(&self, candidate_hash: Hash, producer: StatementProducer<D, E>) where
+	fn create_work<D, E>(&self, candidate_hash: Hash, producer: StatementProducer<D, E>)
+		-> impl Future<Item=(),Error=()>
+		where
 		D: Future<Item=BlockData,Error=io::Error> + Send + 'static,
 		E: Future<Item=Extrinsic,Error=io::Error> + Send + 'static,
 	{
@@ -173,13 +177,13 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 		let knowledge = self.knowledge.clone();
 		let attestation_topic = self.attestation_topic.clone();
 
-		let work = producer.prime(validate)
+		producer.prime(validate)
 			.map(move |produced| {
 				// store the data before broadcasting statements, so other peers can fetch.
 				knowledge.lock().note_candidate(
 					candidate_hash,
 					produced.block_data,
-					produced.extrinsic
+					produced.extrinsic,
 				);
 
 				if produced.validity.is_none() && produced.availability.is_none() {
@@ -204,9 +208,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 					);
 				}
 			})
-			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e));
-
-		self.task_executor.spawn(work);
+			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
 	}
 }
 

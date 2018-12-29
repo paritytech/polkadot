@@ -246,7 +246,7 @@ impl<P, E> IntoExit for CollationNode<P, E> where
 
 impl<P, E> Worker for CollationNode<P, E> where
 	P: ParachainContext + Send + 'static,
-	E: Future<Item=(),Error=()> + Send + 'static
+	E: Future<Item=(),Error=()> + Clone + Send + 'static
 {
 	type Work = Box<Future<Item=(),Error=()> + Send>;
 
@@ -267,6 +267,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 		let client = service.client();
 		let network = service.network();
 
+		let inner_exit = exit.clone();
 		let work = client.import_notification_stream()
 			.for_each(move |notification| {
 				macro_rules! try_fr {
@@ -325,7 +326,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 					}
 				});
 
-				tokio::spawn(silenced);
+				tokio::spawn(silenced.select(inner_exit.clone()).then(|_| Ok(())));
 				Ok(())
 			});
 

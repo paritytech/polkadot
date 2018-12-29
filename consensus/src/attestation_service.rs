@@ -137,28 +137,31 @@ pub(crate) fn start<C, N, P>(
 			let consensus = parachain_consensus.clone();
 			let key = key.clone();
 
-			client.import_notification_stream().for_each(move |notification| {
-				let parent_hash = notification.hash;
-				if notification.is_new_best {
-					let res = client
-						.runtime_api()
-						.authorities(&BlockId::hash(parent_hash))
-						.map_err(Into::into)
-						.and_then(|authorities| {
-							consensus.get_or_instantiate(
-								parent_hash,
-								&authorities,
-								key.clone(),
-							)
-						});
+			client.import_notification_stream()
+				.for_each(move |notification| {
+					let parent_hash = notification.hash;
+					if notification.is_new_best {
+						let res = client
+							.runtime_api()
+							.authorities(&BlockId::hash(parent_hash))
+							.map_err(Into::into)
+							.and_then(|authorities| {
+								consensus.get_or_instantiate(
+									parent_hash,
+									&authorities,
+									key.clone(),
+								)
+							});
 
-					if let Err(e) = res {
-						warn!("Unable to start parachain consensus on top of {:?}: {}",
-							parent_hash, e);
+						if let Err(e) = res {
+							warn!("Unable to start parachain consensus on top of {:?}: {}",
+								parent_hash, e);
+						}
 					}
-				}
-				Ok(())
-			})
+					Ok(())
+				})
+				.select(exit.clone())
+				.then(|_| Ok(()))
 		};
 
 		let prune_old_sessions = {
@@ -180,6 +183,8 @@ pub(crate) fn start<C, N, P>(
 					}
 				})
 				.map_err(|e| warn!("Timer error {:?}", e))
+				.select(exit.clone())
+				.then(|_| Ok(()))
 		};
 
 		runtime.spawn(notifications);
