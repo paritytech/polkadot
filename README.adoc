@@ -14,9 +14,9 @@ We are actively building both Substrate and Polkadot, but things will be a littl
 
 To play on the ("Alexander") testnet, you'll want the PoC-3 code which is in this **Polkadot** repo.
 
-* **Polkadot PoC-3 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.3[**Polkadot** repo branch `v0.3`]
+* **Polkadot PoC-3 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.3[**Polkadot**]repo branch `v0.3`
 
-* **Polkadot PoC-2 "Krumme Lanke"** is in the link:https://github.com/paritytech/substrate/tree/v0.2[**Substrate** repo branch `v0.2`]
+* **Polkadot PoC-2 "Krumme Lanke"** is in the link:https://github.com/paritytech/substrate/tree/v0.2[**Substrate**] repo branch `v0.2`
 
 If you see "substrate" and are wondering why you need it for Polkadot, now you know.
 
@@ -61,9 +61,15 @@ polkadot
 
 === Install a custom Testnet version
 
-You can run `cargo install --git https://github.com/paritytech/polkadot.git polkadot` to get the very latest version of Polkadot, but these instructions will not work in that case.
+You can run the following to get the very latest version of Polkadot, but these instructions will not work in that case.
 
-If you want a specific version of Polkadot, say `0.2.5`, you may run `cargo install --git https://github.com/paritytech/substrate.git --tag v0.2.5 polkadot`.
+[source, shell]
+cargo install --git https://github.com/paritytech/polkadot.git polkadot
+
+If you want a specific version of Polkadot, say `0.2.5`, you may run
+
+[source, shell]
+cargo install --git https://github.com/paritytech/substrate.git --tag v0.2.5 polkadot
 
 === Obtaining DOTs
 
@@ -96,8 +102,9 @@ polkadot --chain=local --validator --key Bob -d /tmp/bob --port 30334 --bootnode
 Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of
 the first terminal.
 
+== Building
 
-== Hacking on Polkadot
+=== Hacking on Polkadot
 
 If you'd actually like hack on Polkadot, you can just grab the source code and
 build it. Ensure you have Rust and the support software installed:
