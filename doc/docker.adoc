@@ -1,6 +1,4 @@
 
-== Using Docker
-
 === The easiest way
 
 The easiest/faster option is to use the latest image.
@@ -8,27 +6,37 @@ The easiest/faster option is to use the latest image.
 Let´s first check the version we have. The first time you run this command, the polkadot docker image will be downloaded. This takes a bit of time and bandwidth, be patient:
 
 [source, shell]
-docker run --rm -it chevdor/polkadot:0.2.0 polkadot --version
+docker run --rm -it chevdor/polkadot:0.3.0 polkadot --version
 
 You can also pass any argument/flag that polkadot supports:
 
 [source, shell]
-docker run --rm -it chevdor/polkadot:0.2.0 polkadot --name "PolkaDocker"
+docker run --rm -it chevdor/polkadot:0.3.0 polkadot --name "PolkaDocker"
 
 Once you are done experimenting and picking the best node name :) you can start polkadot as daemon, exposes the polkadot ports and mount a volume that will keep your blockchain data locally:
 
 [source, shell]
-docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.2.0 polkadot
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.0 polkadot
+
+Start a shell session with the daemon:
+
+[source, shell]
+docker exec -it $(docker ps -q) bash;
+
+Check the current version:
+
+[source, shell]
+polkadot --version
 
 
 === Build your own image
 
 To get up and running with the smallest footprint on your system, you may use the Polkadot Docker image.
-You can either build it yourself (it takes a while...):
+You can build it yourself (it takes a while...) in the shell session of the daemon:
 
 [source, shell]
 ----
-ccd docker
+cd docker
 ./build.sh
 ----
 

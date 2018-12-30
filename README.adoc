@@ -8,19 +8,20 @@ Implementation of a https://polkadot.network node in Rust.
 
 == NOTE
 
-In 2017 we split our implementation of "Polkadot" from its platform-level component "Substrate". When we split them, we split the Polkadot code off into another repo (this repo), leaving the [Substrate repo](https://github.com/paritytech/substrate) to be what used to be Polkadot, along with its branches and releases.
+In 2017 we split our implementation of "Polkadot" from its platform-level component "Substrate". When we split them, we split the Polkadot code off into another repo (this repo), leaving the link:https://github.com/paritytech/substrate[**Substrate** repo] to be what used to be Polkadot, along with its branches and releases.
 
 We are actively building both Substrate and Polkadot, but things will be a little odd for a while.
 
 To play on the ("Alexander") testnet, you'll want the PoC-3 code which is in this **Polkadot** repo.
 
-* **Polkadot PoC-3 "Alexander"** is in this [**Polkadot** repo branch `v0.3`](https://github.com/paritytech/polkadot/tree/v0.3)
+* **Polkadot PoC-3 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.3[**Polkadot** repo branch `v0.3`]
 
-* **Polkadot PoC-2 "Krumme Lanke"** is in the [**Substrate** repo branch `v0.2`](https://github.com/paritytech/substrate/tree/v0.2)
+* **Polkadot PoC-2 "Krumme Lanke"** is in the link:https://github.com/paritytech/substrate/tree/v0.2[**Substrate** repo branch `v0.2`]
 
 If you see "substrate" and are wondering why you need it for Polkadot, now you know.
 
-Note that **Polkadot PoC-4** is yet to be release and *will be* in branch `v0.4` in this **Polkadot** repo.
+Note that **Polkadot PoC-4** is yet to be released and *will be* in branch `v0.4` in this **Polkadot** repo.
+
 
 == To play
 
@@ -137,17 +138,25 @@ You can start a development chain with:
 [source, shell]
 cargo run -- --dev
 
-include::doc/docker.adoc[]
+=== Using Docker
+link:_includes/doc/docker.adoc[Using Docker]
 
-include::doc/shell-completion.adoc[]
+=== Shell Completion
+link:_includes/doc/shell-completion.adoc[Shell Completion]
 
-include::doc/packages.adoc[]
+=== Polkadot Networks
+link:_includes/doc/networks/networks.adoc[Polkadot Networks]
 
-include::doc/networks/networks.adoc[leveloffset=+1]
+== Contributing
 
-include::CONTRIBUTING.adoc[leveloffset=+1]
+=== Contributing Guidelines
+
+link:_includes/CONTRIBUTING.adoc[Contribution Guidelines]
+
+=== Contributor Code of Conduct
+
+link:_includes/CODE_OF_CONDUCT.adoc[Code of Conduct]
 
 == License
-----
-include::LICENSE[]
-----
+
+https://github.com/paritytech/polkadot/blob/master/LICENSE[LICENSE]
