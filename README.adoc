@@ -86,28 +86,11 @@ polkadot --dev
 You can muck around by cloning and building the http://github.com/paritytech/polka-ui and http://github.com/paritytech/polkadot-ui or just heading to https://polkadot.js.org/apps and choose "Alexander (hosted by Parity)" from the Settings menu.
 
 
-== Local Two-node Testnet
-
-If you want to see the multi-node consensus algorithm in action locally, then
-you can create a local testnet. You'll need two terminals open. In one, run:
-
-[source, shell]
-polkadot --chain=local --validator --key Alice -d /tmp/alice
-
-and in the other, run:
-
-[source, shell]
-polkadot --chain=local --validator --key Bob -d /tmp/bob --port 30334 --bootnodes '/ip4/127.0.0.1/tcp/30333/p2p/ALICE_BOOTNODE_ID_HERE'
-
-Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of
-the first terminal.
-
 == Building
 
 === Hacking on Polkadot
 
-If you'd actually like hack on Polkadot, you can just grab the source code and
-build it. Ensure you have Rust and the support software installed:
+If you'd actually like hack on Polkadot, you can just grab the source code and build it. Ensure you have Rust and the support software installed:
 
 [source, shell]
 ----
@@ -144,6 +127,25 @@ You can start a development chain with:
 
 [source, shell]
 cargo run -- --dev
+
+Detailed logs may be shown by running the node with the following environment variables set:
+
+[source, shell]
+RUST_LOG=debug RUST_BACKTRACE=1 cargo run —- --dev
+
+=== Local Two-node Testnet
+
+If you want to see the multi-node consensus algorithm in action locally, then you can create a local testnet. You'll need two terminals open. In one, run:
+
+[source, shell]
+polkadot --chain=local --validator --key Alice -d /tmp/alice
+
+And in the other, run:
+
+[source, shell]
+polkadot --chain=local --validator --key Bob -d /tmp/bob --port 30334 --bootnodes '/ip4/127.0.0.1/tcp/30333/p2p/ALICE_BOOTNODE_ID_HERE'
+
+Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of the first terminal.
 
 === Using Docker
 link:_includes/doc/docker.adoc[Using Docker]
