@@ -77,7 +77,7 @@ use polkadot_primitives::{
 };
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::{AttestedCandidate, ParachainHost, Statement as PrimitiveStatement};
-use primitives::{AuthorityId, ed25519};
+use primitives::{Ed25519AuthorityId as AuthorityId, ed25519};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
