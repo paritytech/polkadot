@@ -77,7 +77,7 @@ use polkadot_primitives::{
 };
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::{AttestedCandidate, ParachainHost, Statement as PrimitiveStatement};
-use primitives::{AuthorityId, ed25519};
+use primitives::{Ed25519AuthorityId as AuthorityId, ed25519};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
@@ -348,6 +348,7 @@ struct AttestationTracker {
 pub struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
 	parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
+	key: Arc<ed25519::Pair>,
 	_service_handle: ServiceHandle,
 }
 
@@ -384,13 +385,14 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 			client,
 			parachain_consensus.clone(),
 			thread_pool,
-			key,
+			key.clone(),
 			extrinsic_store,
 		);
 
 		ProposerFactory {
 			parachain_consensus,
 			transaction_pool,
+			key,
 			_service_handle: service_handle,
 		}
 	}
@@ -412,10 +414,10 @@ impl<C, N, P, TxApi> consensus::Environment<Block, AuraConsensusData> for Propos
 		&self,
 		parent_header: &Header,
 		authorities: &[AuthorityId],
-		sign_with: Arc<ed25519::Pair>,
 	) -> Result<Self::Proposer, Error> {
 		let parent_hash = parent_header.hash();
 		let parent_id = BlockId::hash(parent_hash);
+		let sign_with = self.key.clone();
 		let tracker = self.parachain_consensus.get_or_instantiate(
 			parent_hash,
 			authorities,

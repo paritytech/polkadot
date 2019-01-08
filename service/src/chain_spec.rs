@@ -16,7 +16,7 @@
 
 //! Polkadot chain configurations.
 
-use primitives::{H256, AuthorityId, ed25519};
+use primitives::{H256, Ed25519AuthorityId as AuthorityId, ed25519};
 use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
@@ -82,6 +82,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			bonding_duration: 60 * MINUTES,
 			offline_slash_grace: 4,
 			minimum_validator_count: 4,
+			invulnerables: initial_authorities.iter().cloned().map(Into::into).collect(),
 		}),
 		democracy: Some(DemocracyConfig {
 			launch_period: 10 * MINUTES,    // 1 day per public referendum
@@ -184,6 +185,7 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> 
 			current_offline_slash: 0,
 			current_session_reward: 0,
 			offline_slash_grace: 0,
+			invulnerables: initial_authorities.iter().cloned().map(Into::into).collect(),
 		}),
 		democracy: Some(DemocracyConfig {
 			launch_period: 9,
