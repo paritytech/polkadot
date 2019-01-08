@@ -1,6 +1,6 @@
 = Polkadot
 :Author: Polkadot developers
-:Revision: 0.2.0
+:Revision: 0.3.0
 :toc:
 :sectnums:
 
@@ -8,18 +8,24 @@ Implementation of a https://polkadot.network node in Rust.
 
 == NOTE
 
-We have recently split our implementation of Polkadot from its platform-level component "Substrate".
-When we split them, we split the Polkadot code off into another repo, leaving the substrate repo to
-be what used to be Polkadot, along with its branches and releases.
+In 2017 we split our implementation of "Polkadot" from its platform-level component "Substrate". When we split them, we split the Polkadot code off into another repo (this repo), leaving the link:https://github.com/paritytech/substrate[**Substrate** repo] to be what used to be Polkadot, along with its branches and releases.
 
-Things will be a little odd for a while. Polkadot PoC-2 remains as a branch `v0.2` in the **Substrate**
-repo. Polkadot PoC-3 *will be* in branch `v0.3` in the **Polkadot** repo. To play on the ("Krumme Lanke")
-testnet, you'll want the PoC-2 code which is in the **Substrate** repo. These instructions are up to date
-with this, but if you see "substrate" and are wondering why you need it for Polkadot, now you know.
+We are actively building both Substrate and Polkadot, but things will be a little odd for a while.
+
+To play on the ("Alexander") testnet, you'll want the PoC-3 code which is in this **Polkadot** repo.
+
+* **Polkadot PoC-3 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.3[**Polkadot**]repo branch `v0.3`
+
+* **Polkadot PoC-2 "Krumme Lanke"** is in the link:https://github.com/paritytech/substrate/tree/v0.2[**Substrate**] repo branch `v0.2`
+
+If you see "substrate" and are wondering why you need it for Polkadot, now you know.
+
+Note that **Polkadot PoC-4** is yet to be released and *will be* in branch `v0.4` in this **Polkadot** repo.
 
 
 == To play
 
+=== Install Rust
 If you'd like to play with Polkadot, you'll need to install a client like this
 one. First, get Rust (1.26.1 or later) and the support software if you don't already have it:
 
@@ -29,25 +35,45 @@ curl https://sh.rustup.rs -sSf | sh
 sudo apt install make clang pkg-config libssl-dev
 ----
 
-Then, install Polkadot PoC-2:
+=== Install PoC-3 "Alexander" Testnet
+
+Install Polkadot PoC-3 and have a `polkadot` binary installed to your `PATH` with:
 
 [source, shell]
-cargo install --git https://github.com/paritytech/substrate.git --branch v0.2 polkadot
+cargo install --git https://github.com/paritytech/polkdot.git --branch v0.3 polkadot
 
-You'll now have a `polkadot` binary installed to your `PATH`. You can run `cargo install --git https://github.com/paritytech/polkadot.git polkadot` to get the very latest version of Polkadot,
-but these instructions will not work in that case.
-
-If you want a specific version of polkadot, say `0.2.5`, you may run `cargo install --git https://github.com/paritytech/substrate.git --tag v0.2.5 polkadot`.
-
-=== Krumme Lanke Testnet
-
-You will connect to the global Krumme Lanke testnet by default. To do this, just use:
+Connect to the global "Alexander" testnet by default by running:
 
 [source, shell]
 polkadot
 
-If you want to do anything on it (not that there's much to do), then you'll need
-to get some Krumme Lanke DOTs. Ask in the Polkadot watercooler.
+=== Install PoC-2 "Krumme Lanke" Testnet
+
+Install Polkadot PoC-2 and have a `polkadot` binary installed to your `PATH` with:
+
+[source, shell]
+cargo install --git https://github.com/paritytech/substrate.git --branch v0.2 polkadot
+
+Connect to the global "Krumme Lanke" testnet by default by running:
+
+[source, shell]
+polkadot
+
+=== Install a custom Testnet version
+
+You can run the following to get the very latest version of Polkadot, but these instructions will not work in that case.
+
+[source, shell]
+cargo install --git https://github.com/paritytech/polkadot.git polkadot
+
+If you want a specific version of Polkadot, say `0.2.5`, you may run
+
+[source, shell]
+cargo install --git https://github.com/paritytech/substrate.git --tag v0.2.5 polkadot
+
+=== Obtaining DOTs
+
+If you want to do anything on it (not that there's much to do), then you'll need to get an account and some Alexander or Krumme Lanke DOTs. Ask in the Polkadot watercooler.
 
 === Development
 
@@ -57,30 +83,14 @@ running in a terminal:
 [source, shell]
 polkadot --dev
 
-You can muck around by cloning and building the http://github.com/paritytech/polka-ui and http://github.com/paritytech/polkadot-ui or just heading to https://polkadot.js.org/apps.
+You can muck around by cloning and building the http://github.com/paritytech/polka-ui and http://github.com/paritytech/polkadot-ui or just heading to https://polkadot.js.org/apps and choose "Alexander (hosted by Parity)" from the Settings menu.
 
 
-== Local Two-node Testnet
+== Building
 
-If you want to see the multi-node consensus algorithm in action locally, then
-you can create a local testnet. You'll need two terminals open. In one, run:
+=== Hacking on Polkadot
 
-[source, shell]
-polkadot --chain=local --validator --key Alice -d /tmp/alice
-
-and in the other, run:
-
-[source, shell]
-polkadot --chain=local --validator --key Bob -d /tmp/bob --port 30334 --bootnodes '/ip4/127.0.0.1/tcp/30333/p2p/ALICE_BOOTNODE_ID_HERE'
-
-Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of
-the first terminal.
-
-
-== Hacking on Polkadot
-
-If you'd actually like hack on Polkadot, you can just grab the source code and
-build it. Ensure you have Rust and the support software installed:
+If you'd actually like hack on Polkadot, you can just grab the source code and build it. Ensure you have Rust and the support software installed:
 
 [source, shell]
 ----
@@ -118,17 +128,44 @@ You can start a development chain with:
 [source, shell]
 cargo run -- --dev
 
-include::doc/docker.adoc[]
+Detailed logs may be shown by running the node with the following environment variables set:
 
-include::doc/shell-completion.adoc[]
+[source, shell]
+RUST_LOG=debug RUST_BACKTRACE=1 cargo run —- --dev
 
-include::doc/packages.adoc[]
+=== Local Two-node Testnet
 
-include::doc/networks/networks.adoc[leveloffset=+1]
+If you want to see the multi-node consensus algorithm in action locally, then you can create a local testnet. You'll need two terminals open. In one, run:
 
-include::CONTRIBUTING.adoc[leveloffset=+1]
+[source, shell]
+polkadot --chain=local --validator --key Alice -d /tmp/alice
+
+And in the other, run:
+
+[source, shell]
+polkadot --chain=local --validator --key Bob -d /tmp/bob --port 30334 --bootnodes '/ip4/127.0.0.1/tcp/30333/p2p/ALICE_BOOTNODE_ID_HERE'
+
+Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of the first terminal.
+
+=== Using Docker
+link:_includes/doc/docker.adoc[Using Docker]
+
+=== Shell Completion
+link:_includes/doc/shell-completion.adoc[Shell Completion]
+
+=== Polkadot Networks
+link:_includes/doc/networks/networks.adoc[Polkadot Networks]
+
+== Contributing
+
+=== Contributing Guidelines
+
+link:_includes/CONTRIBUTING.adoc[Contribution Guidelines]
+
+=== Contributor Code of Conduct
+
+link:_includes/CODE_OF_CONDUCT.adoc[Code of Conduct]
 
 == License
-----
-include::LICENSE[]
-----
+
+https://github.com/paritytech/polkadot/blob/master/LICENSE[LICENSE]
