@@ -40,7 +40,7 @@ sudo apt install make clang pkg-config libssl-dev
 Install Polkadot PoC-3 and have a `polkadot` binary installed to your `PATH` with:
 
 [source, shell]
-cargo install --git https://github.com/paritytech/polkdot.git --branch v0.3 polkadot
+cargo install --git https://github.com/paritytech/polkadot.git --branch v0.3 polkadot
 
 Connect to the global "Alexander" testnet by default by running:
 
