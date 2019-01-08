@@ -179,6 +179,7 @@ construct_service_factory! {
 						},
 						link_half,
 						grandpa::NetworkBridge::new(service.network()),
+						service.on_exit(),
 					)?;
 
 					executor.spawn(voter);
@@ -228,6 +229,7 @@ construct_service_factory! {
 					client,
 					Arc::new(proposer_factory),
 					service.network(),
+					service.on_exit(),
 				);
 
 				executor.spawn(task);
@@ -273,4 +275,3 @@ construct_service_factory! {
 			}},
 	}
 }
-

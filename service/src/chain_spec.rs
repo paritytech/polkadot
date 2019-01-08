@@ -16,7 +16,7 @@
 
 //! Polkadot chain configurations.
 
-use primitives::{H256, AuthorityId, ed25519};
+use primitives::{H256, Ed25519AuthorityId as AuthorityId, ed25519};
 use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
