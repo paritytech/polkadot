@@ -90,21 +90,16 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 		version.commit
 	);
 
-	let matches = match cli::CoreParams::clap()
+	let matches = cli::CoreParams::clap()
 		.name(version.executable_name)
 		.author(version.author)
 		.about(version.description)
 		.version(&(full_version + "\n")[..])
-		.get_matches_from_safe(args) {
-			Ok(m) => m,
-			Err(e) => e.exit(),
-		};
+		.get_matches_from(args);
 
-	let (spec, mut config) = cli::parse_matches::<service::Factory, _>(load_spec, version, "parity-polkadot", &matches)?;
-
-	match cli::execute_default::<service::Factory, _,>(spec, worker, &matches, &config)? {
-		cli::Action::ExecutedInternally => (),
-		cli::Action::RunService(worker) => {
+	cli::parse_and_execute::<service::Factory, _, _, _, _>(
+		load_spec, version, "parity-polkadot", matches, worker,
+		|worker, _: cli::CoreParams, mut config| {
 			info!("Parity ·:· Polkadot");
 			info!("  version {}", config.full_version());
 			info!("  by Parity Technologies, 2017, 2018");
@@ -112,19 +107,26 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 			info!("Node name: {}", config.name);
 			info!("Roles: {:?}", config.roles);
 			config.custom = worker.configuration();
-			let mut runtime = Runtime::new()?;
+			let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
 			let executor = runtime.executor();
-			match config.roles == service::Roles::LIGHT {
-				true => run_until_exit(&mut runtime, Factory::new_light(config, executor)?, worker)?,
-				false => run_until_exit(&mut runtime, Factory::new_full(config, executor)?, worker)?,
-			}
+			match config.roles {
+				service::Roles::LIGHT => run_until_exit(
+					runtime,
+					Factory::new_light(config, executor).map_err(|e| format!("{:?}", e))?,
+					worker
+				),
+				_ => run_until_exit(
+					runtime,
+					Factory::new_full(config, executor).map_err(|e| format!("{:?}", e))?,
+					worker
+				),
+			}.map_err(|e| format!("{:?}", e))
 		}
-	}
-	Ok(())
+	).map_err(Into::into)
 }
 
 fn run_until_exit<T, C, W>(
-	runtime: &mut Runtime,
+	mut runtime: Runtime,
 	service: T,
 	worker: W,
 ) -> error::Result<()>
