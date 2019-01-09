@@ -169,3 +169,7 @@ link:_includes/CODE_OF_CONDUCT.adoc[Code of Conduct]
 == License
 
 https://github.com/paritytech/polkadot/blob/master/LICENSE[LICENSE]
+
+== Important Notice
+
+https://polkadot.network/testnetdisclaimer
