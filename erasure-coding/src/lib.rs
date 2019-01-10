@@ -31,7 +31,7 @@ extern crate substrate_primitives;
 extern crate substrate_trie as trie;
 
 use codec::{Encode, Decode};
-use reed_solomon::galois_16::ReedSolomon;
+use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::{Hash as H256, BlakeTwo256, HashT};
 use primitives::parachain::{BlockData, Extrinsic};
 use substrate_primitives::Blake2Hasher;
@@ -41,9 +41,8 @@ use self::wrapped_shard::WrappedShard;
 
 mod wrapped_shard;
 
-// unfortunate requirement due to use of GF(256) in the reed-solomon
-// implementation.
-const MAX_VALIDATORS: usize = 256;
+// we are limited to the field order of GF(2^16), which is 65536
+const MAX_VALIDATORS: usize = <galois_16::Field as reed_solomon::Field>::ORDER;
 
 /// Errors in erasure coding.
 #[derive(Debug, Clone)]
@@ -86,13 +85,27 @@ impl CodeParams {
 	fn make_shards_for(&self, payload: &[u8]) -> Vec<WrappedShard> {
 		let shard_len = self.shard_len(payload.len());
 		let mut shards = vec![
-			WrappedShard::new(vec![0; shard_len]);
+			WrappedShard::new(vec![0; shard_len + 4]);
 			self.data_shards + self.parity_shards
 		];
 
 		for (data_chunk, blank_shard) in payload.chunks(shard_len).zip(&mut shards) {
 			let blank_shard: &mut [u8] = blank_shard.as_mut();
+			let (len_slice, blank_shard) = blank_shard.split_at_mut(4);
 			let len = ::std::cmp::min(data_chunk.len(), blank_shard.len());
+
+			// prepend the length to each data shard. this will tell us how much
+			// we need to read.
+			//
+			// this is necessary because we are doing RS encoding with 16-bit words,
+			// but the payload is a byte-slice. We need to know how much data
+			// to read from each shard when reconstructing.
+			//
+			// TODO: could be done more efficiently by pushing extra bytes onto the
+			// end.
+			(len as u32).using_encoded(|s| {
+				len_slice.copy_from_slice(s)
+			});
 
 			// fill the empty shards with the corresponding piece of the payload,
 			// zero-padded to fit in the shards.
@@ -137,10 +150,8 @@ pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, extrinsic: &Ex
 
 	let mut shards = params.make_shards_for(&encoded[..]);
 
-	{
-		params.make_encoder().encode(&mut shards[..])
-			.expect("Payload non-empty, shard sizes are uniform, and validator numbers checked; qed");
-	}
+	params.make_encoder().encode(&mut shards[..])
+		.expect("Payload non-empty, shard sizes are uniform, and validator numbers checked; qed");
 
 	Ok(shards.into_iter().map(|w| w.into_inner()).collect())
 }
@@ -188,10 +199,24 @@ pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
 		}
 	}
 
+	// lazily decode from the data shards.
 	Decode::decode(&mut ShardInput {
-		shards,
-		data_shards: params.data_shards,
-		cursor: (0, 0),
+		shards: shards.iter()
+			.map(|x| x.as_ref())
+			.take(params.data_shards)
+			.map(|x| x.expect("all data shards have been recovered; qed"))
+			.filter_map(|x| {
+				let mut s: &[u8] = x.as_ref();
+				let data_len = u32::decode(&mut s)? as usize;
+
+				// NOTE: s has been mutated to point forward by `decode`.
+				if s.len() < data_len {
+					None
+				} else {
+					Some(&s[..data_len])
+				}
+			}),
+		cur_shard: None,
 	}).ok_or_else(|| Error::BadPayload)
 }
 
@@ -285,41 +310,38 @@ pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Resul
 }
 
 // input for `parity_codec` which draws data from the data shards
-struct ShardInput {
-	shards: Vec<Option<WrappedShard>>,
-	data_shards: usize,
-	cursor: (usize, usize), // shard, in_shard
+struct ShardInput<'a, I> {
+	shards: I,
+	cur_shard: Option<(&'a [u8], usize)>,
 }
 
-impl codec::Input for ShardInput {
+impl<'a, I: Iterator<Item=&'a [u8]>> codec::Input for ShardInput<'a, I> {
 	fn read(&mut self, into: &mut [u8]) -> usize {
-		let &mut (ref mut shard_idx, ref mut in_shard) = &mut self.cursor;
 		let mut read_bytes = 0;
 
-		while *shard_idx < self.data_shards {
+		loop {
 			if read_bytes == into.len() { break }
 
-			// byte-slice view into active shard.
-			let active_shard: &[u8] = self.shards[*shard_idx]
-				.as_ref()
-				.expect("data shards have been recovered; qed")
-				.as_ref();
+			let cur_shard = self.cur_shard.take().or_else(|| self.shards.next().map(|s| (s, 0)));
+			let (active_shard, mut in_shard) = match cur_shard {
+				Some((s, i)) => (s, i),
+				None => break,
+			};
 
-			if *in_shard >= active_shard.len() {
-				*shard_idx += 1;
-				*in_shard = 0;
+			if in_shard >= active_shard.len() {
 				continue;
 			}
 
 			let remaining_len_out = into.len() - read_bytes;
-			let remaining_len_shard = active_shard.len() - *in_shard;
+			let remaining_len_shard = active_shard.len() - in_shard;
 
 			let write_len = std::cmp::min(remaining_len_out, remaining_len_shard);
 			into[read_bytes..][..write_len]
-				.copy_from_slice(&active_shard[*in_shard..][..write_len]);
+				.copy_from_slice(&active_shard[in_shard..][..write_len]);
 
-			*in_shard += write_len;
+			in_shard += write_len;
 			read_bytes += write_len;
+			self.cur_shard = Some((active_shard, in_shard))
 		}
 
 		read_bytes
@@ -330,9 +352,14 @@ impl codec::Input for ShardInput {
 mod tests {
 	use super::*;
 
+	#[test]
+	fn field_order_is_right_size() {
+		assert_eq!(MAX_VALIDATORS, 65536);
+	}
+
     #[test]
 	fn round_trip_block_data() {
-		let block_data = BlockData(vec![1; 256]);
+		let block_data = BlockData((0..255).collect());
 		let chunks = obtain_chunks(10, &block_data, &Extrinsic).unwrap();
 
 		assert_eq!(chunks.len(), 10);
