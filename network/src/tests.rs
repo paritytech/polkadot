@@ -16,15 +16,20 @@
 
 //! Tests for polkadot and consensus network.
 
-use super::{PolkadotProtocol, Status, CurrentConsensus, Knowledge, Message, FullStatus};
+use super::{PolkadotProtocol, Status, Message, FullStatus};
+use consensus::{CurrentConsensus, Knowledge};
 
 use parking_lot::Mutex;
 use polkadot_consensus::GenericStatement;
-use polkadot_primitives::{Block, Hash, SessionKey};
+use polkadot_primitives::{Block, SessionKey};
 use polkadot_primitives::parachain::{CandidateReceipt, HeadData, BlockData};
 use substrate_primitives::H512;
 use codec::Encode;
-use substrate_network::{Severity, NodeIndex, PeerInfo, ClientHandle, Context, Roles, message::Message as SubstrateMessage, specialization::Specialization, generic_message::Message as GenericMessage};
+use substrate_network::{
+	Severity, NodeIndex, PeerInfo, ClientHandle, Context, config::Roles,
+	message::Message as SubstrateMessage, specialization::NetworkSpecialization,
+	generic_message::Message as GenericMessage
+};
 
 use std::sync::Arc;
 use futures::Future;
@@ -80,20 +85,16 @@ fn make_status(status: &Status, roles: Roles) -> FullStatus {
 	}
 }
 
-fn make_consensus(parent_hash: Hash, local_key: SessionKey) -> (CurrentConsensus, Arc<Mutex<Knowledge>>) {
+fn make_consensus(local_key: SessionKey) -> (CurrentConsensus, Arc<Mutex<Knowledge>>) {
 	let knowledge = Arc::new(Mutex::new(Knowledge::new()));
-	let c = CurrentConsensus {
-		knowledge: knowledge.clone(),
-		parent_hash,
-		local_session_key: local_key,
-	};
+	let c = CurrentConsensus::new(knowledge.clone(), local_key);
 
 	(c, knowledge)
 }
 
 fn on_message(protocol: &mut PolkadotProtocol, ctx: &mut TestContext, from: NodeIndex, message: Message) {
 	let encoded = message.encode();
-	protocol.on_message(ctx, from, GenericMessage::ChainSpecific(encoded));
+	protocol.on_message(ctx, from, &mut Some(GenericMessage::ChainSpecific(encoded)));
 }
 
 #[test]
@@ -116,8 +117,8 @@ fn sends_session_key() {
 
 	{
 		let mut ctx = TestContext::default();
-		let (consensus, _knowledge) = make_consensus(parent_hash, local_key);
-		protocol.new_consensus(&mut ctx, consensus);
+		let (consensus, _knowledge) = make_consensus(local_key);
+		protocol.new_consensus(&mut ctx, parent_hash, consensus);
 		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key)));
 	}
 
@@ -156,8 +157,8 @@ fn fetches_from_those_with_knowledge() {
 
 	let status = Status { collating_for: None };
 
-	let (consensus, knowledge) = make_consensus(parent_hash, local_key);
-	protocol.new_consensus(&mut TestContext::default(), consensus);
+	let (consensus, knowledge) = make_consensus(local_key);
+	protocol.new_consensus(&mut TestContext::default(), parent_hash, consensus);
 
 	knowledge.lock().note_statement(a_key, &GenericStatement::Valid(candidate_hash));
 	let recv = protocol.fetch_block_data(&mut TestContext::default(), &candidate_receipt, parent_hash);
@@ -273,5 +274,51 @@ fn remove_bad_collator() {
 		let mut ctx = TestContext::default();
 		protocol.disconnect_bad_collator(&mut ctx, account_id);
 		assert!(ctx.disabled.contains(&who));
+	}
+}
+
+#[test]
+fn many_session_keys() {
+	let mut protocol = PolkadotProtocol::new(None);
+
+	let parent_a = [1; 32].into();
+	let parent_b = [2; 32].into();
+
+	let local_key_a = [3; 32].into();
+	let local_key_b = [4; 32].into();
+
+	let (consensus_a, _knowledge_a) = make_consensus(local_key_a);
+	let (consensus_b, _knowledge_b) = make_consensus(local_key_b);
+
+	protocol.new_consensus(&mut TestContext::default(), parent_a, consensus_a);
+	protocol.new_consensus(&mut TestContext::default(), parent_b, consensus_b);
+
+	assert_eq!(protocol.live_consensus.recent_keys(), &[local_key_a, local_key_b]);
+
+	let peer_a = 1;
+
+	// when connecting a peer, we should get both those keys.
+	{
+		let mut ctx = TestContext::default();
+
+		let status = Status { collating_for: None };
+		protocol.on_connect(&mut ctx, peer_a, make_status(&status, Roles::AUTHORITY));
+
+		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_a)));
+		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_b)));
+	}
+
+	let peer_b = 2;
+
+	protocol.remove_consensus(&parent_a);
+
+	{
+		let mut ctx = TestContext::default();
+
+		let status = Status { collating_for: None };
+		protocol.on_connect(&mut ctx, peer_b, make_status(&status, Roles::AUTHORITY));
+
+		assert!(!ctx.has_message(peer_b, Message::SessionKey(local_key_a)));
+		assert!(ctx.has_message(peer_b, Message::SessionKey(local_key_b)));
 	}
 }

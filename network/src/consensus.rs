@@ -15,173 +15,56 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The "consensus" networking code built on top of the base network service.
+//!
 //! This fulfills the `polkadot_consensus::Network` trait, providing a hook to be called
 //! each time consensus begins on a new chain head.
 
-use bft;
-use substrate_primitives::ed25519;
-use substrate_network::{self as net, generic_message as msg};
+use sr_primitives::traits::ProvideRuntimeApi;
 use substrate_network::consensus_gossip::ConsensusMessage;
-use polkadot_api::{PolkadotApi, LocalPolkadotApi};
-use polkadot_consensus::{Network, SharedTable, Collators};
+use polkadot_consensus::{Network, SharedTable, Collators, Statement, GenericStatement};
 use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
-use polkadot_primitives::parachain::{Id as ParaId, Collation};
+use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData};
 use codec::Decode;
 
 use futures::prelude::*;
 use futures::sync::mpsc;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use arrayvec::ArrayVec;
 use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 
-use super::{Message, NetworkService, Knowledge, CurrentConsensus};
+use super::NetworkService;
 use router::Router;
-
-/// Sink for output BFT messages.
-pub struct BftSink<E> {
-	network: Arc<NetworkService>,
-	parent_hash: Hash,
-	_marker: ::std::marker::PhantomData<E>,
-}
-
-impl<E> Sink for BftSink<E> {
-	type SinkItem = bft::Communication<Block>;
-	// TODO: replace this with the ! type when that's stabilized
-	type SinkError = E;
-
-	fn start_send(&mut self, message: bft::Communication<Block>) -> ::futures::StartSend<bft::Communication<Block>, E> {
-		let network_message = net::LocalizedBftMessage {
-			message: match message {
-				::rhododendron::Communication::Consensus(c) => msg::BftMessage::Consensus(match c {
-					::rhododendron::LocalizedMessage::Propose(proposal) => msg::SignedConsensusMessage::Propose(msg::SignedConsensusProposal {
-						round_number: proposal.round_number as u32,
-						proposal: proposal.proposal,
-						digest: proposal.digest,
-						sender: proposal.sender,
-						digest_signature: proposal.digest_signature.signature,
-						full_signature: proposal.full_signature.signature,
-					}),
-					::rhododendron::LocalizedMessage::Vote(vote) => msg::SignedConsensusMessage::Vote(msg::SignedConsensusVote {
-						sender: vote.sender,
-						signature: vote.signature.signature,
-						vote: match vote.vote {
-							::rhododendron::Vote::Prepare(r, h) => msg::ConsensusVote::Prepare(r as u32, h),
-							::rhododendron::Vote::Commit(r, h) => msg::ConsensusVote::Commit(r as u32, h),
-							::rhododendron::Vote::AdvanceRound(r) => msg::ConsensusVote::AdvanceRound(r as u32),
-						}
-					}),
-				}),
-				::rhododendron::Communication::Auxiliary(justification) => {
-					let unchecked: bft::UncheckedJustification<_> = justification.uncheck().into();
-					msg::BftMessage::Auxiliary(unchecked.into())
-				}
-			},
-			parent_hash: self.parent_hash,
-		};
-		self.network.with_spec(
-			move |spec, ctx| spec.consensus_gossip.multicast_bft_message(ctx, network_message)
-		);
-		Ok(::futures::AsyncSink::Ready)
-	}
-
-	fn poll_complete(&mut self) -> ::futures::Poll<(), E> {
-		Ok(Async::Ready(()))
-	}
-}
-
-// check signature and authority validity of message.
-fn process_bft_message(msg: msg::LocalizedBftMessage<Block, Hash>, local_id: &SessionKey, authorities: &[SessionKey]) -> Result<Option<bft::Communication<Block>>, bft::Error> {
-	Ok(Some(match msg.message {
-		msg::BftMessage::Consensus(c) => ::rhododendron::Communication::Consensus(match c {
-			msg::SignedConsensusMessage::Propose(proposal) => ::rhododendron::LocalizedMessage::Propose({
-				if &proposal.sender == local_id { return Ok(None) }
-				let proposal = ::rhododendron::LocalizedProposal {
-					round_number: proposal.round_number as usize,
-					proposal: proposal.proposal,
-					digest: proposal.digest,
-					sender: proposal.sender,
-					digest_signature: ed25519::LocalizedSignature {
-						signature: proposal.digest_signature,
-						signer: ed25519::Public(proposal.sender.into()),
-					},
-					full_signature: ed25519::LocalizedSignature {
-						signature: proposal.full_signature,
-						signer: ed25519::Public(proposal.sender.into()),
-					}
-				};
-				bft::check_proposal(authorities, &msg.parent_hash, &proposal)?;
-
-				trace!(target: "bft", "importing proposal message for round {} from {}", proposal.round_number, Hash::from(proposal.sender.0));
-				proposal
-			}),
-			msg::SignedConsensusMessage::Vote(vote) => ::rhododendron::LocalizedMessage::Vote({
-				if &vote.sender == local_id { return Ok(None) }
-				let vote = ::rhododendron::LocalizedVote {
-					sender: vote.sender,
-					signature: ed25519::LocalizedSignature {
-						signature: vote.signature,
-						signer: ed25519::Public(vote.sender.0),
-					},
-					vote: match vote.vote {
-						msg::ConsensusVote::Prepare(r, h) => ::rhododendron::Vote::Prepare(r as usize, h),
-						msg::ConsensusVote::Commit(r, h) => ::rhododendron::Vote::Commit(r as usize, h),
-						msg::ConsensusVote::AdvanceRound(r) => ::rhododendron::Vote::AdvanceRound(r as usize),
-					}
-				};
-				bft::check_vote::<Block>(authorities, &msg.parent_hash, &vote)?;
-
-				trace!(target: "bft", "importing vote {:?} from {}", vote.vote, Hash::from(vote.sender.0));
-				vote
-			}),
-		}),
-		msg::BftMessage::Auxiliary(a) => {
-			let justification = bft::UncheckedJustification::from(a);
-			// TODO: get proper error
-			let justification: Result<_, bft::Error> = bft::check_prepare_justification::<Block>(authorities, msg.parent_hash, justification)
-				.map_err(|_| bft::ErrorKind::InvalidJustification.into());
-			::rhododendron::Communication::Auxiliary(justification?)
-		},
-	}))
-}
 
 // task that processes all gossipped consensus messages,
 // checking signatures
-struct MessageProcessTask<P: PolkadotApi> {
-	inner_stream: mpsc::UnboundedReceiver<ConsensusMessage<Block>>,
-	bft_messages: mpsc::UnboundedSender<bft::Communication<Block>>,
-	validators: Vec<SessionKey>,
+struct MessageProcessTask<P, E> {
+	inner_stream: mpsc::UnboundedReceiver<ConsensusMessage>,
+	parent_hash: Hash,
 	table_router: Router<P>,
+	exit: E,
 }
 
-impl<P: LocalPolkadotApi + Send + Sync + 'static> MessageProcessTask<P> {
-	fn process_message(&self, msg: ConsensusMessage<Block>) -> Option<Async<()>> {
-		match msg {
-			ConsensusMessage::Bft(msg) => {
-				let local_id = self.table_router.session_key();
-				match process_bft_message(msg, &local_id, &self.validators[..]) {
-					Ok(Some(msg)) => {
-						if let Err(_) = self.bft_messages.unbounded_send(msg) {
-							// if the BFT receiving stream has ended then
-							// we should just bail.
-							trace!(target: "bft", "BFT message stream appears to have closed");
-							return Some(Async::Ready(()));
-						}
-					}
-					Ok(None) => {} // ignored local message
-					Err(e) => {
-						debug!("Message validation failed: {:?}", e);
-					}
-				}
-			}
-			ConsensusMessage::ChainSpecific(msg, _) => {
-				debug!(target: "consensus", "Processing consensus statement for live consensus");
-				if let Some(Message::Statement(parent_hash, statement)) = Decode::decode(&mut msg.as_slice()) {
-					if ::polkadot_consensus::check_statement(&statement.statement, &statement.signature, statement.sender, &parent_hash) {
-						self.table_router.import_statement(statement);
-					}
-				}
+impl<P, E> MessageProcessTask<P, E> where
+	P: ProvideRuntimeApi + Send + Sync + 'static,
+	P::Api: ParachainHost<Block>,
+	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+{
+	fn process_message(&self, msg: ConsensusMessage) -> Option<Async<()>> {
+		use polkadot_consensus::SignedStatement;
+
+		debug!(target: "consensus", "Processing consensus statement for live consensus");
+		if let Some(statement) = SignedStatement::decode(&mut msg.as_slice()) {
+			if ::polkadot_consensus::check_statement(
+				&statement.statement,
+				&statement.signature,
+				statement.sender,
+				&self.parent_hash
+			) {
+				self.table_router.import_statement(statement, self.exit.clone());
 			}
 		}
 
@@ -189,7 +72,11 @@ impl<P: LocalPolkadotApi + Send + Sync + 'static> MessageProcessTask<P> {
 	}
 }
 
-impl<P: LocalPolkadotApi + Send + Sync + 'static> Future for MessageProcessTask<P> {
+impl<P, E> Future for MessageProcessTask<P, E> where
+	P: ProvideRuntimeApi + Send + Sync + 'static,
+	P::Api: ParachainHost<Block>,
+	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+{
 	type Item = ();
 	type Error = ();
 
@@ -207,65 +94,46 @@ impl<P: LocalPolkadotApi + Send + Sync + 'static> Future for MessageProcessTask<
 	}
 }
 
-/// Input stream from the consensus network.
-pub struct InputAdapter {
-	input: mpsc::UnboundedReceiver<bft::Communication<Block>>,
-}
-
-impl Stream for InputAdapter {
-	type Item = bft::Communication<Block>;
-	type Error = ::polkadot_consensus::Error;
-
-	fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-		match self.input.poll() {
-			Err(_) | Ok(Async::Ready(None)) => Err(bft::InputStreamConcluded.into()),
-			Ok(x) => Ok(x)
-		}
-	}
-}
-
 /// Wrapper around the network service
-pub struct ConsensusNetwork<P> {
+pub struct ConsensusNetwork<P, E> {
 	network: Arc<NetworkService>,
 	api: Arc<P>,
+	exit: E,
 }
 
-impl<P> ConsensusNetwork<P> {
+impl<P, E> ConsensusNetwork<P, E> {
 	/// Create a new consensus networking object.
-	pub fn new(network: Arc<NetworkService>, api: Arc<P>) -> Self {
-		ConsensusNetwork { network, api }
+	pub fn new(network: Arc<NetworkService>, exit: E, api: Arc<P>) -> Self {
+		ConsensusNetwork { network, exit, api }
 	}
 }
 
-impl<P> Clone for ConsensusNetwork<P> {
+impl<P, E: Clone> Clone for ConsensusNetwork<P, E> {
 	fn clone(&self) -> Self {
 		ConsensusNetwork {
 			network: self.network.clone(),
+			exit: self.exit.clone(),
 			api: self.api.clone(),
 		}
 	}
 }
 
-/// A long-lived network which can create parachain statement and BFT message routing processes on demand.
-impl<P: LocalPolkadotApi + Send + Sync + 'static> Network for ConsensusNetwork<P> {
+/// A long-lived network which can create parachain statement  routing processes on demand.
+impl<P, E> Network for ConsensusNetwork<P,E> where
+	P: ProvideRuntimeApi + Send + Sync + 'static,
+	P::Api: ParachainHost<Block>,
+	E: Clone + Future<Item=(),Error=()> + Send + 'static,
+{
 	type TableRouter = Router<P>;
-	/// The input stream of BFT messages. Should never logically conclude.
-	type Input = InputAdapter;
-	/// The output sink of BFT messages. Messages sent here should eventually pass to all
-	/// current validators.
-	type Output = BftSink<::polkadot_consensus::Error>;
 
 	/// Instantiate a table router using the given shared table.
-	fn communication_for(&self, validators: &[SessionKey], table: Arc<SharedTable>, task_executor: TaskExecutor) -> (Self::TableRouter, Self::Input, Self::Output) {
+	fn communication_for(
+		&self,
+		_validators: &[SessionKey],
+		table: Arc<SharedTable>,
+		task_executor: TaskExecutor,
+	) -> Self::TableRouter {
 		let parent_hash = table.consensus_parent_hash().clone();
-
-		let sink = BftSink {
-			network: self.network.clone(),
-			parent_hash,
-			_marker: Default::default(),
-		};
-
-		let (bft_send, bft_recv) = mpsc::unbounded();
 
 		let knowledge = Arc::new(Mutex::new(Knowledge::new()));
 
@@ -279,29 +147,31 @@ impl<P: LocalPolkadotApi + Send + Sync + 'static> Network for ConsensusNetwork<P
 			knowledge.clone(),
 		);
 
+		let attestation_topic = table_router.gossip_topic();
+		let exit = self.exit.clone();
+
 		// spin up a task in the background that processes all incoming statements
 		// TODO: propagate statements on a timer?
-		let process_task = self.network.with_spec(|spec, ctx| {
-			spec.new_consensus(ctx, CurrentConsensus {
-				knowledge,
-				parent_hash,
-				local_session_key,
-			});
+		let inner_stream = self.network.consensus_gossip().write().messages_for(attestation_topic);
+		let process_task = self.network
+			.with_spec(|spec, ctx| {
+				spec.new_consensus(ctx, parent_hash, CurrentConsensus {
+					knowledge,
+					local_session_key,
+				});
 
-			MessageProcessTask {
-				inner_stream: spec.consensus_gossip.messages_for(parent_hash),
-				bft_messages: bft_send,
-				validators: validators.to_vec(),
-				table_router: table_router.clone(),
-			}
-		});
+				MessageProcessTask {
+					inner_stream,
+					parent_hash,
+					table_router: table_router.clone(),
+					exit,
+				}
+			})
+			.then(|_| Ok(()));
 
-		match process_task {
-			Some(task) => task_executor.spawn(task),
-			None => warn!(target: "p_net", "Cannot process incoming messages: network appears to be down"),
-		}
+		task_executor.spawn(process_task);
 
-		(table_router, InputAdapter { input: bft_recv }, sink)
+		table_router
 	}
 }
 
@@ -310,23 +180,20 @@ impl<P: LocalPolkadotApi + Send + Sync + 'static> Network for ConsensusNetwork<P
 pub struct NetworkDown;
 
 /// A future that resolves when a collation is received.
-pub struct AwaitingCollation(Option<::futures::sync::oneshot::Receiver<Collation>>);
+pub struct AwaitingCollation(::futures::sync::oneshot::Receiver<Collation>);
 
 impl Future for AwaitingCollation {
 	type Item = Collation;
 	type Error = NetworkDown;
 
 	fn poll(&mut self) -> Poll<Collation, NetworkDown> {
-		match self.0.poll().map_err(|_| NetworkDown)? {
-			Async::Ready(None) => Err(NetworkDown),
-			Async::Ready(Some(x)) => Ok(Async::Ready(x)),
-			Async::NotReady => Ok(Async::NotReady),
-		}
+		self.0.poll().map_err(|_| NetworkDown)
 	}
 }
 
-
-impl<P: LocalPolkadotApi + Send + Sync + 'static> Collators for ConsensusNetwork<P> {
+impl<P: ProvideRuntimeApi + Send + Sync + 'static, E: Clone> Collators for ConsensusNetwork<P, E>
+	where P::Api: ParachainHost<Block>,
+{
 	type Error = NetworkDown;
 	type Collation = AwaitingCollation;
 
@@ -338,5 +205,252 @@ impl<P: LocalPolkadotApi + Send + Sync + 'static> Collators for ConsensusNetwork
 
 	fn note_bad_collator(&self, collator: AccountId) {
 		self.network.with_spec(|spec, ctx| spec.disconnect_bad_collator(ctx, collator));
+	}
+}
+
+#[derive(Default)]
+struct KnowledgeEntry {
+	knows_block_data: Vec<SessionKey>,
+	knows_extrinsic: Vec<SessionKey>,
+	block_data: Option<BlockData>,
+	extrinsic: Option<Extrinsic>,
+}
+
+/// Tracks knowledge of peers.
+pub(crate) struct Knowledge {
+	candidates: HashMap<Hash, KnowledgeEntry>,
+}
+
+impl Knowledge {
+	/// Create a new knowledge instance.
+	pub(crate) fn new() -> Self {
+		Knowledge {
+			candidates: HashMap::new(),
+		}
+	}
+
+	/// Note a statement seen from another validator.
+	pub(crate) fn note_statement(&mut self, from: SessionKey, statement: &Statement) {
+		match *statement {
+			GenericStatement::Candidate(ref c) => {
+				let mut entry = self.candidates.entry(c.hash()).or_insert_with(Default::default);
+				entry.knows_block_data.push(from);
+				entry.knows_extrinsic.push(from);
+			}
+			GenericStatement::Available(ref hash) => {
+				let mut entry = self.candidates.entry(*hash).or_insert_with(Default::default);
+				entry.knows_block_data.push(from);
+				entry.knows_extrinsic.push(from);
+			}
+			GenericStatement::Valid(ref hash) | GenericStatement::Invalid(ref hash) => self.candidates.entry(*hash)
+				.or_insert_with(Default::default)
+				.knows_block_data
+				.push(from),
+		}
+	}
+
+	/// Note a candidate collated or seen locally.
+	pub(crate) fn note_candidate(&mut self, hash: Hash, block_data: Option<BlockData>, extrinsic: Option<Extrinsic>) {
+		let entry = self.candidates.entry(hash).or_insert_with(Default::default);
+		entry.block_data = entry.block_data.take().or(block_data);
+		entry.extrinsic = entry.extrinsic.take().or(extrinsic);
+	}
+}
+
+/// A current consensus instance.
+pub(crate) struct CurrentConsensus {
+	knowledge: Arc<Mutex<Knowledge>>,
+	local_session_key: SessionKey,
+}
+
+impl CurrentConsensus {
+	#[cfg(test)]
+	pub(crate) fn new(knowledge: Arc<Mutex<Knowledge>>, local_session_key: SessionKey) -> Self {
+		CurrentConsensus {
+			knowledge,
+			local_session_key
+		}
+	}
+
+	// execute a closure with locally stored block data for a candidate, or a slice of session identities
+	// we believe should have the data.
+	fn with_block_data<F, U>(&self, hash: &Hash, f: F) -> U
+		where F: FnOnce(Result<&BlockData, &[SessionKey]>) -> U
+	{
+		let knowledge = self.knowledge.lock();
+		let res = knowledge.candidates.get(hash)
+			.ok_or(&[] as &_)
+			.and_then(|entry| entry.block_data.as_ref().ok_or(&entry.knows_block_data[..]));
+
+		f(res)
+	}
+}
+
+// 3 is chosen because sessions change infrequently and usually
+// only the last 2 (current session and "last" session) are relevant.
+// the extra is an error boundary.
+const RECENT_SESSIONS: usize = 3;
+
+/// Result when inserting recent session key.
+#[derive(PartialEq, Eq)]
+pub(crate) enum InsertedRecentKey {
+	/// Key was already known.
+	AlreadyKnown,
+	/// Key was new and pushed out optional old item.
+	New(Option<SessionKey>),
+}
+
+/// Wrapper for managing recent session keys.
+#[derive(Default)]
+pub(crate) struct RecentSessionKeys {
+	inner: ArrayVec<[SessionKey; RECENT_SESSIONS]>,
+}
+
+impl RecentSessionKeys {
+	/// Insert a new session key. This returns one to be pushed out if the
+	/// set is full.
+	pub(crate) fn insert(&mut self, key: SessionKey) -> InsertedRecentKey {
+		if self.inner.contains(&key) { return InsertedRecentKey::AlreadyKnown }
+
+		let old = if self.inner.len() == RECENT_SESSIONS {
+			Some(self.inner.remove(0))
+		} else {
+			None
+		};
+
+		self.inner.push(key);
+		InsertedRecentKey::New(old)
+	}
+
+	/// As a slice.
+	pub(crate) fn as_slice(&self) -> &[SessionKey] {
+		&*self.inner
+	}
+
+	fn remove(&mut self, key: &SessionKey) {
+		self.inner.retain(|k| k != key)
+	}
+}
+
+/// Manages requests and session keys for live consensus instances.
+pub(crate) struct LiveConsensusInstances {
+	// recent local session keys.
+	recent: RecentSessionKeys,
+	// live consensus instances, on `parent_hash`.
+	live_instances: HashMap<Hash, CurrentConsensus>,
+}
+
+impl LiveConsensusInstances {
+	/// Create a new `LiveConsensusInstances`
+	pub(crate) fn new() -> Self {
+		LiveConsensusInstances {
+			recent: Default::default(),
+			live_instances: HashMap::new(),
+		}
+	}
+
+	/// Note new consensus session. If the used session key is new,
+	/// it returns it to be broadcasted to peers.
+	pub(crate) fn new_consensus(
+		&mut self,
+		parent_hash: Hash,
+		consensus: CurrentConsensus,
+	) -> Option<SessionKey> {
+		let inserted_key = self.recent.insert(consensus.local_session_key);
+		let maybe_new = if let InsertedRecentKey::New(_) = inserted_key {
+			Some(consensus.local_session_key)
+		} else {
+			None
+		};
+
+		self.live_instances.insert(parent_hash, consensus);
+
+		maybe_new
+	}
+
+	/// Remove consensus session.
+	pub(crate) fn remove(&mut self, parent_hash: &Hash) {
+		if let Some(consensus) = self.live_instances.remove(parent_hash) {
+			let key_still_used = self.live_instances.values()
+				.any(|c| c.local_session_key == consensus.local_session_key);
+
+			if !key_still_used {
+				self.recent.remove(&consensus.local_session_key)
+			}
+		}
+	}
+
+	/// Recent session keys as a slice.
+	pub(crate) fn recent_keys(&self) -> &[SessionKey] {
+		self.recent.as_slice()
+	}
+
+	/// Call a closure with block data from consensus session at parent hash.
+	///
+	/// This calls the closure with `Some(data)` where the session and data are live,
+	/// `Err(Some(keys))` when the session is live but the data unknown, with a list of keys
+	/// who have the data, and `Err(None)` where the session is unknown.
+	pub(crate) fn with_block_data<F, U>(&self, parent_hash: &Hash, c_hash: &Hash, f: F) -> U
+		where F: FnOnce(Result<&BlockData, Option<&[SessionKey]>>) -> U
+	{
+		match self.live_instances.get(parent_hash) {
+			Some(c) => c.with_block_data(c_hash, |res| f(res.map_err(Some))),
+			None => f(Err(None))
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn last_keys_works() {
+		let a = [1; 32].into();
+		let b = [2; 32].into();
+		let c = [3; 32].into();
+		let d = [4; 32].into();
+
+		let mut recent = RecentSessionKeys::default();
+
+		match recent.insert(a) {
+			InsertedRecentKey::New(None) => {},
+			_ => panic!("is new, not at capacity"),
+		}
+
+		match recent.insert(a) {
+			InsertedRecentKey::AlreadyKnown => {},
+			_ => panic!("not new"),
+		}
+
+		match recent.insert(b) {
+			InsertedRecentKey::New(None) => {},
+			_ => panic!("is new, not at capacity"),
+		}
+
+		match recent.insert(b) {
+			InsertedRecentKey::AlreadyKnown => {},
+			_ => panic!("not new"),
+		}
+
+		match recent.insert(c) {
+			InsertedRecentKey::New(None) => {},
+			_ => panic!("is new, not at capacity"),
+		}
+
+		match recent.insert(c) {
+			InsertedRecentKey::AlreadyKnown => {},
+			_ => panic!("not new"),
+		}
+
+		match recent.insert(d) {
+			InsertedRecentKey::New(Some(old)) => assert_eq!(old, a),
+			_ => panic!("is new, and at capacity"),
+		}
+
+		match recent.insert(d) {
+			InsertedRecentKey::AlreadyKnown => {},
+			_ => panic!("not new"),
+		}
 	}
 }

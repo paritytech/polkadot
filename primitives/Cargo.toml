@@ -4,13 +4,15 @@ version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
-serde = { version = "1.0", default_features = false }
+serde = { version = "1.0", default-features = false }
 serde_derive = { version = "1.0", optional = true }
-parity-codec = { git = "https://github.com/paritytech/substrate", default_features = false }
-parity-codec-derive = { git = "https://github.com/paritytech/substrate", default_features = false }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", default_features = false }
-sr-std = { git = "https://github.com/paritytech/substrate", default_features = false }
-sr-primitives = { git = "https://github.com/paritytech/substrate", default_features = false }
+parity-codec = { version = "2.1", default-features = false }
+parity-codec-derive = { version = "2.1", default-features = false }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
+substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false }
+sr-version = { git = "https://github.com/paritytech/substrate", default-features = false }
+sr-std = { git = "https://github.com/paritytech/substrate", default-features = false }
+sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
 
 [dev-dependencies]
 substrate-serializer = { git = "https://github.com/paritytech/substrate" }
@@ -20,8 +22,11 @@ pretty_assertions = "0.4"
 default = ["std"]
 std = [
 	"parity-codec/std",
+	"parity-codec-derive/std",
 	"substrate-primitives/std",
+	"substrate-client/std",
 	"sr-std/std",
+	"sr-version/std",
 	"sr-primitives/std",
 	"serde_derive",
 	"serde/std",

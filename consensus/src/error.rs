@@ -16,12 +16,13 @@
 
 //! Errors that can occur during the consensus process.
 
-use primitives::AuthorityId;
+use primitives::Ed25519AuthorityId as AuthorityId;
+use runtime_primitives::RuntimeString;
 
 error_chain! {
 	links {
-		PolkadotApi(::polkadot_api::Error, ::polkadot_api::ErrorKind);
-		Bft(::bft::Error, ::bft::ErrorKind);
+		Client(::client::error::Error, ::client::error::ErrorKind);
+		Consensus(::consensus::error::Error, ::consensus::error::ErrorKind);
 	}
 
 	errors {
@@ -32,6 +33,10 @@ error_chain! {
 		NotValidator(id: AuthorityId) {
 			description("Local account ID not a validator at this block."),
 			display("Local account ID ({:?}) not a validator at this block.", id),
+		}
+		InherentError(reason: RuntimeString) {
+			description("Unexpected error while checking inherents"),
+			display("Unexpected error while checking inherents: {}", reason),
 		}
 		PrematureDestruction {
 			description("Proposer destroyed before finishing proposing or evaluating"),
@@ -48,8 +53,8 @@ error_chain! {
 	}
 }
 
-impl From<::bft::InputStreamConcluded> for Error {
-	fn from(err: ::bft::InputStreamConcluded) -> Self {
-		::bft::Error::from(err).into()
-	}
-}
+// impl From<::bft::InputStreamConcluded> for Error {
+// 	fn from(err: ::bft::InputStreamConcluded) -> Self {
+// 		::bft::Error::from(err).into()
+// 	}
+// }

@@ -1,18 +1,32 @@
+# .gitlab-ci.yml
+#
+# pipelines can be triggered manually in the web
+# setting POLKADOT_BRANCH to v0.2 will result in a poc2 build
+# setting DEPLOY_TAG will only deploy the tagged image
+
+
 stages:
   - test
   - build
+  - publish
+  - deploy
 
+
+
+
+# default release in rust:nightly image is stable
 image:                             parity/rust:nightly
 
 variables:
   CI_SERVER_NAME:                  "GitLab CI"
   CARGO_HOME:                      "${CI_PROJECT_DIR}/.cargo"
+  SUBSTRATE_REPO:                  "https://github.com/paritytech/substrate.git"
+
 
 
 cache:
   key:                             "${CI_JOB_NAME}"
   paths:
-    - ./target/
     - ./.cargo/
 
 
@@ -22,43 +36,156 @@ cache:
     when:                          on_success
     expire_in:                     7 days
     paths:
-    - target/release/polkadot
-
-.determine_version: &determine_version |
-  export VERSION="$(sed -r -n '1,/^version/s/^version = "([^"]+)".*$/\1/p' Cargo.toml)"
-  echo "Version" $VERSION
+    - target/release/
 
 
-before_script:
-  - ./scripts/build.sh
+
+# disabled as there are bugs
+# before_script:
+#   - ./scripts/build.sh
 
 
-#### stage:                        test
 
-test:rust:stable:
+# test will be run for ci on the current repo
+# for version v0.2 branch tests are located in substrate repository and 
+# therefore not generically testable
+test:rust:release:
   stage:                           test
-  script:
-    - time cargo test --all --release
   only:
     - triggers
     - tags
     - master
     - schedules
     - web
+    - /^[0-9]+$/
+  except:
+    variables:
+      - $POLKADOT_BRANCH == "v0.2"
+      - $DEPLOY_TAG
   tags:
-    - rust-stable 
-
-
-#### stage:                        build
-
-build:linux:ubuntu:amd64:
-  stage:                           build
+    - rust
   script:
-    - cargo build --release
+    - time cargo test --all --release --verbose
+
+
+
+build:rust:linux:release:
+  stage:                           build
   <<:                              *collect_artifacts
   only:
     - master
     - tags
+    - web
+  except:
+    variables:
+      - $DEPLOY_TAG
   tags:
-    - rust-stable
+    - rust
+  script:
+    - >
+      set -x;
+      if [ "${POLKADOT_BRANCH}" = "v0.2" ]; then
+        if [ -z "${TAG}" ]; then
+          time cargo install --verbose --root ./target/release/ --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot;
+        else
+          time cargo install --verbose --root ./target/release/ --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot;
+        fi;
+        mv ./target/release/bin/polkadot ./target/release/polkadot;
+        rm -d ./target/release/bin;
+      else
+        time cargo build --release --verbose;
+      fi;
+      set +x
+    - ./target/release/polkadot --version
+
+
+
+dockerize:release:
+  stage:                           publish
+  dependencies:
+    - build:rust:linux:release
+  cache: {}
+  only:
+    - master
+    - tags
+    - web
+  except:
+    variables:
+      - $DEPLOY_TAG
+  tags:
+    - shell
+  variables:
+    DOCKERFILE: scripts/docker/Dockerfile
+    CONTAINER_IMAGE: parity/polkadot
+  before_script:
+    - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity"
+        || ( echo "no docker credentials provided"; exit 1 )
+    - docker login -u "$Docker_Hub_User_Parity" -p "$Docker_Hub_Pass_Parity"
+    - docker info
+    - VERSION="$(./target/release/polkadot --version | sed -n -r 's/^polkadot ([0-9.]+-[0-9a-f]+)-.*$/\1/p')"
+    - export VERSION
+    - echo "Polkadot version = ${VERSION}"
+  script:
+    - test -z "${VERSION}" && exit 1
+    - docker build --tag $CONTAINER_IMAGE:$VERSION --tag $CONTAINER_IMAGE:latest -f $DOCKERFILE ./target/release/
+    - docker push $CONTAINER_IMAGE:$VERSION
+    - docker push $CONTAINER_IMAGE:latest
+    - rm -f ./target/release/polkadot
+    - echo "${VERSION}" > ./target/release/VERSION
+  after_script:
+    - docker logout
+  # use artifacts here to transport the version to the next stage
+  <<:                              *collect_artifacts
+
+
+
+
+
+.deploy:template:                  &deploy
+  stage:                           deploy
+  when:                            manual
+  cache:                           {}
+  retry:                           1
+  image: dtzar/helm-kubectl:$HELM_VERSION
+  only:
+    - master
+    - tags
+    - web
+  tags:
+    - kubernetes
+  before_script:
+    - test -z "${DEPLOY_TAG}" && 
+      test -f ./target/release/VERSION && 
+      DEPLOY_TAG="$(cat ./target/release/VERSION)"
+    - test "${DEPLOY_TAG}" || ( echo "Neither DEPLOY_TAG nor VERSION information available"; exit 1 )
+  script:
+    - echo "Polkadot version = ${DEPLOY_TAG}"
+    # or use helm to render the template
+    - helm template 
+      --values ./scripts/kubernetes/values.yaml 
+      --set image.tag=${DEPLOY_TAG}
+      ./scripts/kubernetes | kubectl apply -f - --dry-run=true
+    - echo "# polkadot namespace"
+    - kubectl -n polkadot get all
+    - echo "# polkadot's nodes' external ip addresses:"
+    - kubectl get nodes -l node=polkadot
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range @.status.addresses[?(@.type=="ExternalIP")]}{.address}{"\n"}{end}'
+    - echo "# polkadots' nodes"
+    - kubectl -n polkadot get pods 
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.nodeName}{"\n"}{end}'
+
+
+
+# have environment:url eventually point to the logs
+
+deploy:ew3:
+  <<:                              *deploy
+  environment:
+    name: gke-beta-ew3
+
+deploy:ue1:
+  <<:                              *deploy
+  environment:
+    name: gke-beta-ue1
+
 

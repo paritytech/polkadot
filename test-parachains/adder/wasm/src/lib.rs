@@ -19,8 +19,7 @@
 #![no_std]
 
 #![feature(
-	alloc, core_intrinsics, lang_items, panic_implementation, core_panic_info,
-	alloc_error_handler
+	alloc, core_intrinsics, lang_items, core_panic_info, alloc_error_handler
 )]
 
 extern crate alloc;
@@ -39,7 +38,7 @@ use parachain::ValidationResult;
 use parachain::codec::{Encode, Decode};
 use adder::{HeadData, BlockData};
 
-#[panic_implementation]
+#[panic_handler]
 #[no_mangle]
 pub fn panic(_info: &panic::PanicInfo) -> ! {
 	unsafe {

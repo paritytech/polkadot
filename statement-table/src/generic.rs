@@ -177,7 +177,7 @@ enum ValidityVote<S: Eq + Clone> {
 pub struct Summary<D, G> {
 	/// The digest of the candidate referenced.
 	pub candidate: D,
-	/// The group that candidate is in.
+	/// The group that the candidate is in.
 	pub group_id: G,
 	/// How many validity votes are currently witnessed.
 	pub validity_votes: usize,
@@ -185,6 +185,30 @@ pub struct Summary<D, G> {
 	pub availability_votes: usize,
 	/// Whether this has been signalled bad by at least one participant.
 	pub signalled_bad: bool,
+}
+
+/// A validity attestation.
+#[derive(Clone, PartialEq, Decode, Encode)]
+pub enum ValidityAttestation<S> {
+	/// implicit validity attestation by issuing.
+	/// This corresponds to issuance of a `Candidate` statement.
+	Implicit(S),
+	/// An explicit attestation. This corresponds to issuance of a
+	/// `Valid` statement.
+	Explicit(S),
+}
+
+/// An attested-to candidate.
+#[derive(Clone, PartialEq, Decode, Encode)]
+pub struct AttestedCandidate<Group, Candidate, AuthorityId, Signature> {
+	/// The group ID that the candidate is in.
+	pub group_id: Group,
+	/// The candidate data.
+	pub candidate: Candidate,
+	/// Validity attestations.
+	pub validity_votes: Vec<(AuthorityId, ValidityAttestation<Signature>)>,
+	/// Availability attestations.
+	pub availability_votes: Vec<(AuthorityId, Signature)>
 }
 
 /// Stores votes and data about a candidate.
@@ -200,6 +224,53 @@ impl<C: Context> CandidateData<C> {
 	/// whether this has been indicated bad by anyone.
 	pub fn indicated_bad(&self) -> bool {
 		!self.indicated_bad_by.is_empty()
+	}
+
+	/// Yield a full attestation for a candidate.
+	/// If the candidate can be included, it will return `Some`.
+	pub fn attested(&self, validity_threshold: usize, availability_threshold: usize)
+		-> Option<AttestedCandidate<
+			C::GroupId, C::Candidate, C::AuthorityId, C::Signature,
+		>>
+	{
+		if self.can_be_included(validity_threshold, availability_threshold) {
+			let validity_votes: Vec<_> = self.validity_votes.iter()
+				.filter_map(|(a, v)| match *v {
+					ValidityVote::Invalid(_) => None,
+
+					ValidityVote::Valid(ref s) =>
+						Some((a, ValidityAttestation::Explicit(s.clone()))),
+					ValidityVote::Issued(ref s) =>
+						Some((a, ValidityAttestation::Implicit(s.clone()))),
+				})
+				.take(validity_threshold)
+				.map(|(k, v)| (k.clone(), v.clone()))
+				.collect();
+
+			assert!(
+				validity_votes.len() == validity_threshold,
+				"candidate is includable; therefore there are enough validity votes; qed",
+			);
+
+			let availability_votes: Vec<_> = self.availability_votes.iter()
+				.take(availability_threshold)
+				.map(|(k, v)| (k.clone(), v.clone()))
+				.collect();
+
+			assert!(
+				availability_votes.len() == availability_threshold,
+				"candidate is includable; therefore there are enough availability votes; qed",
+			);
+
+			Some(AttestedCandidate {
+				group_id: self.group_id.clone(),
+				candidate: self.candidate.clone(),
+				validity_votes,
+				availability_votes,
+			})
+		} else {
+			None
+		}
 	}
 
 	// Candidate data can be included in a proposal
@@ -267,7 +338,9 @@ impl<C: Context> Table<C> {
 	/// best candidate for each group with requisite votes for inclusion.
 	///
 	/// The vector is sorted in ascending order by group id.
-	pub fn proposed_candidates<'a>(&'a self, context: &C) -> Vec<&'a C::Candidate> {
+	pub fn proposed_candidates(&self, context: &C) -> Vec<AttestedCandidate<
+		C::GroupId, C::Candidate, C::AuthorityId, C::Signature,
+	>> {
 		use std::collections::BTreeMap;
 		use std::collections::btree_map::Entry as BTreeEntry;
 
@@ -282,19 +355,26 @@ impl<C: Context> Table<C> {
 			let (validity_t, availability_t) = context.requisite_votes(group_id);
 
 			if !candidate_data.can_be_included(validity_t, availability_t) { continue }
-			let candidate = &candidate_data.candidate;
 			match best_candidates.entry(group_id.clone()) {
+				BTreeEntry::Vacant(vacant) => {
+					vacant.insert((candidate_data, validity_t, availability_t));
+				},
 				BTreeEntry::Occupied(mut occ) => {
 					let candidate_ref = occ.get_mut();
-					if *candidate_ref > candidate {
-						*candidate_ref = candidate;
+					if candidate_ref.0.candidate > candidate_data.candidate {
+						candidate_ref.0 = candidate_data;
 					}
 				}
-				BTreeEntry::Vacant(vacant) => { vacant.insert(candidate); },
 			}
 		}
 
-		best_candidates.values().cloned().collect::<Vec<_>>()
+		best_candidates.values()
+			.map(|&(candidate_data, validity_t, availability_t)|
+				candidate_data.attested(validity_t, availability_t)
+					.expect("candidate has been checked includable; \
+						therefore an attestation can be constructed; qed")
+			)
+			.collect::<Vec<_>>()
 	}
 
 	/// Whether a candidate can be included.
