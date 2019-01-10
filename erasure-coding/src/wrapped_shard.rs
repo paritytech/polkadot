@@ -68,6 +68,51 @@ impl std::iter::FromIterator<[u8; 2]> for WrappedShard {
 			inner.push(b);
 		}
 
+		debug_assert_eq!(inner.len() % 2, 0);
 		WrappedShard { inner }
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::WrappedShard;
+
+	#[test]
+	fn wrap_empty_ok() {
+		let mut wrapped = WrappedShard::new(Vec::new());
+		{
+			let _: &mut [u8] = wrapped.as_mut();
+			let _: &mut [[u8; 2]] = wrapped.as_mut();
+		}
+
+		{
+			let _: &[u8] = wrapped.as_ref();
+			let _: &[[u8; 2]] = wrapped.as_ref();
+		}
+	}
+
+	#[test]
+	fn data_order_preserved() {
+		let mut wrapped = WrappedShard::new(vec![1, 2, 3]);
+		{
+			let x: &[u8] = wrapped.as_ref();
+			assert_eq!(x, &[1, 2, 3, 0]);
+		}
+		{
+			let x: &mut [[u8; 2]] = wrapped.as_mut();
+			assert_eq!(x, &mut [[1, 2], [3, 0]]);
+			x[1] = [3, 4];
+		}
+		{
+			let x: &[u8] = wrapped.as_ref();
+			assert_eq!(x, &[1, 2, 3, 4]);
+		}
+	}
+
+	#[test]
+	fn from_iter() {
+		let w: WrappedShard = vec![[1, 2], [3, 4], [5, 6]].into_iter().collect();
+		let x: &[u8] = w.as_ref();
+		assert_eq!(x, &[1, 2, 3, 4, 5, 6])
 	}
 }
