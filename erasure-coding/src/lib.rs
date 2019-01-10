@@ -31,11 +31,15 @@ extern crate substrate_primitives;
 extern crate substrate_trie as trie;
 
 use codec::{Encode, Decode};
-use reed_solomon::ReedSolomon;
+use reed_solomon::galois_16::ReedSolomon;
 use primitives::{Hash as H256, BlakeTwo256, HashT};
 use primitives::parachain::{BlockData, Extrinsic};
 use substrate_primitives::Blake2Hasher;
 use trie::{MemoryDB, Trie, TrieMut, TrieDB, TrieDBMut};
+
+use self::wrapped_shard::WrappedShard;
+
+mod wrapped_shard;
 
 // unfortunate requirement due to use of GF(256) in the reed-solomon
 // implementation.
@@ -56,6 +60,8 @@ pub enum Error {
 	TooManyChunks,
 	/// Chunks not of uniform length or the chunks are empty.
 	NonUniformChunks,
+	/// An uneven byte-length of a shard is not valid for GF(2^16) encoding.
+	UnevenLength,
 	/// Chunk index out of bounds.
 	ChunkIndexOutOfBounds(usize, usize),
 	/// Bad payload in reconstructed bytes.
@@ -77,13 +83,15 @@ impl CodeParams {
 		(base_len / self.data_shards) + (base_len % self.data_shards)
 	}
 
-	fn make_shards_for(&self, payload: &[u8]) -> Vec<Box<[u8]>> {
+	fn make_shards_for(&self, payload: &[u8]) -> Vec<WrappedShard> {
 		let shard_len = self.shard_len(payload.len());
-		let mut shards = reed_solomon::make_blank_shards(
-			shard_len,
-			self.data_shards + self.parity_shards,
-		);
+		let mut shards = vec![
+			WrappedShard::new(vec![0; shard_len]);
+			self.data_shards + self.parity_shards
+		];
+
 		for (data_chunk, blank_shard) in payload.chunks(shard_len).zip(&mut shards) {
+			let blank_shard: &mut [u8] = blank_shard.as_mut();
 			let len = ::std::cmp::min(data_chunk.len(), blank_shard.len());
 
 			// fill the empty shards with the corresponding piece of the payload,
@@ -118,7 +126,7 @@ fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 ///
 /// Works only up to 256 validators, and `n_validators` must be non-zero.
 pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, extrinsic: &Extrinsic)
-	-> Result<Vec<Box<[u8]>>, Error>
+	-> Result<Vec<Vec<u8>>, Error>
 {
 	let params  = code_params(n_validators)?;
 	let encoded = (block_data, extrinsic).encode();
@@ -128,10 +136,13 @@ pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, extrinsic: &Ex
 	}
 
 	let mut shards = params.make_shards_for(&encoded[..]);
-	params.make_encoder().encode_shards(&mut shards[..])
-		.expect("Payload non-empty, shard sizes are uniform, and validator numbers checked; qed");
 
-	Ok(shards)
+	{
+		params.make_encoder().encode(&mut shards[..])
+			.expect("Payload non-empty, shard sizes are uniform, and validator numbers checked; qed");
+	}
+
+	Ok(shards.into_iter().map(|w| w.into_inner()).collect())
 }
 
 /// Reconstruct the block data from a set of chunks.
@@ -146,7 +157,7 @@ pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
 	where I: IntoIterator<Item=(&'a [u8], usize)>
 {
 	let params = code_params(n_validators)?;
-	let mut shards: Vec<Option<Box<[u8]>>> = vec![None; n_validators];
+	let mut shards: Vec<Option<WrappedShard>> = vec![None; n_validators];
 	let mut shard_len = None;
 	for (chunk_data, chunk_idx) in chunks.into_iter().take(n_validators) {
 		if chunk_idx >= n_validators {
@@ -155,14 +166,18 @@ pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
 
 		let shard_len = shard_len.get_or_insert_with(|| chunk_data.len());
 
+		if *shard_len % 2 != 0 {
+			return Err(Error::UnevenLength);
+		}
+
 		if *shard_len != chunk_data.len() || *shard_len == 0 {
 			return Err(Error::NonUniformChunks);
 		}
 
-		shards[chunk_idx] = Some(chunk_data.to_vec().into_boxed_slice());
+		shards[chunk_idx] = Some(WrappedShard::new(chunk_data.to_vec()));
 	}
 
-	if let Err(e) = params.make_encoder().reconstruct_shards(&mut shards[..]) {
+	if let Err(e) = params.make_encoder().reconstruct(&mut shards[..]) {
 		match e {
 			reed_solomon::Error::TooFewShardsPresent => Err(Error::NotEnoughChunks)?,
 			reed_solomon::Error::InvalidShardFlags => Err(Error::WrongValidatorCount)?,
@@ -271,7 +286,7 @@ pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Resul
 
 // input for `parity_codec` which draws data from the data shards
 struct ShardInput {
-	shards: Vec<Option<Box<[u8]>>>,
+	shards: Vec<Option<WrappedShard>>,
 	data_shards: usize,
 	cursor: (usize, usize), // shard, in_shard
 }
@@ -284,9 +299,11 @@ impl codec::Input for ShardInput {
 		while *shard_idx < self.data_shards {
 			if read_bytes == into.len() { break }
 
-			let active_shard = self.shards[*shard_idx]
+			// byte-slice view into active shard.
+			let active_shard: &[u8] = self.shards[*shard_idx]
 				.as_ref()
-				.expect("data shards have been recovered; qed");
+				.expect("data shards have been recovered; qed")
+				.as_ref();
 
 			if *in_shard >= active_shard.len() {
 				*shard_idx += 1;
