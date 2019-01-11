@@ -24,7 +24,7 @@
 
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
 use polkadot_consensus::{SharedTable, TableRouter, SignedStatement, GenericStatement, StatementProducer};
-use polkadot_primitives::{Block, Hash, BlockId, SessionKey};
+use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{BlockData, Extrinsic, CandidateReceipt, ParachainHost};
 
 use codec::Encode;
@@ -158,26 +158,12 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 		D: Future<Item=BlockData,Error=io::Error> + Send + 'static,
 		E: Future<Item=Extrinsic,Error=io::Error> + Send + 'static,
 	{
-		let parent_hash = self.parent_hash.clone();
-
-		let api = self.api.clone();
-		let validate = move |collation| -> Option<bool> {
-			let id = BlockId::hash(parent_hash);
-			match ::polkadot_consensus::validate_collation(&*api, &id, &collation) {
-				Ok(()) => Some(true),
-				Err(e) => {
-					debug!(target: "p_net", "Encountered bad collation: {}", e);
-					Some(false)
-				}
-			}
-		};
-
 		let table = self.table.clone();
 		let network = self.network.clone();
 		let knowledge = self.knowledge.clone();
 		let attestation_topic = self.attestation_topic.clone();
 
-		producer.prime(validate)
+		producer.prime(self.api.clone())
 			.map(move |produced| {
 				// store the data before broadcasting statements, so other peers can fetch.
 				knowledge.lock().note_candidate(

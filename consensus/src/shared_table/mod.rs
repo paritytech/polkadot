@@ -22,10 +22,10 @@ use std::sync::Arc;
 
 use extrinsic_store::{Data, Store as ExtrinsicStore};
 use table::{self, Table, Context as TableContextTrait};
-use polkadot_primitives::{Hash, SessionKey};
+use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, Collation, Extrinsic, CandidateReceipt,
-	AttestedCandidate,
+	AttestedCandidate, ParachainHost
 };
 
 use parking_lot::Mutex;
@@ -34,6 +34,7 @@ use futures::{future, prelude::*};
 use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
 use primitives::ed25519;
+use runtime_primitives::{traits::ProvideRuntimeApi};
 
 mod includable;
 
@@ -199,15 +200,16 @@ pub struct StatementProducer<D: Future, E: Future> {
 }
 
 impl<D: Future, E: Future> StatementProducer<D, E> {
-	/// Attach a function for verifying fetched collation to the statement producer.
-	/// This will transform it into a future.
-	///
-	/// The collation-checking function should return `true` if known to be valid,
-	/// `false` if known to be invalid, and `None` if unable to determine.
-	pub fn prime<C: FnMut(Collation) -> Option<bool>>(self, check_candidate: C) -> PrimedStatementProducer<D, E, C> {
+	/// Prime the statement
+	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
+		-> PrimedStatementProducer<D, E, P>
+		where
+			P: Send + 'static,
+			P::Api: ParachainHost<Block>,
+	{
 		PrimedStatementProducer {
 			inner: self,
-			check_candidate,
+			api,
 		}
 	}
 }
@@ -221,16 +223,17 @@ struct Work<D: Future, E: Future> {
 }
 
 /// Primed statement producer.
-pub struct PrimedStatementProducer<D: Future, E: Future, C> {
+pub struct PrimedStatementProducer<D: Future, E: Future, P> {
 	inner: StatementProducer<D, E>,
-	check_candidate: C,
+	api: Arc<P>,
 }
 
-impl<D, E, C, Err> Future for PrimedStatementProducer<D, E, C>
+impl<D, E, P, Err> Future for PrimedStatementProducer<D, E, P>
 	where
 		D: Future<Item=BlockData,Error=Err>,
 		E: Future<Item=Extrinsic,Error=Err>,
-		C: FnMut(Collation) -> Option<bool>,
+		P: ProvideRuntimeApi,
+		P::Api: ParachainHost<Block>,
 		Err: From<::std::io::Error>,
 {
 	type Item = ProducedStatements;
@@ -248,10 +251,19 @@ impl<D, E, C, Err> Future for PrimedStatementProducer<D, E, C>
 		if let Async::Ready(block_data) = work.fetch_block_data.poll()? {
 			statements.block_data = Some(block_data.clone());
 			if work.evaluate {
-				let is_good = (self.check_candidate)(Collation {
-					block_data,
-					receipt: work.candidate_receipt.clone(),
-				});
+				let evaluated = ::collation::validate_collation(
+					&*self.api,
+					&BlockId::hash(self.inner.relay_parent),
+					&Collation { block_data, receipt: work.candidate_receipt.clone() },
+				);
+
+				let is_good = match evaluated {
+					Ok(()) => Some(true),
+					Err(e) => {
+						debug!(target: "consensus", "Encountered bad collation: {}", e);
+						Some(false)
+					}
+				};
 
 				let hash = candidate_hash();
 
