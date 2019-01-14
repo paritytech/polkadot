@@ -29,7 +29,7 @@ use polkadot_primitives::parachain::{
 };
 
 use parking_lot::Mutex;
-use futures::{future, prelude::*};
+use futures::prelude::*;
 
 use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
@@ -53,15 +53,8 @@ impl table::Context for TableContext {
 		self.groups.get(group).map_or(false, |g| g.validity_guarantors.contains(authority))
 	}
 
-	fn is_availability_guarantor_of(&self, authority: &SessionKey, group: &ParaId) -> bool {
-		self.groups.get(group).map_or(false, |g| g.availability_guarantors.contains(authority))
-	}
-
-	fn requisite_votes(&self, group: &ParaId) -> (usize, usize) {
-		self.groups.get(group).map_or(
-			(usize::max_value(), usize::max_value()),
-			|g| (g.needed_validity, g.needed_availability),
-		)
+	fn requisite_votes(&self, group: &ParaId) -> usize {
+		self.groups.get(group).map_or(usize::max_value(), |g| g.needed_validity)
 	}
 }
 
@@ -86,7 +79,6 @@ struct SharedTableInner {
 	table: Table<TableContext>,
 	proposed_digest: Option<Hash>,
 	checked_validity: HashSet<Hash>,
-	checked_availability: HashSet<Hash>,
 	trackers: Vec<IncludabilitySender>,
 	extrinsic_store: ExtrinsicStore,
 }
@@ -104,7 +96,6 @@ impl SharedTableInner {
 		statement: table::SignedStatement,
 	) -> Option<StatementProducer<
 		<R::FetchCandidate as IntoFuture>::Future,
-		<R::FetchExtrinsic as IntoFuture>::Future,
 	>> {
 		let summary = match self.table.import_statement(context, statement) {
 			Some(summary) => summary,
@@ -115,42 +106,25 @@ impl SharedTableInner {
 
 		let local_id = context.local_id();
 
-		let is_validity_member = context.is_member_of(&local_id, &summary.group_id);
-		let is_availability_member =
-			context.is_availability_guarantor_of(&local_id, &summary.group_id);
+		let para_member = context.is_member_of(&local_id, &summary.group_id);
 
 		let digest = &summary.candidate;
 
 		// TODO: consider a strategy based on the number of candidate votes as well.
 		// only check validity if this wasn't locally proposed.
-		let checking_validity = is_validity_member
+		let extra_work = para_member
 			&& self.proposed_digest.as_ref().map_or(true, |d| d != digest)
 			&& self.checked_validity.insert(digest.clone());
 
-		let checking_availability = is_availability_member
-			&& self.checked_availability.insert(digest.clone());
-
-		let work = if checking_validity || checking_availability {
+		let work = if extra_work {
 			match self.table.get_candidate(&digest) {
 				None => None, // TODO: handle table inconsistency somehow?
 				Some(candidate) => {
-					let fetch_block_data =
-						router.fetch_block_data(candidate).into_future().fuse();
-
-					let fetch_extrinsic = if checking_availability {
-						Some(
-							router.fetch_extrinsic_data(candidate).into_future().fuse()
-						)
-					} else {
-						None
-					};
+					let fetch_block_data = router.fetch_block_data(candidate).into_future();
 
 					Some(Work {
 						candidate_receipt: candidate.clone(),
 						fetch_block_data,
-						fetch_extrinsic,
-						evaluate: checking_validity,
-						ensure_available: checking_availability,
 					})
 				}
 			}
@@ -159,7 +133,6 @@ impl SharedTableInner {
 		};
 
 		work.map(|work| StatementProducer {
-			produced_statements: Default::default(),
 			extrinsic_store: self.extrinsic_store.clone(),
 			relay_parent: context.parent_hash.clone(),
 			work
@@ -176,64 +149,77 @@ impl SharedTableInner {
 	}
 }
 
-/// Produced statements about a specific candidate.
-/// Both may be `None`.
-#[derive(Default)]
+/// A produced statement and data to make available.
 pub struct ProducedStatements {
 	/// A statement about the validity of the candidate.
-	pub validity: Option<table::Statement>,
-	/// A statement about availability of data. If this is `Some`,
-	/// then `block_data` and `extrinsic` should be `Some` as well.
-	pub availability: Option<table::Statement>,
+	pub validity: table::Statement,
 	/// Block data to ensure availability of.
-	pub block_data: Option<BlockData>,
+	pub block_data: BlockData,
 	/// Extrinsic data to ensure availability of.
-	pub extrinsic: Option<Extrinsic>,
+	pub extrinsic: Extrinsic,
 }
 
 /// Future that produces statements about a specific candidate.
-pub struct StatementProducer<D: Future, E: Future> {
-	produced_statements: ProducedStatements,
-	work: Work<D, E>,
+pub struct StatementProducer<D: Future> {
+	work: Work<D>,
 	relay_parent: Hash,
 	extrinsic_store: ExtrinsicStore,
 }
 
-impl<D: Future, E: Future> StatementProducer<D, E> {
-	/// Prime the statement
+impl<D: Future> StatementProducer<D> {
+	/// Prime the statement producer with an API reference for extracting
+	/// chain information.
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
-		-> PrimedStatementProducer<D, E, P>
+		-> PrimedStatementProducer<
+			D,
+			impl Send + FnMut(&BlockId, &Collation) -> bool,
+		>
 		where
-			P: Send + 'static,
+			P: Send + Sync + 'static,
 			P::Api: ParachainHost<Block>,
 	{
-		PrimedStatementProducer {
-			inner: self,
-			api,
-		}
+		let validate = move |id: &_, collation: &_| {
+			let res = ::collation::validate_collation(
+				&*api,
+				id,
+				collation,
+			);
+
+			match res {
+				Ok(_) => true,
+				Err(e) => {
+					debug!(target: "consensus", "Encountered bad collation: {}", e);
+					false
+				}
+			}
+		};
+
+		PrimedStatementProducer { inner: self, validate }
+	}
+
+	/// Prime the statement producer with a custom validation function.
+	pub fn prime_with<F>(self, validate: F) -> PrimedStatementProducer<D, F>
+		where F: FnMut(&BlockId, &Collation) -> bool
+	{
+		PrimedStatementProducer { inner: self, validate }
 	}
 }
 
-struct Work<D: Future, E: Future> {
+struct Work<D: Future> {
 	candidate_receipt: CandidateReceipt,
-	fetch_block_data: future::Fuse<D>,
-	fetch_extrinsic: Option<future::Fuse<E>>,
-	evaluate: bool,
-	ensure_available: bool,
+	fetch_block_data: D,
 }
 
 /// Primed statement producer.
-pub struct PrimedStatementProducer<D: Future, E: Future, P> {
-	inner: StatementProducer<D, E>,
-	api: Arc<P>,
+pub struct PrimedStatementProducer<D: Future, F> {
+	inner: StatementProducer<D>,
+	validate: F,
 }
 
-impl<D, E, P, Err> Future for PrimedStatementProducer<D, E, P>
+impl<D, F, Err> Future for PrimedStatementProducer<D, F>
 	where
 		D: Future<Item=BlockData,Error=Err>,
-		E: Future<Item=Extrinsic,Error=Err>,
-		P: ProvideRuntimeApi,
-		P::Api: ParachainHost<Block>,
+		F: FnMut(&BlockId, &Collation) -> bool,
 		Err: From<::std::io::Error>,
 {
 	type Item = ProducedStatements;
@@ -242,75 +228,35 @@ impl<D, E, P, Err> Future for PrimedStatementProducer<D, E, P>
 	fn poll(&mut self) -> Poll<ProducedStatements, Err> {
 		let work = &mut self.inner.work;
 		let candidate = &work.candidate_receipt;
-		let statements = &mut self.inner.produced_statements;
 
-		let mut candidate_hash = None;
-		let mut candidate_hash = move ||
-			candidate_hash.get_or_insert_with(|| candidate.hash()).clone();
+		let block = try_ready!(work.fetch_block_data.poll());
+		let is_good = (self.validate)(
+			&BlockId::hash(self.inner.relay_parent),
+			&Collation { block_data: block.clone(), receipt: candidate.clone() },
+		);
 
-		if let Async::Ready(block_data) = work.fetch_block_data.poll()? {
-			statements.block_data = Some(block_data.clone());
-			if work.evaluate {
-				let evaluated = ::collation::validate_collation(
-					&*self.api,
-					&BlockId::hash(self.inner.relay_parent),
-					&Collation { block_data, receipt: work.candidate_receipt.clone() },
-				);
+		let candidate_hash = candidate.hash();
 
-				let is_good = match evaluated {
-					Ok(()) => Some(true),
-					Err(e) => {
-						debug!(target: "consensus", "Encountered bad collation: {}", e);
-						Some(false)
-					}
-				};
-
-				let hash = candidate_hash();
-
-				debug!(target: "consensus", "Making validity statement about candidate {}: is_good? {:?}", hash, is_good);
-				statements.validity = match is_good {
-					Some(true) => Some(GenericStatement::Valid(hash)),
-					Some(false) => Some(GenericStatement::Invalid(hash)),
-					None => None,
-				};
-
-				work.evaluate = false;
-			}
-		}
-
-		if let Async::Ready(Some(extrinsic)) = work.fetch_extrinsic.poll()? {
-			if work.ensure_available {
-				let hash = candidate_hash();
-				debug!(target: "consensus", "Claiming candidate {} available.", hash);
-
-				statements.extrinsic = Some(extrinsic);
-				statements.availability = Some(GenericStatement::Available(hash));
-
-				work.ensure_available = false;
-			}
-		}
-
-		let done = match (work.evaluate, work.ensure_available) {
-			(false, false) => true,
-			_ => false,
+		debug!(target: "consensus", "Making validity statement about candidate {}: is_good? {:?}", candidate_hash, is_good);
+		let validity_statement = match is_good {
+			true => GenericStatement::Valid(candidate_hash),
+			false => GenericStatement::Invalid(candidate_hash),
 		};
 
-		if done {
-			// commit claimed-available data to disk before returning statements from the future.
-			if let (&Some(ref block), extrinsic) = (&statements.block_data, &statements.extrinsic) {
-				self.inner.extrinsic_store.make_available(Data {
-					relay_parent: self.inner.relay_parent,
-					parachain_id: work.candidate_receipt.parachain_index,
-					candidate_hash: candidate_hash(),
-					block_data: block.clone(),
-					extrinsic: extrinsic.clone(),
-				})?;
-			}
+		let extrinsic = Extrinsic;
+		self.inner.extrinsic_store.make_available(Data {
+			relay_parent: self.inner.relay_parent,
+			parachain_id: work.candidate_receipt.parachain_index,
+			candidate_hash,
+			block_data: block.clone(),
+			extrinsic: Some(extrinsic.clone()),
+		})?;
 
-			Ok(Async::Ready(::std::mem::replace(statements, Default::default())))
-		} else {
-			Ok(Async::NotReady)
-		}
+		Ok(Async::Ready(ProducedStatements {
+			validity: validity_statement,
+			block_data: block,
+			extrinsic,
+		}))
 	}
 }
 
@@ -346,7 +292,6 @@ impl SharedTable {
 				table: Table::default(),
 				proposed_digest: None,
 				checked_validity: HashSet::new(),
-				checked_availability: HashSet::new(),
 				trackers: Vec::new(),
 				extrinsic_store,
 			}))
@@ -378,7 +323,6 @@ impl SharedTable {
 		statement: table::SignedStatement,
 	) -> Option<StatementProducer<
 		<R::FetchCandidate as IntoFuture>::Future,
-		<R::FetchExtrinsic as IntoFuture>::Future,
 	>> {
 		self.inner.lock().import_remote_statement(&*self.context, router, statement)
 	}
@@ -395,7 +339,6 @@ impl SharedTable {
 			I: IntoIterator<Item=table::SignedStatement>,
 			U: ::std::iter::FromIterator<Option<StatementProducer<
 				<R::FetchCandidate as IntoFuture>::Future,
-				<R::FetchExtrinsic as IntoFuture>::Future,
 			>>>,
 	{
 		let mut inner = self.inner.lock();
@@ -406,25 +349,12 @@ impl SharedTable {
 	}
 
 	/// Sign and import a local statement.
-	///
-	/// For candidate statements, this may also produce a second signed statement
-	/// concerning the availability of the candidate data.
 	pub fn sign_and_import(&self, statement: table::Statement)
-		-> (SignedStatement, Option<SignedStatement>)
+		-> SignedStatement
 	{
-		let (proposed_digest, availability) = match statement {
-			GenericStatement::Candidate(ref c) => {
-				let mut availability = None;
-				let hash = c.hash();
-
-				// TODO: actually store the data in an availability store of some kind.
-				if self.context.is_availability_guarantor_of(&self.context.local_id(), &c.parachain_index) {
-					availability = Some(self.context.sign_statement(GenericStatement::Available(hash)));
-				}
-
-				(Some(hash), availability)
-			}
-			_ => (None, None),
+		let proposed_digest = match statement {
+			GenericStatement::Candidate(ref c) => Some(c.hash()),
+			_ => None,
 		};
 
 		let signed_statement = self.context.sign_statement(statement);
@@ -436,12 +366,7 @@ impl SharedTable {
 
 		inner.table.import_statement(&*self.context, signed_statement.clone());
 
-		// ensure the availability statement is imported after the candidate.
-		if let Some(a) = availability.clone() {
-			inner.table.import_statement(&*self.context, a);
-		}
-
-		(signed_statement, availability)
+		signed_statement
 	}
 
 	/// Execute a closure using a specific candidate.
@@ -466,7 +391,6 @@ impl SharedTable {
 		table_attestations.into_iter()
 			.map(|attested| AttestedCandidate {
 				candidate: attested.candidate,
-				availability_votes: attested.availability_votes,
 				validity_votes: attested.validity_votes.into_iter().map(|(a, v)| match v {
 					GAttestation::Implicit(s) => (a, ValidityAttestation::Implicit(s)),
 					GAttestation::Explicit(s) => (a, ValidityAttestation::Explicit(s)),
@@ -480,7 +404,7 @@ impl SharedTable {
 		self.group_info().len()
 	}
 
-	/// Get the number of parachains which have available candidates.
+	/// Get the number of parachains whose candidates may be included.
 	pub fn includable_count(&self) -> usize {
 		self.inner.lock().table.includable_count()
 	}
@@ -513,22 +437,23 @@ impl SharedTable {
 mod tests {
 	use super::*;
 	use substrate_keyring::Keyring;
+	use futures::future;
 
 	#[derive(Clone)]
 	struct DummyRouter;
 	impl TableRouter for DummyRouter {
 		type Error = ::std::io::Error;
-		type FetchCandidate = ::futures::future::Empty<BlockData,Self::Error>;
-		type FetchExtrinsic = ::futures::future::Empty<Extrinsic,Self::Error>;
+		type FetchCandidate = ::futures::future::FutureResult<BlockData,Self::Error>;
+		type FetchExtrinsic = ::futures::future::FutureResult<Extrinsic,Self::Error>;
 
 		fn local_candidate(&self, _candidate: CandidateReceipt, _block_data: BlockData, _extrinsic: Extrinsic) {
 
 		}
 		fn fetch_block_data(&self, _candidate: &CandidateReceipt) -> Self::FetchCandidate {
-			::futures::future::empty()
+			future::ok(BlockData(vec![1, 2, 3, 4, 5]))
 		}
 		fn fetch_extrinsic_data(&self, _candidate: &CandidateReceipt) -> Self::FetchExtrinsic {
-			::futures::future::empty()
+			future::ok(Extrinsic)
 		}
 	}
 
@@ -546,9 +471,7 @@ mod tests {
 
 		groups.insert(para_id, GroupInfo {
 			validity_guarantors: [local_id, validity_other].iter().cloned().collect(),
-			availability_guarantors: Default::default(),
 			needed_validity: 2,
-			needed_availability: 0,
 		});
 
 		let shared_table = SharedTable::new(
@@ -578,17 +501,14 @@ mod tests {
 			sender: validity_other,
 		};
 
-		let producer = shared_table.import_remote_statement(
+		shared_table.import_remote_statement(
 			&DummyRouter,
 			signed_statement,
 		).expect("candidate and local validity group are same");
-
-		assert!(producer.work.evaluate, "should evaluate validity");
-		assert!(producer.work.fetch_extrinsic.is_none(), "should not fetch extrinsic");
 	}
 
 	#[test]
-	fn statement_triggers_fetch_and_availability() {
+	fn statement_triggers_fetch_and_validity() {
 		let mut groups = HashMap::new();
 
 		let para_id = ParaId::from(1);
@@ -600,10 +520,8 @@ mod tests {
 		let parent_hash = Default::default();
 
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [validity_other].iter().cloned().collect(),
-			availability_guarantors: [local_id].iter().cloned().collect(),
+			validity_guarantors: [local_id, validity_other].iter().cloned().collect(),
 			needed_validity: 1,
-			needed_availability: 1,
 		});
 
 		let shared_table = SharedTable::new(
@@ -633,14 +551,10 @@ mod tests {
 			sender: validity_other,
 		};
 
-		let producer = shared_table.import_remote_statement(
+		shared_table.import_remote_statement(
 			&DummyRouter,
 			signed_statement,
 		).expect("should produce work");
-
-		assert!(producer.work.fetch_extrinsic.is_some(), "should fetch extrinsic when guaranteeing availability");
-		assert!(!producer.work.evaluate, "should not evaluate validity");
-		assert!(producer.work.ensure_available);
 	}
 
 	#[test]
@@ -663,28 +577,22 @@ mod tests {
 
 		let hash = candidate.hash();
 
-		let block_data_res: ::std::io::Result<_> = Ok(block_data.clone());
-		let producer: StatementProducer<_, future::Empty<_, _>> = StatementProducer {
-			produced_statements: Default::default(),
+		let producer: StatementProducer<future::FutureResult<_, ::std::io::Error>> = StatementProducer {
 			work: Work {
 				candidate_receipt: candidate,
-				fetch_block_data: block_data_res.into_future().fuse(),
-				fetch_extrinsic: None,
-				evaluate: true,
-				ensure_available: false,
+				fetch_block_data: future::ok(block_data.clone()),
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),
 		};
 
-		let produced = producer.prime(|_| Some(true)).wait().unwrap();
+		let produced = producer.prime_with(|_, _| true).wait().unwrap();
 
-		assert_eq!(produced.block_data.as_ref(), Some(&block_data));
-		assert!(produced.validity.is_some());
-		assert!(produced.availability.is_none());
+		assert_eq!(produced.block_data, block_data);
+		assert_eq!(produced.validity, GenericStatement::Valid(hash));
 
 		assert_eq!(store.block_data(relay_parent, hash).unwrap(), block_data);
-		assert!(store.extrinsic(relay_parent, hash).is_none());
+		assert!(store.extrinsic(relay_parent, hash).is_some());
 	}
 
 	#[test]
@@ -707,26 +615,18 @@ mod tests {
 
 		let hash = candidate.hash();
 
-		let block_data_res: ::std::io::Result<_> = Ok(block_data.clone());
-		let extrinsic_res: ::std::io::Result<_> = Ok(Extrinsic);
 		let producer = StatementProducer {
-			produced_statements: Default::default(),
 			work: Work {
 				candidate_receipt: candidate,
-				fetch_block_data: block_data_res.into_future().fuse(),
-				fetch_extrinsic: Some(extrinsic_res.into_future().fuse()),
-				evaluate: false,
-				ensure_available: true,
+				fetch_block_data: future::ok::<_, ::std::io::Error>(block_data.clone()),
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),
 		};
 
-		let produced = producer.prime(|_| Some(true)).wait().unwrap();
+		let produced = producer.prime_with(|_, _| true).wait().unwrap();
 
-		assert_eq!(produced.block_data.as_ref(), Some(&block_data));
-		assert!(produced.validity.is_none());
-		assert!(produced.availability.is_some());
+		assert_eq!(produced.block_data, block_data);
 
 		assert_eq!(store.block_data(relay_parent, hash).unwrap(), block_data);
 		assert!(store.extrinsic(relay_parent, hash).is_some());

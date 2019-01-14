@@ -234,8 +234,6 @@ pub struct AttestedCandidate {
 	pub candidate: CandidateReceipt,
 	/// Validity attestations.
 	pub validity_votes: Vec<(SessionKey, ValidityAttestation)>,
-	/// Availability attestations.
-	pub availability_votes: Vec<(SessionKey, CandidateSignature)>,
 }
 
 impl AttestedCandidate {

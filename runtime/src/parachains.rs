@@ -322,11 +322,6 @@ impl<T: Trait> Module<T> {
 				"Not enough validity attestations"
 			);
 
-			ensure!(
-				candidate.availability_votes.len() >= majority_of(availability_group.len()),
-				"Not enough availability attestations"
-			);
-
 			let mut candidate_hash = None;
 			let mut encoded_implicit = None;
 			let mut encoded_explicit = None;
@@ -371,32 +366,6 @@ impl<T: Trait> Module<T> {
 					sig.verify(&payload[..], &auth_id.0.into()),
 					"Candidate validity attestation signature is bad."
 				);
-			}
-
-			let mut encoded_available = None;
-			for (auth_id, sig) in &candidate.availability_votes {
-				match availability_group.iter().find(|&(idx, _)| &authorities[*idx] == auth_id) {
-					None => return Err("Attesting validator not on this chain's availability duty."),
-					Some(&(idx, _)) => {
-						if track_voters.get(authorities.len() + idx) {
-							return Err("Voter already attested availability once")
-						}
-						track_voters.set(authorities.len() + idx, true)
-					}
-				}
-
-				let hash = candidate_hash
-					.get_or_insert_with(|| candidate.candidate.hash())
-					.clone();
-
-				let payload = encoded_available.get_or_insert_with(|| localized_payload(
-					Statement::Available(hash),
-				));
-
-				ensure!(
-					sig.verify(&payload[..], &auth_id.0.into()),
-					"Candidate availability attestation signature is bad."
-				)
 			}
 		}
 
@@ -544,14 +513,9 @@ mod tests {
 		};
 
 		let validation_entries = duty_roster.validator_duty.iter()
-			.enumerate()
-			.map(|(i, d)| (i, d, true));
+			.enumerate();
 
-		let availability_entries = duty_roster.guarantor_duty.iter()
-			.enumerate()
-			.map(|(i, d)| (i, d, false));
-
-		for (idx, &duty, is_validation) in validation_entries.chain(availability_entries) {
+		for (idx, &duty, is_validation) in validation_entries {
 			if duty != Chain::Parachain(candidate.parachain_index()) { continue }
 			if is_validation { vote_implicit = !vote_implicit };
 
@@ -568,15 +532,11 @@ mod tests {
 			let payload = localized_payload(statement, parent_hash);
 			let signature = key.sign(&payload[..]).into();
 
-			if is_validation {
-				candidate.validity_votes.push((authorities[idx], if vote_implicit {
-					ValidityAttestation::Implicit(signature)
-				} else {
-					ValidityAttestation::Explicit(signature)
-				}));
+			candidate.validity_votes.push((authorities[idx], if vote_implicit {
+				ValidityAttestation::Implicit(signature)
 			} else {
-				candidate.availability_votes.push((authorities[idx], signature));
-			}
+				ValidityAttestation::Explicit(signature)
+			}));
 		}
 	}
 
@@ -769,14 +729,6 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![double_validity]),
-				Origin::INHERENT,
-			).is_err());
-
-			let mut double_availability = candidate.clone();
-			double_availability.availability_votes.push(candidate.availability_votes[0].clone());
-
-			assert!(Parachains::dispatch(
-				Call::set_heads(vec![double_availability]),
 				Origin::INHERENT,
 			).is_err());
 		});
