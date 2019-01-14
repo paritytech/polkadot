@@ -94,7 +94,7 @@ impl SharedTableInner {
 		context: &TableContext,
 		router: &R,
 		statement: table::SignedStatement,
-	) -> Option<StatementProducer<
+	) -> Option<ParachainWork<
 		<R::FetchCandidate as IntoFuture>::Future,
 	>> {
 		let summary = match self.table.import_statement(context, statement) {
@@ -132,7 +132,7 @@ impl SharedTableInner {
 			None
 		};
 
-		work.map(|work| StatementProducer {
+		work.map(|work| ParachainWork {
 			extrinsic_store: self.extrinsic_store.clone(),
 			relay_parent: context.parent_hash.clone(),
 			work
@@ -149,8 +149,8 @@ impl SharedTableInner {
 	}
 }
 
-/// A produced statement and data to make available.
-pub struct ProducedStatements {
+/// Produced after validating a candidate.
+pub struct Validated {
 	/// A statement about the validity of the candidate.
 	pub validity: table::Statement,
 	/// Block data to ensure availability of.
@@ -159,18 +159,18 @@ pub struct ProducedStatements {
 	pub extrinsic: Extrinsic,
 }
 
-/// Future that produces statements about a specific candidate.
-pub struct StatementProducer<D: Future> {
+/// Future that performs parachain validation work.
+pub struct ParachainWork<D: Future> {
 	work: Work<D>,
 	relay_parent: Hash,
 	extrinsic_store: ExtrinsicStore,
 }
 
-impl<D: Future> StatementProducer<D> {
-	/// Prime the statement producer with an API reference for extracting
+impl<D: Future> ParachainWork<D> {
+	/// Prime the parachain work with an API reference for extracting
 	/// chain information.
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
-		-> PrimedStatementProducer<
+		-> PrimedParachainWork<
 			D,
 			impl Send + FnMut(&BlockId, &Collation) -> bool,
 		>
@@ -194,14 +194,14 @@ impl<D: Future> StatementProducer<D> {
 			}
 		};
 
-		PrimedStatementProducer { inner: self, validate }
+		PrimedParachainWork { inner: self, validate }
 	}
 
-	/// Prime the statement producer with a custom validation function.
-	pub fn prime_with<F>(self, validate: F) -> PrimedStatementProducer<D, F>
+	/// Prime the parachain work with a custom validation function.
+	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<D, F>
 		where F: FnMut(&BlockId, &Collation) -> bool
 	{
-		PrimedStatementProducer { inner: self, validate }
+		PrimedParachainWork { inner: self, validate }
 	}
 }
 
@@ -211,21 +211,21 @@ struct Work<D: Future> {
 }
 
 /// Primed statement producer.
-pub struct PrimedStatementProducer<D: Future, F> {
-	inner: StatementProducer<D>,
+pub struct PrimedParachainWork<D: Future, F> {
+	inner: ParachainWork<D>,
 	validate: F,
 }
 
-impl<D, F, Err> Future for PrimedStatementProducer<D, F>
+impl<D, F, Err> Future for PrimedParachainWork<D, F>
 	where
 		D: Future<Item=BlockData,Error=Err>,
 		F: FnMut(&BlockId, &Collation) -> bool,
 		Err: From<::std::io::Error>,
 {
-	type Item = ProducedStatements;
+	type Item = Validated;
 	type Error = Err;
 
-	fn poll(&mut self) -> Poll<ProducedStatements, Err> {
+	fn poll(&mut self) -> Poll<Validated, Err> {
 		let work = &mut self.inner.work;
 		let candidate = &work.candidate_receipt;
 
@@ -252,7 +252,7 @@ impl<D, F, Err> Future for PrimedStatementProducer<D, F>
 			extrinsic: Some(extrinsic.clone()),
 		})?;
 
-		Ok(Async::Ready(ProducedStatements {
+		Ok(Async::Ready(Validated {
 			validity: validity_statement,
 			block_data: block,
 			extrinsic,
@@ -321,7 +321,7 @@ impl SharedTable {
 		&self,
 		router: &R,
 		statement: table::SignedStatement,
-	) -> Option<StatementProducer<
+	) -> Option<ParachainWork<
 		<R::FetchCandidate as IntoFuture>::Future,
 	>> {
 		self.inner.lock().import_remote_statement(&*self.context, router, statement)
@@ -337,7 +337,7 @@ impl SharedTable {
 		where
 			R: TableRouter,
 			I: IntoIterator<Item=table::SignedStatement>,
-			U: ::std::iter::FromIterator<Option<StatementProducer<
+			U: ::std::iter::FromIterator<Option<ParachainWork<
 				<R::FetchCandidate as IntoFuture>::Future,
 			>>>,
 	{
@@ -577,7 +577,7 @@ mod tests {
 
 		let hash = candidate.hash();
 
-		let producer: StatementProducer<future::FutureResult<_, ::std::io::Error>> = StatementProducer {
+		let producer: ParachainWork<future::FutureResult<_, ::std::io::Error>> = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
 				fetch_block_data: future::ok(block_data.clone()),
@@ -615,7 +615,7 @@ mod tests {
 
 		let hash = candidate.hash();
 
-		let producer = StatementProducer {
+		let producer = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
 				fetch_block_data: future::ok::<_, ::std::io::Error>(block_data.clone()),

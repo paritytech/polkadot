@@ -237,11 +237,6 @@ impl Knowledge {
 				entry.knows_block_data.push(from);
 				entry.knows_extrinsic.push(from);
 			}
-			GenericStatement::Available(ref hash) => {
-				let mut entry = self.candidates.entry(*hash).or_insert_with(Default::default);
-				entry.knows_block_data.push(from);
-				entry.knows_extrinsic.push(from);
-			}
 			GenericStatement::Valid(ref hash) | GenericStatement::Invalid(ref hash) => self.candidates.entry(*hash)
 				.or_insert_with(Default::default)
 				.knows_block_data
