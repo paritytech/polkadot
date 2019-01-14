@@ -196,8 +196,6 @@ impl<T: Trait> Module<T> {
 			_ => Chain::Relay,
 		}).collect::<Vec<_>>();
 
-		let mut roles_gua = roles_val.clone();
-
 		let mut random_seed = system::Module::<T>::random_seed().as_ref().to_vec();
 		random_seed.extend(b"validator_role_pairs");
 		let mut seed = BlakeTwo256::hash(&random_seed);
@@ -212,7 +210,6 @@ impl<T: Trait> Module<T> {
 
 			// 4 * 2 32-bit ints per 256-bit seed.
 			let val_index = u32::decode(&mut &seed[offset..offset + 4]).expect("using 4 bytes for a 32-bit quantity") as usize % remaining;
-			let gua_index = u32::decode(&mut &seed[offset + 4..offset + 8]).expect("using 4 bytes for a 32-bit quantity") as usize % remaining;
 
 			if offset == 24 {
 				// into the last 8 bytes - rehash to gather new entropy
@@ -221,12 +218,10 @@ impl<T: Trait> Module<T> {
 
 			// exchange last item with randomly chosen first.
 			roles_val.swap(remaining - 1, val_index);
-			roles_gua.swap(remaining - 1, gua_index);
 		}
 
 		DutyRoster {
 			validator_duty: roles_val,
-			guarantor_duty: roles_gua,
 		}
 	}
 
@@ -302,20 +297,15 @@ impl<T: Trait> Module<T> {
 		};
 
 		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
-		let sorted_guarantors = make_sorted_duties(&duty_roster.guarantor_duty);
 
 		let parent_hash = super::System::parent_hash();
 		let localized_payload = |statement: Statement| localized_payload(statement, parent_hash);
 
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
-		let mut guarantor_groups = GroupedDutyIter::new(&sorted_guarantors[..]);
 
 		for candidate in attested_candidates {
 			let validator_group = validator_groups.group_for(candidate.parachain_index())
 				.ok_or("no validator group for parachain")?;
-
-			let availability_group = guarantor_groups.group_for(candidate.parachain_index())
-				.ok_or("no availability group for parachain")?;
 
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
@@ -589,13 +579,10 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			let check_roster = |duty_roster: &DutyRoster| {
 				assert_eq!(duty_roster.validator_duty.len(), 8);
-				assert_eq!(duty_roster.guarantor_duty.len(), 8);
 				for i in (0..2).map(ParaId::from) {
 					assert_eq!(duty_roster.validator_duty.iter().filter(|&&j| j == Chain::Parachain(i)).count(), 3);
-					assert_eq!(duty_roster.guarantor_duty.iter().filter(|&&j| j == Chain::Parachain(i)).count(), 3);
 				}
 				assert_eq!(duty_roster.validator_duty.iter().filter(|&&j| j == Chain::Relay).count(), 2);
-				assert_eq!(duty_roster.guarantor_duty.iter().filter(|&&j| j == Chain::Relay).count(), 2);
 			};
 
 			system::Module::<Test>::set_random_seed([0u8; 32].into());

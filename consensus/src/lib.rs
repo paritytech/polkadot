@@ -179,10 +179,6 @@ fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: Au
 		bail!(ErrorKind::InvalidDutyRosterLength(authorities.len(), roster.validator_duty.len()))
 	}
 
-	if roster.guarantor_duty.len() != authorities.len() {
-		bail!(ErrorKind::InvalidDutyRosterLength(authorities.len(), roster.guarantor_duty.len()))
-	}
-
 	let mut local_validation = None;
 	let mut map = HashMap::new();
 

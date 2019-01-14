@@ -64,9 +64,6 @@ pub enum Chain {
 pub struct DutyRoster {
 	/// Lookup from validator index to chain on which that validator has a duty to validate.
 	pub validator_duty: Vec<Chain>,
-	/// Lookup from validator index to chain on which that validator has a duty to guarantee
-	/// availability.
-	pub guarantor_duty: Vec<Chain>,
 }
 
 /// Extrinsic data for a parachain.
