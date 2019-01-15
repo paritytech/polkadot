@@ -203,9 +203,6 @@ pub enum Statement {
 	/// State a candidate is invalid.
 	#[codec(index = "3")]
 	Invalid(Hash),
-	/// State a candidate's associated data is unavailable.
-	#[codec(index = "4")]
-	Available(Hash),
 }
 
 /// An either implicit or explicit attestation to the validity of a parachain

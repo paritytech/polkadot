@@ -316,9 +316,8 @@ impl<T: Trait> Module<T> {
 			let mut encoded_implicit = None;
 			let mut encoded_explicit = None;
 
-			// track which voters have voted already. the first `authorities.len()`
-			// bits is for validity, the next are for availability.
-			let mut track_voters = bitvec![0; authorities.len() * 2];
+			// track which voters have voted already, 1 bit per authority.
+			let mut track_voters = bitvec![0; authorities.len()];
 			for (auth_id, validity_attestation) in &candidate.validity_votes {
 				// protect against double-votes.
 				match validator_group.iter().find(|&(idx, _)| &authorities[*idx] == auth_id) {
@@ -505,18 +504,16 @@ mod tests {
 		let validation_entries = duty_roster.validator_duty.iter()
 			.enumerate();
 
-		for (idx, &duty, is_validation) in validation_entries {
+		for (idx, &duty) in validation_entries {
 			if duty != Chain::Parachain(candidate.parachain_index()) { continue }
-			if is_validation { vote_implicit = !vote_implicit };
+			vote_implicit = !vote_implicit;
 
 			let key = extract_key(authorities[idx]);
 
-			let statement = if is_validation && vote_implicit {
+			let statement = if vote_implicit {
 				Statement::Candidate(candidate.candidate.clone())
-			} else if is_validation {
-				Statement::Valid(candidate_hash.clone())
 			} else {
-				Statement::Available(candidate_hash.clone())
+				Statement::Valid(candidate_hash.clone())
 			};
 
 			let payload = localized_payload(statement, parent_hash);
@@ -614,7 +611,6 @@ mod tests {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let candidate = AttestedCandidate {
 				validity_votes: vec![],
-				availability_votes: vec![],
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
@@ -642,7 +638,6 @@ mod tests {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
-				availability_votes: vec![],
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
@@ -657,7 +652,6 @@ mod tests {
 
 			let mut candidate_b = AttestedCandidate {
 				validity_votes: vec![],
-				availability_votes: vec![],
 				candidate: CandidateReceipt {
 					parachain_index: 1.into(),
 					collator: Default::default(),
@@ -696,7 +690,6 @@ mod tests {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
-				availability_votes: vec![],
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
