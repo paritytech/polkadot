@@ -457,7 +457,7 @@ mod tests {
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use sr_primitives::{generic, BuildStorage};
-	use sr_primitives::traits::BlakeTwo256;
+	use sr_primitives::traits::{BlakeTwo256, IdentityLookup};
 	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey};
 	use keyring::Keyring;
 	use {consensus, timestamp};
@@ -482,6 +482,7 @@ mod tests {
 		type Hashing = BlakeTwo256;
 		type Digest = generic::Digest<::Log>;
 		type AccountId = ::AccountId;
+		type Lookup = IdentityLookup<::AccountId>;
 		type Header = ::Header;
 		type Event = ();
 		type Log = ::Log;

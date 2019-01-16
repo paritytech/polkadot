@@ -20,7 +20,8 @@ use primitives::{H256, Ed25519AuthorityId as AuthorityId, ed25519};
 use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
-	CouncilVotingConfig, GrandpaConfig, UpgradeKeyConfig, SudoConfig, Permill
+	CouncilVotingConfig, GrandpaConfig, UpgradeKeyConfig, SudoConfig, IndicesConfig,
+	Permill
 };
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -57,6 +58,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			authorities: initial_authorities.clone(),
 		}),
 		system: None,
+		indices: Some(IndicesConfig {
+			ids: endowed_accounts.clone(),
+		}),
 		balances: Some(BalancesConfig {
 			balances: endowed_accounts.iter().map(|&k| (k, 10_000_000 * DOLLARS)).collect(),
 			transaction_base_fee: 1 * CENTS,
@@ -64,7 +68,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			existential_deposit: 1 * DOLLARS,
 			transfer_fee: 1 * CENTS,
 			creation_fee: 1 * CENTS,
-			reclaim_rebate: 1 * CENTS,
 		}),
 		session: Some(SessionConfig {
 			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
@@ -160,13 +163,15 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> 
 			authorities: initial_authorities.clone(),
 		}),
 		system: None,
+		indices: Some(IndicesConfig {
+			ids: endowed_accounts.clone(),
+		}),
 		balances: Some(BalancesConfig {
 			transaction_base_fee: 1,
 			transaction_byte_fee: 0,
 			existential_deposit: 500,
 			transfer_fee: 0,
 			creation_fee: 0,
-			reclaim_rebate: 0,
 			balances: endowed_accounts.iter().map(|&k|(k, (1u128 << 60))).collect(),
 		}),
 		session: Some(SessionConfig {
