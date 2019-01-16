@@ -20,7 +20,8 @@ use primitives::{H256, Ed25519AuthorityId as AuthorityId, ed25519};
 use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
-	CouncilVotingConfig, GrandpaConfig, UpgradeKeyConfig, SudoConfig, Permill
+	CouncilVotingConfig, GrandpaConfig, UpgradeKeyConfig, SudoConfig, IndicesConfig,
+	Permill
 };
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -57,6 +58,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			authorities: initial_authorities.clone(),
 		}),
 		system: None,
+		indices: Some(IndicesConfig {
+			ids: endowed_accounts.clone(),
+		}),
 		balances: Some(BalancesConfig {
 			balances: endowed_accounts.iter().map(|&k| (k, 10_000_000 * DOLLARS)).collect(),
 			transaction_base_fee: 1 * CENTS,
@@ -159,6 +163,9 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> 
 			authorities: initial_authorities.clone(),
 		}),
 		system: None,
+		indices: Some(IndicesConfig {
+			ids: endowed_accounts.clone(),
+		}),
 		balances: Some(BalancesConfig {
 			transaction_base_fee: 1,
 			transaction_byte_fee: 0,

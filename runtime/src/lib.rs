@@ -76,10 +76,10 @@ use client::{
 	runtime_api as client_api,
 };
 use consensus_aura::api as aura_api;
-use sr_primitives::{ApplyResult, CheckInherentError};
-use sr_primitives::transaction_validity::TransactionValidity;
-use sr_primitives::generic;
-use sr_primitives::traits::{Convert, BlakeTwo256, Block as BlockT, DigestFor};
+use sr_primitives::{
+	ApplyResult, CheckInherentError, generic, transaction_validity::TransactionValidity,
+	traits::{Convert, BlakeTwo256, Block as BlockT, DigestFor, StaticLookup}
+};
 use version::RuntimeVersion;
 use grandpa::fg_primitives::{self, ScheduledChange};
 use council::{motions as council_motions, voting as council_voting};
@@ -245,6 +245,7 @@ construct_runtime!(
 		Timestamp: timestamp::{Module, Call, Storage, Config<T>, Inherent},
 		// consensus' Inherent is not provided because it assumes instant-finality blocks.
 		Consensus: consensus::{Module, Call, Storage, Config<T>, Log(AuthoritiesChange) },
+		Indices: indices,
 		Balances: balances,
 		Session: session,
 		Staking: staking,
@@ -262,9 +263,7 @@ construct_runtime!(
 );
 
 /// The address format for describing accounts.
-pub use balances::address::Address as RawAddress;
-/// The address format for describing accounts.
-pub type Address = balances::Address<Runtime>;
+pub type Address = <Indices as StaticLookup>::Source;
 /// Block header type as expected by this runtime.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256, Log>;
 /// Block type as expected by this runtime.
