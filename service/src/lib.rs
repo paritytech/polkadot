@@ -227,7 +227,7 @@ construct_service_factory! {
 					SlotDuration::get_or_compute(&*client)?,
 					key,
 					client.clone(),
-					client,
+					block_import,
 					Arc::new(proposer_factory),
 					service.network(),
 					service.on_exit(),
