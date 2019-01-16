@@ -687,7 +687,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 
 		let new_block = block_builder.bake()?;
 
-		info!("Proposing block [number: {}; hash: {}; parent_hash: {}; extrinsics: [{}]]",
+		info!("Prepared block for proposing at {} [hash: {:?}; parent_hash: {}; extrinsics: [{}]]",
 			new_block.header.number,
 			Hash::from(new_block.header.hash()),
 			new_block.header.parent_hash,
