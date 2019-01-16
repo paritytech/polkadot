@@ -55,7 +55,7 @@ impl ChainSpec {
 			"local" => Some(ChainSpec::LocalTestnet),
 			"poc-3" | "alex" | "alexander" => Some(ChainSpec::Alexander),
 			"staging" => Some(ChainSpec::StagingTestnet),
-			x if x.is_empty() => { Some(ChainSpec::default()) },
+			"" => Some(ChainSpec::default()),
 			_ => None,
 		}
 	}
