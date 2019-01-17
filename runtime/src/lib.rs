@@ -49,6 +49,7 @@ extern crate srml_council as council;
 extern crate srml_democracy as democracy;
 extern crate srml_executive as executive;
 extern crate srml_grandpa as grandpa;
+extern crate srml_indices as indices;
 extern crate srml_session as session;
 extern crate srml_staking as staking;
 extern crate srml_sudo as sudo;
@@ -75,10 +76,10 @@ use client::{
 	runtime_api as client_api,
 };
 use consensus_aura::api as aura_api;
-use sr_primitives::{ApplyResult, CheckInherentError};
-use sr_primitives::transaction_validity::TransactionValidity;
-use sr_primitives::generic;
-use sr_primitives::traits::{Convert, BlakeTwo256, Block as BlockT, DigestFor};
+use sr_primitives::{
+	ApplyResult, CheckInherentError, generic, transaction_validity::TransactionValidity,
+	traits::{Convert, BlakeTwo256, Block as BlockT, DigestFor, StaticLookup}
+};
 use version::RuntimeVersion;
 use grandpa::fg_primitives::{self, ScheduledChange};
 use council::{motions as council_motions, voting as council_voting};
@@ -107,7 +108,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 1,
-	spec_version: 102,
+	spec_version: 103,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -129,6 +130,7 @@ impl system::Trait for Runtime {
 	type Hashing = BlakeTwo256;
 	type Digest = generic::Digest<Log>;
 	type AccountId = AccountId;
+	type Lookup = Indices;
 	type Header = generic::Header<BlockNumber, BlakeTwo256, Log>;
 	type Event = Event;
 	type Log = Log;
@@ -138,10 +140,17 @@ impl aura::Trait for Runtime {
 	type HandleReport = aura::StakingSlasher<Runtime>;
 }
 
+impl indices::Trait for Runtime {
+	type IsDeadAccount = Balances;
+	type AccountIndex = AccountIndex;
+	type ResolveHint = indices::SimpleResolveHint<Self::AccountId, Self::AccountIndex>;
+	type Event = Event;
+}
+
 impl balances::Trait for Runtime {
 	type Balance = Balance;
-	type AccountIndex = AccountIndex;
 	type OnFreeBalanceZero = Staking;
+	type OnNewAccount = Indices;
 	type EnsureAccountLiquid = Staking;
 	type Event = Event;
 }
@@ -236,6 +245,7 @@ construct_runtime!(
 		Timestamp: timestamp::{Module, Call, Storage, Config<T>, Inherent},
 		// consensus' Inherent is not provided because it assumes instant-finality blocks.
 		Consensus: consensus::{Module, Call, Storage, Config<T>, Log(AuthoritiesChange) },
+		Indices: indices,
 		Balances: balances,
 		Session: session,
 		Staking: staking,
@@ -253,9 +263,7 @@ construct_runtime!(
 );
 
 /// The address format for describing accounts.
-pub use balances::address::Address as RawAddress;
-/// The address format for describing accounts.
-pub type Address = balances::Address<Runtime>;
+pub type Address = <Indices as StaticLookup>::Source;
 /// Block header type as expected by this runtime.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256, Log>;
 /// Block type as expected by this runtime.
@@ -269,7 +277,7 @@ pub type UncheckedExtrinsic = generic::UncheckedMortalCompactExtrinsic<Address, 
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, balances::ChainContext<Runtime>, Balances, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Balances, AllModules>;
 
 impl_runtime_apis! {
 	impl client_api::Core<Block> for Runtime {

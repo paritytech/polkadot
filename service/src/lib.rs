@@ -176,7 +176,7 @@ construct_service_factory! {
 							gossip_duration: Duration::new(4, 0), // FIXME: make this available through chainspec?
 							local_key: key.clone(),
 							justification_period: 4096,
-							name: Some(service.config.name.clone())
+							name: Some(service.config.name.clone()),
 						},
 						link_half,
 						grandpa::NetworkBridge::new(service.network()),
@@ -227,7 +227,7 @@ construct_service_factory! {
 					SlotDuration::get_or_compute(&*client)?,
 					key,
 					client.clone(),
-					client,
+					block_import,
 					Arc::new(proposer_factory),
 					service.network(),
 					service.on_exit(),
