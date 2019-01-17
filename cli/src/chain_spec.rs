@@ -32,6 +32,12 @@ pub enum ChainSpec {
 	StagingTestnet,
 }
 
+impl Default for ChainSpec {
+	fn default() -> Self {
+		ChainSpec::Alexander
+	}
+}
+
 /// Get a chain config from a spec setting.
 impl ChainSpec {
 	pub(crate) fn load(self) -> Result<service::ChainSpec, String> {
@@ -49,6 +55,7 @@ impl ChainSpec {
 			"local" => Some(ChainSpec::LocalTestnet),
 			"poc-3" | "alex" | "alexander" => Some(ChainSpec::Alexander),
 			"staging" => Some(ChainSpec::StagingTestnet),
+			"" => Some(ChainSpec::default()),
 			_ => None,
 		}
 	}
