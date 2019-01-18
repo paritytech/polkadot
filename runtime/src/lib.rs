@@ -108,7 +108,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 1,
-	spec_version: 103,
+	spec_version: 104,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };

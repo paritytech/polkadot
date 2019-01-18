@@ -23,8 +23,8 @@
 //! and dispatch evaluation work as necessary when new statements come in.
 
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
-use polkadot_consensus::{SharedTable, TableRouter, SignedStatement, GenericStatement, StatementProducer};
-use polkadot_primitives::{Block, Hash, BlockId, SessionKey};
+use polkadot_consensus::{SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork};
+use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{BlockData, Extrinsic, CandidateReceipt, ParachainHost};
 
 use codec::Encode;
@@ -115,7 +115,6 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 				GenericStatement::Candidate(ref c) => Some(c.hash()),
 				GenericStatement::Valid(ref hash)
 					| GenericStatement::Invalid(ref hash)
-					| GenericStatement::Available(ref hash)
 					=> self.table.with_candidate(hash, |c| c.map(|_| *hash)),
 			};
 			match candidate_data {
@@ -152,61 +151,33 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 		}
 	}
 
-	fn create_work<D, E>(&self, candidate_hash: Hash, producer: StatementProducer<D, E>)
+	fn create_work<D>(&self, candidate_hash: Hash, producer: ParachainWork<D>)
 		-> impl Future<Item=(),Error=()>
 		where
 		D: Future<Item=BlockData,Error=io::Error> + Send + 'static,
-		E: Future<Item=Extrinsic,Error=io::Error> + Send + 'static,
 	{
-		let parent_hash = self.parent_hash.clone();
-
-		let api = self.api.clone();
-		let validate = move |collation| -> Option<bool> {
-			let id = BlockId::hash(parent_hash);
-			match ::polkadot_consensus::validate_collation(&*api, &id, &collation) {
-				Ok(()) => Some(true),
-				Err(e) => {
-					debug!(target: "p_net", "Encountered bad collation: {}", e);
-					Some(false)
-				}
-			}
-		};
-
 		let table = self.table.clone();
 		let network = self.network.clone();
 		let knowledge = self.knowledge.clone();
 		let attestation_topic = self.attestation_topic.clone();
 
-		producer.prime(validate)
+		producer.prime(self.api.clone())
 			.map(move |produced| {
 				// store the data before broadcasting statements, so other peers can fetch.
 				knowledge.lock().note_candidate(
 					candidate_hash,
-					produced.block_data,
-					produced.extrinsic,
+					Some(produced.block_data),
+					Some(produced.extrinsic),
 				);
-
-				if produced.validity.is_none() && produced.availability.is_none() {
-					return
-				}
 
 				let mut gossip = network.consensus_gossip().write();
 
-				// propagate the statements
+				// propagate the statement.
 				// consider something more targeted than gossip in the future.
-				if let Some(validity) = produced.validity {
-					let signed = table.sign_and_import(validity.clone()).0;
-					network.with_spec(|_, ctx|
-						gossip.multicast(ctx, attestation_topic, signed.encode(), false)
-					);
-				}
-
-				if let Some(availability) = produced.availability {
-					let signed = table.sign_and_import(availability).0;
-					network.with_spec(|_, ctx|
-						gossip.multicast(ctx, attestation_topic, signed.encode(), false)
-					);
-				}
+				let signed = table.sign_and_import(produced.validity);
+				network.with_spec(|_, ctx|
+					gossip.multicast(ctx, attestation_topic, signed.encode(), false)
+				);
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
 	}
@@ -222,15 +193,12 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 	fn local_candidate(&self, receipt: CandidateReceipt, block_data: BlockData, extrinsic: Extrinsic) {
 		// give to network to make available.
 		let hash = receipt.hash();
-		let (candidate, availability) = self.table.sign_and_import(GenericStatement::Candidate(receipt));
+		let candidate = self.table.sign_and_import(GenericStatement::Candidate(receipt));
 
 		self.knowledge.lock().note_candidate(hash, Some(block_data), Some(extrinsic));
 		let mut gossip = self.network.consensus_gossip().write();
 		self.network.with_spec(|_spec, ctx| {
 			gossip.multicast(ctx, self.attestation_topic, candidate.encode(), false);
-			if let Some(availability) = availability {
-				gossip.multicast(ctx, self.attestation_topic, availability.encode(), false);
-			}
 		});
 	}
 
@@ -274,7 +242,6 @@ impl Future for BlockDataReceiver {
 enum StatementTrace {
 	Valid(SessionKey, Hash),
 	Invalid(SessionKey, Hash),
-	Available(SessionKey, Hash),
 }
 
 // helper for deferring statements whose associated candidate is unknown.
@@ -296,7 +263,6 @@ impl DeferredStatements {
 			GenericStatement::Candidate(_) => return,
 			GenericStatement::Valid(hash) => (hash, StatementTrace::Valid(statement.sender, hash)),
 			GenericStatement::Invalid(hash) => (hash, StatementTrace::Invalid(statement.sender, hash)),
-			GenericStatement::Available(hash) => (hash, StatementTrace::Available(statement.sender, hash)),
 		};
 
 		if self.known_traces.insert(trace) {
@@ -314,7 +280,6 @@ impl DeferredStatements {
 						GenericStatement::Candidate(_) => continue,
 						GenericStatement::Valid(hash) => StatementTrace::Valid(statement.sender, hash),
 						GenericStatement::Invalid(hash) => StatementTrace::Invalid(statement.sender, hash),
-						GenericStatement::Available(hash) => StatementTrace::Available(statement.sender, hash),
 					};
 
 					self.known_traces.remove(&trace);

@@ -92,7 +92,7 @@ use dynamic_inclusion::DynamicInclusion;
 
 pub use self::collation::{validate_collation, Collators};
 pub use self::error::{ErrorKind, Error};
-pub use self::shared_table::{SharedTable, StatementProducer, ProducedStatements, Statement, SignedStatement, GenericStatement};
+pub use self::shared_table::{SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement, GenericStatement};
 
 mod attestation_service;
 mod dynamic_inclusion;
@@ -147,12 +147,8 @@ pub trait Network {
 pub struct GroupInfo {
 	/// Authorities meant to check validity of candidates.
 	pub validity_guarantors: HashSet<SessionKey>,
-	/// Authorities meant to check availability of candidate data.
-	pub availability_guarantors: HashSet<SessionKey>,
 	/// Number of votes needed for validity.
 	pub needed_validity: usize,
-	/// Number of votes needed for availability.
-	pub needed_availability: usize,
 }
 
 /// Sign a table statement against a parent hash.
@@ -183,15 +179,11 @@ fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: Au
 		bail!(ErrorKind::InvalidDutyRosterLength(authorities.len(), roster.validator_duty.len()))
 	}
 
-	if roster.guarantor_duty.len() != authorities.len() {
-		bail!(ErrorKind::InvalidDutyRosterLength(authorities.len(), roster.guarantor_duty.len()))
-	}
-
 	let mut local_validation = None;
 	let mut map = HashMap::new();
 
-	let duty_iter = authorities.iter().zip(&roster.validator_duty).zip(&roster.guarantor_duty);
-	for ((authority, v_duty), a_duty) in duty_iter {
+	let duty_iter = authorities.iter().zip(&roster.validator_duty);
+	for (authority, v_duty) in duty_iter {
 		if authority == &local_id {
 			local_validation = Some(v_duty.clone());
 		}
@@ -204,23 +196,11 @@ fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: Au
 					.insert(authority.clone());
 			}
 		}
-
-		match *a_duty {
-			Chain::Relay => {}, // does nothing for now.
-			Chain::Parachain(ref id) => {
-				map.entry(id.clone()).or_insert_with(GroupInfo::default)
-					.availability_guarantors
-					.insert(authority.clone());
-			}
-		}
 	}
 
 	for live_group in map.values_mut() {
 		let validity_len = live_group.validity_guarantors.len();
-		let availability_len = live_group.availability_guarantors.len();
-
 		live_group.needed_validity = validity_len / 2 + validity_len % 2;
-		live_group.needed_availability = availability_len / 2 + availability_len % 2;
 	}
 
 	match local_validation {
@@ -470,8 +450,11 @@ fn dispatch_collation_work<R, C, P>(
 			});
 
 			match res {
-				Ok(()) =>
-					router.local_candidate(collation.receipt, collation.block_data, extrinsic),
+				Ok(()) => {
+					// TODO: https://github.com/paritytech/polkadot/issues/51
+					// Erasure-code and provide merkle branches.
+					router.local_candidate(collation.receipt, collation.block_data, extrinsic)
+				}
 				Err(e) =>
 					warn!(target: "consensus", "Failed to make collation data available: {:?}", e),
 			}
