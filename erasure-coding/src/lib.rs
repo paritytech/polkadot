@@ -102,7 +102,7 @@ impl CodeParams {
 			// to read from each shard when reconstructing.
 			//
 			// TODO: could be done more efficiently by pushing extra bytes onto the
-			// end.
+			// end. https://github.com/paritytech/polkadot/issues/88
 			(len as u32).using_encoded(|s| {
 				len_slice.copy_from_slice(s)
 			});
