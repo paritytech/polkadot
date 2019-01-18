@@ -628,6 +628,8 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
+		const MAX_TRANSACTIONS: usize = 40;
+
 		let inherent_data = InherentData {
 			timestamp: self.believed_minimum_timestamp,
 			parachains: candidates,
@@ -648,7 +650,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			let mut pending_size = 0;
 
 			let ready_iter = self.transaction_pool.ready();
-			for ready in ready_iter {
+			for ready in ready_iter.take(MAX_TRANSACTIONS) {
 				let encoded_size = ready.data.encode().len();
 				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
 					break
