@@ -31,10 +31,16 @@ use super::{ValidationParams, ValidationResult, MessageRef};
 use std::cell::RefCell;
 use std::fmt;
 
+mod ids {
+	/// Post a message to another parachain.
+	pub const POST_MESSAGE: usize = 1;
+}
+
 error_chain! {
 	types { Error, ErrorKind, ResultExt; }
 	foreign_links {
 		Wasm(WasmError);
+		Externalities(ExternalitiesError);
 	}
 	errors {
 		/// Call data too big. WASM32 only has a 32-bit address space.
@@ -50,20 +56,24 @@ error_chain! {
 	}
 }
 
-mod ids {
-	/// Post a message to another parachain.
-	pub const POST_MESSAGE: usize = 1;
+/// Errors that can occur in externalities of parachain validation.
+#[derive(Debug, Clone)]
+pub enum ExternalitiesError {
+	/// Unable to post a message due to the given reason.
+	CannotPostMessage(&'static str),
 }
 
-#[derive(Debug)]
-struct HostError(&'static str);
-impl wasmi::HostError for HostError {}
-
-impl fmt::Display for HostError {
+impl fmt::Display for ExternalitiesError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		self.0.fmt(f)
+		match *self {
+			ExternalitiesError::CannotPostMessage(ref s)
+				=> write!(f, "Cannot post message: {}", s),
+		}
 	}
 }
+
+impl wasmi::HostError for ExternalitiesError {}
+impl ::std::error::Error for ExternalitiesError {}
 
 struct Resolver {
 	max_memory: u32, // in pages.
@@ -131,7 +141,7 @@ struct ValidationExternals<'a, F> {
 }
 
 impl<'a, F> ValidationExternals<'a, F>
-	where F: FnMut(MessageRef) -> Result<(), ()>
+	where F: FnMut(MessageRef) -> Result<(), ExternalitiesError>
 {
 	/// Signature: post_message(u32, *const u8, u32) -> None
 	/// usage: post_message(target parachain, data ptr, data len).
@@ -152,8 +162,8 @@ impl<'a, F> ValidationExternals<'a, F>
 					data: &mem[data_ptr..][..data_len],
 				});
 
-				res.map_err(|_| Trap::new(wasmi::TrapKind::Host(
-					Box::new(HostError("unable to post message")) as Box<_>
+				res.map_err(|e| Trap::new(wasmi::TrapKind::Host(
+					Box::new(e) as Box<_>
 				)))
 			}
 		})
@@ -161,7 +171,7 @@ impl<'a, F> ValidationExternals<'a, F>
 }
 
 impl<'a, F> Externals for ValidationExternals<'a, F>
-	where F: FnMut(MessageRef) -> Result<(), ()>
+	where F: FnMut(MessageRef) -> Result<(), ExternalitiesError>
 {
 	fn invoke_index(
 		&mut self,
@@ -239,7 +249,13 @@ pub fn validate_candidate(validation_code: &[u8], params: ValidationParams) -> R
 		"validate",
 		&[RuntimeValue::I32(offset as i32), RuntimeValue::I32(len as i32)],
 		&mut externals,
-	)?;
+	)
+		.map_err(|e| -> Error {
+			e.as_host_error()
+				.and_then(|he| he.downcast_ref::<ExternalitiesError>())
+				.map(|ee| ErrorKind::Externalities(ee.clone()).into())
+				.unwrap_or_else(move || e.into())
+		})?;
 
 	match output {
 		Some(RuntimeValue::I32(len_offset)) => {
