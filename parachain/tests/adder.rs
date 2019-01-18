@@ -68,7 +68,7 @@ fn execute_good_on_parent() {
 		add: 512,
 	};
 
-	let ret = parachain::wasm::validate_candidate(TEST_CODE, ValidationParams {
+	let ret = parachain::wasm_executor::validate_candidate(TEST_CODE, ValidationParams {
 		parent_head: parent_head.encode(),
 		block_data: block_data.encode(),
 	}).unwrap();
@@ -98,7 +98,7 @@ fn execute_good_chain_on_parent() {
 			add,
 		};
 
-		let ret = parachain::wasm::validate_candidate(TEST_CODE, ValidationParams {
+		let ret = parachain::wasm_executor::validate_candidate(TEST_CODE, ValidationParams {
 			parent_head: parent_head.encode(),
 			block_data: block_data.encode(),
 		}).unwrap();
@@ -128,7 +128,7 @@ fn execute_bad_on_parent() {
 		add: 256,
 	};
 
-	let _ret = parachain::wasm::validate_candidate(TEST_CODE, ValidationParams {
+	let _ret = parachain::wasm_executor::validate_candidate(TEST_CODE, ValidationParams {
 		parent_head: parent_head.encode(),
 		block_data: block_data.encode(),
 	}).unwrap_err();

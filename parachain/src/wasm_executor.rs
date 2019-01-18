@@ -20,7 +20,7 @@
 //! Assuming the parameters are correct, this module provides a wrapper around
 //! a WASM VM for re-execution of a parachain candidate.
 
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, Input};
 
 use wasmi::{self, Module, ModuleInstance,  MemoryInstance, MemoryDescriptor, MemoryRef, ModuleImportResolver};
 use wasmi::{memory_units, RuntimeValue};
@@ -144,9 +144,10 @@ pub fn validate_candidate(validation_code: &[u8], params: ValidationParams) -> R
 
 			let mut len_bytes = [0u8; 4];
 			memory.get_into(len_offset, &mut len_bytes)?;
+			let len_offset = len_offset as usize;
 
 			let len = u32::decode(&mut &len_bytes[..])
-				.ok_or_else(|| ErrorKind::BadReturn)?;
+				.ok_or_else(|| ErrorKind::BadReturn)? as usize;
 
 			let return_offset = if len > len_offset {
 				bail!(ErrorKind::BadReturn);
@@ -154,11 +155,15 @@ pub fn validate_candidate(validation_code: &[u8], params: ValidationParams) -> R
 				len_offset - len
 			};
 
-			// TODO: optimize when `wasmi` lets you inspect memory with a closure.
-			let raw_return = memory.get(return_offset, len as usize)?;
-			ValidationResult::decode(&mut &raw_return[..])
-				.ok_or_else(|| ErrorKind::BadReturn)
-				.map_err(Into::into)
+			memory.with_direct_access(|mem| {
+				if mem.len() < return_offset + len {
+					return Err(ErrorKind::BadReturn.into());
+				}
+
+				ValidationResult::decode(&mut &mem[return_offset..][..len])
+					.ok_or_else(|| ErrorKind::BadReturn)
+					.map_err(Into::into)
+			})
 		}
 		_ => bail!(ErrorKind::BadReturn),
 	}

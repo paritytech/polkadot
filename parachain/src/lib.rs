@@ -67,7 +67,7 @@ use alloc::vec::Vec;
 use codec::{Encode, Decode};
 
 #[cfg(feature = "std")]
-pub mod wasm;
+pub mod wasm_executor;
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: consolidated ingress and balance downloads

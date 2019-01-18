@@ -161,7 +161,7 @@ pub fn validate_collation<P>(
 		block_data: collation.block_data.0.clone(),
 	};
 
-	match parachain::wasm::validate_candidate(&validation_code, params) {
+	match parachain::wasm_executor::validate_candidate(&validation_code, params) {
 		Ok(result) => {
 			if result.head_data == collation.receipt.head_data.0 {
 				Ok(Extrinsic)
