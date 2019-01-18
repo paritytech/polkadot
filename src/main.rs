@@ -71,7 +71,7 @@ fn run() -> cli::error::Result<()> {
 		commit: vergen::short_sha(),
 		version: env!("CARGO_PKG_VERSION"),
 		executable_name: "polkadot",
-		author: "Parity Technologies <admin@parity.io>",
+		author: "Parity Team <admin@parity.io>",
 		description: "Polkadot Relay-chain Client Node",
 	};
 	cli::run(::std::env::args(), Worker, version)
