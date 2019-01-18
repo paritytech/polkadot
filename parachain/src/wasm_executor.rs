@@ -20,16 +20,16 @@
 //! Assuming the parameters are correct, this module provides a wrapper around
 //! a WASM VM for re-execution of a parachain candidate.
 
-use codec::{Decode, Encode, Input};
+use codec::{Decode, Encode};
 
-use wasmi::{self, Module, ModuleInstance,  MemoryInstance, MemoryDescriptor, MemoryRef, ModuleImportResolver};
-use wasmi::{memory_units, RuntimeValue};
-use wasmi::Error as WasmError;
+use wasmi::{self, Module, ModuleInstance, Trap, MemoryInstance, MemoryDescriptor, MemoryRef, ModuleImportResolver};
+use wasmi::{memory_units, RuntimeValue, Externals, Error as WasmError, ValueType};
 use wasmi::memory_units::{Bytes, Pages, RoundUpTo};
 
-use super::{ValidationParams, ValidationResult};
+use super::{ValidationParams, ValidationResult, ParaId, MessageRef};
 
 use std::cell::RefCell;
+use std::fmt;
 
 error_chain! {
 	types { Error, ErrorKind, ResultExt; }
@@ -50,12 +50,58 @@ error_chain! {
 	}
 }
 
+mod ids {
+	/// Post a message to another parachain.
+	pub const POST_MESSAGE: usize = 1;
+}
+
+#[derive(Debug)]
+struct HostError(&'static str);
+impl wasmi::HostError for HostError {}
+
+impl fmt::Display for HostError {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		self.0.fmt(f)
+	}
+}
+
 struct Resolver {
 	max_memory: u32, // in pages.
 	memory: RefCell<Option<MemoryRef>>,
 }
 
 impl ModuleImportResolver for Resolver {
+	fn resolve_func(
+        &self,
+        field_name: &str,
+        signature: &wasmi::Signature
+    ) -> Result<wasmi::FuncRef, WasmError> {
+    	match field_name {
+            "ext_post_message" => {
+				let index = ids::POST_MESSAGE;
+				let (params, ret_ty): (&[ValueType], Option<ValueType>) =
+        		(&[ValueType::I32, ValueType::I32, ValueType::I32], None);
+
+				if signature.params() != params && signature.return_type() != ret_ty {
+					Err(WasmError::Instantiation(
+            		    format!("Export {} has a bad signature", field_name)
+            		))
+				} else {
+					Ok(wasmi::FuncInstance::alloc_host(
+						wasmi::Signature::new(&params[..], ret_ty),
+						index,
+					))
+				}
+			}
+            _ => {
+                Err(WasmError::Instantiation(
+                    format!("Export {} not found", field_name),
+                ))
+            }
+        }
+
+    }
+
 	fn resolve_memory(
 		&self,
 		field_name: &str,
@@ -79,6 +125,56 @@ impl ModuleImportResolver for Resolver {
 	}
 }
 
+struct ValidationExternals<'a, F> {
+	post_message: F,
+	memory: &'a MemoryRef,
+}
+
+impl<'a, F> ValidationExternals<'a, F>
+	where F: FnMut(MessageRef) -> Result<(), ()>
+{
+	/// Signature: post_message(u32, *const u8, u32) -> None
+	/// usage: post_message(target parachain, data ptr, data len).
+	/// Data is the raw data of the message.
+	fn ext_post_message(&mut self, args: ::wasmi::RuntimeArgs) -> Result<(), Trap> {
+		let target: u32 = args.nth_checked(0)?;
+		let data_ptr: u32 = args.nth_checked(1)?;
+		let data_len: u32 = args.nth_checked(2)?;
+
+		let (data_ptr, data_len) = (data_ptr as usize, data_len as usize);
+
+		self.memory.with_direct_access(|mem| {
+			if mem.len() < (data_ptr + data_len) {
+				Err(Trap::new(wasmi::TrapKind::MemoryAccessOutOfBounds))
+			} else {
+				let res = (self.post_message)(MessageRef {
+					target: ParaId::from(target),
+					data: &mem[data_ptr..][..data_len],
+				});
+
+				res.map_err(|_| Trap::new(wasmi::TrapKind::Host(
+					Box::new(HostError("unable to post message")) as Box<_>
+				)))
+			}
+		})
+	}
+}
+
+impl<'a, F> Externals for ValidationExternals<'a, F>
+	where F: FnMut(MessageRef) -> Result<(), ()>
+{
+	fn invoke_index(
+		&mut self,
+		index: usize,
+		args: ::wasmi::RuntimeArgs,
+	) -> Result<Option<RuntimeValue>, Trap> {
+		match index {
+			ids::POST_MESSAGE => self.ext_post_message(args).map(|_| None),
+			_ => panic!("no externality at given index"),
+		}
+	}
+}
+
 /// Validate a candidate under the given validation code.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
@@ -89,7 +185,9 @@ pub fn validate_candidate(validation_code: &[u8], params: ValidationParams) -> R
 	const MAX_MEM: u32 = 1024 * 1024 * 1024; // 1 GiB
 
 	// instantiate the module.
-	let (module, memory) = {
+	let memory;
+	let mut externals;
+	let module = {
 		let module = Module::from_buffer(validation_code)?;
 
 		let module_resolver = Resolver {
@@ -100,14 +198,19 @@ pub fn validate_candidate(validation_code: &[u8], params: ValidationParams) -> R
 		let module = ModuleInstance::new(
 			&module,
 			&wasmi::ImportsBuilder::new().with_resolver("env", &module_resolver),
-		)?.run_start(&mut wasmi::NopExternals).map_err(WasmError::Trap)?;
+		)?;
 
-		let memory = module_resolver.memory.borrow()
+		memory = module_resolver.memory.borrow()
 			.as_ref()
 			.ok_or_else(|| WasmError::Instantiation("No imported memory instance".to_owned()))?
 			.clone();
 
-		(module, memory)
+		externals = ValidationExternals {
+			post_message: |_: MessageRef| Ok(()), // do nothing for now.
+			memory: &memory,
+		};
+
+		module.run_start(&mut wasmi::NopExternals).map_err(WasmError::Trap)?
 	};
 
 	// allocate call data in memory.
@@ -135,7 +238,7 @@ pub fn validate_candidate(validation_code: &[u8], params: ValidationParams) -> R
 	let output = module.invoke_export(
 		"validate",
 		&[RuntimeValue::I32(offset as i32), RuntimeValue::I32(len as i32)],
-		&mut wasmi::NopExternals,
+		&mut externals,
 	)?;
 
 	match output {

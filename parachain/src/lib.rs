@@ -45,6 +45,7 @@
 
 /// Re-export of parity-codec.
 pub extern crate parity_codec as codec;
+extern crate polkadot_primitives;
 
 #[macro_use]
 extern crate parity_codec_derive;
@@ -69,10 +70,12 @@ use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 pub mod wasm_executor;
 
+pub use polkadot_primitives::parachain::Id as ParaId;
+
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: consolidated ingress and balance downloads
-#[derive(PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(PartialEq, Eq, Encode)]
+#[cfg_attr(feature = "std", derive(Debug, Decode))]
 pub struct ValidationParams {
 	/// The collation body.
 	pub block_data: Vec<u8>,
@@ -82,11 +85,30 @@ pub struct ValidationParams {
 
 /// The result of parachain validation.
 // TODO: egress and balance uploads
-#[derive(PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(PartialEq, Eq, Encode)]
+#[cfg_attr(feature = "std", derive(Debug, Decode))]
 pub struct ValidationResult {
 	/// New head data that should be included in the relay chain state.
 	pub head_data: Vec<u8>,
+}
+
+/// An outgoing parachain message.
+#[derive(PartialEq, Eq, Encode)]
+#[cfg_attr(feature = "std", derive(Debug, Decode))]
+pub struct Message {
+	/// The target parachain for this message.
+	pub target: ParaId,
+	/// The message data.
+	pub data: Vec<u8>,
+}
+
+/// A reference to a message.
+#[cfg(feature = "std")]
+pub struct MessageRef<'a> {
+	/// The target parachain.
+	pub target: ParaId,
+	/// Underlying data of the message.
+	pub data: &'a [u8],
 }
 
 /// Load the validation params from memory when implementing a Rust parachain.
