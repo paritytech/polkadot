@@ -25,6 +25,7 @@ use polkadot_primitives::{Block, Hash, AccountId, BlockId};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic};
 use polkadot_primitives::parachain::ParachainHost;
 use runtime_primitives::traits::ProvideRuntimeApi;
+use parachain::{wasm_executor::{self, ExternalitiesError}, Message, MessageRef};
 
 use futures::prelude::*;
 
@@ -100,7 +101,9 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 			};
 
 			match validate_collation(&*self.client, &self.relay_parent, &x) {
-				Ok(e) => return Ok(Async::Ready((x, e))),
+				Ok((_messages, e)) => {
+					return Ok(Async::Ready((x, e)))
+				}
 				Err(e) => {
 					debug!("Failed to validate parachain due to API error: {}", e);
 
@@ -137,16 +140,33 @@ error_chain! {
 	}
 }
 
+struct Externalities {
+	sent_messages: Vec<Message>,
+}
+
+impl wasm_executor::Externalities for Externalities {
+	fn post_message(&mut self, message: MessageRef) -> Result<(), ExternalitiesError> {
+		// TODO: https://github.com/paritytech/polkadot/issues/92
+		// check per-message and per-byte fees for the parachain.
+		self.sent_messages.push(Message {
+			target: message.target,
+			data: message.data.to_vec(),
+		});
+
+		Ok(())
+	}
+}
+
 /// Check whether a given collation is valid. Returns `Ok` on success, error otherwise.
 pub fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
 	collation: &Collation
-) -> Result<Extrinsic, Error> where
+) -> Result<(Vec<Message>, Extrinsic), Error> where
 	P: ProvideRuntimeApi,
-	P::Api: ParachainHost<Block>
+	P::Api: ParachainHost<Block>,
 {
-	use parachain::{self, ValidationParams};
+	use parachain::ValidationParams;
 
 	let api = client.runtime_api();
 	let para_id = collation.receipt.parachain_index;
@@ -161,10 +181,14 @@ pub fn validate_collation<P>(
 		block_data: collation.block_data.0.clone(),
 	};
 
-	match parachain::wasm_executor::validate_candidate(&validation_code, params) {
+	let mut ext = Externalities { sent_messages: Vec::new() };
+
+	match wasm_executor::validate_candidate(&validation_code, params, &mut ext) {
 		Ok(result) => {
 			if result.head_data == collation.receipt.head_data.0 {
-				Ok(Extrinsic)
+				// TODO [now]: compute message merkle root,
+				// compare against candidate receipt.
+				Ok((ext.sent_messages, Extrinsic))
 			} else {
 				Err(ErrorKind::WrongHeadData(
 					collation.receipt.head_data.0.clone(),

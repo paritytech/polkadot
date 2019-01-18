@@ -63,6 +63,12 @@ pub enum ExternalitiesError {
 	CannotPostMessage(&'static str),
 }
 
+/// Externalities for parachain validation.
+pub trait Externalities {
+	/// Called when a message is to be posted to another parachain.
+	fn post_message(&mut self, message: MessageRef) -> Result<(), ExternalitiesError>;
+}
+
 impl fmt::Display for ExternalitiesError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
@@ -135,14 +141,12 @@ impl ModuleImportResolver for Resolver {
 	}
 }
 
-struct ValidationExternals<'a, F> {
-	post_message: F,
+struct ValidationExternals<'a, E: 'a> {
+	externalities: &'a mut E,
 	memory: &'a MemoryRef,
 }
 
-impl<'a, F> ValidationExternals<'a, F>
-	where F: FnMut(MessageRef) -> Result<(), ExternalitiesError>
-{
+impl<'a, E: 'a + Externalities> ValidationExternals<'a, E> {
 	/// Signature: post_message(u32, *const u8, u32) -> None
 	/// usage: post_message(target parachain, data ptr, data len).
 	/// Data is the raw data of the message.
@@ -157,7 +161,7 @@ impl<'a, F> ValidationExternals<'a, F>
 			if mem.len() < (data_ptr + data_len) {
 				Err(Trap::new(wasmi::TrapKind::MemoryAccessOutOfBounds))
 			} else {
-				let res = (self.post_message)(MessageRef {
+				let res = self.externalities.post_message(MessageRef {
 					target,
 					data: &mem[data_ptr..][..data_len],
 				});
@@ -170,9 +174,7 @@ impl<'a, F> ValidationExternals<'a, F>
 	}
 }
 
-impl<'a, F> Externals for ValidationExternals<'a, F>
-	where F: FnMut(MessageRef) -> Result<(), ExternalitiesError>
-{
+impl<'a, E: 'a + Externalities> Externals for ValidationExternals<'a, E> {
 	fn invoke_index(
 		&mut self,
 		index: usize,
@@ -188,7 +190,11 @@ impl<'a, F> Externals for ValidationExternals<'a, F>
 /// Validate a candidate under the given validation code.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
-pub fn validate_candidate(validation_code: &[u8], params: ValidationParams) -> Result<ValidationResult, Error> {
+pub fn validate_candidate<E: Externalities>(
+	validation_code: &[u8],
+	params: ValidationParams,
+	externalities: &mut E,
+) -> Result<ValidationResult, Error> {
 	use wasmi::LINEAR_MEMORY_PAGE_SIZE;
 
 	// maximum memory in bytes
@@ -216,7 +222,7 @@ pub fn validate_candidate(validation_code: &[u8], params: ValidationParams) -> R
 			.clone();
 
 		externals = ValidationExternals {
-			post_message: |_: MessageRef| Ok(()), // do nothing for now.
+			externalities,
 			memory: &memory,
 		};
 
