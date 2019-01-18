@@ -100,9 +100,9 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 			Err(e) => e.exit(),
 		};
 
-	let (spec, mut config) = cli::parse_matches::<service::Factory, _>(load_spec, version, "parity-polkadot", &matches)?;
+	let (spec, mut config) = cli::parse_matches::<service::Factory, _>(load_spec, &version, "parity-polkadot", &matches)?;
 
-	match cli::execute_default::<service::Factory, _,>(spec, worker, &matches, &config)? {
+	match cli::execute_default::<service::Factory, _,>(spec, worker, &matches, &config, &version)? {
 		cli::Action::ExecutedInternally => (),
 		cli::Action::RunService(worker) => {
 			info!("Parity ·:· Polkadot");
