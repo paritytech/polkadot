@@ -26,7 +26,7 @@ use wasmi::{self, Module, ModuleInstance, Trap, MemoryInstance, MemoryDescriptor
 use wasmi::{memory_units, RuntimeValue, Externals, Error as WasmError, ValueType};
 use wasmi::memory_units::{Bytes, Pages, RoundUpTo};
 
-use super::{ValidationParams, ValidationResult, ParaId, MessageRef};
+use super::{ValidationParams, ValidationResult, MessageRef};
 
 use std::cell::RefCell;
 use std::fmt;
@@ -148,7 +148,7 @@ impl<'a, F> ValidationExternals<'a, F>
 				Err(Trap::new(wasmi::TrapKind::MemoryAccessOutOfBounds))
 			} else {
 				let res = (self.post_message)(MessageRef {
-					target: ParaId::from(target),
+					target,
 					data: &mem[data_ptr..][..data_len],
 				});
 

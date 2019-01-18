@@ -9,11 +9,11 @@ parity-codec = { version = "2.1", default-features = false }
 parity-codec-derive = { version = "2.1", default-features = false }
 wasmi = { version = "0.4.3", optional = true }
 error-chain = { version = "0.12", optional = true }
-polkadot-primitives = { path = "../primitives", default-features = false }
 
 [dev-dependencies]
 tiny-keccak = "1.4"
 
 [features]
 default = ["std"]
-std = ["parity-codec/std", "wasmi", "error-chain", "polkadot-primitives/std" ]
+wasm-api = []
+std = ["parity-codec/std", "wasmi", "error-chain"]

@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
 adder = { path = ".." }
-polkadot-parachain = { path = "../../../parachain", default-features = false }
+polkadot-parachain = { path = "../../../parachain", default-features = false, features = ["wasm-api"] }
 wee_alloc = { version = "0.4.1" }
 pwasm-libc = { version = "0.2" }
 tiny-keccak = "1.4"
