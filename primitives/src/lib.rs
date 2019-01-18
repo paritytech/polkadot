@@ -67,7 +67,7 @@ pub type AccountIndex = u32;
 
 /// The Ed25519 pub key of an session that belongs to an authority of the relay chain. This is
 /// exactly equivalent to what the substrate calls an "authority".
-pub type SessionKey = primitives::AuthorityId;
+pub type SessionKey = primitives::Ed25519AuthorityId;
 
 /// Indentifier for a chain. 32-bit should be plenty.
 pub type ChainId = u32;
@@ -92,7 +92,7 @@ pub type Signature = runtime_primitives::Ed25519Signature;
 pub type Balance = u128;
 
 /// Header type.
-pub type Header = generic::Header<BlockNumber, BlakeTwo256, generic::DigestItem<Hash, AccountId>>;
+pub type Header = generic::Header<BlockNumber, BlakeTwo256, generic::DigestItem<Hash, SessionKey>>;
 /// Block type.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// Block ID.

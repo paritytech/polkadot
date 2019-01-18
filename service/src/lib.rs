@@ -175,10 +175,12 @@ construct_service_factory! {
 						grandpa::Config {
 							gossip_duration: Duration::new(4, 0), // FIXME: make this available through chainspec?
 							local_key: key.clone(),
-							name: Some(service.config.name.clone())
+							justification_period: 4096,
+							name: Some(service.config.name.clone()),
 						},
 						link_half,
 						grandpa::NetworkBridge::new(service.network()),
+						service.on_exit(),
 					)?;
 
 					executor.spawn(voter);
@@ -205,7 +207,11 @@ construct_service_factory! {
 				let client = service.client();
 
 				// collator connections and consensus network both fulfilled by this
-				let consensus_network = ConsensusNetwork::new(service.network(), service.client());
+				let consensus_network = ConsensusNetwork::new(
+					service.network(),
+					service.on_exit(),
+					service.client(),
+				);
 				let proposer_factory = ::consensus::ProposerFactory::new(
 					client.clone(),
 					consensus_network.clone(),
@@ -224,6 +230,7 @@ construct_service_factory! {
 					block_import,
 					Arc::new(proposer_factory),
 					service.network(),
+					service.on_exit(),
 				);
 
 				executor.spawn(task);
@@ -269,4 +276,3 @@ construct_service_factory! {
 			}},
 	}
 }
-

@@ -16,7 +16,7 @@
 
 //! Errors that can occur during the consensus process.
 
-use primitives::AuthorityId;
+use primitives::Ed25519AuthorityId as AuthorityId;
 use runtime_primitives::RuntimeString;
 
 error_chain! {

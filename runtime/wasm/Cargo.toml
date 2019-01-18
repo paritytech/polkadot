@@ -26,6 +26,7 @@ srml-council = { git = "https://github.com/paritytech/substrate", default-featur
 srml-democracy = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-executive = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false }
+srml-indices = { git = "https://github.com/paritytech/substrate", default-features = false }
 sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-session = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-staking = { git = "https://github.com/paritytech/substrate", default-features = false }
