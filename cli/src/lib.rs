@@ -100,14 +100,14 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 			Err(e) => e.exit(),
 		};
 
-	let (spec, mut config) = cli::parse_matches::<service::Factory, _>(load_spec, version, "parity-polkadot", &matches)?;
+	let (spec, mut config) = cli::parse_matches::<service::Factory, _>(load_spec, &version, "parity-polkadot", &matches)?;
 
-	match cli::execute_default::<service::Factory, _,>(spec, worker, &matches, &config)? {
+	match cli::execute_default::<service::Factory, _,>(spec, worker, &matches, &config, &version)? {
 		cli::Action::ExecutedInternally => (),
 		cli::Action::RunService(worker) => {
-			info!("Parity ·:· Polkadot");
+			info!("{}", version.name);
 			info!("  version {}", config.full_version());
-			info!("  by Parity Technologies, 2017, 2018");
+			info!("  by {}, 2017, 2018", version.author);
 			info!("Chain specification: {}", config.chain_spec.name());
 			info!("Node name: {}", config.name);
 			info!("Roles: {:?}", config.roles);

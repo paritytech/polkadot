@@ -67,6 +67,7 @@ quick_main!(run);
 
 fn run() -> cli::error::Result<()> {
 	let version = VersionInfo {
+		name: "Parity ·:· Polkadot",
 		commit: vergen::short_sha(),
 		version: env!("CARGO_PKG_VERSION"),
 		executable_name: "polkadot",
