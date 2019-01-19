@@ -196,8 +196,6 @@ impl<T: Trait> Module<T> {
 			_ => Chain::Relay,
 		}).collect::<Vec<_>>();
 
-		let mut roles_gua = roles_val.clone();
-
 		let mut random_seed = system::Module::<T>::random_seed().as_ref().to_vec();
 		random_seed.extend(b"validator_role_pairs");
 		let mut seed = BlakeTwo256::hash(&random_seed);
@@ -212,7 +210,6 @@ impl<T: Trait> Module<T> {
 
 			// 4 * 2 32-bit ints per 256-bit seed.
 			let val_index = u32::decode(&mut &seed[offset..offset + 4]).expect("using 4 bytes for a 32-bit quantity") as usize % remaining;
-			let gua_index = u32::decode(&mut &seed[offset + 4..offset + 8]).expect("using 4 bytes for a 32-bit quantity") as usize % remaining;
 
 			if offset == 24 {
 				// into the last 8 bytes - rehash to gather new entropy
@@ -221,12 +218,10 @@ impl<T: Trait> Module<T> {
 
 			// exchange last item with randomly chosen first.
 			roles_val.swap(remaining - 1, val_index);
-			roles_gua.swap(remaining - 1, gua_index);
 		}
 
 		DutyRoster {
 			validator_duty: roles_val,
-			guarantor_duty: roles_gua,
 		}
 	}
 
@@ -302,38 +297,27 @@ impl<T: Trait> Module<T> {
 		};
 
 		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
-		let sorted_guarantors = make_sorted_duties(&duty_roster.guarantor_duty);
 
 		let parent_hash = super::System::parent_hash();
 		let localized_payload = |statement: Statement| localized_payload(statement, parent_hash);
 
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
-		let mut guarantor_groups = GroupedDutyIter::new(&sorted_guarantors[..]);
 
 		for candidate in attested_candidates {
 			let validator_group = validator_groups.group_for(candidate.parachain_index())
 				.ok_or("no validator group for parachain")?;
-
-			let availability_group = guarantor_groups.group_for(candidate.parachain_index())
-				.ok_or("no availability group for parachain")?;
 
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
 				"Not enough validity attestations"
 			);
 
-			ensure!(
-				candidate.availability_votes.len() >= majority_of(availability_group.len()),
-				"Not enough availability attestations"
-			);
-
 			let mut candidate_hash = None;
 			let mut encoded_implicit = None;
 			let mut encoded_explicit = None;
 
-			// track which voters have voted already. the first `authorities.len()`
-			// bits is for validity, the next are for availability.
-			let mut track_voters = bitvec![0; authorities.len() * 2];
+			// track which voters have voted already, 1 bit per authority.
+			let mut track_voters = bitvec![0; authorities.len()];
 			for (auth_id, validity_attestation) in &candidate.validity_votes {
 				// protect against double-votes.
 				match validator_group.iter().find(|&(idx, _)| &authorities[*idx] == auth_id) {
@@ -371,32 +355,6 @@ impl<T: Trait> Module<T> {
 					sig.verify(&payload[..], &auth_id.0.into()),
 					"Candidate validity attestation signature is bad."
 				);
-			}
-
-			let mut encoded_available = None;
-			for (auth_id, sig) in &candidate.availability_votes {
-				match availability_group.iter().find(|&(idx, _)| &authorities[*idx] == auth_id) {
-					None => return Err("Attesting validator not on this chain's availability duty."),
-					Some(&(idx, _)) => {
-						if track_voters.get(authorities.len() + idx) {
-							return Err("Voter already attested availability once")
-						}
-						track_voters.set(authorities.len() + idx, true)
-					}
-				}
-
-				let hash = candidate_hash
-					.get_or_insert_with(|| candidate.candidate.hash())
-					.clone();
-
-				let payload = encoded_available.get_or_insert_with(|| localized_payload(
-					Statement::Available(hash),
-				));
-
-				ensure!(
-					sig.verify(&payload[..], &auth_id.0.into()),
-					"Candidate availability attestation signature is bad."
-				)
 			}
 		}
 
@@ -544,39 +502,28 @@ mod tests {
 		};
 
 		let validation_entries = duty_roster.validator_duty.iter()
-			.enumerate()
-			.map(|(i, d)| (i, d, true));
+			.enumerate();
 
-		let availability_entries = duty_roster.guarantor_duty.iter()
-			.enumerate()
-			.map(|(i, d)| (i, d, false));
-
-		for (idx, &duty, is_validation) in validation_entries.chain(availability_entries) {
+		for (idx, &duty) in validation_entries {
 			if duty != Chain::Parachain(candidate.parachain_index()) { continue }
-			if is_validation { vote_implicit = !vote_implicit };
+			vote_implicit = !vote_implicit;
 
 			let key = extract_key(authorities[idx]);
 
-			let statement = if is_validation && vote_implicit {
+			let statement = if vote_implicit {
 				Statement::Candidate(candidate.candidate.clone())
-			} else if is_validation {
-				Statement::Valid(candidate_hash.clone())
 			} else {
-				Statement::Available(candidate_hash.clone())
+				Statement::Valid(candidate_hash.clone())
 			};
 
 			let payload = localized_payload(statement, parent_hash);
 			let signature = key.sign(&payload[..]).into();
 
-			if is_validation {
-				candidate.validity_votes.push((authorities[idx], if vote_implicit {
-					ValidityAttestation::Implicit(signature)
-				} else {
-					ValidityAttestation::Explicit(signature)
-				}));
+			candidate.validity_votes.push((authorities[idx], if vote_implicit {
+				ValidityAttestation::Implicit(signature)
 			} else {
-				candidate.availability_votes.push((authorities[idx], signature));
-			}
+				ValidityAttestation::Explicit(signature)
+			}));
 		}
 	}
 
@@ -629,13 +576,10 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			let check_roster = |duty_roster: &DutyRoster| {
 				assert_eq!(duty_roster.validator_duty.len(), 8);
-				assert_eq!(duty_roster.guarantor_duty.len(), 8);
 				for i in (0..2).map(ParaId::from) {
 					assert_eq!(duty_roster.validator_duty.iter().filter(|&&j| j == Chain::Parachain(i)).count(), 3);
-					assert_eq!(duty_roster.guarantor_duty.iter().filter(|&&j| j == Chain::Parachain(i)).count(), 3);
 				}
 				assert_eq!(duty_roster.validator_duty.iter().filter(|&&j| j == Chain::Relay).count(), 2);
-				assert_eq!(duty_roster.guarantor_duty.iter().filter(|&&j| j == Chain::Relay).count(), 2);
 			};
 
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
@@ -667,7 +611,6 @@ mod tests {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let candidate = AttestedCandidate {
 				validity_votes: vec![],
-				availability_votes: vec![],
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
@@ -695,7 +638,6 @@ mod tests {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
-				availability_votes: vec![],
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
@@ -710,7 +652,6 @@ mod tests {
 
 			let mut candidate_b = AttestedCandidate {
 				validity_votes: vec![],
-				availability_votes: vec![],
 				candidate: CandidateReceipt {
 					parachain_index: 1.into(),
 					collator: Default::default(),
@@ -749,7 +690,6 @@ mod tests {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
-				availability_votes: vec![],
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
@@ -769,14 +709,6 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![double_validity]),
-				Origin::INHERENT,
-			).is_err());
-
-			let mut double_availability = candidate.clone();
-			double_availability.availability_votes.push(candidate.availability_votes[0].clone());
-
-			assert!(Parachains::dispatch(
-				Call::set_heads(vec![double_availability]),
 				Origin::INHERENT,
 			).is_err());
 		});

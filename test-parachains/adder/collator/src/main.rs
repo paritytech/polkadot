@@ -131,6 +131,7 @@ fn main() {
 		key,
 		::std::env::args(),
 		VersionInfo {
+			name: "<unkown>",
 			version: "<unknown>",
 			commit: "<unknown>",
 			executable_name: "adder-collator",

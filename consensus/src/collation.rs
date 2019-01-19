@@ -100,10 +100,7 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 			};
 
 			match validate_collation(&*self.client, &self.relay_parent, &x) {
-				Ok(()) => {
-					// TODO: generate extrinsic while verifying.
-					return Ok(Async::Ready((x, Extrinsic)));
-				}
+				Ok(e) => return Ok(Async::Ready((x, e))),
 				Err(e) => {
 					debug!("Failed to validate parachain due to API error: {}", e);
 
@@ -140,12 +137,12 @@ error_chain! {
 	}
 }
 
-/// Check whether a given collation is valid. Returns `Ok`  on success, error otherwise.
+/// Check whether a given collation is valid. Returns `Ok` on success, error otherwise.
 pub fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
 	collation: &Collation
-) -> Result<(), Error> where
+) -> Result<Extrinsic, Error> where
 	P: ProvideRuntimeApi,
 	P::Api: ParachainHost<Block>
 {
@@ -167,7 +164,7 @@ pub fn validate_collation<P>(
 	match parachain::wasm::validate_candidate(&validation_code, params) {
 		Ok(result) => {
 			if result.head_data == collation.receipt.head_data.0 {
-				Ok(())
+				Ok(Extrinsic)
 			} else {
 				Err(ErrorKind::WrongHeadData(
 					collation.receipt.head_data.0.clone(),

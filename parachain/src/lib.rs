@@ -86,7 +86,7 @@ pub struct ValidationParams {
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct ValidationResult {
 	/// New head data that should be included in the relay chain state.
-	pub head_data: Vec<u8>
+	pub head_data: Vec<u8>,
 }
 
 /// Load the validation params from memory when implementing a Rust parachain.
