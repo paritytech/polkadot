@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use polkadot_primitives::{Block, Hash, AccountId, BlockId};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, OutgoingMessage};
-use polkadot_primitives::parachain::ParachainHost;
+use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use parachain::{wasm_executor::{self, ExternalitiesError}, MessageRef};
 
@@ -149,10 +149,59 @@ error_chain! {
 }
 
 /// Compute the egress trie root for a set of messages.
-pub fn egress_trie_root<'a, I: IntoIterator<Item=&'a [u8]>>(messages: I) -> Hash {
+pub fn egress_trie_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
+	where A: AsRef<[u8]>
+{
 	// TODO: remove unneeded `into_iter` call
 	// https://github.com/paritytech/substrate/pull/1490
 	::trie::ordered_trie_root::<primitives::Blake2Hasher, _, _>(messages.into_iter())
+}
+
+fn check_and_compute_extrinsic(
+	mut outgoing: Vec<OutgoingMessage>,
+	expected_egress_roots: &[(ParaId, Hash)],
+) -> Result<Extrinsic, Error> {
+	// stable sort messages by parachain ID.
+	outgoing.sort_by_key(|msg| ParaId::from(msg.target));
+
+	{
+		let mut messages_iter = outgoing.iter().peekable();
+		let mut expected_egress_roots = expected_egress_roots.iter();
+		while let Some(batch_target) = messages_iter.peek().map(|o| o.target) {
+			let expected_root = match expected_egress_roots.next() {
+				None => return Err(ErrorKind::MissingEgressRoute(Some(batch_target), None).into()),
+				Some(&(id, ref root)) => if id == batch_target {
+					root
+				} else {
+					return Err(ErrorKind::MissingEgressRoute(Some(batch_target), Some(id)).into());
+				}
+			};
+
+ 			// we borrow the iterator mutably to ensure it advances so the
+			// next iteration of the loop starts with `messages_iter` pointing to
+			// the next batch.
+			let messages_to = messages_iter
+				.clone()
+				.take_while(|o| o.target == batch_target)
+				.map(|o| { let _ = messages_iter.next(); &o.data[..] });
+
+			let computed_root = egress_trie_root(messages_to);
+			if &computed_root != expected_root {
+				return Err(ErrorKind::EgressRootMismatch(
+					batch_target,
+					expected_root.clone(),
+					computed_root,
+				).into());
+			}
+		}
+
+		// also check that there are no more additional expected roots.
+		if let Some((next_target, _)) = expected_egress_roots.next() {
+			return Err(ErrorKind::MissingEgressRoute(None, Some(*next_target)).into());
+		}
+	}
+
+	Ok(Extrinsic { outgoing_messages: outgoing })
 }
 
 struct Externalities {
@@ -181,49 +230,13 @@ impl wasm_executor::Externalities for Externalities {
 impl Externalities {
 	// Performs final checks of validity, producing the extrinsic data.
 	fn final_checks(
-		mut self,
-		expected_egress_roots: &[(ParaId, Hash)],
+		self,
+		candidate: &CandidateReceipt,
 	) -> Result<Extrinsic, Error> {
-		// stable sort messages by parachain ID.
-		self.outgoing.sort_by_key(|msg| ParaId::from(msg.target));
-
-		{
-			let mut messages_iter = self.outgoing.iter().peekable();
-			let mut expected_egress_roots = expected_egress_roots.iter();
-			while let Some(batch_target) = messages_iter.peek().map(|o| o.target) {
-				let expected_root = match expected_egress_roots.next() {
-					None => return Err(ErrorKind::MissingEgressRoute(Some(batch_target), None).into()),
-					Some(&(id, ref root)) => if id == batch_target {
-						root
-					} else {
-						return Err(ErrorKind::MissingEgressRoute(None, Some(id)).into());
-					}
-				};
-
- 				// we borrow the iterator mutably to ensure it advances so the
-				// next iteration of the loop starts with `messages_iter` pointing to
-				// the next batch.
-				let messages_to = (&mut messages_iter)
-					.take_while(|o| o.target == batch_target)
-					.map(|o| &o.data[..]);
-
-				let computed_root = egress_trie_root(messages_to);
-				if &computed_root != expected_root {
-					return Err(ErrorKind::EgressRootMismatch(
-						batch_target,
-						expected_root.clone(),
-						computed_root,
-					).into());
-				}
-			}
-
-			// also check that there are no more additional expected roots.
-			if let Some((next_target, _)) = expected_egress_roots.next() {
-				return Err(ErrorKind::MissingEgressRoute(None, Some(*next_target)).into());
-			}
-		}
-
-		Ok(Extrinsic { outgoing_messages: self.outgoing })
+		check_and_compute_extrinsic(
+			self.outgoing,
+			&candidate.egress_queue_roots[..],
+		)
 	}
 }
 
@@ -262,7 +275,7 @@ pub fn validate_collation<P>(
 	match wasm_executor::validate_candidate(&validation_code, params, &mut ext) {
 		Ok(result) => {
 			if result.head_data == collation.receipt.head_data.0 {
-				ext.final_checks(&collation.receipt.egress_queue_roots[..])
+				ext.final_checks(&collation.receipt)
 			} else {
 				Err(ErrorKind::WrongHeadData(
 					collation.receipt.head_data.0.clone(),
@@ -271,5 +284,59 @@ pub fn validate_collation<P>(
 			}
 		}
 		Err(e) => Err(e.into())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
+
+	#[test]
+	fn egress_roots() {
+		let messages = vec![
+			OutgoingMessage { target: 3.into(), data: vec![1, 1, 1] },
+			OutgoingMessage { target: 1.into(), data: vec![1, 2, 3] },
+			OutgoingMessage { target: 2.into(), data: vec![4, 5, 6] },
+			OutgoingMessage { target: 1.into(), data: vec![7, 8, 9] },
+		];
+
+		let root_1 = egress_trie_root(&[vec![1, 2, 3], vec![7, 8, 9]]);
+		let root_2 = egress_trie_root(&[vec![4, 5, 6]]);
+		let root_3 = egress_trie_root(&[vec![1, 1, 1]]);
+
+		assert!(check_and_compute_extrinsic(
+			messages.clone(),
+			&[(1.into(), root_1), (2.into(), root_2), (3.into(), root_3)],
+		).is_ok());
+
+		// missing root.
+		assert!(check_and_compute_extrinsic(
+			messages.clone(),
+			&[(1.into(), root_1), (3.into(), root_3)],
+		).is_err());
+
+		// extra root.
+		assert!(check_and_compute_extrinsic(
+			messages.clone(),
+			&[(1.into(), root_1), (2.into(), root_2), (3.into(), root_3), (4.into(), Default::default())],
+		).is_err());
+
+		// root mismatch.
+		assert!(check_and_compute_extrinsic(
+			messages.clone(),
+			&[(1.into(), root_2), (2.into(), root_1), (3.into(), root_3)],
+		).is_err());
+	}
+
+	#[test]
+	fn ext_rejects_local_message() {
+		let mut ext = Externalities {
+			parachain_index: 5.into(),
+			outgoing: Vec::new(),
+		};
+
+		assert!(ext.post_message(MessageRef { target: 1, data: &[] }).is_ok());
+		assert!(ext.post_message(MessageRef { target: 5, data: &[] }).is_err());
 	}
 }

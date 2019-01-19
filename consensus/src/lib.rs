@@ -225,7 +225,6 @@ struct ParachainConsensus<C, N, P> {
 	extrinsic_store: ExtrinsicStore,
 	/// Live agreements.
 	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
-
 }
 
 impl<C, N, P> ParachainConsensus<C, N, P> where
