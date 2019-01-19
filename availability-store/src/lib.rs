@@ -128,11 +128,11 @@ impl Store {
 			data.block_data.encode()
 		);
 
-		if let Some(_extrinsic) = data.extrinsic {
+		if let Some(extrinsic) = data.extrinsic {
 			tx.put_vec(
 				columns::DATA,
 				extrinsic_key(&data.relay_parent, &data.candidate_hash).as_slice(),
-				vec![],
+				extrinsic.encode(),
 			);
 		}
 
@@ -182,7 +182,9 @@ impl Store {
 	pub fn extrinsic(&self, relay_parent: Hash, candidate_hash: Hash) -> Option<Extrinsic> {
 		let encoded_key = extrinsic_key(&relay_parent, &candidate_hash);
 		match self.inner.get(columns::DATA, &encoded_key[..]) {
-			Ok(Some(_raw)) => Some(Extrinsic),
+			Ok(Some(raw)) => Some(
+				Extrinsic::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")
+			),
 			Ok(None) => None,
 			Err(e) => {
 				warn!(target: "availability", "Error reading from availability store: {:?}", e);
@@ -215,7 +217,7 @@ mod tests {
 			parachain_id: para_id_1,
 			candidate_hash: candidate_1,
 			block_data: block_data_1.clone(),
-			extrinsic: Some(Extrinsic),
+			extrinsic: Some(Extrinsic { outgoing_messages: Vec::new() }),
 		}).unwrap();
 
 		store.make_available(Data {
@@ -223,7 +225,7 @@ mod tests {
 			parachain_id: para_id_2,
 			candidate_hash: candidate_2,
 			block_data: block_data_2.clone(),
-			extrinsic: Some(Extrinsic),
+			extrinsic: Some(Extrinsic { outgoing_messages: Vec::new() }),
 		}).unwrap();
 
 		assert_eq!(store.block_data(relay_parent, candidate_1).unwrap(), block_data_1);
