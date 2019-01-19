@@ -91,16 +91,6 @@ pub struct ValidationResult {
 	pub head_data: Vec<u8>,
 }
 
-/// An outgoing parachain message.
-#[derive(PartialEq, Eq, Encode)]
-#[cfg_attr(feature = "std", derive(Debug, Decode))]
-pub struct Message {
-	/// The target parachain for this message.
-	pub target: u32,
-	/// The message data.
-	pub data: Vec<u8>,
-}
-
 /// A reference to a message.
 #[cfg(feature = "std")]
 pub struct MessageRef<'a> {

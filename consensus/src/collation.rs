@@ -22,10 +22,10 @@
 use std::sync::Arc;
 
 use polkadot_primitives::{Block, Hash, AccountId, BlockId};
-use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic};
+use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, OutgoingMessage};
 use polkadot_primitives::parachain::ParachainHost;
 use runtime_primitives::traits::ProvideRuntimeApi;
-use parachain::{wasm_executor::{self, ExternalitiesError}, Message, MessageRef};
+use parachain::{wasm_executor::{self, ExternalitiesError}, MessageRef};
 
 use futures::prelude::*;
 
@@ -101,7 +101,7 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 			};
 
 			match validate_collation(&*self.client, &self.relay_parent, &x) {
-				Ok((_messages, e)) => {
+				Ok(e) => {
 					return Ok(Async::Ready((x, e)))
 				}
 				Err(e) => {
@@ -120,36 +120,57 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 error_chain! {
 	types { Error, ErrorKind, ResultExt; }
 
+	links {
+		Client(::client::error::Error, ::client::error::ErrorKind);
+		WasmValidation(wasm_executor::Error, wasm_executor::ErrorKind);
+	}
+
 	errors {
 		InactiveParachain(id: ParaId) {
 			description("Collated for inactive parachain"),
 			display("Collated for inactive parachain: {:?}", id),
 		}
-		ValidationFailure {
-			description("Parachain candidate failed validation."),
-			display("Parachain candidate failed validation."),
+		EgressRootMismatch(id: ParaId, expected: Hash, got: Hash) {
+			description("Got unexpected egress route."),
+			display(
+				"Got unexpected egress route to {:?}. (expected: {:?}, got {:?})",
+				id, expected, got
+			),
+		}
+		MissingEgressRoute(expected: Option<ParaId>, got: Option<ParaId>) {
+			description("Missing or extra egress route."),
+			display("Missing or extra egress route. (expected: {:?}, got {:?})", expected, got),
 		}
 		WrongHeadData(expected: Vec<u8>, got: Vec<u8>) {
 			description("Parachain validation produced wrong head data."),
 			display("Parachain validation produced wrong head data (expected: {:?}, got {:?}", expected, got),
 		}
 	}
+}
 
-	links {
-		Client(::client::error::Error, ::client::error::ErrorKind);
-	}
+/// Compute the egress trie root for a set of messages.
+pub fn egress_trie_root<'a, I: IntoIterator<Item=&'a [u8]>>(messages: I) -> Hash {
+	// TODO: remove unneeded `into_iter` call
+	// https://github.com/paritytech/substrate/pull/1490
+	::trie::ordered_trie_root::<primitives::Blake2Hasher, _, _>(messages.into_iter())
 }
 
 struct Externalities {
-	sent_messages: Vec<Message>,
+	parachain_index: ParaId,
+	outgoing: Vec<OutgoingMessage>,
 }
 
 impl wasm_executor::Externalities for Externalities {
 	fn post_message(&mut self, message: MessageRef) -> Result<(), ExternalitiesError> {
 		// TODO: https://github.com/paritytech/polkadot/issues/92
 		// check per-message and per-byte fees for the parachain.
-		self.sent_messages.push(Message {
-			target: message.target,
+		let target: ParaId = message.target.into();
+		if target == self.parachain_index {
+			return Err(ExternalitiesError::CannotPostMessage("posted message to self"));
+		}
+
+		self.outgoing.push(OutgoingMessage {
+			target,
 			data: message.data.to_vec(),
 		});
 
@@ -157,12 +178,64 @@ impl wasm_executor::Externalities for Externalities {
 	}
 }
 
+impl Externalities {
+	// Performs final checks of validity, producing the extrinsic data.
+	fn final_checks(
+		mut self,
+		expected_egress_roots: &[(ParaId, Hash)],
+	) -> Result<Extrinsic, Error> {
+		// stable sort messages by parachain ID.
+		self.outgoing.sort_by_key(|msg| ParaId::from(msg.target));
+
+		{
+			let mut messages_iter = self.outgoing.iter().peekable();
+			let mut expected_egress_roots = expected_egress_roots.iter();
+			while let Some(batch_target) = messages_iter.peek().map(|o| o.target) {
+				let expected_root = match expected_egress_roots.next() {
+					None => return Err(ErrorKind::MissingEgressRoute(Some(batch_target), None).into()),
+					Some(&(id, ref root)) => if id == batch_target {
+						root
+					} else {
+						return Err(ErrorKind::MissingEgressRoute(None, Some(id)).into());
+					}
+				};
+
+ 				// we borrow the iterator mutably to ensure it advances so the
+				// next iteration of the loop starts with `messages_iter` pointing to
+				// the next batch.
+				let messages_to = (&mut messages_iter)
+					.take_while(|o| o.target == batch_target)
+					.map(|o| &o.data[..]);
+
+				let computed_root = egress_trie_root(messages_to);
+				if &computed_root != expected_root {
+					return Err(ErrorKind::EgressRootMismatch(
+						batch_target,
+						expected_root.clone(),
+						computed_root,
+					).into());
+				}
+			}
+
+			// also check that there are no more additional expected roots.
+			if let Some((next_target, _)) = expected_egress_roots.next() {
+				return Err(ErrorKind::MissingEgressRoute(None, Some(*next_target)).into());
+			}
+		}
+
+		Ok(Extrinsic { outgoing_messages: self.outgoing })
+	}
+}
+
 /// Check whether a given collation is valid. Returns `Ok` on success, error otherwise.
+///
+/// This assumes that basic validity checks have been done:
+///   - Block data hash is the same as linked in candidate receipt.
 pub fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
 	collation: &Collation
-) -> Result<(Vec<Message>, Extrinsic), Error> where
+) -> Result<Extrinsic, Error> where
 	P: ProvideRuntimeApi,
 	P::Api: ParachainHost<Block>,
 {
@@ -181,14 +254,15 @@ pub fn validate_collation<P>(
 		block_data: collation.block_data.0.clone(),
 	};
 
-	let mut ext = Externalities { sent_messages: Vec::new() };
+	let mut ext = Externalities {
+		parachain_index: collation.receipt.parachain_index.clone(),
+		outgoing: Vec::new(),
+	};
 
 	match wasm_executor::validate_candidate(&validation_code, params, &mut ext) {
 		Ok(result) => {
 			if result.head_data == collation.receipt.head_data.0 {
-				// TODO [now]: compute message merkle root,
-				// compare against candidate receipt.
-				Ok((ext.sent_messages, Extrinsic))
+				ext.final_checks(&collation.receipt.egress_queue_roots[..])
 			} else {
 				Err(ErrorKind::WrongHeadData(
 					collation.receipt.head_data.0.clone(),
@@ -196,6 +270,6 @@ pub fn validate_collation<P>(
 				).into())
 			}
 		}
-		Err(_) => Err(ErrorKind::ValidationFailure.into())
+		Err(e) => Err(e.into())
 	}
 }
