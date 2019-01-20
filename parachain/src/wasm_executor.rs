@@ -88,20 +88,20 @@ struct Resolver {
 
 impl ModuleImportResolver for Resolver {
 	fn resolve_func(
-        &self,
-        field_name: &str,
-        signature: &wasmi::Signature
-    ) -> Result<wasmi::FuncRef, WasmError> {
-    	match field_name {
-            "ext_post_message" => {
+		&self,
+		field_name: &str,
+		signature: &wasmi::Signature
+	) -> Result<wasmi::FuncRef, WasmError> {
+		match field_name {
+			"ext_post_message" => {
 				let index = ids::POST_MESSAGE;
 				let (params, ret_ty): (&[ValueType], Option<ValueType>) =
-        		(&[ValueType::I32, ValueType::I32, ValueType::I32], None);
+				(&[ValueType::I32, ValueType::I32, ValueType::I32], None);
 
 				if signature.params() != params && signature.return_type() != ret_ty {
 					Err(WasmError::Instantiation(
-            		    format!("Export {} has a bad signature", field_name)
-            		))
+						format!("Export {} has a bad signature", field_name)
+					))
 				} else {
 					Ok(wasmi::FuncInstance::alloc_host(
 						wasmi::Signature::new(&params[..], ret_ty),
@@ -109,14 +109,14 @@ impl ModuleImportResolver for Resolver {
 					))
 				}
 			}
-            _ => {
-                Err(WasmError::Instantiation(
-                    format!("Export {} not found", field_name),
-                ))
-            }
-        }
+			_ => {
+				Err(WasmError::Instantiation(
+					format!("Export {} not found", field_name),
+				))
+			}
+		}
 
-    }
+	}
 
 	fn resolve_memory(
 		&self,
@@ -226,7 +226,7 @@ pub fn validate_candidate<E: Externalities>(
 			memory: &memory,
 		};
 
-		module.run_start(&mut wasmi::NopExternals).map_err(WasmError::Trap)?
+		module.run_start(&mut externals).map_err(WasmError::Trap)?
 	};
 
 	// allocate call data in memory.

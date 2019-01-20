@@ -152,9 +152,7 @@ error_chain! {
 pub fn egress_trie_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
 	where A: AsRef<[u8]>
 {
-	// TODO: remove unneeded `into_iter` call
-	// https://github.com/paritytech/substrate/pull/1490
-	::trie::ordered_trie_root::<primitives::Blake2Hasher, _, _>(messages.into_iter())
+	::trie::ordered_trie_root::<primitives::Blake2Hasher, _, _>(messages)
 }
 
 fn check_and_compute_extrinsic(
