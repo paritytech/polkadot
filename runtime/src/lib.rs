@@ -23,6 +23,9 @@
 #[macro_use]
 extern crate bitvec;
 
+extern crate tiny_keccak;
+extern crate secp256k1;
+
 #[macro_use]
 extern crate parity_codec_derive;
 extern crate parity_codec as codec;
@@ -64,6 +67,7 @@ extern crate polkadot_primitives as primitives;
 extern crate substrate_keyring as keyring;
 
 mod parachains;
+mod claims;
 
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
@@ -234,6 +238,10 @@ impl sudo::Trait for Runtime {
 	type Proposal = Call;
 }
 
+impl claims::Trait for Runtime {
+	type Event = Event;
+}
+
 construct_runtime!(
 	pub enum Runtime with Log(InternalLog: DigestItem<Hash, SessionKey>) where
 		Block = Block,
@@ -259,6 +267,7 @@ construct_runtime!(
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
 		Sudo: sudo,
 		UpgradeKey: upgrade_key,
+		Claims: claims,
 	}
 );
 

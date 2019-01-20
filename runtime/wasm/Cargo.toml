@@ -36,6 +36,8 @@ srml-timestamp = { git = "https://github.com/paritytech/substrate", default-feat
 srml-treasury = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-upgrade-key = { git = "https://github.com/paritytech/substrate", default-features = false }
 sr-version = { git = "https://github.com/paritytech/substrate", default-features = false }
+libsecp256k1 = "0.2.1"
+tiny-keccak = "1.4.2"
 
 [profile.release]
 panic = "abort"
