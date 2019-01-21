@@ -21,6 +21,7 @@ use secp256k1;
 use srml_support::{StorageValue, StorageMap, dispatch::Result};
 use system::ensure_signed;
 use codec::Encode;
+use sr_primitives::traits::Zero;
 
 /// Configuration trait.
 pub trait Trait: balances::Trait {
@@ -46,9 +47,16 @@ decl_storage! {
 	// A macro for the Storage trait, and its implementation, for this module.
 	// This allows for type-safe usage of the Substrate storage database, so you can
 	// keep things around between blocks.
-	trait Store for Module<T: Trait> as Example {
-		Claims get(claims): map EthereumAddress => Option<T::Balance>;
-		Total get(total): T::Balance;
+	trait Store for Module<T: Trait> as Claims {
+		Claims get(claims) build(|config: &GenesisConfig<T>|
+			config.claims.iter().map(|(a, b)| (a.clone(), Some(b.clone()))).collect::<Vec<_>>()
+		): map EthereumAddress => Option<T::Balance>;
+		Total get(total) build(|config: &GenesisConfig<T>| {		// note if config() is in this line, it will build.
+			config.claims.iter().fold(Zero::zero(), |acc: T::Balance, &(_, n)| acc + n)
+		}): T::Balance;
+	}
+	add_extra_genesis {
+		config(claims): Vec<(EthereumAddress, T::Balance)>;
 	}
 }
 
@@ -148,7 +156,7 @@ mod tests {
 	impl Trait for Test {
 		type Event = ();
 	}
-	type Example = Module<Test>;
+	type Claims = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
@@ -157,8 +165,7 @@ mod tests {
 		// We use default for brevity, but you can configure as desired if needed.
 		t.extend(balances::GenesisConfig::<Test>::default().build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
-			dummy: 42,
-			foo: 24,
+			claims: vec![([1; 20], 100), ([2; 20], 200)],
 		}.build_storage().unwrap().0);
 		t.into()
 	}
@@ -166,29 +173,10 @@ mod tests {
 	#[test]
 	fn it_works_for_optional_value() {
 		with_externalities(&mut new_test_ext(), || {
-			// Check that GenesisBuilder works properly.
-			assert_eq!(Example::dummy(), Some(42));
-
-			// Check that accumulate works when we have Some value in Dummy already.
-			assert_ok!(Example::accumulate_dummy(Origin::signed(1), 27));
-			assert_eq!(Example::dummy(), Some(69));
-
-			// Check that finalising the block removes Dummy from storage.
-			<Example as OnFinalise<u64>>::on_finalise(1);
-			assert_eq!(Example::dummy(), None);
-
-			// Check that accumulate works when we Dummy has None in it.
-			assert_ok!(Example::accumulate_dummy(Origin::signed(1), 42));
-			assert_eq!(Example::dummy(), Some(42));
-		});
-	}
-
-	#[test]
-	fn it_works_for_default_value() {
-		with_externalities(&mut new_test_ext(), || {
-			assert_eq!(Example::foo(), 24);
-			assert_ok!(Example::accumulate_foo(Origin::signed(1), 1));
-			assert_eq!(Example::foo(), 25);
+			assert_eq!(Claims::total(), 300);
+			assert_eq!(Claims::claims(&[1; 20]), 100);
+			assert_eq!(Claims::claims(&[2; 20]), 200);
+			assert_eq!(Claims::claims(&[0; 20]), 0);
 		});
 	}
 }
