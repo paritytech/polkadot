@@ -48,12 +48,13 @@ decl_storage! {
 	// This allows for type-safe usage of the Substrate storage database, so you can
 	// keep things around between blocks.
 	trait Store for Module<T: Trait> as Claims {
-		Claims get(claims) build(|config: &GenesisConfig<T>|
-			config.claims.iter().map(|(a, b)| (a.clone(), Some(b.clone()))).collect::<Vec<_>>()
-		): map EthereumAddress => Option<T::Balance>;
-		Total get(total) build(|config: &GenesisConfig<T>| {		// note if config() is in this line, it will build.
+		Claims get(claims) build(|config: &GenesisConfig<T>| {
+			config.claims.iter().map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>()
+		}): map EthereumAddress => Option<T::Balance>;
+		Total get(total) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().fold(Zero::zero(), |acc: T::Balance, &(_, n)| acc + n)
 		}): T::Balance;
+//		Unrelated get(unrelated) config(): T::Balance;
 	}
 	add_extra_genesis {
 		config(claims): Vec<(EthereumAddress, T::Balance)>;
@@ -100,8 +101,8 @@ decl_module! {
 			<Total<T>>::mutate(|t| if *t < balance_due {
 				panic!("Logic error: Pot less than the total of claims!")
 			} else {
-				*t -= balance_due; Ok(())
-			})?;
+				*t -= balance_due
+			});
 
 			// Let's deposit an event to let the outside world know this happened.
 			Self::deposit_event(RawEvent::Claimed(sender, signer, balance_due));
@@ -121,7 +122,7 @@ mod tests {
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sr_primitives::{
-		BuildStorage, traits::{BlakeTwo256, OnFinalise, IdentityLookup}, testing::{Digest, DigestItem, Header}
+		BuildStorage, traits::{BlakeTwo256, IdentityLookup}, testing::{Digest, DigestItem, Header}
 	};
 
 	impl_outer_origin! {
@@ -174,9 +175,9 @@ mod tests {
 	fn it_works_for_optional_value() {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Claims::total(), 300);
-			assert_eq!(Claims::claims(&[1; 20]), 100);
-			assert_eq!(Claims::claims(&[2; 20]), 200);
-			assert_eq!(Claims::claims(&[0; 20]), 0);
+			assert_eq!(Claims::claims(&[1; 20]), Some(100));
+			assert_eq!(Claims::claims(&[2; 20]), Some(200));
+			assert_eq!(Claims::claims(&[0; 20]), None);
 		});
 	}
 }

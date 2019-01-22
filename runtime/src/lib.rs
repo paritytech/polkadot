@@ -302,8 +302,8 @@ impl_runtime_apis! {
 			Executive::execute_block(block)
 		}
 
-		fn initialise_block(header: <Block as BlockT>::Header) {
-			Executive::initialise_block(&header)
+		fn initialise_block(header: &<Block as BlockT>::Header) {
+			Executive::initialise_block(header)
 		}
 	}
 
@@ -396,7 +396,7 @@ impl_runtime_apis! {
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
-		fn grandpa_pending_change(digest: DigestFor<Block>)
+		fn grandpa_pending_change(digest: &DigestFor<Block>)
 			-> Option<ScheduledChange<BlockNumber>>
 		{
 			for log in digest.logs.iter().filter_map(|l| match l {
