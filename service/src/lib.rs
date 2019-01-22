@@ -240,20 +240,23 @@ construct_service_factory! {
 			{ |config, executor| <LightComponents<Factory>>::new(config, executor) },
 		FullImportQueue = AuraImportQueue<
 			Self::Block,
-			grandpa::BlockImportForService<Self>,
+			FullClient<Self>,
 			NothingExtra,
 			InherentProducingFn<InherentData>,
 		>
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
 
-				let (block_import, link_half) = grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>>(client.clone(), client)?;
+				let (block_import, link_half) = grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>>(client.clone(), client.clone())?;
 				let block_import = Arc::new(block_import);
+				let justification_import = block_import.clone();
 
 				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
 				Ok(import_queue(
 					slot_duration,
 					block_import,
+					Some(justification_import),
+					client.clone(),
 					NothingExtra,
 					inherent_data_import_queue as _,
 				))
@@ -269,6 +272,8 @@ construct_service_factory! {
 
 				Ok(import_queue(
 					slot_duration,
+					client.clone(),
+					None,
 					client,
 					NothingExtra,
 					inherent_data_import_queue as _,
