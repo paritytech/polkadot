@@ -115,8 +115,8 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 			let mut runtime = Runtime::new()?;
 			let executor = runtime.executor();
 			match config.roles == service::Roles::LIGHT {
-				true => run_until_exit(&mut runtime, Factory::new_light(config, executor)?, worker)?,
-				false => run_until_exit(&mut runtime, Factory::new_full(config, executor)?, worker)?,
+				true => run_until_exit(runtime, Factory::new_light(config, executor)?, worker)?,
+				false => run_until_exit(runtime, Factory::new_full(config, executor)?, worker)?,
 			}
 		}
 	}
@@ -124,7 +124,7 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 }
 
 fn run_until_exit<T, C, W>(
-	runtime: &mut Runtime,
+	mut runtime: Runtime,
 	service: T,
 	worker: W,
 ) -> error::Result<()>
@@ -141,5 +141,14 @@ fn run_until_exit<T, C, W>(
 
 	let _ = runtime.block_on(worker.work(&*service));
 	exit_send.fire();
+
+	// we eagerly drop the service so that the internal exit future is fired,
+	// but we need to keep holding a reference to the global telemetry guard
+	let _telemetry = service.telemetry();
+	drop(service);
+
+	// TODO [andre]: timeout this future (https://github.com/paritytech/substrate/issues/1318)
+	let _ = runtime.shutdown_on_idle().wait();
+
 	Ok(())
 }
