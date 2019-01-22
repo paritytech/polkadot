@@ -41,6 +41,7 @@ extern crate substrate_primitives as primitives;
 extern crate srml_support as runtime_support;
 extern crate sr_primitives as runtime_primitives;
 extern crate substrate_client as client;
+extern crate substrate_trie as trie;
 
 extern crate exit_future;
 extern crate tokio;
@@ -90,7 +91,7 @@ use futures::future::{self, Either};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 
-pub use self::collation::{validate_collation, Collators};
+pub use self::collation::{validate_collation, egress_trie_root, Collators};
 pub use self::error::{ErrorKind, Error};
 pub use self::shared_table::{SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement, GenericStatement};
 
@@ -113,8 +114,6 @@ pub trait TableRouter: Clone {
 	type Error;
 	/// Future that resolves when candidate data is fetched.
 	type FetchCandidate: IntoFuture<Item=BlockData,Error=Self::Error>;
-	/// Future that resolves when extrinsic candidate data is fetched.
-	type FetchExtrinsic: IntoFuture<Item=ParachainExtrinsic,Error=Self::Error>;
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
@@ -122,9 +121,6 @@ pub trait TableRouter: Clone {
 
 	/// Fetch block data for a specific candidate.
 	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> Self::FetchCandidate;
-
-	/// Fetch extrinsic data for a specific candidate.
-	fn fetch_extrinsic_data(&self, candidate: &CandidateReceipt) -> Self::FetchExtrinsic;
 }
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.
@@ -229,7 +225,6 @@ struct ParachainConsensus<C, N, P> {
 	extrinsic_store: ExtrinsicStore,
 	/// Live agreements.
 	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
-
 }
 
 impl<C, N, P> ParachainConsensus<C, N, P> where

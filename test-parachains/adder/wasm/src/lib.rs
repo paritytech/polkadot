@@ -23,13 +23,11 @@
 )]
 
 extern crate alloc;
-extern crate wee_alloc;
 extern crate pwasm_libc;
 extern crate adder;
 extern crate polkadot_parachain as parachain;
 extern crate tiny_keccak;
 
-// Define global allocator.
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
@@ -56,7 +54,7 @@ pub fn oom(_: ::core::alloc::Layout) -> ! {
 
 #[no_mangle]
 pub extern fn validate(offset: usize, len: usize) -> usize {
-	let params = unsafe { ::parachain::load_params(offset, len) };
+	let params = unsafe { ::parachain::wasm_api::load_params(offset, len) };
 	let parent_head = HeadData::decode(&mut &params.parent_head[..])
 		.expect("invalid parent head format.");
 
@@ -66,7 +64,9 @@ pub extern fn validate(offset: usize, len: usize) -> usize {
 	let parent_hash = ::tiny_keccak::keccak256(&params.parent_head[..]);
 
 	match ::adder::execute(parent_hash, parent_head, &block_data) {
-		Ok(new_head) => parachain::write_result(ValidationResult { head_data: new_head.encode() }),
+		Ok(new_head) => parachain::wasm_api::write_result(
+			ValidationResult { head_data: new_head.encode() }
+		),
 		Err(_) => panic!("execution failure"),
 	}
 }
