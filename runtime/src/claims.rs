@@ -54,7 +54,6 @@ decl_storage! {
 		Total get(total) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().fold(Zero::zero(), |acc: T::Balance, &(_, n)| acc + n)
 		}): T::Balance;
-//		Unrelated get(unrelated) config(): T::Balance;
 	}
 	add_extra_genesis {
 		config(claims): Vec<(EthereumAddress, T::Balance)>;
