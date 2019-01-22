@@ -77,10 +77,7 @@ use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt,
-	CandidateSignature
-};
-use polkadot_primitives::parachain::{
-	AttestedCandidate, ParachainHost, Statement as PrimitiveStatement
+	CandidateSignature, ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message,
 };
 use primitives::{Ed25519AuthorityId as AuthorityId, ed25519};
 use runtime_primitives::{traits::ProvideRuntimeApi, ApplyError};
@@ -115,6 +112,9 @@ pub mod collation;
 // block size limit.
 const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
 
+/// Incoming messages; a series of sorted (ParaId, Message) pairs.
+pub type Incoming = Vec<(ParaId, Vec<Message>)>;
+
 /// A handle to a statement table router.
 ///
 /// This is expected to be a lightweight, shared type like an `Arc`.
@@ -123,6 +123,8 @@ pub trait TableRouter: Clone {
 	type Error;
 	/// Future that resolves when candidate data is fetched.
 	type FetchCandidate: IntoFuture<Item=BlockData,Error=Self::Error>;
+	/// Fetch incoming messages for a candidate.
+	type FetchIncoming: IntoFuture<Item=Incoming,Error=Self::Error>;
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
@@ -130,6 +132,14 @@ pub trait TableRouter: Clone {
 
 	/// Fetch block data for a specific candidate.
 	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> Self::FetchCandidate;
+
+	/// Fetches the incoming message data to a parachain from the network. Incoming data should be
+	/// checked.
+	///
+	/// The `ParachainHost::ingress` function can be used to fetch incoming roots,
+	/// and the `egress_queue_root` function can be used to check that messages actually have
+	/// expected root.
+	fn fetch_incoming(&self, id: ParaId) -> Self::FetchIncoming;
 }
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.
@@ -232,22 +242,26 @@ struct ParachainConsensus<C, N, P> {
 	handle: TaskExecutor,
 	/// Store for extrinsic data.
 	extrinsic_store: ExtrinsicStore,
-	/// Live agreements.
+	/// Live agreements. Maps relay chain parent hashes to attestation
+	/// instances.
 	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
 }
 
 impl<C, N, P> ParachainConsensus<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
-	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 {
 	/// Get an attestation table for given parent hash.
 	///
-	/// This starts a parachain agreement process for given parent hash if
+	/// This starts a parachain agreement process on top of the parent hash if
 	/// one has not already started.
+	///
+	/// Additionally, this will trigger broadcast of data to the new block's duty
+	/// roster.
 	fn get_or_instantiate(
 		&self,
 		parent_hash: Hash,
@@ -262,6 +276,13 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 		}
 
 		let id = BlockId::hash(parent_hash);
+
+		// compute the parent candidates, if we know of them.
+		// this will allow us to constrain the data we broadcast to other peers.
+		let _parent_candidates = ::attestation_service::fetch_candidates(&*self.client, &id)
+			.ok()
+			.and_then(|x| x);
+
 		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
 
 		let (group_info, local_duty) = make_group_info(
@@ -389,7 +410,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	C: Collators + Send + 'static,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
-	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
