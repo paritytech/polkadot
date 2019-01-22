@@ -64,17 +64,46 @@ pub enum Chain {
 pub struct DutyRoster {
 	/// Lookup from validator index to chain on which that validator has a duty to validate.
 	pub validator_duty: Vec<Chain>,
-	/// Lookup from validator index to chain on which that validator has a duty to guarantee
-	/// availability.
-	pub guarantor_duty: Vec<Chain>,
 }
 
-/// Extrinsic data for a parachain.
+/// An outgoing message
+#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
+#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
+pub struct OutgoingMessage {
+	/// The target parachain.
+	pub target: Id,
+	/// The message data.
+	pub data: Vec<u8>,
+}
+
+impl PartialOrd for OutgoingMessage {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.target.cmp(&other.target))
+	}
+}
+
+impl Ord for OutgoingMessage {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.target.cmp(&other.target)
+	}
+}
+
+/// Extrinsic data for a parachain candidate.
+///
+/// This is data produced by evaluating the candidate. It contains
+/// full records of all outgoing messages to other parachains.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]
-pub struct Extrinsic;
+pub struct Extrinsic {
+	/// The outgoing messages from the execution of the parachain.
+	///
+	/// This must be sorted in ascending order by parachain ID.
+	pub outgoing_messages: Vec<OutgoingMessage>
+}
 
 /// Candidate receipt type.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
@@ -92,7 +121,8 @@ pub struct CandidateReceipt {
 	pub head_data: HeadData,
 	/// Balance uploads to the relay chain.
 	pub balance_uploads: Vec<(super::AccountId, u64)>,
-	/// Egress queue roots.
+	/// Egress queue roots. Must be sorted lexicographically (ascending)
+	/// by parachain ID.
 	pub egress_queue_roots: Vec<(Id, Hash)>,
 	/// Fees paid from the chain to the relay chain validators
 	pub fees: u64,
@@ -206,9 +236,6 @@ pub enum Statement {
 	/// State a candidate is invalid.
 	#[codec(index = "3")]
 	Invalid(Hash),
-	/// State a candidate's associated data is unavailable.
-	#[codec(index = "4")]
-	Available(Hash),
 }
 
 /// An either implicit or explicit attestation to the validity of a parachain
@@ -234,8 +261,6 @@ pub struct AttestedCandidate {
 	pub candidate: CandidateReceipt,
 	/// Validity attestations.
 	pub validity_votes: Vec<(SessionKey, ValidityAttestation)>,
-	/// Availability attestations.
-	pub availability_votes: Vec<(SessionKey, CandidateSignature)>,
 }
 
 impl AttestedCandidate {

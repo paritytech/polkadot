@@ -360,7 +360,12 @@ mod tests {
     #[test]
 	fn round_trip_block_data() {
 		let block_data = BlockData((0..255).collect());
-		let chunks = obtain_chunks(10, &block_data, &Extrinsic).unwrap();
+		let ex = Extrinsic { outgoing_messages: Vec::new() };
+		let chunks = obtain_chunks(
+			10,
+			&block_data,
+			&ex,
+		).unwrap();
 
 		assert_eq!(chunks.len(), 10);
 
@@ -375,13 +380,17 @@ mod tests {
 			].iter().cloned(),
 		).unwrap();
 
-		assert_eq!(reconstructed, (block_data, Extrinsic));
+		assert_eq!(reconstructed, (block_data, ex));
 	}
 
 	#[test]
 	fn construct_valid_branches() {
 		let block_data = BlockData(vec![2; 256]);
-		let chunks = obtain_chunks(10, &block_data, &Extrinsic).unwrap();
+		let chunks = obtain_chunks(
+			10,
+			&block_data,
+			&Extrinsic { outgoing_messages: Vec::new() },
+		).unwrap();
 		let chunks: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
 
 		assert_eq!(chunks.len(), 10);

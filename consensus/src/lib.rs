@@ -41,6 +41,7 @@ extern crate substrate_primitives as primitives;
 extern crate srml_support as runtime_support;
 extern crate sr_primitives as runtime_primitives;
 extern crate substrate_client as client;
+extern crate substrate_trie as trie;
 
 extern crate exit_future;
 extern crate tokio;
@@ -90,9 +91,9 @@ use futures::future::{self, Either};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 
-pub use self::collation::{validate_collation, Collators};
+pub use self::collation::{validate_collation, egress_trie_root, Collators};
 pub use self::error::{ErrorKind, Error};
-pub use self::shared_table::{SharedTable, StatementProducer, ProducedStatements, Statement, SignedStatement, GenericStatement};
+pub use self::shared_table::{SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement, GenericStatement};
 
 mod attestation_service;
 mod dynamic_inclusion;
@@ -113,8 +114,6 @@ pub trait TableRouter: Clone {
 	type Error;
 	/// Future that resolves when candidate data is fetched.
 	type FetchCandidate: IntoFuture<Item=BlockData,Error=Self::Error>;
-	/// Future that resolves when extrinsic candidate data is fetched.
-	type FetchExtrinsic: IntoFuture<Item=ParachainExtrinsic,Error=Self::Error>;
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
@@ -122,9 +121,6 @@ pub trait TableRouter: Clone {
 
 	/// Fetch block data for a specific candidate.
 	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> Self::FetchCandidate;
-
-	/// Fetch extrinsic data for a specific candidate.
-	fn fetch_extrinsic_data(&self, candidate: &CandidateReceipt) -> Self::FetchExtrinsic;
 }
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.
@@ -147,12 +143,8 @@ pub trait Network {
 pub struct GroupInfo {
 	/// Authorities meant to check validity of candidates.
 	pub validity_guarantors: HashSet<SessionKey>,
-	/// Authorities meant to check availability of candidate data.
-	pub availability_guarantors: HashSet<SessionKey>,
 	/// Number of votes needed for validity.
 	pub needed_validity: usize,
-	/// Number of votes needed for availability.
-	pub needed_availability: usize,
 }
 
 /// Sign a table statement against a parent hash.
@@ -183,15 +175,11 @@ fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: Au
 		bail!(ErrorKind::InvalidDutyRosterLength(authorities.len(), roster.validator_duty.len()))
 	}
 
-	if roster.guarantor_duty.len() != authorities.len() {
-		bail!(ErrorKind::InvalidDutyRosterLength(authorities.len(), roster.guarantor_duty.len()))
-	}
-
 	let mut local_validation = None;
 	let mut map = HashMap::new();
 
-	let duty_iter = authorities.iter().zip(&roster.validator_duty).zip(&roster.guarantor_duty);
-	for ((authority, v_duty), a_duty) in duty_iter {
+	let duty_iter = authorities.iter().zip(&roster.validator_duty);
+	for (authority, v_duty) in duty_iter {
 		if authority == &local_id {
 			local_validation = Some(v_duty.clone());
 		}
@@ -204,23 +192,11 @@ fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: Au
 					.insert(authority.clone());
 			}
 		}
-
-		match *a_duty {
-			Chain::Relay => {}, // does nothing for now.
-			Chain::Parachain(ref id) => {
-				map.entry(id.clone()).or_insert_with(GroupInfo::default)
-					.availability_guarantors
-					.insert(authority.clone());
-			}
-		}
 	}
 
 	for live_group in map.values_mut() {
 		let validity_len = live_group.validity_guarantors.len();
-		let availability_len = live_group.availability_guarantors.len();
-
 		live_group.needed_validity = validity_len / 2 + validity_len % 2;
-		live_group.needed_availability = availability_len / 2 + availability_len % 2;
 	}
 
 	match local_validation {
@@ -249,7 +225,6 @@ struct ParachainConsensus<C, N, P> {
 	extrinsic_store: ExtrinsicStore,
 	/// Live agreements.
 	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
-
 }
 
 impl<C, N, P> ParachainConsensus<C, N, P> where
@@ -470,8 +445,11 @@ fn dispatch_collation_work<R, C, P>(
 			});
 
 			match res {
-				Ok(()) =>
-					router.local_candidate(collation.receipt, collation.block_data, extrinsic),
+				Ok(()) => {
+					// TODO: https://github.com/paritytech/polkadot/issues/51
+					// Erasure-code and provide merkle branches.
+					router.local_candidate(collation.receipt, collation.block_data, extrinsic)
+				}
 				Err(e) =>
 					warn!(target: "consensus", "Failed to make collation data available: {:?}", e),
 			}
@@ -645,6 +623,8 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
+		const MAX_TRANSACTIONS: usize = 40;
+
 		let inherent_data = InherentData {
 			timestamp: self.believed_minimum_timestamp,
 			parachains: candidates,
@@ -665,7 +645,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			let mut pending_size = 0;
 
 			let ready_iter = self.transaction_pool.ready();
-			for ready in ready_iter {
+			for ready in ready_iter.take(MAX_TRANSACTIONS) {
 				let encoded_size = ready.data.encode().len();
 				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
 					break

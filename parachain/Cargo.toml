@@ -15,4 +15,5 @@ tiny-keccak = "1.4"
 
 [features]
 default = ["std"]
+wasm-api = []
 std = ["parity-codec/std", "wasmi", "error-chain"]

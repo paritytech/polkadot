@@ -20,12 +20,9 @@
 //!
 //! These messages are used to create a proposal submitted to a BFT consensus process.
 //!
-//! Proposals are formed of sets of candidates which have the requisite number of
-//! validity and availability votes.
-//!
-//! Each parachain is associated with two sets of authorities: those which can
-//! propose and attest to validity of candidates, and those who can only attest
-//! to availability.
+//! Each parachain is associated with a committee of authorities, who issue statements
+//! indicating whether the candidate is valid or invalid. Once a threshold of the committee
+//! has signed validity statements, the candidate may be marked includable.
 
 use std::collections::hash_map::{HashMap, Entry};
 use std::hash::Hash;
@@ -54,17 +51,8 @@ pub trait Context {
 	/// Members are meant to submit candidates and vote on validity.
 	fn is_member_of(&self, authority: &Self::AuthorityId, group: &Self::GroupId) -> bool;
 
-	/// Whether a authority is an availability guarantor of a group.
-	/// Guarantors are meant to vote on availability for candidates submitted
-	/// in a group.
-	fn is_availability_guarantor_of(
-		&self,
-		authority: &Self::AuthorityId,
-		group: &Self::GroupId,
-	) -> bool;
-
-	// requisite number of votes for validity and availability respectively from a group.
-	fn requisite_votes(&self, group: &Self::GroupId) -> (usize, usize);
+	// requisite number of votes for validity from a group.
+	fn requisite_votes(&self, group: &Self::GroupId) -> usize;
 }
 
 /// Statements circulated among peers.
@@ -84,10 +72,6 @@ pub enum Statement<C, D> {
 	/// is invalid.
 	#[codec(index = "3")]
 	Invalid(D),
-	/// Broadcast by a authority to attest that the auxiliary data for a candidate
-	/// with given digest is available.
-	#[codec(index = "4")]
-	Available(D),
 }
 
 /// A signed statement.
@@ -124,8 +108,6 @@ pub enum DoubleSign<C, D, S> {
 	Validity(D, S, S),
 	/// On invalidity.
 	Invalidity(D, S, S),
-	/// On availability.
-	Availability(D, S, S),
 }
 
 /// Misbehavior: declaring multiple candidates.
@@ -181,8 +163,6 @@ pub struct Summary<D, G> {
 	pub group_id: G,
 	/// How many validity votes are currently witnessed.
 	pub validity_votes: usize,
-	/// How many availability votes are currently witnessed.
-	pub availability_votes: usize,
 	/// Whether this has been signalled bad by at least one participant.
 	pub signalled_bad: bool,
 }
@@ -207,8 +187,6 @@ pub struct AttestedCandidate<Group, Candidate, AuthorityId, Signature> {
 	pub candidate: Candidate,
 	/// Validity attestations.
 	pub validity_votes: Vec<(AuthorityId, ValidityAttestation<Signature>)>,
-	/// Availability attestations.
-	pub availability_votes: Vec<(AuthorityId, Signature)>
 }
 
 /// Stores votes and data about a candidate.
@@ -216,7 +194,6 @@ pub struct CandidateData<C: Context> {
 	group_id: C::GroupId,
 	candidate: C::Candidate,
 	validity_votes: HashMap<C::AuthorityId, ValidityVote<C::Signature>>,
-	availability_votes: HashMap<C::AuthorityId, C::Signature>,
 	indicated_bad_by: Vec<C::AuthorityId>,
 }
 
@@ -228,12 +205,12 @@ impl<C: Context> CandidateData<C> {
 
 	/// Yield a full attestation for a candidate.
 	/// If the candidate can be included, it will return `Some`.
-	pub fn attested(&self, validity_threshold: usize, availability_threshold: usize)
+	pub fn attested(&self, validity_threshold: usize)
 		-> Option<AttestedCandidate<
 			C::GroupId, C::Candidate, C::AuthorityId, C::Signature,
 		>>
 	{
-		if self.can_be_included(validity_threshold, availability_threshold) {
+		if self.can_be_included(validity_threshold) {
 			let validity_votes: Vec<_> = self.validity_votes.iter()
 				.filter_map(|(a, v)| match *v {
 					ValidityVote::Invalid(_) => None,
@@ -252,21 +229,10 @@ impl<C: Context> CandidateData<C> {
 				"candidate is includable; therefore there are enough validity votes; qed",
 			);
 
-			let availability_votes: Vec<_> = self.availability_votes.iter()
-				.take(availability_threshold)
-				.map(|(k, v)| (k.clone(), v.clone()))
-				.collect();
-
-			assert!(
-				availability_votes.len() == availability_threshold,
-				"candidate is includable; therefore there are enough availability votes; qed",
-			);
-
 			Some(AttestedCandidate {
 				group_id: self.group_id.clone(),
 				candidate: self.candidate.clone(),
 				validity_votes,
-				availability_votes,
 			})
 		} else {
 			None
@@ -274,12 +240,11 @@ impl<C: Context> CandidateData<C> {
 	}
 
 	// Candidate data can be included in a proposal
-	// if it has enough validity and availability votes
+	// if it has enough validity votes
 	// and no authorities have called it bad.
-	fn can_be_included(&self, validity_threshold: usize, availability_threshold: usize) -> bool {
+	fn can_be_included(&self, validity_threshold: usize) -> bool {
 		self.indicated_bad_by.is_empty()
 			&& self.validity_votes.len() >= validity_threshold
-			&& self.availability_votes.len() >= availability_threshold
 	}
 
 	fn summary(&self, digest: C::Digest) -> Summary<C::Digest, C::GroupId> {
@@ -287,7 +252,6 @@ impl<C: Context> CandidateData<C> {
 			candidate: digest,
 			group_id: self.group_id.clone(),
 			validity_votes: self.validity_votes.len() - self.indicated_bad_by.len(),
-			availability_votes: self.availability_votes.len(),
 			signalled_bad: self.indicated_bad(),
 		}
 	}
@@ -352,12 +316,12 @@ impl<C: Context> Table<C> {
 				continue
 			}
 
-			let (validity_t, availability_t) = context.requisite_votes(group_id);
+			let threshold = context.requisite_votes(group_id);
 
-			if !candidate_data.can_be_included(validity_t, availability_t) { continue }
+			if !candidate_data.can_be_included(threshold) { continue }
 			match best_candidates.entry(group_id.clone()) {
 				BTreeEntry::Vacant(vacant) => {
-					vacant.insert((candidate_data, validity_t, availability_t));
+					vacant.insert((candidate_data, threshold));
 				},
 				BTreeEntry::Occupied(mut occ) => {
 					let candidate_ref = occ.get_mut();
@@ -369,8 +333,8 @@ impl<C: Context> Table<C> {
 		}
 
 		best_candidates.values()
-			.map(|&(candidate_data, validity_t, availability_t)|
-				candidate_data.attested(validity_t, availability_t)
+			.map(|&(candidate_data, threshold)|
+				candidate_data.attested(threshold)
 					.expect("candidate has been checked includable; \
 						therefore an attestation can be constructed; qed")
 			)
@@ -380,8 +344,8 @@ impl<C: Context> Table<C> {
 	/// Whether a candidate can be included.
 	pub fn candidate_includable(&self, digest: &C::Digest, context: &C) -> bool {
 		self.candidate_votes.get(digest).map_or(false, |data| {
-			let (v_threshold, a_threshold) = context.requisite_votes(&data.group_id);
-			data.can_be_included(v_threshold, a_threshold)
+			let v_threshold = context.requisite_votes(&data.group_id);
+			data.can_be_included(v_threshold)
 		})
 	}
 
@@ -414,12 +378,6 @@ impl<C: Context> Table<C> {
 				signer.clone(),
 				digest,
 				ValidityVote::Invalid(signature),
-			),
-			Statement::Available(digest) => self.availability_vote(
-				context,
-				signer.clone(),
-				digest,
-				signature,
 			),
 		};
 
@@ -517,7 +475,6 @@ impl<C: Context> Table<C> {
 				group_id: group,
 				candidate: candidate,
 				validity_votes: HashMap::new(),
-				availability_votes: HashMap::new(),
 				indicated_bad_by: Vec::new(),
 			});
 		}
@@ -542,8 +499,8 @@ impl<C: Context> Table<C> {
 			Some(votes) => votes,
 		};
 
-		let (v_threshold, a_threshold) = context.requisite_votes(&votes.group_id);
-		let was_includable = votes.can_be_included(v_threshold, a_threshold);
+		let v_threshold = context.requisite_votes(&votes.group_id);
+		let was_includable = votes.can_be_included(v_threshold);
 
 		// check that this authority actually can vote in this group.
 		if !context.is_member_of(&from, &votes.group_id) {
@@ -615,46 +572,7 @@ impl<C: Context> Table<C> {
 			}
 		}
 
-		let is_includable = votes.can_be_included(v_threshold, a_threshold);
-		update_includable_count(&mut self.includable_count, &votes.group_id, was_includable, is_includable);
-
-		Ok(Some(votes.summary(digest)))
-	}
-
-	fn availability_vote(
-		&mut self,
-		context: &C,
-		from: C::AuthorityId,
-		digest: C::Digest,
-		signature: C::Signature,
-	) -> ImportResult<C> {
-		let votes = match self.candidate_votes.get_mut(&digest) {
-			None => return Ok(None),
-			Some(votes) => votes,
-		};
-
-		let (v_threshold, a_threshold) = context.requisite_votes(&votes.group_id);
-		let was_includable = votes.can_be_included(v_threshold, a_threshold);
-
-		// check that this authority actually can vote in this group.
-		if !context.is_availability_guarantor_of(&from, &votes.group_id) {
-			return Err(Misbehavior::UnauthorizedStatement(UnauthorizedStatement {
-				statement: SignedStatement {
-					signature: signature,
-					statement: Statement::Available(digest),
-					sender: from,
-				}
-			}));
-		}
-
-		match votes.availability_votes.entry(from) {
-			Entry::Occupied(ref occ) if occ.get() != &signature => return Err(
-				Misbehavior::DoubleSign(DoubleSign::Availability(digest, signature, occ.get().clone()))
-			),
-			entry => { let _ = entry.or_insert(signature); },
-		}
-
-		let is_includable = votes.can_be_included(v_threshold, a_threshold);
+		let is_includable = votes.can_be_included(v_threshold);
 		update_includable_count(&mut self.includable_count, &votes.group_id, was_includable, is_includable);
 
 		Ok(Some(votes.summary(digest)))
@@ -703,8 +621,8 @@ mod tests {
 
 	#[derive(Debug, PartialEq, Eq)]
 	struct TestContext {
-		// v -> (validity, availability)
-		authorities: HashMap<AuthorityId, (GroupId, GroupId)>
+		// v -> parachain group
+		authorities: HashMap<AuthorityId, GroupId>
 	}
 
 	impl Context for TestContext {
@@ -727,27 +645,17 @@ mod tests {
 			authority: &AuthorityId,
 			group: &GroupId
 		) -> bool {
-			self.authorities.get(authority).map(|v| &v.0 == group).unwrap_or(false)
+			self.authorities.get(authority).map(|v| v == group).unwrap_or(false)
 		}
 
-		fn is_availability_guarantor_of(
-			&self,
-			authority: &AuthorityId,
-			group: &GroupId
-		) -> bool {
-			self.authorities.get(authority).map(|v| &v.1 == group).unwrap_or(false)
-		}
-
-		fn requisite_votes(&self, id: &GroupId) -> (usize, usize) {
+		fn requisite_votes(&self, id: &GroupId) -> usize {
 			let mut total_validity = 0;
-			let mut total_availability = 0;
 
-			for &(ref validity, ref availability) in self.authorities.values() {
+			for validity in self.authorities.values() {
 				if validity == id { total_validity += 1 }
-				if availability == id { total_availability += 1 }
 			}
 
-			(total_validity / 2 + 1, total_availability / 2 + 1)
+			total_validity / 2 + 1
 		}
 	}
 
@@ -756,7 +664,7 @@ mod tests {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), (GroupId(2), GroupId(455)));
+				map.insert(AuthorityId(1), GroupId(2));
 				map
 			}
 		};
@@ -792,7 +700,7 @@ mod tests {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), (GroupId(3), GroupId(455)));
+				map.insert(AuthorityId(1), GroupId(3));
 				map
 			}
 		};
@@ -823,8 +731,8 @@ mod tests {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), (GroupId(2), GroupId(455)));
-				map.insert(AuthorityId(2), (GroupId(3), GroupId(222)));
+				map.insert(AuthorityId(1), GroupId(2));
+				map.insert(AuthorityId(2), GroupId(3));
 				map
 			}
 		};
@@ -838,36 +746,9 @@ mod tests {
 		};
 		let candidate_a_digest = Digest(100);
 
-		let candidate_b = SignedStatement {
-			statement: Statement::Candidate(Candidate(3, 987)),
-			signature: Signature(2),
-			sender: AuthorityId(2),
-		};
-		let candidate_b_digest = Digest(987);
-
 		table.import_statement(&context, candidate_a);
-		table.import_statement(&context, candidate_b);
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(2)));
-
-		// authority 1 votes for availability on 2's candidate.
-		let bad_availability_vote = SignedStatement {
-			statement: Statement::Available(candidate_b_digest.clone()),
-			signature: Signature(1),
-			sender: AuthorityId(1),
-		};
-		table.import_statement(&context, bad_availability_vote);
-
-		assert_eq!(
-			table.detected_misbehavior.get(&AuthorityId(1)).unwrap(),
-			&Misbehavior::UnauthorizedStatement(UnauthorizedStatement {
-				statement: SignedStatement {
-					statement: Statement::Available(candidate_b_digest),
-					signature: Signature(1),
-					sender: AuthorityId(1),
-				},
-			})
-		);
 
 		// authority 2 votes for validity on 1's candidate.
 		let bad_validity_vote = SignedStatement {
@@ -894,8 +775,8 @@ mod tests {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), (GroupId(2), GroupId(455)));
-				map.insert(AuthorityId(2), (GroupId(2), GroupId(246)));
+				map.insert(AuthorityId(1), GroupId(2));
+				map.insert(AuthorityId(2), GroupId(2));
 				map
 			}
 		};
@@ -943,8 +824,8 @@ mod tests {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), (GroupId(2), GroupId(455)));
-				map.insert(AuthorityId(2), (GroupId(2), GroupId(246)));
+				map.insert(AuthorityId(1), GroupId(2));
+				map.insert(AuthorityId(2), GroupId(2));
 				map
 			}
 		};
@@ -974,9 +855,9 @@ mod tests {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), (GroupId(2), GroupId(455)));
-				map.insert(AuthorityId(2), (GroupId(2), GroupId(246)));
-				map.insert(AuthorityId(3), (GroupId(2), GroupId(222)));
+				map.insert(AuthorityId(1), GroupId(2));
+				map.insert(AuthorityId(2), GroupId(2));
+				map.insert(AuthorityId(3), GroupId(2));
 				map
 			}
 		};
@@ -1039,7 +920,7 @@ mod tests {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), (GroupId(2), GroupId(455)));
+				map.insert(AuthorityId(1), GroupId(2));
 				map
 			}
 		};
@@ -1074,33 +955,25 @@ mod tests {
 	#[test]
 	fn candidate_can_be_included() {
 		let validity_threshold = 6;
-		let availability_threshold = 34;
 
 		let mut candidate = CandidateData::<TestContext> {
 			group_id: GroupId(4),
 			candidate: Candidate(4, 12345),
 			validity_votes: HashMap::new(),
-			availability_votes: HashMap::new(),
 			indicated_bad_by: Vec::new(),
 		};
 
-		assert!(!candidate.can_be_included(validity_threshold, availability_threshold));
+		assert!(!candidate.can_be_included(validity_threshold));
 
 		for i in 0..validity_threshold {
 			candidate.validity_votes.insert(AuthorityId(i + 100), ValidityVote::Valid(Signature(i + 100)));
 		}
 
-		assert!(!candidate.can_be_included(validity_threshold, availability_threshold));
-
-		for i in 0..availability_threshold {
-			candidate.availability_votes.insert(AuthorityId(i + 255), Signature(i + 255));
-		}
-
-		assert!(candidate.can_be_included(validity_threshold, availability_threshold));
+		assert!(candidate.can_be_included(validity_threshold));
 
 		candidate.indicated_bad_by.push(AuthorityId(1024));
 
-		assert!(!candidate.can_be_included(validity_threshold, availability_threshold));
+		assert!(!candidate.can_be_included(validity_threshold));
 	}
 
 	#[test]
@@ -1108,10 +981,9 @@ mod tests {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), (GroupId(2), GroupId(455)));
-				map.insert(AuthorityId(2), (GroupId(2), GroupId(455)));
-				map.insert(AuthorityId(3), (GroupId(2), GroupId(455)));
-				map.insert(AuthorityId(4), (GroupId(455), GroupId(2)));
+				map.insert(AuthorityId(1), GroupId(2));
+				map.insert(AuthorityId(2), GroupId(2));
+				map.insert(AuthorityId(3), GroupId(2));
 				map
 			}
 		};
@@ -1126,6 +998,7 @@ mod tests {
 		let candidate_digest = Digest(100);
 
 		table.import_statement(&context, statement);
+
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
 		assert!(!table.candidate_includable(&candidate_digest, &context));
 		assert!(table.includable_count.is_empty());
@@ -1138,18 +1011,6 @@ mod tests {
 
 		table.import_statement(&context, vote);
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(2)));
-		assert!(!table.candidate_includable(&candidate_digest, &context));
-		assert!(table.includable_count.is_empty());
-
-		// have the availability guarantor note validity.
-		let vote = SignedStatement {
-			statement: Statement::Available(candidate_digest.clone()),
-			signature: Signature(4),
-			sender: AuthorityId(4),
-		};
-
-		table.import_statement(&context, vote);
-		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(4)));
 		assert!(table.candidate_includable(&candidate_digest, &context));
 		assert!(table.includable_count.get(&GroupId(2)).is_some());
 
@@ -1161,7 +1022,7 @@ mod tests {
 		};
 
 		table.import_statement(&context, vote);
-		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(2)));
+		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(3)));
 		assert!(!table.candidate_includable(&candidate_digest, &context));
 		assert!(table.includable_count.is_empty());
 	}
@@ -1171,7 +1032,7 @@ mod tests {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), (GroupId(2), GroupId(455)));
+				map.insert(AuthorityId(1), GroupId(2));
 				map
 			}
 		};
@@ -1189,7 +1050,6 @@ mod tests {
 		assert_eq!(summary.candidate, Digest(100));
 		assert_eq!(summary.group_id, GroupId(2));
 		assert_eq!(summary.validity_votes, 1);
-		assert_eq!(summary.availability_votes, 0);
 	}
 
 	#[test]
@@ -1197,8 +1057,8 @@ mod tests {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), (GroupId(2), GroupId(455)));
-				map.insert(AuthorityId(2), (GroupId(2), GroupId(455)));
+				map.insert(AuthorityId(1), GroupId(2));
+				map.insert(AuthorityId(2), GroupId(2));
 				map
 			}
 		};
@@ -1228,45 +1088,5 @@ mod tests {
 		assert_eq!(summary.candidate, Digest(100));
 		assert_eq!(summary.group_id, GroupId(2));
 		assert_eq!(summary.validity_votes, 2);
-		assert_eq!(summary.availability_votes, 0);
-	}
-
-	#[test]
-	fn availability_vote_gives_summary() {
-		let context = TestContext {
-			authorities: {
-				let mut map = HashMap::new();
-				map.insert(AuthorityId(1), (GroupId(2), GroupId(455)));
-				map.insert(AuthorityId(2), (GroupId(5), GroupId(2)));
-				map
-			}
-		};
-
-		let mut table = create();
-		let statement = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
-			signature: Signature(1),
-			sender: AuthorityId(1),
-		};
-		let candidate_digest = Digest(100);
-
-		table.import_statement(&context, statement);
-		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
-
-		let vote = SignedStatement {
-			statement: Statement::Available(candidate_digest.clone()),
-			signature: Signature(2),
-			sender: AuthorityId(2),
-		};
-
-		let summary = table.import_statement(&context, vote)
-			.expect("candidate vote to give summary");
-
-		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(2)));
-
-		assert_eq!(summary.candidate, Digest(100));
-		assert_eq!(summary.group_id, GroupId(2));
-		assert_eq!(summary.validity_votes, 1);
-		assert_eq!(summary.availability_votes, 1);
 	}
 }
