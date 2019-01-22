@@ -288,6 +288,9 @@ decl_runtime_apis! {
 		fn parachain_head(id: Id) -> Option<Vec<u8>>;
 		/// Get the given parachain's head code blob.
 		fn parachain_code(id: Id) -> Option<Vec<u8>>;
+		/// Get the ingress roots to a specific parachain at a
+		/// block.
+		fn ingress(to: Id) -> Option<Vec<(Id, Hash)>>;
 	}
 }
 

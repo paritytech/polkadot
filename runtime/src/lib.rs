@@ -353,6 +353,9 @@ impl_runtime_apis! {
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)
 		}
+		fn ingress(to: parachain::Id) -> Option<Vec<(parachain::Id, Hash)>> {
+			Parachains::ingress(to)
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
