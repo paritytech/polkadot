@@ -66,12 +66,44 @@ pub struct DutyRoster {
 	pub validator_duty: Vec<Chain>,
 }
 
-/// Extrinsic data for a parachain.
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+/// An outgoing message
+#[derive(Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Encode, Decode))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]
-pub struct Extrinsic;
+pub struct OutgoingMessage {
+	/// The target parachain.
+	pub target: Id,
+	/// The message data.
+	pub data: Vec<u8>,
+}
+
+impl PartialOrd for OutgoingMessage {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.target.cmp(&other.target))
+	}
+}
+
+impl Ord for OutgoingMessage {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.target.cmp(&other.target)
+	}
+}
+
+/// Extrinsic data for a parachain candidate.
+///
+/// This is data produced by evaluating the candidate. It contains
+/// full records of all outgoing messages to other parachains.
+#[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Encode, Decode))]
+#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
+#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
+pub struct Extrinsic {
+	/// The outgoing messages from the execution of the parachain.
+	///
+	/// This must be sorted in ascending order by parachain ID.
+	pub outgoing_messages: Vec<OutgoingMessage>
+}
 
 /// Candidate receipt type.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
@@ -89,7 +121,8 @@ pub struct CandidateReceipt {
 	pub head_data: HeadData,
 	/// Balance uploads to the relay chain.
 	pub balance_uploads: Vec<(super::AccountId, u64)>,
-	/// Egress queue roots.
+	/// Egress queue roots. Must be sorted lexicographically (ascending)
+	/// by parachain ID.
 	pub egress_queue_roots: Vec<(Id, Hash)>,
 	/// Fees paid from the chain to the relay chain validators
 	pub fees: u64,
