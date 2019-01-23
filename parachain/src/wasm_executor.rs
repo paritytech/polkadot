@@ -230,6 +230,9 @@ pub fn validate_candidate<E: Externalities>(
 	};
 
 	// allocate call data in memory.
+	// we guarantee that:
+	// - `offset` has alignment at least of 8,
+	// - `len` is not zero.
 	let (offset, len) = {
 		let encoded_call_data = params.encode();
 
