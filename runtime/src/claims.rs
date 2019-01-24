@@ -16,11 +16,13 @@
 
 //! Module to process claims from Ethereum addresses.
 
+use rstd::prelude::*;
 use tiny_keccak::keccak256;
 use secp256k1;
 use srml_support::{StorageValue, StorageMap};
 use system::ensure_signed;
 use codec::Encode;
+#[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
 use balances;
 
