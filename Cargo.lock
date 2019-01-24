@@ -2061,6 +2061,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-erasure-coding"
+version = "0.1.0"
+dependencies = [
+ "parity-codec 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "polkadot-primitives 0.1.0",
+ "reed-solomon-erasure 4.0.0 (git+https://github.com/paritytech/reed-solomon-erasure)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-trie 0.4.0 (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
 name = "polkadot-executor"
 version = "0.1.0"
 dependencies = [
@@ -2414,6 +2425,14 @@ version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "redox_syscall 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "reed-solomon-erasure"
+version = "4.0.0"
+source = "git+https://github.com/paritytech/reed-solomon-erasure#63c609beaef0f8174a9a21f058d7d3e46c3a762c"
+dependencies = [
+ "smallvec 0.6.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4583,6 +4602,7 @@ dependencies = [
 "checksum rayon-core 1.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "b055d1e92aba6877574d8fe604a63c8b5df60f60e5982bf7ccbb1338ea527356"
 "checksum redox_syscall 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)" = "cf8fb82a4d1c9b28f1c26c574a5b541f5ffb4315f6c9a791fa47b6a04438fe93"
 "checksum redox_termios 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7e891cfe48e9100a70a3b6eb652fef28920c117d366339687bd5576160db0f76"
+"checksum reed-solomon-erasure 4.0.0 (git+https://github.com/paritytech/reed-solomon-erasure)" = "<none>"
 "checksum regex 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)" = "ee84f70c8c08744ea9641a731c7fadb475bf2ecc52d7f627feb833e0b3990467"
 "checksum regex-syntax 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "fbc557aac2b708fe84121caf261346cc2eed71978024337e42eb46b8a252ac6e"
 "checksum remove_dir_all 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "3488ba1b9a2084d38645c4c08276a1752dcbf2c7130d74f1569681ad5d2799c5"
