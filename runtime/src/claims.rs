@@ -72,10 +72,23 @@ fn ecdsa_recover(sig: &EcdsaSignature, msg: &[u8; 32]) -> Option<[u8; 64]> {
 	Some(res)
 }
 
-fn eth_recover(s: &EcdsaSignature, who: &[u8]) -> Option<EthereumAddress> {
-	let mut v = b"\x19Ethereum Signed Message: 65\nPay DOTs to the Polkadot account:".to_vec();
+fn create_msg(who: &[u8]) -> Vec<u8> {
+	let prefix = b"Pay DOTs to the Polkadot account:";
+	let mut l = prefix.len() + who.len();
+	let mut rev = Vec::new();
+	while l > 0 {
+		rev.push(b'0' + (l % 10) as u8);
+		l /= 10;
+	}
+	let mut v = b"\x19Ethereum Signed Message:\n".to_vec();
+	v.extend(rev.into_iter().rev());
+	v.extend_from_slice(&prefix[..]);
 	v.extend_from_slice(who);
-	let msg = keccak256(&v[..]);
+	v
+}
+
+fn eth_recover(s: &EcdsaSignature, who: &[u8]) -> Option<EthereumAddress> {
+	let msg = keccak256(&create_msg(who));
 	let mut res = EthereumAddress::default();
 	res.copy_from_slice(&keccak256(&ecdsa_recover(s, &msg)?[..])[12..]);
 	Some(res)
@@ -175,10 +188,7 @@ mod tests {
 		res
 	}
 	fn alice_sig(who: &[u8]) -> EcdsaSignature {
-		let mut v = b"\x19Ethereum Signed Message: 65\nPay DOTs to the Polkadot account:".to_vec();
-		v.extend_from_slice(who);
-		let msg = keccak256(&v[..]);
-		
+		let msg = keccak256(&create_msg(who));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &alice_secret()).unwrap();
 		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
 		(sig.0, sig.1, recovery_id.serialize() as i8)
@@ -195,10 +205,7 @@ mod tests {
 		res
 	}
 	fn bob_sig(who: &[u8]) -> EcdsaSignature {
-		let mut v = b"\x19Ethereum Signed Message: 65\nPay DOTs to the Polkadot account:".to_vec();
-		v.extend_from_slice(who);
-		let msg = keccak256(&v[..]);
-		
+		let msg = keccak256(&create_msg(who));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &bob_secret()).unwrap();
 		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
 		(sig.0, sig.1, recovery_id.serialize() as i8)
@@ -257,5 +264,18 @@ mod tests {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_noop!(Claims::claim(Origin::signed(42), bob_sig(&69u64.encode())), "Ethereum address has no claim");
 		});
+	}
+
+	#[test]
+	fn real_eth_sig_works() {
+		let sig = hex!["7505f2880114da51b3f5d535f8687953c0ab9af4ab81e592eaebebf53b728d2b6dfd9b5bcd70fee412b1f31360e7c2774009305cb84fc50c1d0ff8034dfa5fff1c"];
+		let sig = EcdsaSignature::decode(&mut &sig[..]).unwrap();
+		let who = 42u64.encode();
+		let msg = create_msg(&who);
+		//19457468657265756d205369676e6564204d6573736167653a2034310a50617920444f547320746f2074686520506f6c6b61646f74206163636f756e743a2a00000000000000
+		//                                                          50617920444f547320746f2074686520506f6c6b61646f74206163636f756e743a2a00000000000000
+		println!("msg is {}; who is {}", HexDisplay::from(&msg), HexDisplay::from(&who));
+		let signer = eth_recover(&sig, &who).unwrap();
+		assert_eq!(signer, hex!["DF67EC7EAe23D2459694685257b6FC59d1BAA1FE"]);
 	}
 }
