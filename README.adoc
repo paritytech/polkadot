@@ -27,12 +27,20 @@ Note that **Polkadot PoC-4** is yet to be released and *will be* in branch `v0.4
 
 === Install Rust
 If you'd like to play with Polkadot, you'll need to install a client like this
-one. First, get Rust (1.26.1 or later) and the support software if you don't already have it:
+one. First, get Rust (1.32.0 or later) and the support software if you don't already have it:
 
 [source, shell]
 ----
 curl https://sh.rustup.rs -sSf | sh
 sudo apt install make clang pkg-config libssl-dev
+----
+
+If you already have Rust installed, make sure you're using the latest version by running:
+
+
+[source, shell]
+----
+rustup update
 ----
 
 === Install PoC-3 "Alexander" Testnet
