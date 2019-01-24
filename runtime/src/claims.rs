@@ -68,7 +68,7 @@ fn ecdsa_recover(sig: &EcdsaSignature, msg: &[u8; 32]) -> Option<[u8; 64]> {
 		&secp256k1::RecoveryId::parse(sig.2 as u8).ok()?
 	).ok()?;
 	let mut res = [0u8; 64];
-	res.copy_from_slice(&pubkey.serialize()[0..64]);
+	res.copy_from_slice(&pubkey.serialize()[1..65]);
 	Some(res)
 }
 
@@ -184,7 +184,7 @@ mod tests {
 	}
 	fn alice_eth() -> EthereumAddress {
 		let mut res = EthereumAddress::default();
-		res.copy_from_slice(&keccak256(&alice_public().serialize()[0..64])[12..]);
+		res.copy_from_slice(&keccak256(&alice_public().serialize()[1..65])[12..]);
 		res
 	}
 	fn alice_sig(who: &[u8]) -> EcdsaSignature {
@@ -201,7 +201,7 @@ mod tests {
 	}
 	fn bob_eth() -> EthereumAddress {
 		let mut res = EthereumAddress::default();
-		res.copy_from_slice(&keccak256(&bob_public().serialize()[0..64])[12..]);
+		res.copy_from_slice(&keccak256(&bob_public().serialize()[1..65])[12..]);
 		res
 	}
 	fn bob_sig(who: &[u8]) -> EcdsaSignature {
