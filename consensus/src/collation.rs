@@ -254,10 +254,10 @@ pub fn validate_collation<P>(
 
 	let api = client.runtime_api();
 	let para_id = collation.receipt.parachain_index;
-	let validation_code = api.parachain_code(relay_parent, &para_id)?
+	let validation_code = api.parachain_code(relay_parent, para_id)?
 		.ok_or_else(|| ErrorKind::InactiveParachain(para_id))?;
 
-	let chain_head = api.parachain_head(relay_parent, &para_id)?
+	let chain_head = api.parachain_head(relay_parent, para_id)?
 		.ok_or_else(|| ErrorKind::InactiveParachain(para_id))?;
 
 	let params = ValidationParams {
