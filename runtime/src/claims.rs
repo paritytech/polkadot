@@ -62,11 +62,9 @@ decl_storage! {
 }
 
 fn ecdsa_recover(sig: &EcdsaSignature, msg: &[u8; 32]) -> Option<[u8; 64]> {
-	let pubkey = secp256k1::recover(
-		&secp256k1::Message::parse(msg),
-		&(sig.0, sig.1).using_encoded(secp256k1::Signature::parse_slice).ok()?,
-		&secp256k1::RecoveryId::parse(sig.2 as u8).ok()?
-	).ok()?;
+	let v = secp256k1::RecoveryId::parse(if sig.2 > 26 { sig.2 - 27 } else { sig.2 } as u8).ok()?;
+	let rs = (sig.0, sig.1).using_encoded(secp256k1::Signature::parse_slice).ok()?;
+	let pubkey = secp256k1::recover(&secp256k1::Message::parse(msg), &rs, &v).ok()?;
 	let mut res = [0u8; 64];
 	res.copy_from_slice(&pubkey.serialize()[1..65]);
 	Some(res)
@@ -272,9 +270,6 @@ mod tests {
 		let sig = EcdsaSignature::decode(&mut &sig[..]).unwrap();
 		let who = 42u64.encode();
 		let msg = create_msg(&who);
-		//19457468657265756d205369676e6564204d6573736167653a2034310a50617920444f547320746f2074686520506f6c6b61646f74206163636f756e743a2a00000000000000
-		//                                                          50617920444f547320746f2074686520506f6c6b61646f74206163636f756e743a2a00000000000000
-		println!("msg is {}; who is {}", HexDisplay::from(&msg), HexDisplay::from(&who));
 		let signer = eth_recover(&sig, &who).unwrap();
 		assert_eq!(signer, hex!["DF67EC7EAe23D2459694685257b6FC59d1BAA1FE"]);
 	}
