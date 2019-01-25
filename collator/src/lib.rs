@@ -289,7 +289,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 
 				let work = future::lazy(move || {
 					let api = client.runtime_api();
-					let last_head = match try_fr!(api.parachain_head(&id, &para_id)) {
+					let last_head = match try_fr!(api.parachain_head(&id, para_id)) {
 						Some(last_head) => last_head,
 						None => return future::Either::A(future::ok(())),
 					};

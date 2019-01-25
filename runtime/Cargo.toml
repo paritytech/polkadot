@@ -37,6 +37,8 @@ srml-timestamp = { git = "https://github.com/paritytech/substrate" }
 srml-treasury = { git = "https://github.com/paritytech/substrate" }
 srml-upgrade-key = { git = "https://github.com/paritytech/substrate" }
 sr-version = { git = "https://github.com/paritytech/substrate" }
+libsecp256k1 = "0.2.1"
+tiny-keccak = "1.4.2"
 
 [dev-dependencies]
 hex-literal = "0.1.0"

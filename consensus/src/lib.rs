@@ -636,7 +636,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client)?;
 
 		{
-			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, &inherent_data)?;
+			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
 			for inherent in inherents {
 				block_builder.push(inherent)?;
 			}
