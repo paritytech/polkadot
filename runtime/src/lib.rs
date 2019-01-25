@@ -75,7 +75,6 @@ use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
 	runtime_api as client_api,
 };
-use consensus_aura::api as aura_api;
 use sr_primitives::{
 	ApplyResult, generic, transaction_validity::TransactionValidity,
 	traits::{Convert, BlakeTwo256, Block as BlockT, DigestFor, StaticLookup}
@@ -362,7 +361,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl aura_api::AuraApi<Block> for Runtime {
+	impl consensus_aura::AuraApi<Block> for Runtime {
 		fn slot_duration() -> u64 {
 			Aura::slot_duration()
 		}

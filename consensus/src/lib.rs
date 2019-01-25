@@ -45,7 +45,7 @@ extern crate substrate_trie as trie;
 extern crate exit_future;
 extern crate tokio;
 extern crate substrate_consensus_common as consensus;
-extern crate substrate_consensus_aura_primitives as aura_primitives;
+extern crate substrate_consensus_aura as aura;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
 extern crate substrate_inherents as inherents;
@@ -94,7 +94,8 @@ use futures::future::{self, Either};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
-use runtime_aura::{AuraInherentData, timestamp::TimestampInherentData};
+use runtime_aura::timestamp::TimestampInherentData;
+use aura::SlotDuration;
 
 pub use self::collation::{validate_collation, egress_trie_root, Collators};
 pub use self::error::{ErrorKind, Error};
@@ -333,6 +334,7 @@ pub struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
 	transaction_pool: Arc<Pool<TxApi>>,
 	key: Arc<ed25519::Pair>,
 	_service_handle: ServiceHandle,
+	aura_slot_duration: SlotDuration,
 }
 
 impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
@@ -354,6 +356,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 		thread_pool: TaskExecutor,
 		key: Arc<ed25519::Pair>,
 		extrinsic_store: ExtrinsicStore,
+		aura_slot_duration: SlotDuration,
 	) -> Self {
 		let parachain_consensus = Arc::new(ParachainConsensus {
 			client: client.clone(),
@@ -377,6 +380,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 			transaction_pool,
 			key,
 			_service_handle: service_handle,
+			aura_slot_duration,
 		}
 	}
 }
@@ -414,6 +418,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 			parent_id,
 			parent_number: parent_header.number,
 			transaction_pool: self.transaction_pool.clone(),
+			slot_duration: self.aura_slot_duration,
 		})
 	}
 }
@@ -491,6 +496,7 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 	parent_number: BlockNumber,
 	tracker: Arc<AttestationTracker>,
 	transaction_pool: Arc<Pool<TxApi>>,
+	slot_duration: SlotDuration,
 }
 
 impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
@@ -508,15 +514,10 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		let initial_included = self.tracker.table.includable_count();
 		let now = Instant::now();
 
-		let aura_slot = match inherent_data.aura_inherent_data() {
-			Ok(slot) => slot,
-			Err(e) => return Either::B(future::err(ErrorKind::InherentError(e).into())),
-		};
-
 		let dynamic_inclusion = DynamicInclusion::new(
 			self.tracker.table.num_parachains(),
 			self.tracker.started,
-			Duration::from_secs(aura_slot / SLOT_DURATION_DENOMINATOR),
+			Duration::from_secs(self.slot_duration.get() / SLOT_DURATION_DENOMINATOR),
 		);
 
 		let enough_candidates = dynamic_inclusion.acceptable_in(

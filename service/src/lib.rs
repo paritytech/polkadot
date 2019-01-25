@@ -225,6 +225,7 @@ construct_service_factory! {
 					executor.clone(),
 					key.clone(),
 					extrinsic_store,
+					SlotDuration::get_or_compute(&*client)?,
 				);
 
 				info!("Using authority key {}", key.public());
