@@ -369,7 +369,7 @@ impl<T: Trait> Module<T> {
 */
 }
 
-pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"parchain";
+pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"newheads";
 
 pub type InherentType = Vec<AttestedCandidate>;
 
