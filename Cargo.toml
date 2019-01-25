@@ -23,6 +23,7 @@ members = [
 	"cli",
 	"collator",
 	"consensus",
+	"erasure-coding",
 	"executor",
 	"network",
 	"primitives",

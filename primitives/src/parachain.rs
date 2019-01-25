@@ -67,8 +67,8 @@ pub struct DutyRoster {
 }
 
 /// An outgoing message
-#[derive(Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Encode, Decode))]
+#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]
 pub struct OutgoingMessage {
@@ -94,8 +94,8 @@ impl Ord for OutgoingMessage {
 ///
 /// This is data produced by evaluating the candidate. It contains
 /// full records of all outgoing messages to other parachains.
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Encode, Decode))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]
 pub struct Extrinsic {

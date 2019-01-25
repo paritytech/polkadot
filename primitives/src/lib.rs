@@ -44,7 +44,9 @@ extern crate serde;
 extern crate substrate_client;
 
 use rstd::prelude::*;
-use runtime_primitives::{generic, traits::{Extrinsic, BlakeTwo256}};
+use runtime_primitives::{generic, traits::Extrinsic};
+
+pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
 pub mod parachain;
 

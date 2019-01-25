@@ -20,8 +20,15 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit="256"]
 
+#[cfg(test)]
+#[macro_use]
+extern crate hex_literal;
+
 #[macro_use]
 extern crate bitvec;
+
+extern crate tiny_keccak;
+extern crate secp256k1;
 
 #[macro_use]
 extern crate parity_codec_derive;
@@ -64,6 +71,7 @@ extern crate polkadot_primitives as primitives;
 extern crate substrate_keyring as keyring;
 
 mod parachains;
+mod claims;
 
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
@@ -103,7 +111,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 1,
-	spec_version: 104,
+	spec_version: 105,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -225,6 +233,10 @@ impl sudo::Trait for Runtime {
 	type Proposal = Call;
 }
 
+impl claims::Trait for Runtime {
+	type Event = Event;
+}
+
 construct_runtime!(
 	pub enum Runtime with Log(InternalLog: DigestItem<Hash, SessionKey>) where
 		Block = Block,
@@ -250,6 +262,7 @@ construct_runtime!(
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
 		Sudo: sudo,
 		UpgradeKey: upgrade_key,
+		Claims: claims,
 	}
 );
 

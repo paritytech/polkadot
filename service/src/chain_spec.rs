@@ -21,7 +21,7 @@ use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
 	CouncilVotingConfig, GrandpaConfig, UpgradeKeyConfig, SudoConfig, IndicesConfig,
-	Permill
+	ClaimsConfig, Permill
 };
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -130,6 +130,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.clone().into_iter().map(|k| (k, 1)).collect(),
 		}),
+		claims: Some(ClaimsConfig {
+			claims: vec![],
+		}),
 	}
 }
 
@@ -229,6 +232,9 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> 
 		}),
 		sudo: Some(SudoConfig {
 			key: upgrade_key,
+		}),
+		claims: Some(ClaimsConfig {
+			claims: vec![],
 		}),
 	}
 }
