@@ -156,7 +156,7 @@ pub struct Validated {
 	/// Block data to ensure availability of.
 	pub block_data: BlockData,
 	/// Extrinsic data to ensure availability of.
-	pub extrinsic: Extrinsic,
+	pub extrinsic: Option<Extrinsic>,
 }
 
 /// Future that performs parachain validation work.
@@ -172,7 +172,7 @@ impl<D: Future> ParachainWork<D> {
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			D,
-			impl Send + FnMut(&BlockId, &Collation) -> bool,
+			impl Send + FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>,
 		>
 		where
 			P: Send + Sync + 'static,
@@ -186,10 +186,10 @@ impl<D: Future> ParachainWork<D> {
 			);
 
 			match res {
-				Ok(_) => true,
+				Ok(e) => Ok(e),
 				Err(e) => {
 					debug!(target: "consensus", "Encountered bad collation: {}", e);
-					false
+					Err(())
 				}
 			}
 		};
@@ -199,7 +199,7 @@ impl<D: Future> ParachainWork<D> {
 
 	/// Prime the parachain work with a custom validation function.
 	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<D, F>
-		where F: FnMut(&BlockId, &Collation) -> bool
+		where F: FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>
 	{
 		PrimedParachainWork { inner: self, validate }
 	}
@@ -219,7 +219,7 @@ pub struct PrimedParachainWork<D: Future, F> {
 impl<D, F, Err> Future for PrimedParachainWork<D, F>
 	where
 		D: Future<Item=BlockData,Error=Err>,
-		F: FnMut(&BlockId, &Collation) -> bool,
+		F: FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>,
 		Err: From<::std::io::Error>,
 {
 	type Item = Validated;
@@ -230,27 +230,30 @@ impl<D, F, Err> Future for PrimedParachainWork<D, F>
 		let candidate = &work.candidate_receipt;
 
 		let block = try_ready!(work.fetch_block_data.poll());
-		let is_good = (self.validate)(
+		let validation_res = (self.validate)(
 			&BlockId::hash(self.inner.relay_parent),
 			&Collation { block_data: block.clone(), receipt: candidate.clone() },
 		);
 
 		let candidate_hash = candidate.hash();
 
-		debug!(target: "consensus", "Making validity statement about candidate {}: is_good? {:?}", candidate_hash, is_good);
-		let validity_statement = match is_good {
-			true => GenericStatement::Valid(candidate_hash),
-			false => GenericStatement::Invalid(candidate_hash),
-		};
+		debug!(target: "consensus", "Making validity statement about candidate {}: is_good? {:?}",
+			candidate_hash, validation_res.is_ok());
 
-		let extrinsic = Extrinsic;
-		self.inner.extrinsic_store.make_available(Data {
-			relay_parent: self.inner.relay_parent,
-			parachain_id: work.candidate_receipt.parachain_index,
-			candidate_hash,
-			block_data: block.clone(),
-			extrinsic: Some(extrinsic.clone()),
-		})?;
+		let (extrinsic, validity_statement) = match validation_res {
+			Err(()) => (None, GenericStatement::Invalid(candidate_hash)),
+			Ok(extrinsic) => {
+				self.inner.extrinsic_store.make_available(Data {
+					relay_parent: self.inner.relay_parent,
+					parachain_id: work.candidate_receipt.parachain_index,
+					candidate_hash,
+					block_data: block.clone(),
+					extrinsic: Some(extrinsic.clone()),
+				})?;
+
+				(Some(extrinsic), GenericStatement::Valid(candidate_hash))
+			}
+		};
 
 		Ok(Async::Ready(Validated {
 			validity: validity_statement,
@@ -444,16 +447,12 @@ mod tests {
 	impl TableRouter for DummyRouter {
 		type Error = ::std::io::Error;
 		type FetchCandidate = ::futures::future::FutureResult<BlockData,Self::Error>;
-		type FetchExtrinsic = ::futures::future::FutureResult<Extrinsic,Self::Error>;
 
 		fn local_candidate(&self, _candidate: CandidateReceipt, _block_data: BlockData, _extrinsic: Extrinsic) {
 
 		}
 		fn fetch_block_data(&self, _candidate: &CandidateReceipt) -> Self::FetchCandidate {
 			future::ok(BlockData(vec![1, 2, 3, 4, 5]))
-		}
-		fn fetch_extrinsic_data(&self, _candidate: &CandidateReceipt) -> Self::FetchExtrinsic {
-			future::ok(Extrinsic)
 		}
 	}
 
@@ -586,7 +585,9 @@ mod tests {
 			extrinsic_store: store.clone(),
 		};
 
-		let produced = producer.prime_with(|_, _| true).wait().unwrap();
+		let produced = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+			.wait()
+			.unwrap();
 
 		assert_eq!(produced.block_data, block_data);
 		assert_eq!(produced.validity, GenericStatement::Valid(hash));
@@ -624,7 +625,9 @@ mod tests {
 			extrinsic_store: store.clone(),
 		};
 
-		let produced = producer.prime_with(|_, _| true).wait().unwrap();
+		let produced = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+			.wait()
+			.unwrap();
 
 		assert_eq!(produced.block_data, block_data);
 

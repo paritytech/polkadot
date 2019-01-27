@@ -44,7 +44,9 @@ extern crate serde;
 extern crate substrate_client;
 
 use rstd::prelude::*;
-use runtime_primitives::{generic, traits::{Extrinsic, BlakeTwo256}};
+use runtime_primitives::{generic, traits::Extrinsic};
+
+pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
 pub mod parachain;
 
@@ -104,14 +106,3 @@ pub type BlockId = generic::BlockId<Block>;
 pub struct UncheckedExtrinsic(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 impl Extrinsic for UncheckedExtrinsic {}
-
-/// Inherent data to include in a block.
-#[derive(Encode, Decode)]
-pub struct InherentData {
-	/// Current timestamp.
-	pub timestamp: u64,
-	/// Parachain heads update. This contains fully-attested candidates.
-	pub parachains: Vec<::parachain::AttestedCandidate>,
-	/// Expected slot for aura authorship.
-	pub aura_expected_slot: u64,
-}

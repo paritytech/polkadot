@@ -22,7 +22,8 @@ extern crate parity_codec as codec;
 extern crate polkadot_parachain as parachain;
 extern crate tiny_keccak;
 
-use parachain::ValidationParams;
+use parachain::{MessageRef, ValidationParams};
+use parachain::wasm_executor::{Externalities, ExternalitiesError};
 use codec::{Decode, Encode};
 
 /// Head data for this parachain.
@@ -43,6 +44,13 @@ struct BlockData {
 	state: u64,
 	/// Amount to add (overflowing)
 	add: u64,
+}
+
+struct DummyExt;
+impl Externalities for DummyExt {
+	fn post_message(&mut self, _message: MessageRef) -> Result<(), ExternalitiesError> {
+		Ok(())
+	}
 }
 
 const TEST_CODE: &[u8] = include_bytes!("res/adder.wasm");
@@ -68,10 +76,14 @@ fn execute_good_on_parent() {
 		add: 512,
 	};
 
-	let ret = parachain::wasm::validate_candidate(TEST_CODE, ValidationParams {
-		parent_head: parent_head.encode(),
-		block_data: block_data.encode(),
-	}).unwrap();
+	let ret = parachain::wasm_executor::validate_candidate(
+		TEST_CODE,
+		ValidationParams {
+			parent_head: parent_head.encode(),
+			block_data: block_data.encode(),
+		},
+		&mut DummyExt,
+	).unwrap();
 
 	let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();
 
@@ -98,10 +110,14 @@ fn execute_good_chain_on_parent() {
 			add,
 		};
 
-		let ret = parachain::wasm::validate_candidate(TEST_CODE, ValidationParams {
-			parent_head: parent_head.encode(),
-			block_data: block_data.encode(),
-		}).unwrap();
+		let ret = parachain::wasm_executor::validate_candidate(
+			TEST_CODE,
+			ValidationParams {
+				parent_head: parent_head.encode(),
+				block_data: block_data.encode(),
+			},
+			&mut DummyExt,
+		).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();
 
@@ -128,8 +144,12 @@ fn execute_bad_on_parent() {
 		add: 256,
 	};
 
-	let _ret = parachain::wasm::validate_candidate(TEST_CODE, ValidationParams {
-		parent_head: parent_head.encode(),
-		block_data: block_data.encode(),
-	}).unwrap_err();
+	let _ret = parachain::wasm_executor::validate_candidate(
+		TEST_CODE,
+		ValidationParams {
+			parent_head: parent_head.encode(),
+			block_data: block_data.encode(),
+		},
+		&mut DummyExt,
+	).unwrap_err();
 }

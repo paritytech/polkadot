@@ -11,4 +11,3 @@ futures = "0.1.17"
 exit-future = "0.1"
 substrate-cli = { git = "https://github.com/paritytech/substrate" }
 polkadot-service = { path = "../service" }
-structopt = "0.2.13"

@@ -20,15 +20,14 @@ use rstd::prelude::*;
 use codec::Decode;
 
 use bitvec::BigEndian;
-use sr_primitives::CheckInherentError;
-use sr_primitives::traits::{
-	Extrinsic, Block as BlockT, Hash as HashT, BlakeTwo256, ProvideInherent,
-};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256};
 use primitives::parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement};
 use {system, session};
 
 use srml_support::{StorageValue, StorageMap};
 use srml_support::dispatch::Result;
+
+use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
 #[cfg(any(feature = "std", test))]
 use sr_primitives::{self, ChildrenStorageMap};
@@ -38,10 +37,7 @@ use rstd::marker::PhantomData;
 
 use system::ensure_inherent;
 
-pub trait Trait: session::Trait {
-	/// The position of the set_heads call in the block.
-	const SET_POSITION: u32;
-}
+pub trait Trait: session::Trait {}
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
@@ -87,11 +83,6 @@ decl_module! {
 		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
 			ensure_inherent(origin)?;
 			ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
-			ensure!(
-				<system::Module<T>>::extrinsic_index() == Some(T::SET_POSITION),
-				"Parachain heads update extrinsic must be at position {} in the block"
-	//			, T::SET_POSITION
-			);
 
 			let active_parachains = Self::active_parachains();
 
@@ -378,34 +369,21 @@ impl<T: Trait> Module<T> {
 */
 }
 
+pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"newheads";
+
+pub type InherentType = Vec<AttestedCandidate>;
+
 impl<T: Trait> ProvideInherent for Module<T> {
-	type Inherent = Vec<AttestedCandidate>;
 	type Call = Call<T>;
+	type Error = MakeFatalError<RuntimeString>;
+	const INHERENT_IDENTIFIER: InherentIdentifier = INHERENT_IDENTIFIER;
 
-	fn create_inherent_extrinsics(data: Self::Inherent) -> Vec<(u32, Self::Call)> {
-		vec![(T::SET_POSITION, Call::set_heads(data))]
-	}
+	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+		let data = data.get_data::<InherentType>(&INHERENT_IDENTIFIER)
+			.expect("Parachain heads could not be decoded.")
+			.expect("No parachain heads found in inherent data.");
 
-	fn check_inherent<Block: BlockT, F: Fn(&Block::Extrinsic) -> Option<&Self::Call>>(
-		block: &Block, _data: Self::Inherent, extract_function: &F
-	) -> ::rstd::result::Result<(), CheckInherentError> {
-		let has_heads = block
-			.extrinsics()
-			.get(T::SET_POSITION as usize)
-			.map_or(false, |xt| {
-				xt.is_signed() == Some(false) && match extract_function(&xt) {
-					Some(Call::set_heads(_)) => true,
-					_ => false,
-				}
-			});
-
-		if !has_heads {
-			return Err(CheckInherentError::Other(
-				"No valid parachains inherent in block".into()
-			));
-		}
-
-		Ok(())
+		Some(Call::set_heads(data))
 	}
 }
 
@@ -427,7 +405,6 @@ mod tests {
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
 	impl consensus::Trait for Test {
-		const NOTE_OFFLINE_POSITION: u32 = 1;
 		type SessionKey = SessionKey;
 		type InherentOfflineReport = ();
 		type Log = ::Log;
@@ -451,13 +428,10 @@ mod tests {
 		type Event = ();
 	}
 	impl timestamp::Trait for Test {
-		const TIMESTAMP_SET_POSITION: u32 = 0;
 		type Moment = u64;
 		type OnTimestampSet = ();
 	}
-	impl Trait for Test {
-		const SET_POSITION: u32 = 0;
-	}
+	impl Trait for Test {}
 
 	type Parachains = Module<Test>;
 

@@ -167,7 +167,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 				knowledge.lock().note_candidate(
 					candidate_hash,
 					Some(produced.block_data),
-					Some(produced.extrinsic),
+					produced.extrinsic,
 				);
 
 				let mut gossip = network.consensus_gossip().write();
@@ -188,7 +188,6 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 {
 	type Error = io::Error;
 	type FetchCandidate = BlockDataReceiver;
-	type FetchExtrinsic = Result<Extrinsic, Self::Error>;
 
 	fn local_candidate(&self, receipt: CandidateReceipt, block_data: BlockData, extrinsic: Extrinsic) {
 		// give to network to make available.
@@ -206,10 +205,6 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 		let parent_hash = self.parent_hash;
 		let rx = self.network.with_spec(|spec, ctx| { spec.fetch_block_data(ctx, candidate, parent_hash) });
 		BlockDataReceiver { inner: rx }
-	}
-
-	fn fetch_extrinsic_data(&self, _candidate: &CandidateReceipt) -> Self::FetchExtrinsic {
-		Ok(Extrinsic)
 	}
 }
 
