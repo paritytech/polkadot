@@ -33,6 +33,7 @@ extern crate substrate_consensus_aura as aura;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
 extern crate tokio;
+extern crate substrate_inherents as inherents;
 
 #[macro_use]
 extern crate log;
@@ -43,13 +44,14 @@ pub mod chain_spec;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, AccountId, Block, InherentData};
+use polkadot_primitives::{parachain, AccountId, Block};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
 use primitives::ed25519;
 use tokio::runtime::TaskExecutor;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
 use transaction_pool::txpool::{Pool as TransactionPool};
-use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration, NothingExtra, InherentProducingFn};
+use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration, NothingExtra};
+use inherents::InherentDataProviders;
 
 pub use service::{
 	Roles, PruningMode, TransactionPoolOptions, ComponentClient,
@@ -68,7 +70,6 @@ pub use chain_spec::ChainSpec;
 pub type Configuration = FactoryFullConfiguration<Factory>;
 
 /// Polkadot-specific configuration.
-#[derive(Default)]
 pub struct CustomConfiguration {
 	/// Set to `Some` with a collator `AccountId` and desired parachain
 	/// if the network protocol should be started in collator mode.
@@ -81,6 +82,18 @@ pub struct CustomConfiguration {
 		Arc<grandpa::BlockImportForService<Factory>>,
 		grandpa::LinkHalfForService<Factory>
 	)>,
+
+	inherent_data_providers: InherentDataProviders,
+}
+
+impl Default for CustomConfiguration {
+	fn default() -> Self {
+		Self {
+			collating_for: None,
+			grandpa_import_setup: None,
+			inherent_data_providers: InherentDataProviders::new(),
+		}
+	}
 }
 
 /// Chain API type for the transaction pool.
@@ -136,14 +149,6 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 
 	fn transaction_pool(&self) -> Arc<TransactionPool<TxChainApi<Self::Backend, Self::Executor>>> {
 		Service::transaction_pool(self)
-	}
-}
-
-fn inherent_data_import_queue(timestamp: u64, slot: u64) -> InherentData {
-	InherentData {
-		parachains: Vec::new(),
-		timestamp,
-		aura_expected_slot: slot,
 	}
 }
 
@@ -220,6 +225,7 @@ construct_service_factory! {
 					executor.clone(),
 					key.clone(),
 					extrinsic_store,
+					SlotDuration::get_or_compute(&*client)?,
 				);
 
 				info!("Using authority key {}", key.public());
@@ -231,7 +237,8 @@ construct_service_factory! {
 					Arc::new(proposer_factory),
 					service.network(),
 					service.on_exit(),
-				);
+					service.config.custom.inherent_data_providers.clone(),
+				)?;
 
 				executor.spawn(task);
 				Ok(service)
@@ -240,39 +247,45 @@ construct_service_factory! {
 			{ |config, executor| <LightComponents<Factory>>::new(config, executor) },
 		FullImportQueue = AuraImportQueue<
 			Self::Block,
-			grandpa::BlockImportForService<Self>,
+			FullClient<Self>,
 			NothingExtra,
-			InherentProducingFn<InherentData>,
 		>
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
 
-				let (block_import, link_half) = grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>>(client.clone(), client)?;
+				let (block_import, link_half) =
+					grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>>(
+						client.clone(), client.clone(),
+					)?;
 				let block_import = Arc::new(block_import);
+				let justification_import = block_import.clone();
 
 				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
-				Ok(import_queue(
+				import_queue(
 					slot_duration,
 					block_import,
+					Some(justification_import),
+					client,
 					NothingExtra,
-					inherent_data_import_queue as _,
-				))
+					config.custom.inherent_data_providers.clone(),
+				).map_err(Into::into)
 			}},
 		LightImportQueue = AuraImportQueue<
 			Self::Block,
 			LightClient<Self>,
 			NothingExtra,
-			InherentProducingFn<InherentData>,
 		>
-			{ |config, client: Arc<LightClient<Self>>| {
+			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<LightClient<Self>>| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
 
-				Ok(import_queue(
+				import_queue(
 					slot_duration,
+					client.clone(),
+					None,
 					client,
 					NothingExtra,
-					inherent_data_import_queue as _,
-				))
+					config.custom.inherent_data_providers.clone(),
+				).map_err(Into::into)
 			}},
 	}
 }
