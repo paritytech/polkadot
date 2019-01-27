@@ -47,7 +47,7 @@ cache:
 
 
 # test will be run for ci on the current repo
-# for version v0.2 branch tests are located in substrate repository and 
+# for version v0.2 branch tests are located in substrate repository and
 # therefore not generically testable
 test:rust:release:
   stage:                           test
@@ -76,6 +76,7 @@ build:rust:linux:release:
     - master
     - tags
     - web
+    - v0.3
   except:
     variables:
       - $DEPLOY_TAG
@@ -154,15 +155,15 @@ dockerize:release:
   tags:
     - kubernetes
   before_script:
-    - test -z "${DEPLOY_TAG}" && 
-      test -f ./target/release/VERSION && 
+    - test -z "${DEPLOY_TAG}" &&
+      test -f ./target/release/VERSION &&
       DEPLOY_TAG="$(cat ./target/release/VERSION)"
     - test "${DEPLOY_TAG}" || ( echo "Neither DEPLOY_TAG nor VERSION information available"; exit 1 )
   script:
     - echo "Polkadot version = ${DEPLOY_TAG}"
     # or use helm to render the template
-    - helm template 
-      --values ./scripts/kubernetes/values.yaml 
+    - helm template
+      --values ./scripts/kubernetes/values.yaml
       --set image.tag=${DEPLOY_TAG}
       ./scripts/kubernetes | kubectl apply -f - --dry-run=true
     - echo "# polkadot namespace"
@@ -171,7 +172,7 @@ dockerize:release:
     - kubectl get nodes -l node=polkadot
       -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range @.status.addresses[?(@.type=="ExternalIP")]}{.address}{"\n"}{end}'
     - echo "# polkadots' nodes"
-    - kubectl -n polkadot get pods 
+    - kubectl -n polkadot get pods
       -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.nodeName}{"\n"}{end}'
 
 
