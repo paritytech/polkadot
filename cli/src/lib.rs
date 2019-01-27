@@ -25,7 +25,6 @@ extern crate tokio;
 extern crate substrate_cli as cli;
 extern crate polkadot_service as service;
 extern crate exit_future;
-extern crate structopt;
 
 #[macro_use]
 extern crate log;
@@ -36,8 +35,8 @@ use std::ops::Deref;
 use chain_spec::ChainSpec;
 use futures::Future;
 use tokio::runtime::Runtime;
-use structopt::StructOpt;
 use service::Service as BareService;
+use cli::NoCustom;
 
 pub use service::{
 	Components as ServiceComponents, PolkadotService, CustomConfiguration, ServiceFactory, Factory,
@@ -85,42 +84,33 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 	T: Into<std::ffi::OsString> + Clone,
 	W: Worker,
 {
-	let full_version = polkadot_service::full_version_from_strs(
-		version.version,
-		version.commit
-	);
-
-	let matches = match cli::CoreParams::clap()
-		.name(version.executable_name)
-		.author(version.author)
-		.about(version.description)
-		.version(&(full_version + "\n")[..])
-		.get_matches_from_safe(args) {
-			Ok(m) => m,
-			Err(e) => e.exit(),
-		};
-
-	let (spec, mut config) = cli::parse_matches::<service::Factory, _>(load_spec, &version, "parity-polkadot", &matches)?;
-
-	match cli::execute_default::<service::Factory, _>(spec, worker, &matches, &config)? {
-		cli::Action::ExecutedInternally => (),
-		cli::Action::RunService(worker) => {
-			info!("Parity ·:· Polkadot");
+	cli::parse_and_execute::<service::Factory, NoCustom, NoCustom, _, _, _, _, _>(
+		load_spec, &version, "parity-polkadot", args, worker,
+		|worker, _custom_args, mut config| {
+			info!("{}", version.name);
 			info!("  version {}", config.full_version());
-			info!("  by Parity Technologies, 2017, 2018");
+			info!("  by {}, 2017-2019", version.author);
 			info!("Chain specification: {}", config.chain_spec.name());
 			info!("Node name: {}", config.name);
 			info!("Roles: {:?}", config.roles);
 			config.custom = worker.configuration();
-			let mut runtime = Runtime::new()?;
+			let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
 			let executor = runtime.executor();
-			match config.roles == service::Roles::LIGHT {
-				true => run_until_exit(runtime, Factory::new_light(config, executor)?, worker)?,
-				false => run_until_exit(runtime, Factory::new_full(config, executor)?, worker)?,
-			}
+			match config.roles {
+				service::Roles::LIGHT =>
+					run_until_exit(
+						runtime,
+						Factory::new_light(config, executor).map_err(|e| format!("{:?}", e))?,
+						worker
+					),
+				_ => run_until_exit(
+						runtime,
+						Factory::new_full(config, executor).map_err(|e| format!("{:?}", e))?,
+						worker
+					),
+			}.map_err(|e| format!("{:?}", e))
 		}
-	}
-	Ok(())
+	).map_err(Into::into).map(|_| ())
 }
 
 fn run_until_exit<T, C, W>(

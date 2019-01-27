@@ -156,23 +156,23 @@ polkadot --chain=local --validator --key Bob -d /tmp/bob --port 30334 --bootnode
 Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of the first terminal.
 
 === Using Docker
-link:_includes/doc/docker.adoc[Using Docker]
+link:doc/docker.adoc[Using Docker]
 
 === Shell Completion
-link:_includes/doc/shell-completion.adoc[Shell Completion]
+link:doc/shell-completion.adoc[Shell Completion]
 
 === Polkadot Networks
-link:_includes/doc/networks/networks.adoc[Polkadot Networks]
+link:doc/networks/networks.adoc[Polkadot Networks]
 
 == Contributing
 
 === Contributing Guidelines
 
-link:_includes/CONTRIBUTING.adoc[Contribution Guidelines]
+link:CONTRIBUTING.adoc[Contribution Guidelines]
 
 === Contributor Code of Conduct
 
-link:_includes/CODE_OF_CONDUCT.adoc[Code of Conduct]
+link:CODE_OF_CONDUCT.adoc[Code of Conduct]
 
 == License
 

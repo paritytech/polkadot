@@ -36,10 +36,10 @@ extern crate parity_codec as codec;
 
 extern crate substrate_consensus_aura_primitives as consensus_aura;
 extern crate substrate_primitives;
+extern crate substrate_inherents as inherents;
 #[macro_use]
 extern crate substrate_client as client;
 
-#[macro_use]
 extern crate sr_std as rstd;
 #[cfg(test)]
 extern crate sr_io;
@@ -80,12 +80,11 @@ use primitives::{
 	parachain,
 };
 use client::{
-	block_builder::api as block_builder_api,
+	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
 	runtime_api as client_api,
 };
-use consensus_aura::api as aura_api;
 use sr_primitives::{
-	ApplyResult, CheckInherentError, generic, transaction_validity::TransactionValidity,
+	ApplyResult, generic, transaction_validity::TransactionValidity,
 	traits::{Convert, BlakeTwo256, Block as BlockT, DigestFor, StaticLookup}
 };
 use version::RuntimeVersion;
@@ -102,14 +101,10 @@ pub use sr_primitives::BuildStorage;
 pub use consensus::Call as ConsensusCall;
 pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
-pub use parachains::Call as ParachainsCall;
+pub use parachains::{Call as ParachainsCall, INHERENT_IDENTIFIER as PARACHAIN_INHERENT_IDENTIFIER};
 pub use sr_primitives::{Permill, Perbill};
 pub use timestamp::BlockPeriod;
 pub use srml_support::{StorageValue, RuntimeMetadata};
-
-const TIMESTAMP_SET_POSITION: u32 = 0;
-const PARACHAINS_SET_POSITION: u32 = 1;
-const NOTE_OFFLINE_POSITION: u32 = 2; // this should be reintroduced
 
 /// Runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
@@ -164,7 +159,6 @@ impl balances::Trait for Runtime {
 }
 
 impl consensus::Trait for Runtime {
-	const NOTE_OFFLINE_POSITION: u32 = NOTE_OFFLINE_POSITION;
 	type Log = Log;
 	type SessionKey = SessionKey;
 
@@ -174,7 +168,6 @@ impl consensus::Trait for Runtime {
 }
 
 impl timestamp::Trait for Runtime {
-	const TIMESTAMP_SET_POSITION: u32 = TIMESTAMP_SET_POSITION;
 	type Moment = u64;
 	type OnTimestampSet = Aura;
 }
@@ -229,9 +222,7 @@ impl grandpa::Trait for Runtime {
 	type Event = Event;
 }
 
-impl parachains::Trait for Runtime {
-	const SET_POSITION: u32 = PARACHAINS_SET_POSITION;
-}
+impl parachains::Trait for Runtime {}
 
 impl upgrade_key::Trait for Runtime {
 	type Event = Event;
@@ -250,7 +241,7 @@ construct_runtime!(
 	pub enum Runtime with Log(InternalLog: DigestItem<Hash, SessionKey>) where
 		Block = Block,
 		NodeBlock = primitives::Block,
-		InherentData = primitives::InherentData
+		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		System: system::{default, Log(ChangesTrieRoot)},
 		Aura: aura::{Module},
@@ -317,7 +308,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl block_builder_api::BlockBuilder<Block, primitives::InherentData> for Runtime {
+	impl block_builder_api::BlockBuilder<Block> for Runtime {
 		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyResult {
 			Executive::apply_extrinsic(extrinsic)
 		}
@@ -326,48 +317,12 @@ impl_runtime_apis! {
 			Executive::finalise_block()
 		}
 
-		fn inherent_extrinsics(data: primitives::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
-			use sr_primitives::traits::ProvideInherent;
-
-			let mut inherent = Vec::new();
-
-			inherent.extend(
-				Timestamp::create_inherent_extrinsics(data.timestamp)
-					.into_iter()
-					.map(|v| (v.0, UncheckedExtrinsic::new_unsigned(Call::Timestamp(v.1))))
-			);
-
-			inherent.extend(
-				Parachains::create_inherent_extrinsics(data.parachains)
-					.into_iter()
-					.map(|v| (v.0, UncheckedExtrinsic::new_unsigned(Call::Parachains(v.1))))
-			);
-
-			inherent.as_mut_slice().sort_unstable_by_key(|v| v.0);
-			inherent.into_iter().map(|v| v.1).collect()
+		fn inherent_extrinsics(data: InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
+			data.create_extrinsics()
 		}
 
-		fn check_inherents(block: Block, data: primitives::InherentData) -> Result<(), CheckInherentError> {
-			let expected_slot = data.aura_expected_slot;
-
-			// draw timestamp out from extrinsics.
-			let set_timestamp = block.extrinsics()
-				.get(TIMESTAMP_SET_POSITION as usize)
-				.and_then(|xt: &UncheckedExtrinsic| match xt.function {
-					Call::Timestamp(TimestampCall::set(ref t)) => Some(t.clone()),
-					_ => None,
-				})
-				.ok_or_else(|| CheckInherentError::Other("No valid timestamp in block.".into()))?;
-
-			// take the "worse" result of normal verification and the timestamp vs. seal
-			// check.
-			CheckInherentError::combine_results(
-				Runtime::check_inherents(block, data),
-				|| {
-					Aura::verify_inherent(set_timestamp.into(), expected_slot)
-						.map_err(|s| CheckInherentError::Other(s.into()))
-				},
-			)
+		fn check_inherents(block: Block, data: InherentData) -> CheckInherentsResult {
+			data.check_extrinsics(&block)
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
@@ -419,10 +374,9 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl aura_api::AuraApi<Block> for Runtime {
+	impl consensus_aura::AuraApi<Block> for Runtime {
 		fn slot_duration() -> u64 {
 			Aura::slot_duration()
 		}
 	}
 }
-

@@ -33,7 +33,7 @@ use client::blockchain::HeaderBackend;
 use client::runtime_api::Core;
 use primitives::ed25519;
 use futures::prelude::*;
-use polkadot_primitives::{Block, BlockId, InherentData};
+use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::ParachainHost;
 use extrinsic_store::Store as ExtrinsicStore;
 use runtime_primitives::traits::ProvideRuntimeApi;
@@ -122,7 +122,7 @@ pub(crate) fn start<C, N, P>(
 		<C::Collation as IntoFuture>::Future: Send + 'static,
 		P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> + Core<Block> + BlockBuilder<Block, InherentData>,
+		P::Api: ParachainHost<Block> + Core<Block> + BlockBuilder<Block>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
 {
