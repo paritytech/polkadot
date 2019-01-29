@@ -23,12 +23,14 @@
 #[cfg(test)]
 #[macro_use]
 extern crate hex_literal;
+#[cfg(test)]
+extern crate secp256k1;
+#[cfg(test)]
+extern crate tiny_keccak;
+
 
 #[macro_use]
 extern crate bitvec;
-
-extern crate tiny_keccak;
-extern crate secp256k1;
 
 #[macro_use]
 extern crate parity_codec_derive;
@@ -41,7 +43,6 @@ extern crate substrate_inherents as inherents;
 extern crate substrate_client as client;
 
 extern crate sr_std as rstd;
-#[cfg(test)]
 extern crate sr_io;
 extern crate sr_version as version;
 #[macro_use]
@@ -111,7 +112,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 1,
-	spec_version: 105,
+	spec_version: 106,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
