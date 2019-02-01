@@ -29,9 +29,9 @@ use polkadot_primitives::parachain::{
 };
 
 use parking_lot::Mutex;
-use futures::prelude::*;
+use futures::{future, prelude::*};
 
-use super::{GroupInfo, TableRouter};
+use super::{GroupInfo, Incoming, TableRouter};
 use self::includable::IncludabilitySender;
 use primitives::ed25519;
 use runtime_primitives::{traits::ProvideRuntimeApi};
@@ -94,9 +94,10 @@ impl SharedTableInner {
 		context: &TableContext,
 		router: &R,
 		statement: table::SignedStatement,
-	) -> Option<ParachainWork<
+	) -> Option<ParachainWork<future::Join<
 		<R::FetchCandidate as IntoFuture>::Future,
-	>> {
+		<R::FetchIncoming as IntoFuture>::Future,
+	>>> {
 		let summary = match self.table.import_statement(context, statement) {
 			Some(summary) => summary,
 			None => return None,
@@ -117,6 +118,7 @@ impl SharedTableInner {
 			&& self.checked_validity.insert(digest.clone());
 
 		let work = if extra_work {
+			let fetch_incoming = router.fetch_incoming(summary.group_id);
 			match self.table.get_candidate(&digest) {
 				None => None, // TODO: handle table inconsistency somehow?
 				Some(candidate) => {
@@ -124,7 +126,7 @@ impl SharedTableInner {
 
 					Some(Work {
 						candidate_receipt: candidate.clone(),
-						fetch_block_data,
+						fetch: fetch_block_data.join(fetch_incoming),
 					})
 				}
 			}
@@ -160,29 +162,30 @@ pub struct Validated {
 }
 
 /// Future that performs parachain validation work.
-pub struct ParachainWork<D: Future> {
-	work: Work<D>,
+pub struct ParachainWork<Fetch> {
+	work: Work<Fetch>,
 	relay_parent: Hash,
 	extrinsic_store: ExtrinsicStore,
 }
 
-impl<D: Future> ParachainWork<D> {
+impl<Fetch: Future> ParachainWork<Fetch> {
 	/// Prime the parachain work with an API reference for extracting
 	/// chain information.
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
 		-> PrimedParachainWork<
-			D,
-			impl Send + FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>,
+			Fetch,
+			impl Send + FnMut(&BlockId, &Collation, &Incoming) -> Result<Extrinsic, ()>,
 		>
 		where
 			P: Send + Sync + 'static,
 			P::Api: ParachainHost<Block>,
 	{
-		let validate = move |id: &_, collation: &_| {
+		let validate = move |id: &_, collation: &_, incoming: &_| {
 			let res = ::collation::validate_collation(
 				&*api,
 				id,
 				collation,
+				incoming,
 			);
 
 			match res {
@@ -198,28 +201,28 @@ impl<D: Future> ParachainWork<D> {
 	}
 
 	/// Prime the parachain work with a custom validation function.
-	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<D, F>
-		where F: FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>
+	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<Fetch, F>
+		where F: FnMut(&BlockId, &Collation, &Incoming) -> Result<Extrinsic, ()>
 	{
 		PrimedParachainWork { inner: self, validate }
 	}
 }
 
-struct Work<D: Future> {
+struct Work<Fetch> {
 	candidate_receipt: CandidateReceipt,
-	fetch_block_data: D,
+	fetch: Fetch
 }
 
 /// Primed statement producer.
-pub struct PrimedParachainWork<D: Future, F> {
-	inner: ParachainWork<D>,
+pub struct PrimedParachainWork<Fetch, F> {
+	inner: ParachainWork<Fetch>,
 	validate: F,
 }
 
-impl<D, F, Err> Future for PrimedParachainWork<D, F>
+impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 	where
-		D: Future<Item=BlockData,Error=Err>,
-		F: FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>,
+		Fetch: Future<Item=(BlockData, Incoming),Error=Err>,
+		F: FnMut(&BlockId, &Collation, &Incoming) -> Result<Extrinsic, ()>,
 		Err: From<::std::io::Error>,
 {
 	type Item = Validated;
@@ -229,10 +232,11 @@ impl<D, F, Err> Future for PrimedParachainWork<D, F>
 		let work = &mut self.inner.work;
 		let candidate = &work.candidate_receipt;
 
-		let block = try_ready!(work.fetch_block_data.poll());
+		let (block, incoming) = try_ready!(work.fetch.poll());
 		let validation_res = (self.validate)(
 			&BlockId::hash(self.inner.relay_parent),
 			&Collation { block_data: block.clone(), receipt: candidate.clone() },
+			&incoming,
 		);
 
 		let candidate_hash = candidate.hash();
@@ -324,9 +328,10 @@ impl SharedTable {
 		&self,
 		router: &R,
 		statement: table::SignedStatement,
-	) -> Option<ParachainWork<
+	) -> Option<ParachainWork<future::Join<
 		<R::FetchCandidate as IntoFuture>::Future,
-	>> {
+		<R::FetchIncoming as IntoFuture>::Future,
+	>>> {
 		self.inner.lock().import_remote_statement(&*self.context, router, statement)
 	}
 
@@ -340,9 +345,10 @@ impl SharedTable {
 		where
 			R: TableRouter,
 			I: IntoIterator<Item=table::SignedStatement>,
-			U: ::std::iter::FromIterator<Option<ParachainWork<
+			U: ::std::iter::FromIterator<Option<ParachainWork<future::Join<
 				<R::FetchCandidate as IntoFuture>::Future,
-			>>>,
+				<R::FetchIncoming as IntoFuture>::Future,
+			>>>>,
 	{
 		let mut inner = self.inner.lock();
 
@@ -579,7 +585,7 @@ mod tests {
 		let producer: ParachainWork<future::FutureResult<_, ::std::io::Error>> = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
-				fetch_block_data: future::ok(block_data.clone()),
+				fetch: future::ok(block_data.clone()),
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),
@@ -619,7 +625,7 @@ mod tests {
 		let producer = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
-				fetch_block_data: future::ok::<_, ::std::io::Error>(block_data.clone()),
+				fetch: future::ok::<_, ::std::io::Error>(block_data.clone()),
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),

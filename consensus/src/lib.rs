@@ -120,7 +120,7 @@ pub type Incoming = Vec<(ParaId, Vec<Message>)>;
 /// This is expected to be a lightweight, shared type like an `Arc`.
 pub trait TableRouter: Clone {
 	/// Errors when fetching data from the network.
-	type Error;
+	type Error: std::fmt::Debug;
 	/// Future that resolves when candidate data is fetched.
 	type FetchCandidate: IntoFuture<Item=BlockData,Error=Self::Error>;
 	/// Fetch incoming messages for a candidate.
@@ -254,6 +254,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
+	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
 {
 	/// Get an attestation table for given parent hash.
 	///
@@ -310,19 +311,10 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 			Chain::Parachain(id) => Some(id),
 		};
 
-		let collation_work = validation_para.map(|para| CollationFetch::new(
-			para,
-			id.clone(),
-			parent_hash.clone(),
-			self.collators.clone(),
-			self.client.clone(),
-		));
-
-		let drop_signal = dispatch_collation_work(
-			router.clone(),
-			&self.handle,
-			collation_work,
-			self.extrinsic_store.clone(),
+		let drop_signal = self.launch_work(
+			parent_hash,
+			validation_para,
+			router,
 		);
 
 		let tracker = Arc::new(AttestationTracker {
@@ -339,6 +331,76 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	/// Retain consensus sessions matching predicate.
 	fn retain<F: FnMut(&Hash) -> bool>(&self, mut pred: F) {
 		self.live_instances.lock().retain(|k, _| pred(k))
+	}
+
+	// launch parachain work asynchronously.
+	fn launch_work(
+		&self,
+		relay_parent: Hash,
+		validation_para: Option<ParaId>,
+		router: N::TableRouter,
+	) -> exit_future::Signal {
+		use extrinsic_store::Data;
+
+		let (signal, exit) = exit_future::signal();
+		let validation_para = match validation_para {
+			Some(v) => v,
+			None => return signal,
+		};
+
+		let fetch_incoming = router.fetch_incoming(validation_para)
+			.into_future()
+			.map_err(|e| format!("{:?}", e));
+
+		// fetch incoming messages to our parachain from network and
+		// then fetch a local collation.
+		let (collators, client) = (self.collators.clone(), self.client.clone());
+		let collation_work = fetch_incoming
+			.map_err(|e| String::clone(&e))
+			.and_then(move |incoming| {
+				CollationFetch::new(
+					validation_para,
+					relay_parent,
+					collators,
+					client,
+					incoming,
+				).map_err(|e| format!("{:?}", e))
+			});
+
+		let extrinsic_store = self.extrinsic_store.clone();
+		let handled_work = collation_work.then(move |result| match result {
+			Ok((collation, extrinsic)) => {
+				let res = extrinsic_store.make_available(Data {
+					relay_parent,
+					parachain_id: collation.receipt.parachain_index,
+					candidate_hash: collation.receipt.hash(),
+					block_data: collation.block_data.clone(),
+					extrinsic: Some(extrinsic.clone()),
+				});
+
+				match res {
+					Ok(()) => {
+						// TODO: https://github.com/paritytech/polkadot/issues/51
+						// Erasure-code and provide merkle branches.
+						router.local_candidate(collation.receipt, collation.block_data, extrinsic)
+					}
+					Err(e) =>
+						warn!(target: "consensus", "Failed to make collation data available: {:?}", e),
+				}
+
+				Ok(())
+			}
+			Err(e) => {
+				warn!(target: "consensus", "Failed to collate candidate: {}", e);
+				Ok(())
+			}
+		});
+
+		let cancellable_work = handled_work.select(exit).then(|_| Ok(()));
+
+		// spawn onto thread pool.
+		self.handle.spawn(cancellable_work);
+		signal
 	}
 }
 
@@ -366,6 +428,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
+	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
 	TxApi: PoolChainApi,
 {
 	/// Create a new proposer factory.
@@ -414,6 +477,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
+	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
 {
 	type Proposer = Proposer<P, TxApi>;
 	type Error = Error;
@@ -442,65 +506,6 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 			slot_duration: self.aura_slot_duration,
 		})
 	}
-}
-
-// dispatch collation work to be done in the background. returns a signal object
-// that should fire when the collation work is no longer necessary (e.g. when the proposer object is dropped)
-fn dispatch_collation_work<R, C, P>(
-	router: R,
-	handle: &TaskExecutor,
-	work: Option<CollationFetch<C, P>>,
-	extrinsic_store: ExtrinsicStore,
-) -> exit_future::Signal where
-	C: Collators + Send + 'static,
-	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block>,
-	<C::Collation as IntoFuture>::Future: Send + 'static,
-	R: TableRouter + Send + 'static,
-{
-	use extrinsic_store::Data;
-
-	let (signal, exit) = exit_future::signal();
-
-	let work = match work {
-		Some(w) => w,
-		None => return signal,
-	};
-
-	let relay_parent = work.relay_parent();
-	let handled_work = work.then(move |result| match result {
-		Ok((collation, extrinsic)) => {
-			let res = extrinsic_store.make_available(Data {
-				relay_parent,
-				parachain_id: collation.receipt.parachain_index,
-				candidate_hash: collation.receipt.hash(),
-				block_data: collation.block_data.clone(),
-				extrinsic: Some(extrinsic.clone()),
-			});
-
-			match res {
-				Ok(()) => {
-					// TODO: https://github.com/paritytech/polkadot/issues/51
-					// Erasure-code and provide merkle branches.
-					router.local_candidate(collation.receipt, collation.block_data, extrinsic)
-				}
-				Err(e) =>
-					warn!(target: "consensus", "Failed to make collation data available: {:?}", e),
-			}
-
-			Ok(())
-		}
-		Err(_e) => {
-			warn!(target: "consensus", "Failed to collate candidate");
-			Ok(())
-		}
-	});
-
-	let cancellable_work = handled_work.select(exit).then(|_| Ok(()));
-
-	// spawn onto thread pool.
-	handle.spawn(cancellable_work);
-	signal
 }
 
 struct LocalDuty {

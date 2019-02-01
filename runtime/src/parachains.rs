@@ -71,7 +71,7 @@ decl_storage! {
 			for (id, code, genesis) in p {
 				let code_key = Self::hash(&<Code<T>>::key_for(&id)).to_vec();
 				let head_key = Self::hash(&<Heads<T>>::key_for(&id)).to_vec();
-				// no ingress -- a chain cannot be routed to until it is
+				// no ingress -- a chain cannot be routed to until it is live.
 
 				storage.insert(code_key, code.encode());
 				storage.insert(head_key, genesis.encode());

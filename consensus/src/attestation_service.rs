@@ -42,7 +42,7 @@ use tokio::runtime::TaskExecutor;
 use tokio::runtime::current_thread::Runtime as LocalRuntime;
 use tokio::timer::Interval;
 
-use super::{Network, Collators};
+use super::{Network, Collators, TableRouter};
 
 /// Gets a list of the candidates in a block.
 pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
@@ -117,6 +117,7 @@ pub(crate) fn start<C, N, P>(
 		P::Api: ParachainHost<Block> + Core<Block> + BlockBuilder<Block>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
+		<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
 {
 	const TIMER_DELAY: Duration = Duration::from_secs(5);
 	const TIMER_INTERVAL: Duration = Duration::from_secs(30);

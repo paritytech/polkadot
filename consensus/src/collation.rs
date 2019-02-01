@@ -26,6 +26,7 @@ use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, Outgoin
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use parachain::{wasm_executor::{self, ExternalitiesError}, MessageRef};
+use super::Incoming;
 
 use futures::prelude::*;
 
@@ -34,7 +35,7 @@ use futures::prelude::*;
 /// This is expected to be a lightweight, shared type like an `Arc`.
 pub trait Collators: Clone {
 	/// Errors when producing collations.
-	type Error;
+	type Error: std::fmt::Debug;
 	/// A full collation.
 	type Collation: IntoFuture<Item=Collation,Error=Self::Error>;
 
@@ -54,31 +55,44 @@ pub trait Collators: Clone {
 /// A future which resolves when a collation is available.
 ///
 /// This future is fused.
-pub struct CollationFetch<C: Collators, P: ProvideRuntimeApi> {
+pub struct CollationFetch<C: Collators, P> {
 	parachain: ParaId,
 	relay_parent_hash: Hash,
 	relay_parent: BlockId,
 	collators: C,
+	incoming: Incoming,
 	live_fetch: Option<<C::Collation as IntoFuture>::Future>,
 	client: Arc<P>,
 }
 
-impl<C: Collators, P: ProvideRuntimeApi> CollationFetch<C, P> {
+impl<C: Collators, P> CollationFetch<C, P> {
 	/// Create a new collation fetcher for the given chain.
-	pub fn new(parachain: ParaId, relay_parent: BlockId, relay_parent_hash: Hash, collators: C, client: Arc<P>) -> Self {
+	pub fn new(
+		parachain: ParaId,
+		relay_parent_hash: Hash,
+		collators: C,
+		client: Arc<P>,
+		incoming: Incoming,
+	) -> Self {
 		CollationFetch {
+			relay_parent: BlockId::hash(relay_parent_hash),
 			relay_parent_hash,
-			relay_parent,
 			collators,
 			client,
 			parachain,
 			live_fetch: None,
+			incoming,
 		}
 	}
 
 	/// Access the underlying relay parent hash.
 	pub fn relay_parent(&self) -> Hash {
 		self.relay_parent_hash
+	}
+
+	/// Access the local parachain ID.
+	pub fn parachain(&self) -> ParaId {
+		self.parachain
 	}
 }
 
@@ -100,7 +114,7 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 				try_ready!(poll)
 			};
 
-			match validate_collation(&*self.client, &self.relay_parent, &x) {
+			match validate_collation(&*self.client, &self.relay_parent, &x, &self.incoming) {
 				Ok(e) => {
 					return Ok(Async::Ready((x, e)))
 				}
@@ -242,10 +256,12 @@ impl Externalities {
 ///
 /// This assumes that basic validity checks have been done:
 ///   - Block data hash is the same as linked in candidate receipt.
+///   - incoming messages have been validated against canonical ingress roots
 pub fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
-	collation: &Collation
+	collation: &Collation,
+	_incoming: &Incoming,
 ) -> Result<Extrinsic, Error> where
 	P: ProvideRuntimeApi,
 	P::Api: ParachainHost<Block>,
