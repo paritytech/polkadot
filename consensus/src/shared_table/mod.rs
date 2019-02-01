@@ -453,12 +453,18 @@ mod tests {
 	impl TableRouter for DummyRouter {
 		type Error = ::std::io::Error;
 		type FetchCandidate = ::futures::future::FutureResult<BlockData,Self::Error>;
+		type FetchIncoming = ::futures::future::FutureResult<Incoming,Self::Error>;
 
 		fn local_candidate(&self, _candidate: CandidateReceipt, _block_data: BlockData, _extrinsic: Extrinsic) {
 
 		}
+
 		fn fetch_block_data(&self, _candidate: &CandidateReceipt) -> Self::FetchCandidate {
 			future::ok(BlockData(vec![1, 2, 3, 4, 5]))
+		}
+
+		fn fetch_incoming(&self, _para_id: ParaId) -> Self::FetchIncoming {
+			future::ok(Vec::new())
 		}
 	}
 
@@ -585,13 +591,13 @@ mod tests {
 		let producer: ParachainWork<future::FutureResult<_, ::std::io::Error>> = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
-				fetch: future::ok(block_data.clone()),
+				fetch: future::ok((block_data.clone(), Vec::new())),
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),
 		};
 
-		let produced = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+		let produced = producer.prime_with(|_, _, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
 			.wait()
 			.unwrap();
 
@@ -625,13 +631,13 @@ mod tests {
 		let producer = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
-				fetch: future::ok::<_, ::std::io::Error>(block_data.clone()),
+				fetch: future::ok::<_, ::std::io::Error>((block_data.clone(), Vec::new())),
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),
 		};
 
-		let produced = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+		let produced = producer.prime_with(|_, _, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
 			.wait()
 			.unwrap();
 
