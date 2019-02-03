@@ -105,7 +105,7 @@ pub use balances::Call as BalancesCall;
 pub use parachains::{Call as ParachainsCall, INHERENT_IDENTIFIER as PARACHAIN_INHERENT_IDENTIFIER};
 pub use sr_primitives::{Permill, Perbill};
 pub use timestamp::BlockPeriod;
-pub use srml_support::{StorageValue, RuntimeMetadata};
+pub use srml_support::StorageValue;
 
 /// Runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
