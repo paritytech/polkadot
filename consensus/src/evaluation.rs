@@ -16,7 +16,7 @@
 
 //! Polkadot block evaluation and evaluation errors.
 
-use super::MAX_TRANSACTIONS_SIZE;
+use super::MAX_BLOCK_SIZE;
 
 use codec::Encode;
 use polkadot_primitives::{Block, Hash, BlockNumber};
@@ -56,7 +56,7 @@ error_chain! {
 			description("Proposal exceeded the maximum size."),
 			display(
 				"Proposal exceeded the maximum size of {} by {} bytes.",
-				MAX_TRANSACTIONS_SIZE, MAX_TRANSACTIONS_SIZE.saturating_sub(*size)
+				MAX_BLOCK_SIZE, size.saturating_sub(MAX_BLOCK_SIZE)
 			),
 		}
 	}
@@ -71,12 +71,10 @@ pub fn evaluate_initial(
 	parent_number: BlockNumber,
 	_active_parachains: &[ParaId],
 ) -> Result<()> {
-	let transactions_size = proposal.extrinsics.iter().fold(0, |a, tx| {
-		a + Encode::encode(tx).len()
-	});
+	let block_size = proposal.encode().len();
 
-	if transactions_size > MAX_TRANSACTIONS_SIZE {
-		bail!(ErrorKind::ProposalTooLarge(transactions_size))
+	if block_size > MAX_BLOCK_SIZE {
+		bail!(ErrorKind::ProposalTooLarge(block_size))
 	}
 
 	if proposal.header.parent_hash != *parent_hash {
