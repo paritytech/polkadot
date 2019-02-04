@@ -83,7 +83,7 @@ use polkadot_primitives::parachain::{
 	AttestedCandidate, ParachainHost, Statement as PrimitiveStatement
 };
 use primitives::{Ed25519AuthorityId as AuthorityId, ed25519};
-use runtime_primitives::traits::ProvideRuntimeApi;
+use runtime_primitives::{traits::ProvideRuntimeApi, ApplyError};
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
@@ -507,7 +507,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	type Error = Error;
 	type Create = Either<CreateProposal<C, TxApi>, future::FutureResult<Block, Error>>;
 
-	fn propose(&self, inherent_data: InherentData) -> Self::Create {
+	fn propose(&self, inherent_data: InherentData, max_duration: Duration) -> Self::Create {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
 		const SLOT_DURATION_DENOMINATOR: u64 = 3; // wait up to 1/3 of the slot for candidates.
 
@@ -558,6 +558,8 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 			believed_minimum_timestamp: believed_timestamp,
 			timing,
 			inherent_data: Some(inherent_data),
+			// leave some time for the proposal finalisation
+			deadline: Instant::now() + max_duration - max_duration / 3,
 		})
 	}
 }
@@ -626,6 +628,7 @@ pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 	timing: ProposalTiming,
 	believed_minimum_timestamp: u64,
 	inherent_data: Option<InherentData>,
+	deadline: Instant,
 }
 
 impl<C, TxApi> CreateProposal<C, TxApi> where
@@ -636,8 +639,6 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 	fn propose_with(&mut self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
-
-		const MAX_TRANSACTIONS: usize = 40;
 
 		let mut inherent_data = self.inherent_data.take().expect("CreateProposal is not polled after finishing; qed");
 		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(ErrorKind::InherentError)?;
@@ -653,18 +654,20 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			}
 
 			let mut unqueue_invalid = Vec::new();
-			let mut pending_size = 0;
 
-			let ready_iter = self.transaction_pool.ready();
-			for ready in ready_iter.take(MAX_TRANSACTIONS) {
-				let encoded_size = ready.data.encode().len();
-				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
-					break
+			for ready in self.transaction_pool.ready() {
+				if Instant::now() > self.deadline {
+					debug!("Consensus deadline reached when pushing block transactions, proceeding with proposing.");
+					break;
 				}
 
 				match block_builder.push(ready.data.clone()) {
 					Ok(()) => {
-						pending_size += encoded_size;
+						debug!("[{:?}] Pushed to the block.", ready.hash);
+					}
+					Err(client::error::Error(client::error::ErrorKind::ApplyExtrinsicFailed(ApplyError::FullBlock), _)) => {
+						debug!("Block is full, proceed with proposing.");
+						break;
 					}
 					Err(e) => {
 						trace!(target: "transaction-pool", "Invalid transaction: {}", e);

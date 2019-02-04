@@ -10,7 +10,7 @@ tokio = "0.1.7"
 error-chain = "0.12"
 log = "0.3"
 exit-future = "0.1"
-parity-codec = "2.1"
+parity-codec = "3.0"
 polkadot-availability-store = { path = "../availability-store" }
 polkadot-parachain = { path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }

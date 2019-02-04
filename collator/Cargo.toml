@@ -7,7 +7,7 @@ description = "Collator node implementation"
 [dependencies]
 futures = "0.1.17"
 substrate-client = { git = "https://github.com/paritytech/substrate" }
-parity-codec = "2.1"
+parity-codec = "3.0"
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 polkadot-runtime = { path = "../runtime", version = "0.1" }
 polkadot-primitives = { path = "../primitives", version = "0.1" }

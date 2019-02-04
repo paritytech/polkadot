@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
-parity-codec = "2.1"
-parity-codec-derive = "2.1"
+parity-codec = "3.0"
+parity-codec-derive = "3.0"
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 polkadot-primitives = { path = "../primitives" }

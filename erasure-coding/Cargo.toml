@@ -7,6 +7,6 @@ edition = "2018"
 [dependencies]
 polkadot-primitives = { path = "../primitives" }
 reed-solomon-erasure = { git = "https://github.com/paritytech/reed-solomon-erasure" }
-parity-codec = "2.1"
+parity-codec = "3.0"
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 substrate-trie = { git = "https://github.com/paritytech/substrate" }
