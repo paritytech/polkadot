@@ -29,10 +29,11 @@ extern crate polkadot_availability_store as av_store;
 extern crate polkadot_primitives;
 
 extern crate arrayvec;
-extern crate futures;
 extern crate parking_lot;
 extern crate tokio;
 
+#[macro_use]
+extern crate futures;
 #[macro_use]
 extern crate log;
 #[macro_use]

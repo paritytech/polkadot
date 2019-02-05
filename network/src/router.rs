@@ -28,20 +28,22 @@ use polkadot_consensus::{
 };
 use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{
-	BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId,
+	BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message
 };
 
-use codec::Encode;
+use codec::{Encode, Decode};
 use futures::{future, prelude::*};
 use futures::sync::oneshot::{self, Receiver};
 use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::io;
 use std::sync::Arc;
 
 use consensus::{NetworkService, Knowledge};
+
+type IngressPair = (ParaId, Vec<Message>);
 
 fn attestation_topic(parent_hash: Hash) -> Hash {
 	let mut v = parent_hash.as_ref().to_vec();
@@ -134,29 +136,6 @@ impl<P, N: NetworkService> Router<P, N> {
 	/// Get the attestation topic for gossip.
 	pub(crate) fn gossip_topic(&self) -> Hash {
 		self.attestation_topic
-	}
-
-	fn do_fetch_incoming(&self, parachain: ParaId) -> IncomingReceiver {
-		use std::collections::hash_map::Entry;
-
-		let (tx, rx) = {
-			let mut fetching = self.fetch_incoming.lock();
-			match fetching.entry(parachain) {
-				Entry::Occupied(entry) => return entry.get().clone(),
-				Entry::Vacant(entry) => {
-					// has not been requested yet.
-					let (tx, rx) = oneshot::channel();
-					let rx = IncomingReceiver { inner: rx.shared() };
-					entry.insert(rx.clone());
-
-					(tx, rx)
-				}
-			}
-		};
-
-		// TODO: [now] launch request for incoming data.
-
-		rx
 	}
 }
 
@@ -253,6 +232,60 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, N> Router<P, N> where
 				network.gossip_message(attestation_topic, signed.encode());
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
+	}
+
+}
+
+impl<P: ProvideRuntimeApi, N> Router<P, N> where
+	P::Api: ParachainHost<Block>,
+	N: NetworkService,
+{
+	fn do_fetch_incoming(&self, parachain: ParaId) -> IncomingReceiver {
+		use polkadot_primitives::BlockId;
+		let (tx, rx) = {
+			let mut fetching = self.fetch_incoming.lock();
+			match fetching.entry(parachain) {
+				Entry::Occupied(entry) => return entry.get().clone(),
+				Entry::Vacant(entry) => {
+					// has not been requested yet.
+					let (tx, rx) = oneshot::channel();
+					let rx = IncomingReceiver { inner: rx.shared() };
+					entry.insert(rx.clone());
+
+					(tx, rx)
+				}
+			}
+		};
+
+		let parent_hash = self.parent_hash;
+		let topic = incoming_message_topic(parent_hash, parachain);
+
+		let gossip_messages = self.network.gossip_messages_for(topic)
+			.map_err(|()| panic!("unbounded receivers do not throw errors; qed"))
+			.filter_map(|msg| IngressPair::decode(&mut msg.as_slice()));
+
+		let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
+			.map_err(|e| format!("Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
+				parachain, parent_hash, e)
+			);
+
+		// TODO: select with `Exit` here.
+		let work = canon_roots.into_future()
+			.and_then(move |ingress_roots| match ingress_roots {
+				None => Err(format!("No parachain {:?} registered at {}", parachain, parent_hash)),
+				Some(roots) => Ok(roots.into_iter().collect())
+			})
+			.and_then(move |ingress_roots| ComputeIngress {
+				inner: gossip_messages,
+				ingress_roots,
+				incoming: Vec::new(),
+			})
+			.map(move |incoming| if let Some(i) = incoming { let _ = tx.send(i); })
+			.then(|_| Ok(()));
+
+		self.task_executor.spawn(work);
+
+		rx
 	}
 }
 
@@ -353,6 +386,58 @@ impl DeferredStatements {
 
 				(deferred, traces)
 			}
+		}
+	}
+}
+
+// computes ingress from incoming stream of messages.
+// returns `None` if the stream concludes too early.
+#[must_use = "futures do nothing unless polled"]
+struct ComputeIngress<S> {
+	ingress_roots: HashMap<ParaId, Hash>,
+	incoming: Vec<IngressPair>,
+	inner: S,
+}
+
+impl<S> Future for ComputeIngress<S> where S: Stream<Item=IngressPair> {
+	type Item = Option<Incoming>;
+	type Error = S::Error;
+
+	fn poll(&mut self) -> Poll<Option<Incoming>, Self::Error> {
+		loop {
+			if self.ingress_roots.is_empty() {
+				return Ok(Async::Ready(
+					Some(::std::mem::replace(&mut self.incoming, Vec::new()))
+				))
+			}
+
+			let (para_id, messages) = match try_ready!(self.inner.poll()) {
+				None => return Ok(Async::Ready(None)),
+				Some(next) => next,
+			};
+
+			match self.ingress_roots.entry(para_id) {
+				Entry::Vacant(_) => continue,
+				Entry::Occupied(occupied) => {
+					let canon_root = occupied.get().clone();
+					let messages = messages.iter().map(|m| &m.0[..]);
+					if ::polkadot_consensus::egress_trie_root(messages) != canon_root {
+						continue;
+					}
+
+					occupied.remove();
+				}
+			}
+
+			let pos = self.incoming.binary_search_by_key(
+				&para_id,
+				|&(id, _)| id,
+			)
+				.err()
+				.expect("incoming starts empty and only inserted when \
+					para_id not inserted before; qed");
+
+			self.incoming.insert(pos, (para_id, messages));
 		}
 	}
 }
