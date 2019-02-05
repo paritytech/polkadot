@@ -261,12 +261,12 @@ pub fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
 	collation: &Collation,
-	_incoming: &Incoming,
+	incoming: &Incoming,
 ) -> Result<Extrinsic, Error> where
 	P: ProvideRuntimeApi,
 	P::Api: ParachainHost<Block>,
 {
-	use parachain::ValidationParams;
+	use parachain::{IncomingMessage, ValidationParams};
 
 	let api = client.runtime_api();
 	let para_id = collation.receipt.parachain_index;
@@ -279,6 +279,15 @@ pub fn validate_collation<P>(
 	let params = ValidationParams {
 		parent_head: chain_head,
 		block_data: collation.block_data.0.clone(),
+		ingress: incoming.iter()
+			.flat_map(|&(para_id, ref messages)| {
+				let source: u32 = para_id.into();
+				messages.iter().map(move |msg| IncomingMessage {
+					source,
+					data: msg.0.clone(),
+				})
+			})
+			.collect()
 	};
 
 	let mut ext = Externalities {
