@@ -18,4 +18,3 @@ sr-primitives = { git = "https://github.com/paritytech/substrate" }
 futures = "0.1"
 tokio = "0.1.7"
 log = "0.4"
-rhododendron = "0.3"

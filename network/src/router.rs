@@ -23,9 +23,13 @@
 //! and dispatch evaluation work as necessary when new statements come in.
 
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
-use polkadot_consensus::{SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork};
+use polkadot_consensus::{
+	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Incoming,
+};
 use polkadot_primitives::{Block, Hash, SessionKey};
-use polkadot_primitives::parachain::{BlockData, Extrinsic, CandidateReceipt, ParachainHost};
+use polkadot_primitives::parachain::{
+	BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId,
+};
 
 use codec::Encode;
 use futures::prelude::*;
@@ -36,8 +40,7 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 
-use consensus::Knowledge;
-use super::NetworkService;
+use consensus::{NetworkService, Knowledge};
 
 fn attestation_topic(parent_hash: Hash) -> Hash {
 	let mut v = parent_hash.as_ref().to_vec();
@@ -47,9 +50,9 @@ fn attestation_topic(parent_hash: Hash) -> Hash {
 }
 
 /// Table routing implementation.
-pub struct Router<P> {
+pub struct Router<P, N: NetworkService> {
 	table: Arc<SharedTable>,
-	network: Arc<NetworkService>,
+	network: Arc<N>,
 	api: Arc<P>,
 	task_executor: TaskExecutor,
 	parent_hash: Hash,
@@ -58,10 +61,10 @@ pub struct Router<P> {
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 }
 
-impl<P> Router<P> {
+impl<P, N: NetworkService> Router<P, N> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
-		network: Arc<NetworkService>,
+		network: Arc<N>,
 		api: Arc<P>,
 		task_executor: TaskExecutor,
 		parent_hash: Hash,
@@ -85,7 +88,7 @@ impl<P> Router<P> {
 	}
 }
 
-impl<P> Clone for Router<P> {
+impl<P, N: NetworkService> Clone for Router<P, N> {
 	fn clone(&self) -> Self {
 		Router {
 			table: self.table.clone(),
@@ -100,8 +103,9 @@ impl<P> Clone for Router<P> {
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
-	where P::Api: ParachainHost<Block>
+impl<P: ProvideRuntimeApi + Send + Sync + 'static, N> Router<P, N> where
+	P::Api: ParachainHost<Block>,
+	N: NetworkService,
 {
 	/// Import a statement whose signature has been checked already.
 	pub(crate) fn import_statement<Exit>(&self, statement: SignedStatement, exit: Exit)
@@ -154,7 +158,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 	fn create_work<D>(&self, candidate_hash: Hash, producer: ParachainWork<D>)
 		-> impl Future<Item=(),Error=()>
 		where
-		D: Future<Item=BlockData,Error=io::Error> + Send + 'static,
+		D: Future<Item=(BlockData, Incoming),Error=io::Error> + Send + 'static,
 	{
 		let table = self.table.clone();
 		let network = self.network.clone();
@@ -170,24 +174,22 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 					produced.extrinsic,
 				);
 
-				let mut gossip = network.consensus_gossip().write();
-
 				// propagate the statement.
 				// consider something more targeted than gossip in the future.
 				let signed = table.sign_and_import(produced.validity);
-				network.with_spec(|_, ctx|
-					gossip.multicast(ctx, attestation_topic, signed.encode(), false)
-				);
+				network.gossip_message(attestation_topic, signed.encode());
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
-	where P::Api: ParachainHost<Block>
+impl<P: ProvideRuntimeApi + Send, N> TableRouter for Router<P, N> where
+	P::Api: ParachainHost<Block>,
+	N: NetworkService,
 {
 	type Error = io::Error;
-	type FetchCandidate = BlockDataReceiver;
+	type FetchCandidate = DataReceiver<BlockData>;
+	type FetchIncoming = DataReceiver<Incoming>;
 
 	fn local_candidate(&self, receipt: CandidateReceipt, block_data: BlockData, extrinsic: Extrinsic) {
 		// give to network to make available.
@@ -195,36 +197,41 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 		let candidate = self.table.sign_and_import(GenericStatement::Candidate(receipt));
 
 		self.knowledge.lock().note_candidate(hash, Some(block_data), Some(extrinsic));
-		let mut gossip = self.network.consensus_gossip().write();
-		self.network.with_spec(|_spec, ctx| {
-			gossip.multicast(ctx, self.attestation_topic, candidate.encode(), false);
-		});
+		self.network.gossip_message(self.attestation_topic, candidate.encode());
 	}
 
-	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> BlockDataReceiver {
+	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> Self::FetchCandidate {
 		let parent_hash = self.parent_hash;
 		let rx = self.network.with_spec(|spec, ctx| { spec.fetch_block_data(ctx, candidate, parent_hash) });
-		BlockDataReceiver { inner: rx }
+		DataReceiver { inner: rx }
+	}
+
+	fn fetch_incoming(&self, parachain: ParaId) -> Self::FetchIncoming {
+		let parent_hash = self.parent_hash;
+
+
+		unimplemented!()
 	}
 }
 
-impl<P> Drop for Router<P> {
+impl<P, N: NetworkService> Drop for Router<P, N> {
 	fn drop(&mut self) {
 		let parent_hash = &self.parent_hash;
 		self.network.with_spec(|spec, _| spec.remove_consensus(parent_hash));
+		// TODO: mark gossip topics as dead.
 	}
 }
 
 /// Receiver for block data.
-pub struct BlockDataReceiver {
-	inner: ::futures::sync::oneshot::Receiver<BlockData>,
+pub struct DataReceiver<T> {
+	inner: ::futures::sync::oneshot::Receiver<T>,
 }
 
-impl Future for BlockDataReceiver {
-	type Item = BlockData;
+impl<T> Future for DataReceiver<T> {
+	type Item = T;
 	type Error = io::Error;
 
-	fn poll(&mut self) -> Poll<BlockData, io::Error> {
+	fn poll(&mut self) -> Poll<T, io::Error> {
 		self.inner.poll().map_err(|_| io::Error::new(
 			io::ErrorKind::Other,
 			"Sending end of channel hung up",

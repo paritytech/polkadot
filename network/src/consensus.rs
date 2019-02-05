@@ -20,8 +20,8 @@
 //! each time consensus begins on a new chain head.
 
 use sr_primitives::traits::ProvideRuntimeApi;
-use substrate_network::consensus_gossip::ConsensusMessage;
-use polkadot_consensus::{Network, SharedTable, Collators, Statement, GenericStatement};
+use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
+use polkadot_consensus::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, Incoming};
 use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData};
 use codec::Decode;
@@ -36,22 +36,54 @@ use arrayvec::ArrayVec;
 use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 
-use super::NetworkService;
 use router::Router;
+use super::PolkadotProtocol;
+
+
+/// Basic functionality that a network has to fulfill.
+pub trait NetworkService: Send + Sync + 'static {
+	/// Get a stream of gossip messages for a given hash.
+	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<ConsensusMessage>;
+
+	/// Gossip a message on given topic.
+	fn gossip_message(&self, topic: Hash, message: Vec<u8>);
+
+	/// Execute a closure with the polkadot protocol.
+	fn with_spec<F, T>(&self, with: F) -> T
+		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>) -> T;
+}
+
+impl NetworkService for super::NetworkService {
+	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<ConsensusMessage> {
+		self.consensus_gossip().write().messages_for(topic)
+	}
+
+	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
+		let mut gossip = self.consensus_gossip().write();
+		self.with_spec(|_, ctx| gossip.multicast(ctx, topic, message, false));
+	}
+
+	fn with_spec<F, T>(&self, with: F) -> T
+		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>) -> T
+	{
+		super::NetworkService::with_spec(self, with)
+	}
+}
 
 // task that processes all gossipped consensus messages,
 // checking signatures
-struct MessageProcessTask<P, E> {
+struct MessageProcessTask<P, E, N: NetworkService> {
 	inner_stream: mpsc::UnboundedReceiver<ConsensusMessage>,
 	parent_hash: Hash,
-	table_router: Router<P>,
+	table_router: Router<P, N>,
 	exit: E,
 }
 
-impl<P, E> MessageProcessTask<P, E> where
+impl<P, E, N> MessageProcessTask<P, E, N> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+	N: NetworkService,
 {
 	fn process_message(&self, msg: ConsensusMessage) -> Option<Async<()>> {
 		use polkadot_consensus::SignedStatement;
@@ -72,10 +104,11 @@ impl<P, E> MessageProcessTask<P, E> where
 	}
 }
 
-impl<P, E> Future for MessageProcessTask<P, E> where
+impl<P, E, N> Future for MessageProcessTask<P, E, N> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+	N: NetworkService,
 {
 	type Item = ();
 	type Error = ();
@@ -95,20 +128,20 @@ impl<P, E> Future for MessageProcessTask<P, E> where
 }
 
 /// Wrapper around the network service
-pub struct ConsensusNetwork<P, E> {
-	network: Arc<NetworkService>,
+pub struct ConsensusNetwork<P, E, N> {
+	network: Arc<N>,
 	api: Arc<P>,
 	exit: E,
 }
 
-impl<P, E> ConsensusNetwork<P, E> {
+impl<P, E, N> ConsensusNetwork<P, E, N> {
 	/// Create a new consensus networking object.
-	pub fn new(network: Arc<NetworkService>, exit: E, api: Arc<P>) -> Self {
+	pub fn new(network: Arc<N>, exit: E, api: Arc<P>) -> Self {
 		ConsensusNetwork { network, exit, api }
 	}
 }
 
-impl<P, E: Clone> Clone for ConsensusNetwork<P, E> {
+impl<P, E: Clone, N> Clone for ConsensusNetwork<P, E, N> {
 	fn clone(&self) -> Self {
 		ConsensusNetwork {
 			network: self.network.clone(),
@@ -119,12 +152,13 @@ impl<P, E: Clone> Clone for ConsensusNetwork<P, E> {
 }
 
 /// A long-lived network which can create parachain statement  routing processes on demand.
-impl<P, E> Network for ConsensusNetwork<P,E> where
+impl<P, E, N> ParachainNetwork for ConsensusNetwork<P,E,N> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Clone + Future<Item=(),Error=()> + Send + 'static,
+	N: NetworkService,
 {
-	type TableRouter = Router<P>;
+	type TableRouter = Router<P, N>;
 
 	/// Instantiate a table router using the given shared table.
 	fn communication_for(
@@ -152,7 +186,7 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 
 		// spin up a task in the background that processes all incoming statements
 		// TODO: propagate statements on a timer?
-		let inner_stream = self.network.consensus_gossip().write().messages_for(attestation_topic);
+		let inner_stream = self.network.gossip_messages_for(attestation_topic);
 		let process_task = self.network
 			.with_spec(|spec, ctx| {
 				spec.new_consensus(ctx, parent_hash, CurrentConsensus {
@@ -191,8 +225,10 @@ impl Future for AwaitingCollation {
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send + Sync + 'static, E: Clone> Collators for ConsensusNetwork<P, E>
-	where P::Api: ParachainHost<Block>,
+impl<P, E: Clone, N> Collators for ConsensusNetwork<P, E, N> where
+	P: ProvideRuntimeApi + Send + Sync + 'static,
+	P::Api: ParachainHost<Block>,
+	N: NetworkService,
 {
 	type Error = NetworkDown;
 	type Collation = AwaitingCollation;
@@ -219,6 +255,7 @@ struct KnowledgeEntry {
 /// Tracks knowledge of peers.
 pub(crate) struct Knowledge {
 	candidates: HashMap<Hash, KnowledgeEntry>,
+	incoming: HashMap<ParaId, Incoming>,
 }
 
 impl Knowledge {
@@ -226,6 +263,7 @@ impl Knowledge {
 	pub(crate) fn new() -> Self {
 		Knowledge {
 			candidates: HashMap::new(),
+			incoming: HashMap::new(),
 		}
 	}
 

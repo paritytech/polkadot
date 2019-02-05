@@ -16,9 +16,8 @@
 
 //! Polkadot-specific network implementation.
 //!
-//! This manages gossip of consensus messages for BFT and for parachain statements,
-//! parachain block and extrinsic data fetching, communication between collators and validators,
-//! and more.
+//! This manages routing for parachain statements, parachain block and extrinsic data fetching,
+//! communication between collators and validators, and more.
 
 extern crate parity_codec as codec;
 extern crate substrate_network;
@@ -33,7 +32,6 @@ extern crate arrayvec;
 extern crate futures;
 extern crate parking_lot;
 extern crate tokio;
-extern crate rhododendron;
 
 #[macro_use]
 extern crate log;
@@ -256,7 +254,7 @@ impl PolkadotProtocol {
 						send_polkadot_message(
 							ctx,
 							who,
-							Message::RequestBlockData(req_id, parent, c_hash)
+							Message::RequestBlockData(req_id, parent, c_hash),
 						);
 
 						in_flight.insert((req_id, who), pending);
