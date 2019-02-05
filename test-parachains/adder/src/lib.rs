@@ -56,13 +56,24 @@ pub fn hash_state(state: u64) -> [u8; 32] {
 	::tiny_keccak::keccak256(state.encode().as_slice())
 }
 
+#[derive(Default, Encode, Decode)]
+pub struct AddMessage {
+	/// The amount to add based on this message.
+	pub amount: u64,
+}
+
 /// Start state mismatched with parent header's state hash.
 #[derive(Debug)]
 pub struct StateMismatch;
 
 /// Execute a block body on top of given parent head, producing new parent head
 /// if valid.
-pub fn execute(parent_hash: [u8; 32], parent_head: HeadData, block_data: &BlockData) -> Result<HeadData, StateMismatch> {
+pub fn execute(
+	parent_hash: [u8; 32],
+	parent_head: HeadData,
+	block_data: &BlockData,
+	from_messages: u64,
+) -> Result<HeadData, StateMismatch> {
 	debug_assert_eq!(parent_hash, parent_head.hash());
 
 	if hash_state(block_data.state) != parent_head.post_state {
@@ -70,6 +81,7 @@ pub fn execute(parent_hash: [u8; 32], parent_head: HeadData, block_data: &BlockD
 	}
 
 	let new_state = block_data.state.overflowing_add(block_data.add).0;
+	let new_state = new_state.overflowing_add(from_messages).0;
 
 	Ok(HeadData {
 		number: parent_head.number + 1,

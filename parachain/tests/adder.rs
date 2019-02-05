@@ -22,7 +22,7 @@ extern crate parity_codec as codec;
 extern crate polkadot_parachain as parachain;
 extern crate tiny_keccak;
 
-use parachain::{MessageRef, ValidationParams};
+use parachain::{MessageRef, IncomingMessage, ValidationParams};
 use parachain::wasm_executor::{Externalities, ExternalitiesError};
 use codec::{Decode, Encode};
 
@@ -44,6 +44,12 @@ struct BlockData {
 	state: u64,
 	/// Amount to add (overflowing)
 	add: u64,
+}
+
+#[derive(Encode, Decode)]
+struct AddMessage {
+	/// amount to add.
+	amount: u64,
 }
 
 struct DummyExt;
@@ -81,6 +87,7 @@ fn execute_good_on_parent() {
 		ValidationParams {
 			parent_head: parent_head.encode(),
 			block_data: block_data.encode(),
+			ingress: Vec::new(),
 		},
 		&mut DummyExt,
 	).unwrap();
@@ -115,6 +122,7 @@ fn execute_good_chain_on_parent() {
 			ValidationParams {
 				parent_head: parent_head.encode(),
 				block_data: block_data.encode(),
+				ingress: Vec::new(),
 			},
 			&mut DummyExt,
 		).unwrap();
@@ -149,7 +157,45 @@ fn execute_bad_on_parent() {
 		ValidationParams {
 			parent_head: parent_head.encode(),
 			block_data: block_data.encode(),
+			ingress: Vec::new(),
 		},
 		&mut DummyExt,
 	).unwrap_err();
+}
+
+#[test]
+fn processes_messages() {
+	let parent_head = HeadData {
+		number: 0,
+		parent_hash: [0; 32],
+		post_state: hash_state(0),
+	};
+
+	let block_data = BlockData {
+		state: 0,
+		add: 512,
+	};
+
+	let bad_message_data = vec![1];
+	assert!(AddMessage::decode(&mut &bad_message_data[..]).is_none());
+
+	let ret = parachain::wasm_executor::validate_candidate(
+		TEST_CODE,
+		ValidationParams {
+			parent_head: parent_head.encode(),
+			block_data: block_data.encode(),
+			ingress: vec![
+				IncomingMessage { source: 1, data: (AddMessage { amount: 256 }).encode() },
+				IncomingMessage { source: 2, data: bad_message_data },
+				IncomingMessage { source: 3, data: (AddMessage { amount: 256 }).encode() },
+			],
+		},
+		&mut DummyExt,
+	).unwrap();
+
+	let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();
+
+	assert_eq!(new_head.number, 1);
+	assert_eq!(new_head.parent_hash, hash_head(&parent_head));
+	assert_eq!(new_head.post_state, hash_state(1024));
 }

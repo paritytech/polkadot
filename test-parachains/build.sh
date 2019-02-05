@@ -2,7 +2,7 @@
 set -e
 
 # Make LLD produce a binary that imports memory from the outside environment.
-export RUSTFLAGS="-C link-arg=--import-memory,--export-table -C lto=fat -C panic=abort"
+export RUSTFLAGS="-C link-arg=--import-memory -C link-arg=--export-table -C panic=abort"
 
 for i in adder
 do

@@ -23,18 +23,18 @@
 )]
 
 extern crate alloc;
-extern crate pwasm_libc;
 extern crate adder;
 extern crate polkadot_parachain as parachain;
 extern crate tiny_keccak;
+extern crate dlmalloc;
 
 #[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 
 use core::{intrinsics, panic};
 use parachain::ValidationResult;
 use parachain::codec::{Encode, Decode};
-use adder::{HeadData, BlockData};
+use adder::{HeadData, BlockData, AddMessage};
 
 #[panic_handler]
 #[no_mangle]
@@ -63,7 +63,15 @@ pub extern fn validate(offset: usize, len: usize) -> usize {
 
 	let parent_hash = ::tiny_keccak::keccak256(&params.parent_head[..]);
 
-	match ::adder::execute(parent_hash, parent_head, &block_data) {
+	// we also add based on incoming data from messages. ignoring unknown message
+	// kinds.
+	let from_messages = params.ingress.into_iter()
+		.filter_map(|incoming| {
+			AddMessage::decode(&mut &incoming.data[..])
+		})
+		.fold(0u64, |a, c| a.overflowing_add(c.amount).0);
+
+	match ::adder::execute(parent_hash, parent_head, &block_data, from_messages) {
 		Ok(new_head) => parachain::wasm_api::write_result(
 			ValidationResult { head_data: new_head.encode() }
 		),
