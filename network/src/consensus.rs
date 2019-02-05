@@ -21,7 +21,7 @@
 
 use sr_primitives::traits::ProvideRuntimeApi;
 use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
-use polkadot_consensus::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, Incoming};
+use polkadot_consensus::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
 use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData};
 use codec::Decode;
@@ -48,6 +48,9 @@ pub trait NetworkService: Send + Sync + 'static {
 	/// Gossip a message on given topic.
 	fn gossip_message(&self, topic: Hash, message: Vec<u8>);
 
+	/// Drop a gossip topic.
+	fn drop_gossip(&self, topic: Hash);
+
 	/// Execute a closure with the polkadot protocol.
 	fn with_spec<F, T>(&self, with: F) -> T
 		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>) -> T;
@@ -61,6 +64,10 @@ impl NetworkService for super::NetworkService {
 	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
 		let mut gossip = self.consensus_gossip().write();
 		self.with_spec(|_, ctx| gossip.multicast(ctx, topic, message, false));
+	}
+
+	fn drop_gossip(&self, topic: Hash) {
+		self.consensus_gossip().write().collect_garbage_for_topic(topic)
 	}
 
 	fn with_spec<F, T>(&self, with: F) -> T
@@ -255,7 +262,6 @@ struct KnowledgeEntry {
 /// Tracks knowledge of peers.
 pub(crate) struct Knowledge {
 	candidates: HashMap<Hash, KnowledgeEntry>,
-	incoming: HashMap<ParaId, Incoming>,
 }
 
 impl Knowledge {
@@ -263,7 +269,6 @@ impl Knowledge {
 	pub(crate) fn new() -> Self {
 		Knowledge {
 			candidates: HashMap::new(),
-			incoming: HashMap::new(),
 		}
 	}
 

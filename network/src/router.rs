@@ -32,7 +32,8 @@ use polkadot_primitives::parachain::{
 };
 
 use codec::Encode;
-use futures::prelude::*;
+use futures::{future, prelude::*};
+use futures::sync::oneshot::{self, Receiver};
 use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 
@@ -49,6 +50,52 @@ fn attestation_topic(parent_hash: Hash) -> Hash {
 	BlakeTwo256::hash(&v[..])
 }
 
+fn incoming_message_topic(parent_hash: Hash, parachain: ParaId) -> Hash {
+	let mut v = parent_hash.as_ref().to_vec();
+	parachain.using_encoded(|s| v.extend(s));
+
+	BlakeTwo256::hash(&v[..])
+}
+
+/// Receiver for block data.
+pub struct BlockDataReceiver {
+	inner: Receiver<BlockData>,
+}
+
+impl Future for BlockDataReceiver {
+	type Item = BlockData;
+	type Error = io::Error;
+
+	fn poll(&mut self) -> Poll<BlockData, io::Error> {
+		self.inner.poll().map_err(|_| io::Error::new(
+			io::ErrorKind::Other,
+			"Sending end of channel hung up",
+		))
+	}
+}
+
+/// receiver for incoming data.
+#[derive(Clone)]
+pub struct IncomingReceiver {
+	inner: future::Shared<Receiver<Incoming>>
+}
+
+impl Future for IncomingReceiver {
+	type Item = Incoming;
+	type Error = io::Error;
+
+	fn poll(&mut self) -> Poll<Incoming, io::Error> {
+		match self.inner.poll() {
+			Ok(Async::NotReady) => Ok(Async::NotReady),
+			Ok(Async::Ready(i)) => Ok(Async::Ready(Incoming::clone(&*i))),
+			Err(_) => Err(io::Error::new(
+				io::ErrorKind::Other,
+				"Sending end of channel hung up",
+			)),
+		}
+	}
+}
+
 /// Table routing implementation.
 pub struct Router<P, N: NetworkService> {
 	table: Arc<SharedTable>,
@@ -58,6 +105,7 @@ pub struct Router<P, N: NetworkService> {
 	parent_hash: Hash,
 	attestation_topic: Hash,
 	knowledge: Arc<Mutex<Knowledge>>,
+	fetch_incoming: Arc<Mutex<HashMap<ParaId, IncomingReceiver>>>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 }
 
@@ -78,6 +126,7 @@ impl<P, N: NetworkService> Router<P, N> {
 			parent_hash,
 			attestation_topic: attestation_topic(parent_hash),
 			knowledge,
+			fetch_incoming: Arc::new(Mutex::new(HashMap::new())),
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
 		}
 	}
@@ -85,6 +134,29 @@ impl<P, N: NetworkService> Router<P, N> {
 	/// Get the attestation topic for gossip.
 	pub(crate) fn gossip_topic(&self) -> Hash {
 		self.attestation_topic
+	}
+
+	fn do_fetch_incoming(&self, parachain: ParaId) -> IncomingReceiver {
+		use std::collections::hash_map::Entry;
+
+		let (tx, rx) = {
+			let mut fetching = self.fetch_incoming.lock();
+			match fetching.entry(parachain) {
+				Entry::Occupied(entry) => return entry.get().clone(),
+				Entry::Vacant(entry) => {
+					// has not been requested yet.
+					let (tx, rx) = oneshot::channel();
+					let rx = IncomingReceiver { inner: rx.shared() };
+					entry.insert(rx.clone());
+
+					(tx, rx)
+				}
+			}
+		};
+
+		// TODO: [now] launch request for incoming data.
+
+		rx
 	}
 }
 
@@ -98,6 +170,7 @@ impl<P, N: NetworkService> Clone for Router<P, N> {
 			parent_hash: self.parent_hash.clone(),
 			attestation_topic: self.attestation_topic.clone(),
 			deferred_statements: self.deferred_statements.clone(),
+			fetch_incoming: self.fetch_incoming.clone(),
 			knowledge: self.knowledge.clone(),
 		}
 	}
@@ -188,8 +261,8 @@ impl<P: ProvideRuntimeApi + Send, N> TableRouter for Router<P, N> where
 	N: NetworkService,
 {
 	type Error = io::Error;
-	type FetchCandidate = DataReceiver<BlockData>;
-	type FetchIncoming = DataReceiver<Incoming>;
+	type FetchCandidate = BlockDataReceiver;
+	type FetchIncoming = IncomingReceiver;
 
 	fn local_candidate(&self, receipt: CandidateReceipt, block_data: BlockData, extrinsic: Extrinsic) {
 		// give to network to make available.
@@ -203,14 +276,11 @@ impl<P: ProvideRuntimeApi + Send, N> TableRouter for Router<P, N> where
 	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> Self::FetchCandidate {
 		let parent_hash = self.parent_hash;
 		let rx = self.network.with_spec(|spec, ctx| { spec.fetch_block_data(ctx, candidate, parent_hash) });
-		DataReceiver { inner: rx }
+		BlockDataReceiver { inner: rx }
 	}
 
 	fn fetch_incoming(&self, parachain: ParaId) -> Self::FetchIncoming {
-		let parent_hash = self.parent_hash;
-
-
-		unimplemented!()
+		self.do_fetch_incoming(parachain)
 	}
 }
 
@@ -218,24 +288,17 @@ impl<P, N: NetworkService> Drop for Router<P, N> {
 	fn drop(&mut self) {
 		let parent_hash = &self.parent_hash;
 		self.network.with_spec(|spec, _| spec.remove_consensus(parent_hash));
-		// TODO: mark gossip topics as dead.
-	}
-}
+		self.network.drop_gossip(self.attestation_topic);
 
-/// Receiver for block data.
-pub struct DataReceiver<T> {
-	inner: ::futures::sync::oneshot::Receiver<T>,
-}
-
-impl<T> Future for DataReceiver<T> {
-	type Item = T;
-	type Error = io::Error;
-
-	fn poll(&mut self) -> Poll<T, io::Error> {
-		self.inner.poll().map_err(|_| io::Error::new(
-			io::ErrorKind::Other,
-			"Sending end of channel hung up",
-		))
+		{
+			let mut incoming_fetched = self.fetch_incoming.lock();
+			for (para_id, _) in incoming_fetched.drain() {
+				self.network.drop_gossip(incoming_message_topic(
+					self.parent_hash,
+					para_id,
+				));
+			}
+		}
 	}
 }
 
