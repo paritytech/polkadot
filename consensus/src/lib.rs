@@ -98,7 +98,7 @@ pub use self::collation::{validate_collation, egress_trie_root, Collators};
 pub use self::error::{ErrorKind, Error};
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
-	GenericStatement
+	GenericStatement,
 };
 
 mod attestation_service;
@@ -151,7 +151,6 @@ pub trait Network {
 	/// Instantiate a table router using the given shared table and task executor.
 	fn communication_for(
 		&self,
-		validators: &[SessionKey],
 		table: Arc<SharedTable>,
 		task_executor: TaskExecutor
 	) -> Self::TableRouter;
@@ -301,7 +300,6 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
-			authorities,
 			table.clone(),
 			self.handle.clone()
 		);

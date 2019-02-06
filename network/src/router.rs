@@ -25,6 +25,7 @@
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
 use polkadot_consensus::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Incoming,
+	Validated,
 };
 use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{
@@ -218,17 +219,17 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, N> Router<P, N> where
 		let attestation_topic = self.attestation_topic.clone();
 
 		producer.prime(self.api.clone())
-			.map(move |produced| {
+			.map(move |validated| {
 				// store the data before broadcasting statements, so other peers can fetch.
 				knowledge.lock().note_candidate(
 					candidate_hash,
-					Some(produced.block_data),
-					produced.extrinsic,
+					Some(validated.block_data().clone()),
+					validated.extrinsic().cloned(),
 				);
 
 				// propagate the statement.
 				// consider something more targeted than gossip in the future.
-				let signed = table.sign_and_import(produced.validity);
+				let signed = table.import_validated(validated);
 				network.gossip_message(attestation_topic, signed.encode());
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
@@ -298,12 +299,14 @@ impl<P: ProvideRuntimeApi + Send, N> TableRouter for Router<P, N> where
 	type FetchIncoming = IncomingReceiver;
 
 	fn local_candidate(&self, receipt: CandidateReceipt, block_data: BlockData, extrinsic: Extrinsic) {
-		// give to network to make available.
+		// produce a signed statement
 		let hash = receipt.hash();
-		let candidate = self.table.sign_and_import(GenericStatement::Candidate(receipt));
+		let validated = Validated::collated_local(receipt, block_data.clone(), extrinsic.clone());
+		let statement = self.table.import_validated(validated);
 
+		// give to network to make available.
 		self.knowledge.lock().note_candidate(hash, Some(block_data), Some(extrinsic));
-		self.network.gossip_message(self.attestation_topic, candidate.encode());
+		self.network.gossip_message(self.attestation_topic, statement.encode());
 	}
 
 	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> Self::FetchCandidate {

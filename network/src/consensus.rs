@@ -170,7 +170,6 @@ impl<P, E, N> ParachainNetwork for ConsensusNetwork<P,E,N> where
 	/// Instantiate a table router using the given shared table.
 	fn communication_for(
 		&self,
-		_validators: &[SessionKey],
 		table: Arc<SharedTable>,
 		task_executor: TaskExecutor,
 	) -> Self::TableRouter {
