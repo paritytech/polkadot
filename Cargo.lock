@@ -1253,7 +1253,7 @@ dependencies = [
  "libp2p-dns 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-floodsub 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-identify 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p-kad 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p-kad 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-mdns 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-mplex 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-noise 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1362,7 +1362,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-kad"
-version = "0.3.3"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "arrayvec 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4636,7 +4636,7 @@ dependencies = [
 "checksum libp2p-dns 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a822c32da15ab0c4451792a4b000c37fbf8e3bc5ac471632f0b1f13e8e555524"
 "checksum libp2p-floodsub 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4380fbc42ec03251c9e9a4656744e8e88bbe59cbf4e084fa66370ed0b868d085"
 "checksum libp2p-identify 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "583eb9c0ee46457e1dfe3495a0a306467ee7ab287d17e19fda392106acc8f166"
-"checksum libp2p-kad 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "e93be405af87e5911549ee4c5ffc3ef926bb88c5c416f29f3122fc9cd8545d29"
+"checksum libp2p-kad 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "349184fbd9fe1ad878f1b3b584617d5d9136dac9efed689bf861acc44b204943"
 "checksum libp2p-mdns 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7f4388af57ce8144eb0f6719926139df4f728042931eee5a32daf783a2fc9e05"
 "checksum libp2p-mplex 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "58e4dcf1b8ee62d872ff38134969b0a2d63d014c200748eead158c58512a0c1b"
 "checksum libp2p-noise 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9beca4939eb183708b8f172170044d977f1264394998e183efbf4972e09c163f"
