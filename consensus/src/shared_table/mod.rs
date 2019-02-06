@@ -651,12 +651,12 @@ mod tests {
 			extrinsic_store: store.clone(),
 		};
 
-		let produced = producer.prime_with(|_, _, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+		let validated = producer.prime_with(|_, _, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
 			.wait()
 			.unwrap();
 
-		assert_eq!(produced.block_data, block_data);
-		assert_eq!(produced.validity, GenericStatement::Valid(hash));
+		assert_eq!(validated.block_data(), &block_data);
+		assert_eq!(validated.statement, GenericStatement::Valid(hash));
 
 		assert_eq!(store.block_data(relay_parent, hash).unwrap(), block_data);
 		assert!(store.extrinsic(relay_parent, hash).is_some());
@@ -691,13 +691,127 @@ mod tests {
 			extrinsic_store: store.clone(),
 		};
 
-		let produced = producer.prime_with(|_, _, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+		let validated = producer.prime_with(|_, _, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
 			.wait()
 			.unwrap();
 
-		assert_eq!(produced.block_data, block_data);
+		assert_eq!(validated.block_data(), &block_data);
 
 		assert_eq!(store.block_data(relay_parent, hash).unwrap(), block_data);
 		assert!(store.extrinsic(relay_parent, hash).is_some());
+	}
+
+	#[test]
+	fn does_not_dispatch_work_after_starting_validation() {
+		let mut groups = HashMap::new();
+
+		let para_id = ParaId::from(1);
+		let local_id = Keyring::Alice.to_raw_public().into();
+		let local_key = Arc::new(Keyring::Alice.pair());
+
+		let validity_other = Keyring::Bob.to_raw_public().into();
+		let validity_other_key = Keyring::Bob.pair();
+		let parent_hash = Default::default();
+
+		groups.insert(para_id, GroupInfo {
+			validity_guarantors: [local_id, validity_other].iter().cloned().collect(),
+			needed_validity: 1,
+		});
+
+		let shared_table = SharedTable::new(
+			groups,
+			local_key.clone(),
+			parent_hash,
+			ExtrinsicStore::new_in_memory(),
+		);
+
+		let candidate = CandidateReceipt {
+			parachain_index: para_id,
+			collator: [1; 32].into(),
+			signature: Default::default(),
+			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
+			balance_uploads: Vec::new(),
+			egress_queue_roots: Vec::new(),
+			fees: 1_000_000,
+			block_data_hash: [2; 32].into(),
+		};
+
+		let hash = candidate.hash();
+		let candidate_statement = GenericStatement::Candidate(candidate);
+
+		let signature = ::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
+		let signed_statement = ::table::generic::SignedStatement {
+			statement: candidate_statement,
+			signature: signature.into(),
+			sender: validity_other,
+		};
+
+		let _a = shared_table.import_remote_statement(
+			&DummyRouter,
+			signed_statement.clone(),
+		).expect("should produce work");
+
+		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_none());
+
+		let b = shared_table.import_remote_statement(
+			&DummyRouter,
+			signed_statement.clone(),
+		);
+
+		assert!(b.is_none(), "cannot work when validation has started");
+	}
+
+	#[test]
+	fn does_not_dispatch_after_local_candidate() {
+		let mut groups = HashMap::new();
+
+		let para_id = ParaId::from(1);
+		let local_id = Keyring::Alice.to_raw_public().into();
+		let local_key = Arc::new(Keyring::Alice.pair());
+		let block_data = BlockData(vec![1, 2, 3]);
+		let extrinsic = Extrinsic { outgoing_messages: Vec::new() };
+
+		let validity_other = Keyring::Bob.to_raw_public().into();
+		let parent_hash = Default::default();
+
+		groups.insert(para_id, GroupInfo {
+			validity_guarantors: [local_id, validity_other].iter().cloned().collect(),
+			needed_validity: 1,
+		});
+
+		let shared_table = SharedTable::new(
+			groups,
+			local_key.clone(),
+			parent_hash,
+			ExtrinsicStore::new_in_memory(),
+		);
+
+		let candidate = CandidateReceipt {
+			parachain_index: para_id,
+			collator: [1; 32].into(),
+			signature: Default::default(),
+			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
+			balance_uploads: Vec::new(),
+			egress_queue_roots: Vec::new(),
+			fees: 1_000_000,
+			block_data_hash: [2; 32].into(),
+		};
+
+		let hash = candidate.hash();
+		let signed_statement = shared_table.import_validated(Validated::collated_local(
+			candidate,
+			block_data,
+			extrinsic,
+		));
+
+		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_some());
+
+		let a = shared_table.import_remote_statement(
+			&DummyRouter,
+			signed_statement,
+		);
+
+		assert!(a.is_none());
+
 	}
 }
