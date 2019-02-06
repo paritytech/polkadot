@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.3.9"
+version = "0.3.10"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 
