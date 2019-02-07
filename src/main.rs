@@ -31,11 +31,6 @@ use futures::{future, Future};
 
 use std::cell::RefCell;
 
-mod vergen {
-	#![allow(unused)]
-	include!(concat!(env!("OUT_DIR"), "/version.rs"));
-}
-
 // the regular polkadot worker simply does nothing until ctrl-c
 struct Worker;
 impl cli::IntoExit for Worker {
@@ -68,7 +63,7 @@ quick_main!(run);
 fn run() -> cli::error::Result<()> {
 	let version = VersionInfo {
 		name: "Parity Polkadot",
-		commit: vergen::short_sha(),
+		commit: env!("VERGEN_SHA_SHORT"),
 		version: env!("CARGO_PKG_VERSION"),
 		executable_name: "polkadot",
 		author: "Parity Team <admin@parity.io>",
