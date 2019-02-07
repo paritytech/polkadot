@@ -114,7 +114,7 @@ fn main() {
 	let (exit_send, exit) = exit_future::signal();
 
 	let exit_send_cell = RefCell::new(Some(exit_send));
-	ctrlc::CtrlC::set_handler(move || {
+	ctrlc::set_handler(move || {
 		if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
 			exit_send.fire();
 		}
