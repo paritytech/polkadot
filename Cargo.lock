@@ -1252,7 +1252,7 @@ dependencies = [
  "libp2p-core-derive 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-dns 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-floodsub 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p-identify 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p-identify 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-kad 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-mdns 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-mplex 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1341,7 +1341,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-identify"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bytes 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1372,7 +1372,7 @@ dependencies = [
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-core 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p-identify 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p-identify 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-ping 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-multiaddr 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4204,7 +4204,7 @@ name = "twox-hash"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4635,7 +4635,7 @@ dependencies = [
 "checksum libp2p-core-derive 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "21d637c8aa4d8540d160d747755ac5bd75073de70bd3c0c238d8b1685a66a6be"
 "checksum libp2p-dns 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a822c32da15ab0c4451792a4b000c37fbf8e3bc5ac471632f0b1f13e8e555524"
 "checksum libp2p-floodsub 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4380fbc42ec03251c9e9a4656744e8e88bbe59cbf4e084fa66370ed0b868d085"
-"checksum libp2p-identify 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "583eb9c0ee46457e1dfe3495a0a306467ee7ab287d17e19fda392106acc8f166"
+"checksum libp2p-identify 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "48923a9b3792aaf9af793a689c78bd0f42e70cc6cf86cc00d678d8f39ea720b6"
 "checksum libp2p-kad 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "349184fbd9fe1ad878f1b3b584617d5d9136dac9efed689bf861acc44b204943"
 "checksum libp2p-mdns 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7f4388af57ce8144eb0f6719926139df4f728042931eee5a32daf783a2fc9e05"
 "checksum libp2p-mplex 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "58e4dcf1b8ee62d872ff38134969b0a2d63d014c200748eead158c58512a0c1b"
