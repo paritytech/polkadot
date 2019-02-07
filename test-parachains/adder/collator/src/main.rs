@@ -118,7 +118,7 @@ fn main() {
 		if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
 			exit_send.fire();
 		}
-	});
+	}).expect("Errror setting up ctrl-c handler");
 
 	let context = AdderContext {
 		db: Arc::new(Mutex::new(HashMap::new())),
