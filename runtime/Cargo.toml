@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
 bitvec = { version = "0.8", default-features = false, features = ["alloc"] }
-rustc-hex = "1.0"
+rustc-hex = "2.0.1"
 log = { version = "0.3", optional = true }
 serde = { version = "1.0", default-features = false }
 serde_derive = { version = "1.0", optional = true }
