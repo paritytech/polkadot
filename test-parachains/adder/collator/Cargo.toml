@@ -9,7 +9,7 @@ polkadot-parachain = { path = "../../../parachain" }
 polkadot-collator = { path = "../../../collator" }
 polkadot-primitives = { path = "../../../primitives" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
-parking_lot = "0.4"
-ctrlc = { git = "https://github.com/paritytech/rust-ctrlc.git" }
+parking_lot = "0.7.1"
+ctrlc = { version = "3.0", features = ["termination"] }
 futures = "0.1"
 exit-future = "0.1.2"

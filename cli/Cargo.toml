@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 
 [dependencies]
-log = "0.3"
+log = "0.4.6"
 tokio = "0.1.7"
 futures = "0.1.17"
 exit-future = "0.1"

@@ -31,11 +31,6 @@ use futures::{future, Future};
 
 use std::cell::RefCell;
 
-mod vergen {
-	#![allow(unused)]
-	include!(concat!(env!("OUT_DIR"), "/version.rs"));
-}
-
 // the regular polkadot worker simply does nothing until ctrl-c
 struct Worker;
 impl cli::IntoExit for Worker {
@@ -45,11 +40,11 @@ impl cli::IntoExit for Worker {
 		let (exit_send, exit) = oneshot::channel();
 
 		let exit_send_cell = RefCell::new(Some(exit_send));
-		ctrlc::CtrlC::set_handler(move || {
+		ctrlc::set_handler(move || {
 			if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
 				exit_send.send(()).expect("Error sending exit notification");
 			}
-		});
+		}).expect("Error setting Ctrl-C handler");
 
 		exit.map_err(drop)
 	}
@@ -68,7 +63,7 @@ quick_main!(run);
 fn run() -> cli::error::Result<()> {
 	let version = VersionInfo {
 		name: "Parity Polkadot",
-		commit: vergen::short_sha(),
+		commit: env!("VERGEN_SHA_SHORT"),
 		version: env!("CARGO_PKG_VERSION"),
 		executable_name: "polkadot",
 		author: "Parity Team <admin@parity.io>",

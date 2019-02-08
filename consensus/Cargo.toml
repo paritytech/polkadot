@@ -5,10 +5,10 @@ authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
 futures = "0.1.17"
-parking_lot = "0.4"
+parking_lot = "0.7.1"
 tokio = "0.1.7"
 error-chain = "0.12"
-log = "0.3"
+log = "0.4.6"
 exit-future = "0.1"
 parity-codec = "3.0"
 polkadot-availability-store = { path = "../availability-store" }
