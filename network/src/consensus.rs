@@ -150,7 +150,7 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 		let attestation_topic = table_router.gossip_topic();
 		let exit = self.exit.clone();
 
-		let (tx, mut rx) = ::futures::sync::oneshot::channel();
+		let (tx, rx) = std::sync::mpsc::channel();
 		self.network.with_gossip(move |gossip, _| {
 			let inner_rx = gossip.messages_for(attestation_topic);
 			let _ = tx.send(inner_rx);
@@ -167,9 +167,9 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 					knowledge,
 					local_session_key,
 				});
-				let inner_stream = match rx.poll() {
-					Ok(Async::Ready(inner_stream)) => inner_stream,
-					_ => unreachable!("1. The with_gossip closure executed first, 2. the reply to the oneshot should be available")
+				let inner_stream = match rx.try_recv() {
+					Ok(inner_stream) => inner_stream,
+					_ => unreachable!("1. The with_gossip closure executed first, 2. the reply should be available")
 				};
 				let process_task = MessageProcessTask {
 					inner_stream,
