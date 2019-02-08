@@ -241,7 +241,7 @@ impl Future for BlockDataReceiver {
 					"Sending end of channel hung up",
 			))
 		}
-		return Ok(futures::Async::NotReady)
+		Ok(futures::Async::NotReady)
 	}
 }
 
