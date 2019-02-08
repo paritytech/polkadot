@@ -150,9 +150,7 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 		let attestation_topic = table_router.gossip_topic();
 		let exit = self.exit.clone();
 
-		// spin up a task in the background that processes all incoming statements
-		// TODO: propagate statements on a timer?
-		let (tx, rx) = ::futures::sync::oneshot::channel();
+		let (tx, mut rx) = ::futures::sync::oneshot::channel();
 		self.network.with_gossip(move |gossip, _| {
 			let inner_rx = gossip.messages_for(attestation_topic);
 			let _ = tx.send(inner_rx);
@@ -160,22 +158,27 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 
 		let table_router_clone = table_router.clone();
 		let executor = task_executor.clone();
-		rx.map(move |inner_stream| {
-			self.network
-				.with_spec(move |spec, ctx| {
-					spec.new_consensus(ctx, parent_hash, CurrentConsensus {
-						knowledge,
-						local_session_key,
-					});
-					let process_task = MessageProcessTask {
-						inner_stream,
-						parent_hash,
-						table_router: table_router_clone,
-						exit,
-					};
-					executor.spawn(process_task);
-			});
-		}).wait().ok().expect("1. Network is running, 2. it should handle the work flow successfully");
+
+		// spin up a task in the background that processes all incoming statements
+		// TODO: propagate statements on a timer?
+		self.network
+			.with_spec(move |spec, ctx| {
+				spec.new_consensus(ctx, parent_hash, CurrentConsensus {
+					knowledge,
+					local_session_key,
+				});
+				let inner_stream = match rx.poll() {
+					Ok(Async::Ready(inner_stream)) => inner_stream,
+					_ => unreachable!("1. The with_gossip closure executed first, 2. the reply to the oneshot should be available")
+				};
+				let process_task = MessageProcessTask {
+					inner_stream,
+					parent_hash,
+					table_router: table_router_clone,
+					exit,
+				};
+				executor.spawn(process_task);
+		});
 
 		table_router
 	}
