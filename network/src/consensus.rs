@@ -150,26 +150,35 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 		let attestation_topic = table_router.gossip_topic();
 		let exit = self.exit.clone();
 
+		let (tx, rx) = std::sync::mpsc::channel();
+		self.network.with_gossip(move |gossip, _| {
+			let inner_rx = gossip.messages_for(attestation_topic);
+			let _ = tx.send(inner_rx);
+		});
+
+		let table_router_clone = table_router.clone();
+		let executor = task_executor.clone();
+
 		// spin up a task in the background that processes all incoming statements
 		// TODO: propagate statements on a timer?
-		let inner_stream = self.network.consensus_gossip().write().messages_for(attestation_topic);
-		let process_task = self.network
-			.with_spec(|spec, ctx| {
+		self.network
+			.with_spec(move |spec, ctx| {
 				spec.new_consensus(ctx, parent_hash, CurrentConsensus {
 					knowledge,
 					local_session_key,
 				});
-
-				MessageProcessTask {
+				let inner_stream = match rx.try_recv() {
+					Ok(inner_stream) => inner_stream,
+					_ => unreachable!("1. The with_gossip closure executed first, 2. the reply should be available")
+				};
+				let process_task = MessageProcessTask {
 					inner_stream,
 					parent_hash,
-					table_router: table_router.clone(),
+					table_router: table_router_clone,
 					exit,
-				}
-			})
-			.then(|_| Ok(()));
-
-		task_executor.spawn(process_task);
+				};
+				executor.spawn(process_task);
+		});
 
 		table_router
 	}
@@ -180,14 +189,27 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 pub struct NetworkDown;
 
 /// A future that resolves when a collation is received.
-pub struct AwaitingCollation(::futures::sync::oneshot::Receiver<Collation>);
+pub struct AwaitingCollation {
+	outer: ::futures::sync::oneshot::Receiver<::futures::sync::oneshot::Receiver<Collation>>,
+	inner: Option<::futures::sync::oneshot::Receiver<Collation>>
+}
 
 impl Future for AwaitingCollation {
 	type Item = Collation;
 	type Error = NetworkDown;
 
 	fn poll(&mut self) -> Poll<Collation, NetworkDown> {
-		self.0.poll().map_err(|_| NetworkDown)
+		if let Some(ref mut inner) = self.inner {
+			return inner
+				.poll()
+				.map_err(|_| NetworkDown)
+		}
+		if let Ok(futures::Async::Ready(mut inner)) = self.outer.poll() {
+			let poll_result = inner.poll();
+			self.inner = Some(inner);
+			return poll_result.map_err(|_| NetworkDown)
+		}
+		Ok(futures::Async::NotReady)
 	}
 }
 
@@ -198,13 +220,17 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E: Clone> Collators for Conse
 	type Collation = AwaitingCollation;
 
 	fn collate(&self, parachain: ParaId, relay_parent: Hash) -> Self::Collation {
-		AwaitingCollation(
-			self.network.with_spec(|spec, _| spec.await_collation(relay_parent, parachain))
-		)
+		let (tx, rx) = ::futures::sync::oneshot::channel();
+		self.network.with_spec(move |spec, _| {
+			let collation = spec.await_collation(relay_parent, parachain);
+			let _ = tx.send(collation);
+		});
+		AwaitingCollation{outer: rx, inner: None}
 	}
 
+
 	fn note_bad_collator(&self, collator: AccountId) {
-		self.network.with_spec(|spec, ctx| spec.disconnect_bad_collator(ctx, collator));
+		self.network.with_spec(move |spec, ctx| spec.disconnect_bad_collator(ctx, collator));
 	}
 }
 
