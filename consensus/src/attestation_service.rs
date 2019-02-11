@@ -36,7 +36,7 @@ use futures::prelude::*;
 use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use extrinsic_store::Store as ExtrinsicStore;
-use runtime_primitives::traits::ProvideRuntimeApi;
+use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
 
 use tokio::runtime::TaskExecutor;
 use tokio::runtime::current_thread::Runtime as LocalRuntime;
@@ -141,6 +141,7 @@ pub(crate) fn start<C, N, P>(
 							.and_then(|authorities| {
 								consensus.get_or_instantiate(
 									parent_hash,
+									notification.header.parent_hash().clone(),
 									&authorities,
 									key.clone(),
 								)

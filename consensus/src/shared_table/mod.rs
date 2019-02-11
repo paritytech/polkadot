@@ -74,7 +74,7 @@ impl TableContext {
 	}
 }
 
-enum Validation {
+pub(crate) enum Validation {
 	Valid(BlockData, Extrinsic),
 	Invalid(BlockData), // should take proof.
 }
@@ -375,6 +375,18 @@ impl SharedTable {
 	/// Get group info.
 	pub fn group_info(&self) -> &HashMap<ParaId, GroupInfo> {
 		&self.context.groups
+	}
+
+	/// Get extrinsic data for candidate with given hash, if any.
+	///
+	/// This will return `Some` for any candidates that have been validated
+	/// locally.
+	pub(crate) fn extrinsic_data(&self, hash: &Hash) -> Option<Extrinsic> {
+		self.inner.lock().validated.get(hash).and_then(|x| match *x {
+			None => None,
+			Some(Validation::Invalid(_)) => None,
+			Some(Validation::Valid(_, ref ex)) => Some(ex.clone()),
+		})
 	}
 
 	/// Import a single statement with remote source, whose signature has already been checked.

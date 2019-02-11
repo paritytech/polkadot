@@ -80,7 +80,7 @@ use polkadot_primitives::parachain::{
 	CandidateSignature, ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message,
 };
 use primitives::{Ed25519AuthorityId as AuthorityId, ed25519};
-use runtime_primitives::{traits::ProvideRuntimeApi, ApplyError};
+use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyError};
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
@@ -114,6 +114,17 @@ const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
 
 /// Incoming messages; a series of sorted (ParaId, Message) pairs.
 pub type Incoming = Vec<(ParaId, Vec<Message>)>;
+
+/// Outgoing messages from various candidates.
+pub type Outgoing = Vec<MessagesFrom>;
+
+/// Some messages from a parachain.
+pub struct MessagesFrom {
+	/// The parachain originating the messages.
+	pub from: ParaId,
+	/// The messages themselves.
+	pub messages: ParachainExtrinsic,
+}
 
 /// A handle to a statement table router.
 ///
@@ -149,10 +160,12 @@ pub trait Network {
 	type TableRouter: TableRouter;
 
 	/// Instantiate a table router using the given shared table and task executor.
+	/// Also pass through any outgoing messages to be broadcast to peers.
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
-		task_executor: TaskExecutor
+		task_executor: TaskExecutor,
+		outgoing: Outgoing,
 	) -> Self::TableRouter;
 }
 
@@ -265,6 +278,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	fn get_or_instantiate(
 		&self,
 		parent_hash: Hash,
+		grandparent_hash: Hash,
 		authorities: &[AuthorityId],
 		sign_with: Arc<ed25519::Pair>,
 	)
@@ -278,10 +292,26 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 		let id = BlockId::hash(parent_hash);
 
 		// compute the parent candidates, if we know of them.
-		// this will allow us to constrain the data we broadcast to other peers.
-		let _parent_candidates = ::attestation_service::fetch_candidates(&*self.client, &id)
+		// this will allow us to circulate outgoing messages to other peers as necessary.
+		let parent_candidates: Vec<_> = ::attestation_service::fetch_candidates(&*self.client, &id)
 			.ok()
-			.and_then(|x| x);
+			.and_then(|x| x)
+			.map(|x| x.collect())
+			.unwrap_or_default();
+
+		let outgoing: Vec<_> = {
+			// extract all extrinsic data that we have and propagate to peers.
+			live_instances.get(&grandparent_hash).map(|parent_consensus| {
+				parent_candidates.iter().filter_map(|c| {
+					let para_id = c.parachain_index;
+					let hash = c.hash();
+					parent_consensus.table.extrinsic_data(&hash).map(|ex| MessagesFrom {
+						from: para_id,
+						messages: ex,
+					})
+				}).collect()
+			}).unwrap_or_default()
+		};
 
 		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
 
@@ -301,7 +331,8 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
 			table.clone(),
-			self.handle.clone()
+			self.handle.clone(),
+			outgoing,
 		);
 
 		let validation_para = match local_duty.validation {
@@ -490,6 +521,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 		let sign_with = self.key.clone();
 		let tracker = self.parachain_consensus.get_or_instantiate(
 			parent_hash,
+			parent_header.parent_hash().clone(),
 			authorities,
 			sign_with,
 		)?;

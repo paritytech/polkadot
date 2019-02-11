@@ -167,11 +167,11 @@ impl<P, E, N> ParachainNetwork for ConsensusNetwork<P,E,N> where
 {
 	type TableRouter = Router<P, N>;
 
-	/// Instantiate a table router using the given shared table.
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
 		task_executor: TaskExecutor,
+		outgoing: polkadot_consensus::Outgoing,
 	) -> Self::TableRouter {
 		let parent_hash = table.consensus_parent_hash().clone();
 
@@ -186,6 +186,8 @@ impl<P, E, N> ParachainNetwork for ConsensusNetwork<P,E,N> where
 			parent_hash,
 			knowledge.clone(),
 		);
+
+		table_router.broadcast_egress(outgoing);
 
 		let attestation_topic = table_router.gossip_topic();
 		let exit = self.exit.clone();

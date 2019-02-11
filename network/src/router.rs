@@ -25,7 +25,7 @@
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
 use polkadot_consensus::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Incoming,
-	Validated,
+	Validated, Outgoing,
 };
 use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{
@@ -39,12 +39,13 @@ use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 
 use std::collections::{hash_map::{Entry, HashMap}, HashSet};
-use std::io;
+use std::{io, mem};
 use std::sync::Arc;
 
 use consensus::{NetworkService, Knowledge};
 
 type IngressPair = (ParaId, Vec<Message>);
+type IngressPairRef<'a> = (ParaId, &'a [Message]);
 
 fn attestation_topic(parent_hash: Hash) -> Hash {
 	let mut v = parent_hash.as_ref().to_vec();
@@ -204,6 +205,37 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, N> Router<P, N> where
 			if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
 				trace!(target: "consensus", "driving statement work to completion");
 				self.task_executor.spawn(work.select(exit.clone()).then(|_| Ok(())));
+			}
+		}
+	}
+
+	/// Broadcast outgoing messages to peers.
+	pub(crate) fn broadcast_egress(&self, outgoing: Outgoing) {
+		use slice_group_by::LinearGroupBy;
+
+		let mut group_messages = Vec::new();
+		for egress in outgoing {
+			let source = egress.from;
+			let messages = egress.messages.outgoing_messages;
+
+			let groups = LinearGroupBy::new(&messages, |a, b| a.target == b.target);
+			for group in groups {
+				let target = match group.get(0) {
+					Some(msg) => msg.target,
+					None => continue, // skip empty.
+				};
+
+				group_messages.clear(); // reuse allocation from previous iterations.
+				group_messages.extend(group.iter().map(|msg| msg.data.clone()).map(Message));
+
+				debug!(target: "consensus", "Circulating messages from {:?} to {:?} at {}",
+					source, target, self.parent_hash);
+
+				// this is the ingress from source to target, with given messages.
+				let target_incoming = incoming_message_topic(self.parent_hash, target);
+				let ingress_for: IngressPairRef = (source, &group_messages[..]);
+
+				self.network.gossip_message(target_incoming, ingress_for.encode());
 			}
 		}
 	}
@@ -410,7 +442,7 @@ impl<S> Future for ComputeIngress<S> where S: Stream<Item=IngressPair> {
 		loop {
 			if self.ingress_roots.is_empty() {
 				return Ok(Async::Ready(
-					Some(::std::mem::replace(&mut self.incoming, Vec::new()))
+					Some(mem::replace(&mut self.incoming, Vec::new()))
 				))
 			}
 
