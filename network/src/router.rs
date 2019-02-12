@@ -481,6 +481,7 @@ impl<S> Future for ComputeIngress<S> where S: Stream<Item=IngressPair> {
 mod tests {
 	use super::*;
 	use substrate_primitives::H512;
+	use futures::stream;
 
 	#[test]
 	fn deferred_statements_works() {
@@ -521,5 +522,71 @@ mod tests {
 			assert!(signed.is_empty());
 			assert!(traces.is_empty());
 		}
+	}
+
+	#[test]
+	fn compute_ingress_works() {
+		let actual_messages = [
+			(
+				ParaId::from(1),
+				vec![Message(vec![1, 3, 5, 6]), Message(vec![4, 4, 4, 4])],
+			),
+			(
+				ParaId::from(2),
+				vec![
+					Message(vec![1, 3, 7, 9, 1, 2, 3, 4, 5, 6]),
+					Message(b"hello world".to_vec()),
+				],
+			),
+			(
+				ParaId::from(5),
+				vec![Message(vec![1, 2, 3, 4, 5]), Message(vec![6, 9, 6, 9])],
+			),
+		];
+
+		let roots: HashMap<_, _> = actual_messages.iter()
+			.map(|&(para_id, ref messages)| (
+				para_id,
+				::polkadot_consensus::egress_trie_root(messages.iter().map(|m| &m.0)),
+			))
+			.collect();
+
+		let inputs = [
+			(
+				ParaId::from(1), // wrong message.
+				vec![Message(vec![1, 1, 2, 2]), Message(vec![3, 3, 4, 4])],
+			),
+			(
+				ParaId::from(1),
+				vec![Message(vec![1, 3, 5, 6]), Message(vec![4, 4, 4, 4])],
+			),
+			(
+				ParaId::from(1), // duplicate
+				vec![Message(vec![1, 3, 5, 6]), Message(vec![4, 4, 4, 4])],
+			),
+
+			(
+				ParaId::from(5), // out of order
+				vec![Message(vec![1, 2, 3, 4, 5]), Message(vec![6, 9, 6, 9])],
+			),
+			(
+				ParaId::from(1234), // un-routed parachain.
+				vec![Message(vec![9, 9, 9, 9])],
+			),
+			(
+				ParaId::from(2),
+				vec![
+					Message(vec![1, 3, 7, 9, 1, 2, 3, 4, 5, 6]),
+					Message(b"hello world".to_vec()),
+				],
+			),
+		];
+		let ingress = ComputeIngress {
+			ingress_roots: roots,
+			incoming: Vec::new(),
+			inner: stream::iter_ok::<_, ()>(inputs.iter().cloned()),
+		};
+
+		assert_eq!(ingress.wait().unwrap().unwrap(), actual_messages);
 	}
 }
