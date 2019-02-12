@@ -18,7 +18,12 @@ Once you are done experimenting and picking the best node name :) you can start 
 [source, shell]
 docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.14 polkadot --chain alex
 
-Note: The `--chain alex` argument is important and you need to add it to the command line. If you are running older node versions (pre 0.3) you don't need it.
+Additionally if you want to have custom node name you can add the `--name "YourName"` at the end
+
+[source, shell]
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.14 polkadot --chain alex --name "PolkaDocker" 
+
+**Note:** The `--chain alex` argument is important and you need to add it to the command line. If you are running older node versions (pre 0.3) you don't need it.
 
 Start a shell session with the daemon:
 
