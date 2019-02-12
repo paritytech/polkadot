@@ -63,6 +63,7 @@ extern crate polkadot_primitives as primitives;
 #[cfg(test)]
 extern crate substrate_keyring as keyring;
 
+mod curated_grandpa;
 mod parachains;
 
 use rstd::prelude::*;
@@ -108,7 +109,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 1,
-	spec_version: 103,
+	spec_version: 104,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -181,7 +182,7 @@ impl Convert<AccountId, SessionKey> for SessionKeyConversion {
 
 impl session::Trait for Runtime {
 	type ConvertAccountIdToSessionKey = SessionKeyConversion;
-	type OnSessionChange = (Staking, grandpa::SyncedAuthorities<Runtime>);
+	type OnSessionChange = Staking;
 	type Event = Event;
 }
 
@@ -221,6 +222,8 @@ impl grandpa::Trait for Runtime {
 	type Event = Event;
 }
 
+impl curated_grandpa::Trait for Runtime { }
+
 impl parachains::Trait for Runtime {
 	const SET_POSITION: u32 = PARACHAINS_SET_POSITION;
 }
@@ -251,6 +254,7 @@ construct_runtime!(
 		Staking: staking,
 		Democracy: democracy,
 		Grandpa: grandpa::{Module, Call, Storage, Config<T>, Log(), Event<T>},
+		CuratedGrandpa: curated_grandpa::{Module, Call, Storage},
 		Council: council::{Module, Call, Storage, Event<T>},
 		CouncilVoting: council_voting,
 		CouncilMotions: council_motions::{Module, Call, Storage, Event<T>, Origin},
