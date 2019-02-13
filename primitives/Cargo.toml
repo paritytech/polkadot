@@ -16,7 +16,7 @@ sr-primitives = { git = "https://github.com/paritytech/substrate", default-featu
 
 [dev-dependencies]
 substrate-serializer = { git = "https://github.com/paritytech/substrate" }
-pretty_assertions = "0.4"
+pretty_assertions = "0.5.1"
 
 [features]
 default = ["std"]

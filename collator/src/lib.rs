@@ -307,7 +307,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 						parachain_context,
 						key,
 					).map(move |collation| {
-						network.with_spec(|spec, ctx| spec.add_local_collation(
+						network.with_spec(move |spec, ctx| spec.add_local_collation(
 							ctx,
 							relay_parent,
 							targets,

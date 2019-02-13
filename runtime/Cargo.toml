@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
 bitvec = { version = "0.8", default-features = false, features = ["alloc"] }
-rustc-hex = "1.0"
+rustc-hex = { version = "2.0.1", default-features = false }
 log = { version = "0.3", optional = true }
 serde = { version = "1.0", default-features = false }
 serde_derive = { version = "1.0", optional = true }
@@ -50,6 +50,7 @@ default = ["std"]
 std = [
 	"bitvec/std",
 	"polkadot-primitives/std",
+	"rustc-hex/std",
 	"parity-codec/std",
 	"parity-codec-derive/std",
 	"substrate-primitives/std",
