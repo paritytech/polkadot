@@ -309,7 +309,6 @@ impl<P: ProvideRuntimeApi, N, T> Router<P, N, T> where
 
 		let parent_hash = self.parent_hash;
 		let topic = incoming_message_topic(parent_hash, parachain);
-
 		let gossip_messages = self.network.gossip_messages_for(topic)
 			.map_err(|()| panic!("unbounded receivers do not throw errors; qed"))
 			.filter_map(|msg| IngressPair::decode(&mut msg.as_slice()));

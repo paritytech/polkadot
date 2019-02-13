@@ -78,6 +78,7 @@ use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey}
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt,
 	CandidateSignature, ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message,
+	OutgoingMessage,
 };
 use primitives::{Ed25519AuthorityId as AuthorityId, ed25519};
 use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyError};
@@ -124,6 +125,16 @@ pub struct MessagesFrom {
 	pub from: ParaId,
 	/// The messages themselves.
 	pub messages: ParachainExtrinsic,
+}
+
+impl MessagesFrom {
+	/// Construct from the raw messages.
+	pub fn from_messages(from: ParaId, messages: Vec<OutgoingMessage>) -> Self {
+		MessagesFrom {
+			from,
+			messages: ParachainExtrinsic { outgoing_messages: messages },
+		}
+	}
 }
 
 /// A handle to a statement table router.

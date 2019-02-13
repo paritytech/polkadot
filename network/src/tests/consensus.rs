@@ -16,25 +16,39 @@
 
 //! Tests and helpers for consensus networking.
 
-use consensus::{Knowledge, NetworkService};
+use consensus::NetworkService;
 use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
 use substrate_primitives::{Ed25519AuthorityId, NativeOrEncoded};
-use router::Router;
+use substrate_keyring::Keyring;
 use {PolkadotProtocol};
 
-use polkadot_consensus::SharedTable;
+use polkadot_consensus::{SharedTable, MessagesFrom, Network, TableRouter};
 use polkadot_primitives::{AccountId, Block, Hash, Header, BlockId};
-use polkadot_primitives::parachain::{Id as ParaId, DutyRoster, ParachainHost};
+use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage};
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
 use substrate_client::runtime_api::{Core, RuntimeVersion, ApiExt};
 use sr_primitives::ExecutionContext;
 use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use futures::{prelude::*, sync::mpsc};
+use tokio::runtime::{Runtime, TaskExecutor};
 
 use super::TestContext;
+
+#[derive(Clone, Copy)]
+struct NeverExit;
+
+impl Future for NeverExit {
+	type Item = ();
+	type Error = ();
+
+	fn poll(&mut self) -> Poll<(), ()> {
+		Ok(Async::NotReady)
+	}
+}
 
 struct GossipRouter {
 	incoming_messages: mpsc::UnboundedReceiver<(Hash, ConsensusMessage)>,
@@ -110,12 +124,12 @@ fn make_gossip() -> (GossipRouter, GossipHandle) {
 	)
 }
 
-struct Network {
+struct TestNetwork {
 	proto: Arc<Mutex<PolkadotProtocol>>,
 	gossip: GossipHandle,
 }
 
-impl NetworkService for Network {
+impl NetworkService for TestNetwork {
 	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<ConsensusMessage> {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
@@ -138,18 +152,28 @@ impl NetworkService for Network {
 	}
 }
 
-#[derive(Clone)]
-struct TestApi;
+#[derive(Default)]
+struct ApiData {
+	validators: Vec<AccountId>,
+	duties: Vec<Chain>,
+	active_parachains: Vec<ParaId>,
+	ingress: HashMap<ParaId, Vec<(ParaId, Hash)>>,
+}
+
+#[derive(Default, Clone)]
+struct TestApi {
+	data: Arc<Mutex<ApiData>>,
+}
 
 struct RuntimeApi {
-	inner: TestApi,
+	data: Arc<Mutex<ApiData>>,
 }
 
 impl ProvideRuntimeApi for TestApi {
 	type Api = RuntimeApi;
 
 	fn runtime_api<'a>(&'a self) -> ApiRef<'a, Self::Api> {
-		RuntimeApi { inner: self.clone() }.into()
+		RuntimeApi { data: self.data.clone() }.into()
 	}
 }
 
@@ -216,7 +240,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: Option<()>,
 		_: Vec<u8>,
 	) -> ClientResult<NativeOrEncoded<Vec<AccountId>>> {
-		Ok(NativeOrEncoded::Native(Vec::new()))
+		Ok(NativeOrEncoded::Native(self.data.lock().validators.clone()))
 	}
 
 	fn duty_roster_runtime_api_impl(
@@ -226,8 +250,9 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: Option<()>,
 		_: Vec<u8>,
 	) -> ClientResult<NativeOrEncoded<DutyRoster>> {
+
 		Ok(NativeOrEncoded::Native(DutyRoster {
-			validator_duty: Vec::new(),
+			validator_duty: self.data.lock().duties.clone(),
 		}))
 	}
 
@@ -238,7 +263,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: Option<()>,
 		_: Vec<u8>,
 	) -> ClientResult<NativeOrEncoded<Vec<ParaId>>> {
-		Ok(NativeOrEncoded::Native(Vec::new()))
+		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
 	}
 
 	fn parachain_head_runtime_api_impl(
@@ -248,7 +273,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: Option<ParaId>,
 		_: Vec<u8>,
 	) -> ClientResult<NativeOrEncoded<Option<Vec<u8>>>> {
-		Ok(NativeOrEncoded::Native(None))
+		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 
 	fn parachain_code_runtime_api_impl(
@@ -258,16 +283,184 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: Option<ParaId>,
 		_: Vec<u8>,
 	) -> ClientResult<NativeOrEncoded<Option<Vec<u8>>>> {
-		Ok(NativeOrEncoded::Native(None))
+		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 
 	fn ingress_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
-		_: Option<ParaId>,
+		id: Option<ParaId>,
 		_: Vec<u8>,
 	) -> ClientResult<NativeOrEncoded<Option<Vec<(ParaId, Hash)>>>> {
-		Ok(NativeOrEncoded::Native(None))
+		let id = id.unwrap();
+		Ok(NativeOrEncoded::Native(self.data.lock().ingress.get(&id).cloned()))
 	}
+}
+
+type TestConsensusNetwork = ::consensus::ConsensusNetwork<
+	TestApi,
+	NeverExit,
+	TestNetwork,
+	TaskExecutor,
+>;
+
+struct Built {
+	gossip: GossipRouter,
+	api_handle: Arc<Mutex<ApiData>>,
+	networks: Vec<TestConsensusNetwork>,
+}
+
+fn build_network(n: usize, executor: TaskExecutor) -> Built {
+	let (gossip_router, gossip_handle) = make_gossip();
+	let api_handle = Arc::new(Mutex::new(Default::default()));
+	let runtime_api = Arc::new(TestApi { data: api_handle.clone() });
+
+	let networks = (0..n).map(|_| {
+		let net = Arc::new(TestNetwork {
+			proto: Arc::new(Mutex::new(PolkadotProtocol::new(None))),
+			gossip: gossip_handle.clone(),
+		});
+
+		TestConsensusNetwork::new(
+			net,
+			NeverExit,
+			runtime_api.clone(),
+			executor.clone(),
+		)
+	});
+
+	let networks: Vec<_> = networks.collect();
+
+	Built {
+		gossip: gossip_router,
+		api_handle,
+		networks,
+	}
+}
+
+#[derive(Default)]
+struct IngressBuilder {
+	egress: HashMap<(ParaId, ParaId), Vec<Vec<u8>>>,
+}
+
+impl IngressBuilder {
+	fn add_messages(&mut self, source: ParaId, messages: &[OutgoingMessage]) {
+		for message in messages {
+			let target = message.target;
+			self.egress.entry((source, target)).or_insert_with(Vec::new).push(message.data.clone());
+		}
+	}
+
+	fn build(self) -> HashMap<ParaId, Vec<(ParaId, Hash)>> {
+		let mut map = HashMap::new();
+		for ((source, target), messages) in self.egress {
+			map.entry(target).or_insert_with(Vec::new)
+				.push((source, polkadot_consensus::message_queue_root(&messages)));
+		}
+
+		for roots in map.values_mut() {
+			roots.sort_by_key(|&(para_id, _)| para_id);
+		}
+
+		map
+	}
+}
+
+fn make_table(data: &ApiData, local_key: &Keyring, parent_hash: Hash) -> Arc<SharedTable> {
+	use ::av_store::Store;
+
+	let store = Store::new_in_memory();
+	let authorities: Vec<_> = data.validators.iter().map(|v| v.to_fixed_bytes().into()).collect();
+	let (group_info, _) = ::polkadot_consensus::make_group_info(
+		DutyRoster { validator_duty: data.duties.clone() },
+		&authorities,
+		local_key.to_raw_public().into()
+	).unwrap();
+
+	Arc::new(SharedTable::new(
+		group_info,
+		Arc::new(local_key.pair()),
+		parent_hash,
+		store,
+	))
+}
+
+#[test]
+fn ingress_fetch_works() {
+	let mut runtime = Runtime::new().unwrap();
+	let built = build_network(3, runtime.executor());
+
+	let id_a: ParaId = 1.into();
+	let id_b: ParaId = 2.into();
+	let id_c: ParaId = 3.into();
+
+	let key_a = Keyring::Alice;
+	let key_b = Keyring::Bob;
+	let key_c = Keyring::Charlie;
+
+	let messages_from_a = vec![
+		OutgoingMessage { target: id_b, data: vec![1, 2, 3] },
+		OutgoingMessage { target: id_b, data: vec![3, 4, 5] },
+		OutgoingMessage { target: id_c, data: vec![9, 9, 9] },
+	];
+
+	let messages_from_b = vec![
+		OutgoingMessage { target: id_a, data: vec![1, 1, 1, 1, 1,] },
+		OutgoingMessage { target: id_c, data: b"hello world".to_vec() },
+	];
+
+	let messages_from_c = vec![
+		OutgoingMessage { target: id_a, data: b"dog42".to_vec() },
+		OutgoingMessage { target: id_b, data: b"dogglesworth".to_vec() },
+	];
+
+	let ingress = {
+		let mut builder = IngressBuilder::default();
+		builder.add_messages(id_a, &messages_from_a);
+		builder.add_messages(id_b, &messages_from_b);
+		builder.add_messages(id_c, &messages_from_c);
+
+		builder.build()
+	};
+
+	let parent_hash = [1; 32].into();
+
+	let (router_a, router_b, router_c) = {
+		let mut api_handle = built.api_handle.lock();
+		*api_handle = ApiData {
+			active_parachains: vec![id_a, id_b, id_c],
+			duties: vec![Chain::Parachain(id_a), Chain::Parachain(id_b), Chain::Parachain(id_c)],
+			validators: vec![
+				key_a.to_raw_public().into(),
+				key_b.to_raw_public().into(),
+				key_c.to_raw_public().into(),
+			],
+			ingress,
+		};
+
+		(
+			built.networks[0].communication_for(
+				make_table(&*api_handle, &key_a, parent_hash),
+				vec![MessagesFrom::from_messages(id_a, messages_from_a)],
+			),
+			built.networks[1].communication_for(
+				make_table(&*api_handle, &key_b, parent_hash),
+				vec![MessagesFrom::from_messages(id_b, messages_from_b)],
+			),
+			built.networks[2].communication_for(
+				make_table(&*api_handle, &key_c, parent_hash),
+				vec![MessagesFrom::from_messages(id_c, messages_from_c)],
+			),
+		)
+	};
+
+	// make sure everyone can get ingress for their own parachain.
+	let fetch_a = router_a.fetch_incoming(id_a).map_err(|_| format!("Could not fetch ingress_a"));
+	let fetch_b = router_b.fetch_incoming(id_b).map_err(|_| format!("Could not fetch ingress_b"));
+	let fetch_c = router_c.fetch_incoming(id_c).map_err(|_| format!("Could not fetch ingress_c"));
+
+	let work = fetch_a.join3(fetch_b, fetch_c);
+	runtime.spawn(built.gossip.then(|_| Ok(()))); // in background.
+	runtime.block_on(work).unwrap();
 }

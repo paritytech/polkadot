@@ -22,3 +22,4 @@ slice-group-by = "0.2.2"
 
 [dev-dependencies]
 substrate-client = { git = "https://github.com/paritytech/substrate" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate" }
