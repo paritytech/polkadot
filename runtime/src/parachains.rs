@@ -30,7 +30,7 @@ use srml_support::dispatch::Result;
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
 #[cfg(any(feature = "std", test))]
-use sr_primitives::{self, ChildrenStorageMap};
+use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
@@ -54,7 +54,7 @@ decl_storage! {
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
-		build(|storage: &mut sr_primitives::StorageMap, _: &mut ChildrenStorageMap, config: &GenesisConfig<T>| {
+		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
 			use codec::Encode;
 
 			let mut p = config.parachains.clone();
