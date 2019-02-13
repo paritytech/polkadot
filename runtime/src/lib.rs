@@ -188,11 +188,13 @@ impl session::Trait for Runtime {
 }
 
 impl staking::Trait for Runtime {
+	type Currency = Balances;
 	type OnRewardMinted = Treasury;
 	type Event = Event;
 }
 
 impl democracy::Trait for Runtime {
+	type Currency = Balances;
 	type Proposal = Call;
 	type Event = Event;
 }
@@ -212,6 +214,7 @@ impl council::motions::Trait for Runtime {
 }
 
 impl treasury::Trait for Runtime {
+	type Currency = Balances;
 	type ApproveOrigin = council_motions::EnsureMembers<_4>;
 	type RejectOrigin = council_motions::EnsureMembers<_2>;
 	type Event = Event;
