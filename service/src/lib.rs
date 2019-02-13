@@ -216,6 +216,7 @@ construct_service_factory! {
 					service.network(),
 					service.on_exit(),
 					service.client(),
+					executor.clone(),
 				);
 				let proposer_factory = ::consensus::ProposerFactory::new(
 					client.clone(),

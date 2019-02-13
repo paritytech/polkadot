@@ -58,7 +58,7 @@ impl ParachainContext for AdderContext {
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 		&self,
 		last_head: HeadData,
-		_ingress: I,
+		ingress: I,
 	) -> Result<(BlockData, HeadData), InvalidHead>
 	{
 		let adder_head = AdderHead::decode(&mut &last_head.0[..])
@@ -79,7 +79,11 @@ impl ParachainContext for AdderContext {
 			add: adder_head.number % 100,
 		};
 
-		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body)
+		let from_messages = ::adder::process_messages(
+			ingress.into_iter().map(|(_, msg)| msg.0)
+		);
+
+		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body, from_messages)
 			.expect("good execution params; qed");
 
 		let encoded_head = HeadData(next_head.encode());

@@ -34,7 +34,7 @@ static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 use core::{intrinsics, panic};
 use parachain::ValidationResult;
 use parachain::codec::{Encode, Decode};
-use adder::{HeadData, BlockData, AddMessage};
+use adder::{HeadData, BlockData};
 
 #[panic_handler]
 #[no_mangle]
@@ -65,11 +65,9 @@ pub extern fn validate(offset: usize, len: usize) -> usize {
 
 	// we also add based on incoming data from messages. ignoring unknown message
 	// kinds.
-	let from_messages = params.ingress.into_iter()
-		.filter_map(|incoming| {
-			AddMessage::decode(&mut &incoming.data[..])
-		})
-		.fold(0u64, |a, c| a.overflowing_add(c.amount).0);
+	let from_messages = ::adder::process_messages(
+		params.ingress.iter().map(|incoming| &incoming.data[..])
+	);
 
 	match ::adder::execute(parent_hash, parent_head, &block_data, from_messages) {
 		Ok(new_head) => parachain::wasm_api::write_result(
