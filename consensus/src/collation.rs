@@ -162,14 +162,39 @@ error_chain! {
 	}
 }
 
-/// Compute the egress trie root for a set of messages.
-pub fn egress_trie_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
+/// Compute a trie root for a set of messages.
+pub fn message_queue_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
 	where A: AsRef<[u8]>
 {
 	::trie::ordered_trie_root::<primitives::Blake2Hasher, _, _>(messages)
 }
 
-fn check_and_compute_extrinsic(
+/// Compute the set of egress roots for all given outgoing messages.
+pub fn egress_roots(mut outgoing: Vec<OutgoingMessage>) -> Vec<(ParaId, Hash)> {
+	// stable sort messages by parachain ID.
+	outgoing.sort_by_key(|msg| ParaId::from(msg.target));
+
+	let mut egress_roots = Vec::new();
+	{
+		let mut messages_iter = outgoing.iter().peekable();
+		while let Some(batch_target) = messages_iter.peek().map(|o| o.target) {
+ 			// we borrow the iterator mutably to ensure it advances so the
+			// next iteration of the loop starts with `messages_iter` pointing to
+			// the next batch.
+			let messages_to = messages_iter
+				.clone()
+				.take_while(|o| o.target == batch_target)
+				.map(|o| { let _ = messages_iter.next(); &o.data[..] });
+
+			let computed_root = message_queue_root(messages_to);
+			egress_roots.push((batch_target, computed_root));
+		}
+	}
+
+	egress_roots
+}
+
+fn check_extrinsic(
 	mut outgoing: Vec<OutgoingMessage>,
 	expected_egress_roots: &[(ParaId, Hash)],
 ) -> Result<Extrinsic, Error> {
@@ -197,7 +222,7 @@ fn check_and_compute_extrinsic(
 				.take_while(|o| o.target == batch_target)
 				.map(|o| { let _ = messages_iter.next(); &o.data[..] });
 
-			let computed_root = egress_trie_root(messages_to);
+			let computed_root = message_queue_root(messages_to);
 			if &computed_root != expected_root {
 				return Err(ErrorKind::EgressRootMismatch(
 					batch_target,
@@ -245,7 +270,7 @@ impl Externalities {
 		self,
 		candidate: &CandidateReceipt,
 	) -> Result<Extrinsic, Error> {
-		check_and_compute_extrinsic(
+		check_extrinsic(
 			self.outgoing,
 			&candidate.egress_queue_roots[..],
 		)
@@ -316,7 +341,7 @@ mod tests {
 	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
 
 	#[test]
-	fn egress_roots() {
+	fn compute_and_check_egress() {
 		let messages = vec![
 			OutgoingMessage { target: 3.into(), data: vec![1, 1, 1] },
 			OutgoingMessage { target: 1.into(), data: vec![1, 2, 3] },
@@ -324,29 +349,36 @@ mod tests {
 			OutgoingMessage { target: 1.into(), data: vec![7, 8, 9] },
 		];
 
-		let root_1 = egress_trie_root(&[vec![1, 2, 3], vec![7, 8, 9]]);
-		let root_2 = egress_trie_root(&[vec![4, 5, 6]]);
-		let root_3 = egress_trie_root(&[vec![1, 1, 1]]);
+		let root_1 = message_queue_root(&[vec![1, 2, 3], vec![7, 8, 9]]);
+		let root_2 = message_queue_root(&[vec![4, 5, 6]]);
+		let root_3 = message_queue_root(&[vec![1, 1, 1]]);
 
-		assert!(check_and_compute_extrinsic(
+		assert!(check_extrinsic(
 			messages.clone(),
 			&[(1.into(), root_1), (2.into(), root_2), (3.into(), root_3)],
 		).is_ok());
 
+		let egress_roots = egress_roots(messages.clone());
+
+		assert!(check_extrinsic(
+			messages.clone(),
+			&egress_roots[..],
+		).is_ok());
+
 		// missing root.
-		assert!(check_and_compute_extrinsic(
+		assert!(check_extrinsic(
 			messages.clone(),
 			&[(1.into(), root_1), (3.into(), root_3)],
 		).is_err());
 
 		// extra root.
-		assert!(check_and_compute_extrinsic(
+		assert!(check_extrinsic(
 			messages.clone(),
 			&[(1.into(), root_1), (2.into(), root_2), (3.into(), root_3), (4.into(), Default::default())],
 		).is_err());
 
 		// root mismatch.
-		assert!(check_and_compute_extrinsic(
+		assert!(check_extrinsic(
 			messages.clone(),
 			&[(1.into(), root_2), (2.into(), root_1), (3.into(), root_3)],
 		).is_err());

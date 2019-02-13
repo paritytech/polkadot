@@ -27,6 +27,7 @@ use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, Paracha
 use codec::Decode;
 
 use futures::prelude::*;
+use futures::future::Executor as FutureExecutor;
 use futures::sync::mpsc;
 
 use std::collections::HashMap;
@@ -39,6 +40,29 @@ use parking_lot::Mutex;
 use router::Router;
 use super::PolkadotProtocol;
 
+/// An executor suitable for dispatching async consensus tasks.
+pub trait Executor {
+	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F);
+}
+
+/// A wrapped futures::future::Executor.
+pub struct WrappedExecutor<T>(pub T);
+
+impl<T> Executor for WrappedExecutor<T>
+	where T: FutureExecutor<Box<Future<Item=(),Error=()> + Send + 'static>>
+{
+	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
+		if let Err(e) = self.0.execute(Box::new(f)) {
+			warn!(target: "consensus", "could not spawn consensus task: {:?}", e);
+		}
+	}
+}
+
+impl Executor for TaskExecutor {
+	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
+		TaskExecutor::spawn(self, f)
+	}
+}
 
 /// Basic functionality that a network has to fulfill.
 pub trait NetworkService: Send + Sync + 'static {
@@ -90,18 +114,19 @@ impl NetworkService for super::NetworkService {
 
 // task that processes all gossipped consensus messages,
 // checking signatures
-struct MessageProcessTask<P, E, N: NetworkService> {
+struct MessageProcessTask<P, E, N: NetworkService, T> {
 	inner_stream: mpsc::UnboundedReceiver<ConsensusMessage>,
 	parent_hash: Hash,
-	table_router: Router<P, N>,
+	table_router: Router<P, N, T>,
 	exit: E,
 }
 
-impl<P, E, N> MessageProcessTask<P, E, N> where
+impl<P, E, N, T> MessageProcessTask<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
 	N: NetworkService,
+	T: Clone + Executor + Send + 'static,
 {
 	fn process_message(&self, msg: ConsensusMessage) -> Option<Async<()>> {
 		use polkadot_consensus::SignedStatement;
@@ -122,11 +147,12 @@ impl<P, E, N> MessageProcessTask<P, E, N> where
 	}
 }
 
-impl<P, E, N> Future for MessageProcessTask<P, E, N> where
+impl<P, E, N, T> Future for MessageProcessTask<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
 	N: NetworkService,
+	T: Clone + Executor + Send + 'static,
 {
 	type Item = ();
 	type Error = ();
@@ -146,42 +172,44 @@ impl<P, E, N> Future for MessageProcessTask<P, E, N> where
 }
 
 /// Wrapper around the network service
-pub struct ConsensusNetwork<P, E, N> {
+pub struct ConsensusNetwork<P, E, N, T> {
 	network: Arc<N>,
 	api: Arc<P>,
+	executor: T,
 	exit: E,
 }
 
-impl<P, E, N> ConsensusNetwork<P, E, N> {
+impl<P, E, N, T> ConsensusNetwork<P, E, N, T> {
 	/// Create a new consensus networking object.
-	pub fn new(network: Arc<N>, exit: E, api: Arc<P>) -> Self {
-		ConsensusNetwork { network, exit, api }
+	pub fn new(network: Arc<N>, exit: E, api: Arc<P>, executor: T) -> Self {
+		ConsensusNetwork { network, exit, api, executor }
 	}
 }
 
-impl<P, E: Clone, N> Clone for ConsensusNetwork<P, E, N> {
+impl<P, E: Clone, N, T: Clone> Clone for ConsensusNetwork<P, E, N, T> {
 	fn clone(&self) -> Self {
 		ConsensusNetwork {
 			network: self.network.clone(),
 			exit: self.exit.clone(),
 			api: self.api.clone(),
+			executor: self.executor.clone(),
 		}
 	}
 }
 
 /// A long-lived network which can create parachain statement  routing processes on demand.
-impl<P, E, N> ParachainNetwork for ConsensusNetwork<P,E,N> where
+impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Clone + Future<Item=(),Error=()> + Send + 'static,
 	N: NetworkService,
+	T: Clone + Executor + Send + 'static,
 {
-	type TableRouter = Router<P, N>;
+	type TableRouter = Router<P, N, T>;
 
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
-		task_executor: TaskExecutor,
 		outgoing: polkadot_consensus::Outgoing,
 	) -> Self::TableRouter {
 		let parent_hash = table.consensus_parent_hash().clone();
@@ -193,7 +221,7 @@ impl<P, E, N> ParachainNetwork for ConsensusNetwork<P,E,N> where
 			table,
 			self.network.clone(),
 			self.api.clone(),
-			task_executor.clone(),
+			self.executor.clone(),
 			parent_hash,
 			knowledge.clone(),
 		);
@@ -204,7 +232,7 @@ impl<P, E, N> ParachainNetwork for ConsensusNetwork<P,E,N> where
 		let exit = self.exit.clone();
 
 		let table_router_clone = table_router.clone();
-		let executor = task_executor.clone();
+		let executor = self.executor.clone();
 
 		// spin up a task in the background that processes all incoming statements
 		// TODO: propagate statements on a timer?
@@ -221,6 +249,7 @@ impl<P, E, N> ParachainNetwork for ConsensusNetwork<P,E,N> where
 					table_router: table_router_clone,
 					exit,
 				};
+
 				executor.spawn(process_task);
 		});
 
@@ -257,7 +286,7 @@ impl Future for AwaitingCollation {
 	}
 }
 
-impl<P, E: Clone, N> Collators for ConsensusNetwork<P, E, N> where
+impl<P, E: Clone, N, T: Clone> Collators for ConsensusNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,

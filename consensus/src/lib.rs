@@ -94,7 +94,7 @@ use inherents::InherentData;
 use runtime_aura::timestamp::TimestampInherentData;
 use aura::SlotDuration;
 
-pub use self::collation::{validate_collation, egress_trie_root, Collators};
+pub use self::collation::{validate_collation, message_queue_root, egress_roots, Collators};
 pub use self::error::{ErrorKind, Error};
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
@@ -148,7 +148,7 @@ pub trait TableRouter: Clone {
 	/// checked.
 	///
 	/// The `ParachainHost::ingress` function can be used to fetch incoming roots,
-	/// and the `egress_queue_root` function can be used to check that messages actually have
+	/// and the `message_queue_root` function can be used to check that messages actually have
 	/// expected root.
 	fn fetch_incoming(&self, id: ParaId) -> Self::FetchIncoming;
 }
@@ -159,12 +159,11 @@ pub trait Network {
 	/// routing statements to peers, and driving completion of any `StatementProducers`.
 	type TableRouter: TableRouter;
 
-	/// Instantiate a table router using the given shared table and task executor.
+	/// Instantiate a table router using the given shared table.
 	/// Also pass through any outgoing messages to be broadcast to peers.
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
-		task_executor: TaskExecutor,
 		outgoing: Outgoing,
 	) -> Self::TableRouter;
 }
@@ -201,7 +200,8 @@ pub fn check_statement(statement: &Statement, signature: &CandidateSignature, si
 	signature.verify(&encoded[..], &signer.into())
 }
 
-fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: AuthorityId) -> Result<(HashMap<ParaId, GroupInfo>, LocalDuty), Error> {
+/// Compute group info out of a duty roster and a local authority set.
+pub fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: AuthorityId) -> Result<(HashMap<ParaId, GroupInfo>, LocalDuty), Error> {
 	if roster.validator_duty.len() != authorities.len() {
 		bail!(ErrorKind::InvalidDutyRosterLength(authorities.len(), roster.validator_duty.len()))
 	}
@@ -331,7 +331,6 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
 			table.clone(),
-			self.handle.clone(),
 			outgoing,
 		);
 
@@ -538,7 +537,8 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	}
 }
 
-struct LocalDuty {
+/// The local duty of a validator.
+pub struct LocalDuty {
 	validation: Chain,
 }
 

@@ -35,14 +35,13 @@ use polkadot_primitives::parachain::{
 use codec::{Encode, Decode};
 use futures::{future, prelude::*};
 use futures::sync::oneshot::{self, Receiver};
-use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 
 use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::{io, mem};
 use std::sync::Arc;
 
-use consensus::{NetworkService, Knowledge};
+use consensus::{NetworkService, Knowledge, Executor};
 
 type IngressPair = (ParaId, Vec<Message>);
 type IngressPairRef<'a> = (ParaId, &'a [Message]);
@@ -116,11 +115,11 @@ impl Future for IncomingReceiver {
 }
 
 /// Table routing implementation.
-pub struct Router<P, N: NetworkService> {
+pub struct Router<P, N: NetworkService, T> {
 	table: Arc<SharedTable>,
 	network: Arc<N>,
 	api: Arc<P>,
-	task_executor: TaskExecutor,
+	task_executor: T,
 	parent_hash: Hash,
 	attestation_topic: Hash,
 	knowledge: Arc<Mutex<Knowledge>>,
@@ -128,12 +127,12 @@ pub struct Router<P, N: NetworkService> {
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 }
 
-impl<P, N: NetworkService> Router<P, N> {
+impl<P, N: NetworkService, T> Router<P, N, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
 		network: Arc<N>,
 		api: Arc<P>,
-		task_executor: TaskExecutor,
+		task_executor: T,
 		parent_hash: Hash,
 		knowledge: Arc<Mutex<Knowledge>>,
 	) -> Self {
@@ -156,7 +155,7 @@ impl<P, N: NetworkService> Router<P, N> {
 	}
 }
 
-impl<P, N: NetworkService> Clone for Router<P, N> {
+impl<P, N: NetworkService, T: Clone> Clone for Router<P, N, T> {
 	fn clone(&self) -> Self {
 		Router {
 			table: self.table.clone(),
@@ -172,9 +171,10 @@ impl<P, N: NetworkService> Clone for Router<P, N> {
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send + Sync + 'static, N> Router<P, N> where
+impl<P: ProvideRuntimeApi + Send + Sync + 'static, N, T> Router<P, N, T> where
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
+	T: Clone + Executor + Send + 'static,
 {
 	/// Import a statement whose signature has been checked already.
 	pub(crate) fn import_statement<Exit>(&self, statement: SignedStatement, exit: Exit)
@@ -219,7 +219,8 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, N> Router<P, N> where
 
 			if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
 				trace!(target: "consensus", "driving statement work to completion");
-				self.task_executor.spawn(work.select(exit.clone()).then(|_| Ok(())));
+				let work = work.select(exit.clone()).then(|_| Ok(()));
+				self.task_executor.spawn(work);
 			}
 		}
 	}
@@ -256,7 +257,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, N> Router<P, N> where
 	}
 
 	fn create_work<D>(&self, candidate_hash: Hash, producer: ParachainWork<D>)
-		-> impl Future<Item=(),Error=()>
+		-> impl Future<Item=(),Error=()> + Send + 'static
 		where
 		D: Future<Item=(BlockData, Incoming),Error=io::Error> + Send + 'static,
 	{
@@ -284,9 +285,10 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, N> Router<P, N> where
 
 }
 
-impl<P: ProvideRuntimeApi, N> Router<P, N> where
+impl<P: ProvideRuntimeApi, N, T> Router<P, N, T> where
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
+	T: Executor,
 {
 	fn do_fetch_incoming(&self, parachain: ParaId) -> IncomingReceiver {
 		use polkadot_primitives::BlockId;
@@ -337,9 +339,10 @@ impl<P: ProvideRuntimeApi, N> Router<P, N> where
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send, N> TableRouter for Router<P, N> where
+impl<P: ProvideRuntimeApi + Send, N, T> TableRouter for Router<P, N, T> where
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
+	T: Clone + Executor + Send + 'static,
 {
 	type Error = io::Error;
 	type FetchCandidate = BlockDataReceiver;
@@ -372,7 +375,7 @@ impl<P: ProvideRuntimeApi + Send, N> TableRouter for Router<P, N> where
 	}
 }
 
-impl<P, N: NetworkService> Drop for Router<P, N> {
+impl<P, N: NetworkService, T> Drop for Router<P, N, T> {
 	fn drop(&mut self) {
 		let parent_hash = self.parent_hash.clone();
 		self.network.with_spec(move |spec, _| spec.remove_consensus(&parent_hash));
@@ -476,7 +479,7 @@ impl<S> Future for ComputeIngress<S> where S: Stream<Item=IngressPair> {
 				Entry::Occupied(occupied) => {
 					let canon_root = occupied.get().clone();
 					let messages = messages.iter().map(|m| &m.0[..]);
-					if ::polkadot_consensus::egress_trie_root(messages) != canon_root {
+					if ::polkadot_consensus::message_queue_root(messages) != canon_root {
 						continue;
 					}
 
@@ -567,7 +570,7 @@ mod tests {
 		let roots: HashMap<_, _> = actual_messages.iter()
 			.map(|&(para_id, ref messages)| (
 				para_id,
-				::polkadot_consensus::egress_trie_root(messages.iter().map(|m| &m.0)),
+				::polkadot_consensus::message_queue_root(messages.iter().map(|m| &m.0)),
 			))
 			.collect();
 

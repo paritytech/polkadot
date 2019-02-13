@@ -43,6 +43,9 @@ extern crate parity_codec_derive;
 #[cfg(test)]
 extern crate substrate_client;
 
+#[cfg(test)]
+extern crate substrate_keyring;
+
 mod collator_pool;
 mod local_collations;
 mod router;
