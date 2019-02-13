@@ -57,6 +57,7 @@ fn attestation_topic(parent_hash: Hash) -> Hash {
 fn incoming_message_topic(parent_hash: Hash, parachain: ParaId) -> Hash {
 	let mut v = parent_hash.as_ref().to_vec();
 	parachain.using_encoded(|s| v.extend(s));
+	v.extend(b"incoming");
 
 	BlakeTwo256::hash(&v[..])
 }

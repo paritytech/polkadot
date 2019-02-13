@@ -2259,6 +2259,7 @@ dependencies = [
  "polkadot-primitives 0.1.0",
  "slice-group-by 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-network 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "tokio 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",

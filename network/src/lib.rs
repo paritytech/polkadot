@@ -40,6 +40,9 @@ extern crate log;
 #[macro_use]
 extern crate parity_codec_derive;
 
+#[cfg(test)]
+extern crate substrate_client;
+
 mod collator_pool;
 mod local_collations;
 mod router;
