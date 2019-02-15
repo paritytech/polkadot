@@ -63,8 +63,8 @@ fn incoming_message_topic(parent_hash: Hash, parachain: ParaId) -> Hash {
 
 /// Receiver for block data.
 pub struct BlockDataReceiver {
-	outer: ::futures::sync::oneshot::Receiver<::futures::sync::oneshot::Receiver<BlockData>>,
-	inner: Option<::futures::sync::oneshot::Receiver<BlockData>>
+	outer: Receiver<Receiver<BlockData>>,
+	inner: Option<Receiver<BlockData>>
 }
 
 impl Future for BlockDataReceiver {
@@ -72,24 +72,22 @@ impl Future for BlockDataReceiver {
 	type Error = io::Error;
 
 	fn poll(&mut self) -> Poll<BlockData, io::Error> {
+		let map_err = |_| io::Error::new(
+			io::ErrorKind::Other,
+			"Sending end of channel hung up",
+		);
+
 		if let Some(ref mut inner) = self.inner {
-			return inner
-				.poll()
-				.map_err(|_| io::Error::new(
-					io::ErrorKind::Other,
-					"Sending end of channel hung up",
-			))
+			return inner.poll().map_err(map_err);
 		}
-		if let Ok(futures::Async::Ready(mut inner)) = self.outer.poll() {
-			let poll_result = inner.poll();
-			self.inner = Some(inner);
-			return poll_result
-				.map_err(|_| io::Error::new(
-					io::ErrorKind::Other,
-					"Sending end of channel hung up",
-			))
+		match self.outer.poll().map_err(map_err)? {
+			Async::Ready(mut inner) => {
+				let poll_result = inner.poll();
+				self.inner = Some(inner);
+				poll_result.map_err(map_err)
+			}
+			Async::NotReady => Ok(Async::NotReady),
 		}
-		Ok(futures::Async::NotReady)
 	}
 }
 /// receiver for incoming data.
@@ -115,10 +113,11 @@ impl Future for IncomingReceiver {
 }
 
 /// Table routing implementation.
-pub struct Router<P, N: NetworkService, T> {
+pub struct Router<P, E, N: NetworkService, T> {
 	table: Arc<SharedTable>,
 	network: Arc<N>,
 	api: Arc<P>,
+	exit: E,
 	task_executor: T,
 	parent_hash: Hash,
 	attestation_topic: Hash,
@@ -127,7 +126,7 @@ pub struct Router<P, N: NetworkService, T> {
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 }
 
-impl<P, N: NetworkService, T> Router<P, N, T> {
+impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
 		network: Arc<N>,
@@ -135,6 +134,7 @@ impl<P, N: NetworkService, T> Router<P, N, T> {
 		task_executor: T,
 		parent_hash: Hash,
 		knowledge: Arc<Mutex<Knowledge>>,
+		exit: E,
 	) -> Self {
 		Router {
 			table,
@@ -146,6 +146,7 @@ impl<P, N: NetworkService, T> Router<P, N, T> {
 			knowledge,
 			fetch_incoming: Arc::new(Mutex::new(HashMap::new())),
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
+			exit,
 		}
 	}
 
@@ -155,7 +156,7 @@ impl<P, N: NetworkService, T> Router<P, N, T> {
 	}
 }
 
-impl<P, N: NetworkService, T: Clone> Clone for Router<P, N, T> {
+impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 	fn clone(&self) -> Self {
 		Router {
 			table: self.table.clone(),
@@ -167,19 +168,19 @@ impl<P, N: NetworkService, T: Clone> Clone for Router<P, N, T> {
 			deferred_statements: self.deferred_statements.clone(),
 			fetch_incoming: self.fetch_incoming.clone(),
 			knowledge: self.knowledge.clone(),
+			exit: self.exit.clone(),
 		}
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send + Sync + 'static, N, T> Router<P, N, T> where
+impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> where
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
+	E: Future<Item=(),Error=()> + Clone + Send + 'static,
 {
 	/// Import a statement whose signature has been checked already.
-	pub(crate) fn import_statement<Exit>(&self, statement: SignedStatement, exit: Exit)
-		where Exit: Future<Item=(),Error=()> + Clone + Send + 'static
-	{
+	pub(crate) fn import_statement(&self, statement: SignedStatement) {
 		trace!(target: "p_net", "importing consensus statement {:?}", statement.statement);
 
 		// defer any statements for which we haven't imported the candidate yet
@@ -219,7 +220,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, N, T> Router<P, N, T> where
 
 			if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
 				trace!(target: "consensus", "driving statement work to completion");
-				let work = work.select(exit.clone()).then(|_| Ok(()));
+				let work = work.select2(self.exit.clone()).then(|_| Ok(()));
 				self.task_executor.spawn(work);
 			}
 		}
@@ -285,10 +286,11 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, N, T> Router<P, N, T> where
 
 }
 
-impl<P: ProvideRuntimeApi, N, T> Router<P, N, T> where
+impl<P: ProvideRuntimeApi, E, N, T> Router<P, E, N, T> where
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
 	T: Executor,
+	E: Future<Item=(),Error=()> + Clone + Send + 'static,
 {
 	fn do_fetch_incoming(&self, parachain: ParaId) -> IncomingReceiver {
 		use polkadot_primitives::BlockId;
@@ -318,7 +320,6 @@ impl<P: ProvideRuntimeApi, N, T> Router<P, N, T> where
 				parachain, parent_hash, e)
 			);
 
-		// TODO: select with `Exit` here.
 		let work = canon_roots.into_future()
 			.and_then(move |ingress_roots| match ingress_roots {
 				None => Err(format!("No parachain {:?} registered at {}", parachain, parent_hash)),
@@ -330,6 +331,7 @@ impl<P: ProvideRuntimeApi, N, T> Router<P, N, T> where
 				incoming: Vec::new(),
 			})
 			.map(move |incoming| if let Some(i) = incoming { let _ = tx.send(i); })
+			.select2(self.exit.clone())
 			.then(|_| Ok(()));
 
 		self.task_executor.spawn(work);
@@ -338,10 +340,11 @@ impl<P: ProvideRuntimeApi, N, T> Router<P, N, T> where
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send, N, T> TableRouter for Router<P, N, T> where
+impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> where
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
+	E: Future<Item=(),Error=()> + Clone + Send + 'static,
 {
 	type Error = io::Error;
 	type FetchCandidate = BlockDataReceiver;
@@ -374,7 +377,7 @@ impl<P: ProvideRuntimeApi + Send, N, T> TableRouter for Router<P, N, T> where
 	}
 }
 
-impl<P, N: NetworkService, T> Drop for Router<P, N, T> {
+impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 	fn drop(&mut self) {
 		let parent_hash = self.parent_hash.clone();
 		self.network.with_spec(move |spec, _| spec.remove_consensus(&parent_hash));

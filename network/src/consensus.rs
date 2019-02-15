@@ -117,8 +117,7 @@ impl NetworkService for super::NetworkService {
 struct MessageProcessTask<P, E, N: NetworkService, T> {
 	inner_stream: mpsc::UnboundedReceiver<ConsensusMessage>,
 	parent_hash: Hash,
-	table_router: Router<P, N, T>,
-	exit: E,
+	table_router: Router<P, E, N, T>,
 }
 
 impl<P, E, N, T> MessageProcessTask<P, E, N, T> where
@@ -139,7 +138,7 @@ impl<P, E, N, T> MessageProcessTask<P, E, N, T> where
 				statement.sender,
 				&self.parent_hash
 			) {
-				self.table_router.import_statement(statement, self.exit.clone());
+				self.table_router.import_statement(statement);
 			}
 		}
 
@@ -205,7 +204,7 @@ impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
 {
-	type TableRouter = Router<P, N, T>;
+	type TableRouter = Router<P, E, N, T>;
 
 	fn communication_for(
 		&self,
@@ -224,12 +223,12 @@ impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
 			self.executor.clone(),
 			parent_hash,
 			knowledge.clone(),
+			self.exit.clone(),
 		);
 
 		table_router.broadcast_egress(outgoing);
 
 		let attestation_topic = table_router.gossip_topic();
-		let exit = self.exit.clone();
 
 		let table_router_clone = table_router.clone();
 		let executor = self.executor.clone();
@@ -247,7 +246,6 @@ impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
 					inner_stream,
 					parent_hash,
 					table_router: table_router_clone,
-					exit,
 				};
 
 				executor.spawn(process_task);
