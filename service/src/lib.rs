@@ -247,8 +247,6 @@ construct_service_factory! {
 			{ |config, executor| <LightComponents<Factory>>::new(config, executor) },
 		FullImportQueue = AuraImportQueue<
 			Self::Block,
-			FullClient<Self>,
-			NothingExtra,
 		>
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
@@ -272,8 +270,6 @@ construct_service_factory! {
 			}},
 		LightImportQueue = AuraImportQueue<
 			Self::Block,
-			LightClient<Self>,
-			NothingExtra,
 		>
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<LightClient<Self>>| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
