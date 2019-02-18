@@ -252,7 +252,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 				let target_incoming = incoming_message_topic(self.parent_hash, target);
 				let ingress_for: IngressPairRef = (source, &group_messages[..]);
 
-				self.network.gossip_message(target_incoming, ingress_for.encode(), false);
+				self.network.gossip_message(target_incoming, ingress_for.encode());
 			}
 		}
 	}
@@ -279,7 +279,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 				// propagate the statement.
 				// consider something more targeted than gossip in the future.
 				let signed = table.import_validated(validated);
-				network.gossip_message(attestation_topic, signed.encode(), false);
+				network.gossip_message(attestation_topic, signed.encode());
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
 	}
@@ -358,7 +358,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 
 		// give to network to make available.
 		self.knowledge.lock().note_candidate(hash, Some(block_data), Some(extrinsic));
-		self.network.gossip_message(self.attestation_topic, statement.encode(), false);
+		self.network.gossip_message(self.attestation_topic, statement.encode());
 	}
 
 	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> BlockDataReceiver {

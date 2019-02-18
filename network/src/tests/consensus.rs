@@ -136,7 +136,7 @@ impl NetworkService for TestNetwork {
 		rx
 	}
 
-	fn gossip_message(&self, topic: Hash, message: ConsensusMessage, _broadcast: bool) {
+	fn gossip_message(&self, topic: Hash, message: ConsensusMessage) {
 		let _ = self.gossip.send_message.unbounded_send((topic, message));
 	}
 

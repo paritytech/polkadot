@@ -70,7 +70,7 @@ pub trait NetworkService: Send + Sync + 'static {
 	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<ConsensusMessage>;
 
 	/// Gossip a message on given topic.
-	fn gossip_message(&self, topic: Hash, message: Vec<u8>, broadcast: bool);
+	fn gossip_message(&self, topic: Hash, message: Vec<u8>);
 
 	/// Drop a gossip topic.
 	fn drop_gossip(&self, topic: Hash);
@@ -95,8 +95,8 @@ impl NetworkService for super::NetworkService {
 		}
 	}
 
-	fn gossip_message(&self, topic: Hash, message: Vec<u8>, broadcast: bool) {
-		self.gossip_consensus_message(topic, message, broadcast);
+	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
+		self.gossip_consensus_message(topic, message, false);
 	}
 
 	fn drop_gossip(&self, topic: Hash) {
