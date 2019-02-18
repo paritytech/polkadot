@@ -210,17 +210,17 @@ impl<T: Trait> Module<T> {
 
 		// shuffle
 		for i in 0..(validator_count - 1) {
-			// 8 bytes of entropy used per cycle, 32 bytes entropy per hash
-			let offset = (i * 8 % 32) as usize;
+			// 4 bytes of entropy used per cycle, 32 bytes entropy per hash
+			let offset = (i * 4 % 32) as usize;
 
 			// number of roles remaining to select from.
 			let remaining = (validator_count - i) as usize;
 
-			// 4 * 2 32-bit ints per 256-bit seed.
+			// 8 32-bit ints per 256-bit seed.
 			let val_index = u32::decode(&mut &seed[offset..offset + 4]).expect("using 4 bytes for a 32-bit quantity") as usize % remaining;
 
-			if offset == 24 {
-				// into the last 8 bytes - rehash to gather new entropy
+			if offset == 28 {
+				// into the last 4 bytes - rehash to gather new entropy
 				seed = BlakeTwo256::hash(seed.as_ref());
 			}
 

@@ -212,7 +212,11 @@ pub fn check_statement(statement: &Statement, signature: &CandidateSignature, si
 }
 
 /// Compute group info out of a duty roster and a local authority set.
-pub fn make_group_info(roster: DutyRoster, authorities: &[AuthorityId], local_id: AuthorityId) -> Result<(HashMap<ParaId, GroupInfo>, LocalDuty), Error> {
+pub fn make_group_info(
+	roster: DutyRoster,
+	authorities: &[AuthorityId],
+	local_id: AuthorityId,
+) -> Result<(HashMap<ParaId, GroupInfo>, LocalDuty), Error> {
 	if roster.validator_duty.len() != authorities.len() {
 		bail!(ErrorKind::InvalidDutyRosterLength(authorities.len(), roster.validator_duty.len()))
 	}
@@ -345,16 +349,14 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 			outgoing,
 		);
 
-		let validation_para = match local_duty.validation {
+		let drop_signal = match local_duty.validation {
+			Chain::Parachain(id) => Some(self.launch_work(
+				parent_hash,
+				id,
+				router,
+			)),
 			Chain::Relay => None,
-			Chain::Parachain(id) => Some(id),
 		};
-
-		let drop_signal = self.launch_work(
-			parent_hash,
-			validation_para,
-			router,
-		);
 
 		let tracker = Arc::new(AttestationTracker {
 			table,
@@ -376,16 +378,12 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	fn launch_work(
 		&self,
 		relay_parent: Hash,
-		validation_para: Option<ParaId>,
+		validation_para: ParaId,
 		router: N::TableRouter,
 	) -> exit_future::Signal {
 		use extrinsic_store::Data;
 
 		let (signal, exit) = exit_future::signal();
-		let validation_para = match validation_para {
-			Some(v) => v,
-			None => return signal,
-		};
 
 		let fetch_incoming = router.fetch_incoming(validation_para)
 			.into_future()
@@ -423,8 +421,11 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 						// Erasure-code and provide merkle branches.
 						router.local_candidate(collation.receipt, collation.block_data, extrinsic)
 					}
-					Err(e) =>
-						warn!(target: "consensus", "Failed to make collation data available: {:?}", e),
+					Err(e) => warn!(
+						target: "consensus",
+						"Failed to make collation data available: {:?}",
+						e,
+					),
 				}
 
 				Ok(())
@@ -445,7 +446,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 /// Parachain consensus for a single block.
 struct AttestationTracker {
-	_drop_signal: exit_future::Signal,
+	_drop_signal: Option<exit_future::Signal>,
 	table: Arc<SharedTable>,
 	started: Instant,
 }

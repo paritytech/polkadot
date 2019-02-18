@@ -79,12 +79,35 @@ pub(crate) enum Validation {
 	Invalid(BlockData), // should take proof.
 }
 
+enum ValidationWork {
+	Done(Validation),
+	InProgress,
+	Error(String),
+}
+
+#[cfg(test)]
+impl ValidationWork {
+	fn is_in_progress(&self) -> bool {
+		match *self {
+			ValidationWork::InProgress => true,
+			_ => false,
+		}
+	}
+
+	fn is_done(&self) -> bool {
+		match *self {
+			ValidationWork::Done(_) => true,
+			_ => false,
+		}
+	}
+}
+
 // A shared table object.
 struct SharedTableInner {
 	table: Table<TableContext>,
 	trackers: Vec<IncludabilitySender>,
 	extrinsic_store: ExtrinsicStore,
-	validated: HashMap<Hash, Option<Validation>>, // None implies in-progress
+	validated: HashMap<Hash, ValidationWork>,
 }
 
 impl SharedTableInner {
@@ -116,11 +139,10 @@ impl SharedTableInner {
 		let digest = &summary.candidate;
 
 		// TODO: consider a strategy based on the number of candidate votes as well.
-		// only check validity if this wasn't locally proposed.
 		let do_validation = para_member && match self.validated.entry(digest.clone()) {
 			Entry::Occupied(_) => false,
 			Entry::Vacant(entry) => {
-				entry.insert(None);
+				entry.insert(ValidationWork::InProgress);
 				true
 			}
 		};
@@ -128,7 +150,17 @@ impl SharedTableInner {
 		let work = if do_validation {
 			let fetch_incoming = router.fetch_incoming(summary.group_id);
 			match self.table.get_candidate(&digest) {
-				None => None, // TODO: handle table inconsistency somehow?
+				None => {
+					let message = format!(
+						"Table inconsistency detected. Summary returned for candidate {} \
+						but receipt not present in table.",
+						digest,
+					);
+
+					warn!(target: "consensus", "{}", message);
+					self.validated.insert(digest.clone(), ValidationWork::Error(message));
+					None
+				}
 				Some(candidate) => {
 					let fetch_block_data = router.fetch_block_data(candidate).into_future();
 
@@ -383,9 +415,10 @@ impl SharedTable {
 	/// locally.
 	pub(crate) fn extrinsic_data(&self, hash: &Hash) -> Option<Extrinsic> {
 		self.inner.lock().validated.get(hash).and_then(|x| match *x {
-			None => None,
-			Some(Validation::Invalid(_)) => None,
-			Some(Validation::Valid(_, ref ex)) => Some(ex.clone()),
+			ValidationWork::Error(_) => None,
+			ValidationWork::InProgress => None,
+			ValidationWork::Done(Validation::Invalid(_)) => None,
+			ValidationWork::Done(Validation::Valid(_, ref ex)) => Some(ex.clone()),
 		})
 	}
 
@@ -439,7 +472,7 @@ impl SharedTable {
 
 		let mut inner = self.inner.lock();
 		inner.table.import_statement(&*self.context, signed_statement.clone());
-		inner.validated.insert(digest, Some(validated.result));
+		inner.validated.insert(digest, ValidationWork::Done(validated.result));
 
 		signed_statement
 	}
@@ -763,7 +796,7 @@ mod tests {
 			signed_statement.clone(),
 		).expect("should produce work");
 
-		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_none());
+		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_in_progress());
 
 		let b = shared_table.import_remote_statement(
 			&DummyRouter,
@@ -816,7 +849,7 @@ mod tests {
 			extrinsic,
 		));
 
-		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_some());
+		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_done());
 
 		let a = shared_table.import_remote_statement(
 			&DummyRouter,
@@ -824,6 +857,5 @@ mod tests {
 		);
 
 		assert!(a.is_none());
-
 	}
 }

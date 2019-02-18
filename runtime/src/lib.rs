@@ -28,11 +28,9 @@ extern crate secp256k1;
 #[cfg(test)]
 extern crate tiny_keccak;
 
-
 #[macro_use]
 extern crate bitvec;
 
-#[macro_use]
 extern crate parity_codec_derive;
 extern crate parity_codec as codec;
 
