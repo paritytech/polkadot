@@ -17,7 +17,7 @@
 //! Utilities for writing parachain WASM.
 
 use codec::{Encode, Decode};
-use super::{ValidationParams, ValidationResult, Message};
+use super::{ValidationParams, ValidationResult, MessageRef};
 
 mod ll {
 	extern "C" {
@@ -55,7 +55,7 @@ pub fn write_result(result: ValidationResult) -> usize {
 }
 
 /// Post a message to another parachain.
-pub fn post_message(message: &Message) {
+pub fn post_message(message: MessageRef) {
 	let data_ptr = message.data.as_ptr();
 	let data_len = message.data.len();
 

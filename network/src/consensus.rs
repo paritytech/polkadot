@@ -20,13 +20,14 @@
 //! each time consensus begins on a new chain head.
 
 use sr_primitives::traits::ProvideRuntimeApi;
-use substrate_network::consensus_gossip::ConsensusMessage;
-use polkadot_consensus::{Network, SharedTable, Collators, Statement, GenericStatement};
+use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
+use polkadot_consensus::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
 use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData};
 use codec::Decode;
 
 use futures::prelude::*;
+use futures::future::Executor as FutureExecutor;
 use futures::sync::mpsc;
 
 use std::collections::HashMap;
@@ -36,22 +37,95 @@ use arrayvec::ArrayVec;
 use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 
-use super::NetworkService;
 use router::Router;
+use super::PolkadotProtocol;
+
+/// An executor suitable for dispatching async consensus tasks.
+pub trait Executor {
+	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F);
+}
+
+/// A wrapped futures::future::Executor.
+pub struct WrappedExecutor<T>(pub T);
+
+impl<T> Executor for WrappedExecutor<T>
+	where T: FutureExecutor<Box<Future<Item=(),Error=()> + Send + 'static>>
+{
+	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
+		if let Err(e) = self.0.execute(Box::new(f)) {
+			warn!(target: "consensus", "could not spawn consensus task: {:?}", e);
+		}
+	}
+}
+
+impl Executor for TaskExecutor {
+	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
+		TaskExecutor::spawn(self, f)
+	}
+}
+
+/// Basic functionality that a network has to fulfill.
+pub trait NetworkService: Send + Sync + 'static {
+	/// Get a stream of gossip messages for a given hash.
+	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<ConsensusMessage>;
+
+	/// Gossip a message on given topic.
+	fn gossip_message(&self, topic: Hash, message: Vec<u8>);
+
+	/// Drop a gossip topic.
+	fn drop_gossip(&self, topic: Hash);
+
+	/// Execute a closure with the polkadot protocol.
+	fn with_spec<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>);
+}
+
+impl NetworkService for super::NetworkService {
+	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<ConsensusMessage> {
+		let (tx, rx) = std::sync::mpsc::channel();
+
+		self.with_gossip(move |gossip, _| {
+			let inner_rx = gossip.messages_for(topic);
+			let _ = tx.send(inner_rx);
+		});
+
+		match rx.recv() {
+			Ok(rx) => rx,
+			Err(_) => mpsc::unbounded().1, // return empty channel.
+		}
+	}
+
+	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
+		self.gossip_consensus_message(topic, message, false);
+	}
+
+	fn drop_gossip(&self, topic: Hash) {
+		self.with_gossip(move |gossip, _| {
+			gossip.collect_garbage_for_topic(topic);
+		})
+	}
+
+	fn with_spec<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>)
+	{
+		super::NetworkService::with_spec(self, with)
+	}
+}
 
 // task that processes all gossipped consensus messages,
 // checking signatures
-struct MessageProcessTask<P, E> {
+struct MessageProcessTask<P, E, N: NetworkService, T> {
 	inner_stream: mpsc::UnboundedReceiver<ConsensusMessage>,
 	parent_hash: Hash,
-	table_router: Router<P>,
-	exit: E,
+	table_router: Router<P, E, N, T>,
 }
 
-impl<P, E> MessageProcessTask<P, E> where
+impl<P, E, N, T> MessageProcessTask<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+	N: NetworkService,
+	T: Clone + Executor + Send + 'static,
 {
 	fn process_message(&self, msg: ConsensusMessage) -> Option<Async<()>> {
 		use polkadot_consensus::SignedStatement;
@@ -64,7 +138,7 @@ impl<P, E> MessageProcessTask<P, E> where
 				statement.sender,
 				&self.parent_hash
 			) {
-				self.table_router.import_statement(statement, self.exit.clone());
+				self.table_router.import_statement(statement);
 			}
 		}
 
@@ -72,10 +146,12 @@ impl<P, E> MessageProcessTask<P, E> where
 	}
 }
 
-impl<P, E> Future for MessageProcessTask<P, E> where
+impl<P, E, N, T> Future for MessageProcessTask<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+	N: NetworkService,
+	T: Clone + Executor + Send + 'static,
 {
 	type Item = ();
 	type Error = ();
@@ -95,43 +171,45 @@ impl<P, E> Future for MessageProcessTask<P, E> where
 }
 
 /// Wrapper around the network service
-pub struct ConsensusNetwork<P, E> {
-	network: Arc<NetworkService>,
+pub struct ConsensusNetwork<P, E, N, T> {
+	network: Arc<N>,
 	api: Arc<P>,
+	executor: T,
 	exit: E,
 }
 
-impl<P, E> ConsensusNetwork<P, E> {
+impl<P, E, N, T> ConsensusNetwork<P, E, N, T> {
 	/// Create a new consensus networking object.
-	pub fn new(network: Arc<NetworkService>, exit: E, api: Arc<P>) -> Self {
-		ConsensusNetwork { network, exit, api }
+	pub fn new(network: Arc<N>, exit: E, api: Arc<P>, executor: T) -> Self {
+		ConsensusNetwork { network, exit, api, executor }
 	}
 }
 
-impl<P, E: Clone> Clone for ConsensusNetwork<P, E> {
+impl<P, E: Clone, N, T: Clone> Clone for ConsensusNetwork<P, E, N, T> {
 	fn clone(&self) -> Self {
 		ConsensusNetwork {
 			network: self.network.clone(),
 			exit: self.exit.clone(),
 			api: self.api.clone(),
+			executor: self.executor.clone(),
 		}
 	}
 }
 
 /// A long-lived network which can create parachain statement  routing processes on demand.
-impl<P, E> Network for ConsensusNetwork<P,E> where
+impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Clone + Future<Item=(),Error=()> + Send + 'static,
+	N: NetworkService,
+	T: Clone + Executor + Send + 'static,
 {
-	type TableRouter = Router<P>;
+	type TableRouter = Router<P, E, N, T>;
 
-	/// Instantiate a table router using the given shared table.
 	fn communication_for(
 		&self,
-		_validators: &[SessionKey],
 		table: Arc<SharedTable>,
-		task_executor: TaskExecutor,
+		outgoing: polkadot_consensus::Outgoing,
 	) -> Self::TableRouter {
 		let parent_hash = table.consensus_parent_hash().clone();
 
@@ -142,41 +220,34 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 			table,
 			self.network.clone(),
 			self.api.clone(),
-			task_executor.clone(),
+			self.executor.clone(),
 			parent_hash,
 			knowledge.clone(),
+			self.exit.clone(),
 		);
 
-		let attestation_topic = table_router.gossip_topic();
-		let exit = self.exit.clone();
+		table_router.broadcast_egress(outgoing);
 
-		let (tx, rx) = std::sync::mpsc::channel();
-		self.network.with_gossip(move |gossip, _| {
-			let inner_rx = gossip.messages_for(attestation_topic);
-			let _ = tx.send(inner_rx);
-		});
+		let attestation_topic = table_router.gossip_topic();
 
 		let table_router_clone = table_router.clone();
-		let executor = task_executor.clone();
+		let executor = self.executor.clone();
 
 		// spin up a task in the background that processes all incoming statements
 		// TODO: propagate statements on a timer?
+		let inner_stream = self.network.gossip_messages_for(attestation_topic);
 		self.network
 			.with_spec(move |spec, ctx| {
 				spec.new_consensus(ctx, parent_hash, CurrentConsensus {
 					knowledge,
 					local_session_key,
 				});
-				let inner_stream = match rx.try_recv() {
-					Ok(inner_stream) => inner_stream,
-					_ => unreachable!("1. The with_gossip closure executed first, 2. the reply should be available")
-				};
 				let process_task = MessageProcessTask {
 					inner_stream,
 					parent_hash,
 					table_router: table_router_clone,
-					exit,
 				};
+
 				executor.spawn(process_task);
 		});
 
@@ -213,8 +284,10 @@ impl Future for AwaitingCollation {
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send + Sync + 'static, E: Clone> Collators for ConsensusNetwork<P, E>
-	where P::Api: ParachainHost<Block>,
+impl<P, E: Clone, N, T: Clone> Collators for ConsensusNetwork<P, E, N, T> where
+	P: ProvideRuntimeApi + Send + Sync + 'static,
+	P::Api: ParachainHost<Block>,
+	N: NetworkService,
 {
 	type Error = NetworkDown;
 	type Collation = AwaitingCollation;

@@ -18,4 +18,8 @@ sr-primitives = { git = "https://github.com/paritytech/substrate" }
 futures = "0.1"
 tokio = "0.1.7"
 log = "0.4"
-rhododendron = "0.3"
+slice-group-by = "0.2.2"
+
+[dev-dependencies]
+substrate-client = { git = "https://github.com/paritytech/substrate" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate" }

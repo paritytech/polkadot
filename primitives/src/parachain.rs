@@ -177,7 +177,7 @@ pub struct Collation {
 
 /// Parachain ingress queue message.
 #[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Decode, Debug))]
 pub struct Message(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Consolidated ingress queue data.
@@ -288,6 +288,9 @@ decl_runtime_apis! {
 		fn parachain_head(id: Id) -> Option<Vec<u8>>;
 		/// Get the given parachain's head code blob.
 		fn parachain_code(id: Id) -> Option<Vec<u8>>;
+		/// Get the ingress roots to a specific parachain at a
+		/// block.
+		fn ingress(to: Id) -> Option<Vec<(Id, Hash)>>;
 	}
 }
 

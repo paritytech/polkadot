@@ -72,7 +72,7 @@ pub mod wasm_executor;
 pub mod wasm_api;
 
 /// Validation parameters for evaluating the parachain validity function.
-// TODO: consolidated ingress and balance downloads
+// TODO: balance downloads
 #[derive(PartialEq, Eq, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Encode))]
 pub struct ValidationParams {
@@ -80,6 +80,8 @@ pub struct ValidationParams {
 	pub block_data: Vec<u8>,
 	/// Previous head-data.
 	pub parent_head: Vec<u8>,
+	/// Incoming messages.
+	pub ingress: Vec<IncomingMessage>,
 }
 
 /// The result of parachain validation.
@@ -91,8 +93,17 @@ pub struct ValidationResult {
 	pub head_data: Vec<u8>,
 }
 
+/// An incoming message.
+#[derive(PartialEq, Eq, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Encode))]
+pub struct IncomingMessage {
+	/// The source parachain.
+	pub source: u32,
+	/// The data of the message.
+	pub data: Vec<u8>,
+}
+
 /// A reference to a message.
-#[cfg(feature = "std")]
 pub struct MessageRef<'a> {
 	/// The target parachain.
 	pub target: u32,

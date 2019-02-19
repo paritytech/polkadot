@@ -21,6 +21,7 @@ use codec::Decode;
 
 use bitvec::BigEndian;
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256};
+use primitives::Hash;
 use primitives::parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement};
 use {system, session};
 
@@ -45,8 +46,10 @@ decl_storage! {
 		pub Parachains get(active_parachains): Vec<ParaId>;
 		// The parachains registered at present.
 		pub Code get(parachain_code): map ParaId => Option<Vec<u8>>;
-		// The heads of the parachains registered at present. these are kept sorted.
+		// The heads of the parachains registered at present.
 		pub Heads get(parachain_head): map ParaId => Option<Vec<u8>>;
+		// message routing roots (from, to).
+		pub Routing: map (ParaId, ParaId) => Option<Hash>;
 
 		// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
@@ -68,6 +71,7 @@ decl_storage! {
 			for (id, code, genesis) in p {
 				let code_key = Self::hash(&<Code<T>>::key_for(&id)).to_vec();
 				let head_key = Self::hash(&<Heads<T>>::key_for(&id)).to_vec();
+				// no ingress -- a chain cannot be routed to until it is live.
 
 				storage.insert(code_key, code.encode());
 				storage.insert(head_key, genesis.encode());
@@ -116,6 +120,11 @@ decl_module! {
 			for head in heads {
 				let id = head.parachain_index();
 				<Heads<T>>::insert(id, head.candidate.head_data.0);
+
+				// update egress.
+				for &(to, root) in &head.candidate.egress_queue_roots {
+					<Routing<T>>::insert((id, to), root);
+				}
 			}
 
 			<DidUpdate<T>>::put(true);
@@ -144,12 +153,20 @@ decl_module! {
 			let mut parachains = Self::active_parachains();
 			match parachains.binary_search(&id) {
 				Ok(idx) => { parachains.remove(idx); }
-				Err(_) => {}
+				Err(_) => return Ok(()),
 			}
 
 			<Code<T>>::remove(id);
 			<Heads<T>>::remove(id);
+
+			// clear all routing entries to and from other parachains.
+			for other in parachains.iter().cloned() {
+				<Routing<T>>::remove((id, other));
+				<Routing<T>>::remove((other, id));
+			}
+
 			<Parachains<T>>::put(parachains);
+
 			Ok(())
 		}
 
@@ -193,17 +210,17 @@ impl<T: Trait> Module<T> {
 
 		// shuffle
 		for i in 0..(validator_count - 1) {
-			// 8 bytes of entropy used per cycle, 32 bytes entropy per hash
-			let offset = (i * 8 % 32) as usize;
+			// 4 bytes of entropy used per cycle, 32 bytes entropy per hash
+			let offset = (i * 4 % 32) as usize;
 
 			// number of roles remaining to select from.
 			let remaining = (validator_count - i) as usize;
 
-			// 4 * 2 32-bit ints per 256-bit seed.
+			// 8 32-bit ints per 256-bit seed.
 			let val_index = u32::decode(&mut &seed[offset..offset + 4]).expect("using 4 bytes for a 32-bit quantity") as usize % remaining;
 
-			if offset == 24 {
-				// into the last 8 bytes - rehash to gather new entropy
+			if offset == 28 {
+				// into the last 4 bytes - rehash to gather new entropy
 				seed = BlakeTwo256::hash(seed.as_ref());
 			}
 
@@ -214,6 +231,21 @@ impl<T: Trait> Module<T> {
 		DutyRoster {
 			validator_duty: roles_val,
 		}
+	}
+
+	/// Calculate the ingress to a specific parachain.
+	///
+	/// Yields a list of parachains being routed from, and the egress
+	/// queue roots to consider.
+	pub fn ingress(to: ParaId) -> Option<Vec<(ParaId, Hash)>> {
+		let active_parachains = Self::active_parachains();
+		if !active_parachains.contains(&to) { return None }
+
+		Some(active_parachains.into_iter().filter(|i| i != &to)
+			.filter_map(move |from| {
+				<Routing<T>>::get((from, to.clone())).map(move |h| (from, h))
+			})
+			.collect())
 	}
 
 	// check the attestations on these candidates. The candidates should have been checked
@@ -685,6 +717,76 @@ mod tests {
 				Call::set_heads(vec![double_validity]),
 				Origin::INHERENT,
 			).is_err());
+		});
+	}
+
+	#[test]
+	fn ingress_works() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+			(99u32.into(), vec![1, 2, 3], vec![4, 5, 6]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			let from_a = vec![(1.into(), [1; 32].into())];
+			let mut candidate_a = AttestedCandidate {
+				validity_votes: vec![],
+				candidate: CandidateReceipt {
+					parachain_index: 0.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					balance_uploads: vec![],
+					egress_queue_roots: from_a.clone(),
+					fees: 0,
+					block_data_hash: Default::default(),
+				}
+			};
+
+			let from_b = vec![(99.into(), [1; 32].into())];
+			let mut candidate_b = AttestedCandidate {
+				validity_votes: vec![],
+				candidate: CandidateReceipt {
+					parachain_index: 1.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					balance_uploads: vec![],
+					egress_queue_roots: from_b.clone(),
+					fees: 0,
+					block_data_hash: Default::default(),
+				}
+			};
+
+			make_attestations(&mut candidate_a);
+			make_attestations(&mut candidate_b);
+
+			assert_eq!(Parachains::ingress(ParaId::from(1)), Some(Vec::new()));
+			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
+
+			assert!(Parachains::dispatch(
+				Call::set_heads(vec![candidate_a, candidate_b]),
+				Origin::INHERENT,
+			).is_ok());
+
+			assert_eq!(
+				Parachains::ingress(ParaId::from(1)),
+				Some(vec![(0.into(), [1; 32].into())]),
+			);
+
+			assert_eq!(
+				Parachains::ingress(ParaId::from(99)),
+				Some(vec![(1.into(), [1; 32].into())]),
+			);
+
+			assert_ok!(Parachains::deregister_parachain(1u32.into()));
+
+			// after deregistering, there is no ingress to 1 and we stop routing
+			// from 1.
+			assert_eq!(Parachains::ingress(ParaId::from(1)), None);
+			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
 		});
 	}
 }
