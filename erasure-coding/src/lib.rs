@@ -45,7 +45,7 @@ mod wrapped_shard;
 const MAX_VALIDATORS: usize = <galois_16::Field as reed_solomon::Field>::ORDER;
 
 /// Errors in erasure coding.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Error {
 	/// Returned when there are too many validators.
 	TooManyValidators,
@@ -71,6 +71,7 @@ pub enum Error {
 	BranchOutOfBounds,
 }
 
+#[derive(Debug, PartialEq)]
 struct CodeParams {
 	data_shards: usize,
 	parity_shards: usize,
@@ -79,36 +80,27 @@ struct CodeParams {
 impl CodeParams {
 	// the shard length needed for a payload with initial size `base_len`.
 	fn shard_len(&self, base_len: usize) -> usize {
-		(base_len / self.data_shards) + (base_len % self.data_shards)
+		// how many bytes we actually need.
+		let needed_shard_len = base_len / self.data_shards
+			+ (base_len % self.data_shards != 0) as usize;
+
+		// round up to next even number
+		// (no actual space overhead since we are working in GF(2^16)).
+		needed_shard_len + needed_shard_len % 2
 	}
 
 	fn make_shards_for(&self, payload: &[u8]) -> Vec<WrappedShard> {
 		let shard_len = self.shard_len(payload.len());
 		let mut shards = vec![
-			WrappedShard::new(vec![0; shard_len + 4]);
+			WrappedShard::new(vec![0; shard_len]);
 			self.data_shards + self.parity_shards
 		];
 
 		for (data_chunk, blank_shard) in payload.chunks(shard_len).zip(&mut shards) {
-			let blank_shard: &mut [u8] = blank_shard.as_mut();
-			let (len_slice, blank_shard) = blank_shard.split_at_mut(4);
-			let len = ::std::cmp::min(data_chunk.len(), blank_shard.len());
-
-			// prepend the length to each data shard. this will tell us how much
-			// we need to read.
-			//
-			// this is necessary because we are doing RS encoding with 16-bit words,
-			// but the payload is a byte-slice. We need to know how much data
-			// to read from each shard when reconstructing.
-			//
-			// TODO: could be done more efficiently by pushing extra bytes onto the
-			// end. https://github.com/paritytech/polkadot/issues/88
-			(len as u32).using_encoded(|s| {
-				len_slice.copy_from_slice(s)
-			});
-
 			// fill the empty shards with the corresponding piece of the payload,
 			// zero-padded to fit in the shards.
+			let len = std::cmp::min(shard_len, data_chunk.len());
+			let blank_shard: &mut [u8] = blank_shard.as_mut();
 			blank_shard[..len].copy_from_slice(&data_chunk[..len]);
 		}
 
@@ -137,7 +129,7 @@ fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 
 /// Obtain erasure-coded chunks, one for each validator.
 ///
-/// Works only up to 256 validators, and `n_validators` must be non-zero.
+/// Works only up to 65536 validators, and `n_validators` must be non-zero.
 pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, extrinsic: &Extrinsic)
 	-> Result<Vec<Vec<u8>>, Error>
 {
@@ -162,7 +154,7 @@ pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, extrinsic: &Ex
 /// The indices of the present chunks must be indicated. If too few chunks
 /// are provided, recovery is not possible.
 ///
-/// Works only up to 256 validators, and `n_validators` must be non-zero.
+/// Works only up to 65536 validators, and `n_validators` must be non-zero.
 pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
 	-> Result<(BlockData, Extrinsic), Error>
 	where I: IntoIterator<Item=(&'a [u8], usize)>
@@ -201,22 +193,12 @@ pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
 
 	// lazily decode from the data shards.
 	Decode::decode(&mut ShardInput {
+		cur_shard: None,
 		shards: shards.iter()
 			.map(|x| x.as_ref())
 			.take(params.data_shards)
 			.map(|x| x.expect("all data shards have been recovered; qed"))
-			.filter_map(|x| {
-				let mut s: &[u8] = x.as_ref();
-				let data_len = u32::decode(&mut s)? as usize;
-
-				// NOTE: s has been mutated to point forward by `decode`.
-				if s.len() < data_len {
-					None
-				} else {
-					Some(&s[..data_len])
-				}
-			}),
-		cur_shard: None,
+			.map(|x| x.as_ref()),
 	}).ok_or_else(|| Error::BadPayload)
 }
 
@@ -355,6 +337,58 @@ mod tests {
 	#[test]
 	fn field_order_is_right_size() {
 		assert_eq!(MAX_VALIDATORS, 65536);
+	}
+
+	#[test]
+	fn test_code_params() {
+		assert_eq!(code_params(0), Err(Error::EmptyValidators));
+
+		assert_eq!(code_params(1), Ok(CodeParams {
+			data_shards: 1,
+			parity_shards: 0,
+		}));
+
+		assert_eq!(code_params(2), Ok(CodeParams {
+			data_shards: 1,
+			parity_shards: 1,
+		}));
+
+		assert_eq!(code_params(3), Ok(CodeParams {
+			data_shards: 1,
+			parity_shards: 2,
+		}));
+
+		assert_eq!(code_params(4), Ok(CodeParams {
+			data_shards: 2,
+			parity_shards: 2,
+		}));
+
+		assert_eq!(code_params(100), Ok(CodeParams {
+			data_shards: 34,
+			parity_shards: 66,
+		}));
+	}
+
+	#[test]
+	fn shard_len_is_reasonable() {
+		let mut params = CodeParams {
+			data_shards: 5,
+			parity_shards: 0, // doesn't affect calculation.
+		};
+
+		assert_eq!(params.shard_len(100), 20);
+		assert_eq!(params.shard_len(99), 20);
+
+		// see if it rounds up to 2.
+		assert_eq!(params.shard_len(95), 20);
+		assert_eq!(params.shard_len(94), 20);
+
+		assert_eq!(params.shard_len(89), 18);
+
+		params.data_shards = 7;
+
+		// needs 3 bytes to fit, rounded up to next even number.
+		assert_eq!(params.shard_len(19), 4);
 	}
 
     #[test]
