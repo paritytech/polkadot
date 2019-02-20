@@ -118,6 +118,14 @@ impl NetworkService for super::NetworkService {
 	}
 }
 
+/// Params to a current consensus session.
+pub struct ConsensusParams {
+	/// The local session key.
+	pub local_session_key: Option<SessionKey>,
+	/// The parent hash.
+	pub parent_hash: Hash,
+}
+
 /// Wrapper around the network service
 pub struct ConsensusNetwork<P, E, N, T> {
 	network: Arc<N>,
@@ -152,21 +160,30 @@ impl<P, E, N, T> ConsensusNetwork<P, E, N, T> where
 	T: Clone + Executor + Send + 'static,
 {
 	/// Instantiate consensus at a parent hash.
-	pub(crate) fn instantiate_consensus(&self, params: ConsensusParams) -> ConsensusDataFetcher<P, E, N, T> {
+	pub fn instantiate_consensus(&self, params: ConsensusParams)
+		-> oneshot::Receiver<ConsensusDataFetcher<P, E, N, T>>
+	{
 		let parent_hash = params.parent_hash;
-		let consensus = CurrentConsensus::new(params);
-		let fetcher = ConsensusDataFetcher {
-			network: self.network.clone(),
-			api: self.api.clone(),
-			task_executor: self.executor.clone(),
-			parent_hash,
-			knowledge: consensus.knowledge().clone(),
-			exit: self.exit.clone(),
-			fetch_incoming: Arc::new(Mutex::new(HashMap::new())),
-		};
+		let network = self.network.clone();
+		let api = self.api.clone();
+		let task_executor = self.executor.clone();
+		let exit = self.exit.clone();
 
-		self.network.with_spec(move |spec, ctx| spec.new_consensus(ctx, consensus));
-		fetcher
+		let (tx, rx) = oneshot::channel();
+		self.network.with_spec(move |spec, ctx| {
+			let consensus = spec.new_consensus(ctx, params);
+			let _ = tx.send(ConsensusDataFetcher {
+				network,
+				api,
+				task_executor,
+				parent_hash,
+				knowledge: consensus.knowledge().clone(),
+				exit,
+				fetch_incoming: consensus.fetched_incoming().clone(),
+			});
+		});
+
+		rx
 	}
 }
 
@@ -178,34 +195,43 @@ impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
 {
+	type Error = String;
 	type TableRouter = Router<P, E, N, T>;
+	type BuildTableRouter = Box<Future<Item=Self::TableRouter,Error=String> + Send>;
 
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
 		outgoing: polkadot_consensus::Outgoing,
-	) -> Self::TableRouter {
+	) -> Self::BuildTableRouter {
 		let parent_hash = table.consensus_parent_hash().clone();
 		let local_session_key = table.session_key();
 
-		let fetcher = self.instantiate_consensus(ConsensusParams {
+		let build_fetcher = self.instantiate_consensus(ConsensusParams {
 			local_session_key: Some(local_session_key),
 			parent_hash,
 		});
 
-		let table_router = Router::new(
-			table,
-			fetcher,
-		);
+		let executor = self.executor.clone();
+		let work = build_fetcher
+			.map_err(|e| format!("{:?}", e))
+			.map(move |fetcher| {
+				let table_router = Router::new(
+					table,
+					fetcher,
+				);
 
-		table_router.broadcast_egress(outgoing);
+				table_router.broadcast_egress(outgoing);
 
-		let table_router_clone = table_router.clone();
-		let work = table_router.checked_statements()
-			.for_each(move |msg| { table_router_clone.import_statement(msg); Ok(()) });
-		self.executor.spawn(work);
+				let table_router_clone = table_router.clone();
+				let work = table_router.checked_statements()
+					.for_each(move |msg| { table_router_clone.import_statement(msg); Ok(()) });
+				executor.spawn(work);
 
-		table_router
+				table_router
+			});
+
+		Box::new(work)
 	}
 }
 
@@ -344,28 +370,23 @@ pub(crate) fn incoming_message_topic(parent_hash: Hash, parachain: ParaId) -> Ha
 	BlakeTwo256::hash(&v[..])
 }
 
-/// Params to a current consensus session.
-pub(crate) struct ConsensusParams {
-	/// The local session key.
-	pub local_session_key: Option<SessionKey>,
-	/// The parent hash.
-	pub parent_hash: Hash,
-}
-
 /// A current consensus instance.
+#[derive(Clone)]
 pub(crate) struct CurrentConsensus {
 	parent_hash: Hash,
 	knowledge: Arc<Mutex<Knowledge>>,
 	local_session_key: Option<SessionKey>,
+	fetch_incoming: Arc<Mutex<HashMap<ParaId, IncomingReceiver>>>,
 }
 
 impl CurrentConsensus {
 	/// Create a new current consensus instance.
-	pub fn new(params: ConsensusParams) -> Self {
+	pub(crate) fn new(params: ConsensusParams) -> Self {
 		CurrentConsensus {
 			parent_hash: params.parent_hash,
 			knowledge: Arc::new(Mutex::new(Knowledge::new())),
 			local_session_key: params.local_session_key,
+			fetch_incoming: Arc::new(Mutex::new(HashMap::new())),
 		}
 	}
 
@@ -373,6 +394,11 @@ impl CurrentConsensus {
 	/// instance.
 	pub(crate) fn knowledge(&self) -> &Arc<Mutex<Knowledge>> {
 		&self.knowledge
+	}
+
+	/// Get a handle to the shared list of parachains' incoming data fetch.
+	pub(crate) fn fetched_incoming(&self) -> &Arc<Mutex<HashMap<ParaId, IncomingReceiver>>> {
+		&self.fetch_incoming
 	}
 
 	// execute a closure with locally stored block data for a candidate, or a slice of session identities
@@ -456,19 +482,25 @@ impl LiveConsensusInstances {
 	/// it returns it to be broadcasted to peers.
 	pub(crate) fn new_consensus(
 		&mut self,
-		consensus: CurrentConsensus,
-	) -> Option<SessionKey> {
-		let parent_hash = consensus.parent_hash.clone();
-		let inserted_key = consensus.local_session_key.map(|key| self.recent.insert(key));
+		params: ConsensusParams,
+	) -> (CurrentConsensus, Option<SessionKey>) {
+		let parent_hash = params.parent_hash.clone();
+
+		if let Some(prev) = self.live_instances.get(&parent_hash) {
+			return (prev.clone(), None)
+		}
+
+		let inserted_key = params.local_session_key.map(|key| self.recent.insert(key));
 		let maybe_new = if let Some(InsertedRecentKey::New(_)) = inserted_key {
-			consensus.local_session_key
+			params.local_session_key
 		} else {
 			None
 		};
 
-		self.live_instances.insert(parent_hash, consensus);
+		let consensus = CurrentConsensus::new(params);
+		self.live_instances.insert(parent_hash, consensus.clone());
 
-		maybe_new
+		(consensus, maybe_new)
 	}
 
 	/// Remove consensus session.
@@ -536,7 +568,7 @@ impl Future for BlockDataReceiver {
 }
 
 /// Can fetch data for a given consensus instance.
-pub(crate) struct ConsensusDataFetcher<P, E, N: NetworkService, T> {
+pub struct ConsensusDataFetcher<P, E, N: NetworkService, T> {
 	network: Arc<N>,
 	api: Arc<P>,
 	fetch_incoming: Arc<Mutex<HashMap<ParaId, IncomingReceiver>>>,

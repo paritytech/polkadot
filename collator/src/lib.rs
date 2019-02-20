@@ -262,7 +262,6 @@ impl<P, E> Worker for CollationNode<P, E> where
 	fn work<S>(self, service: &S) -> Self::Work
 		where S: PolkadotService,
 	{
-
 		let CollationNode { parachain_context, exit, para_id, key } = self;
 		let client = service.client();
 		let network = service.network();

@@ -17,9 +17,8 @@
 //! Tests for polkadot and consensus network.
 
 use super::{PolkadotProtocol, Status, Message, FullStatus};
-use consensus::{CurrentConsensus, ConsensusParams, Knowledge};
+use consensus::ConsensusParams;
 
-use parking_lot::Mutex;
 use polkadot_consensus::GenericStatement;
 use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{CandidateReceipt, HeadData, BlockData};
@@ -31,7 +30,6 @@ use substrate_network::{
 	generic_message::Message as GenericMessage
 };
 
-use std::sync::Arc;
 use futures::Future;
 
 mod consensus;
@@ -87,14 +85,11 @@ fn make_status(status: &Status, roles: Roles) -> FullStatus {
 	}
 }
 
-fn make_consensus(parent_hash: Hash, local_key: SessionKey) -> (CurrentConsensus, Arc<Mutex<Knowledge>>) {
-	let c = CurrentConsensus::new(ConsensusParams {
+fn make_consensus_params(parent_hash: Hash, local_key: SessionKey) -> ConsensusParams {
+	ConsensusParams {
 		local_session_key: Some(local_key),
 		parent_hash,
-	});
-	let knowledge = c.knowledge().clone();
-
-	(c, knowledge)
+	}
 }
 
 fn on_message(protocol: &mut PolkadotProtocol, ctx: &mut TestContext, from: NodeIndex, message: Message) {
@@ -122,8 +117,8 @@ fn sends_session_key() {
 
 	{
 		let mut ctx = TestContext::default();
-		let (consensus, _knowledge) = make_consensus(parent_hash, local_key);
-		protocol.new_consensus(&mut ctx, consensus);
+		let params = make_consensus_params(parent_hash, local_key);
+		protocol.new_consensus(&mut ctx, params);
 		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key)));
 	}
 
@@ -162,8 +157,9 @@ fn fetches_from_those_with_knowledge() {
 
 	let status = Status { collating_for: None };
 
-	let (consensus, knowledge) = make_consensus(parent_hash, local_key);
-	protocol.new_consensus(&mut TestContext::default(), consensus);
+	let params = make_consensus_params(parent_hash, local_key);
+	let consensus = protocol.new_consensus(&mut TestContext::default(), params);
+	let knowledge = consensus.knowledge();
 
 	knowledge.lock().note_statement(a_key, &GenericStatement::Valid(candidate_hash));
 	let recv = protocol.fetch_block_data(&mut TestContext::default(), &candidate_receipt, parent_hash);
@@ -292,11 +288,11 @@ fn many_session_keys() {
 	let local_key_a = [3; 32].into();
 	let local_key_b = [4; 32].into();
 
-	let (consensus_a, _knowledge_a) = make_consensus(parent_a, local_key_a);
-	let (consensus_b, _knowledge_b) = make_consensus(parent_b, local_key_b);
+	let params_a = make_consensus_params(parent_a, local_key_a);
+	let params_b = make_consensus_params(parent_b, local_key_b);
 
-	protocol.new_consensus(&mut TestContext::default(), consensus_a);
-	protocol.new_consensus(&mut TestContext::default(), consensus_b);
+	protocol.new_consensus(&mut TestContext::default(), params_a);
+	protocol.new_consensus(&mut TestContext::default(), params_b);
 
 	assert_eq!(protocol.live_consensus.recent_keys(), &[local_key_a, local_key_b]);
 

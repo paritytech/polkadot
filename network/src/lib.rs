@@ -211,9 +211,10 @@ impl PolkadotProtocol {
 	fn new_consensus(
 		&mut self,
 		ctx: &mut Context<Block>,
-		consensus: consensus::CurrentConsensus,
-	) {
-		if let Some(new_local) = self.live_consensus.new_consensus(consensus) {
+		params: consensus::ConsensusParams,
+	) -> consensus::CurrentConsensus {
+		let (consensus, new_local) = self.live_consensus.new_consensus(params);
+		if let Some(new_local) = new_local {
 			for (id, peer_data) in self.peers.iter_mut()
 				.filter(|&(_, ref info)| info.should_send_key())
 			{
@@ -224,6 +225,8 @@ impl PolkadotProtocol {
 				));
 			}
 		}
+
+		consensus
 	}
 
 	/// Remove a consensus instance.
