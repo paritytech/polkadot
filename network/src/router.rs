@@ -32,7 +32,7 @@ use polkadot_primitives::parachain::{
 	BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message
 };
 
-use codec::Encode;
+use codec::{Encode, Decode};
 use futures::prelude::*;
 use parking_lot::Mutex;
 
@@ -73,9 +73,23 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 		}
 	}
 
-	/// Get the attestation topic for gossip.
-	pub(crate) fn gossip_topic(&self) -> Hash {
-		self.attestation_topic
+	/// Return a future of checked messages. These should be imported into the router
+	/// with `import_statement`.
+	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement,Error=()> {
+		// spin up a task in the background that processes all incoming statements
+		// TODO: propagate statements on a timer?
+		let parent_hash = self.parent_hash();
+		self.network().gossip_messages_for(self.attestation_topic)
+			.filter_map(|msg| {
+				debug!(target: "consensus", "Processing consensus statement for live consensus");
+				SignedStatement::decode(&mut &msg[..])
+			})
+			.filter(move |statement| ::polkadot_consensus::check_statement(
+				&statement.statement,
+				&statement.signature,
+				statement.sender,
+				&parent_hash,
+			))
 	}
 
 	fn parent_hash(&self) -> Hash {

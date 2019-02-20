@@ -118,64 +118,6 @@ impl NetworkService for super::NetworkService {
 	}
 }
 
-// task that processes all gossipped consensus messages,
-// checking signatures
-struct MessageProcessTask<P, E, N: NetworkService, T> {
-	inner_stream: mpsc::UnboundedReceiver<ConsensusMessage>,
-	parent_hash: Hash,
-	table_router: Router<P, E, N, T>,
-}
-
-impl<P, E, N, T> MessageProcessTask<P, E, N, T> where
-	P: ProvideRuntimeApi + Send + Sync + 'static,
-	P::Api: ParachainHost<Block>,
-	E: Future<Item=(),Error=()> + Clone + Send + 'static,
-	N: NetworkService,
-	T: Clone + Executor + Send + 'static,
-{
-	fn process_message(&self, msg: ConsensusMessage) -> Option<Async<()>> {
-		use polkadot_consensus::SignedStatement;
-
-		debug!(target: "consensus", "Processing consensus statement for live consensus");
-		if let Some(statement) = SignedStatement::decode(&mut msg.as_slice()) {
-			if ::polkadot_consensus::check_statement(
-				&statement.statement,
-				&statement.signature,
-				statement.sender,
-				&self.parent_hash
-			) {
-				self.table_router.import_statement(statement);
-			}
-		}
-
-		None
-	}
-}
-
-impl<P, E, N, T> Future for MessageProcessTask<P, E, N, T> where
-	P: ProvideRuntimeApi + Send + Sync + 'static,
-	P::Api: ParachainHost<Block>,
-	E: Future<Item=(),Error=()> + Clone + Send + 'static,
-	N: NetworkService,
-	T: Clone + Executor + Send + 'static,
-{
-	type Item = ();
-	type Error = ();
-
-	fn poll(&mut self) -> Poll<(), ()> {
-		loop {
-			match self.inner_stream.poll() {
-				Ok(Async::Ready(Some(val))) => if let Some(async) = self.process_message(val) {
-					return Ok(async);
-				},
-				Ok(Async::Ready(None)) => return Ok(Async::Ready(())),
-				Ok(Async::NotReady) => return Ok(Async::NotReady),
-				Err(e) => debug!(target: "p_net", "Error getting consensus message: {:?}", e),
-			}
-		}
-	}
-}
-
 /// Wrapper around the network service
 pub struct ConsensusNetwork<P, E, N, T> {
 	network: Arc<N>,
@@ -258,16 +200,10 @@ impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
 
 		table_router.broadcast_egress(outgoing);
 
-		let attestation_topic = table_router.gossip_topic();
-
-		// spin up a task in the background that processes all incoming statements
-		// TODO: propagate statements on a timer?
-		let inner_stream = self.network.gossip_messages_for(attestation_topic);
-		self.executor.spawn(MessageProcessTask {
-			inner_stream,
-			parent_hash,
-			table_router: table_router.clone(),
-		});
+		let table_router_clone = table_router.clone();
+		let work = table_router.checked_statements()
+			.for_each(move |msg| { table_router_clone.import_statement(msg); Ok(()) });
+		self.executor.spawn(work);
 
 		table_router
 	}
