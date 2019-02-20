@@ -59,5 +59,5 @@ pub fn post_message(message: MessageRef) {
 	let data_ptr = message.data.as_ptr();
 	let data_len = message.data.len();
 
-	unsafe { ll::ext_post_message(message.target, data_ptr, data_len as u32) }
+	unsafe { ll::ext_post_message(message.target.into_inner(), data_ptr, data_len as u32) }
 }

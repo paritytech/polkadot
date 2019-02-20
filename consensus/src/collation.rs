@@ -305,8 +305,7 @@ pub fn validate_collation<P>(
 		parent_head: chain_head,
 		block_data: collation.block_data.0.clone(),
 		ingress: incoming.iter()
-			.flat_map(|&(para_id, ref messages)| {
-				let source: u32 = para_id.into();
+			.flat_map(|&(source, ref messages)| {
 				messages.iter().map(move |msg| IncomingMessage {
 					source,
 					data: msg.0.clone(),
@@ -391,7 +390,7 @@ mod tests {
 			outgoing: Vec::new(),
 		};
 
-		assert!(ext.post_message(MessageRef { target: 1, data: &[] }).is_ok());
-		assert!(ext.post_message(MessageRef { target: 5, data: &[] }).is_err());
+		assert!(ext.post_message(MessageRef { target: 1.into(), data: &[] }).is_ok());
+		assert!(ext.post_message(MessageRef { target: 5.into(), data: &[] }).is_err());
 	}
 }

@@ -25,28 +25,10 @@ use {AccountId};
 #[cfg(feature = "std")]
 use primitives::bytes;
 
+pub use polkadot_parachain::Id;
+
 /// Signature on candidate's block data by a collator.
 pub type CandidateSignature = ::runtime_primitives::Ed25519Signature;
-
-/// Unique identifier of a parachain.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct Id(u32);
-
-impl From<Id> for u32 {
-	fn from(x: Id) -> Self { x.0 }
-}
-
-impl From<u32> for Id {
-	fn from(x: u32) -> Self { Id(x) }
-}
-
-impl Id {
-	/// Convert this Id into its inner representation.
-	pub fn into_inner(self) -> u32 {
-		self.0
-	}
-}
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
 #[derive(Copy, Clone, PartialEq, Encode, Decode)]
