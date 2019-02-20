@@ -6,16 +6,20 @@ description = "Polkadot-specific networking protocol"
 
 [dependencies]
 arrayvec = "0.4"
-parking_lot = "0.4"
+parking_lot = "0.7.1"
 polkadot-availability-store = { path = "../availability-store" }
 polkadot-consensus = { path = "../consensus" }
 polkadot-primitives = { path = "../primitives" }
-parity-codec = "2.1"
-parity-codec-derive = "2.1"
+parity-codec = "3.0"
+parity-codec-derive = "3.0"
 substrate-network = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 sr-primitives = { git = "https://github.com/paritytech/substrate" }
 futures = "0.1"
 tokio = "0.1.7"
 log = "0.4"
-rhododendron = "0.3"
+slice-group-by = "0.2.2"
+
+[dev-dependencies]
+substrate-client = { git = "https://github.com/paritytech/substrate" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate" }

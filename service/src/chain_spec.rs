@@ -21,7 +21,7 @@ use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
 	CouncilVotingConfig, GrandpaConfig, UpgradeKeyConfig, SudoConfig, IndicesConfig,
-	ClaimsConfig, Permill
+	ClaimsConfig, FeesConfig, Permill
 };
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -63,11 +63,10 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		balances: Some(BalancesConfig {
 			balances: endowed_accounts.iter().map(|&k| (k, 10_000_000 * DOLLARS)).collect(),
-			transaction_base_fee: 1 * CENTS,
-			transaction_byte_fee: 10 * MILLICENTS,
 			existential_deposit: 1 * DOLLARS,
 			transfer_fee: 1 * CENTS,
 			creation_fee: 1 * CENTS,
+			vesting: vec![],
 		}),
 		session: Some(SessionConfig {
 			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
@@ -133,6 +132,10 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		claims: Some(ClaimsConfig {
 			claims: vec![],
 		}),
+		fees: Some(FeesConfig {
+			transaction_base_fee: 1 * CENTS,
+			transaction_byte_fee: 10 * MILLICENTS,
+		}),
 	}
 }
 
@@ -170,12 +173,11 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> 
 			ids: endowed_accounts.clone(),
 		}),
 		balances: Some(BalancesConfig {
-			transaction_base_fee: 1,
-			transaction_byte_fee: 0,
 			existential_deposit: 500,
 			transfer_fee: 0,
 			creation_fee: 0,
 			balances: endowed_accounts.iter().map(|&k|(k, (1u128 << 60))).collect(),
+			vesting: vec![],
 		}),
 		session: Some(SessionConfig {
 			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
@@ -236,6 +238,10 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> 
 		claims: Some(ClaimsConfig {
 			claims: vec![],
 		}),
+		fees: Some(FeesConfig {
+			transaction_base_fee: 1,
+			transaction_byte_fee: 0,
+		})
 	}
 }
 

@@ -62,6 +62,13 @@ extern crate wasmi;
 #[macro_use]
 extern crate error_chain;
 
+#[cfg(feature = "std")]
+extern crate serde;
+
+#[cfg(feature = "std")]
+#[macro_use]
+extern crate serde_derive;
+
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
@@ -72,7 +79,7 @@ pub mod wasm_executor;
 pub mod wasm_api;
 
 /// Validation parameters for evaluating the parachain validity function.
-// TODO: consolidated ingress and balance downloads
+// TODO: balance downloads
 #[derive(PartialEq, Eq, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Encode))]
 pub struct ValidationParams {
@@ -80,6 +87,8 @@ pub struct ValidationParams {
 	pub block_data: Vec<u8>,
 	/// Previous head-data.
 	pub parent_head: Vec<u8>,
+	/// Incoming messages.
+	pub ingress: Vec<IncomingMessage>,
 }
 
 /// The result of parachain validation.
@@ -91,12 +100,40 @@ pub struct ValidationResult {
 	pub head_data: Vec<u8>,
 }
 
+/// Unique identifier of a parachain.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+pub struct Id(u32);
+
+impl From<Id> for u32 {
+	fn from(x: Id) -> Self { x.0 }
+}
+
+impl From<u32> for Id {
+	fn from(x: u32) -> Self { Id(x) }
+}
+
+impl Id {
+	/// Convert this Id into its inner representation.
+	pub fn into_inner(self) -> u32 {
+		self.0
+	}
+}
+
+/// An incoming message.
+#[derive(PartialEq, Eq, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Encode))]
+pub struct IncomingMessage {
+	/// The source parachain.
+	pub source: Id,
+	/// The data of the message.
+	pub data: Vec<u8>,
+}
+
 /// A reference to a message.
-#[cfg(feature = "std")]
 pub struct MessageRef<'a> {
 	/// The target parachain.
-	pub target: u32,
+	pub target: Id,
 	/// Underlying data of the message.
 	pub data: &'a [u8],
 }
-

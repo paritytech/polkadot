@@ -34,6 +34,8 @@ use substrate_network::{
 use std::sync::Arc;
 use futures::Future;
 
+mod consensus;
+
 #[derive(Default)]
 struct TestContext {
 	disabled: Vec<NodeIndex>,

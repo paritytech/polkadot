@@ -23,14 +23,14 @@
 #[cfg(test)]
 #[macro_use]
 extern crate hex_literal;
+#[cfg(test)]
+extern crate secp256k1;
+#[cfg(test)]
+extern crate tiny_keccak;
 
 #[macro_use]
 extern crate bitvec;
 
-extern crate tiny_keccak;
-extern crate secp256k1;
-
-#[macro_use]
 extern crate parity_codec_derive;
 extern crate parity_codec as codec;
 
@@ -41,7 +41,6 @@ extern crate substrate_inherents as inherents;
 extern crate substrate_client as client;
 
 extern crate sr_std as rstd;
-#[cfg(test)]
 extern crate sr_io;
 extern crate sr_version as version;
 #[macro_use]
@@ -64,6 +63,7 @@ extern crate srml_system as system;
 extern crate srml_timestamp as timestamp;
 extern crate srml_treasury as treasury;
 extern crate srml_upgrade_key as upgrade_key;
+extern crate srml_fees as fees;
 
 extern crate polkadot_primitives as primitives;
 
@@ -104,15 +104,15 @@ pub use balances::Call as BalancesCall;
 pub use parachains::{Call as ParachainsCall, INHERENT_IDENTIFIER as PARACHAIN_INHERENT_IDENTIFIER};
 pub use sr_primitives::{Permill, Perbill};
 pub use timestamp::BlockPeriod;
-pub use srml_support::{StorageValue, RuntimeMetadata};
+pub use srml_support::StorageValue;
 
 /// Runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 1,
-	spec_version: 105,
-	impl_version: 0,
+	spec_version: 107,
+	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 };
 
@@ -187,11 +187,13 @@ impl session::Trait for Runtime {
 }
 
 impl staking::Trait for Runtime {
+	type Currency = Balances;
 	type OnRewardMinted = Treasury;
 	type Event = Event;
 }
 
 impl democracy::Trait for Runtime {
+	type Currency = Balances;
 	type Proposal = Call;
 	type Event = Event;
 }
@@ -211,6 +213,7 @@ impl council::motions::Trait for Runtime {
 }
 
 impl treasury::Trait for Runtime {
+	type Currency = Balances;
 	type ApproveOrigin = council_motions::EnsureMembers<_4>;
 	type RejectOrigin = council_motions::EnsureMembers<_2>;
 	type Event = Event;
@@ -235,6 +238,12 @@ impl sudo::Trait for Runtime {
 
 impl claims::Trait for Runtime {
 	type Event = Event;
+}
+
+impl fees::Trait for Runtime {
+	type Event = Event;
+	type Amount = Balance;
+	type TransferAsset = Balances;
 }
 
 construct_runtime!(
@@ -263,6 +272,7 @@ construct_runtime!(
 		Sudo: sudo,
 		UpgradeKey: upgrade_key,
 		Claims: claims,
+		Fees: fees::{Module, Storage, Config<T>, Event<T>},
 	}
 );
 
@@ -281,7 +291,7 @@ pub type UncheckedExtrinsic = generic::UncheckedMortalCompactExtrinsic<Address, 
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Balances, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Fees, AllModules>;
 
 impl_runtime_apis! {
 	impl client_api::Core<Block> for Runtime {
@@ -351,6 +361,9 @@ impl_runtime_apis! {
 		}
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)
+		}
+		fn ingress(to: parachain::Id) -> Option<Vec<(parachain::Id, Hash)>> {
+			Parachains::ingress(to)
 		}
 	}
 

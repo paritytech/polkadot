@@ -58,7 +58,7 @@ impl ParachainContext for AdderContext {
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 		&self,
 		last_head: HeadData,
-		_ingress: I,
+		ingress: I,
 	) -> Result<(BlockData, HeadData), InvalidHead>
 	{
 		let adder_head = AdderHead::decode(&mut &last_head.0[..])
@@ -79,7 +79,11 @@ impl ParachainContext for AdderContext {
 			add: adder_head.number % 100,
 		};
 
-		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body)
+		let from_messages = ::adder::process_messages(
+			ingress.into_iter().map(|(_, msg)| msg.0)
+		);
+
+		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body, from_messages)
 			.expect("good execution params; qed");
 
 		let encoded_head = HeadData(next_head.encode());
@@ -114,11 +118,11 @@ fn main() {
 	let (exit_send, exit) = exit_future::signal();
 
 	let exit_send_cell = RefCell::new(Some(exit_send));
-	ctrlc::CtrlC::set_handler(move || {
+	ctrlc::set_handler(move || {
 		if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
 			exit_send.fire();
 		}
-	});
+	}).expect("Errror setting up ctrl-c handler");
 
 	let context = AdderContext {
 		db: Arc::new(Mutex::new(HashMap::new())),
@@ -137,6 +141,7 @@ fn main() {
 			executable_name: "adder-collator",
 			description: "collator for adder parachain",
 			author: "parity technologies",
+			support_url: "https://github.com/paritytech/polkadot/issues/new",
 		}
 	);
 

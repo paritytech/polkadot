@@ -6,17 +6,24 @@ The easiest/faster option is to use the latest image.
 Let´s first check the version we have. The first time you run this command, the polkadot docker image will be downloaded. This takes a bit of time and bandwidth, be patient:
 
 [source, shell]
-docker run --rm -it chevdor/polkadot:0.3.0 polkadot --version
+docker run --rm -it chevdor/polkadot:0.3.14 polkadot --version
 
 You can also pass any argument/flag that polkadot supports:
 
 [source, shell]
-docker run --rm -it chevdor/polkadot:0.3.0 polkadot --name "PolkaDocker"
+docker run --rm -it chevdor/polkadot:0.3.14 polkadot --chain alex --name "PolkaDocker"
 
 Once you are done experimenting and picking the best node name :) you can start polkadot as daemon, exposes the polkadot ports and mount a volume that will keep your blockchain data locally:
 
 [source, shell]
-docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.0 polkadot
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.14 polkadot --chain alex
+
+Additionally if you want to have custom node name you can add the `--name "YourName"` at the end
+
+[source, shell]
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.14 polkadot --chain alex --name "PolkaDocker" 
+
+**Note:** The `--chain alex` argument is important and you need to add it to the command line. If you are running older node versions (pre 0.3) you don't need it.
 
 Start a shell session with the daemon:
 

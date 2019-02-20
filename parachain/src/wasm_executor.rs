@@ -162,7 +162,7 @@ impl<'a, E: 'a + Externalities> ValidationExternals<'a, E> {
 				Err(Trap::new(wasmi::TrapKind::MemoryAccessOutOfBounds))
 			} else {
 				let res = self.externalities.post_message(MessageRef {
-					target,
+					target: target.into(),
 					data: &mem[data_ptr..][..data_len],
 				});
 

@@ -17,8 +17,7 @@
 //! Module to process claims from Ethereum addresses.
 
 use rstd::prelude::*;
-use tiny_keccak::keccak256;
-use secp256k1;
+use sr_io::{keccak_256, secp256k1_ecdsa_recover};
 use srml_support::{StorageValue, StorageMap};
 use system::ensure_signed;
 use codec::Encode;
@@ -33,7 +32,28 @@ pub trait Trait: balances::Trait {
 }
 
 type EthereumAddress = [u8; 20];
-type EcdsaSignature = ([u8; 32], [u8; 32], i8);
+
+// This is a bit of a workaround until codec supports [u8; 65] directly.
+#[derive(Encode, Decode, Clone, PartialEq)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct EcdsaSignature([u8; 32], [u8; 32], i8);
+
+impl EcdsaSignature {
+	pub fn to_blob(&self) -> [u8; 65] {
+		let mut r = [0u8; 65];
+		r[0..32].copy_from_slice(&self.0[..]);
+		r[32..64].copy_from_slice(&self.1[..]);
+		r[64] = self.2 as u8;
+		r
+	}
+	pub fn from_blob(blob: &[u8; 65]) -> Self {
+		let mut r = Self([0u8; 32], [0u8; 32], 0);
+		r.0[..].copy_from_slice(&blob[0..32]);
+		r.1[..].copy_from_slice(&blob[32..64]);
+		r.2 = blob[64] as i8;
+		r
+	}
+}
 
 /// An event in this module.
 decl_event!(
@@ -63,18 +83,10 @@ decl_storage! {
 	}
 }
 
-fn ecdsa_recover(sig: &EcdsaSignature, msg: &[u8; 32]) -> Option<[u8; 64]> {
-	let v = secp256k1::RecoveryId::parse(if sig.2 > 26 { sig.2 - 27 } else { sig.2 } as u8).ok()?;
-	let rs = (sig.0, sig.1).using_encoded(secp256k1::Signature::parse_slice).ok()?;
-	let pubkey = secp256k1::recover(&secp256k1::Message::parse(msg), &rs, &v).ok()?;
-	let mut res = [0u8; 64];
-	res.copy_from_slice(&pubkey.serialize()[1..65]);
-	Some(res)
-}
-
-fn create_msg(who: &[u8]) -> Vec<u8> {
+// Constructs the message that Ethereum RPC's `personal_sign` and `eth_sign` would sign.
+fn ethereum_signable_message(what: &[u8]) -> Vec<u8> {
 	let prefix = b"Pay DOTs to the Polkadot account:";
-	let mut l = prefix.len() + who.len();
+	let mut l = prefix.len() + what.len();
 	let mut rev = Vec::new();
 	while l > 0 {
 		rev.push(b'0' + (l % 10) as u8);
@@ -83,14 +95,16 @@ fn create_msg(who: &[u8]) -> Vec<u8> {
 	let mut v = b"\x19Ethereum Signed Message:\n".to_vec();
 	v.extend(rev.into_iter().rev());
 	v.extend_from_slice(&prefix[..]);
-	v.extend_from_slice(who);
+	v.extend_from_slice(what);
 	v
 }
 
-fn eth_recover(s: &EcdsaSignature, who: &[u8]) -> Option<EthereumAddress> {
-	let msg = keccak256(&create_msg(who));
+// Attempts to recover the Ethereum address from a message signature signed by using
+// the Ethereum RPC's `personal_sign` and `eth_sign`.
+fn eth_recover(s: &EcdsaSignature, what: &[u8]) -> Option<EthereumAddress> {
+	let msg = keccak_256(&ethereum_signable_message(what));
 	let mut res = EthereumAddress::default();
-	res.copy_from_slice(&keccak256(&ecdsa_recover(s, &msg)?[..])[12..]);
+	res.copy_from_slice(&keccak_256(&secp256k1_ecdsa_recover(&s.to_blob(), &msg).ok()?[..])[12..]);
 	Some(res)
 }
 
@@ -132,7 +146,7 @@ mod tests {
 	use super::*;
 
 	use sr_io::{self as runtime_io, with_externalities};
-	use substrate_primitives::{H256, Blake2Hasher, hexdisplay::HexDisplay};
+	use substrate_primitives::{H256, Blake2Hasher};
 	use codec::{Decode, Encode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
@@ -187,28 +201,20 @@ mod tests {
 		res.copy_from_slice(&keccak256(&alice_public().serialize()[1..65])[12..]);
 		res
 	}
-	fn alice_sig(who: &[u8]) -> EcdsaSignature {
-		let msg = keccak256(&create_msg(who));
+	fn alice_sig(what: &[u8]) -> EcdsaSignature {
+		let msg = keccak256(&ethereum_signable_message(what));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &alice_secret()).unwrap();
 		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
-		(sig.0, sig.1, recovery_id.serialize() as i8)
+		EcdsaSignature(sig.0, sig.1, recovery_id.serialize() as i8)
 	}
 	fn bob_secret() -> secp256k1::SecretKey {
 		secp256k1::SecretKey::parse(&keccak256(b"Bob")).unwrap()
 	}
-	fn bob_public() -> secp256k1::PublicKey {
-		secp256k1::PublicKey::from_secret_key(&bob_secret())
-	}
-	fn bob_eth() -> EthereumAddress {
-		let mut res = EthereumAddress::default();
-		res.copy_from_slice(&keccak256(&bob_public().serialize()[1..65])[12..]);
-		res
-	}
-	fn bob_sig(who: &[u8]) -> EcdsaSignature {
-		let msg = keccak256(&create_msg(who));
+	fn bob_sig(what: &[u8]) -> EcdsaSignature {
+		let msg = keccak256(&ethereum_signable_message(what));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &bob_secret()).unwrap();
 		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
-		(sig.0, sig.1, recovery_id.serialize() as i8)
+		EcdsaSignature(sig.0, sig.1, recovery_id.serialize() as i8)
 	}
 
 	// This function basically just builds a genesis storage key/value store according to
@@ -269,9 +275,8 @@ mod tests {
 	#[test]
 	fn real_eth_sig_works() {
 		let sig = hex!["7505f2880114da51b3f5d535f8687953c0ab9af4ab81e592eaebebf53b728d2b6dfd9b5bcd70fee412b1f31360e7c2774009305cb84fc50c1d0ff8034dfa5fff1c"];
-		let sig = EcdsaSignature::decode(&mut &sig[..]).unwrap();
+		let sig = EcdsaSignature::from_blob(&sig);
 		let who = 42u64.encode();
-		let msg = create_msg(&who);
 		let signer = eth_recover(&sig, &who).unwrap();
 		assert_eq!(signer, hex!["DF67EC7EAe23D2459694685257b6FC59d1BAA1FE"]);
 	}
