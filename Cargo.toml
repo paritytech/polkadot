@@ -22,7 +22,6 @@ members = [
 	"availability-store",
 	"cli",
 	"collator",
-	"consensus",
 	"erasure-coding",
 	"executor",
 	"network",
@@ -31,6 +30,7 @@ members = [
 	"service",
 	"statement-table",
 	"service",
+	"validation",
 
 	"test-parachains/adder",
 	"test-parachains/adder/collator",

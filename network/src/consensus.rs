@@ -16,12 +16,12 @@
 
 //! The "consensus" networking code built on top of the base network service.
 //!
-//! This fulfills the `polkadot_consensus::Network` trait, providing a hook to be called
+//! This fulfills the `polkadot_validation::Network` trait, providing a hook to be called
 //! each time consensus begins on a new chain head.
 
 use sr_primitives::traits::ProvideRuntimeApi;
 use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
-use polkadot_consensus::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
+use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
 use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData};
 use codec::Decode;
@@ -128,11 +128,11 @@ impl<P, E, N, T> MessageProcessTask<P, E, N, T> where
 	T: Clone + Executor + Send + 'static,
 {
 	fn process_message(&self, msg: ConsensusMessage) -> Option<Async<()>> {
-		use polkadot_consensus::SignedStatement;
+		use polkadot_validation::SignedStatement;
 
 		debug!(target: "consensus", "Processing consensus statement for live consensus");
 		if let Some(statement) = SignedStatement::decode(&mut msg.as_slice()) {
-			if ::polkadot_consensus::check_statement(
+			if ::polkadot_validation::check_statement(
 				&statement.statement,
 				&statement.signature,
 				statement.sender,
@@ -209,7 +209,7 @@ impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
-		outgoing: polkadot_consensus::Outgoing,
+		outgoing: polkadot_validation::Outgoing,
 	) -> Self::TableRouter {
 		let parent_hash = table.consensus_parent_hash().clone();
 

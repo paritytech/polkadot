@@ -22,7 +22,7 @@ use substrate_primitives::{Ed25519AuthorityId, NativeOrEncoded};
 use substrate_keyring::Keyring;
 use {PolkadotProtocol};
 
-use polkadot_consensus::{SharedTable, MessagesFrom, Network, TableRouter};
+use polkadot_validation::{SharedTable, MessagesFrom, Network, TableRouter};
 use polkadot_primitives::{AccountId, Block, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage};
 use parking_lot::Mutex;
@@ -356,7 +356,7 @@ impl IngressBuilder {
 		let mut map = HashMap::new();
 		for ((source, target), messages) in self.egress {
 			map.entry(target).or_insert_with(Vec::new)
-				.push((source, polkadot_consensus::message_queue_root(&messages)));
+				.push((source, polkadot_validation::message_queue_root(&messages)));
 		}
 
 		for roots in map.values_mut() {
@@ -372,7 +372,7 @@ fn make_table(data: &ApiData, local_key: &Keyring, parent_hash: Hash) -> Arc<Sha
 
 	let store = Store::new_in_memory();
 	let authorities: Vec<_> = data.validators.iter().map(|v| v.to_fixed_bytes().into()).collect();
-	let (group_info, _) = ::polkadot_consensus::make_group_info(
+	let (group_info, _) = ::polkadot_validation::make_group_info(
 		DutyRoster { validator_duty: data.duties.clone() },
 		&authorities,
 		local_key.to_raw_public().into()

@@ -24,7 +24,7 @@ extern crate substrate_network;
 extern crate substrate_primitives;
 extern crate sr_primitives;
 
-extern crate polkadot_consensus;
+extern crate polkadot_validation;
 extern crate polkadot_availability_store as av_store;
 extern crate polkadot_primitives;
 

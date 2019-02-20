@@ -20,7 +20,7 @@ use super::{PolkadotProtocol, Status, Message, FullStatus};
 use consensus::{CurrentConsensus, Knowledge};
 
 use parking_lot::Mutex;
-use polkadot_consensus::GenericStatement;
+use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, SessionKey};
 use polkadot_primitives::parachain::{CandidateReceipt, HeadData, BlockData};
 use substrate_primitives::H512;

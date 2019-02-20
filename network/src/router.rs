@@ -23,7 +23,7 @@
 //! and dispatch evaluation work as necessary when new statements come in.
 
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
-use polkadot_consensus::{
+use polkadot_validation::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Incoming,
 	Validated, Outgoing,
 };
@@ -481,7 +481,7 @@ impl<S> Future for ComputeIngress<S> where S: Stream<Item=IngressPair> {
 				Entry::Occupied(occupied) => {
 					let canon_root = occupied.get().clone();
 					let messages = messages.iter().map(|m| &m.0[..]);
-					if ::polkadot_consensus::message_queue_root(messages) != canon_root {
+					if ::polkadot_validation::message_queue_root(messages) != canon_root {
 						continue;
 					}
 
@@ -572,7 +572,7 @@ mod tests {
 		let roots: HashMap<_, _> = actual_messages.iter()
 			.map(|&(para_id, ref messages)| (
 				para_id,
-				::polkadot_consensus::message_queue_root(messages.iter().map(|m| &m.0)),
+				::polkadot_validation::message_queue_root(messages.iter().map(|m| &m.0)),
 			))
 			.collect();
 
