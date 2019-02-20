@@ -32,18 +32,16 @@ use polkadot_primitives::parachain::{
 	BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message
 };
 
-use codec::{Encode, Decode};
-use futures::{future, prelude::*};
-use futures::sync::oneshot::{self, Receiver};
+use codec::Encode;
+use futures::prelude::*;
 use parking_lot::Mutex;
 
-use std::collections::{hash_map::{Entry, HashMap}, HashSet};
-use std::{io, mem};
+use std::collections::{HashMap, HashSet};
+use std::io;
 use std::sync::Arc;
 
-use consensus::{NetworkService, Knowledge, Executor};
+use consensus::{self, ConsensusDataFetcher, NetworkService, Executor};
 
-type IngressPair = (ParaId, Vec<Message>);
 type IngressPairRef<'a> = (ParaId, &'a [Message]);
 
 fn attestation_topic(parent_hash: Hash) -> Hash {
@@ -53,100 +51,25 @@ fn attestation_topic(parent_hash: Hash) -> Hash {
 	BlakeTwo256::hash(&v[..])
 }
 
-fn incoming_message_topic(parent_hash: Hash, parachain: ParaId) -> Hash {
-	let mut v = parent_hash.as_ref().to_vec();
-	parachain.using_encoded(|s| v.extend(s));
-	v.extend(b"incoming");
-
-	BlakeTwo256::hash(&v[..])
-}
-
-/// Receiver for block data.
-pub struct BlockDataReceiver {
-	outer: Receiver<Receiver<BlockData>>,
-	inner: Option<Receiver<BlockData>>
-}
-
-impl Future for BlockDataReceiver {
-	type Item = BlockData;
-	type Error = io::Error;
-
-	fn poll(&mut self) -> Poll<BlockData, io::Error> {
-		let map_err = |_| io::Error::new(
-			io::ErrorKind::Other,
-			"Sending end of channel hung up",
-		);
-
-		if let Some(ref mut inner) = self.inner {
-			return inner.poll().map_err(map_err);
-		}
-		match self.outer.poll().map_err(map_err)? {
-			Async::Ready(mut inner) => {
-				let poll_result = inner.poll();
-				self.inner = Some(inner);
-				poll_result.map_err(map_err)
-			}
-			Async::NotReady => Ok(Async::NotReady),
-		}
-	}
-}
-/// receiver for incoming data.
-#[derive(Clone)]
-pub struct IncomingReceiver {
-	inner: future::Shared<Receiver<Incoming>>
-}
-
-impl Future for IncomingReceiver {
-	type Item = Incoming;
-	type Error = io::Error;
-
-	fn poll(&mut self) -> Poll<Incoming, io::Error> {
-		match self.inner.poll() {
-			Ok(Async::NotReady) => Ok(Async::NotReady),
-			Ok(Async::Ready(i)) => Ok(Async::Ready(Incoming::clone(&*i))),
-			Err(_) => Err(io::Error::new(
-				io::ErrorKind::Other,
-				"Sending end of channel hung up",
-			)),
-		}
-	}
-}
-
 /// Table routing implementation.
 pub struct Router<P, E, N: NetworkService, T> {
 	table: Arc<SharedTable>,
-	network: Arc<N>,
-	api: Arc<P>,
-	exit: E,
-	task_executor: T,
-	parent_hash: Hash,
 	attestation_topic: Hash,
-	knowledge: Arc<Mutex<Knowledge>>,
-	fetch_incoming: Arc<Mutex<HashMap<ParaId, IncomingReceiver>>>,
+	fetcher: ConsensusDataFetcher<P, E, N, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 }
 
 impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
-		network: Arc<N>,
-		api: Arc<P>,
-		task_executor: T,
-		parent_hash: Hash,
-		knowledge: Arc<Mutex<Knowledge>>,
-		exit: E,
+		fetcher: ConsensusDataFetcher<P, E, N, T>,
 	) -> Self {
+		let parent_hash = fetcher.parent_hash();
 		Router {
 			table,
-			network,
-			api,
-			task_executor,
-			parent_hash,
 			attestation_topic: attestation_topic(parent_hash),
-			knowledge,
-			fetch_incoming: Arc::new(Mutex::new(HashMap::new())),
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
-			exit,
+			fetcher,
 		}
 	}
 
@@ -154,21 +77,23 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	pub(crate) fn gossip_topic(&self) -> Hash {
 		self.attestation_topic
 	}
+
+	fn parent_hash(&self) -> Hash {
+		self.fetcher.parent_hash()
+	}
+
+	fn network(&self) -> &Arc<N> {
+		self.fetcher.network()
+	}
 }
 
 impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 	fn clone(&self) -> Self {
 		Router {
 			table: self.table.clone(),
-			network: self.network.clone(),
-			api: self.api.clone(),
-			task_executor: self.task_executor.clone(),
-			parent_hash: self.parent_hash.clone(),
+			fetcher: self.fetcher.clone(),
 			attestation_topic: self.attestation_topic.clone(),
 			deferred_statements: self.deferred_statements.clone(),
-			fetch_incoming: self.fetch_incoming.clone(),
-			knowledge: self.knowledge.clone(),
-			exit: self.exit.clone(),
 		}
 	}
 }
@@ -216,12 +141,12 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		);
 		// dispatch future work as necessary.
 		for (producer, statement) in producers.into_iter().zip(statements) {
-			self.knowledge.lock().note_statement(statement.sender, &statement.statement);
+			self.fetcher.knowledge().lock().note_statement(statement.sender, &statement.statement);
 
 			if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
 				trace!(target: "consensus", "driving statement work to completion");
-				let work = work.select2(self.exit.clone()).then(|_| Ok(()));
-				self.task_executor.spawn(work);
+				let work = work.select2(self.fetcher.exit().clone()).then(|_| Ok(()));
+				self.fetcher.executor().spawn(work);
 			}
 		}
 	}
@@ -246,13 +171,14 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 				group_messages.extend(group.iter().map(|msg| msg.data.clone()).map(Message));
 
 				debug!(target: "consensus", "Circulating messages from {:?} to {:?} at {}",
-					source, target, self.parent_hash);
+					source, target, self.parent_hash());
 
 				// this is the ingress from source to target, with given messages.
-				let target_incoming = incoming_message_topic(self.parent_hash, target);
+				let target_incoming
+					= consensus::incoming_message_topic(self.parent_hash(), target);
 				let ingress_for: IngressPairRef = (source, &group_messages[..]);
 
-				self.network.gossip_message(target_incoming, ingress_for.encode());
+				self.network().gossip_message(target_incoming, ingress_for.encode());
 			}
 		}
 	}
@@ -263,11 +189,11 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		D: Future<Item=(BlockData, Incoming),Error=io::Error> + Send + 'static,
 	{
 		let table = self.table.clone();
-		let network = self.network.clone();
-		let knowledge = self.knowledge.clone();
+		let network = self.network().clone();
+		let knowledge = self.fetcher.knowledge().clone();
 		let attestation_topic = self.attestation_topic.clone();
 
-		producer.prime(self.api.clone())
+		producer.prime(self.fetcher.api().clone())
 			.map(move |validated| {
 				// store the data before broadcasting statements, so other peers can fetch.
 				knowledge.lock().note_candidate(
@@ -283,61 +209,6 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
 	}
-
-}
-
-impl<P: ProvideRuntimeApi, E, N, T> Router<P, E, N, T> where
-	P::Api: ParachainHost<Block>,
-	N: NetworkService,
-	T: Executor,
-	E: Future<Item=(),Error=()> + Clone + Send + 'static,
-{
-	fn do_fetch_incoming(&self, parachain: ParaId) -> IncomingReceiver {
-		use polkadot_primitives::BlockId;
-		let (tx, rx) = {
-			let mut fetching = self.fetch_incoming.lock();
-			match fetching.entry(parachain) {
-				Entry::Occupied(entry) => return entry.get().clone(),
-				Entry::Vacant(entry) => {
-					// has not been requested yet.
-					let (tx, rx) = oneshot::channel();
-					let rx = IncomingReceiver { inner: rx.shared() };
-					entry.insert(rx.clone());
-
-					(tx, rx)
-				}
-			}
-		};
-
-		let parent_hash = self.parent_hash;
-		let topic = incoming_message_topic(parent_hash, parachain);
-		let gossip_messages = self.network.gossip_messages_for(topic)
-			.map_err(|()| panic!("unbounded receivers do not throw errors; qed"))
-			.filter_map(|msg| IngressPair::decode(&mut msg.as_slice()));
-
-		let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
-			.map_err(|e| format!("Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
-				parachain, parent_hash, e)
-			);
-
-		let work = canon_roots.into_future()
-			.and_then(move |ingress_roots| match ingress_roots {
-				None => Err(format!("No parachain {:?} registered at {}", parachain, parent_hash)),
-				Some(roots) => Ok(roots.into_iter().collect())
-			})
-			.and_then(move |ingress_roots| ComputeIngress {
-				inner: gossip_messages,
-				ingress_roots,
-				incoming: Vec::new(),
-			})
-			.map(move |incoming| if let Some(i) = incoming { let _ = tx.send(i); })
-			.select2(self.exit.clone())
-			.then(|_| Ok(()));
-
-		self.task_executor.spawn(work);
-
-		rx
-	}
 }
 
 impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> where
@@ -347,8 +218,8 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
 {
 	type Error = io::Error;
-	type FetchCandidate = BlockDataReceiver;
-	type FetchIncoming = IncomingReceiver;
+	type FetchCandidate = consensus::BlockDataReceiver;
+	type FetchIncoming = consensus::IncomingReceiver;
 
 	fn local_candidate(&self, receipt: CandidateReceipt, block_data: BlockData, extrinsic: Extrinsic) {
 		// produce a signed statement
@@ -357,41 +228,22 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 		let statement = self.table.import_validated(validated);
 
 		// give to network to make available.
-		self.knowledge.lock().note_candidate(hash, Some(block_data), Some(extrinsic));
-		self.network.gossip_message(self.attestation_topic, statement.encode());
+		self.fetcher.knowledge().lock().note_candidate(hash, Some(block_data), Some(extrinsic));
+		self.network().gossip_message(self.attestation_topic, statement.encode());
 	}
 
-	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> BlockDataReceiver {
-		let parent_hash = self.parent_hash.clone();
-		let candidate = candidate.clone();
-		let (tx, rx) = ::futures::sync::oneshot::channel();
-		self.network.with_spec(move |spec, ctx| {
-			let inner_rx = spec.fetch_block_data(ctx, &candidate, parent_hash);
-			let _ = tx.send(inner_rx);
-		});
-		BlockDataReceiver { outer: rx, inner: None }
+	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> Self::FetchCandidate {
+		self.fetcher.fetch_block_data(candidate)
 	}
 
 	fn fetch_incoming(&self, parachain: ParaId) -> Self::FetchIncoming {
-		self.do_fetch_incoming(parachain)
+		self.fetcher.fetch_incoming(parachain)
 	}
 }
 
 impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 	fn drop(&mut self) {
-		let parent_hash = self.parent_hash.clone();
-		self.network.with_spec(move |spec, _| spec.remove_consensus(&parent_hash));
-		self.network.drop_gossip(self.attestation_topic);
-
-		{
-			let mut incoming_fetched = self.fetch_incoming.lock();
-			for (para_id, _) in incoming_fetched.drain() {
-				self.network.drop_gossip(incoming_message_topic(
-					self.parent_hash,
-					para_id,
-				));
-			}
-		}
+		self.fetcher.network().drop_gossip(self.attestation_topic);
 	}
 }
 
@@ -450,63 +302,10 @@ impl DeferredStatements {
 	}
 }
 
-// computes ingress from incoming stream of messages.
-// returns `None` if the stream concludes too early.
-#[must_use = "futures do nothing unless polled"]
-struct ComputeIngress<S> {
-	ingress_roots: HashMap<ParaId, Hash>,
-	incoming: Vec<IngressPair>,
-	inner: S,
-}
-
-impl<S> Future for ComputeIngress<S> where S: Stream<Item=IngressPair> {
-	type Item = Option<Incoming>;
-	type Error = S::Error;
-
-	fn poll(&mut self) -> Poll<Option<Incoming>, Self::Error> {
-		loop {
-			if self.ingress_roots.is_empty() {
-				return Ok(Async::Ready(
-					Some(mem::replace(&mut self.incoming, Vec::new()))
-				))
-			}
-
-			let (para_id, messages) = match try_ready!(self.inner.poll()) {
-				None => return Ok(Async::Ready(None)),
-				Some(next) => next,
-			};
-
-			match self.ingress_roots.entry(para_id) {
-				Entry::Vacant(_) => continue,
-				Entry::Occupied(occupied) => {
-					let canon_root = occupied.get().clone();
-					let messages = messages.iter().map(|m| &m.0[..]);
-					if ::polkadot_consensus::message_queue_root(messages) != canon_root {
-						continue;
-					}
-
-					occupied.remove();
-				}
-			}
-
-			let pos = self.incoming.binary_search_by_key(
-				&para_id,
-				|&(id, _)| id,
-			)
-				.err()
-				.expect("incoming starts empty and only inserted when \
-					para_id not inserted before; qed");
-
-			self.incoming.insert(pos, (para_id, messages));
-		}
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use substrate_primitives::H512;
-	use futures::stream;
 
 	#[test]
 	fn deferred_statements_works() {
@@ -547,71 +346,5 @@ mod tests {
 			assert!(signed.is_empty());
 			assert!(traces.is_empty());
 		}
-	}
-
-	#[test]
-	fn compute_ingress_works() {
-		let actual_messages = [
-			(
-				ParaId::from(1),
-				vec![Message(vec![1, 3, 5, 6]), Message(vec![4, 4, 4, 4])],
-			),
-			(
-				ParaId::from(2),
-				vec![
-					Message(vec![1, 3, 7, 9, 1, 2, 3, 4, 5, 6]),
-					Message(b"hello world".to_vec()),
-				],
-			),
-			(
-				ParaId::from(5),
-				vec![Message(vec![1, 2, 3, 4, 5]), Message(vec![6, 9, 6, 9])],
-			),
-		];
-
-		let roots: HashMap<_, _> = actual_messages.iter()
-			.map(|&(para_id, ref messages)| (
-				para_id,
-				::polkadot_consensus::message_queue_root(messages.iter().map(|m| &m.0)),
-			))
-			.collect();
-
-		let inputs = [
-			(
-				ParaId::from(1), // wrong message.
-				vec![Message(vec![1, 1, 2, 2]), Message(vec![3, 3, 4, 4])],
-			),
-			(
-				ParaId::from(1),
-				vec![Message(vec![1, 3, 5, 6]), Message(vec![4, 4, 4, 4])],
-			),
-			(
-				ParaId::from(1), // duplicate
-				vec![Message(vec![1, 3, 5, 6]), Message(vec![4, 4, 4, 4])],
-			),
-
-			(
-				ParaId::from(5), // out of order
-				vec![Message(vec![1, 2, 3, 4, 5]), Message(vec![6, 9, 6, 9])],
-			),
-			(
-				ParaId::from(1234), // un-routed parachain.
-				vec![Message(vec![9, 9, 9, 9])],
-			),
-			(
-				ParaId::from(2),
-				vec![
-					Message(vec![1, 3, 7, 9, 1, 2, 3, 4, 5, 6]),
-					Message(b"hello world".to_vec()),
-				],
-			),
-		];
-		let ingress = ComputeIngress {
-			ingress_roots: roots,
-			incoming: Vec::new(),
-			inner: stream::iter_ok::<_, ()>(inputs.iter().cloned()),
-		};
-
-		assert_eq!(ingress.wait().unwrap().unwrap(), actual_messages);
 	}
 }

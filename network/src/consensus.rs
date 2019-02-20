@@ -19,18 +19,24 @@
 //! This fulfills the `polkadot_consensus::Network` trait, providing a hook to be called
 //! each time consensus begins on a new chain head.
 
-use sr_primitives::traits::ProvideRuntimeApi;
+use sr_primitives::traits::{BlakeTwo256, ProvideRuntimeApi, Hash as HashT};
 use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
-use polkadot_consensus::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
+use polkadot_consensus::{
+	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, Incoming,
+};
 use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
-use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData};
-use codec::Decode;
+use polkadot_primitives::parachain::{
+	Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData, Message, CandidateReceipt,
+};
+use codec::{Encode, Decode};
 
 use futures::prelude::*;
-use futures::future::Executor as FutureExecutor;
+use futures::future::{self, Executor as FutureExecutor};
 use futures::sync::mpsc;
+use futures::sync::oneshot::{self, Receiver};
 
-use std::collections::HashMap;
+use std::collections::hash_map::{HashMap, Entry};
+use std::io;
 use std::sync::Arc;
 
 use arrayvec::ArrayVec;
@@ -196,6 +202,32 @@ impl<P, E: Clone, N, T: Clone> Clone for ConsensusNetwork<P, E, N, T> {
 	}
 }
 
+impl<P, E, N, T> ConsensusNetwork<P, E, N, T> where
+	P: ProvideRuntimeApi + Send + Sync + 'static,
+	P::Api: ParachainHost<Block>,
+	E: Clone + Future<Item=(),Error=()> + Send + 'static,
+	N: NetworkService,
+	T: Clone + Executor + Send + 'static,
+{
+	/// Instantiate consensus at a parent hash.
+	pub(crate) fn instantiate_consensus(&self, params: ConsensusParams) -> ConsensusDataFetcher<P, E, N, T> {
+		let parent_hash = params.parent_hash;
+		let consensus = CurrentConsensus::new(params);
+		let fetcher = ConsensusDataFetcher {
+			network: self.network.clone(),
+			api: self.api.clone(),
+			task_executor: self.executor.clone(),
+			parent_hash,
+			knowledge: consensus.knowledge().clone(),
+			exit: self.exit.clone(),
+			fetch_incoming: Arc::new(Mutex::new(HashMap::new())),
+		};
+
+		self.network.with_spec(move |spec, ctx| spec.new_consensus(ctx, consensus));
+		fetcher
+	}
+}
+
 /// A long-lived network which can create parachain statement  routing processes on demand.
 impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
@@ -212,43 +244,29 @@ impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
 		outgoing: polkadot_consensus::Outgoing,
 	) -> Self::TableRouter {
 		let parent_hash = table.consensus_parent_hash().clone();
-
-		let knowledge = Arc::new(Mutex::new(Knowledge::new()));
-
 		let local_session_key = table.session_key();
+
+		let fetcher = self.instantiate_consensus(ConsensusParams {
+			local_session_key: Some(local_session_key),
+			parent_hash,
+		});
+
 		let table_router = Router::new(
 			table,
-			self.network.clone(),
-			self.api.clone(),
-			self.executor.clone(),
-			parent_hash,
-			knowledge.clone(),
-			self.exit.clone(),
+			fetcher,
 		);
 
 		table_router.broadcast_egress(outgoing);
 
 		let attestation_topic = table_router.gossip_topic();
 
-		let table_router_clone = table_router.clone();
-		let executor = self.executor.clone();
-
 		// spin up a task in the background that processes all incoming statements
 		// TODO: propagate statements on a timer?
 		let inner_stream = self.network.gossip_messages_for(attestation_topic);
-		self.network
-			.with_spec(move |spec, ctx| {
-				spec.new_consensus(ctx, parent_hash, CurrentConsensus {
-					knowledge,
-					local_session_key,
-				});
-				let process_task = MessageProcessTask {
-					inner_stream,
-					parent_hash,
-					table_router: table_router_clone,
-				};
-
-				executor.spawn(process_task);
+		self.executor.spawn(MessageProcessTask {
+			inner_stream,
+			parent_hash,
+			table_router: table_router.clone(),
 		});
 
 		table_router
@@ -359,19 +377,66 @@ impl Knowledge {
 	}
 }
 
+/// receiver for incoming data.
+#[derive(Clone)]
+pub struct IncomingReceiver {
+	inner: future::Shared<Receiver<Incoming>>
+}
+
+impl Future for IncomingReceiver {
+	type Item = Incoming;
+	type Error = io::Error;
+
+	fn poll(&mut self) -> Poll<Incoming, io::Error> {
+		match self.inner.poll() {
+			Ok(Async::NotReady) => Ok(Async::NotReady),
+			Ok(Async::Ready(i)) => Ok(Async::Ready(Incoming::clone(&*i))),
+			Err(_) => Err(io::Error::new(
+				io::ErrorKind::Other,
+				"Sending end of channel hung up",
+			)),
+		}
+	}
+}
+
+/// Incoming message gossip topic for a parachain at a given block hash.
+pub(crate) fn incoming_message_topic(parent_hash: Hash, parachain: ParaId) -> Hash {
+	let mut v = parent_hash.as_ref().to_vec();
+	parachain.using_encoded(|s| v.extend(s));
+	v.extend(b"incoming");
+
+	BlakeTwo256::hash(&v[..])
+}
+
+/// Params to a current consensus session.
+pub(crate) struct ConsensusParams {
+	/// The local session key.
+	pub local_session_key: Option<SessionKey>,
+	/// The parent hash.
+	pub parent_hash: Hash,
+}
+
 /// A current consensus instance.
 pub(crate) struct CurrentConsensus {
+	parent_hash: Hash,
 	knowledge: Arc<Mutex<Knowledge>>,
-	local_session_key: SessionKey,
+	local_session_key: Option<SessionKey>,
 }
 
 impl CurrentConsensus {
-	#[cfg(test)]
-	pub(crate) fn new(knowledge: Arc<Mutex<Knowledge>>, local_session_key: SessionKey) -> Self {
+	/// Create a new current consensus instance.
+	pub fn new(params: ConsensusParams) -> Self {
 		CurrentConsensus {
-			knowledge,
-			local_session_key
+			parent_hash: params.parent_hash,
+			knowledge: Arc::new(Mutex::new(Knowledge::new())),
+			local_session_key: params.local_session_key,
 		}
+	}
+
+	/// Get a handle to the shared knowledge relative to this consensus
+	/// instance.
+	pub(crate) fn knowledge(&self) -> &Arc<Mutex<Knowledge>> {
+		&self.knowledge
 	}
 
 	// execute a closure with locally stored block data for a candidate, or a slice of session identities
@@ -455,12 +520,12 @@ impl LiveConsensusInstances {
 	/// it returns it to be broadcasted to peers.
 	pub(crate) fn new_consensus(
 		&mut self,
-		parent_hash: Hash,
 		consensus: CurrentConsensus,
 	) -> Option<SessionKey> {
-		let inserted_key = self.recent.insert(consensus.local_session_key);
-		let maybe_new = if let InsertedRecentKey::New(_) = inserted_key {
-			Some(consensus.local_session_key)
+		let parent_hash = consensus.parent_hash.clone();
+		let inserted_key = consensus.local_session_key.map(|key| self.recent.insert(key));
+		let maybe_new = if let Some(InsertedRecentKey::New(_)) = inserted_key {
+			consensus.local_session_key
 		} else {
 			None
 		};
@@ -473,11 +538,13 @@ impl LiveConsensusInstances {
 	/// Remove consensus session.
 	pub(crate) fn remove(&mut self, parent_hash: &Hash) {
 		if let Some(consensus) = self.live_instances.remove(parent_hash) {
-			let key_still_used = self.live_instances.values()
-				.any(|c| c.local_session_key == consensus.local_session_key);
+			if let Some(ref key) = consensus.local_session_key {
+				let key_still_used = self.live_instances.values()
+					.any(|c| c.local_session_key.as_ref() == Some(key));
 
-			if !key_still_used {
-				self.recent.remove(&consensus.local_session_key)
+				if !key_still_used {
+					self.recent.remove(key)
+				}
 			}
 		}
 	}
@@ -502,9 +569,235 @@ impl LiveConsensusInstances {
 	}
 }
 
+/// Receiver for block data.
+pub struct BlockDataReceiver {
+	outer: Receiver<Receiver<BlockData>>,
+	inner: Option<Receiver<BlockData>>
+}
+
+impl Future for BlockDataReceiver {
+	type Item = BlockData;
+	type Error = io::Error;
+
+	fn poll(&mut self) -> Poll<BlockData, io::Error> {
+		let map_err = |_| io::Error::new(
+			io::ErrorKind::Other,
+			"Sending end of channel hung up",
+		);
+
+		if let Some(ref mut inner) = self.inner {
+			return inner.poll().map_err(map_err);
+		}
+		match self.outer.poll().map_err(map_err)? {
+			Async::Ready(mut inner) => {
+				let poll_result = inner.poll();
+				self.inner = Some(inner);
+				poll_result.map_err(map_err)
+			}
+			Async::NotReady => Ok(Async::NotReady),
+		}
+	}
+}
+
+/// Can fetch data for a given consensus instance.
+pub(crate) struct ConsensusDataFetcher<P, E, N: NetworkService, T> {
+	network: Arc<N>,
+	api: Arc<P>,
+	fetch_incoming: Arc<Mutex<HashMap<ParaId, IncomingReceiver>>>,
+	exit: E,
+	task_executor: T,
+	knowledge: Arc<Mutex<Knowledge>>,
+	parent_hash: Hash,
+}
+
+impl<P, E, N: NetworkService, T> ConsensusDataFetcher<P, E, N, T> {
+	/// Get the parent hash.
+	pub(crate) fn parent_hash(&self) -> Hash {
+		self.parent_hash.clone()
+	}
+
+	/// Get the shared knowledge.
+	pub(crate) fn knowledge(&self) -> &Arc<Mutex<Knowledge>> {
+		&self.knowledge
+	}
+
+	/// Get the exit future.
+	pub(crate) fn exit(&self) -> &E {
+		&self.exit
+	}
+
+	/// Get the network service.
+	pub(crate) fn network(&self) -> &Arc<N> {
+		&self.network
+	}
+
+	/// Get the executor.
+	pub(crate) fn executor(&self) -> &T {
+		&self.task_executor
+	}
+
+	/// Get the runtime API.
+	pub(crate) fn api(&self) -> &Arc<P> {
+		&self.api
+	}
+}
+
+impl<P, E: Clone, N: NetworkService, T: Clone> Clone for ConsensusDataFetcher<P, E, N, T> {
+	fn clone(&self) -> Self {
+		ConsensusDataFetcher {
+			network: self.network.clone(),
+			api: self.api.clone(),
+			task_executor: self.task_executor.clone(),
+			parent_hash: self.parent_hash.clone(),
+			fetch_incoming: self.fetch_incoming.clone(),
+			knowledge: self.knowledge.clone(),
+			exit: self.exit.clone(),
+		}
+	}
+}
+
+impl<P: ProvideRuntimeApi + Send, E, N, T> ConsensusDataFetcher<P, E, N, T> where
+	P::Api: ParachainHost<Block>,
+	N: NetworkService,
+	T: Clone + Executor + Send + 'static,
+	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+{
+	/// Fetch block data for the given candidate receipt.
+	pub fn fetch_block_data(&self, candidate: &CandidateReceipt) -> BlockDataReceiver {
+		let parent_hash = self.parent_hash;
+		let candidate = candidate.clone();
+		let (tx, rx) = ::futures::sync::oneshot::channel();
+		self.network.with_spec(move |spec, ctx| {
+			let inner_rx = spec.fetch_block_data(ctx, &candidate, parent_hash);
+			let _ = tx.send(inner_rx);
+		});
+		BlockDataReceiver { outer: rx, inner: None }
+	}
+
+	/// Fetch incoming messages for a parachain.
+	pub fn fetch_incoming(&self, parachain: ParaId) -> IncomingReceiver {
+		use polkadot_primitives::BlockId;
+		let (tx, rx) = {
+			let mut fetching = self.fetch_incoming.lock();
+			match fetching.entry(parachain) {
+				Entry::Occupied(entry) => return entry.get().clone(),
+				Entry::Vacant(entry) => {
+					// has not been requested yet.
+					let (tx, rx) = oneshot::channel();
+					let rx = IncomingReceiver { inner: rx.shared() };
+					entry.insert(rx.clone());
+
+					(tx, rx)
+				}
+			}
+		};
+
+		let parent_hash = self.parent_hash();
+		let topic = incoming_message_topic(parent_hash, parachain);
+		let gossip_messages = self.network().gossip_messages_for(topic)
+			.map_err(|()| panic!("unbounded receivers do not throw errors; qed"))
+			.filter_map(|msg| IngressPair::decode(&mut msg.as_slice()));
+
+		let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
+			.map_err(|e| format!("Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
+				parachain, parent_hash, e)
+			);
+
+		let work = canon_roots.into_future()
+			.and_then(move |ingress_roots| match ingress_roots {
+				None => Err(format!("No parachain {:?} registered at {}", parachain, parent_hash)),
+				Some(roots) => Ok(roots.into_iter().collect())
+			})
+			.and_then(move |ingress_roots| ComputeIngress {
+				inner: gossip_messages,
+				ingress_roots,
+				incoming: Vec::new(),
+			})
+			.map(move |incoming| if let Some(i) = incoming { let _ = tx.send(i); })
+			.select2(self.exit.clone())
+			.then(|_| Ok(()));
+
+		self.task_executor.spawn(work);
+
+		rx
+	}
+}
+
+impl<P, E, N: NetworkService, T> Drop for ConsensusDataFetcher<P, E, N, T> {
+	fn drop(&mut self) {
+		let parent_hash = self.parent_hash();
+		self.network.with_spec(move |spec, _| spec.remove_consensus(&parent_hash));
+
+		{
+			let mut incoming_fetched = self.fetch_incoming.lock();
+			for (para_id, _) in incoming_fetched.drain() {
+				self.network.drop_gossip(incoming_message_topic(
+					self.parent_hash,
+					para_id,
+				));
+			}
+		}
+	}
+}
+
+type IngressPair = (ParaId, Vec<Message>);
+
+// computes ingress from incoming stream of messages.
+// returns `None` if the stream concludes too early.
+#[must_use = "futures do nothing unless polled"]
+struct ComputeIngress<S> {
+	ingress_roots: HashMap<ParaId, Hash>,
+	incoming: Vec<IngressPair>,
+	inner: S,
+}
+
+impl<S> Future for ComputeIngress<S> where S: Stream<Item=IngressPair> {
+	type Item = Option<Incoming>;
+	type Error = S::Error;
+
+	fn poll(&mut self) -> Poll<Option<Incoming>, Self::Error> {
+		loop {
+			if self.ingress_roots.is_empty() {
+				return Ok(Async::Ready(
+					Some(::std::mem::replace(&mut self.incoming, Vec::new()))
+				))
+			}
+
+			let (para_id, messages) = match try_ready!(self.inner.poll()) {
+				None => return Ok(Async::Ready(None)),
+				Some(next) => next,
+			};
+
+			match self.ingress_roots.entry(para_id) {
+				Entry::Vacant(_) => continue,
+				Entry::Occupied(occupied) => {
+					let canon_root = occupied.get().clone();
+					let messages = messages.iter().map(|m| &m.0[..]);
+					if ::polkadot_consensus::message_queue_root(messages) != canon_root {
+						continue;
+					}
+
+					occupied.remove();
+				}
+			}
+
+			let pos = self.incoming.binary_search_by_key(
+				&para_id,
+				|&(id, _)| id,
+			)
+				.err()
+				.expect("incoming starts empty and only inserted when \
+					para_id not inserted before; qed");
+
+			self.incoming.insert(pos, (para_id, messages));
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use futures::stream;
 
 	#[test]
 	fn last_keys_works() {
@@ -554,5 +847,71 @@ mod tests {
 			InsertedRecentKey::AlreadyKnown => {},
 			_ => panic!("not new"),
 		}
+	}
+
+	#[test]
+	fn compute_ingress_works() {
+		let actual_messages = [
+			(
+				ParaId::from(1),
+				vec![Message(vec![1, 3, 5, 6]), Message(vec![4, 4, 4, 4])],
+			),
+			(
+				ParaId::from(2),
+				vec![
+					Message(vec![1, 3, 7, 9, 1, 2, 3, 4, 5, 6]),
+					Message(b"hello world".to_vec()),
+				],
+			),
+			(
+				ParaId::from(5),
+				vec![Message(vec![1, 2, 3, 4, 5]), Message(vec![6, 9, 6, 9])],
+			),
+		];
+
+		let roots: HashMap<_, _> = actual_messages.iter()
+			.map(|&(para_id, ref messages)| (
+				para_id,
+				::polkadot_consensus::message_queue_root(messages.iter().map(|m| &m.0)),
+			))
+			.collect();
+
+		let inputs = [
+			(
+				ParaId::from(1), // wrong message.
+				vec![Message(vec![1, 1, 2, 2]), Message(vec![3, 3, 4, 4])],
+			),
+			(
+				ParaId::from(1),
+				vec![Message(vec![1, 3, 5, 6]), Message(vec![4, 4, 4, 4])],
+			),
+			(
+				ParaId::from(1), // duplicate
+				vec![Message(vec![1, 3, 5, 6]), Message(vec![4, 4, 4, 4])],
+			),
+
+			(
+				ParaId::from(5), // out of order
+				vec![Message(vec![1, 2, 3, 4, 5]), Message(vec![6, 9, 6, 9])],
+			),
+			(
+				ParaId::from(1234), // un-routed parachain.
+				vec![Message(vec![9, 9, 9, 9])],
+			),
+			(
+				ParaId::from(2),
+				vec![
+					Message(vec![1, 3, 7, 9, 1, 2, 3, 4, 5, 6]),
+					Message(b"hello world".to_vec()),
+				],
+			),
+		];
+		let ingress = ComputeIngress {
+			ingress_roots: roots,
+			incoming: Vec::new(),
+			inner: stream::iter_ok::<_, ()>(inputs.iter().cloned()),
+		};
+
+		assert_eq!(ingress.wait().unwrap().unwrap(), actual_messages);
 	}
 }

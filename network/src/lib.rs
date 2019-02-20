@@ -65,7 +65,6 @@ use self::local_collations::LocalCollations;
 
 use std::collections::{HashMap, HashSet};
 
-
 #[cfg(test)]
 mod tests;
 
@@ -212,10 +211,9 @@ impl PolkadotProtocol {
 	fn new_consensus(
 		&mut self,
 		ctx: &mut Context<Block>,
-		parent_hash: Hash,
 		consensus: consensus::CurrentConsensus,
 	) {
-		if let Some(new_local) = self.live_consensus.new_consensus(parent_hash, consensus) {
+		if let Some(new_local) = self.live_consensus.new_consensus(consensus) {
 			for (id, peer_data) in self.peers.iter_mut()
 				.filter(|&(_, ref info)| info.should_send_key())
 			{
@@ -228,6 +226,7 @@ impl PolkadotProtocol {
 		}
 	}
 
+	/// Remove a consensus instance.
 	fn remove_consensus(&mut self, parent_hash: &Hash) {
 		self.live_consensus.remove(parent_hash);
 	}
