@@ -2205,7 +2205,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-consensus"
+name = "polkadot-validation"
 version = "0.1.0"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2264,7 +2264,7 @@ dependencies = [
  "parity-codec-derive 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-availability-store 0.1.0",
- "polkadot-consensus 0.1.0",
+ "polkadot-validation 0.1.0",
  "polkadot-primitives 0.1.0",
  "slice-group-by 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -2361,7 +2361,7 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-availability-store 0.1.0",
- "polkadot-consensus 0.1.0",
+ "polkadot-validation 0.1.0",
  "polkadot-executor 0.1.0",
  "polkadot-network 0.1.0",
  "polkadot-primitives 0.1.0",

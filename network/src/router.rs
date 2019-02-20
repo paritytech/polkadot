@@ -19,7 +19,7 @@
 //! During the consensus process, validators exchange statements on validity and availability
 //! of parachain candidates.
 //! The `Router` in this file hooks into the underlying network to fulfill
-//! the `TableRouter` trait from `polkadot-consensus`, which is expected to call into a shared statement table
+//! the `TableRouter` trait from `polkadot-validation`, which is expected to call into a shared statement table
 //! and dispatch evaluation work as necessary when new statements come in.
 
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};

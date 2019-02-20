@@ -341,7 +341,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
 
-		debug!(target: "consensus", "Active parachains: {:?}", active_parachains);
+		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
 		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
@@ -422,7 +422,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 						router.local_candidate(collation.receipt, collation.block_data, extrinsic)
 					}
 					Err(e) => warn!(
-						target: "consensus",
+						target: "validation",
 						"Failed to make collation data available: {:?}",
 						e,
 					),
@@ -431,7 +431,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 				Ok(())
 			}
 			Err(e) => {
-				warn!(target: "consensus", "Failed to collate candidate: {}", e);
+				warn!(target: "validation", "Failed to collate candidate: {}", e);
 				Ok(())
 			}
 		});

@@ -88,7 +88,7 @@ fn prune_unneeded_availability<P>(client: Arc<P>, extrinsic_store: ExtrinsicStor
 			};
 
 			if let Err(e) = extrinsic_store.candidates_finalized(parent_hash, candidate_hashes) {
-				warn!(target: "consensus", "Failed to prune unneeded available data: {:?}", e);
+				warn!(target: "validation", "Failed to prune unneeded available data: {:?}", e);
 			}
 
 			Ok(())
