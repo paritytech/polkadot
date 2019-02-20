@@ -159,7 +159,18 @@ impl<P, E, N, T> ConsensusNetwork<P, E, N, T> where
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
 {
-	/// Instantiate consensus at a parent hash.
+	/// Instantiate consensus data fetcher at a parent hash.
+	///
+	/// If the used session key is new, it will be broadcast to peers.
+	/// If consensus was already instantiated at this parent hash, the underlying instance will
+	/// be shared.
+	///
+	/// If there was already a consensus session instantiated and a different
+	/// session key was set, then the new key will be ignored.
+	///
+	/// This implies that there can be multiple services intantiating consensus
+	/// instances safely, but they should all be coordinated on which session keys
+	/// are being used.
 	pub fn instantiate_consensus(&self, params: ConsensusParams)
 		-> oneshot::Receiver<ConsensusDataFetcher<P, E, N, T>>
 	{
@@ -480,27 +491,41 @@ impl LiveConsensusInstances {
 
 	/// Note new consensus session. If the used session key is new,
 	/// it returns it to be broadcasted to peers.
+	///
+	/// If there was already a consensus session instantiated and a different
+	/// session key was set, then the new key will be ignored.
 	pub(crate) fn new_consensus(
 		&mut self,
 		params: ConsensusParams,
 	) -> (CurrentConsensus, Option<SessionKey>) {
 		let parent_hash = params.parent_hash.clone();
 
-		if let Some(prev) = self.live_instances.get(&parent_hash) {
-			return (prev.clone(), None)
-		}
+		let key = params.local_session_key;
+		let recent = &mut self.recent;
 
-		let inserted_key = params.local_session_key.map(|key| self.recent.insert(key));
-		let maybe_new = if let Some(InsertedRecentKey::New(_)) = inserted_key {
-			params.local_session_key
-		} else {
-			None
+		let mut check_new_key = move || {
+			let inserted_key = key.map(|key|recent.insert(key));
+			if let Some(InsertedRecentKey::New(_)) = inserted_key {
+				key
+			} else {
+				None
+			}
 		};
+
+		if let Some(prev) = self.live_instances.get_mut(&parent_hash) {
+			let maybe_new = if prev.local_session_key.is_none() {
+				prev.local_session_key = key;
+				check_new_key()
+			} else {
+				None
+			};
+			return (prev.clone(), maybe_new)
+		}
 
 		let consensus = CurrentConsensus::new(params);
 		self.live_instances.insert(parent_hash, consensus.clone());
 
-		(consensus, maybe_new)
+		(consensus, check_new_key())
 	}
 
 	/// Remove consensus session.
@@ -881,5 +906,39 @@ mod tests {
 		};
 
 		assert_eq!(ingress.wait().unwrap().unwrap(), actual_messages);
+	}
+
+	#[test]
+	fn add_new_consensus_works() {
+		let mut live_consensus = LiveConsensusInstances::new();
+		let key_a = [0; 32].into();
+		let key_b = [1; 32].into();
+		let parent_hash = [0xff; 32].into();
+
+		let (consensus, new_key) = live_consensus.new_consensus(ConsensusParams {
+			parent_hash,
+			local_session_key: None,
+		});
+
+		let knowledge = consensus.knowledge().clone();
+
+		assert!(new_key.is_none());
+
+		let (consensus, new_key) = live_consensus.new_consensus(ConsensusParams {
+			parent_hash,
+			local_session_key: Some(key_a),
+		});
+
+		// check that knowledge points to the same place.
+		assert_eq!(&**consensus.knowledge() as *const _, &*knowledge as *const _);
+		assert_eq!(new_key, Some(key_a));
+
+		let (consensus, new_key) = live_consensus.new_consensus(ConsensusParams {
+			parent_hash,
+			local_session_key: Some(key_b),
+		});
+
+		assert_eq!(&**consensus.knowledge() as *const _, &*knowledge as *const _);
+		assert!(new_key.is_none());
 	}
 }
