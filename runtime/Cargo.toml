@@ -11,36 +11,37 @@ serde = { version = "1.0", default-features = false }
 serde_derive = { version = "1.0", optional = true }
 safe-mix = { version = "1.0", default-features = false}
 polkadot-primitives = { path = "../primitives", default-features = false }
-parity-codec = "2.1"
-parity-codec-derive = "2.1"
-substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-sr-std = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-sr-io = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-support = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-substrate-client = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-aura = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-balances = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-consensus = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-council = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-democracy = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-executive = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-grandpa = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-indices = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-session = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-staking = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-sudo = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-system = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-timestamp = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-treasury = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-srml-upgrade-key = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-sr-version = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
+parity-codec = "3.0"
+parity-codec-derive = "3.0"
+substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+sr-std = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+sr-io = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-support = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-inherents = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-client = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-aura = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-balances = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-consensus = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-council = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-democracy = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-executive = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-grandpa = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-indices = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-session = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-staking = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-sudo = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-system = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-timestamp = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-treasury = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+srml-upgrade-key = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+sr-version = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
 
 [dev-dependencies]
 hex-literal = "0.1.0"
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
 
 [features]
 default = ["std"]
@@ -49,6 +50,7 @@ std = [
 	"polkadot-primitives/std",
 	"parity-codec/std",
 	"parity-codec-derive/std",
+    "substrate-inherents/std",
 	"substrate-primitives/std",
 	"sr-std/std",
 	"sr-io/std",

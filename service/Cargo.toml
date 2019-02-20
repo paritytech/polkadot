@@ -17,12 +17,13 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-executor = { path = "../executor" }
 polkadot-network = { path = "../network"  }
-sr-io = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-substrate-client = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-substrate-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-substrate-service = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-substrate-telemetry = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-substrate-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
+sr-io = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-client = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-inherents = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-service = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-telemetry = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }

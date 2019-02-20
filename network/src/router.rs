@@ -190,22 +190,16 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 					return
 				}
 
-				let mut gossip = network.consensus_gossip().write();
-
 				// propagate the statements
 				// consider something more targeted than gossip in the future.
 				if let Some(validity) = produced.validity {
 					let signed = table.sign_and_import(validity.clone()).0;
-					network.with_spec(|_, ctx|
-						gossip.multicast(ctx, attestation_topic, signed.encode(), false)
-					);
+					network.gossip_consensus_message(attestation_topic, signed.encode(), false);
 				}
 
 				if let Some(availability) = produced.availability {
 					let signed = table.sign_and_import(availability).0;
-					network.with_spec(|_, ctx|
-						gossip.multicast(ctx, attestation_topic, signed.encode(), false)
-					);
+					network.gossip_consensus_message(attestation_topic, signed.encode(), false);
 				}
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
@@ -225,19 +219,21 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 		let (candidate, availability) = self.table.sign_and_import(GenericStatement::Candidate(receipt));
 
 		self.knowledge.lock().note_candidate(hash, Some(block_data), Some(extrinsic));
-		let mut gossip = self.network.consensus_gossip().write();
-		self.network.with_spec(|_spec, ctx| {
-			gossip.multicast(ctx, self.attestation_topic, candidate.encode(), false);
-			if let Some(availability) = availability {
-				gossip.multicast(ctx, self.attestation_topic, availability.encode(), false);
-			}
-		});
+		self.network.gossip_consensus_message(self.attestation_topic, candidate.encode(), false);
+		if let Some(availability) = availability {
+			self.network.gossip_consensus_message(self.attestation_topic, availability.encode(), false);
+		}
 	}
 
 	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> BlockDataReceiver {
-		let parent_hash = self.parent_hash;
-		let rx = self.network.with_spec(|spec, ctx| { spec.fetch_block_data(ctx, candidate, parent_hash) });
-		BlockDataReceiver { inner: rx }
+		let parent_hash = self.parent_hash.clone();
+		let candidate = candidate.clone();
+		let (tx, rx) = ::futures::sync::oneshot::channel();
+		self.network.with_spec(move |spec, ctx| {
+			let inner_rx = spec.fetch_block_data(ctx, &candidate, parent_hash);
+			let _ = tx.send(inner_rx);
+		});
+		BlockDataReceiver { outer: rx, inner: None }
 	}
 
 	fn fetch_extrinsic_data(&self, _candidate: &CandidateReceipt) -> Self::FetchExtrinsic {
@@ -247,14 +243,15 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 
 impl<P> Drop for Router<P> {
 	fn drop(&mut self) {
-		let parent_hash = &self.parent_hash;
-		self.network.with_spec(|spec, _| spec.remove_consensus(parent_hash));
+		let parent_hash = self.parent_hash.clone();
+		self.network.with_spec(move |spec, _| spec.remove_consensus(&parent_hash));
 	}
 }
 
 /// Receiver for block data.
 pub struct BlockDataReceiver {
-	inner: ::futures::sync::oneshot::Receiver<BlockData>,
+	outer: ::futures::sync::oneshot::Receiver<::futures::sync::oneshot::Receiver<BlockData>>,
+	inner: Option<::futures::sync::oneshot::Receiver<BlockData>>
 }
 
 impl Future for BlockDataReceiver {
@@ -262,10 +259,24 @@ impl Future for BlockDataReceiver {
 	type Error = io::Error;
 
 	fn poll(&mut self) -> Poll<BlockData, io::Error> {
-		self.inner.poll().map_err(|_| io::Error::new(
-			io::ErrorKind::Other,
-			"Sending end of channel hung up",
-		))
+		if let Some(ref mut inner) = self.inner {
+			return inner
+				.poll()
+				.map_err(|_| io::Error::new(
+					io::ErrorKind::Other,
+					"Sending end of channel hung up",
+			))
+		}
+		if let Ok(futures::Async::Ready(mut inner)) = self.outer.poll() {
+			let poll_result = inner.poll();
+			self.inner = Some(inner);
+			return poll_result
+				.map_err(|_| io::Error::new(
+					io::ErrorKind::Other,
+					"Sending end of channel hung up",
+			))
+		}
+		Ok(futures::Async::NotReady)
 	}
 }
 

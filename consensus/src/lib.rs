@@ -37,7 +37,9 @@ extern crate polkadot_runtime;
 extern crate polkadot_primitives;
 
 extern crate parity_codec as codec;
+extern crate substrate_inherents as inherents;
 extern crate substrate_primitives as primitives;
+extern crate srml_aura as runtime_aura;
 extern crate srml_support as runtime_support;
 extern crate sr_primitives as runtime_primitives;
 extern crate substrate_client as client;
@@ -45,6 +47,7 @@ extern crate substrate_client as client;
 extern crate exit_future;
 extern crate tokio;
 extern crate substrate_consensus_common as consensus;
+extern crate substrate_consensus_aura as aura;
 extern crate substrate_consensus_aura_primitives as aura_primitives;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
@@ -65,6 +68,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
+use aura::SlotDuration;
 use client::{BlockchainEvents, ChainHead, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
@@ -73,7 +77,7 @@ use codec::Encode;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{
-	Hash, Block, BlockId, BlockNumber, Header, SessionKey, InherentData
+	Hash, Block, BlockId, BlockNumber, Header, SessionKey
 };
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
 use polkadot_primitives::parachain::{AttestedCandidate, ParachainHost, Statement as PrimitiveStatement};
@@ -82,13 +86,14 @@ use runtime_primitives::traits::ProvideRuntimeApi;
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
-use aura_primitives::AuraConsensusData;
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
 use futures::future::{self, Either};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
+use inherents::InherentData;
+use runtime_aura::timestamp::TimestampInherentData;
 
 pub use self::collation::{validate_collation, Collators};
 pub use self::error::{ErrorKind, Error};
@@ -256,7 +261,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 {
@@ -350,6 +355,7 @@ pub struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
 	transaction_pool: Arc<Pool<TxApi>>,
 	key: Arc<ed25519::Pair>,
 	_service_handle: ServiceHandle,
+	aura_slot_duration: SlotDuration,
 }
 
 impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
@@ -357,7 +363,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block, InherentData>,
+	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	TxApi: PoolChainApi,
@@ -371,6 +377,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 		thread_pool: TaskExecutor,
 		key: Arc<ed25519::Pair>,
 		extrinsic_store: ExtrinsicStore,
+		aura_slot_duration: SlotDuration,
 	) -> Self {
 		let parachain_consensus = Arc::new(ParachainConsensus {
 			client: client.clone(),
@@ -394,16 +401,17 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 			transaction_pool,
 			key,
 			_service_handle: service_handle,
+			aura_slot_duration,
 		}
 	}
 }
 
-impl<C, N, P, TxApi> consensus::Environment<Block, AuraConsensusData> for ProposerFactory<C, N, P, TxApi> where
+impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, TxApi> where
 	C: Collators + Send + 'static,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 {
@@ -431,6 +439,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block, AuraConsensusData> for Propos
 			parent_id,
 			parent_number: parent_header.number,
 			transaction_pool: self.transaction_pool.clone(),
+			slot_duration: self.aura_slot_duration,
 		})
 	}
 }
@@ -505,12 +514,13 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 	parent_number: BlockNumber,
 	tracker: Arc<AttestationTracker>,
 	transaction_pool: Arc<Pool<TxApi>>,
+	slot_duration: SlotDuration,
 }
 
-impl<C, TxApi> consensus::Proposer<Block, AuraConsensusData> for Proposer<C, TxApi> where
+impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
 	type Error = Error;
 	type Create = Either<
@@ -518,7 +528,7 @@ impl<C, TxApi> consensus::Proposer<Block, AuraConsensusData> for Proposer<C, TxA
 		future::FutureResult<Block, Error>,
 	>;
 
-	fn propose(&self, consensus_data: AuraConsensusData) -> Self::Create {
+	fn propose(&self, inherent_data: InherentData, max_duration: Duration) -> Self::Create {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
 		const SLOT_DURATION_DENOMINATOR: u64 = 3; // wait up to 1/3 of the slot for candidates.
 
@@ -528,7 +538,7 @@ impl<C, TxApi> consensus::Proposer<Block, AuraConsensusData> for Proposer<C, TxA
 		let dynamic_inclusion = DynamicInclusion::new(
 			self.tracker.table.num_parachains(),
 			self.tracker.started,
-			Duration::from_secs(consensus_data.slot_duration / SLOT_DURATION_DENOMINATOR),
+			Duration::from_secs(self.slot_duration.get() / SLOT_DURATION_DENOMINATOR),
 		);
 
 		let enough_candidates = dynamic_inclusion.acceptable_in(
@@ -536,7 +546,10 @@ impl<C, TxApi> consensus::Proposer<Block, AuraConsensusData> for Proposer<C, TxA
 			initial_included,
 		).unwrap_or_else(|| now + Duration::from_millis(1));
 
-		let believed_timestamp = consensus_data.timestamp;
+		let believed_timestamp = match inherent_data.timestamp_inherent_data() {
+			Ok(timestamp) => timestamp,
+			Err(e) => return Either::B(future::err(ErrorKind::InherentError(e).into())),
+		};
 
 		// set up delay until next allowed timestamp.
 		let current_timestamp = current_timestamp();
@@ -564,8 +577,10 @@ impl<C, TxApi> consensus::Proposer<Block, AuraConsensusData> for Proposer<C, TxA
 			transaction_pool: self.transaction_pool.clone(),
 			table: self.tracker.table.clone(),
 			believed_minimum_timestamp: believed_timestamp,
-			consensus_data,
 			timing,
+			inherent_data: Some(inherent_data),
+			// leave some time for the proposal finalisation
+			deadline: Instant::now() + max_duration - max_duration / 3,
 		})
 	}
 }
@@ -633,25 +648,23 @@ pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 	table: Arc<SharedTable>,
 	timing: ProposalTiming,
 	believed_minimum_timestamp: u64,
-	consensus_data: AuraConsensusData,
+	inherent_data: Option<InherentData>,
+	deadline: Instant,
 }
 
 impl<C, TxApi> CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
-	fn propose_with(&self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
+	fn propose_with(&mut self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
 		const MAX_TRANSACTIONS: usize = 40;
 
-		let inherent_data = InherentData {
-			timestamp: self.believed_minimum_timestamp,
-			parachains: candidates,
-			aura_expected_slot: self.consensus_data.slot,
-		};
+		let mut inherent_data = self.inherent_data.take().expect("CreateProposal is not polled after finishing; qed");
+		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(ErrorKind::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
 
@@ -671,6 +684,10 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 				let encoded_size = ready.data.encode().len();
 				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
 					break
+				}
+				if Instant::now() > self.deadline {
+					debug!("Consensus deadline reached when pushing block transactions, proceeding with proposing.");
+					break;
 				}
 
 				match block_builder.push(ready.data.clone()) {
@@ -716,7 +733,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block, InherentData>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
 	type Item = Block;
 	type Error = Error;
