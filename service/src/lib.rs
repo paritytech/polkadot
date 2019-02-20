@@ -209,6 +209,13 @@ construct_service_factory! {
 					None => return Ok(service),
 				};
 
+				if config.custom.collating_for.is_some() {
+					info!("The node cannot start as an authority because it is also configured\
+						to run as a collator.");
+
+					return Ok(service);
+				}
+
 				let client = service.client();
 
 				// collator connections and consensus network both fulfilled by this
