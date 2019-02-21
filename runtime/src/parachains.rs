@@ -115,7 +115,7 @@ decl_module! {
 			}
 
 			Self::check_attestations(&heads)?;
-
+			Self::check_egress_queue_roots(&heads)?;
 
 			for head in heads {
 				let id = head.parachain_index();
@@ -382,6 +382,16 @@ impl<T: Trait> Module<T> {
 		}
 
 		Ok(())
+	}
+
+	fn check_egress_queue_roots(attested_candidates: &[AttestedCandidate]) -> Result {
+		// That no parachain is routed to which doesn't exist
+
+		// That the parachain doesn't route to self
+
+		// That the list of egress queue roots is in ascending order by `ParaId`.
+
+		// That no empty trie roots are included. They should instead be omitted. I'm pretty sure this is available by some constant in the substrate tree somewhere.
 	}
 
 /*
