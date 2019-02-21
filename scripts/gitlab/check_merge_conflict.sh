@@ -56,7 +56,7 @@ cat <<-EOT
 |
 |  github sees a conflict - check if it's only about the following wasm blobs
 |
-|	- ${TEST_RUNTIME}
+|	- ${NODE_RUNTIME_COMPACT}
 |	- ${NODE_RUNTIME}
 |
 EOT
@@ -73,7 +73,7 @@ cat <<-EOT
 EOT
 
 if git merge --no-commit --no-ff origin/master | grep '^CONFLICT ' \
-	| grep -v -e ${TEST_RUNTIME} -e ${NODE_RUNTIME}
+	| grep -v -e ${NODE_RUNTIME_COMPACT} -e ${NODE_RUNTIME}
 then
   git merge --abort
 	echo "|  there are more conflicting files than the wasm blobs"
