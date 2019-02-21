@@ -17,7 +17,7 @@
 //! Tests for polkadot and consensus network.
 
 use super::{PolkadotProtocol, Status, Message, FullStatus};
-use validation::{CurrentValidationSession, Knowledge};
+use validation::{ValidationSession, Knowledge};
 
 use parking_lot::Mutex;
 use polkadot_validation::GenericStatement;
@@ -87,9 +87,9 @@ fn make_status(status: &Status, roles: Roles) -> FullStatus {
 	}
 }
 
-fn make_consensus(local_key: SessionKey) -> (CurrentValidationSession, Arc<Mutex<Knowledge>>) {
+fn make_consensus(local_key: SessionKey) -> (ValidationSession, Arc<Mutex<Knowledge>>) {
 	let knowledge = Arc::new(Mutex::new(Knowledge::new()));
-	let c = CurrentValidationSession::new(knowledge.clone(), local_key);
+	let c = ValidationSession::new(knowledge.clone(), local_key);
 
 	(c, knowledge)
 }

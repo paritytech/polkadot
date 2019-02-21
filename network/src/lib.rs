@@ -213,7 +213,7 @@ impl PolkadotProtocol {
 		&mut self,
 		ctx: &mut Context<Block>,
 		parent_hash: Hash,
-		session: validation::CurrentValidationSession,
+		session: validation::ValidationSession,
 	) {
 		if let Some(new_local) = self.live_validation_sessions.new_validation_session(parent_hash, session) {
 			for (id, peer_data) in self.peers.iter_mut()

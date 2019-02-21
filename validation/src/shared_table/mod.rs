@@ -395,7 +395,7 @@ impl SharedTable {
 	}
 
 	/// Get the parent hash this table should hold statements localized to.
-	pub fn session_parent_hash(&self) -> &Hash {
+	pub fn consensus_parent_hash(&self) -> &Hash {
 		&self.context.parent_hash
 	}
 

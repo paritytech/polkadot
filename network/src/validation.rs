@@ -211,7 +211,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		table: Arc<SharedTable>,
 		outgoing: polkadot_validation::Outgoing,
 	) -> Self::TableRouter {
-		let parent_hash = table.session_parent_hash().clone();
+		let parent_hash = table.consensus_parent_hash().clone();
 
 		let knowledge = Arc::new(Mutex::new(Knowledge::new()));
 
@@ -238,7 +238,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		let inner_stream = self.network.gossip_messages_for(attestation_topic);
 		self.network
 			.with_spec(move |spec, ctx| {
-				spec.new_validation_session(ctx, parent_hash, CurrentValidationSession {
+				spec.new_validation_session(ctx, parent_hash, ValidationSession {
 					knowledge,
 					local_session_key,
 				});
@@ -360,15 +360,15 @@ impl Knowledge {
 }
 
 /// A current validation session instance.
-pub(crate) struct CurrentValidationSession {
+pub(crate) struct ValidationSession {
 	knowledge: Arc<Mutex<Knowledge>>,
 	local_session_key: SessionKey,
 }
 
-impl CurrentValidationSession {
+impl ValidationSession {
 	#[cfg(test)]
 	pub(crate) fn new(knowledge: Arc<Mutex<Knowledge>>, local_session_key: SessionKey) -> Self {
-		CurrentValidationSession {
+		ValidationSession {
 			knowledge,
 			local_session_key
 		}
@@ -439,7 +439,7 @@ pub(crate) struct LiveValidationSessions {
 	// recent local session keys.
 	recent: RecentSessionKeys,
 	// live validation session instances, on `parent_hash`.
-	live_instances: HashMap<Hash, CurrentValidationSession>,
+	live_instances: HashMap<Hash, ValidationSession>,
 }
 
 impl LiveValidationSessions {
@@ -456,7 +456,7 @@ impl LiveValidationSessions {
 	pub(crate) fn new_validation_session(
 		&mut self,
 		parent_hash: Hash,
-		session: CurrentValidationSession,
+		session: ValidationSession,
 	) -> Option<SessionKey> {
 		let inserted_key = self.recent.insert(session.local_session_key);
 		let maybe_new = if let InsertedRecentKey::New(_) = inserted_key {
