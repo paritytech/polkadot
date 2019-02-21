@@ -157,7 +157,7 @@ impl SharedTableInner {
 						digest,
 					);
 
-					warn!(target: "consensus", "{}", message);
+					warn!(target: "validation", "{}", message);
 					self.validated.insert(digest.clone(), ValidationWork::Error(message));
 					None
 				}
@@ -276,7 +276,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 			match res {
 				Ok(e) => Ok(e),
 				Err(e) => {
-					debug!(target: "consensus", "Encountered bad collation: {}", e);
+					debug!(target: "validation", "Encountered bad collation: {}", e);
 					Err(())
 				}
 			}
@@ -326,7 +326,7 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 
 		let candidate_hash = candidate.hash();
 
-		debug!(target: "consensus", "Making validity statement about candidate {}: is_good? {:?}",
+		debug!(target: "validation", "Making validity statement about candidate {}: is_good? {:?}",
 			candidate_hash, validation_res.is_ok());
 
 		let (validity_statement, result) = match validation_res {

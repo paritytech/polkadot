@@ -14,16 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The "consensus" networking code built on top of the base network service.
+//! The "validation session" networking code built on top of the base network service.
 //!
-//! This fulfills the `polkadot_consensus::Network` trait, providing a hook to be called
-//! each time consensus begins on a new chain head.
+//! This fulfills the `polkadot_validation::Network` trait, providing a hook to be called
+//! each time a validation session begins on a new chain head.
 
 use sr_primitives::traits::{BlakeTwo256, ProvideRuntimeApi, Hash as HashT};
 use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
-use polkadot_consensus::{
-	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement,
-};
+use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
 use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData, Message, CandidateReceipt,
@@ -46,7 +44,7 @@ use parking_lot::Mutex;
 use router::Router;
 use super::PolkadotProtocol;
 
-pub use polkadot_consensus::Incoming;
+pub use polkadot_validation::Incoming;
 
 /// An executor suitable for dispatching async consensus tasks.
 pub trait Executor {
@@ -61,7 +59,7 @@ impl<T> Executor for WrappedExecutor<T>
 {
 	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
 		if let Err(e) = self.0.execute(Box::new(f)) {
-			warn!(target: "consensus", "could not spawn consensus task: {:?}", e);
+			warn!(target: "validation", "could not spawn consensus task: {:?}", e);
 		}
 	}
 }
@@ -120,8 +118,8 @@ impl NetworkService for super::NetworkService {
 	}
 }
 
-/// Params to a current consensus session.
-pub struct ConsensusParams {
+/// Params to a current validation session.
+pub struct SessionParams {
 	/// The local session key.
 	pub local_session_key: Option<SessionKey>,
 	/// The parent hash.
@@ -129,23 +127,23 @@ pub struct ConsensusParams {
 }
 
 /// Wrapper around the network service
-pub struct ConsensusNetwork<P, E, N, T> {
+pub struct ValidationNetwork<P, E, N, T> {
 	network: Arc<N>,
 	api: Arc<P>,
 	executor: T,
 	exit: E,
 }
 
-impl<P, E, N, T> ConsensusNetwork<P, E, N, T> {
-	/// Create a new consensus networking object.
+impl<P, E, N, T> ValidationNetwork<P, E, N, T> {
+	/// Create a new validation session networking object.
 	pub fn new(network: Arc<N>, exit: E, api: Arc<P>, executor: T) -> Self {
-		ConsensusNetwork { network, exit, api, executor }
+		ValidationNetwork { network, exit, api, executor }
 	}
 }
 
-impl<P, E: Clone, N, T: Clone> Clone for ConsensusNetwork<P, E, N, T> {
+impl<P, E: Clone, N, T: Clone> Clone for ValidationNetwork<P, E, N, T> {
 	fn clone(&self) -> Self {
-		ConsensusNetwork {
+		ValidationNetwork {
 			network: self.network.clone(),
 			exit: self.exit.clone(),
 			api: self.api.clone(),
@@ -154,27 +152,27 @@ impl<P, E: Clone, N, T: Clone> Clone for ConsensusNetwork<P, E, N, T> {
 	}
 }
 
-impl<P, E, N, T> ConsensusNetwork<P, E, N, T> where
+impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Clone + Future<Item=(),Error=()> + Send + 'static,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
 {
-	/// Instantiate consensus data fetcher at a parent hash.
+	/// Instantiate session data fetcher at a parent hash.
 	///
 	/// If the used session key is new, it will be broadcast to peers.
-	/// If consensus was already instantiated at this parent hash, the underlying instance will
-	/// be shared.
+	/// If a validation session was already instantiated at this parent hash,
+	/// the underlying instance will be shared.
 	///
-	/// If there was already a consensus session instantiated and a different
+	/// If there was already a validation session instantiated and a different
 	/// session key was set, then the new key will be ignored.
 	///
-	/// This implies that there can be multiple services intantiating consensus
-	/// instances safely, but they should all be coordinated on which session keys
+	/// This implies that there can be multiple services intantiating validation
+	/// session instances safely, but they should all be coordinated on which session keys
 	/// are being used.
-	pub fn instantiate_consensus(&self, params: ConsensusParams)
-		-> oneshot::Receiver<ConsensusDataFetcher<P, E, N, T>>
+	pub fn instantiate_session(&self, params: SessionParams)
+		-> oneshot::Receiver<SessionDataFetcher<P, E, N, T>>
 	{
 		let parent_hash = params.parent_hash;
 		let network = self.network.clone();
@@ -184,15 +182,15 @@ impl<P, E, N, T> ConsensusNetwork<P, E, N, T> where
 
 		let (tx, rx) = oneshot::channel();
 		self.network.with_spec(move |spec, ctx| {
-			let consensus = spec.new_consensus(ctx, params);
-			let _ = tx.send(ConsensusDataFetcher {
+			let session = spec.new_validation_session(ctx, params);
+			let _ = tx.send(SessionDataFetcher {
 				network,
 				api,
 				task_executor,
 				parent_hash,
-				knowledge: consensus.knowledge().clone(),
+				knowledge: session.knowledge().clone(),
 				exit,
-				fetch_incoming: consensus.fetched_incoming().clone(),
+				fetch_incoming: session.fetched_incoming().clone(),
 			});
 		});
 
@@ -201,7 +199,7 @@ impl<P, E, N, T> ConsensusNetwork<P, E, N, T> where
 }
 
 /// A long-lived network which can create parachain statement  routing processes on demand.
-impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
+impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Clone + Future<Item=(),Error=()> + Send + 'static,
@@ -215,12 +213,12 @@ impl<P, E, N, T> ParachainNetwork for ConsensusNetwork<P, E, N, T> where
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
-		outgoing: polkadot_consensus::Outgoing,
+		outgoing: polkadot_validation::Outgoing,
 	) -> Self::BuildTableRouter {
 		let parent_hash = table.consensus_parent_hash().clone();
 		let local_session_key = table.session_key();
 
-		let build_fetcher = self.instantiate_consensus(ConsensusParams {
+		let build_fetcher = self.instantiate_session(SessionParams {
 			local_session_key: Some(local_session_key),
 			parent_hash,
 		});
@@ -277,7 +275,7 @@ impl Future for AwaitingCollation {
 	}
 }
 
-impl<P, E: Clone, N, T: Clone> Collators for ConsensusNetwork<P, E, N, T> where
+impl<P, E: Clone, N, T: Clone> Collators for ValidationNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
@@ -383,19 +381,20 @@ pub(crate) fn incoming_message_topic(parent_hash: Hash, parachain: ParaId) -> Ha
 	BlakeTwo256::hash(&v[..])
 }
 
-/// A current consensus instance.
+/// A current validation session instance.
 #[derive(Clone)]
-pub(crate) struct CurrentConsensus {
+pub(crate) struct ValidationSession {
 	parent_hash: Hash,
 	knowledge: Arc<Mutex<Knowledge>>,
 	local_session_key: Option<SessionKey>,
 	fetch_incoming: Arc<Mutex<HashMap<ParaId, IncomingReceiver>>>,
 }
 
-impl CurrentConsensus {
-	/// Create a new current consensus instance.
-	pub(crate) fn new(params: ConsensusParams) -> Self {
-		CurrentConsensus {
+impl ValidationSession {
+	/// Create a new validation session instance. Needs to be attached to the
+	/// nework.
+	pub(crate) fn new(params: SessionParams) -> Self {
+		ValidationSession {
 			parent_hash: params.parent_hash,
 			knowledge: Arc::new(Mutex::new(Knowledge::new())),
 			local_session_key: params.local_session_key,
@@ -474,32 +473,32 @@ impl RecentSessionKeys {
 	}
 }
 
-/// Manages requests and session keys for live consensus instances.
-pub(crate) struct LiveConsensusInstances {
+/// Manages requests and keys for live validation session instances.
+pub(crate) struct LiveValidationSessions {
 	// recent local session keys.
 	recent: RecentSessionKeys,
-	// live consensus instances, on `parent_hash`.
-	live_instances: HashMap<Hash, CurrentConsensus>,
+	// live validation session instances, on `parent_hash`.
+	live_instances: HashMap<Hash, ValidationSession>,
 }
 
-impl LiveConsensusInstances {
-	/// Create a new `LiveConsensusInstances`
+impl LiveValidationSessions {
+	/// Create a new `LiveValidationSessions`
 	pub(crate) fn new() -> Self {
-		LiveConsensusInstances {
+		LiveValidationSessions {
 			recent: Default::default(),
 			live_instances: HashMap::new(),
 		}
 	}
 
-	/// Note new consensus session. If the used session key is new,
+	/// Note new validation session. If the used session key is new,
 	/// it returns it to be broadcasted to peers.
 	///
-	/// If there was already a consensus session instantiated and a different
+	/// If there was already a validation session instantiated and a different
 	/// session key was set, then the new key will be ignored.
-	pub(crate) fn new_consensus(
+	pub(crate) fn new_validation_session(
 		&mut self,
-		params: ConsensusParams,
-	) -> (CurrentConsensus, Option<SessionKey>) {
+		params: SessionParams,
+	) -> (ValidationSession, Option<SessionKey>) {
 		let parent_hash = params.parent_hash.clone();
 
 		let key = params.local_session_key;
@@ -524,16 +523,16 @@ impl LiveConsensusInstances {
 			return (prev.clone(), maybe_new)
 		}
 
-		let consensus = CurrentConsensus::new(params);
-		self.live_instances.insert(parent_hash, consensus.clone());
+		let session = ValidationSession::new(params);
+		self.live_instances.insert(parent_hash, session.clone());
 
-		(consensus, check_new_key())
+		(session, check_new_key())
 	}
 
-	/// Remove consensus session.
+	/// Remove validation session.
 	pub(crate) fn remove(&mut self, parent_hash: &Hash) {
-		if let Some(consensus) = self.live_instances.remove(parent_hash) {
-			if let Some(ref key) = consensus.local_session_key {
+		if let Some(session) = self.live_instances.remove(parent_hash) {
+			if let Some(ref key) = session.local_session_key {
 				let key_still_used = self.live_instances.values()
 					.any(|c| c.local_session_key.as_ref() == Some(key));
 
@@ -549,7 +548,7 @@ impl LiveConsensusInstances {
 		self.recent.as_slice()
 	}
 
-	/// Call a closure with block data from consensus session at parent hash.
+	/// Call a closure with block data from validation session at parent hash.
 	///
 	/// This calls the closure with `Some(data)` where the session and data are live,
 	/// `Err(Some(keys))` when the session is live but the data unknown, with a list of keys
@@ -594,8 +593,8 @@ impl Future for BlockDataReceiver {
 	}
 }
 
-/// Can fetch data for a given consensus instance.
-pub struct ConsensusDataFetcher<P, E, N: NetworkService, T> {
+/// Can fetch data for a given validation session
+pub struct SessionDataFetcher<P, E, N: NetworkService, T> {
 	network: Arc<N>,
 	api: Arc<P>,
 	fetch_incoming: Arc<Mutex<HashMap<ParaId, IncomingReceiver>>>,
@@ -605,7 +604,7 @@ pub struct ConsensusDataFetcher<P, E, N: NetworkService, T> {
 	parent_hash: Hash,
 }
 
-impl<P, E, N: NetworkService, T> ConsensusDataFetcher<P, E, N, T> {
+impl<P, E, N: NetworkService, T> SessionDataFetcher<P, E, N, T> {
 	/// Get the parent hash.
 	pub(crate) fn parent_hash(&self) -> Hash {
 		self.parent_hash.clone()
@@ -637,9 +636,9 @@ impl<P, E, N: NetworkService, T> ConsensusDataFetcher<P, E, N, T> {
 	}
 }
 
-impl<P, E: Clone, N: NetworkService, T: Clone> Clone for ConsensusDataFetcher<P, E, N, T> {
+impl<P, E: Clone, N: NetworkService, T: Clone> Clone for SessionDataFetcher<P, E, N, T> {
 	fn clone(&self) -> Self {
-		ConsensusDataFetcher {
+		SessionDataFetcher {
 			network: self.network.clone(),
 			api: self.api.clone(),
 			task_executor: self.task_executor.clone(),
@@ -651,7 +650,7 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for ConsensusDataFetcher<P,
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send, E, N, T> ConsensusDataFetcher<P, E, N, T> where
+impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
@@ -718,10 +717,10 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> ConsensusDataFetcher<P, E, N, T> wher
 	}
 }
 
-impl<P, E, N: NetworkService, T> Drop for ConsensusDataFetcher<P, E, N, T> {
+impl<P, E, N: NetworkService, T> Drop for SessionDataFetcher<P, E, N, T> {
 	fn drop(&mut self) {
 		let parent_hash = self.parent_hash();
-		self.network.with_spec(move |spec, _| spec.remove_consensus(&parent_hash));
+		self.network.with_spec(move |spec, _| spec.remove_validation_session(&parent_hash));
 
 		{
 			let mut incoming_fetched = self.fetch_incoming.lock();
@@ -768,7 +767,7 @@ impl<S> Future for ComputeIngress<S> where S: Stream<Item=IngressPair> {
 				Entry::Occupied(occupied) => {
 					let canon_root = occupied.get().clone();
 					let messages = messages.iter().map(|m| &m.0[..]);
-					if ::polkadot_consensus::message_queue_root(messages) != canon_root {
+					if ::polkadot_validation::message_queue_root(messages) != canon_root {
 						continue;
 					}
 
@@ -867,7 +866,7 @@ mod tests {
 		let roots: HashMap<_, _> = actual_messages.iter()
 			.map(|&(para_id, ref messages)| (
 				para_id,
-				::polkadot_consensus::message_queue_root(messages.iter().map(|m| &m.0)),
+				::polkadot_validation::message_queue_root(messages.iter().map(|m| &m.0)),
 			))
 			.collect();
 
@@ -911,36 +910,36 @@ mod tests {
 	}
 
 	#[test]
-	fn add_new_consensus_works() {
-		let mut live_consensus = LiveConsensusInstances::new();
+	fn add_new_sessions_works() {
+		let mut live_sessions = LiveValidationSessions::new();
 		let key_a = [0; 32].into();
 		let key_b = [1; 32].into();
 		let parent_hash = [0xff; 32].into();
 
-		let (consensus, new_key) = live_consensus.new_consensus(ConsensusParams {
+		let (session, new_key) = live_sessions.new_validation_session(SessionParams {
 			parent_hash,
 			local_session_key: None,
 		});
 
-		let knowledge = consensus.knowledge().clone();
+		let knowledge = session.knowledge().clone();
 
 		assert!(new_key.is_none());
 
-		let (consensus, new_key) = live_consensus.new_consensus(ConsensusParams {
+		let (session, new_key) = live_sessions.new_validation_session(SessionParams {
 			parent_hash,
 			local_session_key: Some(key_a),
 		});
 
 		// check that knowledge points to the same place.
-		assert_eq!(&**consensus.knowledge() as *const _, &*knowledge as *const _);
+		assert_eq!(&**session.knowledge() as *const _, &*knowledge as *const _);
 		assert_eq!(new_key, Some(key_a));
 
-		let (consensus, new_key) = live_consensus.new_consensus(ConsensusParams {
+		let (session, new_key) = live_sessions.new_validation_session(SessionParams {
 			parent_hash,
 			local_session_key: Some(key_b),
 		});
 
-		assert_eq!(&**consensus.knowledge() as *const _, &*knowledge as *const _);
+		assert_eq!(&**session.knowledge() as *const _, &*knowledge as *const _);
 		assert!(new_key.is_none());
 	}
 }

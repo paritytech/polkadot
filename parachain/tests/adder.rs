@@ -185,9 +185,9 @@ fn processes_messages() {
 			parent_head: parent_head.encode(),
 			block_data: block_data.encode(),
 			ingress: vec![
-				IncomingMessage { source: 1, data: (AddMessage { amount: 256 }).encode() },
-				IncomingMessage { source: 2, data: bad_message_data },
-				IncomingMessage { source: 3, data: (AddMessage { amount: 256 }).encode() },
+				IncomingMessage { source: 1.into(), data: (AddMessage { amount: 256 }).encode() },
+				IncomingMessage { source: 2.into(), data: bad_message_data },
+				IncomingMessage { source: 3.into(), data: (AddMessage { amount: 256 }).encode() },
 			],
 		},
 		&mut DummyExt,

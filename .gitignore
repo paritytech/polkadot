@@ -4,6 +4,7 @@
 .wasm-binaries
 polkadot/runtime/wasm/target/
 **/._*
+.idea
 .vscode
 polkadot.*
 .DS_Store

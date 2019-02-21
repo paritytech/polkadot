@@ -26,6 +26,7 @@ extern crate substrate_primitives as primitives;
 extern crate sr_primitives as runtime_primitives;
 extern crate sr_std as rstd;
 extern crate sr_version;
+extern crate polkadot_parachain;
 
 #[cfg(test)]
 extern crate substrate_serializer;

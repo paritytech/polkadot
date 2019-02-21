@@ -54,7 +54,7 @@ extern crate polkadot_cli;
 extern crate polkadot_runtime;
 extern crate polkadot_primitives;
 extern crate polkadot_network;
-extern crate polkadot_consensus;
+extern crate polkadot_validation;
 
 #[macro_use]
 extern crate log;
@@ -74,12 +74,12 @@ use polkadot_primitives::{AccountId, Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic};
 use polkadot_cli::{PolkadotService, CustomConfiguration, CoreApi, ParachainHost};
 use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi, TaskExecutor};
-use polkadot_network::consensus::{ConsensusNetwork, ConsensusParams};
+use polkadot_network::validation::{ValidationNetwork, SessionParams};
 use polkadot_network::NetworkService;
 use tokio::timer::Timeout;
 
 pub use polkadot_cli::VersionInfo;
-pub use polkadot_network::consensus::Incoming;
+pub use polkadot_network::validation::Incoming;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -162,7 +162,7 @@ pub fn collate<'a, R, P>(
 		let block_data_hash = block_data.hash();
 		let signature = key.sign(block_data_hash.as_ref()).into();
 		let egress_queue_roots
-			= ::polkadot_consensus::egress_roots(&mut extrinsic.outgoing_messages);
+			= ::polkadot_validation::egress_roots(&mut extrinsic.outgoing_messages);
 
 		let receipt = parachain::CandidateReceipt {
 			parachain_index: local_id,
@@ -185,7 +185,7 @@ pub fn collate<'a, R, P>(
 
 /// Polkadot-api context.
 struct ApiContext<P, E> {
-	network: ConsensusNetwork<P, E, NetworkService, TaskExecutor>,
+	network: ValidationNetwork<P, E, NetworkService, TaskExecutor>,
 	parent_hash: Hash,
 }
 
@@ -198,7 +198,7 @@ impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 	type FutureEgress = Box<Future<Item=ConsolidatedIngress, Error=String> + Send>;
 
 	fn unrouted_egress(&self, id: ParaId) -> Self::FutureEgress {
-		let session = self.network.instantiate_consensus(ConsensusParams {
+		let session = self.network.instantiate_session(SessionParams {
 			local_session_key: None,
 			parent_hash: self.parent_hash,
 		}).map_err(|e| format!("unable to instantiate validation session: {:?}", e));
@@ -252,7 +252,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 		let client = service.client();
 		let network = service.network();
 
-		let consensus_network = ConsensusNetwork::new(
+		let validation_network = ValidationNetwork::new(
 			network.clone(),
 			exit.clone(),
 			client.clone(),
@@ -280,7 +280,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 				let client = client.clone();
 				let key = key.clone();
 				let parachain_context = parachain_context.clone();
-				let consensus_network = consensus_network.clone();
+				let validation_network = validation_network.clone();
 
 				let work = future::lazy(move || {
 					let api = client.runtime_api();
@@ -290,7 +290,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 					};
 
 					let context = ApiContext {
-						network: consensus_network,
+						network: validation_network,
 						parent_hash: relay_parent,
 					};
 
@@ -433,11 +433,11 @@ mod tests {
 			Message(b"buy_1_chili_con_carne_here_is_my_cash".to_vec()),
 		];
 
-		let root_a = ::polkadot_consensus::message_queue_root(
+		let root_a = ::polkadot_validation::message_queue_root(
 			messages_from_a.iter().map(|msg| &msg.0)
 		);
 
-		let root_b = ::polkadot_consensus::message_queue_root(
+		let root_b = ::polkadot_validation::message_queue_root(
 			messages_from_b.iter().map(|msg| &msg.0)
 		);
 

@@ -8,7 +8,7 @@ description = "Polkadot-specific networking protocol"
 arrayvec = "0.4"
 parking_lot = "0.7.1"
 polkadot-availability-store = { path = "../availability-store" }
-polkadot-consensus = { path = "../consensus" }
+polkadot-validation = { path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
 parity-codec = "3.0"
 parity-codec-derive = "3.0"

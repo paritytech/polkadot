@@ -14,16 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Statement routing and consensus table router implementation.
+//! Statement routing and validation statement table router implementation.
 //!
-//! During the consensus process, validators exchange statements on validity and availability
+//! During the attestation process, validators exchange statements on validity and availability
 //! of parachain candidates.
+//!
 //! The `Router` in this file hooks into the underlying network to fulfill
-//! the `TableRouter` trait from `polkadot-consensus`, which is expected to call into a shared statement table
+//! the `TableRouter` trait from `polkadot-validation`, which is expected to call into a shared statement table
 //! and dispatch evaluation work as necessary when new statements come in.
 
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
-use polkadot_consensus::{
+use polkadot_validation::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Incoming,
 	Validated, Outgoing,
 };
@@ -40,7 +41,7 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 
-use consensus::{self, ConsensusDataFetcher, NetworkService, Executor};
+use validation::{self, SessionDataFetcher, NetworkService, Executor};
 
 type IngressPairRef<'a> = (ParaId, &'a [Message]);
 
@@ -55,14 +56,14 @@ fn attestation_topic(parent_hash: Hash) -> Hash {
 pub struct Router<P, E, N: NetworkService, T> {
 	table: Arc<SharedTable>,
 	attestation_topic: Hash,
-	fetcher: ConsensusDataFetcher<P, E, N, T>,
+	fetcher: SessionDataFetcher<P, E, N, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 }
 
 impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
-		fetcher: ConsensusDataFetcher<P, E, N, T>,
+		fetcher: SessionDataFetcher<P, E, N, T>,
 	) -> Self {
 		let parent_hash = fetcher.parent_hash();
 		Router {
@@ -81,10 +82,10 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 		let parent_hash = self.parent_hash();
 		self.network().gossip_messages_for(self.attestation_topic)
 			.filter_map(|msg| {
-				debug!(target: "consensus", "Processing consensus statement for live consensus");
+				debug!(target: "validation", "Processing statement for live validation session");
 				SignedStatement::decode(&mut &msg[..])
 			})
-			.filter(move |statement| ::polkadot_consensus::check_statement(
+			.filter(move |statement| ::polkadot_validation::check_statement(
 				&statement.statement,
 				&statement.signature,
 				statement.sender,
@@ -120,7 +121,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 {
 	/// Import a statement whose signature has been checked already.
 	pub(crate) fn import_statement(&self, statement: SignedStatement) {
-		trace!(target: "p_net", "importing consensus statement {:?}", statement.statement);
+		trace!(target: "p_net", "importing validation statement {:?}", statement.statement);
 
 		// defer any statements for which we haven't imported the candidate yet
 		let c_hash = {
@@ -147,7 +148,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		};
 
 		// prepend the candidate statement.
-		debug!(target: "consensus", "Importing statements about candidate {:?}", c_hash);
+		debug!(target: "validation", "Importing statements about candidate {:?}", c_hash);
 		statements.insert(0, statement);
 		let producers: Vec<_> = self.table.import_remote_statements(
 			self,
@@ -158,7 +159,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 			self.fetcher.knowledge().lock().note_statement(statement.sender, &statement.statement);
 
 			if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
-				trace!(target: "consensus", "driving statement work to completion");
+				trace!(target: "validation", "driving statement work to completion");
 				let work = work.select2(self.fetcher.exit().clone()).then(|_| Ok(()));
 				self.fetcher.executor().spawn(work);
 			}
@@ -184,12 +185,12 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 				group_messages.clear(); // reuse allocation from previous iterations.
 				group_messages.extend(group.iter().map(|msg| msg.data.clone()).map(Message));
 
-				debug!(target: "consensus", "Circulating messages from {:?} to {:?} at {}",
+				debug!(target: "valdidation", "Circulating messages from {:?} to {:?} at {}",
 					source, target, self.parent_hash());
 
 				// this is the ingress from source to target, with given messages.
 				let target_incoming
-					= consensus::incoming_message_topic(self.parent_hash(), target);
+					= validation::incoming_message_topic(self.parent_hash(), target);
 				let ingress_for: IngressPairRef = (source, &group_messages[..]);
 
 				self.network().gossip_message(target_incoming, ingress_for.encode());
@@ -232,8 +233,8 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
 {
 	type Error = io::Error;
-	type FetchCandidate = consensus::BlockDataReceiver;
-	type FetchIncoming = consensus::IncomingReceiver;
+	type FetchCandidate = validation::BlockDataReceiver;
+	type FetchIncoming = validation::IncomingReceiver;
 
 	fn local_candidate(&self, receipt: CandidateReceipt, block_data: BlockData, extrinsic: Extrinsic) {
 		// produce a signed statement

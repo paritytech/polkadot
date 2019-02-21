@@ -265,7 +265,7 @@ pub fn make_group_info(
 }
 
 /// Constructs parachain-agreement instances.
-struct ParachainConsensus<C, N, P> {
+struct ParachainValidation<C, N, P> {
 	/// The client instance.
 	client: Arc<P>,
 	/// The backing network handle.
@@ -281,7 +281,7 @@ struct ParachainConsensus<C, N, P> {
 	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
 }
 
-impl<C, N, P> ParachainConsensus<C, N, P> where
+impl<C, N, P> ParachainValidation<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
@@ -324,11 +324,11 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		let outgoing: Vec<_> = {
 			// extract all extrinsic data that we have and propagate to peers.
-			live_instances.get(&grandparent_hash).map(|parent_consensus| {
+			live_instances.get(&grandparent_hash).map(|parent_validation| {
 				parent_candidates.iter().filter_map(|c| {
 					let para_id = c.parachain_index;
 					let hash = c.hash();
-					parent_consensus.table.extrinsic_data(&hash).map(|ex| MessagesFrom {
+					parent_validation.table.extrinsic_data(&hash).map(|ex| MessagesFrom {
 						from: para_id,
 						messages: ex,
 					})
@@ -349,7 +349,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
 
-		debug!(target: "consensus", "Active parachains: {:?}", active_parachains);
+		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
 		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
@@ -377,7 +377,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 		Ok(tracker)
 	}
 
-	/// Retain consensus sessions matching predicate.
+	/// Retain validation sessions matching predicate.
 	fn retain<F: FnMut(&Hash) -> bool>(&self, mut pred: F) {
 		self.live_instances.lock().retain(|k, _| pred(k))
 	}
@@ -435,7 +435,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 							)
 						}
 						Err(e) => warn!(
-							target: "consensus",
+							target: "validation",
 							"Failed to make collation data available: {:?}",
 							e,
 						),
@@ -444,7 +444,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 					Ok(())
 				}
 				Err(e) => {
-					warn!(target: "consensus", "Failed to collate candidate: {}", e);
+					warn!(target: "validation", "Failed to collate candidate: {}", e);
 					Ok(())
 				}
 			})
@@ -453,7 +453,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 		let cancellable_work = build_router
 			.into_future()
 			.map_err(|e| {
-				warn!(target: "consensus" , "Failed to build table router: {:?}", e);
+				warn!(target: "validation" , "Failed to build table router: {:?}", e);
 			})
 			.and_then(with_router)
 			.select(exit)
@@ -465,7 +465,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	}
 }
 
-/// Parachain consensus for a single block.
+/// Parachain validation for a single block.
 struct AttestationTracker {
 	_drop_signal: Option<exit_future::Signal>,
 	table: Arc<SharedTable>,
@@ -474,7 +474,7 @@ struct AttestationTracker {
 
 /// Polkadot proposer factory.
 pub struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
-	parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
+	parachain_validation: Arc<ParachainValidation<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
 	key: Arc<ed25519::Pair>,
 	_service_handle: ServiceHandle,
@@ -504,7 +504,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 		extrinsic_store: ExtrinsicStore,
 		aura_slot_duration: SlotDuration,
 	) -> Self {
-		let parachain_consensus = Arc::new(ParachainConsensus {
+		let parachain_validation = Arc::new(ParachainValidation {
 			client: client.clone(),
 			network,
 			collators,
@@ -515,14 +515,14 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 
 		let service_handle = ::attestation_service::start(
 			client,
-			parachain_consensus.clone(),
+			parachain_validation.clone(),
 			thread_pool,
 			key.clone(),
 			extrinsic_store,
 		);
 
 		ProposerFactory {
-			parachain_consensus,
+			parachain_validation,
 			transaction_pool,
 			key,
 			_service_handle: service_handle,
@@ -553,7 +553,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 		let parent_hash = parent_header.hash();
 		let parent_id = BlockId::hash(parent_hash);
 		let sign_with = self.key.clone();
-		let tracker = self.parachain_consensus.get_or_instantiate(
+		let tracker = self.parachain_validation.get_or_instantiate(
 			parent_hash,
 			parent_header.parent_hash().clone(),
 			authorities,
@@ -561,7 +561,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 		)?;
 
 		Ok(Proposer {
-			client: self.parachain_consensus.client.clone(),
+			client: self.parachain_validation.client.clone(),
 			tracker,
 			parent_hash,
 			parent_id,
@@ -748,7 +748,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 
 			for ready in self.transaction_pool.ready() {
 				if Instant::now() > self.deadline {
-					debug!("Consensus deadline reached when pushing block transactions, proceeding with proposing.");
+					debug!("Validation deadline reached when pushing block transactions, proceeding with proposing.");
 					break;
 				}
 
