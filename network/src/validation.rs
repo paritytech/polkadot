@@ -53,7 +53,7 @@ impl<T> Executor for WrappedExecutor<T>
 {
 	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
 		if let Err(e) = self.0.execute(Box::new(f)) {
-			warn!(target: "consensus", "could not spawn consensus task: {:?}", e);
+			warn!(target: "validation", "could not spawn consensus task: {:?}", e);
 		}
 	}
 }
@@ -130,7 +130,7 @@ impl<P, E, N, T> MessageProcessTask<P, E, N, T> where
 	fn process_message(&self, msg: ConsensusMessage) -> Option<Async<()>> {
 		use polkadot_validation::SignedStatement;
 
-		debug!(target: "consensus", "Processing consensus statement for live consensus");
+		debug!(target: "validation", "Processing validation statement for live session");
 		if let Some(statement) = SignedStatement::decode(&mut msg.as_slice()) {
 			if ::polkadot_validation::check_statement(
 				&statement.statement,
@@ -359,7 +359,7 @@ impl Knowledge {
 	}
 }
 
-/// A current consensus instance.
+/// A current validation session instance.
 pub(crate) struct CurrentValidationSession {
 	knowledge: Arc<Mutex<Knowledge>>,
 	local_session_key: SessionKey,
@@ -438,7 +438,7 @@ impl RecentSessionKeys {
 pub(crate) struct LiveValidationSessions {
 	// recent local session keys.
 	recent: RecentSessionKeys,
-	// live consensus instances, on `parent_hash`.
+	// live validation session instances, on `parent_hash`.
 	live_instances: HashMap<Hash, CurrentValidationSession>,
 }
 
