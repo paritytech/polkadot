@@ -59,6 +59,9 @@ extern crate polkadot_consensus;
 #[macro_use]
 extern crate log;
 
+#[cfg(test)]
+extern crate substrate_keyring as keyring;
+
 use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
@@ -367,5 +370,91 @@ pub fn run_collator<P, E, I, ArgT>(
 
 #[cfg(test)]
 mod tests {
+	use std::collections::HashMap;
+	use polkadot_primitives::parachain::OutgoingMessage;
+	use keyring::Keyring;
+	use super::*;
 
+	#[derive(Default, Clone)]
+	struct DummyRelayChainContext {
+		ingress: HashMap<ParaId, ConsolidatedIngress>
+	}
+
+	impl RelayChainContext for DummyRelayChainContext {
+		type Error = ();
+		type FutureEgress = Box<Future<Item=ConsolidatedIngress,Error=()>>;
+
+		fn unrouted_egress(&self, para_id: ParaId) -> Self::FutureEgress {
+			match self.ingress.get(&para_id) {
+				Some(ingress) => Box::new(future::ok(ingress.clone())),
+				None => Box::new(future::empty()),
+			}
+		}
+	}
+
+	#[derive(Clone)]
+	struct DummyParachainContext;
+
+	impl ParachainContext for DummyParachainContext {
+		fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
+			&self,
+			_last_head: HeadData,
+			ingress: I,
+		) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead> {
+			// send messages right back.
+			Ok((
+				BlockData(vec![1, 2, 3, 4, 5,]),
+				HeadData(vec![9, 9, 9]),
+				Extrinsic {
+					outgoing_messages: ingress.into_iter().map(|(id, msg)| OutgoingMessage {
+						target: id,
+						data: msg.0,
+					}).collect(),
+				}
+			))
+		}
+	}
+
+	#[test]
+	fn collates_correct_queue_roots() {
+		let mut context = DummyRelayChainContext::default();
+
+		let id = ParaId::from(100);
+
+		let a = ParaId::from(123);
+		let b = ParaId::from(456);
+
+		let messages_from_a = vec![
+			Message(vec![1, 1, 1]),
+			Message(b"helloworld".to_vec()),
+		];
+		let messages_from_b = vec![
+			Message(b"dogglesworth".to_vec()),
+			Message(b"buy_1_chili_con_carne_here_is_my_cash".to_vec()),
+		];
+
+		let root_a = ::polkadot_consensus::message_queue_root(
+			messages_from_a.iter().map(|msg| &msg.0)
+		);
+
+		let root_b = ::polkadot_consensus::message_queue_root(
+			messages_from_b.iter().map(|msg| &msg.0)
+		);
+
+		context.ingress.insert(id, ConsolidatedIngress(vec![
+			(b, messages_from_b),
+			(a, messages_from_a),
+		]));
+
+		let collation = collate(
+			id,
+			HeadData(vec![5]),
+			context.clone(),
+			DummyParachainContext,
+			Keyring::Alice.pair().into(),
+		).wait().unwrap();
+
+		// ascending order by root.
+		assert_eq!(collation.receipt.egress_queue_roots, vec![(a, root_a), (b, root_b)]);
+	}
 }

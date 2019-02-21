@@ -16,3 +16,6 @@ polkadot-network = { path = "../network" }
 polkadot-consensus = { path = "../consensus" }
 log = "0.4"
 tokio = "0.1.7"
+
+[dev-dependencies]
+substrate-keyring = { git = "https://github.com/paritytech/substrate" }
