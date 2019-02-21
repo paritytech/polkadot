@@ -53,25 +53,30 @@ extern crate tokio;
 extern crate polkadot_cli;
 extern crate polkadot_runtime;
 extern crate polkadot_primitives;
+extern crate polkadot_network;
+extern crate polkadot_consensus;
 
 #[macro_use]
 extern crate log;
 
-use std::collections::{BTreeSet, BTreeMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::{future, stream, Stream, Future, IntoFuture};
+use futures::{future, Stream, Future, IntoFuture};
 use client::BlockchainEvents;
 use primitives::ed25519;
-use polkadot_primitives::{AccountId, BlockId, SessionKey};
-use polkadot_primitives::parachain::{self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId};
+use polkadot_primitives::{AccountId, Block, BlockId, Hash, SessionKey};
+use polkadot_primitives::parachain::{self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic};
 use polkadot_cli::{PolkadotService, CustomConfiguration, CoreApi, ParachainHost};
-use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi};
+use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi, TaskExecutor};
+use polkadot_network::consensus::{ConsensusNetwork, ConsensusParams};
+use polkadot_network::NetworkService;
 use tokio::timer::Timeout;
 
 pub use polkadot_cli::VersionInfo;
+pub use polkadot_network::consensus::Incoming;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -107,21 +112,18 @@ pub trait ParachainContext: Clone {
 		&self,
 		last_head: HeadData,
 		ingress: I,
-	) -> Result<(BlockData, HeadData), InvalidHead>;
+	) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead>;
 }
 
 /// Relay chain context needed to collate.
 /// This encapsulates a network and local database which may store
 /// some of the input.
 pub trait RelayChainContext {
-	type Error;
+	type Error: ::std::fmt::Debug;
 
 	/// Future that resolves to the un-routed egress queues of a parachain.
 	/// The first item is the oldest.
-	type FutureEgress: IntoFuture<Item=Vec<Vec<Message>>, Error=Self::Error>;
-
-	/// Provide a set of all parachains meant to be routed to at a block.
-	fn routing_parachains(&self) -> BTreeSet<ParaId>;
+	type FutureEgress: IntoFuture<Item=ConsolidatedIngress, Error=Self::Error>;
 
 	/// Get un-routed egress queues from a parachain to the local parachain.
 	fn unrouted_egress(&self, id: ParaId) -> Self::FutureEgress;
@@ -130,43 +132,6 @@ pub trait RelayChainContext {
 fn key_to_account_id(key: &ed25519::Pair) -> AccountId {
 	let pubkey_bytes: [u8; 32] = key.public().into();
 	pubkey_bytes.into()
-}
-
-/// Collate the necessary ingress queue using the given context.
-pub fn collate_ingress<'a, R>(relay_context: R)
-	-> impl Future<Item=ConsolidatedIngress, Error=R::Error> + 'a
-	where
-		R: RelayChainContext,
-		R::Error: 'a,
-		R::FutureEgress: 'a,
-{
-	let mut egress_fetch = Vec::new();
-
-	for routing_parachain in relay_context.routing_parachains() {
-		let fetch = relay_context
-			.unrouted_egress(routing_parachain)
-			.into_future()
-			.map(move |egresses| (routing_parachain, egresses));
-
-		egress_fetch.push(fetch);
-	}
-
-	// create a map ordered first by the depth of the egress queue
-	// and then by the parachain ID.
-	//
-	// then transform that into the consolidated egress queue.
-	stream::futures_unordered(egress_fetch)
-		.fold(BTreeMap::new(), |mut map, (routing_id, egresses)| {
-			for (depth, egress) in egresses.into_iter().rev().enumerate() {
-				let depth = -(depth as i64);
-				map.insert((depth, routing_id), egress);
-			}
-
-			Ok(map)
-		})
-		.map(|ordered| ordered.into_iter().map(|((_, id), egress)| (id, egress)))
-		.map(|i| i.collect::<Vec<_>>())
-		.map(ConsolidatedIngress)
 }
 
 /// Produce a candidate for the parachain, with given contexts, parent head, and signing key.
@@ -179,19 +144,22 @@ pub fn collate<'a, R, P>(
 )
 	-> impl Future<Item=parachain::Collation, Error=Error<R::Error>> + 'a
 	where
-		R: RelayChainContext + 'a,
+		R: RelayChainContext,
 		R::Error: 'a,
 		R::FutureEgress: 'a,
 		P: ParachainContext + 'a,
 {
-	collate_ingress(relay_context).map_err(Error::Polkadot).and_then(move |ingress| {
-		let (block_data, head_data) = para_context.produce_candidate(
+	let ingress = relay_context.unrouted_egress(local_id).into_future().map_err(Error::Polkadot);
+	ingress.and_then(move |ConsolidatedIngress(ingress)| {
+		let (block_data, head_data, mut extrinsic) = para_context.produce_candidate(
 			last_head,
-			ingress.0.iter().flat_map(|&(id, ref msgs)| msgs.iter().cloned().map(move |msg| (id, msg)))
+			ingress.iter().flat_map(|&(id, ref msgs)| msgs.iter().cloned().map(move |msg| (id, msg)))
 		).map_err(Error::Collator)?;
 
 		let block_data_hash = block_data.hash();
 		let signature = key.sign(block_data_hash.as_ref()).into();
+		let egress_queue_roots
+			= ::polkadot_consensus::egress_roots(&mut extrinsic.outgoing_messages);
 
 		let receipt = parachain::CandidateReceipt {
 			parachain_index: local_id,
@@ -199,11 +167,12 @@ pub fn collate<'a, R, P>(
 			signature,
 			head_data,
 			balance_uploads: Vec::new(),
-			egress_queue_roots: Vec::new(),
+			egress_queue_roots,
 			fees: 0,
 			block_data_hash,
 		};
 
+		// not necessary to send extrinsic because it is recomputed from execution.
 		Ok(parachain::Collation {
 			receipt,
 			block_data,
@@ -212,18 +181,32 @@ pub fn collate<'a, R, P>(
 }
 
 /// Polkadot-api context.
-struct ApiContext;
+struct ApiContext<P, E> {
+	network: ConsensusNetwork<P, E, NetworkService, TaskExecutor>,
+	parent_hash: Hash,
+}
 
-impl RelayChainContext for ApiContext {
-	type Error = client::error::Error;
-	type FutureEgress = Result<Vec<Vec<Message>>, Self::Error>;
+impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
+	P: ProvideRuntimeApi + Send + Sync,
+	P::Api: ParachainHost<Block>,
+	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+{
+	type Error = String;
+	type FutureEgress = Box<Future<Item=ConsolidatedIngress, Error=String> + Send>;
 
-	fn routing_parachains(&self) -> BTreeSet<ParaId> {
-		BTreeSet::new()
-	}
+	fn unrouted_egress(&self, id: ParaId) -> Self::FutureEgress {
+		let session = self.network.instantiate_consensus(ConsensusParams {
+			local_session_key: None,
+			parent_hash: self.parent_hash,
+		}).map_err(|e| format!("unable to instantiate validation session: {:?}", e));
 
-	fn unrouted_egress(&self, _id: ParaId) -> Self::FutureEgress {
-		Ok(Vec::new())
+		let fetch_incoming = session
+			.and_then(move |session| session.fetch_incoming(id).map_err(|e|
+				format!("unable to fetch incoming data: {:?}", e)
+			))
+			.map(ConsolidatedIngress);
+
+		Box::new(fetch_incoming)
 	}
 }
 
@@ -259,12 +242,19 @@ impl<P, E> Worker for CollationNode<P, E> where
 		config
 	}
 
-	fn work<S>(self, service: &S) -> Self::Work
+	fn work<S>(self, service: &S, task_executor: TaskExecutor) -> Self::Work
 		where S: PolkadotService,
 	{
 		let CollationNode { parachain_context, exit, para_id, key } = self;
 		let client = service.client();
 		let network = service.network();
+
+		let consensus_network = ConsensusNetwork::new(
+			network.clone(),
+			exit.clone(),
+			client.clone(),
+			task_executor,
+		);
 
 		let inner_exit = exit.clone();
 		let work = client.import_notification_stream()
@@ -273,7 +263,9 @@ impl<P, E> Worker for CollationNode<P, E> where
 					($e:expr) => {
 						match $e {
 							Ok(x) => x,
-							Err(e) => return future::Either::A(future::err(Error::Polkadot(e))),
+							Err(e) => return future::Either::A(future::err(Error::Polkadot(
+								format!("{:?}", e)
+							))),
 						}
 					}
 				}
@@ -285,12 +277,18 @@ impl<P, E> Worker for CollationNode<P, E> where
 				let client = client.clone();
 				let key = key.clone();
 				let parachain_context = parachain_context.clone();
+				let consensus_network = consensus_network.clone();
 
 				let work = future::lazy(move || {
 					let api = client.runtime_api();
 					let last_head = match try_fr!(api.parachain_head(&id, para_id)) {
 						Some(last_head) => last_head,
 						None => return future::Either::A(future::ok(())),
+					};
+
+					let context = ApiContext {
+						network: consensus_network,
+						parent_hash: relay_parent,
 					};
 
 					let targets = compute_targets(
@@ -302,7 +300,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 					let collation_work = collate(
 						para_id,
 						HeadData(last_head),
-						ApiContext,
+						context,
 						parachain_context,
 						key,
 					).map(move |collation| {
@@ -369,74 +367,5 @@ pub fn run_collator<P, E, I, ArgT>(
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 
-	use std::collections::{HashMap, BTreeSet};
-
-	use futures::Future;
-	use polkadot_primitives::parachain::{Message, Id as ParaId};
-
-	pub struct DummyRelayChainCtx {
-		egresses: HashMap<ParaId, Vec<Vec<Message>>>,
-		currently_routing: BTreeSet<ParaId>,
-	}
-
-	impl RelayChainContext for DummyRelayChainCtx {
-		type Error = ();
-		type FutureEgress = Result<Vec<Vec<Message>>, ()>;
-
-		fn routing_parachains(&self) -> BTreeSet<ParaId> {
-			self.currently_routing.clone()
-		}
-
-		fn unrouted_egress(&self, id: ParaId) -> Result<Vec<Vec<Message>>, ()> {
-			Ok(self.egresses.get(&id).cloned().unwrap_or_default())
-		}
-	}
-
-	#[test]
-	fn collates_ingress() {
-		let route_from = |x: &[ParaId]| {
-			 let mut set = BTreeSet::new();
-			 set.extend(x.iter().cloned());
-			 set
-		};
-
-		let message = |x: Vec<u8>| vec![Message(x)];
-
-		let dummy_ctx = DummyRelayChainCtx {
-			currently_routing: route_from(&[2.into(), 3.into()]),
-			egresses: vec![
-				// egresses for `2`: last routed successfully 5 blocks ago.
-				(2.into(), vec![
-					message(vec![1, 2, 3]),
-					message(vec![4, 5, 6]),
-					message(vec![7, 8]),
-					message(vec![10]),
-					message(vec![12]),
-				]),
-
-				// egresses for `3`: last routed successfully 3 blocks ago.
-				(3.into(), vec![
-					message(vec![9]),
-					message(vec![11]),
-					message(vec![13]),
-				]),
-			].into_iter().collect(),
-		};
-
-		assert_eq!(
-			collate_ingress(dummy_ctx).wait().unwrap(),
-			ConsolidatedIngress(vec![
-				(2.into(), message(vec![1, 2, 3])),
-				(2.into(), message(vec![4, 5, 6])),
-				(2.into(), message(vec![7, 8])),
-				(3.into(), message(vec![9])),
-				(2.into(), message(vec![10])),
-				(3.into(), message(vec![11])),
-				(2.into(), message(vec![12])),
-				(3.into(), message(vec![13])),
-			]
-		))
-	}
 }

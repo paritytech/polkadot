@@ -22,7 +22,7 @@
 use sr_primitives::traits::{BlakeTwo256, ProvideRuntimeApi, Hash as HashT};
 use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
 use polkadot_consensus::{
-	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, Incoming,
+	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement,
 };
 use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{
@@ -45,6 +45,8 @@ use parking_lot::Mutex;
 
 use router::Router;
 use super::PolkadotProtocol;
+
+pub use polkadot_consensus::Incoming;
 
 /// An executor suitable for dispatching async consensus tasks.
 pub trait Executor {

@@ -209,7 +209,7 @@ construct_service_factory! {
 					None => return Ok(service),
 				};
 
-				if config.custom.collating_for.is_some() {
+				if service.config.custom.collating_for.is_some() {
 					info!("The node cannot start as an authority because it is also configured\
 						to run as a collator.");
 
