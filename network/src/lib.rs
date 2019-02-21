@@ -24,7 +24,7 @@ extern crate substrate_network;
 extern crate substrate_primitives;
 extern crate sr_primitives;
 
-extern crate polkadot_consensus;
+extern crate polkadot_validation;
 extern crate polkadot_availability_store as av_store;
 extern crate polkadot_primitives;
 
@@ -49,7 +49,7 @@ extern crate substrate_keyring;
 mod collator_pool;
 mod local_collations;
 mod router;
-pub mod consensus;
+pub mod validation;
 
 use codec::{Decode, Encode};
 use futures::sync::oneshot;
@@ -59,7 +59,7 @@ use substrate_network::{NodeIndex, RequestId, Context, Severity};
 use substrate_network::{message, generic_message};
 use substrate_network::specialization::NetworkSpecialization as Specialization;
 use substrate_network::StatusMessage as GenericFullStatus;
-use self::consensus::{LiveConsensusInstances, RecentSessionKeys, InsertedRecentKey};
+use self::validation::{LiveValidationSessions, RecentSessionKeys, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
 
@@ -85,7 +85,7 @@ pub struct Status {
 
 struct BlockDataRequest {
 	attempted_peers: HashSet<SessionKey>,
-	consensus_parent: Hash,
+	validation_session_parent: Hash,
 	candidate_hash: Hash,
 	block_data_hash: Hash,
 	sender: oneshot::Sender<BlockData>,
@@ -168,7 +168,7 @@ pub struct PolkadotProtocol {
 	collators: CollatorPool,
 	validators: HashMap<SessionKey, NodeIndex>,
 	local_collations: LocalCollations<Collation>,
-	live_consensus: LiveConsensusInstances,
+	live_validation_sessions: LiveValidationSessions,
 	in_flight: HashMap<(RequestId, NodeIndex), BlockDataRequest>,
 	pending: Vec<BlockDataRequest>,
 	extrinsic_store: Option<::av_store::Store>,
@@ -184,7 +184,7 @@ impl PolkadotProtocol {
 			collating_for,
 			validators: HashMap::new(),
 			local_collations: LocalCollations::new(),
-			live_consensus: LiveConsensusInstances::new(),
+			live_validation_sessions: LiveValidationSessions::new(),
 			in_flight: HashMap::new(),
 			pending: Vec::new(),
 			extrinsic_store: None,
@@ -198,7 +198,7 @@ impl PolkadotProtocol {
 
 		self.pending.push(BlockDataRequest {
 			attempted_peers: Default::default(),
-			consensus_parent: relay_parent,
+			validation_session_parent: relay_parent,
 			candidate_hash: candidate.hash(),
 			block_data_hash: candidate.block_data_hash,
 			sender: tx,
@@ -208,14 +208,14 @@ impl PolkadotProtocol {
 		rx
 	}
 
-	/// Note new consensus session.
-	fn new_consensus(
+	/// Note new validation session.
+	fn new_validation_session(
 		&mut self,
 		ctx: &mut Context<Block>,
 		parent_hash: Hash,
-		consensus: consensus::CurrentConsensus,
+		session: validation::ValidationSession,
 	) {
-		if let Some(new_local) = self.live_consensus.new_consensus(parent_hash, consensus) {
+		if let Some(new_local) = self.live_validation_sessions.new_validation_session(parent_hash, session) {
 			for (id, peer_data) in self.peers.iter_mut()
 				.filter(|&(_, ref info)| info.should_send_key())
 			{
@@ -228,8 +228,8 @@ impl PolkadotProtocol {
 		}
 	}
 
-	fn remove_consensus(&mut self, parent_hash: &Hash) {
-		self.live_consensus.remove(parent_hash);
+	fn remove_validation_session(&mut self, parent_hash: &Hash) {
+		self.live_validation_sessions.remove(parent_hash);
 	}
 
 	fn dispatch_pending_requests(&mut self, ctx: &mut Context<Block>) {
@@ -239,10 +239,10 @@ impl PolkadotProtocol {
 		let in_flight = &mut self.in_flight;
 
 		for mut pending in ::std::mem::replace(&mut self.pending, Vec::new()) {
-			let parent = pending.consensus_parent;
+			let parent = pending.validation_session_parent;
 			let c_hash = pending.candidate_hash;
 
-			let still_pending = self.live_consensus.with_block_data(&parent, &c_hash, |x| match x {
+			let still_pending = self.live_validation_sessions.with_block_data(&parent, &c_hash, |x| match x {
 				Ok(data @ &_) => {
 					// answer locally.
 					let _ = pending.sender.send(data.clone());
@@ -272,7 +272,7 @@ impl PolkadotProtocol {
 						Some(pending)
 					}
 				}
-				Err(None) => None, // no such known consensus session. prune out.
+				Err(None) => None, // no such known validation session. prune out.
 			});
 
 			if let Some(pending) = still_pending {
@@ -288,7 +288,7 @@ impl PolkadotProtocol {
 		match msg {
 			Message::SessionKey(key) => self.on_session_key(ctx, who, key),
 			Message::RequestBlockData(req_id, relay_parent, candidate_hash) => {
-				let block_data = self.live_consensus
+				let block_data = self.live_validation_sessions
 					.with_block_data(
 						&relay_parent,
 						&candidate_hash,
@@ -440,7 +440,7 @@ impl Specialization<Block> for PolkadotProtocol {
 
 		// send session keys.
 		if peer_info.should_send_key() {
-			for local_session_key in self.live_consensus.recent_keys() {
+			for local_session_key in self.live_validation_sessions.recent_keys() {
 				peer_info.collator_state.send_key(*local_session_key, |msg| send_polkadot_message(
 					ctx,
 					who,
@@ -481,7 +481,7 @@ impl Specialization<Block> for PolkadotProtocol {
 						let (sender, _) = oneshot::channel();
 						pending.push(::std::mem::replace(val, BlockDataRequest {
 							attempted_peers: Default::default(),
-							consensus_parent: Default::default(),
+							validation_session_parent: Default::default(),
 							candidate_hash: Default::default(),
 							block_data_hash: Default::default(),
 							sender,

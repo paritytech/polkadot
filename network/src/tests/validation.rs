@@ -14,15 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Tests and helpers for consensus networking.
+//! Tests and helpers for validation networking.
 
-use consensus::NetworkService;
+use validation::NetworkService;
 use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
 use substrate_primitives::{Ed25519AuthorityId, NativeOrEncoded};
 use substrate_keyring::Keyring;
 use {PolkadotProtocol};
 
-use polkadot_consensus::{SharedTable, MessagesFrom, Network, TableRouter};
+use polkadot_validation::{SharedTable, MessagesFrom, Network, TableRouter};
 use polkadot_primitives::{AccountId, Block, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage};
 use parking_lot::Mutex;
@@ -298,7 +298,7 @@ impl ParachainHost<Block> for RuntimeApi {
 	}
 }
 
-type TestConsensusNetwork = ::consensus::ConsensusNetwork<
+type TestValidationNetwork = ::validation::ValidationNetwork<
 	TestApi,
 	NeverExit,
 	TestNetwork,
@@ -308,7 +308,7 @@ type TestConsensusNetwork = ::consensus::ConsensusNetwork<
 struct Built {
 	gossip: GossipRouter,
 	api_handle: Arc<Mutex<ApiData>>,
-	networks: Vec<TestConsensusNetwork>,
+	networks: Vec<TestValidationNetwork>,
 }
 
 fn build_network(n: usize, executor: TaskExecutor) -> Built {
@@ -322,7 +322,7 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 			gossip: gossip_handle.clone(),
 		});
 
-		TestConsensusNetwork::new(
+		TestValidationNetwork::new(
 			net,
 			NeverExit,
 			runtime_api.clone(),
@@ -356,7 +356,7 @@ impl IngressBuilder {
 		let mut map = HashMap::new();
 		for ((source, target), messages) in self.egress {
 			map.entry(target).or_insert_with(Vec::new)
-				.push((source, polkadot_consensus::message_queue_root(&messages)));
+				.push((source, polkadot_validation::message_queue_root(&messages)));
 		}
 
 		for roots in map.values_mut() {
@@ -372,7 +372,7 @@ fn make_table(data: &ApiData, local_key: &Keyring, parent_hash: Hash) -> Arc<Sha
 
 	let store = Store::new_in_memory();
 	let authorities: Vec<_> = data.validators.iter().map(|v| v.to_fixed_bytes().into()).collect();
-	let (group_info, _) = ::polkadot_consensus::make_group_info(
+	let (group_info, _) = ::polkadot_validation::make_group_info(
 		DutyRoster { validator_duty: data.duties.clone() },
 		&authorities,
 		local_key.to_raw_public().into()

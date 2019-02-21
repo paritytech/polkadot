@@ -14,13 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Tests for polkadot and consensus network.
+//! Tests for polkadot and validation network.
 
 use super::{PolkadotProtocol, Status, Message, FullStatus};
-use consensus::{CurrentConsensus, Knowledge};
+use validation::{ValidationSession, Knowledge};
 
 use parking_lot::Mutex;
-use polkadot_consensus::GenericStatement;
+use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, SessionKey};
 use polkadot_primitives::parachain::{CandidateReceipt, HeadData, BlockData};
 use substrate_primitives::H512;
@@ -34,7 +34,7 @@ use substrate_network::{
 use std::sync::Arc;
 use futures::Future;
 
-mod consensus;
+mod validation;
 
 #[derive(Default)]
 struct TestContext {
@@ -87,9 +87,9 @@ fn make_status(status: &Status, roles: Roles) -> FullStatus {
 	}
 }
 
-fn make_consensus(local_key: SessionKey) -> (CurrentConsensus, Arc<Mutex<Knowledge>>) {
+fn make_validation_session(local_key: SessionKey) -> (ValidationSession, Arc<Mutex<Knowledge>>) {
 	let knowledge = Arc::new(Mutex::new(Knowledge::new()));
-	let c = CurrentConsensus::new(knowledge.clone(), local_key);
+	let c = ValidationSession::new(knowledge.clone(), local_key);
 
 	(c, knowledge)
 }
@@ -119,8 +119,8 @@ fn sends_session_key() {
 
 	{
 		let mut ctx = TestContext::default();
-		let (consensus, _knowledge) = make_consensus(local_key);
-		protocol.new_consensus(&mut ctx, parent_hash, consensus);
+		let (session, _knowledge) = make_validation_session(local_key);
+		protocol.new_validation_session(&mut ctx, parent_hash, session);
 		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key)));
 	}
 
@@ -159,8 +159,8 @@ fn fetches_from_those_with_knowledge() {
 
 	let status = Status { collating_for: None };
 
-	let (consensus, knowledge) = make_consensus(local_key);
-	protocol.new_consensus(&mut TestContext::default(), parent_hash, consensus);
+	let (session, knowledge) = make_validation_session(local_key);
+	protocol.new_validation_session(&mut TestContext::default(), parent_hash, session);
 
 	knowledge.lock().note_statement(a_key, &GenericStatement::Valid(candidate_hash));
 	let recv = protocol.fetch_block_data(&mut TestContext::default(), &candidate_receipt, parent_hash);
@@ -289,13 +289,13 @@ fn many_session_keys() {
 	let local_key_a = [3; 32].into();
 	let local_key_b = [4; 32].into();
 
-	let (consensus_a, _knowledge_a) = make_consensus(local_key_a);
-	let (consensus_b, _knowledge_b) = make_consensus(local_key_b);
+	let (session_a, _knowledge_a) = make_validation_session(local_key_a);
+	let (session_b, _knowledge_b) = make_validation_session(local_key_b);
 
-	protocol.new_consensus(&mut TestContext::default(), parent_a, consensus_a);
-	protocol.new_consensus(&mut TestContext::default(), parent_b, consensus_b);
+	protocol.new_validation_session(&mut TestContext::default(), parent_a, session_a);
+	protocol.new_validation_session(&mut TestContext::default(), parent_b, session_b);
 
-	assert_eq!(protocol.live_consensus.recent_keys(), &[local_key_a, local_key_b]);
+	assert_eq!(protocol.live_validation_sessions.recent_keys(), &[local_key_a, local_key_b]);
 
 	let peer_a = 1;
 
@@ -312,7 +312,7 @@ fn many_session_keys() {
 
 	let peer_b = 2;
 
-	protocol.remove_consensus(&parent_a);
+	protocol.remove_validation_session(&parent_a);
 
 	{
 		let mut ctx = TestContext::default();

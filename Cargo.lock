@@ -2205,35 +2205,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-consensus"
-version = "0.1.0"
-dependencies = [
- "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "exit-future 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-codec 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-availability-store 0.1.0",
- "polkadot-parachain 0.1.0",
- "polkadot-primitives 0.1.0",
- "polkadot-runtime 0.1.0",
- "polkadot-statement-table 0.1.0",
- "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
- "srml-aura 0.1.0 (git+https://github.com/paritytech/substrate)",
- "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
- "substrate-consensus-aura 0.1.0 (git+https://github.com/paritytech/substrate)",
- "substrate-consensus-common 0.1.0 (git+https://github.com/paritytech/substrate)",
- "substrate-finality-grandpa 0.1.0 (git+https://github.com/paritytech/substrate)",
- "substrate-inherents 0.1.0 (git+https://github.com/paritytech/substrate)",
- "substrate-keyring 0.1.0 (git+https://github.com/paritytech/substrate)",
- "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
- "substrate-transaction-pool 0.1.0 (git+https://github.com/paritytech/substrate)",
- "substrate-trie 0.4.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "polkadot-erasure-coding"
 version = "0.1.0"
 dependencies = [
@@ -2264,8 +2235,8 @@ dependencies = [
  "parity-codec-derive 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-availability-store 0.1.0",
- "polkadot-consensus 0.1.0",
  "polkadot-primitives 0.1.0",
+ "polkadot-validation 0.1.0",
  "slice-group-by 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -2361,11 +2332,11 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-availability-store 0.1.0",
- "polkadot-consensus 0.1.0",
  "polkadot-executor 0.1.0",
  "polkadot-network 0.1.0",
  "polkadot-primitives 0.1.0",
  "polkadot-runtime 0.1.0",
+ "polkadot-validation 0.1.0",
  "slog 2.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-io 0.1.0 (git+https://github.com/paritytech/substrate)",
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -2388,6 +2359,35 @@ dependencies = [
  "parity-codec-derive 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-primitives 0.1.0",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "polkadot-validation"
+version = "0.1.0"
+dependencies = [
+ "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "exit-future 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-codec 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "polkadot-availability-store 0.1.0",
+ "polkadot-parachain 0.1.0",
+ "polkadot-primitives 0.1.0",
+ "polkadot-runtime 0.1.0",
+ "polkadot-statement-table 0.1.0",
+ "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "srml-aura 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-consensus-aura 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-consensus-common 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-finality-grandpa 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-inherents 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-keyring 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-transaction-pool 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-trie 0.4.0 (git+https://github.com/paritytech/substrate)",
+ "tokio 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

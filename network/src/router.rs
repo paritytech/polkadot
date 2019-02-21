@@ -19,11 +19,11 @@
 //! During the consensus process, validators exchange statements on validity and availability
 //! of parachain candidates.
 //! The `Router` in this file hooks into the underlying network to fulfill
-//! the `TableRouter` trait from `polkadot-consensus`, which is expected to call into a shared statement table
+//! the `TableRouter` trait from `polkadot-validation`, which is expected to call into a shared statement table
 //! and dispatch evaluation work as necessary when new statements come in.
 
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
-use polkadot_consensus::{
+use polkadot_validation::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Incoming,
 	Validated, Outgoing,
 };
@@ -41,7 +41,7 @@ use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::{io, mem};
 use std::sync::Arc;
 
-use consensus::{NetworkService, Knowledge, Executor};
+use validation::{NetworkService, Knowledge, Executor};
 
 type IngressPair = (ParaId, Vec<Message>);
 type IngressPairRef<'a> = (ParaId, &'a [Message]);
@@ -380,7 +380,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 	fn drop(&mut self) {
 		let parent_hash = self.parent_hash.clone();
-		self.network.with_spec(move |spec, _| spec.remove_consensus(&parent_hash));
+		self.network.with_spec(move |spec, _| spec.remove_validation_session(&parent_hash));
 		self.network.drop_gossip(self.attestation_topic);
 
 		{
@@ -481,7 +481,7 @@ impl<S> Future for ComputeIngress<S> where S: Stream<Item=IngressPair> {
 				Entry::Occupied(occupied) => {
 					let canon_root = occupied.get().clone();
 					let messages = messages.iter().map(|m| &m.0[..]);
-					if ::polkadot_consensus::message_queue_root(messages) != canon_root {
+					if ::polkadot_validation::message_queue_root(messages) != canon_root {
 						continue;
 					}
 
@@ -572,7 +572,7 @@ mod tests {
 		let roots: HashMap<_, _> = actual_messages.iter()
 			.map(|&(para_id, ref messages)| (
 				para_id,
-				::polkadot_consensus::message_queue_root(messages.iter().map(|m| &m.0)),
+				::polkadot_validation::message_queue_root(messages.iter().map(|m| &m.0)),
 			))
 			.collect();
 

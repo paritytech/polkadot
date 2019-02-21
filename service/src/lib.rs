@@ -19,7 +19,7 @@
 //! Polkadot service. Specialized wrapper over substrate service.
 
 extern crate polkadot_availability_store as av_store;
-extern crate polkadot_consensus as consensus;
+extern crate polkadot_validation as consensus;
 extern crate polkadot_primitives;
 extern crate polkadot_runtime;
 extern crate polkadot_executor;
@@ -169,7 +169,7 @@ construct_service_factory! {
 				FullComponents::<Factory>::new(config, executor)
 			} },
 		AuthoritySetup = { |mut service: Self::FullService, executor: TaskExecutor, key: Option<Arc<ed25519::Pair>>| {
-				use polkadot_network::consensus::ConsensusNetwork;
+				use polkadot_network::validation::ValidationNetwork;
 
 				let (block_import, link_half) = service.config.custom.grandpa_import_setup.take()
 					.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
@@ -211,8 +211,8 @@ construct_service_factory! {
 
 				let client = service.client();
 
-				// collator connections and consensus network both fulfilled by this
-				let consensus_network = ConsensusNetwork::new(
+				// collator connections and validation network both fulfilled by this
+				let validation_network = ValidationNetwork::new(
 					service.network(),
 					service.on_exit(),
 					service.client(),
@@ -220,8 +220,8 @@ construct_service_factory! {
 				);
 				let proposer_factory = ::consensus::ProposerFactory::new(
 					client.clone(),
-					consensus_network.clone(),
-					consensus_network,
+					validation_network.clone(),
+					validation_network,
 					service.transaction_pool(),
 					executor.clone(),
 					key.clone(),

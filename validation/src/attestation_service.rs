@@ -88,7 +88,7 @@ fn prune_unneeded_availability<P>(client: Arc<P>, extrinsic_store: ExtrinsicStor
 			};
 
 			if let Err(e) = extrinsic_store.candidates_finalized(parent_hash, candidate_hashes) {
-				warn!(target: "consensus", "Failed to prune unneeded available data: {:?}", e);
+				warn!(target: "validation", "Failed to prune unneeded available data: {:?}", e);
 			}
 
 			Ok(())
@@ -104,7 +104,7 @@ pub(crate) struct ServiceHandle {
 /// Create and start a new instance of the attestation service.
 pub(crate) fn start<C, N, P>(
 	client: Arc<P>,
-	parachain_consensus: Arc<::ParachainConsensus<C, N, P>>,
+	parachain_validation: Arc<::ParachainValidation<C, N, P>>,
 	thread_pool: TaskExecutor,
 	key: Arc<ed25519::Pair>,
 	extrinsic_store: ExtrinsicStore,
@@ -127,7 +127,7 @@ pub(crate) fn start<C, N, P>(
 		let mut runtime = LocalRuntime::new().expect("Could not create local runtime");
 		let notifications = {
 			let client = client.clone();
-			let consensus = parachain_consensus.clone();
+			let validation = parachain_validation.clone();
 			let key = key.clone();
 
 			client.import_notification_stream()
@@ -139,7 +139,7 @@ pub(crate) fn start<C, N, P>(
 							.authorities(&BlockId::hash(parent_hash))
 							.map_err(Into::into)
 							.and_then(|authorities| {
-								consensus.get_or_instantiate(
+								validation.get_or_instantiate(
 									parent_hash,
 									notification.header.parent_hash().clone(),
 									&authorities,
@@ -148,7 +148,7 @@ pub(crate) fn start<C, N, P>(
 							});
 
 						if let Err(e) = res {
-							warn!("Unable to start parachain consensus on top of {:?}: {}",
+							warn!("Unable to start parachain validation on top of {:?}: {}",
 								parent_hash, e);
 						}
 					}
@@ -168,7 +168,7 @@ pub(crate) fn start<C, N, P>(
 			interval
 				.for_each(move |_| match client.leaves() {
 					Ok(leaves) => {
-						parachain_consensus.retain(|h| leaves.contains(h));
+						parachain_validation.retain(|h| leaves.contains(h));
 						Ok(())
 					}
 					Err(e) => {

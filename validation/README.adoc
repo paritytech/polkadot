@@ -1,5 +1,5 @@
 
-= Polkadot Consensus
+= Polkadot Validation
 
 placeholder
 //TODO Write content :)
