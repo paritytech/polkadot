@@ -110,12 +110,14 @@ decl_module! {
 						"Submitted candidate for unregistered or out-of-order parachain {}"
 					);
 
+//					Self::check_egress_queue_roots(&head)?;
+
 					last_id = Some(head.parachain_index());
 				}
 			}
 
 			Self::check_attestations(&heads)?;
-			Self::check_egress_queue_roots(&heads)?;
+//			Self::check_egress_queue_roots(&heads)?;
 
 			for head in heads {
 				let id = head.parachain_index();
@@ -382,16 +384,6 @@ impl<T: Trait> Module<T> {
 		}
 
 		Ok(())
-	}
-
-	fn check_egress_queue_roots(attested_candidates: &[AttestedCandidate]) -> Result {
-		// That no parachain is routed to which doesn't exist
-
-		// That the parachain doesn't route to self
-
-		// That the list of egress queue roots is in ascending order by `ParaId`.
-
-		// That no empty trie roots are included. They should instead be omitted. I'm pretty sure this is available by some constant in the substrate tree somewhere.
 	}
 
 /*
@@ -798,5 +790,54 @@ mod tests {
 			assert_eq!(Parachains::ingress(ParaId::from(1)), None);
 			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
 		});
+	}
+
+	#[test]
+	fn egress_routed_to_non_existant_parachain_is_rejected() {
+		// That no parachain is routed to which doesn't exist
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			let mut candidate = AttestedCandidate {
+				validity_votes: vec![],
+				candidate: CandidateReceipt {
+					parachain_index: 0.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					balance_uploads: vec![],
+					egress_queue_roots: vec![],
+					fees: 0,
+					block_data_hash: Default::default(),
+				}
+			};
+
+			make_attestations(&mut candidate);
+
+			assert!(Parachains::dispatch(
+				Call::set_heads(vec![candidate.clone()]),
+				Origin::INHERENT,
+			).is_err());
+		});
+	}
+
+	#[test]
+	fn egress_routed_to_self_is_rejected() {
+		// That the parachain doesn't route to self
+	}
+
+	#[test]
+	fn egress_queue_roots_out_of_order_rejected() {
+		// That the list of egress queue roots is in ascending order by `ParaId`.
+	}
+
+	#[test]
+	fn egress_queue_roots_empty_trie_roots_are_omitted() {
+		// That no empty trie roots are included. They should instead be omitted.
+		// I'm pretty sure this is available by some constant in the substrate tree somewhere.
 	}
 }
