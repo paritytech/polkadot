@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Tests and helpers for consensus networking.
+//! Tests and helpers for validation networking.
 
 use validation::NetworkService;
 use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
@@ -298,7 +298,7 @@ impl ParachainHost<Block> for RuntimeApi {
 	}
 }
 
-type TestConsensusNetwork = ::validation::ValidationNetwork<
+type TestValidationNetwork = ::validation::ValidationNetwork<
 	TestApi,
 	NeverExit,
 	TestNetwork,
@@ -308,7 +308,7 @@ type TestConsensusNetwork = ::validation::ValidationNetwork<
 struct Built {
 	gossip: GossipRouter,
 	api_handle: Arc<Mutex<ApiData>>,
-	networks: Vec<TestConsensusNetwork>,
+	networks: Vec<TestValidationNetwork>,
 }
 
 fn build_network(n: usize, executor: TaskExecutor) -> Built {
@@ -322,7 +322,7 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 			gossip: gossip_handle.clone(),
 		});
 
-		TestConsensusNetwork::new(
+		TestValidationNetwork::new(
 			net,
 			NeverExit,
 			runtime_api.clone(),
