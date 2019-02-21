@@ -206,12 +206,15 @@ impl Future for AwaitingCollation {
 				.poll()
 				.map_err(|_| NetworkDown)
 		}
-		if let Ok(futures::Async::Ready(mut inner)) = self.outer.poll() {
-			let poll_result = inner.poll();
-			self.inner = Some(inner);
-			return poll_result.map_err(|_| NetworkDown)
+		match self.outer.poll() {
+			Ok(futures::Async::Ready(mut inner)) => {
+				let poll_result = inner.poll();
+				self.inner = Some(inner);
+				poll_result.map_err(|_| NetworkDown)
+			},
+			Ok(futures::Async::NotReady) => Ok(futures::Async::NotReady),
+			Err(_) => Err(NetworkDown)
 		}
-		Ok(futures::Async::NotReady)
 	}
 }
 

@@ -267,16 +267,21 @@ impl Future for BlockDataReceiver {
 					"Sending end of channel hung up",
 			))
 		}
-		if let Ok(futures::Async::Ready(mut inner)) = self.outer.poll() {
-			let poll_result = inner.poll();
-			self.inner = Some(inner);
-			return poll_result
-				.map_err(|_| io::Error::new(
-					io::ErrorKind::Other,
-					"Sending end of channel hung up",
-			))
+		match self.outer.poll() {
+			Ok(futures::Async::Ready(mut inner)) => {
+				let poll_result = inner.poll();
+				self.inner = Some(inner);
+				poll_result
+					.map_err(|_| io::Error::new(
+						io::ErrorKind::Other,
+						"Sending end of channel hung up",
+				))
+			},
+			Ok(futures::Async::NotReady) => Ok(futures::Async::NotReady),
+			Err(_) => Err(
+				io::Error::new(io::ErrorKind::Other, "Sending end of channel hung up")
+			),
 		}
-		Ok(futures::Async::NotReady)
 	}
 }
 
