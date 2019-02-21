@@ -137,6 +137,7 @@ fn main() {
 			executable_name: "adder-collator",
 			description: "collator for adder parachain",
 			author: "parity technologies",
+			support_url: "none"
 		}
 	);
 

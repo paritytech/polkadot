@@ -458,7 +458,6 @@ mod tests {
 	impl consensus::Trait for Test {
 		type InherentOfflineReport = ();
 		type SessionKey = SessionKey;
-		type InherentOfflineReport = ();
 		type Log = ::Log;
 	}
 	impl system::Trait for Test {
@@ -480,7 +479,6 @@ mod tests {
 		type Event = ();
 	}
 	impl timestamp::Trait for Test {
-		const TIMESTAMP_SET_POSITION: u32 = 0;
 		type Moment = u64;
 		type OnTimestampSet = ();
 	}
