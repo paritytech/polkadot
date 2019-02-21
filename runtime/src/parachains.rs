@@ -38,7 +38,6 @@ use rstd::marker::PhantomData;
 
 use system::ensure_inherent;
 
-
 pub trait Trait: session::Trait {
 	/// The position of the set_heads call in the block.
 	const SET_POSITION: u32;
