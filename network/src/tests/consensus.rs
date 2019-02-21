@@ -16,7 +16,7 @@
 
 //! Tests and helpers for consensus networking.
 
-use consensus::NetworkService;
+use validation::NetworkService;
 use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
 use substrate_primitives::{Ed25519AuthorityId, NativeOrEncoded};
 use substrate_keyring::Keyring;
@@ -298,7 +298,7 @@ impl ParachainHost<Block> for RuntimeApi {
 	}
 }
 
-type TestConsensusNetwork = ::consensus::ConsensusNetwork<
+type TestConsensusNetwork = ::validation::ValidationNetwork<
 	TestApi,
 	NeverExit,
 	TestNetwork,

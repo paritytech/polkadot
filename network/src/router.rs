@@ -41,7 +41,7 @@ use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::{io, mem};
 use std::sync::Arc;
 
-use consensus::{NetworkService, Knowledge, Executor};
+use validation::{NetworkService, Knowledge, Executor};
 
 type IngressPair = (ParaId, Vec<Message>);
 type IngressPairRef<'a> = (ParaId, &'a [Message]);
@@ -380,7 +380,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 	fn drop(&mut self) {
 		let parent_hash = self.parent_hash.clone();
-		self.network.with_spec(move |spec, _| spec.remove_consensus(&parent_hash));
+		self.network.with_spec(move |spec, _| spec.remove_validation_session(&parent_hash));
 		self.network.drop_gossip(self.attestation_topic);
 
 		{
