@@ -110,36 +110,13 @@ decl_module! {
 						"Submitted candidate for unregistered or out-of-order parachain {}"
 					);
 
-//					Self::check_egress_queue_roots(&head)?;
-					let mut last_egress_id = None;
-					for (egress_para_id, _) in &head.candidate.egress_queue_roots {
-						// egress routes be ascending order by parachain ID without duplicate.
-						ensure!(
-							last_egress_id.as_ref().map_or(true, |x| x < &egress_para_id),
-							"Egress routes out of order by ID"
-						);
-
-						// a parachain can't route to self
-						ensure!(
-							*egress_para_id != head.candidate.parachain_index,
-							"Parachain routing to self"
-						);
-
-						// can't route to a parachain which doesn't exist
-						ensure!(
-							active_parachains.iter().find(|x| x == &egress_para_id).is_some(),
-							"Routing to non-existent parachain"
-						);
-
-						last_egress_id = Some(egress_para_id)
-					}
+					Self::check_egress_queue_roots(&head, &active_parachains)?;
 
 					last_id = Some(head.parachain_index());
 				}
 			}
 
 			Self::check_attestations(&heads)?;
-//			Self::check_egress_queue_roots(&heads)?;
 
 			for head in heads {
 				let id = head.parachain_index();
@@ -270,6 +247,33 @@ impl<T: Trait> Module<T> {
 				<Routing<T>>::get((from, to.clone())).map(move |h| (from, h))
 			})
 			.collect())
+	}
+
+	fn check_egress_queue_roots(head: &AttestedCandidate, active_parachains: &[ParaId]) -> Result {
+		let mut last_egress_id = None;
+		let mut iter = active_parachains.iter();
+		for (egress_para_id, _) in &head.candidate.egress_queue_roots {
+			// egress routes be ascending order by parachain ID without duplicate.
+			ensure!(
+				last_egress_id.as_ref().map_or(true, |x| x < &egress_para_id),
+				"Egress routes out of order by ID"
+			);
+
+			// a parachain can't route to self
+			ensure!(
+				*egress_para_id != head.candidate.parachain_index,
+				"Parachain routing to self"
+			);
+
+			// can't route to a parachain which doesn't exist
+			ensure!(
+				iter.find(|x| x == &egress_para_id).is_some(),
+				"Routing to non-existent parachain"
+			);
+
+			last_egress_id = Some(egress_para_id)
+		}
+		Ok(())
 	}
 
 	// check the attestations on these candidates. The candidates should have been checked
