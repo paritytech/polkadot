@@ -569,6 +569,22 @@ mod tests {
 		}
 	}
 
+	fn new_candidate_with_egress_roots(egress_queue_roots: Vec<(ParaId, H256)>) -> AttestedCandidate {
+		AttestedCandidate {
+			validity_votes: vec![],
+			candidate: CandidateReceipt {
+				parachain_index: 0.into(),
+				collator: Default::default(),
+				signature: Default::default(),
+				head_data: HeadData(vec![1, 2, 3]),
+				balance_uploads: vec![],
+				egress_queue_roots,
+				fees: 0,
+				block_data_hash: Default::default(),
+			}
+		}
+	}
+
 	#[test]
 	fn active_parachains_should_work() {
 		let parachains = vec![
@@ -838,19 +854,7 @@ mod tests {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 99 does not exist
 			let non_existent = vec![(99.into(), [1; 32].into())];
-			let mut candidate = AttestedCandidate {
-				validity_votes: vec![],
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
-					egress_queue_roots: non_existent,
-					fees: 0,
-					block_data_hash: Default::default(),
-				}
-			};
+			let mut candidate = new_candidate_with_egress_roots(non_existent);
 
 			make_attestations(&mut candidate);
 
@@ -875,19 +879,7 @@ mod tests {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 0 is self
 			let to_self = vec![(0.into(), [1; 32].into())];
-			let mut candidate = AttestedCandidate {
-				validity_votes: vec![],
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
-					egress_queue_roots: to_self,
-					fees: 0,
-					block_data_hash: Default::default(),
-				}
-			};
+			let mut candidate = new_candidate_with_egress_roots(to_self);
 
 			make_attestations(&mut candidate);
 
@@ -912,19 +904,7 @@ mod tests {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 0 is self
 			let out_of_order = vec![(1.into(), [1; 32].into()), ((0.into(), [1; 32].into()))];
-			let mut candidate = AttestedCandidate {
-				validity_votes: vec![],
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
-					egress_queue_roots: out_of_order,
-					fees: 0,
-					block_data_hash: Default::default(),
-				}
-			};
+			let mut candidate = new_candidate_with_egress_roots(out_of_order);
 
 			make_attestations(&mut candidate);
 
@@ -949,19 +929,7 @@ mod tests {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 0 is self
 			let contains_empty_trie_root = vec![(1.into(), [1; 32].into()), ((2.into(), [EMPTY_TRIE; 32].into()))];
-			let mut candidate = AttestedCandidate {
-				validity_votes: vec![],
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
-					egress_queue_roots: contains_empty_trie_root,
-					fees: 0,
-					block_data_hash: Default::default(),
-				}
-			};
+			let mut candidate = new_candidate_with_egress_roots(contains_empty_trie_root);
 
 			make_attestations(&mut candidate);
 
