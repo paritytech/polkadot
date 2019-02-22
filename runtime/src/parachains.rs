@@ -111,8 +111,14 @@ decl_module! {
 					);
 
 //					Self::check_egress_queue_roots(&head)?;
-
+					let mut last_egress_id = None;
 					for (egress_para_id, _) in &head.candidate.egress_queue_roots {
+						// egress routes be ascending order by parachain ID without duplicate.
+						ensure!(
+							last_egress_id.as_ref().map_or(true, |x| x < &egress_para_id),
+							"Egress routes out of order by ID"
+						);
+
 						// a parachain can't route to self
 						ensure!(
 							*egress_para_id != head.candidate.parachain_index,
@@ -123,7 +129,9 @@ decl_module! {
 						ensure!(
 							active_parachains.iter().find(|x| x == &egress_para_id).is_some(),
 							"Routing to non-existent parachain"
-						)
+						);
+
+						last_egress_id = Some(egress_para_id)
 					}
 
 					last_id = Some(head.parachain_index());
@@ -854,7 +862,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 0 is self
-			let non_existent = vec![(0.into(), [1; 32].into())];
+			let to_self = vec![(0.into(), [1; 32].into())];
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
 				candidate: CandidateReceipt {
@@ -863,7 +871,7 @@ mod tests {
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
 					balance_uploads: vec![],
-					egress_queue_roots: non_existent,
+					egress_queue_roots: to_self,
 					fees: 0,
 					block_data_hash: Default::default(),
 				}
@@ -881,8 +889,40 @@ mod tests {
 	}
 
 	#[test]
-	fn egress_queue_roots_out_of_order_rejected() {
+	fn egress_queue_roots_out_of_order_is_rejected() {
 		// That the list of egress queue roots is in ascending order by `ParaId`.
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			// parachain 0 is self
+			let out_of_order = vec![(1.into(), [1; 32].into()), ((0.into(), [1; 32].into()))];
+			let mut candidate = AttestedCandidate {
+				validity_votes: vec![],
+				candidate: CandidateReceipt {
+					parachain_index: 0.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					balance_uploads: vec![],
+					egress_queue_roots: out_of_order,
+					fees: 0,
+					block_data_hash: Default::default(),
+				}
+			};
+
+			make_attestations(&mut candidate);
+
+			let result = Parachains::dispatch(
+				Call::set_heads(vec![candidate.clone()]),
+				Origin::INHERENT,
+			);
+
+			assert_eq!(Err("Egress routes out of order by ID"), result);
+		});
 	}
 
 	#[test]
