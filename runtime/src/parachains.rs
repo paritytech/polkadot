@@ -40,6 +40,8 @@ use system::ensure_inherent;
 
 pub trait Trait: session::Trait {}
 
+const EMPTY_TRIE: u8 = 0;
+
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		// Vector of all parachain IDs.
@@ -252,8 +254,8 @@ impl<T: Trait> Module<T> {
 	fn check_egress_queue_roots(head: &AttestedCandidate, active_parachains: &[ParaId]) -> Result {
 		let mut last_egress_id = None;
 		let mut iter = active_parachains.iter();
-		for (egress_para_id, _) in &head.candidate.egress_queue_roots {
-			// egress routes be ascending order by parachain ID without duplicate.
+		for (egress_para_id, root) in &head.candidate.egress_queue_roots {
+			// egress routes should be ascending order by parachain ID without duplicate.
 			ensure!(
 				last_egress_id.as_ref().map_or(true, |x| x < &egress_para_id),
 				"Egress routes out of order by ID"
@@ -263,6 +265,12 @@ impl<T: Trait> Module<T> {
 			ensure!(
 				*egress_para_id != head.candidate.parachain_index,
 				"Parachain routing to self"
+			);
+
+			// no empty trie roots
+			ensure!(
+				*root != [EMPTY_TRIE; 32].into(),
+				"Empty trie root included"
 			);
 
 			// can't route to a parachain which doesn't exist
@@ -893,7 +901,7 @@ mod tests {
 	}
 
 	#[test]
-	fn egress_queue_roots_out_of_order_is_rejected() {
+	fn egress_queue_roots_out_of_order_rejected() {
 		// That the list of egress queue roots is in ascending order by `ParaId`.
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
@@ -930,8 +938,39 @@ mod tests {
 	}
 
 	#[test]
-	fn egress_queue_roots_empty_trie_roots_are_omitted() {
-		// That no empty trie roots are included. They should instead be omitted.
-		// I'm pretty sure this is available by some constant in the substrate tree somewhere.
+	fn egress_queue_roots_empty_trie_roots_rejected() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+			(2u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			// parachain 0 is self
+			let contains_empty_trie_root = vec![(1.into(), [1; 32].into()), ((2.into(), [EMPTY_TRIE; 32].into()))];
+			let mut candidate = AttestedCandidate {
+				validity_votes: vec![],
+				candidate: CandidateReceipt {
+					parachain_index: 0.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					balance_uploads: vec![],
+					egress_queue_roots: contains_empty_trie_root,
+					fees: 0,
+					block_data_hash: Default::default(),
+				}
+			};
+
+			make_attestations(&mut candidate);
+
+			let result = Parachains::dispatch(
+				Call::set_heads(vec![candidate.clone()]),
+				Origin::INHERENT,
+			);
+
+			assert_eq!(Err("Empty trie root included"), result);
+		});
 	}
 }
