@@ -112,6 +112,13 @@ decl_module! {
 
 //					Self::check_egress_queue_roots(&head)?;
 
+					for (egress_para_id, _) in &head.candidate.egress_queue_roots {
+						ensure!(
+							iter.find(|x| x == &egress_para_id).is_some(),
+							"Routing to non-existent parachain"
+						);
+					}
+
 					last_id = Some(head.parachain_index());
 				}
 			}
@@ -793,7 +800,7 @@ mod tests {
 	}
 
 	#[test]
-	fn egress_routed_to_non_existant_parachain_is_rejected() {
+	fn egress_routed_to_non_existent_parachain_is_rejected() {
 		// That no parachain is routed to which doesn't exist
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
@@ -802,6 +809,8 @@ mod tests {
 
 		with_externalities(&mut new_test_ext(parachains), || {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			// parachain 99 does not exist
+			let non_existent = vec![(99.into(), [1; 32].into())];
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
 				candidate: CandidateReceipt {
@@ -810,7 +819,7 @@ mod tests {
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
 					balance_uploads: vec![],
-					egress_queue_roots: vec![],
+					egress_queue_roots: non_existent,
 					fees: 0,
 					block_data_hash: Default::default(),
 				}
@@ -818,10 +827,12 @@ mod tests {
 
 			make_attestations(&mut candidate);
 
-			assert!(Parachains::dispatch(
+			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
 				Origin::INHERENT,
-			).is_err());
+			);
+
+			assert_eq!(Err("Routing to non-existent parachain"), result);
 		});
 	}
 
