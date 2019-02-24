@@ -81,7 +81,7 @@ cargo install --git https://github.com/paritytech/substrate.git --tag v0.2.5 pol
 
 === Obtaining DOTs
 
-If you want to do anything on it (not that there's much to do), then you'll need to get an account and some Alexander or Krumme Lanke DOTs. Ask in the Polkadot watercooler.
+If you want to do anything on it (not that there's much to do), then you'll need to get an account and some Alexander or Krumme Lanke DOTs. Ask in the Polkadot watercooler ( https://riot.im/app/#/room/#polkadot-watercooler:matrix.org ).
 
 === Development
 
