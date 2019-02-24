@@ -40,7 +40,7 @@ use system::ensure_inherent;
 
 pub trait Trait: session::Trait {}
 
-const EMPTY_TRIE: u8 = 0;
+include!(concat!(env!("OUT_DIR"), "/consts.rs"));
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
@@ -269,7 +269,7 @@ impl<T: Trait> Module<T> {
 
 			// no empty trie roots
 			ensure!(
-				*root != [EMPTY_TRIE; 32].into(),
+				*root != EMPTY_TRIE_ROOT.into(),
 				"Empty trie root included"
 			);
 
@@ -928,7 +928,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 0 is self
-			let contains_empty_trie_root = vec![(1.into(), [1; 32].into()), ((2.into(), [EMPTY_TRIE; 32].into()))];
+			let contains_empty_trie_root = vec![(1.into(), [1; 32].into()), ((2.into(), EMPTY_TRIE_ROOT.into()))];
 			let mut candidate = new_candidate_with_egress_roots(contains_empty_trie_root);
 
 			make_attestations(&mut candidate);
