@@ -18,18 +18,19 @@ extern crate substrate_trie;
 extern crate substrate_primitives;
 extern crate trie_db;
 
-use std::{env, fs::File, io::{Error, Write}, path::Path};
+use std::{env, error::Error, fs::File, io::Write, path::Path};
 
 use substrate_trie::NodeCodec;
 use substrate_primitives::Blake2Hasher;
 
-fn main() -> Result<(), Error> {
-	let out_dir = env::var("OUT_DIR").unwrap();
+fn main() -> Result<(), Box<Error>> {
+	let out_dir = env::var("OUT_DIR")?;
 	let dest_path = Path::new(&out_dir).join("consts.rs");
-	let mut f = File::create(&dest_path).unwrap();
+	let mut f = File::create(&dest_path)?;
 
 	let empty_root = <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node();
 	let bytes = empty_root.as_bytes();
 
-	f.write_all(format!("pub const EMPTY_TRIE_ROOT: [u8; 32] = {:?};", bytes).as_bytes())
+	f.write_all(format!("pub const EMPTY_TRIE_ROOT: [u8; 32] = {:?};", bytes).as_bytes())?;
+	Ok(())
 }
