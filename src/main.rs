@@ -73,6 +73,7 @@ fn run() -> cli::error::Result<()> {
 		executable_name: "polkadot",
 		author: "Parity Team <admin@parity.io>",
 		description: "Polkadot Relay-chain Client Node",
+		support_url: "https://github.com/paritytech/polkadot/issues/new",
 	};
 	cli::run(::std::env::args(), Worker, version)
 }

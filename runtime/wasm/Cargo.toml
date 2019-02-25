@@ -11,31 +11,31 @@ bitvec = { version = "0.8", default-features = false, features = ["alloc"] }
 integer-sqrt = { git = "https://github.com/paritytech/integer-sqrt-rs.git", branch = "master" }
 polkadot-primitives = { path = "../../primitives", default-features = false }
 safe-mix = { version = "1.0", default-features = false }
-parity-codec = { version = "2.1", default-features = false }
-parity-codec-derive = { version = "2.1", default-features = false }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-substrate-client = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-sr-std = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-sr-io = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-support = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-aura = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-balances = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-consensus = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-council = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-democracy = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-executive = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-grandpa = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-indices = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-session = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-staking = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-sudo = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-system = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-timestamp = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-treasury = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-srml-upgrade-key = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
-sr-version = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports", default-features = false }
+ parity-codec = { version = "3.0", default-features = false }
+ parity-codec-derive = { version = "3.0", default-features = false }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+substrate-client = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+sr-std = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+sr-io = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-support = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-aura = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-balances = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-consensus = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-council = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-democracy = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-executive = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-grandpa = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-indices = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-session = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-staking = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-sudo = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-system = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-timestamp = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-treasury = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+srml-upgrade-key = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
+sr-version = { git = "https://github.com/paritytech/substrate", branch = "v0.10", default-features = false }
 
 [profile.release]
 panic = "abort"

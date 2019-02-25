@@ -10,11 +10,11 @@ parking_lot = "0.4"
 polkadot-availability-store = { path = "../availability-store" }
 polkadot-consensus = { path = "../consensus" }
 polkadot-primitives = { path = "../primitives" }
-parity-codec = "2.1"
-parity-codec-derive = "2.1"
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "alexander-backports" }
+parity-codec = "3.0"
+parity-codec-derive = "3.0"
+substrate-network = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
 futures = "0.1"
 tokio = "0.1.7"
 log = "0.4"
