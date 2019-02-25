@@ -58,7 +58,9 @@ decl_storage! {
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
-		build(|storage: &mut sr_primitives::StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
+		build(|storage: &mut sr_primitives::StorageOverlay,
+			_: &mut ChildrenStorageOverlay,
+			config: &GenesisConfig<T>| {
 			use codec::Encode;
 
 			let mut p = config.parachains.clone();
