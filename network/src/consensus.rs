@@ -150,8 +150,6 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 		let attestation_topic = table_router.gossip_topic();
 		let exit = self.exit.clone();
 
-		// spin up a task in the background that processes all incoming statements
-		// TODO: propagate statements on a timer?
 		let (tx, rx) = std::sync::mpsc::channel();
 		self.network.with_gossip(move |gossip, _| {
 			let inner_rx = gossip.messages_for(attestation_topic);
@@ -161,8 +159,6 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 		let table_router_clone = table_router.clone();
 		let executor = task_executor.clone();
 
-		// spin up a task in the background that processes all incoming statements
-		// TODO: propagate statements on a timer?
 		self.network
 			.with_spec(move |spec, ctx| {
 				spec.new_consensus(ctx, parent_hash, CurrentConsensus {
