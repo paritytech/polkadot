@@ -29,6 +29,7 @@ use polkadot_primitives::parachain::{BlockData, Extrinsic, CandidateReceipt, Par
 
 use codec::Encode;
 use futures::prelude::*;
+use futures::sync::oneshot;
 use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 
@@ -228,7 +229,7 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> BlockDataReceiver {
 		let parent_hash = self.parent_hash.clone();
 		let candidate = candidate.clone();
-		let (tx, rx) = ::futures::sync::oneshot::channel();
+		let (tx, rx) = oneshot::channel();
 		self.network.with_spec(move |spec, ctx| {
 			let inner_rx = spec.fetch_block_data(ctx, &candidate, parent_hash);
 			let _ = tx.send(inner_rx);
@@ -250,8 +251,8 @@ impl<P> Drop for Router<P> {
 
 /// Receiver for block data.
 pub struct BlockDataReceiver {
-	outer: ::futures::sync::oneshot::Receiver<::futures::sync::oneshot::Receiver<BlockData>>,
-	inner: Option<::futures::sync::oneshot::Receiver<BlockData>>
+	outer: oneshot::Receiver<oneshot::Receiver<BlockData>>,
+	inner: Option<oneshot::Receiver<BlockData>>
 }
 
 impl Future for BlockDataReceiver {

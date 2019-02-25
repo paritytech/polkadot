@@ -28,6 +28,7 @@ use codec::Decode;
 
 use futures::prelude::*;
 use futures::sync::mpsc;
+use futures::sync::oneshot;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -187,8 +188,8 @@ pub struct NetworkDown;
 
 /// A future that resolves when a collation is received.
 pub struct AwaitingCollation {
-	outer: ::futures::sync::oneshot::Receiver<::futures::sync::oneshot::Receiver<Collation>>,
-	inner: Option<::futures::sync::oneshot::Receiver<Collation>>
+	outer: oneshot::Receiver<::futures::sync::oneshot::Receiver<Collation>>,
+	inner: Option<oneshot::Receiver<Collation>>
 }
 
 impl Future for AwaitingCollation {
@@ -219,7 +220,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E: Clone> Collators for Conse
 	type Collation = AwaitingCollation;
 
 	fn collate(&self, parachain: ParaId, relay_parent: Hash) -> Self::Collation {
-		let (tx, rx) = ::futures::sync::oneshot::channel();
+		let (tx, rx) = oneshot::channel();
 		self.network.with_spec(move |spec, _| {
 			let collation = spec.await_collation(relay_parent, parachain);
 			let _ = tx.send(collation);
