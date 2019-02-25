@@ -50,7 +50,7 @@ std = [
 	"polkadot-primitives/std",
 	"parity-codec/std",
 	"parity-codec-derive/std",
-    "substrate-inherents/std",
+        "substrate-inherents/std",
 	"substrate-primitives/std",
 	"sr-std/std",
 	"sr-io/std",
