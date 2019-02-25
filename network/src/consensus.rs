@@ -159,23 +159,22 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 		let table_router_clone = table_router.clone();
 		let executor = task_executor.clone();
 
-		self.network
-			.with_spec(move |spec, ctx| {
-				spec.new_consensus(ctx, parent_hash, CurrentConsensus {
-					knowledge,
-					local_session_key,
-				});
-				let inner_stream = match rx.try_recv() {
-					Ok(inner_stream) => inner_stream,
-					_ => unreachable!("1. The with_gossip closure executed first, 2. the reply should be available")
-				};
-				let process_task = MessageProcessTask {
-					inner_stream,
-					parent_hash,
-					table_router: table_router_clone,
-					exit,
-				};
-				executor.spawn(process_task);
+		self.network.with_spec(move |spec, ctx| {
+			spec.new_consensus(ctx, parent_hash, CurrentConsensus {
+				knowledge,
+				local_session_key,
+			});
+			let inner_stream = match rx.try_recv() {
+				Ok(inner_stream) => inner_stream,
+				_ => unreachable!("1. The with_gossip closure executed first, 2. the reply should be available")
+			};
+			let process_task = MessageProcessTask {
+				inner_stream,
+				parent_hash,
+				table_router: table_router_clone,
+				exit,
+			};
+			executor.spawn(process_task);
 		});
 
 		table_router
