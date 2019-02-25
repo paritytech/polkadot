@@ -5,5 +5,6 @@
 polkadot/runtime/wasm/target/
 **/._*
 .vscode
+.idea
 polkadot.*
 .DS_Store

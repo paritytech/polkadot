@@ -40,7 +40,8 @@ use system::ensure_inherent;
 
 pub trait Trait: session::Trait {}
 
-include!(concat!(env!("OUT_DIR"), "/consts.rs"));
+// result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
+pub const EMPTY_TRIE_ROOT: [u8; 32] = [3, 23, 10, 46, 117, 151, 183, 183, 227, 216, 76, 5, 57, 29, 19, 154, 98, 177, 87, 231, 135, 134, 216, 192, 130, 242, 157, 207, 76, 17, 19, 20];
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
@@ -460,6 +461,7 @@ mod tests {
 	use super::*;
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
+	use substrate_trie::NodeCodec;
 	use sr_primitives::{generic, BuildStorage};
 	use sr_primitives::traits::{BlakeTwo256, IdentityLookup};
 	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey};
@@ -940,5 +942,11 @@ mod tests {
 
 			assert_eq!(Err("Empty trie root included"), result);
 		});
+	}
+
+	#[test]
+	fn empty_trie_root_const_is_blake2_hashed_null_node() {
+		let hashed_null_node =  <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node();
+		assert_eq!(hashed_null_node, EMPTY_TRIE_ROOT.into())
 	}
 }
