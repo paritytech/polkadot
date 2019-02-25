@@ -165,10 +165,7 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 				knowledge,
 				local_session_key,
 			});
-			let inner_stream = match rx.try_recv() {
-				Ok(inner_stream) => inner_stream,
-				_ => unreachable!("1. The with_gossip closure executed first, 2. the reply should be available")
-			};
+			let inner_stream = rx.try_recv().expect("1. The with_gossip closure executed first, 2. the reply should be available");
 			let process_task = MessageProcessTask {
 				inner_stream,
 				parent_hash,
