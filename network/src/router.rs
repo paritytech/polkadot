@@ -271,7 +271,7 @@ impl Future for BlockDataReceiver {
 		match self.outer.poll() {
 			Ok(futures::Async::Ready(mut inner)) => {
 				self.inner = Some(inner);
-				self.poll
+				self.poll()
 			},
 			Ok(futures::Async::NotReady) => Ok(futures::Async::NotReady),
 			Err(_) => Err(
