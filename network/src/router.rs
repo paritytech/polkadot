@@ -269,13 +269,8 @@ impl Future for BlockDataReceiver {
 		}
 		match self.outer.poll() {
 			Ok(futures::Async::Ready(mut inner)) => {
-				let poll_result = inner.poll();
 				self.inner = Some(inner);
-				poll_result
-					.map_err(|_| io::Error::new(
-						io::ErrorKind::Other,
-						"Sending end of channel hung up",
-				))
+				self.poll
 			},
 			Ok(futures::Async::NotReady) => Ok(futures::Async::NotReady),
 			Err(_) => Err(
