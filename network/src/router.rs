@@ -78,7 +78,8 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	/// with `import_statement`.
 	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement,Error=()> {
 		// spin up a task in the background that processes all incoming statements
-		// TODO: propagate statements on a timer?
+		// TODO: propagate statements more intelligently.
+		// https://github.com/paritytech/polkadot/issues/158
 		let parent_hash = self.parent_hash();
 		self.network().gossip_messages_for(self.attestation_topic)
 			.filter_map(|msg| {
@@ -189,8 +190,8 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 					source, target, self.parent_hash());
 
 				// this is the ingress from source to target, with given messages.
-				let target_incoming
-					= validation::incoming_message_topic(self.parent_hash(), target);
+				let target_incoming =
+					validation::incoming_message_topic(self.parent_hash(), target);
 				let ingress_for: IngressPairRef = (source, &group_messages[..]);
 
 				self.network().gossip_message(target_incoming, ingress_for.encode());
