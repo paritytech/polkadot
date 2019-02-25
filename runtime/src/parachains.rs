@@ -40,6 +40,12 @@ use system::ensure_inherent;
 
 pub trait Trait: session::Trait {}
 
+// result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
+const EMPTY_TRIE_ROOT: [u8; 32] = [
+	3, 23, 10, 46, 117, 151, 183, 183, 227, 216, 76, 5, 57, 29, 19, 154,
+	98, 177, 87, 231, 135, 134, 216, 192, 130, 242, 157, 207, 76, 17, 19, 20
+];
+
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		// Vector of all parachain IDs.
@@ -110,12 +116,13 @@ decl_module! {
 						"Submitted candidate for unregistered or out-of-order parachain {}"
 					);
 
+					Self::check_egress_queue_roots(&head, &active_parachains)?;
+
 					last_id = Some(head.parachain_index());
 				}
 			}
 
 			Self::check_attestations(&heads)?;
-
 
 			for head in heads {
 				let id = head.parachain_index();
@@ -246,6 +253,39 @@ impl<T: Trait> Module<T> {
 				<Routing<T>>::get((from, to.clone())).map(move |h| (from, h))
 			})
 			.collect())
+	}
+
+	fn check_egress_queue_roots(head: &AttestedCandidate, active_parachains: &[ParaId]) -> Result {
+		let mut last_egress_id = None;
+		let mut iter = active_parachains.iter();
+		for (egress_para_id, root) in &head.candidate.egress_queue_roots {
+			// egress routes should be ascending order by parachain ID without duplicate.
+			ensure!(
+				last_egress_id.as_ref().map_or(true, |x| x < &egress_para_id),
+				"Egress routes out of order by ID"
+			);
+
+			// a parachain can't route to self
+			ensure!(
+				*egress_para_id != head.candidate.parachain_index,
+				"Parachain routing to self"
+			);
+
+			// no empty trie roots
+			ensure!(
+				*root != EMPTY_TRIE_ROOT.into(),
+				"Empty trie root included"
+			);
+
+			// can't route to a parachain which doesn't exist
+			ensure!(
+				iter.find(|x| x == &egress_para_id).is_some(),
+				"Routing to non-existent parachain"
+			);
+
+			last_egress_id = Some(egress_para_id)
+		}
+		Ok(())
 	}
 
 	// check the attestations on these candidates. The candidates should have been checked
@@ -424,6 +464,7 @@ mod tests {
 	use super::*;
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
+	use substrate_trie::NodeCodec;
 	use sr_primitives::{generic, BuildStorage};
 	use sr_primitives::traits::{BlakeTwo256, IdentityLookup};
 	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey};
@@ -530,6 +571,22 @@ mod tests {
 			} else {
 				ValidityAttestation::Explicit(signature)
 			}));
+		}
+	}
+
+	fn new_candidate_with_egress_roots(egress_queue_roots: Vec<(ParaId, H256)>) -> AttestedCandidate {
+		AttestedCandidate {
+			validity_votes: vec![],
+			candidate: CandidateReceipt {
+				parachain_index: 0.into(),
+				collator: Default::default(),
+				signature: Default::default(),
+				head_data: HeadData(vec![1, 2, 3]),
+				balance_uploads: vec![],
+				egress_queue_roots,
+				fees: 0,
+				block_data_hash: Default::default(),
+			}
 		}
 	}
 
@@ -788,5 +845,111 @@ mod tests {
 			assert_eq!(Parachains::ingress(ParaId::from(1)), None);
 			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
 		});
+	}
+
+	#[test]
+	fn egress_routed_to_non_existent_parachain_is_rejected() {
+		// That no parachain is routed to which doesn't exist
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			// parachain 99 does not exist
+			let non_existent = vec![(99.into(), [1; 32].into())];
+			let mut candidate = new_candidate_with_egress_roots(non_existent);
+
+			make_attestations(&mut candidate);
+
+			let result = Parachains::dispatch(
+				Call::set_heads(vec![candidate.clone()]),
+				Origin::INHERENT,
+			);
+
+			assert_eq!(Err("Routing to non-existent parachain"), result);
+		});
+	}
+
+	#[test]
+	fn egress_routed_to_self_is_rejected() {
+		// That the parachain doesn't route to self
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			// parachain 0 is self
+			let to_self = vec![(0.into(), [1; 32].into())];
+			let mut candidate = new_candidate_with_egress_roots(to_self);
+
+			make_attestations(&mut candidate);
+
+			let result = Parachains::dispatch(
+				Call::set_heads(vec![candidate.clone()]),
+				Origin::INHERENT,
+			);
+
+			assert_eq!(Err("Parachain routing to self"), result);
+		});
+	}
+
+	#[test]
+	fn egress_queue_roots_out_of_order_rejected() {
+		// That the list of egress queue roots is in ascending order by `ParaId`.
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			// parachain 0 is self
+			let out_of_order = vec![(1.into(), [1; 32].into()), ((0.into(), [1; 32].into()))];
+			let mut candidate = new_candidate_with_egress_roots(out_of_order);
+
+			make_attestations(&mut candidate);
+
+			let result = Parachains::dispatch(
+				Call::set_heads(vec![candidate.clone()]),
+				Origin::INHERENT,
+			);
+
+			assert_eq!(Err("Egress routes out of order by ID"), result);
+		});
+	}
+
+	#[test]
+	fn egress_queue_roots_empty_trie_roots_rejected() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+			(2u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			system::Module::<Test>::set_random_seed([0u8; 32].into());
+			// parachain 0 is self
+			let contains_empty_trie_root = vec![(1.into(), [1; 32].into()), ((2.into(), EMPTY_TRIE_ROOT.into()))];
+			let mut candidate = new_candidate_with_egress_roots(contains_empty_trie_root);
+
+			make_attestations(&mut candidate);
+
+			let result = Parachains::dispatch(
+				Call::set_heads(vec![candidate.clone()]),
+				Origin::INHERENT,
+			);
+
+			assert_eq!(Err("Empty trie root included"), result);
+		});
+	}
+
+	#[test]
+	fn empty_trie_root_const_is_blake2_hashed_null_node() {
+		let hashed_null_node =  <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node();
+		assert_eq!(hashed_null_node, EMPTY_TRIE_ROOT.into())
 	}
 }

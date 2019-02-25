@@ -2319,7 +2319,9 @@ dependencies = [
  "substrate-keyring 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-serializer 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-trie 0.4.0 (git+https://github.com/paritytech/substrate)",
  "tiny-keccak 1.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "trie-db 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

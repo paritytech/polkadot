@@ -70,6 +70,9 @@ extern crate polkadot_primitives as primitives;
 #[cfg(test)]
 extern crate substrate_keyring as keyring;
 
+#[cfg(test)]
+extern crate substrate_trie;
+
 mod parachains;
 mod claims;
 
