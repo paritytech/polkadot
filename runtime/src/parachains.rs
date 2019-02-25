@@ -41,7 +41,10 @@ use system::ensure_inherent;
 pub trait Trait: session::Trait {}
 
 // result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
-pub const EMPTY_TRIE_ROOT: [u8; 32] = [3, 23, 10, 46, 117, 151, 183, 183, 227, 216, 76, 5, 57, 29, 19, 154, 98, 177, 87, 231, 135, 134, 216, 192, 130, 242, 157, 207, 76, 17, 19, 20];
+const EMPTY_TRIE_ROOT: [u8; 32] = [
+	3, 23, 10, 46, 117, 151, 183, 183, 227, 216, 76, 5, 57, 29, 19, 154,
+	98, 177, 87, 231, 135, 134, 216, 192, 130, 242, 157, 207, 76, 17, 19, 20
+];
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
