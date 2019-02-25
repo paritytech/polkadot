@@ -225,7 +225,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E: Clone> Collators for Conse
 			let collation = spec.await_collation(relay_parent, parachain);
 			let _ = tx.send(collation);
 		});
-		AwaitingCollation{outer: rx, inner: None}
+		AwaitingCollation { outer: rx, inner: None }
 	}
 
 	fn note_bad_collator(&self, collator: AccountId) {
