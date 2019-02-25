@@ -663,7 +663,9 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 
 		const MAX_TRANSACTIONS: usize = 40;
 
-		let mut inherent_data = self.inherent_data.take().expect("CreateProposal is not polled after finishing; qed");
+		let mut inherent_data = self.inherent_data
+			.take()
+			.expect("CreateProposal is not polled after finishing; qed");
 		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(ErrorKind::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
