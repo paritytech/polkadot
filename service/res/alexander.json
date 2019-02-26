@@ -4,8 +4,8 @@
   "bootNodes": [
     "/ip4/104.211.54.233/tcp/30363/p2p/QmUghPWmHR8pQbZyBMeYzvPcH7VRcTiBibcyBG7wMKHaSZ",
     "/ip4/104.211.48.51/tcp/30363/p2p/QmYWrEtg4iQYwV9PG37PhfLHLATQJUTYiZRyoUvSYny9ba",
-		"/ip4/104.211.48.247/tcp/30363/p2p/QmYT3p4qGj1jwb7hDx1A6cDzAPtaHp3VR34vmw5BsXXB8D",
-		"/ip4/40.114.120.164/tcp/30363/p2p/QmPiGU1jwL9UDw2FMyMQFr9FdpF9hURKxkfy6PWw6aLsur"
+    "/ip4/104.211.48.247/tcp/30363/p2p/QmYT3p4qGj1jwb7hDx1A6cDzAPtaHp3VR34vmw5BsXXB8D",
+    "/ip4/40.117.153.33/tcp/30363/p2p/QmPiGU1jwL9UDw2FMyMQFr9FdpF9hURKxkfy6PWw6aLsur"
   ],
   "telemetryUrl": "wss://telemetry.polkadot.io/submit/",
   "protocolId": "dot",
