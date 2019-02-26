@@ -21,13 +21,14 @@ use codec::Decode;
 use sr_primitives::traits::{As, Hash as HashT, BlakeTwo256, Zero};
 use rstd::prelude::*;
 
-
 pub trait Trait: grandpa::Trait {}
 
 decl_storage! {
 	trait Store for Module<T: Trait> as CuratedGrandpa {
 		/// How often to shuffle the GRANDPA sets.
-		pub ShufflePeriod get(shuffle_period) build(|_| T::BlockNumber::sa(1024u64)): T::BlockNumber;
+		///
+		/// 0 means never.
+		pub ShufflePeriod get(shuffle_period) config(shuffle_period): T::BlockNumber;
 	}
 }
 
@@ -43,6 +44,8 @@ decl_module! {
 		fn on_finalise(block_number: T::BlockNumber) {
 			// every so often shuffle the voters and issue a change.
 			let shuffle_period: u64 = Self::shuffle_period().as_();
+			if shuffle_period == 0 { return }
+
 			if block_number.as_() % shuffle_period == 0 {
 				let mut seed = system::Module::<T>::random_seed().as_ref().to_vec();
 				seed.extend(b"grandpa_shuffling");
