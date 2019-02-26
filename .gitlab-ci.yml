@@ -6,6 +6,7 @@
 
 
 stages:
+  - merge-test
   - test
   - build
   - publish
@@ -24,11 +25,7 @@ variables:
 
 
 
-cache:
-  key:                             "${CI_JOB_NAME}"
-  paths:
-    - ./.cargo/
-
+cache:                             {}
 
 .collect_artifacts:                &collect_artifacts
   artifacts:
@@ -40,9 +37,36 @@ cache:
 
 
 
+.kubernetes_build:                 &kubernetes_build
+  tags:
+    - kubernetes-parity-build
+  environment:
+    name: gke-build
+
+
+
+
 # disabled as there are bugs
 # before_script:
 #   - ./scripts/build.sh
+
+
+
+#### stage:                        merge-test
+
+check:merge:conflict:
+  stage:                           merge-test
+  image:                           parity/tools:latest
+  cache:                           {}
+  <<:                              *kubernetes_build
+  only:
+    - /^[0-9]+$/
+  variables:
+    GITHUB_API:                    "https://api.github.com"
+    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
+    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
+  script:
+    - ./scripts/gitlab/check_merge_conflict.sh
 
 
 
@@ -51,6 +75,11 @@ cache:
 # therefore not generically testable
 test:rust:release:
   stage:                           test
+  cache:
+    key:                           "${CI_JOB_NAME}-test"
+    paths:
+      - ${CARGO_HOME}
+      - ./target
   only:
     - triggers
     - tags
@@ -71,6 +100,11 @@ test:rust:release:
 
 build:rust:linux:release:
   stage:                           build
+  cache:
+    key:                           "${CI_JOB_NAME}-build"
+    paths:
+      - ${CARGO_HOME}
+      - ./target
   <<:                              *collect_artifacts
   only:
     - master
@@ -146,13 +180,14 @@ dockerize:release:
   when:                            manual
   cache:                           {}
   retry:                           1
-  image: dtzar/helm-kubectl:$HELM_VERSION
+  image:                           dtzar/helm-kubectl:$HELM_VERSION
   only:
     - master
     - tags
     - web
   tags:
-    - kubernetes
+    # this is the runner that is used to deploy it
+    - kubernetes-parity-build
   before_script:
     - test -z "${DEPLOY_TAG}" && 
       test -f ./target/release/VERSION && 
@@ -181,11 +216,11 @@ dockerize:release:
 deploy:ew3:
   <<:                              *deploy
   environment:
-    name: gke-beta-ew3
+    name: parity-prod-ew3
 
 deploy:ue1:
   <<:                              *deploy
   environment:
-    name: gke-beta-ue1
+    name: parity-prod-ue1
 
 
