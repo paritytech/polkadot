@@ -252,7 +252,7 @@ construct_runtime!(
 		Staking: staking,
 		Democracy: democracy,
 		Grandpa: grandpa::{Module, Call, Storage, Config<T>, Log(), Event<T>},
-		CuratedGrandpa: curated_grandpa::{Module, Call, Storage},
+		CuratedGrandpa: curated_grandpa::{Module, Call, Config<T>, Storage},
 		Council: council::{Module, Call, Storage, Event<T>},
 		CouncilVoting: council_voting,
 		CouncilMotions: council_motions::{Module, Call, Storage, Event<T>, Origin},
