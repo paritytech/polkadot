@@ -39,7 +39,7 @@ cache:                             {}
 
 .kubernetes_build:                 &kubernetes_build
   tags:
-    - kubernetes
+    - kubernetes-parity-build
   environment:
     name: gke-build
 
@@ -186,7 +186,8 @@ dockerize:release:
     - tags
     - web
   tags:
-    - kubernetes
+    # this is the runner that is used to deploy it
+    - kubernetes-parity-build
   before_script:
     - test -z "${DEPLOY_TAG}" && 
       test -f ./target/release/VERSION && 
