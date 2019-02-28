@@ -179,7 +179,7 @@ construct_service_factory! {
 					let voter = grandpa::run_grandpa(
 						grandpa::Config {
 							// TODO: make gossip_duration available through chainspec
-							// https://github.com/paritytech/polkadot/issues/163
+							// https://github.com/paritytech/substrate/issues/1578
 							gossip_duration: Duration::new(4, 0),
 							local_key: key.clone(),
 							justification_period: 4096,
