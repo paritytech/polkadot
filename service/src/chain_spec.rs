@@ -54,7 +54,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 	const DAYS: u64 = HOURS * 24;
 	GenesisConfig {
 		consensus: Some(ConsensusConfig {
-			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/polkadot_runtime.compact.wasm").to_vec(),	// TODO change
+			// TODO: Change after Substrate 1252 is fixed (https://github.com/paritytech/substrate/issues/1252)
+			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/polkadot_runtime.compact.wasm").to_vec(),
 			authorities: initial_authorities.clone(),
 		}),
 		system: None,
