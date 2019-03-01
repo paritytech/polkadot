@@ -48,12 +48,20 @@ pub enum Known {
 	Leaf,
 	/// The block is known to be old.
 	Old,
+	/// The block is known to be bad.
+	Bad,
 }
 
 /// An oracle for known blocks.
 pub trait KnownOracle: Send + Sync {
 	/// whether a block is known. If it's not, returns `None`.
 	fn is_known(&self, block_hash: &Hash) -> Option<Known>;
+}
+
+impl<F> KnownOracle for F where F: Fn(&Hash) -> Option<Known> + Send + Sync {
+	fn is_known(&self, block_hash: &Hash) -> Option<Known> {
+		(self)(block_hash)
+	}
 }
 
 /// Register a gossip validator on the network service.
@@ -138,6 +146,7 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Hash> for MessageValidat
 					match self.oracle.is_known(&relay_parent) {
 						None | Some(Known::Leaf) => GossipValidationResult::Future(topic()),
 						Some(Known::Old) => GossipValidationResult::Expired,
+						Some(Known::Bad) => GossipValidationResult::Invalid,
 					}
 				}
 			}
