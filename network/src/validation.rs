@@ -232,6 +232,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 
 		let table_router_clone = table_router.clone();
 		let executor = self.executor.clone();
+		let exit = self.exit.clone();
 
 		// spin up a task in the background that processes all incoming statements
 		// TODO: propagate statements on a timer?
@@ -248,7 +249,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 					table_router: table_router_clone,
 				};
 
-				executor.spawn(process_task);
+				executor.spawn(process_task.select(exit).then(|_| Ok(())));
 		});
 
 		table_router
