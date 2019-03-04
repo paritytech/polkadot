@@ -23,6 +23,7 @@ use polkadot_runtime::{
 	CouncilVotingConfig, GrandpaConfig, UpgradeKeyConfig, SudoConfig, IndicesConfig,
 	ClaimsConfig, FeesConfig, Permill
 };
+use telemetry::TelemetryEndpoints;
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";
@@ -70,12 +71,13 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			vesting: vec![],
 		}),
 		session: Some(SessionConfig {
-			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
+			validators: initial_authorities.iter().map(|x| x.1.into()).collect(),
 			session_length: 5 * MINUTES,
+			keys: initial_authorities.iter().map(|x| (x.1.clone(), x.2.clone())).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
 			current_era: 0,
-			intentions: initial_authorities.iter().cloned().map(Into::into).collect(),
+			stakers: initial_authorities.iter().map(|x| (x.0.into(), x.1.into(), STASH)).collect(),
 			offline_slash: Perbill::from_billionths(1_000_000),
 			session_reward: Perbill::from_billionths(2_065),
 			current_offline_slash: 0,
@@ -148,7 +150,7 @@ pub fn staging_testnet_config() -> ChainSpec {
 		"staging_testnet",
 		staging_testnet_config_genesis,
 		boot_nodes,
-		Some(STAGING_TELEMETRY_URL.into()),
+		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		None,
@@ -181,12 +183,13 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> 
 			vesting: vec![],
 		}),
 		session: Some(SessionConfig {
-			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
+			validators: initial_authorities.iter().map(|x| x.1.into()).collect(),
 			session_length: 10,
+			keys: initial_authorities.iter().map(|x| (x.1.clone(), x.2.clone())).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
 			current_era: 0,
-			intentions: initial_authorities.iter().cloned().map(Into::into).collect(),
+			stakers: initial_authorities.iter().map(|x| (x.0.into(), x.1.into(), STASH)).collect(),
 			minimum_validator_count: 1,
 			validator_count: 2,
 			sessions_per_era: 5,

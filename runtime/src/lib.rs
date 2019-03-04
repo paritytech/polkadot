@@ -241,6 +241,7 @@ impl sudo::Trait for Runtime {
 
 impl claims::Trait for Runtime {
 	type Event = Event;
+	type Currency = Balances;
 }
 
 impl fees::Trait for Runtime {
