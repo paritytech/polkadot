@@ -170,9 +170,9 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 				inner_stream,
 				parent_hash,
 				table_router: table_router_clone,
-				exit,
+				exit: exit.clone(),
 			};
-			executor.spawn(process_task);
+			executor.spawn(process_task.select(exit).then(|_| Ok(())));
 		});
 
 		table_router
