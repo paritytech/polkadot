@@ -7,7 +7,9 @@
     "/ip4/104.211.48.247/tcp/30363/p2p/QmYT3p4qGj1jwb7hDx1A6cDzAPtaHp3VR34vmw5BsXXB8D",
     "/ip4/40.117.153.33/tcp/30363/p2p/QmPiGU1jwL9UDw2FMyMQFr9FdpF9hURKxkfy6PWw6aLsur"
   ],
-  "telemetryUrl": "wss://telemetry.polkadot.io/submit/",
+  "telemetryEndpoints": [
+        ["wss://telemetry.polkadot.io/submit/", 0]
+  ],
   "protocolId": "dot",
   "consensusEngine": null,
   "properties": {
