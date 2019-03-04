@@ -22,7 +22,7 @@
 //! the `TableRouter` trait from `polkadot-consensus`, which is expected to call into a shared statement table
 //! and dispatch evaluation work as necessary when new statements come in.
 
-use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
+use sr_primitives::traits::ProvideRuntimeApi;
 use polkadot_consensus::{SharedTable, TableRouter, SignedStatement, GenericStatement, StatementProducer};
 use polkadot_primitives::{Block, Hash, BlockId, SessionKey};
 use polkadot_primitives::parachain::{BlockData, Extrinsic, CandidateReceipt, ParachainHost};
@@ -38,14 +38,8 @@ use std::io;
 use std::sync::Arc;
 
 use consensus::Knowledge;
+use gossip::{POLKADOT_ENGINE_ID, RegisteredMessageValidator};
 use super::NetworkService;
-
-fn attestation_topic(parent_hash: Hash) -> Hash {
-	let mut v = parent_hash.as_ref().to_vec();
-	v.extend(b"attestations");
-
-	BlakeTwo256::hash(&v[..])
-}
 
 /// Table routing implementation.
 pub struct Router<P> {
@@ -57,6 +51,7 @@ pub struct Router<P> {
 	attestation_topic: Hash,
 	knowledge: Arc<Mutex<Knowledge>>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
+	message_validator: RegisteredMessageValidator,
 }
 
 impl<P> Router<P> {
@@ -67,6 +62,7 @@ impl<P> Router<P> {
 		task_executor: TaskExecutor,
 		parent_hash: Hash,
 		knowledge: Arc<Mutex<Knowledge>>,
+		message_validator: RegisteredMessageValidator,
 	) -> Self {
 		Router {
 			table,
@@ -74,9 +70,10 @@ impl<P> Router<P> {
 			api,
 			task_executor,
 			parent_hash,
-			attestation_topic: attestation_topic(parent_hash),
+			attestation_topic: crate::consensus::attestation_topic(parent_hash),
 			knowledge,
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
+			message_validator,
 		}
 	}
 
@@ -97,6 +94,7 @@ impl<P> Clone for Router<P> {
 			attestation_topic: self.attestation_topic.clone(),
 			deferred_statements: self.deferred_statements.clone(),
 			knowledge: self.knowledge.clone(),
+			message_validator: self.message_validator.clone(),
 		}
 	}
 }
@@ -195,12 +193,20 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 				// consider something more targeted than gossip in the future.
 				if let Some(validity) = produced.validity {
 					let signed = table.sign_and_import(validity.clone()).0;
-					network.gossip_consensus_message(attestation_topic, signed.encode(), false);
+					network.gossip_consensus_message(
+						attestation_topic,
+						POLKADOT_ENGINE_ID,
+						signed.encode(),
+					);
 				}
 
 				if let Some(availability) = produced.availability {
 					let signed = table.sign_and_import(availability).0;
-					network.gossip_consensus_message(attestation_topic, signed.encode(), false);
+					network.gossip_consensus_message(
+						attestation_topic,
+						POLKADOT_ENGINE_ID,
+						signed.encode(),
+					);
 				}
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
@@ -220,9 +226,17 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 		let (candidate, availability) = self.table.sign_and_import(GenericStatement::Candidate(receipt));
 
 		self.knowledge.lock().note_candidate(hash, Some(block_data), Some(extrinsic));
-		self.network.gossip_consensus_message(self.attestation_topic, candidate.encode(), false);
+		self.network.gossip_consensus_message(
+			self.attestation_topic,
+			POLKADOT_ENGINE_ID,
+			candidate.encode(),
+		);
 		if let Some(availability) = availability {
-			self.network.gossip_consensus_message(self.attestation_topic, availability.encode(), false);
+			self.network.gossip_consensus_message(
+				self.attestation_topic,
+				POLKADOT_ENGINE_ID,
+				availability.encode(),
+			);
 		}
 	}
 
@@ -245,6 +259,7 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 impl<P> Drop for Router<P> {
 	fn drop(&mut self) {
 		let parent_hash = self.parent_hash.clone();
+		self.message_validator.remove_consensus(&parent_hash);
 		self.network.with_spec(move |spec, _| spec.remove_consensus(&parent_hash));
 	}
 }
@@ -269,7 +284,7 @@ impl Future for BlockDataReceiver {
 			))
 		}
 		match self.outer.poll() {
-			Ok(futures::Async::Ready(mut inner)) => {
+			Ok(futures::Async::Ready(inner)) => {
 				self.inner = Some(inner);
 				self.poll()
 			},

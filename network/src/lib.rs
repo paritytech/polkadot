@@ -44,6 +44,7 @@ mod collator_pool;
 mod local_collations;
 mod router;
 pub mod consensus;
+pub mod gossip;
 
 use codec::{Decode, Encode};
 use futures::sync::oneshot;

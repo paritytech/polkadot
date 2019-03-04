@@ -19,9 +19,10 @@
 //! This fulfills the `polkadot_consensus::Network` trait, providing a hook to be called
 //! each time consensus begins on a new chain head.
 
-use sr_primitives::traits::ProvideRuntimeApi;
-use substrate_network::consensus_gossip::ConsensusMessage;
-use polkadot_consensus::{Network, SharedTable, Collators, Statement, GenericStatement};
+use sr_primitives::traits::{BlakeTwo256, Hash as HashT, ProvideRuntimeApi};
+use polkadot_consensus::{
+	Network, SharedTable, Collators, Statement, GenericStatement,
+};
 use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData};
 use codec::Decode;
@@ -39,12 +40,20 @@ use parking_lot::Mutex;
 
 use super::NetworkService;
 use router::Router;
+use gossip::{POLKADOT_ENGINE_ID, GossipMessage, RegisteredMessageValidator, MessageValidationData};
+
+/// Compute the gossip topic used for attestations on this relay parent hash.
+pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
+	let mut v = parent_hash.as_ref().to_vec();
+	v.extend(b"attestations");
+
+	BlakeTwo256::hash(&v[..])
+}
 
 // task that processes all gossipped consensus messages,
 // checking signatures
 struct MessageProcessTask<P, E> {
-	inner_stream: mpsc::UnboundedReceiver<ConsensusMessage>,
-	parent_hash: Hash,
+	inner_stream: mpsc::UnboundedReceiver<Vec<u8>>,
 	table_router: Router<P>,
 	exit: E,
 }
@@ -54,19 +63,12 @@ impl<P, E> MessageProcessTask<P, E> where
 	P::Api: ParachainHost<Block>,
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
 {
-	fn process_message(&self, msg: ConsensusMessage) -> Option<Async<()>> {
-		use polkadot_consensus::SignedStatement;
-
+	fn process_message(&self, msg: Vec<u8>) -> Option<Async<()>> {
 		debug!(target: "consensus", "Processing consensus statement for live consensus");
-		if let Some(statement) = SignedStatement::decode(&mut msg.as_slice()) {
-			if ::polkadot_consensus::check_statement(
-				&statement.statement,
-				&statement.signature,
-				statement.sender,
-				&self.parent_hash
-			) {
-				self.table_router.import_statement(statement, self.exit.clone());
-			}
+
+		// statements are already checked by gossip validator.
+		if let Some(message) = GossipMessage::decode(&mut &msg[..]) {
+			self.table_router.import_statement(message.statement, self.exit.clone());
 		}
 
 		None
@@ -99,13 +101,19 @@ impl<P, E> Future for MessageProcessTask<P, E> where
 pub struct ConsensusNetwork<P, E> {
 	network: Arc<NetworkService>,
 	api: Arc<P>,
+	message_validator: RegisteredMessageValidator,
 	exit: E,
 }
 
 impl<P, E> ConsensusNetwork<P, E> {
 	/// Create a new consensus networking object.
-	pub fn new(network: Arc<NetworkService>, exit: E, api: Arc<P>) -> Self {
-		ConsensusNetwork { network, exit, api }
+	pub fn new(
+		network: Arc<NetworkService>,
+		exit: E,
+		message_validator: RegisteredMessageValidator,
+		api: Arc<P>,
+	) -> Self {
+		ConsensusNetwork { network, exit, message_validator, api }
 	}
 }
 
@@ -115,6 +123,7 @@ impl<P, E: Clone> Clone for ConsensusNetwork<P, E> {
 			network: self.network.clone(),
 			exit: self.exit.clone(),
 			api: self.api.clone(),
+			message_validator: self.message_validator.clone(),
 		}
 	}
 }
@@ -130,7 +139,7 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 	/// Instantiate a table router using the given shared table.
 	fn communication_for(
 		&self,
-		_validators: &[SessionKey],
+		authorities: &[SessionKey],
 		table: Arc<SharedTable>,
 		task_executor: TaskExecutor,
 	) -> Self::TableRouter {
@@ -146,14 +155,21 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 			task_executor.clone(),
 			parent_hash,
 			knowledge.clone(),
+			self.message_validator.clone(),
 		);
 
 		let attestation_topic = table_router.gossip_topic();
 		let exit = self.exit.clone();
 
+		// before requesting messages, note live consensus session.
+		self.message_validator.note_consensus(
+			parent_hash,
+			MessageValidationData { authorities: authorities.to_vec() },
+		);
+
 		let (tx, rx) = std::sync::mpsc::channel();
 		self.network.with_gossip(move |gossip, _| {
-			let inner_rx = gossip.messages_for(attestation_topic);
+			let inner_rx = gossip.messages_for(POLKADOT_ENGINE_ID, attestation_topic);
 			let _ = tx.send(inner_rx);
 		});
 
@@ -168,7 +184,6 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 			let inner_stream = rx.try_recv().expect("1. The with_gossip closure executed first, 2. the reply should be available");
 			let process_task = MessageProcessTask {
 				inner_stream,
-				parent_hash,
 				table_router: table_router_clone,
 				exit,
 			};
@@ -200,7 +215,7 @@ impl Future for AwaitingCollation {
 				.map_err(|_| NetworkDown)
 		}
 		match self.outer.poll() {
-			Ok(futures::Async::Ready(mut inner)) => {
+			Ok(futures::Async::Ready(inner)) => {
 				self.inner = Some(inner);
 				self.poll()
 			},
