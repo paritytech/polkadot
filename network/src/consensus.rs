@@ -185,9 +185,9 @@ impl<P, E> Network for ConsensusNetwork<P,E> where
 			let process_task = MessageProcessTask {
 				inner_stream,
 				table_router: table_router_clone,
-				exit,
+				exit: exit.clone(),
 			};
-			executor.spawn(process_task);
+			executor.spawn(process_task.select(exit).then(|_| Ok(())));
 		});
 
 		table_router
