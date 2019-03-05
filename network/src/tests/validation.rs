@@ -17,7 +17,7 @@
 //! Tests and helpers for validation networking.
 
 use validation::NetworkService;
-use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
+use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext, ConsensusEngineId};
 use substrate_primitives::{Ed25519AuthorityId, NativeOrEncoded};
 use substrate_keyring::Keyring;
 use {PolkadotProtocol};

@@ -313,7 +313,7 @@ impl<P: ProvideRuntimeApi, E, N, T> Router<P, E, N, T> where
 		let topic = incoming_message_topic(parent_hash, parachain);
 		let gossip_messages = self.network.gossip_messages_for(topic)
 			.map_err(|()| panic!("unbounded receivers do not throw errors; qed"))
-			.filter_map(|msg| IngressPair::decode(&mut msg.as_slice()));
+			.filter_map(|msg| IngressPair::decode(&mut msg.data.as_slice()));
 
 		let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
 			.map_err(|e| format!("Cannot fetch ingress for parachain {:?} at {:?}: {:?}",

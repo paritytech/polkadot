@@ -240,6 +240,7 @@ impl sudo::Trait for Runtime {
 }
 
 impl claims::Trait for Runtime {
+	type Currency = Balances;
 	type Event = Event;
 }
 

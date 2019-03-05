@@ -19,6 +19,7 @@
 use rstd::prelude::*;
 use sr_io::{keccak_256, secp256k1_ecdsa_recover};
 use srml_support::{StorageValue, StorageMap};
+use srml_support::traits::Currency;
 use system::ensure_signed;
 use codec::Encode;
 #[cfg(feature = "std")]
@@ -29,6 +30,7 @@ use balances;
 pub trait Trait: balances::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+	type Currency: Currency<Self::AccountId>;
 }
 
 type EthereumAddress = [u8; 20];
@@ -117,21 +119,21 @@ decl_module! {
 		fn claim(origin, ethereum_signature: EcdsaSignature) {
 			// This is a public call, so we ensure that the origin is some signed account.
 			let sender = ensure_signed(origin)?;
-			
+
 			let signer = sender.using_encoded(|data|
 					eth_recover(&ethereum_signature, data)
 				).ok_or("Invalid Ethereum signature")?;
-			
+
 			let balance_due = <Claims<T>>::take(&signer)
 				.ok_or("Ethereum address has no claim")?;
-			
+
 			<Total<T>>::mutate(|t| if *t < balance_due {
 				panic!("Logic error: Pot less than the total of claims!")
 			} else {
 				*t -= balance_due
 			});
 
-			<balances::Module<T>>::increase_free_balance_creating(&sender, balance_due);
+			//T::Currency::increase_free_balance_creating(&sender, balance_due);
 
 			// Let's deposit an event to let the outside world know this happened.
 			Self::deposit_event(RawEvent::Claimed(sender, signer, balance_due));
