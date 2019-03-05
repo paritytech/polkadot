@@ -135,6 +135,8 @@ decl_module! {
 				*t -= balance_due
 			});
 
+			T::Currency::increase_free_balance_creating(&sender, balance_due);
+
 			// Let's deposit an event to let the outside world know this happened.
 			Self::deposit_event(RawEvent::Claimed(sender, signer, balance_due));
 		}
