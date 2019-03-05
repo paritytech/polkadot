@@ -62,7 +62,6 @@ extern crate srml_sudo as sudo;
 extern crate srml_system as system;
 extern crate srml_timestamp as timestamp;
 extern crate srml_treasury as treasury;
-extern crate srml_upgrade_key as upgrade_key;
 extern crate srml_fees as fees;
 
 extern crate polkadot_primitives as primitives;
@@ -230,10 +229,6 @@ impl grandpa::Trait for Runtime {
 
 impl parachains::Trait for Runtime {}
 
-impl upgrade_key::Trait for Runtime {
-	type Event = Event;
-}
-
 impl sudo::Trait for Runtime {
 	type Event = Event;
 	type Proposal = Call;
@@ -273,7 +268,6 @@ construct_runtime!(
 		Treasury: treasury,
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
 		Sudo: sudo,
-		UpgradeKey: upgrade_key,
 		Claims: claims,
 		Fees: fees::{Module, Storage, Config<T>, Event<T>},
 	}

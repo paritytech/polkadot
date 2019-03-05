@@ -27,6 +27,7 @@ extern crate polkadot_network;
 extern crate sr_primitives;
 extern crate substrate_primitives as primitives;
 extern crate substrate_client as client;
+extern crate substrate_keystore as keystore;
 #[macro_use]
 extern crate substrate_service as service;
 extern crate substrate_consensus_aura as aura;

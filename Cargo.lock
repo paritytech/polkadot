@@ -2298,6 +2298,7 @@ dependencies = [
  "substrate-consensus-aura 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-finality-grandpa 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-inherents 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-keystore 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-service 0.3.0 (git+https://github.com/paritytech/substrate)",
  "substrate-telemetry 0.3.1 (git+https://github.com/paritytech/substrate)",
