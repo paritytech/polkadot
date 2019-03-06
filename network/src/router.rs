@@ -41,12 +41,14 @@ use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::{io, mem};
 use std::sync::Arc;
 
+use gossip::{RegisteredMessageValidator};
 use validation::{NetworkService, Knowledge, Executor};
 
 type IngressPair = (ParaId, Vec<Message>);
 type IngressPairRef<'a> = (ParaId, &'a [Message]);
 
-fn attestation_topic(parent_hash: Hash) -> Hash {
+/// Compute the gossip topic for attestations on the given parent hash.
+pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 	let mut v = parent_hash.as_ref().to_vec();
 	v.extend(b"attestations");
 
@@ -124,6 +126,7 @@ pub struct Router<P, E, N: NetworkService, T> {
 	knowledge: Arc<Mutex<Knowledge>>,
 	fetch_incoming: Arc<Mutex<HashMap<ParaId, IncomingReceiver>>>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
+	message_validator: RegisteredMessageValidator,
 }
 
 impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
@@ -135,6 +138,7 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 		parent_hash: Hash,
 		knowledge: Arc<Mutex<Knowledge>>,
 		exit: E,
+		message_validator: RegisteredMessageValidator,
 	) -> Self {
 		Router {
 			table,
@@ -147,6 +151,7 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 			fetch_incoming: Arc::new(Mutex::new(HashMap::new())),
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
 			exit,
+			message_validator,
 		}
 	}
 
@@ -169,6 +174,7 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 			fetch_incoming: self.fetch_incoming.clone(),
 			knowledge: self.knowledge.clone(),
 			exit: self.exit.clone(),
+			message_validator: self.message_validator.clone(),
 		}
 	}
 }
@@ -392,6 +398,7 @@ impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 				));
 			}
 		}
+		self.message_validator.remove_session(&parent_hash);
 	}
 }
 

@@ -62,7 +62,6 @@ extern crate srml_sudo as sudo;
 extern crate srml_system as system;
 extern crate srml_timestamp as timestamp;
 extern crate srml_treasury as treasury;
-extern crate srml_upgrade_key as upgrade_key;
 extern crate srml_fees as fees;
 
 extern crate polkadot_primitives as primitives;
@@ -157,7 +156,6 @@ impl balances::Trait for Runtime {
 	type Balance = Balance;
 	type OnFreeBalanceZero = Staking;
 	type OnNewAccount = Indices;
-	type EnsureAccountLiquid = Staking;
 	type Event = Event;
 }
 
@@ -230,10 +228,6 @@ impl grandpa::Trait for Runtime {
 
 impl parachains::Trait for Runtime {}
 
-impl upgrade_key::Trait for Runtime {
-	type Event = Event;
-}
-
 impl sudo::Trait for Runtime {
 	type Event = Event;
 	type Proposal = Call;
@@ -241,6 +235,7 @@ impl sudo::Trait for Runtime {
 
 impl claims::Trait for Runtime {
 	type Event = Event;
+	type Currency = Balances;
 }
 
 impl fees::Trait for Runtime {
@@ -272,7 +267,6 @@ construct_runtime!(
 		Treasury: treasury,
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
 		Sudo: sudo,
-		UpgradeKey: upgrade_key,
 		Claims: claims,
 		Fees: fees::{Module, Storage, Config<T>, Event<T>},
 	}
@@ -382,6 +376,12 @@ impl_runtime_apis! {
 				}
 			}
 			None
+		}
+
+		fn grandpa_forced_change(_digest: &DigestFor<Block>)
+			-> Option<(BlockNumber, ScheduledChange<BlockNumber>)>
+		{
+			None // disable forced changes.
 		}
 
 		fn grandpa_authorities() -> Vec<(SessionKey, u64)> {

@@ -19,16 +19,20 @@
 use rstd::prelude::*;
 use sr_io::{keccak_256, secp256k1_ecdsa_recover};
 use srml_support::{StorageValue, StorageMap};
+use srml_support::traits::{Currency, ArithmeticType};
 use system::ensure_signed;
 use codec::Encode;
 #[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
-use balances;
+use system;
+
+type BalanceOf<T> = <<T as Trait>::Currency as ArithmeticType>::Type;
 
 /// Configuration trait.
-pub trait Trait: balances::Trait {
+pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+	type Currency: ArithmeticType + Currency<Self::AccountId, Balance=BalanceOf<Self>>;
 }
 
 type EthereumAddress = [u8; 20];
@@ -58,7 +62,7 @@ impl EcdsaSignature {
 /// An event in this module.
 decl_event!(
 	pub enum Event<T> where
-		B = <T as balances::Trait>::Balance,
+		B = BalanceOf<T>,
 		A = <T as system::Trait>::AccountId
 	{
 		/// Someone claimed some DOTs.
@@ -73,13 +77,13 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Claims {
 		Claims get(claims) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>()
-		}): map EthereumAddress => Option<T::Balance>;
+		}): map EthereumAddress => Option<BalanceOf<T>>;
 		Total get(total) build(|config: &GenesisConfig<T>| {
-			config.claims.iter().fold(Zero::zero(), |acc: T::Balance, &(_, n)| acc + n)
-		}): T::Balance;
+			config.claims.iter().fold(Zero::zero(), |acc: BalanceOf<T>, &(_, n)| acc + n)
+		}): BalanceOf<T>;
 	}
 	add_extra_genesis {
-		config(claims): Vec<(EthereumAddress, T::Balance)>;
+		config(claims): Vec<(EthereumAddress, BalanceOf<T>)>;
 	}
 }
 
@@ -117,21 +121,21 @@ decl_module! {
 		fn claim(origin, ethereum_signature: EcdsaSignature) {
 			// This is a public call, so we ensure that the origin is some signed account.
 			let sender = ensure_signed(origin)?;
-			
+
 			let signer = sender.using_encoded(|data|
 					eth_recover(&ethereum_signature, data)
 				).ok_or("Invalid Ethereum signature")?;
-			
+
 			let balance_due = <Claims<T>>::take(&signer)
 				.ok_or("Ethereum address has no claim")?;
-			
+
 			<Total<T>>::mutate(|t| if *t < balance_due {
 				panic!("Logic error: Pot less than the total of claims!")
 			} else {
 				*t -= balance_due
 			});
 
-			<balances::Module<T>>::increase_free_balance_creating(&sender, balance_due);
+			T::Currency::increase_free_balance_creating(&sender, balance_due);
 
 			// Let's deposit an event to let the outside world know this happened.
 			Self::deposit_event(RawEvent::Claimed(sender, signer, balance_due));
@@ -181,11 +185,11 @@ mod tests {
 		type Balance = u64;
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
-		type EnsureAccountLiquid = ();
 		type Event = ();
 	}
 	impl Trait for Test {
 		type Event = ();
+		type Currency = Balances;
 	}
 	type Balances = balances::Module<Test>;
 	type Claims = Module<Test>;

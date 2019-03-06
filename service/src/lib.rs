@@ -27,11 +27,13 @@ extern crate polkadot_network;
 extern crate sr_primitives;
 extern crate substrate_primitives as primitives;
 extern crate substrate_client as client;
+extern crate substrate_keystore as keystore;
 #[macro_use]
 extern crate substrate_service as service;
 extern crate substrate_consensus_aura as aura;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
+extern crate substrate_telemetry as telemetry;
 extern crate tokio;
 extern crate substrate_inherents as inherents;
 
@@ -44,8 +46,9 @@ pub mod chain_spec;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, AccountId, Block};
+use polkadot_primitives::{parachain, AccountId, Block, Hash, BlockId};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
+use polkadot_network::gossip::{self as network_gossip, Known};
 use primitives::ed25519;
 use tokio::runtime::TaskExecutor;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
@@ -187,6 +190,7 @@ construct_service_factory! {
 						},
 						link_half,
 						grandpa::NetworkBridge::new(service.network()),
+						service.config.custom.inherent_data_providers.clone(),
 						service.on_exit(),
 					)?;
 
@@ -212,11 +216,33 @@ construct_service_factory! {
 				};
 
 				let client = service.client();
+				let known_oracle = client.clone();
+
+				let gossip_validator = network_gossip::register_validator(
+					&*service.network(),
+					move |block_hash: &Hash| {
+						use client::{BlockStatus, ChainHead};
+
+						match known_oracle.block_status(&BlockId::hash(*block_hash)) {
+							Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
+							Ok(BlockStatus::KnownBad) => Some(Known::Bad),
+							Ok(BlockStatus::InChain) => match known_oracle.leaves() {
+								Err(_) => None,
+								Ok(leaves) => if leaves.contains(block_hash) {
+									Some(Known::Leaf)
+								} else {
+									Some(Known::Old)
+								},
+							}
+						}
+					},
+				);
 
 				// collator connections and validation network both fulfilled by this
 				let validation_network = ValidationNetwork::new(
 					service.network(),
 					service.on_exit(),
+					gossip_validator,
 					service.client(),
 					executor.clone(),
 				);

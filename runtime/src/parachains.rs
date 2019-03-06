@@ -528,6 +528,7 @@ mod tests {
 		t.extend(session::GenesisConfig::<Test>{
 			session_length: 1000,
 			validators: authority_keys.iter().map(|k| k.to_raw_public().into()).collect(),
+			keys: vec![],
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			parachains: parachains,

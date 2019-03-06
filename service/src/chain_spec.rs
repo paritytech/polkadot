@@ -16,13 +16,16 @@
 
 //! Polkadot chain configurations.
 
-use primitives::{H256, Ed25519AuthorityId as AuthorityId, ed25519};
+use primitives::{Ed25519AuthorityId as AuthorityId, ed25519};
+use polkadot_primitives::AccountId;
 use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
-	CouncilVotingConfig, GrandpaConfig, UpgradeKeyConfig, SudoConfig, IndicesConfig,
+	CouncilVotingConfig, GrandpaConfig, SudoConfig, IndicesConfig,
 	ClaimsConfig, FeesConfig, Permill
 };
+use telemetry::TelemetryEndpoints;
+use keystore::pad_seed;
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";
@@ -35,12 +38,23 @@ pub fn poc_3_testnet_config() -> Result<ChainSpec, String> {
 }
 
 fn staging_testnet_config_genesis() -> GenesisConfig {
-	let initial_authorities = vec![
-		hex!["4bd3620064cda1f4cf405bf9ab565c9bad69446034c48884ffc5363a5286b145"].into(),
-		hex!["3a92077b16fbb87972be7ebaf1b7e70f5b4fac9636c136936a28d0fb494d1ed4"].into(),
-		hex!["ca8feb6f870330cdaea24e49c2f850b66729340cab164aea86c0a782ddecf57a"].into(),
-		hex!["dcb83e46917c3c0ca35b9a18a32ba6d3912b6d50ab2bd382341d2e4fd2e6946f"].into(),
-	];
+	let initial_authorities: Vec<(AccountId, AccountId, AuthorityId)> = vec![(
+		hex!["863ab9379a9b78fe28368d794094bd576ce0c18536012605da7fc76e4f331faf"].into(), // 5F6hicQ1rnmQKy9q6yX9BUaBtQsfBLxAhrozQ8LrKxnPuBP7
+		hex!["6d090ef6cde4dc1df057e8ce928a156b5793b461dc35eabbb8a17ee4bd41a576"].into(), // 5EXfmUBE1Vs13jz4tbApSRJqT3sEQsMWNQmHWeknc4Gy9CuU
+		hex!["fba60a57436218519abf2dde5b5cadf02771c33833a27527ac4808c0690cfe72"].into(), // 5HkfCaoiFt41WSqEby4fkgRrXtxwfB9G8q8pPuoxDrsqGmFm
+	),(
+		hex!["46cf99718ddcf7868a1c7073862f6b821a58ac1ee57655b6a78b29559cf6fa9b"].into(), // 5DfYswB6NLVyvft5ggt6NJuX13X4VQjXqxuhha8C79ntPra9
+		hex!["c4d4dae0d95c3c012322709e12f20ce154b9e04c23c75dce3fe63cd907c2f4a0"].into(), // 5GWnURnpMXqk5Yzfr8AJBE6fNM3AKmWikFMFvia8A7hGBPUT
+		hex!["337c9a3f05221973d94995c9e9448c582e2ff3382c64f624318acc5164525244"].into(), // 5DEDKARKMZsecqU2s2onmg7ZxQDsZSYKTvxxHKMBMCU2UiCB
+	),(
+		hex!["6d14eced242492088e6ab054e6da3300b435de1fbab57e79103071cdc1dfff94"].into(), // 5EXjHw7GK6GEJjT7b9kGAPzQdCbrmjt27TYwVB1igN5uai3Y
+		hex!["971da4fe7d20cd83c05186d699e3a0756b1772bc7c16309c71bab36dac0909e8"].into(), // 5FUqtohZwTyhY12GNxSb2ExhGtrEGB7B8nLv29mevbPep5zk
+		hex!["79e9fd0469f6563bea8e2019c27c5c53a685675221ea4c7715c3f9fca75c6aa8"].into(), // 5EpZAFPsyuMEVKfdB1VtG6b2E11XS6T5ch646zq13xfmbsgS
+	),(
+		hex!["e2f736077b2a1522339f7a0dc90468ba2223c5f98fe82a0283138a3e48463f02"].into(), // 5HCJ7gu6kH5mYyp4DVDPGDmJf4Zf5zJgW5Swi3dizi8qq8vm
+		hex!["91627d4b51c11c1b8b6d54dbe727219e4eccbea6a86599ebe25a316e8ba3bf15"].into(), // 5FML4K5Vz45nKvndwmnAGwv6CTKvacEK2Nr6UbGf2zJYxuwd
+		hex!["08d9e438d2ccc88b66115e2e2f07b0cbdcf912e0f147124b39024735e6b58057"].into(), // 5CGJy52caRtJUjEnCK7gj7jYvBTfpffPqP443g4aM2GZt5ns
+	)];
 	let endowed_accounts = vec![
 		hex!["f295940fa750df68a686fcf4abd4111c8a9c5a5a5a83c4c8639c451a94a7adfd"].into(),
 	];
@@ -52,30 +66,39 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 	const MINUTES: u64 = 60 / SECS_PER_BLOCK;
 	const HOURS: u64 = MINUTES * 60;
 	const DAYS: u64 = HOURS * 24;
+
+	const ENDOWMENT: u128 = 10_000_000 * DOLLARS;
+	const STASH: u128 = 100 * DOLLARS;
+
 	GenesisConfig {
 		consensus: Some(ConsensusConfig {
 			// TODO: Change after Substrate 1252 is fixed (https://github.com/paritytech/substrate/issues/1252)
 			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/polkadot_runtime.compact.wasm").to_vec(),
-			authorities: initial_authorities.clone(),
+			authorities: initial_authorities.iter().map(|x| x.2.clone()).collect(),
 		}),
 		system: None,
-		indices: Some(IndicesConfig {
-			ids: endowed_accounts.clone(),
-		}),
 		balances: Some(BalancesConfig {
-			balances: endowed_accounts.iter().map(|&k| (k, 10_000_000 * DOLLARS)).collect(),
+			balances: endowed_accounts.iter()
+				.map(|&k| (k, ENDOWMENT))
+				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
+				.collect(),
 			existential_deposit: 1 * DOLLARS,
 			transfer_fee: 1 * CENTS,
 			creation_fee: 1 * CENTS,
 			vesting: vec![],
 		}),
+		indices: Some(IndicesConfig {
+			ids: endowed_accounts.iter().cloned()
+				.chain(initial_authorities.iter().map(|x| x.0.clone()))
+				.collect::<Vec<_>>(),
+		}),
 		session: Some(SessionConfig {
-			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
+			validators: initial_authorities.iter().map(|x| x.1.into()).collect(),
 			session_length: 5 * MINUTES,
+			keys: initial_authorities.iter().map(|x| (x.1.clone(), x.2.clone())).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
 			current_era: 0,
-			intentions: initial_authorities.iter().cloned().map(Into::into).collect(),
 			offline_slash: Perbill::from_billionths(1_000_000),
 			session_reward: Perbill::from_billionths(2_065),
 			current_offline_slash: 0,
@@ -85,7 +108,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			bonding_duration: 60 * MINUTES,
 			offline_slash_grace: 4,
 			minimum_validator_count: 4,
-			invulnerables: initial_authorities.iter().cloned().map(Into::into).collect(),
+			stakers: initial_authorities.iter().map(|x| (x.0.into(), x.1.into(), STASH)).collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.1.into()).collect(),
 		}),
 		democracy: Some(DemocracyConfig {
 			launch_period: 10 * MINUTES,    // 1 day per public referendum
@@ -120,22 +144,19 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			spend_period: 1 * DAYS,
 			burn: Permill::from_percent(50),
 		}),
-		parachains: Some(Default::default()),
-		upgrade_key: Some(UpgradeKeyConfig {
-			key: endowed_accounts[0],
-		}),
 		sudo: Some(SudoConfig {
-			key: endowed_accounts[0],
+			key: endowed_accounts[0].clone(),
 		}),
 		grandpa: Some(GrandpaConfig {
-			authorities: initial_authorities.clone().into_iter().map(|k| (k, 1)).collect(),
-		}),
-		claims: Some(ClaimsConfig {
-			claims: vec![],
+			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
 		}),
 		fees: Some(FeesConfig {
 			transaction_base_fee: 1 * CENTS,
 			transaction_byte_fee: 10 * MILLICENTS,
+		}),
+		parachains: Some(Default::default()),
+		claims: Some(ClaimsConfig {
+			claims: vec![],
 		}),
 	}
 }
@@ -148,26 +169,57 @@ pub fn staging_testnet_config() -> ChainSpec {
 		"staging_testnet",
 		staging_testnet_config_genesis,
 		boot_nodes,
-		Some(STAGING_TELEMETRY_URL.into()),
+		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		None,
 	)
 }
 
-fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> GenesisConfig {
-	let endowed_accounts = vec![
-		ed25519::Pair::from_seed(b"Alice                           ").public().0.into(),
-		ed25519::Pair::from_seed(b"Bob                             ").public().0.into(),
-		ed25519::Pair::from_seed(b"Charlie                         ").public().0.into(),
-		ed25519::Pair::from_seed(b"Dave                            ").public().0.into(),
-		ed25519::Pair::from_seed(b"Eve                             ").public().0.into(),
-		ed25519::Pair::from_seed(b"Ferdie                          ").public().0.into(),
-	];
+/// Helper function to generate AuthorityID from seed
+pub fn get_account_id_from_seed(seed: &str) -> AccountId {
+	let padded_seed = pad_seed(seed);
+	// NOTE from ed25519 impl:
+	// prefer pkcs#8 unless security doesn't matter -- this is used primarily for tests.
+	ed25519::Pair::from_seed(&padded_seed).public().0.into()
+}
+
+/// Helper function to generate stash, controller and session key from seed
+pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, AuthorityId) {
+	let padded_seed = pad_seed(seed);
+	// NOTE from ed25519 impl:
+	// prefer pkcs#8 unless security doesn't matter -- this is used primarily for tests.
+	(
+		get_account_id_from_seed(&format!("{}-stash", seed)),
+		get_account_id_from_seed(seed),
+		ed25519::Pair::from_seed(&padded_seed).public().0.into()
+	)
+}
+
+/// Helper function to create GenesisConfig for testing
+pub fn testnet_genesis(
+	initial_authorities: Vec<(AccountId, AccountId, AuthorityId)>,
+	root_key: AccountId,
+	endowed_accounts: Option<Vec<AccountId>>,
+) -> GenesisConfig {
+	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
+		vec![
+			get_account_id_from_seed("Alice"),
+			get_account_id_from_seed("Bob"),
+			get_account_id_from_seed("Charlie"),
+			get_account_id_from_seed("Dave"),
+			get_account_id_from_seed("Eve"),
+			get_account_id_from_seed("Ferdie"),
+		]
+	});
+
+	const STASH: u128 = 1 << 20;
+	const ENDOWMENT: u128 = 1 << 20;
+	
 	GenesisConfig {
 		consensus: Some(ConsensusConfig {
 			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/polkadot_runtime.compact.wasm").to_vec(),
-			authorities: initial_authorities.clone(),
+			authorities: initial_authorities.iter().map(|x| x.2.clone()).collect(),
 		}),
 		system: None,
 		indices: Some(IndicesConfig {
@@ -177,16 +229,16 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> 
 			existential_deposit: 500,
 			transfer_fee: 0,
 			creation_fee: 0,
-			balances: endowed_accounts.iter().map(|&k|(k, (1u128 << 60))).collect(),
+			balances: endowed_accounts.iter().map(|&k| (k.into(), ENDOWMENT)).collect(),
 			vesting: vec![],
 		}),
 		session: Some(SessionConfig {
-			validators: initial_authorities.iter().cloned().map(Into::into).collect(),
+			validators: initial_authorities.iter().map(|x| x.1.into()).collect(),
 			session_length: 10,
+			keys: initial_authorities.iter().map(|x| (x.1.clone(), x.2.clone())).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
 			current_era: 0,
-			intentions: initial_authorities.iter().cloned().map(Into::into).collect(),
 			minimum_validator_count: 1,
 			validator_count: 2,
 			sessions_per_era: 5,
@@ -196,20 +248,20 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> 
 			current_offline_slash: 0,
 			current_session_reward: 0,
 			offline_slash_grace: 0,
-			invulnerables: initial_authorities.iter().cloned().map(Into::into).collect(),
+			stakers: initial_authorities.iter().map(|x| (x.0.into(), x.1.into(), STASH)).collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.1.into()).collect(),
 		}),
 		democracy: Some(DemocracyConfig {
 			launch_period: 9,
 			voting_period: 18,
 			minimum_deposit: 10,
-			public_delay: 10 * 60,
+			public_delay: 0,
 			max_lock_periods: 6,
 		}),
-		grandpa: Some(GrandpaConfig {
-			authorities: initial_authorities.clone().into_iter().map(|k| (k, 1)).collect(),
-		}),
 		council_seats: Some(CouncilSeatsConfig {
-			active_council: endowed_accounts.iter().filter(|a| initial_authorities.iter().find(|&b| a[..] == b.0).is_none()).map(|a| (a.clone(), 1000000)).collect(),
+			active_council: endowed_accounts.iter()
+				.filter(|&endowed| initial_authorities.iter().find(|&(_, controller, _)| controller == endowed).is_none())
+				.map(|a| (a.clone().into(), 1000000)).collect(),
 			candidacy_bond: 10,
 			voter_bond: 2,
 			present_slash_per_voter: 1,
@@ -227,68 +279,58 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, upgrade_key: H256) -> 
 		}),
 		parachains: Some(Default::default()),
 		timestamp: Some(TimestampConfig {
-			period: 2,					// 2*2=4 second block time.
+			period: 2,                    // 2*2=4 second block time.
 		}),
-		treasury: Some(Default::default()),
-		upgrade_key: Some(UpgradeKeyConfig {
-			key: upgrade_key,
+		treasury: Some(TreasuryConfig {
+			proposal_bond: Permill::from_percent(5),
+			proposal_bond_minimum: 1_000_000,
+			spend_period: 12 * 60 * 24,
+			burn: Permill::from_percent(50),
 		}),
 		sudo: Some(SudoConfig {
-			key: upgrade_key,
+			key: root_key,
 		}),
 		claims: Some(ClaimsConfig {
 			claims: vec![],
 		}),
+		grandpa: Some(GrandpaConfig {
+			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
+		}),
 		fees: Some(FeesConfig {
 			transaction_base_fee: 1,
 			transaction_byte_fee: 0,
-		})
+		}),
 	}
 }
+
 
 fn development_config_genesis() -> GenesisConfig {
 	testnet_genesis(
 		vec![
-			ed25519::Pair::from_seed(b"Alice                           ").public().into(),
+			get_authority_keys_from_seed("Alice"),
 		],
-		ed25519::Pair::from_seed(b"Alice                           ").public().0.into()
+		get_account_id_from_seed("Alice").into(),
+		None,
 	)
 }
 
 /// Development config (single validator Alice)
 pub fn development_config() -> ChainSpec {
-	ChainSpec::from_genesis(
-		"Development",
-		"development",
-		development_config_genesis,
-		vec![],
-		None,
-		Some(DEFAULT_PROTOCOL_ID),
-		None,
-		None,
-	)
+	ChainSpec::from_genesis("Development", "dev", development_config_genesis, vec![], None, Some(DEFAULT_PROTOCOL_ID), None, None)
 }
 
 fn local_testnet_genesis() -> GenesisConfig {
 	testnet_genesis(
 		vec![
-			ed25519::Pair::from_seed(b"Alice                           ").public().into(),
-			ed25519::Pair::from_seed(b"Bob                             ").public().into(),
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
 		],
-		ed25519::Pair::from_seed(b"Alice                           ").public().0.into()
+		get_account_id_from_seed("Alice").into(),
+		None,
 	)
 }
 
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn local_testnet_config() -> ChainSpec {
-	ChainSpec::from_genesis(
-		"Local Testnet",
-		"local_testnet",
-		local_testnet_genesis,
-		vec![],
-		None,
-		Some(DEFAULT_PROTOCOL_ID),
-		None,
-		None,
-	)
+	ChainSpec::from_genesis("Local Testnet", "local_testnet", local_testnet_genesis, vec![], None, Some(DEFAULT_PROTOCOL_ID), None, None)
 }
