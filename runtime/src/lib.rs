@@ -156,7 +156,6 @@ impl balances::Trait for Runtime {
 	type Balance = Balance;
 	type OnFreeBalanceZero = Staking;
 	type OnNewAccount = Indices;
-	type EnsureAccountLiquid = Staking;
 	type Event = Event;
 }
 
@@ -377,6 +376,12 @@ impl_runtime_apis! {
 				}
 			}
 			None
+		}
+
+		fn grandpa_forced_change(_digest: &DigestFor<Block>)
+			-> Option<(BlockNumber, ScheduledChange<BlockNumber>)>
+		{
+			None // disable forced changes.
 		}
 
 		fn grandpa_authorities() -> Vec<(SessionKey, u64)> {
