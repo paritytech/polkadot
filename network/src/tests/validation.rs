@@ -432,8 +432,6 @@ fn ingress_fetch_works() {
 	let parent_hash = [1; 32].into();
 
 	let (router_a, router_b, router_c) = {
-		use polkadot_primitives::SessionKey;
-
 		let validators: Vec<Hash> = vec![
 			key_a.to_raw_public().into(),
 			key_b.to_raw_public().into(),
