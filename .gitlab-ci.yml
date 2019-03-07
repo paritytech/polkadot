@@ -1,7 +1,8 @@
 # .gitlab-ci.yml
 #
+# polkadot
+#
 # pipelines can be triggered manually in the web
-# setting POLKADOT_BRANCH to v0.2 will result in a poc2 build
 # setting DEPLOY_TAG will only deploy the tagged image
 
 
@@ -12,53 +13,44 @@ stages:
   - publish
   - deploy
 
-
-
-
-# default release in rust:nightly image is stable
 image:                             parity/rust:nightly
 
 variables:
   CI_SERVER_NAME:                  "GitLab CI"
   CARGO_HOME:                      "${CI_PROJECT_DIR}/.cargo"
-  SUBSTRATE_REPO:                  "https://github.com/paritytech/substrate.git"
+  # have OS based build containers in the future
+  DOCKER_OS:                       "ubuntu:xenial"
+  ARCH:                            "x86_64"
 
 
 
 cache:                             {}
 
-.collect_artifacts:                &collect_artifacts
+.collect-artifacts:                &collect-artifacts
   artifacts:
     name:                          "${CI_JOB_NAME}_${CI_COMMIT_REF_NAME}"
     when:                          on_success
     expire_in:                     7 days
     paths:
-    - target/release/
+    - artifacts/
 
 
 
-.kubernetes_build:                 &kubernetes_build
+.kubernetes-build:                 &kubernetes-build
   tags:
     - kubernetes-parity-build
   environment:
-    name: gke-build
-
-
-
-
-# disabled as there are bugs
-# before_script:
-#   - ./scripts/build.sh
+    name: parity-build
 
 
 
 #### stage:                        merge-test
 
-check:merge:conflict:
+check-merge-conflict:
   stage:                           merge-test
   image:                           parity/tools:latest
   cache:                           {}
-  <<:                              *kubernetes_build
+  <<:                              *kubernetes-build
   only:
     - /^[0-9]+$/
   variables:
@@ -70,18 +62,22 @@ check:merge:conflict:
 
 
 
-# test will be run for ci on the current repo
-# for version v0.2 branch tests are located in substrate repository and 
-# therefore not generically testable
-test:rust:release:
+test-linux-stable:                  &test
   stage:                           test
   cache:
     key:                           "${CI_JOB_NAME}-test"
     paths:
       - ${CARGO_HOME}
       - ./target
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: -Cdebug-assertions=y
+    TARGET: native
+  tags:
+    - linux-docker
   only:
-    - triggers
     - tags
     - master
     - schedules
@@ -89,117 +85,150 @@ test:rust:release:
     - /^[0-9]+$/
   except:
     variables:
-      - $POLKADOT_BRANCH == "v0.2"
       - $DEPLOY_TAG
-  tags:
-    - rust
+  before_script:
+   - test -d ${CARGO_HOME} -a -d ./target &&
+     echo "build cache size:" &&
+     du -h --max-depth=2 ${CARGO_HOME} ./target
+   - ./scripts/build.sh
   script:
-    - time cargo test --all --release --verbose
+    - time cargo test --all --release --verbose --locked
 
 
 
-build:rust:linux:release:
+
+
+.build-only:                      &build-only
+  only:
+    - master
+    - tags
+    - web
+
+
+build-linux-release:          &build
   stage:                           build
   cache:
     key:                           "${CI_JOB_NAME}-build"
     paths:
       - ${CARGO_HOME}
       - ./target
-  <<:                              *collect_artifacts
-  only:
-    - master
-    - tags
-    - web
+  <<:                              *collect-artifacts
+  <<:                              *build-only
   except:
     variables:
       - $DEPLOY_TAG
   tags:
-    - rust
+    - linux-docker
+  before_script:
+   - ./scripts/build.sh
   script:
-    - >
-      set -x;
-      if [ "${POLKADOT_BRANCH}" = "v0.2" ]; then
-        if [ -z "${TAG}" ]; then
-          time cargo install --verbose --root ./target/release/ --git "${SUBSTRATE_REPO}" --branch "${POLKADOT_BRANCH}" polkadot;
-        else
-          time cargo install --verbose --root ./target/release/ --git "${SUBSTRATE_REPO}" --tag "${TAG}" polkadot;
-        fi;
-        mv ./target/release/bin/polkadot ./target/release/polkadot;
-        rm -d ./target/release/bin;
+    - time cargo build --release --verbose
+    - mkdir -p ./artifacts
+    - mv ./target/release/polkadot ./artifacts/.
+    - echo -n "Polkadot version = "
+    - if [ "${CI_COMMIT_TAG}" ]; then
+        echo "${CI_COMMIT_TAG}" | tee ./artifacts/VERSION;
       else
-        time cargo build --release --verbose;
-      fi;
-      set +x
-    - ./target/release/polkadot --version
+        ./artifacts/polkadot --version |
+        sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p' |
+        tee ./artifacts/VERSION;
+      fi
+    - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
+    - cp -r scripts/docker/* ./artifacts
 
 
 
-dockerize:release:
+
+.publish-build:                    &publish-build
   stage:                           publish
   dependencies:
-    - build:rust:linux:release
+    - build-linux-release
   cache: {}
-  only:
-    - master
-    - tags
-    - web
-  except:
-    variables:
-      - $DEPLOY_TAG
-  tags:
-    - shell
+  <<:                              *build-only
+  <<:                              *kubernetes-build
+
+
+
+publish-docker-release:
+  <<:                              *publish-build
+  image:                           docker:stable
+  services:
+    - docker:dind
+  # collect VERSION artifact here to pass it on to kubernetes
+  <<:                              *collect-artifacts
   variables:
-    DOCKERFILE: scripts/docker/Dockerfile
-    CONTAINER_IMAGE: parity/polkadot
+    DOCKER_HOST:                   tcp://localhost:2375
+    DOCKER_DRIVER:                 overlay2
+    GIT_STRATEGY:                  none
+    # DOCKERFILE:                  scripts/docker/Dockerfile
+    CONTAINER_IMAGE:               parity/polkadot
   before_script:
     - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity"
         || ( echo "no docker credentials provided"; exit 1 )
     - docker login -u "$Docker_Hub_User_Parity" -p "$Docker_Hub_Pass_Parity"
     - docker info
-    - VERSION="$(./target/release/polkadot --version | sed -n -r 's/^polkadot ([0-9.]+-[0-9a-f]+)-.*$/\1/p')"
-    - export VERSION
-    - echo "Polkadot version = ${VERSION}"
   script:
+    - VERSION="$(cat ./artifacts/VERSION)"
+    - echo "Polkadot version = ${VERSION}"
     - test -z "${VERSION}" && exit 1
-    - docker build --tag $CONTAINER_IMAGE:$VERSION --tag $CONTAINER_IMAGE:latest -f $DOCKERFILE ./target/release/
+    - cd ./artifacts
+    - docker build --tag $CONTAINER_IMAGE:$VERSION --tag $CONTAINER_IMAGE:latest .
     - docker push $CONTAINER_IMAGE:$VERSION
     - docker push $CONTAINER_IMAGE:latest
-    - rm -f ./target/release/polkadot
-    - echo "${VERSION}" > ./target/release/VERSION
   after_script:
     - docker logout
-  # use artifacts here to transport the version to the next stage
-  <<:                              *collect_artifacts
+    # only VERSION information is needed for the deployment
+    - find ./artifacts/ -depth -not -name VERSION -not -name artifacts -delete
+
+
+
+
+publish-s3-release:
+  <<:                              *publish-build
+  image:                           parity/awscli:latest
+  variables:
+    GIT_STRATEGY:                  none
+    BUCKET:                        "releases.parity.io"
+    PREFIX:                        "polkadot/${ARCH}-${DOCKER_OS}"
+  script:
+    - aws s3 sync ./artifacts/ s3://${BUCKET}/${PREFIX}/$(cat ./artifacts/VERSION)/
+    - echo "update objects in latest path"
+    - for file in ./artifacts/*; do
+      name="$(basename ${file})";
+      aws s3api copy-object
+        --copy-source ${BUCKET}/${PREFIX}/$(cat ./artifacts/VERSION)/${name}
+        --bucket ${BUCKET} --key ${PREFIX}/latest/${name};
+      done
+  after_script:
+    - aws s3 ls s3://${BUCKET}/${PREFIX}/latest/
+        --recursive --human-readable --summarize
 
 
 
 
 
-.deploy:template:                  &deploy
+.deploy-template:                  &deploy
   stage:                           deploy
   when:                            manual
   cache:                           {}
   retry:                           1
-  image:                           dtzar/helm-kubectl:$HELM_VERSION
-  only:
-    - master
-    - tags
-    - web
+  image:                           parity/kubectl-helm:$HELM_VERSION
+  <<:                              *build-only
   tags:
     # this is the runner that is used to deploy it
     - kubernetes-parity-build
   before_script:
-    - test -z "${DEPLOY_TAG}" && 
-      test -f ./target/release/VERSION && 
-      DEPLOY_TAG="$(cat ./target/release/VERSION)"
+    - test -z "${DEPLOY_TAG}" &&
+      test -f ./artifacts/VERSION &&
+      DEPLOY_TAG="$(cat ./artifacts/VERSION)"
     - test "${DEPLOY_TAG}" || ( echo "Neither DEPLOY_TAG nor VERSION information available"; exit 1 )
   script:
     - echo "Polkadot version = ${DEPLOY_TAG}"
     # or use helm to render the template
-    - helm template 
-      --values ./scripts/kubernetes/values.yaml 
+    - helm template
+      --values ./scripts/kubernetes/values.yaml
       --set image.tag=${DEPLOY_TAG}
-      ./scripts/kubernetes | kubectl apply -f - --dry-run=true
+      ./scripts/kubernetes | kubectl apply -f - --dry-run=false
     - echo "# polkadot namespace"
     - kubectl -n polkadot get all
     - echo "# polkadot's nodes' external ip addresses:"
@@ -211,16 +240,42 @@ dockerize:release:
 
 
 
-# have environment:url eventually point to the logs
 
-deploy:ew3:
+
+.deploy-cibuild:                   &deploy-cibuild
   <<:                              *deploy
+  dependencies:
+    - publish-docker-release
+
+.deploy-tag:                       &deploy-tag
+  <<:                              *deploy
+  only:
+    variables:
+      - $DEPLOY_TAG
+
+
+
+# have environment:url eventually point to the logs
+deploy-ew3:
+  <<:                              *deploy-cibuild
   environment:
     name: parity-prod-ew3
 
-deploy:ue1:
-  <<:                              *deploy
+deploy-ue1:
+  <<:                              *deploy-cibuild
   environment:
     name: parity-prod-ue1
+
+deploy-ew3-tag:
+  <<:                              *deploy-tag
+  environment:
+    name: parity-prod-ew3
+
+deploy-ue1-tag:
+  <<:                              *deploy-tag
+  environment:
+    name: parity-prod-ue1
+
+
 
 
