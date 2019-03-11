@@ -187,12 +187,13 @@ pub fn collate<'a, R, P>(
 struct ApiContext<P, E> {
 	network: ValidationNetwork<P, E, NetworkService, TaskExecutor>,
 	parent_hash: Hash,
+	authorities: Vec<SessionKey>,
 }
 
 impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 	P: ProvideRuntimeApi + Send + Sync,
 	P::Api: ParachainHost<Block>,
-	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+	E: Future<Item=(),Error=()> + Clone + Send + Sync + 'static,
 {
 	type Error = String;
 	type FutureEgress = Box<Future<Item=ConsolidatedIngress, Error=String> + Send>;
@@ -201,6 +202,7 @@ impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 		let session = self.network.instantiate_session(SessionParams {
 			local_session_key: None,
 			parent_hash: self.parent_hash,
+			authorities: self.authorities.clone(),
 		}).map_err(|e| format!("unable to instantiate validation session: {:?}", e));
 
 		let fetch_incoming = session
@@ -232,7 +234,7 @@ impl<P, E> IntoExit for CollationNode<P, E> where
 
 impl<P, E> Worker for CollationNode<P, E> where
 	P: ParachainContext + Send + 'static,
-	E: Future<Item=(),Error=()> + Clone + Send + 'static
+	E: Future<Item=(),Error=()> + Clone + Send + Sync + 'static
 {
 	type Work = Box<Future<Item=(),Error=()> + Send>;
 
@@ -251,10 +253,33 @@ impl<P, E> Worker for CollationNode<P, E> where
 		let CollationNode { parachain_context, exit, para_id, key } = self;
 		let client = service.client();
 		let network = service.network();
+		let known_oracle = client.clone();
+
+		let message_validator = polkadot_network::gossip::register_validator(
+			&*network,
+			move |block_hash: &Hash| {
+				use client::{BlockStatus, ChainHead};
+				use polkadot_network::gossip::Known;
+
+				match known_oracle.block_status(&BlockId::hash(*block_hash)) {
+					Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
+					Ok(BlockStatus::KnownBad) => Some(Known::Bad),
+					Ok(BlockStatus::InChain) => match known_oracle.leaves() {
+						Err(_) => None,
+						Ok(leaves) => if leaves.contains(block_hash) {
+							Some(Known::Leaf)
+						} else {
+							Some(Known::Old)
+						},
+					}
+				}
+			},
+		);
 
 		let validation_network = ValidationNetwork::new(
 			network.clone(),
 			exit.clone(),
+			message_validator,
 			client.clone(),
 			task_executor,
 		);
@@ -289,16 +314,19 @@ impl<P, E> Worker for CollationNode<P, E> where
 						None => return future::Either::A(future::ok(())),
 					};
 
-					let context = ApiContext {
-						network: validation_network,
-						parent_hash: relay_parent,
-					};
+					let authorities = try_fr!(api.authorities(&id));
 
 					let targets = compute_targets(
 						para_id,
-						try_fr!(api.authorities(&id)).as_slice(),
+						authorities.as_slice(),
 						try_fr!(api.duty_roster(&id)),
 					);
+
+					let context = ApiContext {
+						network: validation_network,
+						parent_hash: relay_parent,
+						authorities,
+					};
 
 					let collation_work = collate(
 						para_id,
@@ -360,7 +388,7 @@ pub fn run_collator<P, E, I, ArgT>(
 ) -> polkadot_cli::error::Result<()> where
 	P: ParachainContext + Send + 'static,
 	E: IntoFuture<Item=(),Error=()>,
-	E::Future: Send + Clone + 'static,
+	E::Future: Send + Clone + Sync + 'static,
 	I: IntoIterator<Item=ArgT>,
 	ArgT: Into<std::ffi::OsString> + Clone,
 {
