@@ -20,7 +20,7 @@
 //! each time a validation session begins on a new chain head.
 
 use sr_primitives::traits::{BlakeTwo256, ProvideRuntimeApi, Hash as HashT};
-use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
+use substrate_network::Context as NetContext;
 use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
 use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{
@@ -42,6 +42,8 @@ use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 
 use router::Router;
+use gossip::{POLKADOT_ENGINE_ID, RegisteredMessageValidator, MessageValidationData};
+
 use super::PolkadotProtocol;
 
 pub use polkadot_validation::Incoming;
@@ -73,7 +75,7 @@ impl Executor for TaskExecutor {
 /// Basic functionality that a network has to fulfill.
 pub trait NetworkService: Send + Sync + 'static {
 	/// Get a stream of gossip messages for a given hash.
-	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<ConsensusMessage>;
+	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<Vec<u8>>;
 
 	/// Gossip a message on given topic.
 	fn gossip_message(&self, topic: Hash, message: Vec<u8>);
@@ -87,11 +89,11 @@ pub trait NetworkService: Send + Sync + 'static {
 }
 
 impl NetworkService for super::NetworkService {
-	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<ConsensusMessage> {
+	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<Vec<u8>> {
 		let (tx, rx) = std::sync::mpsc::channel();
 
 		self.with_gossip(move |gossip, _| {
-			let inner_rx = gossip.messages_for(topic);
+			let inner_rx = gossip.messages_for(POLKADOT_ENGINE_ID, topic);
 			let _ = tx.send(inner_rx);
 		});
 
@@ -102,14 +104,10 @@ impl NetworkService for super::NetworkService {
 	}
 
 	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
-		self.gossip_consensus_message(topic, message, false);
+		self.gossip_consensus_message(topic, POLKADOT_ENGINE_ID, message);
 	}
 
-	fn drop_gossip(&self, topic: Hash) {
-		self.with_gossip(move |gossip, _| {
-			gossip.collect_garbage_for_topic(topic);
-		})
-	}
+	fn drop_gossip(&self, _topic: Hash) { }
 
 	fn with_spec<F: Send + 'static>(&self, with: F)
 		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>)
@@ -124,6 +122,8 @@ pub struct SessionParams {
 	pub local_session_key: Option<SessionKey>,
 	/// The parent hash.
 	pub parent_hash: Hash,
+	/// The authorities.
+	pub authorities: Vec<SessionKey>,
 }
 
 /// Wrapper around the network service
@@ -131,13 +131,20 @@ pub struct ValidationNetwork<P, E, N, T> {
 	network: Arc<N>,
 	api: Arc<P>,
 	executor: T,
+	message_validator: RegisteredMessageValidator,
 	exit: E,
 }
 
 impl<P, E, N, T> ValidationNetwork<P, E, N, T> {
-	/// Create a new validation session networking object.
-	pub fn new(network: Arc<N>, exit: E, api: Arc<P>, executor: T) -> Self {
-		ValidationNetwork { network, exit, api, executor }
+	/// Create a new consensus networking object.
+	pub fn new(
+		network: Arc<N>,
+		exit: E,
+		message_validator: RegisteredMessageValidator,
+		api: Arc<P>,
+		executor: T,
+	) -> Self {
+		ValidationNetwork { network, exit, message_validator, api, executor }
 	}
 }
 
@@ -148,6 +155,7 @@ impl<P, E: Clone, N, T: Clone> Clone for ValidationNetwork<P, E, N, T> {
 			exit: self.exit.clone(),
 			api: self.api.clone(),
 			executor: self.executor.clone(),
+			message_validator: self.message_validator.clone(),
 		}
 	}
 }
@@ -155,9 +163,9 @@ impl<P, E: Clone, N, T: Clone> Clone for ValidationNetwork<P, E, N, T> {
 impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
-	E: Clone + Future<Item=(),Error=()> + Send + 'static,
+	E: Clone + Future<Item=(),Error=()> + Send + Sync + 'static,
 	N: NetworkService,
-	T: Clone + Executor + Send + 'static,
+	T: Clone + Executor + Send + Sync + 'static,
 {
 	/// Instantiate session data fetcher at a parent hash.
 	///
@@ -179,9 +187,16 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 		let api = self.api.clone();
 		let task_executor = self.executor.clone();
 		let exit = self.exit.clone();
+		let message_validator = self.message_validator.clone();
 
 		let (tx, rx) = oneshot::channel();
 		self.network.with_spec(move |spec, ctx| {
+			// before requesting messages, note live consensus session.
+			message_validator.note_session(
+				parent_hash,
+				MessageValidationData { authorities: params.authorities.clone() },
+			);
+
 			let session = spec.new_validation_session(ctx, params);
 			let _ = tx.send(SessionDataFetcher {
 				network,
@@ -191,6 +206,7 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 				knowledge: session.knowledge().clone(),
 				exit,
 				fetch_incoming: session.fetched_incoming().clone(),
+				message_validator,
 			});
 		});
 
@@ -202,9 +218,9 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
-	E: Clone + Future<Item=(),Error=()> + Send + 'static,
+	E: Clone + Future<Item=(),Error=()> + Send + Sync + 'static,
 	N: NetworkService,
-	T: Clone + Executor + Send + 'static,
+	T: Clone + Executor + Send + Sync + 'static,
 {
 	type Error = String;
 	type TableRouter = Router<P, E, N, T>;
@@ -214,6 +230,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		&self,
 		table: Arc<SharedTable>,
 		outgoing: polkadot_validation::Outgoing,
+		authorities: &[SessionKey],
 	) -> Self::BuildTableRouter {
 		let parent_hash = table.consensus_parent_hash().clone();
 		let local_session_key = table.session_key();
@@ -221,6 +238,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		let build_fetcher = self.instantiate_session(SessionParams {
 			local_session_key: Some(local_session_key),
 			parent_hash,
+			authorities: authorities.to_vec(),
 		});
 
 		let executor = self.executor.clone();
@@ -266,12 +284,14 @@ impl Future for AwaitingCollation {
 				.poll()
 				.map_err(|_| NetworkDown)
 		}
-		if let Ok(futures::Async::Ready(mut inner)) = self.outer.poll() {
-			let poll_result = inner.poll();
-			self.inner = Some(inner);
-			return poll_result.map_err(|_| NetworkDown)
+		match self.outer.poll() {
+			Ok(futures::Async::Ready(inner)) => {
+				self.inner = Some(inner);
+				self.poll()
+			},
+			Ok(futures::Async::NotReady) => Ok(futures::Async::NotReady),
+			Err(_) => Err(NetworkDown)
 		}
-		Ok(futures::Async::NotReady)
 	}
 }
 
@@ -602,6 +622,7 @@ pub struct SessionDataFetcher<P, E, N: NetworkService, T> {
 	task_executor: T,
 	knowledge: Arc<Mutex<Knowledge>>,
 	parent_hash: Hash,
+	message_validator: RegisteredMessageValidator,
 }
 
 impl<P, E, N: NetworkService, T> SessionDataFetcher<P, E, N, T> {
@@ -646,6 +667,7 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for SessionDataFetcher<P, E
 			fetch_incoming: self.fetch_incoming.clone(),
 			knowledge: self.knowledge.clone(),
 			exit: self.exit.clone(),
+			message_validator: self.message_validator.clone(),
 		}
 	}
 }
@@ -731,6 +753,8 @@ impl<P, E, N: NetworkService, T> Drop for SessionDataFetcher<P, E, N, T> {
 				));
 			}
 		}
+
+		self.message_validator.remove_session(&parent_hash);
 	}
 }
 
@@ -919,6 +943,7 @@ mod tests {
 		let (session, new_key) = live_sessions.new_validation_session(SessionParams {
 			parent_hash,
 			local_session_key: None,
+			authorities: Vec::new(),
 		});
 
 		let knowledge = session.knowledge().clone();
@@ -928,6 +953,7 @@ mod tests {
 		let (session, new_key) = live_sessions.new_validation_session(SessionParams {
 			parent_hash,
 			local_session_key: Some(key_a),
+			authorities: Vec::new(),
 		});
 
 		// check that knowledge points to the same place.
@@ -937,6 +963,7 @@ mod tests {
 		let (session, new_key) = live_sessions.new_validation_session(SessionParams {
 			parent_hash,
 			local_session_key: Some(key_b),
+			authorities: Vec::new(),
 		});
 
 		assert_eq!(&**session.knowledge() as *const _, &*knowledge as *const _);

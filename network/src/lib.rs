@@ -50,6 +50,7 @@ mod collator_pool;
 mod local_collations;
 mod router;
 pub mod validation;
+pub mod gossip;
 
 use codec::{Decode, Encode};
 use futures::sync::oneshot;

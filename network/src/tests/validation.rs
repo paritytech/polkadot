@@ -17,7 +17,7 @@
 //! Tests and helpers for validation networking.
 
 use validation::NetworkService;
-use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
+use substrate_network::Context as NetContext;
 use substrate_primitives::{Ed25519AuthorityId, NativeOrEncoded};
 use substrate_keyring::Keyring;
 use {PolkadotProtocol};
@@ -51,21 +51,21 @@ impl Future for NeverExit {
 }
 
 struct GossipRouter {
-	incoming_messages: mpsc::UnboundedReceiver<(Hash, ConsensusMessage)>,
-	incoming_streams: mpsc::UnboundedReceiver<(Hash, mpsc::UnboundedSender<ConsensusMessage>)>,
-	outgoing: Vec<(Hash, mpsc::UnboundedSender<ConsensusMessage>)>,
-	messages: Vec<(Hash, ConsensusMessage)>,
+	incoming_messages: mpsc::UnboundedReceiver<(Hash, Vec<u8>)>,
+	incoming_streams: mpsc::UnboundedReceiver<(Hash, mpsc::UnboundedSender<Vec<u8>>)>,
+	outgoing: Vec<(Hash, mpsc::UnboundedSender<Vec<u8>>)>,
+	messages: Vec<(Hash, Vec<u8>)>,
 }
 
 impl GossipRouter {
-	fn add_message(&mut self, topic: Hash, message: ConsensusMessage) {
+	fn add_message(&mut self, topic: Hash, message: Vec<u8>) {
 		self.outgoing.retain(|&(ref o_topic, ref sender)| {
 			o_topic != &topic || sender.unbounded_send(message.clone()).is_ok()
 		});
 		self.messages.push((topic, message));
 	}
 
-	fn add_outgoing(&mut self, topic: Hash, sender: mpsc::UnboundedSender<ConsensusMessage>) {
+	fn add_outgoing(&mut self, topic: Hash, sender: mpsc::UnboundedSender<Vec<u8>>) {
 		for message in self.messages.iter()
 			.filter(|&&(ref t, _)| t == &topic)
 			.map(|&(_, ref msg)| msg.clone())
@@ -105,8 +105,8 @@ impl Future for GossipRouter {
 
 #[derive(Clone)]
 struct GossipHandle {
-	send_message: mpsc::UnboundedSender<(Hash, ConsensusMessage)>,
-	send_listener: mpsc::UnboundedSender<(Hash, mpsc::UnboundedSender<ConsensusMessage>)>,
+	send_message: mpsc::UnboundedSender<(Hash, Vec<u8>)>,
+	send_listener: mpsc::UnboundedSender<(Hash, mpsc::UnboundedSender<Vec<u8>>)>,
 }
 
 fn make_gossip() -> (GossipRouter, GossipHandle) {
@@ -130,13 +130,13 @@ struct TestNetwork {
 }
 
 impl NetworkService for TestNetwork {
-	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<ConsensusMessage> {
+	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<Vec<u8>> {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
 		rx
 	}
 
-	fn gossip_message(&self, topic: Hash, message: ConsensusMessage) {
+	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
 		let _ = self.gossip.send_message.unbounded_send((topic, message));
 	}
 
@@ -322,9 +322,14 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 			gossip: gossip_handle.clone(),
 		});
 
+		let message_val = crate::gossip::RegisteredMessageValidator::new_test(
+			|_hash: &_| Some(crate::gossip::Known::Leaf),
+		);
+
 		TestValidationNetwork::new(
 			net,
 			NeverExit,
+			message_val,
 			runtime_api.clone(),
 			executor.clone(),
 		)
@@ -427,15 +432,22 @@ fn ingress_fetch_works() {
 	let parent_hash = [1; 32].into();
 
 	let (router_a, router_b, router_c) = {
+		let validators: Vec<Hash> = vec![
+			key_a.to_raw_public().into(),
+			key_b.to_raw_public().into(),
+			key_c.to_raw_public().into(),
+		];
+
+		let authorities: Vec<_> = validators.iter().cloned()
+			.map(|h| h.to_fixed_bytes())
+			.map(Ed25519AuthorityId)
+			.collect();
+
 		let mut api_handle = built.api_handle.lock();
 		*api_handle = ApiData {
 			active_parachains: vec![id_a, id_b, id_c],
 			duties: vec![Chain::Parachain(id_a), Chain::Parachain(id_b), Chain::Parachain(id_c)],
-			validators: vec![
-				key_a.to_raw_public().into(),
-				key_b.to_raw_public().into(),
-				key_c.to_raw_public().into(),
-			],
+			validators,
 			ingress,
 		};
 
@@ -443,14 +455,17 @@ fn ingress_fetch_works() {
 			built.networks[0].communication_for(
 				make_table(&*api_handle, &key_a, parent_hash),
 				vec![MessagesFrom::from_messages(id_a, messages_from_a)],
+				&authorities,
 			),
 			built.networks[1].communication_for(
 				make_table(&*api_handle, &key_b, parent_hash),
 				vec![MessagesFrom::from_messages(id_b, messages_from_b)],
+				&authorities,
 			),
 			built.networks[2].communication_for(
 				make_table(&*api_handle, &key_c, parent_hash),
 				vec![MessagesFrom::from_messages(id_c, messages_from_c)],
+				&authorities,
 			),
 		)
 	};

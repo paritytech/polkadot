@@ -45,7 +45,8 @@ use validation::{self, SessionDataFetcher, NetworkService, Executor};
 
 type IngressPairRef<'a> = (ParaId, &'a [Message]);
 
-fn attestation_topic(parent_hash: Hash) -> Hash {
+/// Compute the gossip topic for attestations on the given parent hash.
+pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 	let mut v = parent_hash.as_ref().to_vec();
 	v.extend(b"attestations");
 
@@ -78,20 +79,13 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	/// with `import_statement`.
 	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement,Error=()> {
 		// spin up a task in the background that processes all incoming statements
-		// TODO: propagate statements more intelligently.
-		// https://github.com/paritytech/polkadot/issues/158
-		let parent_hash = self.parent_hash();
+		// validation has been done already by the gossip validator.
 		self.network().gossip_messages_for(self.attestation_topic)
 			.filter_map(|msg| {
 				debug!(target: "validation", "Processing statement for live validation session");
-				SignedStatement::decode(&mut &msg[..])
+				crate::gossip::GossipMessage::decode(&mut &msg[..])
 			})
-			.filter(move |statement| ::polkadot_validation::check_statement(
-				&statement.statement,
-				&statement.signature,
-				statement.sender,
-				&parent_hash,
-			))
+			.map(|msg| msg.statement)
 	}
 
 	fn parent_hash(&self) -> Hash {

@@ -183,6 +183,7 @@ pub trait Network {
 		&self,
 		table: Arc<SharedTable>,
 		outgoing: Outgoing,
+		authorities: &[SessionKey],
 	) -> Self::BuildTableRouter;
 }
 
@@ -355,6 +356,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		let router = self.network.communication_for(
 			table.clone(),
 			outgoing,
+			authorities,
 		);
 
 		let drop_signal = match local_duty.validation {

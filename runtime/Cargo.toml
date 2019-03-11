@@ -45,6 +45,8 @@ hex-literal = "0.1.0"
 libsecp256k1 = "0.2.1"
 tiny-keccak = "1.4.2"
 substrate-keyring = { git = "https://github.com/paritytech/substrate" }
+substrate-trie = { git = "https://github.com/paritytech/substrate" }
+trie-db = "0.11"
 
 [features]
 default = ["std"]

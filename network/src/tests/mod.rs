@@ -77,6 +77,7 @@ impl TestContext {
 fn make_status(status: &Status, roles: Roles) -> FullStatus {
 	FullStatus {
 		version: 1,
+		min_supported_version: 1,
 		roles,
 		best_number: 0,
 		best_hash: Default::default(),
@@ -89,6 +90,7 @@ fn make_validation_session(parent_hash: Hash, local_key: SessionKey) -> SessionP
 	SessionParams {
 		local_session_key: Some(local_key),
 		parent_hash,
+		authorities: Vec::new(),
 	}
 }
 
