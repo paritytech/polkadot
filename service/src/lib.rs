@@ -34,6 +34,7 @@ extern crate substrate_consensus_aura as aura;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
 extern crate substrate_telemetry as telemetry;
+extern crate substrate_keystore as keystore;
 extern crate tokio;
 
 #[macro_use]
@@ -177,6 +178,7 @@ construct_service_factory! {
 						},
 						link_half,
 						grandpa::NetworkBridge::new(service.network()),
+						service.config.custom.inherent_data_providers.clone(),
 						service.on_exit(),
 					)?;
 
@@ -261,8 +263,6 @@ construct_service_factory! {
 			{ |config, executor| <LightComponents<Factory>>::new(config, executor) },
 		FullImportQueue = AuraImportQueue<
 			Self::Block,
-			FullClient<Self>,
-			NothingExtra,
 		>
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
@@ -283,8 +283,6 @@ construct_service_factory! {
 			}},
 		LightImportQueue = AuraImportQueue<
 			Self::Block,
-			LightClient<Self>,
-			NothingExtra,
 		>
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<LightClient<Self>>| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;

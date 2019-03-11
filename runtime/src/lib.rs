@@ -47,6 +47,7 @@ extern crate srml_consensus as consensus;
 extern crate srml_council as council;
 extern crate srml_democracy as democracy;
 extern crate srml_executive as executive;
+extern crate srml_fees as fees;
 extern crate srml_grandpa as grandpa;
 extern crate srml_indices as indices;
 extern crate srml_session as session;
@@ -149,7 +150,6 @@ impl balances::Trait for Runtime {
 	type Balance = Balance;
 	type OnFreeBalanceZero = Staking;
 	type OnNewAccount = Indices;
-	type EnsureAccountLiquid = Staking;
 	type Event = Event;
 }
 
@@ -235,6 +235,11 @@ impl sudo::Trait for Runtime {
 	type Proposal = Call;
 }
 
+impl fees::Trait for Runtime {
+	type Event = Event;
+	type TransferAsset = Balances;
+}
+
 construct_runtime!(
 	pub enum Runtime with Log(InternalLog: DigestItem<Hash, SessionKey>) where
 		Block = Block,
@@ -261,6 +266,7 @@ construct_runtime!(
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
 		Sudo: sudo,
 		UpgradeKey: upgrade_key,
+		Fees: fees::{Module, Storage, Config<T>, Event<T>},
 	}
 );
 
@@ -279,7 +285,7 @@ pub type UncheckedExtrinsic = generic::UncheckedMortalCompactExtrinsic<Address, 
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Balances, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Fees, AllModules>;
 
 impl_runtime_apis! {
 	impl client_api::Core<Block> for Runtime {
@@ -365,6 +371,12 @@ impl_runtime_apis! {
 				}
 			}
 			None
+		}
+
+		fn grandpa_forced_change(_digest: &DigestFor<Block>)
+			-> Option<(BlockNumber, ScheduledChange<BlockNumber>)>
+		{
+			None // disable forced changes.
 		}
 
 		fn grandpa_authorities() -> Vec<(SessionKey, u64)> {

@@ -38,7 +38,7 @@ decl_module! {
 		/// Changes the GRANDPA voter set.
 		fn set_voters(origin, voters: Vec<(T::SessionKey, u64)>) {
 			system::ensure_root(origin)?;
-			grandpa::Module::<T>::schedule_change(voters, T::BlockNumber::zero())?;
+			grandpa::Module::<T>::schedule_change(voters, T::BlockNumber::zero(), None)?;
 		}
 
 		fn on_finalise(block_number: T::BlockNumber) {
@@ -75,7 +75,7 @@ decl_module! {
 					voters.swap(remaining - 1, voter_index);
 				}
 
-				let _ = grandpa::Module::<T>::schedule_change(voters, T::BlockNumber::zero());
+				let _ = grandpa::Module::<T>::schedule_change(voters, T::BlockNumber::zero(), None);
 			}
 		}
 	}
