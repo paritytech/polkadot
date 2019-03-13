@@ -10,23 +10,23 @@ tokio = "0.1.7"
 error-chain = "0.12"
 log = "0.3"
 exit-future = "0.1"
-parity-codec = "3.0"
+parity-codec = "3.1"
 polkadot-availability-store = { path = "../availability-store" }
 polkadot-parachain = { path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-statement-table = { path = "../statement-table" }
-substrate-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
-substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
-substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
-substrate-inherents = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
-substrate-consensus-common = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
-substrate-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
-srml-aura = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
-srml-support = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
-substrate-client = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-consensus-aura = { git = "https://github.com/paritytech/substrate" }
+substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate" }
+substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate" }
+substrate-inherents = { git = "https://github.com/paritytech/substrate" }
+substrate-consensus-common = { git = "https://github.com/paritytech/substrate" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate" }
+substrate-transaction-pool = { git = "https://github.com/paritytech/substrate" }
+srml-aura = { git = "https://github.com/paritytech/substrate" }
+srml-support = { git = "https://github.com/paritytech/substrate" }
+substrate-client = { git = "https://github.com/paritytech/substrate" }
+sr-primitives = { git = "https://github.com/paritytech/substrate" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "v0.10" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate" }
