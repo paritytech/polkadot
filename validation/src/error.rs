@@ -16,8 +16,10 @@
 
 //! Errors that can occur during the validation process.
 
-use primitives::Ed25519AuthorityId as AuthorityId;
+use primitives::ed25519;
 use runtime_primitives::RuntimeString;
+
+use ed25519::Public as AuthorityId;
 
 error_chain! {
 	links {

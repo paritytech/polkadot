@@ -18,17 +18,19 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
-use super::{Hash, SessionKey};
+use super::{Hash, SessionKey, SessionSignature};
 
-use {AccountId};
+use AccountId;
 
 #[cfg(feature = "std")]
 use primitives::bytes;
 
+use primitives::{ed25519, sr25519};
+
 pub use polkadot_parachain::Id;
 
 /// Signature on candidate's block data by a collator.
-pub type CandidateSignature = ::runtime_primitives::Ed25519Signature;
+pub type CandidateSignature = SessionSignature;       // TODO: replace with AccountSignature.
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
 #[derive(Copy, Clone, PartialEq, Encode, Decode)]
@@ -89,14 +91,15 @@ pub struct Extrinsic {
 
 /// Candidate receipt type.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
-#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
+//#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", derive(Debug))]
+//#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
+//#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
 pub struct CandidateReceipt {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
 	/// The collator's relay-chain account ID
-	pub collator: super::AccountId,
+	pub collator: super::SessionKey,
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CandidateSignature,
 	/// The head-data
@@ -147,9 +150,10 @@ impl Ord for CandidateReceipt {
 
 /// A full collation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", derive(Debug))]
+/*#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
-#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
+#[cfg_attr(feature = "std", serde(deny_unknown_fields))]*/
 pub struct Collation {
 	/// Block data.
 	pub block_data: BlockData,

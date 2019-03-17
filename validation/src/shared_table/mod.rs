@@ -33,7 +33,7 @@ use futures::{future, prelude::*};
 
 use super::{GroupInfo, Incoming, TableRouter};
 use self::includable::IncludabilitySender;
-use primitives::ed25519;
+use primitives::{Pair, ed25519};
 use runtime_primitives::{traits::ProvideRuntimeApi};
 
 mod includable;

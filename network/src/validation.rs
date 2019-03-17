@@ -22,7 +22,7 @@
 use sr_primitives::traits::ProvideRuntimeApi;
 use substrate_network::Context as NetContext;
 use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
-use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
+use polkadot_primitives::{AccountId, Block, Hash, SessionKey, CollatorId};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData};
 use codec::Decode;
 
@@ -310,7 +310,7 @@ impl<P, E: Clone, N, T: Clone> Collators for ValidationNetwork<P, E, N, T> where
 	}
 
 
-	fn note_bad_collator(&self, collator: AccountId) {
+	fn note_bad_collator(&self, collator: CollatorId) {
 		self.network.with_spec(move |spec, ctx| spec.disconnect_bad_collator(ctx, collator));
 	}
 }
@@ -344,12 +344,12 @@ impl Knowledge {
 		match *statement {
 			GenericStatement::Candidate(ref c) => {
 				let mut entry = self.candidates.entry(c.hash()).or_insert_with(Default::default);
-				entry.knows_block_data.push(from);
+				entry.knows_block_data.push(from.clone());
 				entry.knows_extrinsic.push(from);
 			}
 			GenericStatement::Valid(ref hash) => {
 				let mut entry = self.candidates.entry(*hash).or_insert_with(Default::default);
-				entry.knows_block_data.push(from);
+				entry.knows_block_data.push(from.clone());
 				entry.knows_extrinsic.push(from);
 			}
 			GenericStatement::Invalid(ref hash) => self.candidates.entry(*hash)
@@ -466,9 +466,9 @@ impl LiveValidationSessions {
 		parent_hash: Hash,
 		session: ValidationSession,
 	) -> Option<SessionKey> {
-		let inserted_key = self.recent.insert(session.local_session_key);
+		let inserted_key = self.recent.insert(session.local_session_key.clone());
 		let maybe_new = if let InsertedRecentKey::New(_) = inserted_key {
-			Some(session.local_session_key)
+			Some(session.local_session_key.clone())
 		} else {
 			None
 		};

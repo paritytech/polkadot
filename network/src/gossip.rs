@@ -128,7 +128,7 @@ impl MessageValidationData {
 			::polkadot_validation::check_statement(
 				&statement.statement,
 				&statement.signature,
-				statement.sender,
+				statement.sender.clone(),
 				relay_parent,
 			)
 	}

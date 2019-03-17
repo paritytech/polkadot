@@ -426,8 +426,8 @@ impl DeferredStatements {
 	fn push(&mut self, statement: SignedStatement) {
 		let (hash, trace) = match statement.statement {
 			GenericStatement::Candidate(_) => return,
-			GenericStatement::Valid(hash) => (hash, StatementTrace::Valid(statement.sender, hash)),
-			GenericStatement::Invalid(hash) => (hash, StatementTrace::Invalid(statement.sender, hash)),
+			GenericStatement::Valid(hash) => (hash, StatementTrace::Valid(statement.sender.clone(), hash)),
+			GenericStatement::Invalid(hash) => (hash, StatementTrace::Invalid(statement.sender.clone(), hash)),
 		};
 
 		if self.known_traces.insert(trace) {
@@ -443,8 +443,8 @@ impl DeferredStatements {
 				for statement in deferred.iter() {
 					let trace = match statement.statement {
 						GenericStatement::Candidate(_) => continue,
-						GenericStatement::Valid(hash) => StatementTrace::Valid(statement.sender, hash),
-						GenericStatement::Invalid(hash) => StatementTrace::Invalid(statement.sender, hash),
+						GenericStatement::Valid(hash) => StatementTrace::Valid(statement.sender.clone(), hash),
+						GenericStatement::Invalid(hash) => StatementTrace::Invalid(statement.sender.clone(), hash),
 					};
 
 					self.known_traces.remove(&trace);

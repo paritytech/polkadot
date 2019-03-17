@@ -80,7 +80,7 @@ use polkadot_primitives::parachain::{
 	CandidateSignature, ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message,
 	OutgoingMessage,
 };
-use primitives::{Ed25519AuthorityId as AuthorityId, ed25519};
+use primitives::{Pair, ed25519};
 use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyError};
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
@@ -94,6 +94,8 @@ use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_aura::timestamp::TimestampInherentData;
 use aura::SlotDuration;
+
+use ed25519::Public as AuthorityId;
 
 pub use self::collation::{validate_collation, message_queue_root, egress_roots, Collators};
 pub use self::error::{ErrorKind, Error};

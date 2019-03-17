@@ -58,7 +58,7 @@ impl<C: Clone> LocalCollations<C> {
 				Vec::new()
 			}
 			Role::Primary => {
-				let new_primary = self.primary_for.insert(key);
+				let new_primary = self.primary_for.insert(key.clone());
 				if new_primary {
 					self.collations_targeting(&key)
 				} else {
@@ -72,7 +72,7 @@ impl<C: Clone> LocalCollations<C> {
 	/// to the validator.
 	pub fn fresh_key(&mut self, old_key: &SessionKey, new_key: &SessionKey) -> Vec<(Hash, C)> {
 		if self.primary_for.remove(old_key) {
-			self.primary_for.insert(*new_key);
+			self.primary_for.insert(new_key.clone());
 
 			self.collations_targeting(new_key)
 		} else {
@@ -116,7 +116,7 @@ impl<C: Clone> LocalCollations<C> {
 		let borrowed_collation = &local.collation;
 		local.targets
 			.intersection(&self.primary_for)
-			.map(move |k| (*k, borrowed_collation.clone()))
+			.map(move |k| (k.clone(), borrowed_collation.clone()))
 	}
 
 	fn collations_targeting(&self, key: &SessionKey) -> Vec<(Hash, C)> {
