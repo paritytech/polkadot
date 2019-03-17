@@ -21,7 +21,7 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::{Block, Hash, AccountId, BlockId, CollatorId};
+use polkadot_primitives::{Block, Hash, BlockId, CollatorId};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, OutgoingMessage};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use runtime_primitives::traits::ProvideRuntimeApi;

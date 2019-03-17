@@ -17,7 +17,7 @@
 //! Polkadot chain configurations.
 
 use primitives::{ed25519, sr25519, Pair, crypto::UncheckedInto};
-use polkadot_primitives::{AccountId, SessionKey, SessionKey as AuthorityId};
+use polkadot_primitives::{AccountId, SessionKey};
 use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
@@ -44,7 +44,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 
 	// for i in 1 2 3 4; do for j in stash controller; do subkey inspect "$SECRET//$i//$j"; done; done
 	// for i in 1 2 3 4; do for j in session; do subkey -e inspect "$SECRET//$i//$j"; done; done
-	let initial_authorities: Vec<(AccountId, AccountId, AuthorityId)> = vec![(
+	let initial_authorities: Vec<(AccountId, AccountId, SessionKey)> = vec![(
 		hex!["543cf15f6a0289e48eb4f30d451d1731c5fb0e1b2c5a4b99439c11808af3432d"].unchecked_into(), // 5Dy9yz2mjwDmTgjkDFxjPBpovKmKAgTndiRiTp4DfrTEdUvi
 		hex!["8a6ea654337e4a28ce7be124f73ad84702619942722d01cc271e5b421653c56d"].unchecked_into(), // 5FCDLPUMZpZPRfouRfQDZp74typV9SjSxPgG6ymwe5Z3Sbko
 		hex!["03644a181bc4e4197914aa109f3c97b6fe8c4787a82a1ddfab54e4ebedd8ab20"].unchecked_into(), // 5C99nwu8Ucq1yUJfajviwbqMAejpmaERHpmkPVWiFdxiF6yg
@@ -187,15 +187,15 @@ pub fn get_account_id_from_seed(seed: &str) -> AccountId {
 		.public()
 }
 
-/// Helper function to generate AuthorityId from seed
-pub fn get_session_key_from_seed(seed: &str) -> AuthorityId {
+/// Helper function to generate SessionKey from seed
+pub fn get_session_key_from_seed(seed: &str) -> SessionKey {
 	ed25519::Pair::from_string(&format!("//{}", seed), None)
 		.expect("static values are valid; qed")
 		.public()
 }
 
 /// Helper function to generate stash, controller and session key from seed
-pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, AuthorityId) {
+pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, SessionKey) {
 	(
 		get_account_id_from_seed(&format!("{}//stash", seed)),
 		get_account_id_from_seed(seed),
@@ -205,7 +205,7 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, Author
 
 /// Helper function to create GenesisConfig for testing
 pub fn testnet_genesis(
-	initial_authorities: Vec<(AccountId, AccountId, AuthorityId)>,
+	initial_authorities: Vec<(AccountId, AccountId, SessionKey)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> GenesisConfig {

@@ -54,7 +54,7 @@ pub mod gossip;
 
 use codec::{Decode, Encode};
 use futures::sync::oneshot;
-use polkadot_primitives::{AccountId, Block, SessionKey, Hash, Header, CollatorId};
+use polkadot_primitives::{Block, SessionKey, Hash, Header, CollatorId};
 use polkadot_primitives::parachain::{Id as ParaId, BlockData, CandidateReceipt, Collation};
 use substrate_network::{NodeIndex, RequestId, Context, Severity};
 use substrate_network::{message, generic_message};

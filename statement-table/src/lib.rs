@@ -25,9 +25,9 @@ pub mod generic;
 
 pub use generic::Table;
 
-use primitives::parachain::{
-	Id, CandidateReceipt, CandidateSignature as Signature, Statement as PrimitiveStatement,
-};
+use primitives::{parachain::{
+	Id, CandidateReceipt, Statement as PrimitiveStatement,
+}, CollatorSignature as Signature};
 use primitives::{SessionKey, Hash};
 
 /// Statements about candidates on the network.

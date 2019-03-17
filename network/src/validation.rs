@@ -22,7 +22,7 @@
 use sr_primitives::traits::ProvideRuntimeApi;
 use substrate_network::Context as NetContext;
 use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
-use polkadot_primitives::{AccountId, Block, Hash, SessionKey, CollatorId};
+use polkadot_primitives::{Block, Hash, SessionKey, CollatorId};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData};
 use codec::Decode;
 

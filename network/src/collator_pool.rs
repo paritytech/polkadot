@@ -16,7 +16,7 @@
 
 //! Bridge between the network and consensus service for getting collations to it.
 
-use polkadot_primitives::{AccountId, CollatorId, Hash};
+use polkadot_primitives::{CollatorId, Hash};
 use polkadot_primitives::parachain::{Id as ParaId, Collation};
 
 use futures::sync::oneshot;

@@ -65,7 +65,7 @@ use std::time::Duration;
 use futures::{future, stream, Stream, Future, IntoFuture};
 use client::BlockchainEvents;
 use primitives::{ed25519, Pair};
-use polkadot_primitives::{AccountId, BlockId, SessionKey};
+use polkadot_primitives::{BlockId, SessionKey};
 use polkadot_primitives::parachain::{self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId};
 use polkadot_cli::{PolkadotService, CustomConfiguration, CoreApi, ParachainHost};
 use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi};

@@ -18,9 +18,9 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
-use super::{Hash, SessionKey, SessionSignature};
+use super::{Hash, SessionKey};
 
-use AccountId;
+use ::{AccountId, CollatorSignature};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
@@ -28,9 +28,6 @@ use primitives::bytes;
 use primitives::{ed25519, sr25519};
 
 pub use polkadot_parachain::Id;
-
-/// Signature on candidate's block data by a collator.
-pub type CandidateSignature = SessionSignature;       // TODO: replace with AccountSignature.
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
 #[derive(Copy, Clone, PartialEq, Encode, Decode)]
@@ -101,7 +98,7 @@ pub struct CandidateReceipt {
 	/// The collator's relay-chain account ID
 	pub collator: super::SessionKey,
 	/// Signature on blake2-256 of the block data by collator.
-	pub signature: CandidateSignature,
+	pub signature: CollatorSignature,
 	/// The head-data
 	pub head_data: HeadData,
 	/// Balance uploads to the relay chain.
@@ -232,11 +229,11 @@ pub enum ValidityAttestation {
 	/// implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
 	#[codec(index = "1")]
-	Implicit(CandidateSignature),
+	Implicit(CollatorSignature),
 	/// An explicit attestation. This corresponds to issuance of a
 	/// `Valid` statement.
 	#[codec(index = "2")]
-	Explicit(CandidateSignature),
+	Explicit(CollatorSignature),
 }
 
 /// An attested candidate.

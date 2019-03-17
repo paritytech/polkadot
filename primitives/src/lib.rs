@@ -68,8 +68,12 @@ pub type CollatorId = SessionKey;
 /// Signature with which collators sign blocks.
 pub type CollatorSignature = SessionSignature;
 
+/// Alias to 512-bit hash when used in the context of a signature on the relay chain.
+/// Equipped with logic for possibly "unsigned" messages.
+pub type Signature = sr25519::Signature;
+
 /// Alias to Ed25519 pubkey that identifies an account on the relay chain.
-pub type AccountId = sr25519::Public;//<Signature as Verify>::Signer;
+pub type AccountId = sr25519::Public;
 
 /// The type for looking up accounts. We don't expect more than 4 billion of them, but you
 /// never know...
@@ -79,7 +83,7 @@ pub type AccountIndex = u32;
 pub type SessionSignature = ed25519::Signature;
 
 /// Identity that authorities use.
-pub type SessionKey = ed25519::Public;//<SessionSignature as Verify>::Signer;
+pub type SessionKey = ed25519::Public;
 
 /// Indentifier for a chain. 32-bit should be plenty.
 pub type ChainId = u32;
@@ -89,10 +93,6 @@ pub type Hash = primitives::H256;
 
 /// Index of a transaction in the relay chain. 32-bit should be plenty.
 pub type Nonce = u64;
-
-/// Alias to 512-bit hash when used in the context of a signature on the relay chain.
-/// Equipped with logic for possibly "unsigned" messages.
-pub type Signature = sr25519::Signature;
 
 /// The balance of an account.
 /// 128-bits (or 38 significant decimal figures) will allow for 10m currency (10^7) at a resolution

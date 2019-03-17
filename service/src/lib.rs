@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-#![warn(unused_extern_crates)]
-
 //! Polkadot service. Specialized wrapper over substrate service.
 
 extern crate polkadot_availability_store as av_store;
@@ -27,7 +25,6 @@ extern crate polkadot_network;
 extern crate sr_primitives;
 extern crate substrate_primitives as primitives;
 extern crate substrate_client as client;
-extern crate substrate_keystore as keystore;
 #[macro_use]
 extern crate substrate_service as service;
 extern crate substrate_consensus_aura as aura;
@@ -46,7 +43,7 @@ pub mod chain_spec;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, CollatorId, AccountId, Block, Hash, BlockId};
+use polkadot_primitives::{parachain, CollatorId, Block, Hash, BlockId};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
 use polkadot_network::gossip::{self as network_gossip, Known};
 use primitives::{Pair, ed25519};

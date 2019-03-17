@@ -74,11 +74,10 @@ use client::runtime_api::Core;
 use codec::Encode;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
-use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey};
+use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey, CollatorSignature};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt,
-	CandidateSignature, ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message,
-	OutgoingMessage,
+	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage,
 };
 use primitives::{Pair, ed25519};
 use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyError};
@@ -194,7 +193,7 @@ pub struct GroupInfo {
 /// Sign a table statement against a parent hash.
 /// The actual message signed is the encoded statement concatenated with the
 /// parent hash.
-pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_hash: &Hash) -> CandidateSignature {
+pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_hash: &Hash) -> CollatorSignature {
 	// we sign using the primitive statement type because that's what the runtime
 	// expects. These types probably encode the same way so this clone could be optimized
 	// out in the future.
@@ -205,7 +204,7 @@ pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_h
 }
 
 /// Check signature on table statement.
-pub fn check_statement(statement: &Statement, signature: &CandidateSignature, signer: SessionKey, parent_hash: &Hash) -> bool {
+pub fn check_statement(statement: &Statement, signature: &CollatorSignature, signer: SessionKey, parent_hash: &Hash) -> bool {
 	use runtime_primitives::traits::Verify;
 
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
