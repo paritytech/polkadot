@@ -11,7 +11,7 @@ parity-codec-derive = { version = "3.0", default-features = false }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
 substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false }
 sr-version = { git = "https://github.com/paritytech/substrate", default-features = false }
-sr-std = { git = "https://github.com/paritytech/substrate", commit = "45824913c980bb1ba3963f9bba67775a507d8624", default-features = false }
+sr-std = { git = "https://github.com/paritytech/substrate", default-features = false }
 sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
 
