@@ -87,7 +87,7 @@ use client::{
 };
 use sr_primitives::{
 	ApplyResult, generic, transaction_validity::TransactionValidity,
-	traits::{Convert, BlakeTwo256, Block as BlockT, DigestFor, StaticLookup}
+	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup}
 };
 use version::RuntimeVersion;
 use grandpa::fg_primitives::{self, ScheduledChange};
@@ -337,8 +337,8 @@ impl_runtime_apis! {
 	}
 
 	impl parachain::ParachainHost<Block> for Runtime {
-		fn validators() -> Vec<AccountId> {
-			Session::validators()
+		fn validators() -> Vec<parachain::ValidatorId> {
+			Consensus::authorities()  // only possible as long as parachain validator crypto === aura crypto
 		}
 		fn duty_roster() -> parachain::DutyRoster {
 			Parachains::calculate_duty_roster()

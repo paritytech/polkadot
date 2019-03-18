@@ -62,12 +62,6 @@ use primitives::bytes;
 /// TODO: switch to u32
 pub type BlockNumber = u64;
 
-/// Identity that collators use.
-pub type CollatorId = SessionKey;
-
-/// Signature with which collators sign blocks.
-pub type CollatorSignature = SessionSignature;
-
 /// Alias to 512-bit hash when used in the context of a signature on the relay chain.
 /// Equipped with logic for possibly "unsigned" messages.
 pub type Signature = sr25519::Signature;

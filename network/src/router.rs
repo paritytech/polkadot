@@ -512,19 +512,20 @@ impl<S> Future for ComputeIngress<S> where S: Stream<Item=IngressPair> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_primitives::H512;
+	use substrate_primitives::crypto::UncheckedInto;
 	use futures::stream;
+	use polkadot_primitives::parachain::ValidatorId;
 
 	#[test]
 	fn deferred_statements_works() {
 		let mut deferred = DeferredStatements::new();
 		let hash = [1; 32].into();
-		let sig = H512::from([2; 64]).into();
-		let sender = [255; 32].into();
+		let sig = Default::default();//H512::from([2; 64]).into();
+		let sender: ValidatorId = [255; 32].unchecked_into();
 
 		let statement = SignedStatement {
 			statement: GenericStatement::Valid(hash),
-			sender,
+			sender: sender.clone(),
 			signature: sig,
 		};
 

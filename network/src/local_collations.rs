@@ -130,14 +130,16 @@ impl<C: Clone> LocalCollations<C> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use substrate_primitives::crypto::UncheckedInto;
+	use polkadot_primitives::parachain::ValidatorId;
 
 	#[test]
 	fn add_validator_with_ready_collation() {
-		let key = [1; 32].into();
+		let key: ValidatorId = [1; 32].unchecked_into();
 		let relay_parent = [2; 32].into();
 		let targets = {
 			let mut set = HashSet::new();
-			set.insert(key);
+			set.insert(key.clone());
 			set
 		};
 
@@ -148,18 +150,18 @@ mod tests {
 
 	#[test]
 	fn rename_with_ready() {
-		let orig_key = [1; 32].into();
-		let new_key  = [2; 32].into();
+		let orig_key: ValidatorId = [1; 32].unchecked_into();
+		let new_key: ValidatorId  = [2; 32].unchecked_into();
 		let relay_parent = [255; 32].into();
 		let targets = {
 			let mut set = HashSet::new();
-			set.insert(new_key);
+			set.insert(new_key.clone());
 			set
 		};
 
 		let mut tracker: LocalCollations<u8> = LocalCollations::new();
 		assert!(tracker.add_collation(relay_parent, targets, 5).next().is_none());
-		assert!(tracker.note_validator_role(orig_key, Role::Primary).is_empty());
+		assert!(tracker.note_validator_role(orig_key.clone(), Role::Primary).is_empty());
 		assert_eq!(tracker.fresh_key(&orig_key, &new_key), vec![(relay_parent, 5u8)]);
 	}
 
@@ -183,16 +185,16 @@ mod tests {
 
 	#[test]
 	fn add_collation_with_connected_target() {
-		let key = [1; 32].into();
+		let key: ValidatorId = [1; 32].unchecked_into();
 		let relay_parent = [2; 32].into();
 		let targets = {
 			let mut set = HashSet::new();
-			set.insert(key);
+			set.insert(key.clone());
 			set
 		};
 
 		let mut tracker = LocalCollations::new();
-		assert!(tracker.note_validator_role(key, Role::Primary).is_empty());
+		assert!(tracker.note_validator_role(key.clone(), Role::Primary).is_empty());
 		assert_eq!(tracker.add_collation(relay_parent, targets, 5).next(), Some((key, 5)));
 
 	}

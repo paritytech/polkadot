@@ -16,9 +16,8 @@
 
 //! Bridge between the network and consensus service for getting collations to it.
 
-use polkadot_primitives::{CollatorId, Hash};
+use polkadot_primitives::{parachain::CollatorId, Hash};
 use polkadot_primitives::parachain::{Id as ParaId, Collation};
-
 use futures::sync::oneshot;
 
 use std::collections::hash_map::{HashMap, Entry};
@@ -219,20 +218,20 @@ impl CollatorPool {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use substrate_primitives::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{CandidateReceipt, BlockData, HeadData};
-	use substrate_primitives::H512;
 	use futures::Future;
 
 	#[test]
 	fn disconnect_primary_gives_new_primary() {
 		let mut pool = CollatorPool::new();
 		let para_id: ParaId = 5.into();
-		let bad_primary = [0; 32].into();
-		let good_backup = [1; 32].into();
+		let bad_primary: CollatorId = [0; 32].unchecked_into();
+		let good_backup: CollatorId = [1; 32].unchecked_into();
 
-		assert_eq!(pool.on_new_collator(bad_primary, para_id.clone()), Role::Primary);
-		assert_eq!(pool.on_new_collator(good_backup, para_id.clone()), Role::Backup);
-		assert_eq!(pool.on_disconnect(bad_primary), Some(good_backup));
+		assert_eq!(pool.on_new_collator(bad_primary.clone(), para_id.clone()), Role::Primary);
+		assert_eq!(pool.on_new_collator(good_backup.clone(), para_id.clone()), Role::Backup);
+		assert_eq!(pool.on_disconnect(bad_primary), Some(good_backup.clone()));
 		assert_eq!(pool.on_disconnect(good_backup), None);
 	}
 
@@ -240,11 +239,11 @@ mod tests {
 	fn disconnect_backup_removes_from_pool() {
 		let mut pool = CollatorPool::new();
 		let para_id: ParaId = 5.into();
-		let primary = [0; 32].into();
-		let backup = [1; 32].into();
+		let primary = [0; 32].unchecked_into();
+		let backup: CollatorId = [1; 32].unchecked_into();
 
 		assert_eq!(pool.on_new_collator(primary, para_id.clone()), Role::Primary);
-		assert_eq!(pool.on_new_collator(backup, para_id.clone()), Role::Backup);
+		assert_eq!(pool.on_new_collator(backup.clone(), para_id.clone()), Role::Backup);
 		assert_eq!(pool.on_disconnect(backup), None);
 		assert!(pool.parachain_collators.get(&para_id).unwrap().backup.is_empty());
 	}
@@ -253,19 +252,19 @@ mod tests {
 	fn await_before_collation() {
 		let mut pool = CollatorPool::new();
 		let para_id: ParaId = 5.into();
-		let primary = [0; 32].into();
+		let primary: CollatorId = [0; 32].unchecked_into();
 		let relay_parent = [1; 32].into();
 
-		assert_eq!(pool.on_new_collator(primary, para_id.clone()), Role::Primary);
+		assert_eq!(pool.on_new_collator(primary.clone(), para_id.clone()), Role::Primary);
 		let (tx1, rx1) = oneshot::channel();
 		let (tx2, rx2) = oneshot::channel();
 		pool.await_collation(relay_parent, para_id, tx1);
 		pool.await_collation(relay_parent, para_id, tx2);
-		pool.on_collation(primary, relay_parent, Collation {
+		pool.on_collation(primary.clone(), relay_parent, Collation {
 			receipt: CandidateReceipt {
 				parachain_index: para_id,
 				collator: primary.into(),
-				signature: H512::from([2; 64]).into(),
+				signature: Default::default(),//H512::from([2; 64]).into(),
 				head_data: HeadData(vec![1, 2, 3]),
 				balance_uploads: vec![],
 				egress_queue_roots: vec![],
@@ -283,16 +282,16 @@ mod tests {
 	fn collate_before_await() {
 		let mut pool = CollatorPool::new();
 		let para_id: ParaId = 5.into();
-		let primary = [0; 32].into();
+		let primary: CollatorId = [0; 32].unchecked_into();
 		let relay_parent = [1; 32].into();
 
-		assert_eq!(pool.on_new_collator(primary, para_id.clone()), Role::Primary);
+		assert_eq!(pool.on_new_collator(primary.clone(), para_id.clone()), Role::Primary);
 
-		pool.on_collation(primary, relay_parent, Collation {
+		pool.on_collation(primary.clone(), relay_parent, Collation {
 			receipt: CandidateReceipt {
 				parachain_index: para_id,
-				collator: primary.into(),
-				signature: H512::from([2; 64]).into(),
+				collator: primary,
+				signature: Default::default(),//H512::from([2; 64]).into(),
 				head_data: HeadData(vec![1, 2, 3]),
 				balance_uploads: vec![],
 				egress_queue_roots: vec![],

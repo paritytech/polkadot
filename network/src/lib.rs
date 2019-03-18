@@ -54,13 +54,13 @@ pub mod gossip;
 
 use codec::{Decode, Encode};
 use futures::sync::oneshot;
-use polkadot_primitives::{Block, SessionKey, Hash, Header, CollatorId};
+use polkadot_primitives::{Block, SessionKey, Hash, Header, parachain::CollatorId};
 use polkadot_primitives::parachain::{Id as ParaId, BlockData, CandidateReceipt, Collation};
 use substrate_network::{NodeIndex, RequestId, Context, Severity};
 use substrate_network::{message, generic_message};
 use substrate_network::specialization::NetworkSpecialization as Specialization;
 use substrate_network::StatusMessage as GenericFullStatus;
-use self::validation::{LiveValidationSessions, RecentSessionKeys, InsertedRecentKey};
+use self::validation::{LiveValidationSessions, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
 
@@ -129,7 +129,7 @@ impl CollatorState {
 
 struct PeerInfo {
 	collating_for: Option<(CollatorId, ParaId)>,
-	validator_keys: RecentSessionKeys,
+	validator_keys: RecentValidatorIds,
 	claimed_validator: bool,
 	collator_state: CollatorState,
 }

@@ -74,10 +74,10 @@ use client::runtime_api::Core;
 use codec::Encode;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
-use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey, CollatorSignature};
+use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt,
-	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage,
+	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage, CollatorSignature
 };
 use primitives::{Pair, ed25519};
 use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyError};
@@ -800,17 +800,17 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::Keyring;
+	use substrate_keyring::AuthorityKeyring;
 
 	#[test]
 	fn sign_and_check_statement() {
 		let statement: Statement = GenericStatement::Valid([1; 32].into());
 		let parent_hash = [2; 32].into();
 
-		let sig = sign_table_statement(&statement, &Keyring::Alice.pair(), &parent_hash);
+		let sig = sign_table_statement(&statement, &AuthorityKeyring::Alice.pair(), &parent_hash);
 
-		assert!(check_statement(&statement, &sig, Keyring::Alice.to_raw_public().into(), &parent_hash));
-		assert!(!check_statement(&statement, &sig, Keyring::Alice.to_raw_public().into(), &[0xff; 32].into()));
-		assert!(!check_statement(&statement, &sig, Keyring::Bob.to_raw_public().into(), &parent_hash));
+		assert!(check_statement(&statement, &sig, AuthorityKeyring::Alice.into(), &parent_hash));
+		assert!(!check_statement(&statement, &sig, AuthorityKeyring::Alice.into(), &[0xff; 32].into()));
+		assert!(!check_statement(&statement, &sig, AuthorityKeyring::Bob.into(), &parent_hash));
 	}
 }

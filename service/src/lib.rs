@@ -43,7 +43,7 @@ pub mod chain_spec;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, CollatorId, Block, Hash, BlockId};
+use polkadot_primitives::{parachain, parachain::CollatorId, Block, Hash, BlockId};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
 use polkadot_network::gossip::{self as network_gossip, Known};
 use primitives::{Pair, ed25519};

@@ -471,8 +471,6 @@ mod tests {
 	use keyring::{AuthorityKeyring, AccountKeyring};
 	use {consensus, timestamp};
 
-	use keyring::AuthorityKeyring as CollatorKeyring;
-
 	impl_outer_origin! {
 		pub enum Origin for Test {}
 	}
