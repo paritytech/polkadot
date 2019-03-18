@@ -264,7 +264,7 @@ mod tests {
 			receipt: CandidateReceipt {
 				parachain_index: para_id,
 				collator: primary.into(),
-				signature: Default::default(),//H512::from([2; 64]).into(),
+				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
 				balance_uploads: vec![],
 				egress_queue_roots: vec![],
@@ -291,7 +291,7 @@ mod tests {
 			receipt: CandidateReceipt {
 				parachain_index: para_id,
 				collator: primary,
-				signature: Default::default(),//H512::from([2; 64]).into(),
+				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
 				balance_uploads: vec![],
 				egress_queue_roots: vec![],

@@ -520,7 +520,7 @@ mod tests {
 	fn deferred_statements_works() {
 		let mut deferred = DeferredStatements::new();
 		let hash = [1; 32].into();
-		let sig = Default::default();//H512::from([2; 64]).into();
+		let sig = Default::default();
 		let sender: ValidatorId = [255; 32].unchecked_into();
 
 		let statement = SignedStatement {
