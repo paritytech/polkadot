@@ -14,7 +14,7 @@ polkadot-primitives = { path = "../primitives", default-features = false }
 parity-codec = { version = "3.0", default-features = false }
 parity-codec-derive = { version = "3.0", default-features = false }
 substrate-serializer = { git = "https://github.com/paritytech/substrate", default-features = false }
-sr-std = { git = "https://github.com/paritytech/substrate", rev = "45824913c980bb1ba3963f9bba67775a507d8624", default-features = false }
+sr-std = { git = "https://github.com/paritytech/substrate", default-features = false }
 sr-io = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-support = { git = "https://github.com/paritytech/substrate", default-features = false }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
