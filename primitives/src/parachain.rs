@@ -102,10 +102,7 @@ pub struct Extrinsic {
 
 /// Candidate receipt type.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-//#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 #[cfg_attr(feature = "std", derive(Debug))]
-//#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
-//#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
 pub struct CandidateReceipt {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
@@ -162,9 +159,6 @@ impl Ord for CandidateReceipt {
 /// A full collation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
-/*#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
-#[cfg_attr(feature = "std", serde(deny_unknown_fields))]*/
 pub struct Collation {
 	/// Block data.
 	pub block_data: BlockData,
