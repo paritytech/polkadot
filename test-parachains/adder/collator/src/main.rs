@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
-use substrate_primitives::ed25519::Pair;
+use substrate_primitives::{Pair as PairT, ed25519::Pair};
 use parachain::codec::{Encode, Decode};
 use primitives::parachain::{HeadData, BlockData, Id as ParaId, Message};
 use collator::{InvalidHead, ParachainContext, VersionInfo};
@@ -98,7 +98,7 @@ impl ParachainContext for AdderContext {
 }
 
 fn main() {
-	let key = Arc::new(Pair::from_seed(&[1; 32]));
+	let key = Arc::new(Pair::from_seed([1; 32]));
 	let id: ParaId = 100.into();
 
 	println!("Starting adder collator with genesis: ");

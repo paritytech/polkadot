@@ -78,8 +78,8 @@ mod claims;
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
 use primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, SessionKey, Signature,
-	parachain,
+	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, SessionKey, SessionSignature, 
+	Signature, parachain,
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
@@ -87,7 +87,7 @@ use client::{
 };
 use sr_primitives::{
 	ApplyResult, generic, transaction_validity::TransactionValidity,
-	traits::{Convert, BlakeTwo256, Block as BlockT, DigestFor, StaticLookup}
+	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup}
 };
 use version::RuntimeVersion;
 use grandpa::fg_primitives::{self, ScheduledChange};
@@ -98,6 +98,8 @@ use council::seats as council_seats;
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
 
+#[cfg(feature = "std")]
+pub use staking::StakerStatus;
 #[cfg(any(feature = "std", test))]
 pub use sr_primitives::BuildStorage;
 pub use consensus::Call as ConsensusCall;
@@ -173,16 +175,8 @@ impl timestamp::Trait for Runtime {
 	type OnTimestampSet = Aura;
 }
 
-/// Session key conversion.
-pub struct SessionKeyConversion;
-impl Convert<AccountId, SessionKey> for SessionKeyConversion {
-	fn convert(a: AccountId) -> SessionKey {
-		a.to_fixed_bytes().into()
-	}
-}
-
 impl session::Trait for Runtime {
-	type ConvertAccountIdToSessionKey = SessionKeyConversion;
+	type ConvertAccountIdToSessionKey = ();
 	type OnSessionChange = (Staking, grandpa::SyncedAuthorities<Runtime>);
 	type Event = Event;
 }
@@ -244,7 +238,7 @@ impl fees::Trait for Runtime {
 }
 
 construct_runtime!(
-	pub enum Runtime with Log(InternalLog: DigestItem<Hash, SessionKey>) where
+	pub enum Runtime with Log(InternalLog: DigestItem<Hash, SessionKey, SessionSignature>) where
 		Block = Block,
 		NodeBlock = primitives::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
@@ -343,8 +337,8 @@ impl_runtime_apis! {
 	}
 
 	impl parachain::ParachainHost<Block> for Runtime {
-		fn validators() -> Vec<AccountId> {
-			Session::validators()
+		fn validators() -> Vec<parachain::ValidatorId> {
+			Consensus::authorities()  // only possible as long as parachain validator crypto === aura crypto
 		}
 		fn duty_roster() -> parachain::DutyRoster {
 			Parachains::calculate_duty_roster()

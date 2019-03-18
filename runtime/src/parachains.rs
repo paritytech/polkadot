@@ -415,7 +415,7 @@ impl<T: Trait> Module<T> {
 				};
 
 				ensure!(
-					sig.verify(&payload[..], &auth_id.0.into()),
+					sig.verify(&payload[..], &auth_id),
 					"Candidate validity attestation signature is bad."
 				);
 			}
@@ -468,7 +468,7 @@ mod tests {
 	use sr_primitives::{generic, BuildStorage};
 	use sr_primitives::traits::{BlakeTwo256, IdentityLookup};
 	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey};
-	use keyring::Keyring;
+	use keyring::{AuthorityKeyring, AccountKeyring};
 	use {consensus, timestamp};
 
 	impl_outer_origin! {
@@ -496,7 +496,7 @@ mod tests {
 		type Log = ::Log;
 	}
 	impl session::Trait for Test {
-		type ConvertAccountIdToSessionKey = ::SessionKeyConversion;
+		type ConvertAccountIdToSessionKey = ();
 		type OnSessionChange = ();
 		type Event = ();
 	}
@@ -511,23 +511,33 @@ mod tests {
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
 		let authority_keys = [
-			Keyring::Alice,
-			Keyring::Bob,
-			Keyring::Charlie,
-			Keyring::Dave,
-			Keyring::Eve,
-			Keyring::Ferdie,
-			Keyring::One,
-			Keyring::Two,
+			AuthorityKeyring::Alice,
+			AuthorityKeyring::Bob,
+			AuthorityKeyring::Charlie,
+			AuthorityKeyring::Dave,
+			AuthorityKeyring::Eve,
+			AuthorityKeyring::Ferdie,
+			AuthorityKeyring::One,
+			AuthorityKeyring::Two,
+		];
+		let validator_keys = [
+			AccountKeyring::Alice,
+			AccountKeyring::Bob,
+			AccountKeyring::Charlie,
+			AccountKeyring::Dave,
+			AccountKeyring::Eve,
+			AccountKeyring::Ferdie,
+			AccountKeyring::One,
+			AccountKeyring::Two,
 		];
 
 		t.extend(consensus::GenesisConfig::<Test>{
 			code: vec![],
-			authorities: authority_keys.iter().map(|k| k.to_raw_public().into()).collect(),
+			authorities: authority_keys.iter().map(|k| SessionKey::from(*k)).collect(),
 		}.build_storage().unwrap().0);
 		t.extend(session::GenesisConfig::<Test>{
 			session_length: 1000,
-			validators: authority_keys.iter().map(|k| k.to_raw_public().into()).collect(),
+			validators: validator_keys.iter().map(|k| ::AccountId::from(*k)).collect(),
 			keys: vec![],
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
@@ -545,8 +555,8 @@ mod tests {
 		let candidate_hash = candidate.candidate.hash();
 
 		let authorities = ::Consensus::authorities();
-		let extract_key = |public: SessionKey| {
-			Keyring::from_raw_public(public.0).unwrap()
+		let extract_key = |public: &SessionKey| {
+			AuthorityKeyring::from_public(public).unwrap()
 		};
 
 		let validation_entries = duty_roster.validator_duty.iter()
@@ -556,7 +566,7 @@ mod tests {
 			if duty != Chain::Parachain(candidate.parachain_index()) { continue }
 			vote_implicit = !vote_implicit;
 
-			let key = extract_key(authorities[idx]);
+			let key = extract_key(&authorities[idx]);
 
 			let statement = if vote_implicit {
 				Statement::Candidate(candidate.candidate.clone())
@@ -567,7 +577,7 @@ mod tests {
 			let payload = localized_payload(statement, parent_hash);
 			let signature = key.sign(&payload[..]).into();
 
-			candidate.validity_votes.push((authorities[idx], if vote_implicit {
+			candidate.validity_votes.push((authorities[idx].clone(), if vote_implicit {
 				ValidityAttestation::Implicit(signature)
 			} else {
 				ValidityAttestation::Explicit(signature)

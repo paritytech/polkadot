@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-#![warn(unused_extern_crates)]
-
 //! Polkadot service. Specialized wrapper over substrate service.
 
 extern crate polkadot_availability_store as av_store;
@@ -27,7 +25,6 @@ extern crate polkadot_network;
 extern crate sr_primitives;
 extern crate substrate_primitives as primitives;
 extern crate substrate_client as client;
-extern crate substrate_keystore as keystore;
 #[macro_use]
 extern crate substrate_service as service;
 extern crate substrate_consensus_aura as aura;
@@ -46,10 +43,10 @@ pub mod chain_spec;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, AccountId, Block, Hash, BlockId};
+use polkadot_primitives::{parachain, parachain::CollatorId, Block, Hash, BlockId};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
 use polkadot_network::gossip::{self as network_gossip, Known};
-use primitives::ed25519;
+use primitives::{Pair, ed25519};
 use tokio::runtime::TaskExecutor;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
 use transaction_pool::txpool::{Pool as TransactionPool};
@@ -76,7 +73,7 @@ pub type Configuration = FactoryFullConfiguration<Factory>;
 pub struct CustomConfiguration {
 	/// Set to `Some` with a collator `AccountId` and desired parachain
 	/// if the network protocol should be started in collator mode.
-	pub collating_for: Option<(AccountId, parachain::Id)>,
+	pub collating_for: Option<(CollatorId, parachain::Id)>,
 
 	/// Intermediate state during setup. Will be removed in future. Set to `None`.
 	// FIXME: rather than putting this on the config, let's have an actual intermediate setup state
@@ -159,7 +156,7 @@ construct_service_factory! {
 	struct Factory {
 		Block = Block,
 		RuntimeApi = RuntimeApi,
-		NetworkProtocol = PolkadotProtocol { |config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for)) },
+		NetworkProtocol = PolkadotProtocol { |config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())) },
 		RuntimeDispatch = polkadot_executor::Executor,
 		FullTransactionPoolApi = TxChainApi<FullBackend<Self>, FullExecutor<Self>>
 			{ |config, client| Ok(TransactionPool::new(config, TxChainApi::new(client))) },

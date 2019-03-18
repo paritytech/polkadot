@@ -54,13 +54,13 @@ pub mod gossip;
 
 use codec::{Decode, Encode};
 use futures::sync::oneshot;
-use polkadot_primitives::{AccountId, Block, SessionKey, Hash, Header};
+use polkadot_primitives::{Block, SessionKey, Hash, Header, parachain::CollatorId};
 use polkadot_primitives::parachain::{Id as ParaId, BlockData, CandidateReceipt, Collation};
 use substrate_network::{NodeIndex, RequestId, Context, Severity};
 use substrate_network::{message, generic_message};
 use substrate_network::specialization::NetworkSpecialization as Specialization;
 use substrate_network::StatusMessage as GenericFullStatus;
-use self::validation::{LiveValidationSessions, RecentSessionKeys, InsertedRecentKey};
+use self::validation::{LiveValidationSessions, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
 
@@ -81,7 +81,7 @@ pub type NetworkService = ::substrate_network::Service<Block, PolkadotProtocol>;
 /// Status of a Polkadot node.
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct Status {
-	collating_for: Option<(AccountId, ParaId)>,
+	collating_for: Option<(CollatorId, ParaId)>,
 }
 
 struct BlockDataRequest {
@@ -128,8 +128,8 @@ impl CollatorState {
 }
 
 struct PeerInfo {
-	collating_for: Option<(AccountId, ParaId)>,
-	validator_keys: RecentSessionKeys,
+	collating_for: Option<(CollatorId, ParaId)>,
+	validator_keys: RecentValidatorIds,
 	claimed_validator: bool,
 	collator_state: CollatorState,
 }
@@ -165,7 +165,7 @@ fn send_polkadot_message(ctx: &mut Context<Block>, to: NodeIndex, message: Messa
 /// Polkadot protocol attachment for substrate.
 pub struct PolkadotProtocol {
 	peers: HashMap<NodeIndex, PeerInfo>,
-	collating_for: Option<(AccountId, ParaId)>,
+	collating_for: Option<(CollatorId, ParaId)>,
 	collators: CollatorPool,
 	validators: HashMap<SessionKey, NodeIndex>,
 	local_collations: LocalCollations<Collation>,
@@ -178,7 +178,7 @@ pub struct PolkadotProtocol {
 
 impl PolkadotProtocol {
 	/// Instantiate a polkadot protocol handler.
-	pub fn new(collating_for: Option<(AccountId, ParaId)>) -> Self {
+	pub fn new(collating_for: Option<(CollatorId, ParaId)>) -> Self {
 		PolkadotProtocol {
 			peers: HashMap::new(),
 			collators: CollatorPool::new(),
@@ -220,7 +220,7 @@ impl PolkadotProtocol {
 			for (id, peer_data) in self.peers.iter_mut()
 				.filter(|&(_, ref info)| info.should_send_key())
 			{
-				peer_data.collator_state.send_key(new_local, |msg| send_polkadot_message(
+				peer_data.collator_state.send_key(new_local.clone(), |msg| send_polkadot_message(
 					ctx,
 					*id,
 					msg
@@ -251,8 +251,8 @@ impl PolkadotProtocol {
 				}
 				Err(Some(known_keys)) => {
 					let next_peer = known_keys.iter()
-						.filter_map(|x| validator_keys.get(x).map(|id| (*x, *id)))
-						.find(|&(ref key, _)| pending.attempted_peers.insert(*key))
+						.filter_map(|x| validator_keys.get(x).map(|id| (x.clone(), *id)))
+						.find(|&(ref key, _)| pending.attempted_peers.insert(key.clone()))
 						.map(|(_, id)| id);
 
 					// dispatch to peer
@@ -323,14 +323,14 @@ impl PolkadotProtocol {
 			}
 
 			let local_collations = &mut self.local_collations;
-			let new_collations = match info.validator_keys.insert(key) {
+			let new_collations = match info.validator_keys.insert(key.clone()) {
 				InsertedRecentKey::AlreadyKnown => Vec::new(),
 				InsertedRecentKey::New(Some(old_key)) => {
 					self.validators.remove(&old_key);
 					local_collations.fresh_key(&old_key, &key)
 				}
 				InsertedRecentKey::New(None) => info.collator_state.role()
-					.map(|r| local_collations.note_validator_role(key, r))
+					.map(|r| local_collations.note_validator_role(key.clone(), r))
 					.unwrap_or_else(Vec::new),
 			};
 
@@ -418,7 +418,7 @@ impl Specialization<Block> for PolkadotProtocol {
 		let validator = status.roles.contains(substrate_network::config::Roles::AUTHORITY);
 
 		let mut peer_info = PeerInfo {
-			collating_for: local_status.collating_for,
+			collating_for: local_status.collating_for.clone(),
 			validator_keys: Default::default(),
 			claimed_validator: validator,
 			collator_state: CollatorState::Fresh,
@@ -442,7 +442,7 @@ impl Specialization<Block> for PolkadotProtocol {
 		// send session keys.
 		if peer_info.should_send_key() {
 			for local_session_key in self.live_validation_sessions.recent_keys() {
-				peer_info.collator_state.send_key(*local_session_key, |msg| send_polkadot_message(
+				peer_info.collator_state.send_key(local_session_key.clone(), |msg| send_polkadot_message(
 					ctx,
 					who,
 					msg,
@@ -544,7 +544,7 @@ impl PolkadotProtocol {
 	// we received a collation from a peer
 	fn on_collation(&mut self, ctx: &mut Context<Block>, from: NodeIndex, relay_parent: Hash, collation: Collation) {
 		let collation_para = collation.receipt.parachain_index;
-		let collated_acc = collation.receipt.collator;
+		let collated_acc = collation.receipt.collator.clone();
 
 		match self.peers.get(&from) {
 			None => ctx.report_peer(from, Severity::Useless("Unknown Polkadot specific reason".to_string())),
@@ -571,11 +571,11 @@ impl PolkadotProtocol {
 	}
 
 	// get connected peer with given account ID for collation.
-	fn collator_peer(&mut self, account_id: AccountId) -> Option<(NodeIndex, &mut PeerInfo)> {
+	fn collator_peer(&mut self, collator_id: CollatorId) -> Option<(NodeIndex, &mut PeerInfo)> {
 		let check_info = |info: &PeerInfo| info
 			.collating_for
 			.as_ref()
-			.map_or(false, |&(ref acc_id, _)| acc_id == &account_id);
+			.map_or(false, |&(ref acc_id, _)| acc_id == &collator_id);
 
 		self.peers
 			.iter_mut()
@@ -585,8 +585,8 @@ impl PolkadotProtocol {
 	}
 
 	// disconnect a collator by account-id.
-	fn disconnect_bad_collator(&mut self, ctx: &mut Context<Block>, account_id: AccountId) {
-		if let Some((who, _)) = self.collator_peer(account_id) {
+	fn disconnect_bad_collator(&mut self, ctx: &mut Context<Block>, collator_id: CollatorId) {
+		if let Some((who, _)) = self.collator_peer(collator_id) {
 			ctx.report_peer(who, Severity::Bad("Consensus layer determined the given collator misbehaved".to_string()))
 		}
 	}
