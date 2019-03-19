@@ -16,9 +16,8 @@
 
 //! Bridge between the network and consensus service for getting collations to it.
 
-use polkadot_primitives::{AccountId, Hash};
+use polkadot_primitives::{parachain::CollatorId, Hash};
 use polkadot_primitives::parachain::{Id as ParaId, Collation};
-
 use futures::sync::oneshot;
 
 use std::collections::hash_map::{HashMap, Entry};
@@ -40,9 +39,9 @@ pub enum Role {
 #[allow(dead_code)]
 pub enum Action {
 	/// Disconnect the given collator.
-	Disconnect(AccountId),
+	Disconnect(CollatorId),
 	/// Give the collator a new role.
-	NewRole(AccountId, Role),
+	NewRole(CollatorId, Role),
 }
 
 struct CollationSlot {
@@ -111,13 +110,13 @@ impl SlotEntries {
 }
 
 struct ParachainCollators {
-	primary: AccountId,
-	backup: Vec<AccountId>,
+	primary: CollatorId,
+	backup: Vec<CollatorId>,
 }
 
 /// Manages connected collators and role assignments from the perspective of a validator.
 pub struct CollatorPool {
-	collators: HashMap<AccountId, ParaId>,
+	collators: HashMap<CollatorId, ParaId>,
 	parachain_collators: HashMap<ParaId, ParachainCollators>,
 	collations: HashMap<(Hash, ParaId), CollationSlot>,
 }
@@ -133,19 +132,19 @@ impl CollatorPool {
 	}
 
 	/// Call when a new collator is authenticated. Returns the role.
-	pub fn on_new_collator(&mut self, account_id: AccountId, para_id: ParaId) -> Role {
-		self.collators.insert(account_id.clone(), para_id);
+	pub fn on_new_collator(&mut self, collator_id: CollatorId, para_id: ParaId) -> Role {
+		self.collators.insert(collator_id.clone(), para_id);
 		match self.parachain_collators.entry(para_id) {
 			Entry::Vacant(vacant) => {
 				vacant.insert(ParachainCollators {
-					primary: account_id,
+					primary: collator_id,
 					backup: Vec::new(),
 				});
 
 				Role::Primary
 			},
 			Entry::Occupied(mut occupied) => {
-				occupied.get_mut().backup.push(account_id);
+				occupied.get_mut().backup.push(collator_id);
 
 				Role::Backup
 			}
@@ -154,21 +153,21 @@ impl CollatorPool {
 
 	/// Called when a collator disconnects. If it was the primary, returns a new primary for that
 	/// parachain.
-	pub fn on_disconnect(&mut self, account_id: AccountId) -> Option<AccountId> {
-		self.collators.remove(&account_id).and_then(|para_id| match self.parachain_collators.entry(para_id) {
+	pub fn on_disconnect(&mut self, collator_id: CollatorId) -> Option<CollatorId> {
+		self.collators.remove(&collator_id).and_then(|para_id| match self.parachain_collators.entry(para_id) {
 			Entry::Vacant(_) => None,
 			Entry::Occupied(mut occ) => {
-				if occ.get().primary == account_id {
+				if occ.get().primary == collator_id {
 					if occ.get().backup.is_empty() {
 						occ.remove();
 						None
 					} else {
 						let mut collators = occ.get_mut();
 						collators.primary = collators.backup.pop().expect("backup non-empty; qed");
-						Some(collators.primary)
+						Some(collators.primary.clone())
 					}
 				} else {
-					let pos = occ.get().backup.iter().position(|a| a == &account_id)
+					let pos = occ.get().backup.iter().position(|a| a == &collator_id)
 						.expect("registered collator always present in backup if not primary; qed");
 
 					occ.get_mut().backup.remove(pos);
@@ -181,8 +180,8 @@ impl CollatorPool {
 	/// Called when a collation is received.
 	/// The collator should be registered for the parachain of the collation as a precondition of this function.
 	/// The collation should have been checked for integrity of signature before passing to this function.
-	pub fn on_collation(&mut self, account_id: AccountId, relay_parent: Hash, collation: Collation) {
-		if let Some(para_id) = self.collators.get(&account_id) {
+	pub fn on_collation(&mut self, collator_id: CollatorId, relay_parent: Hash, collation: Collation) {
+		if let Some(para_id) = self.collators.get(&collator_id) {
 			debug_assert_eq!(para_id, &collation.receipt.parachain_index);
 
 			// TODO: punish if not primary?
@@ -219,20 +218,20 @@ impl CollatorPool {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use substrate_primitives::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{CandidateReceipt, BlockData, HeadData};
-	use substrate_primitives::H512;
 	use futures::Future;
 
 	#[test]
 	fn disconnect_primary_gives_new_primary() {
 		let mut pool = CollatorPool::new();
 		let para_id: ParaId = 5.into();
-		let bad_primary = [0; 32].into();
-		let good_backup = [1; 32].into();
+		let bad_primary: CollatorId = [0; 32].unchecked_into();
+		let good_backup: CollatorId = [1; 32].unchecked_into();
 
-		assert_eq!(pool.on_new_collator(bad_primary, para_id.clone()), Role::Primary);
-		assert_eq!(pool.on_new_collator(good_backup, para_id.clone()), Role::Backup);
-		assert_eq!(pool.on_disconnect(bad_primary), Some(good_backup));
+		assert_eq!(pool.on_new_collator(bad_primary.clone(), para_id.clone()), Role::Primary);
+		assert_eq!(pool.on_new_collator(good_backup.clone(), para_id.clone()), Role::Backup);
+		assert_eq!(pool.on_disconnect(bad_primary), Some(good_backup.clone()));
 		assert_eq!(pool.on_disconnect(good_backup), None);
 	}
 
@@ -240,11 +239,11 @@ mod tests {
 	fn disconnect_backup_removes_from_pool() {
 		let mut pool = CollatorPool::new();
 		let para_id: ParaId = 5.into();
-		let primary = [0; 32].into();
-		let backup = [1; 32].into();
+		let primary = [0; 32].unchecked_into();
+		let backup: CollatorId = [1; 32].unchecked_into();
 
 		assert_eq!(pool.on_new_collator(primary, para_id.clone()), Role::Primary);
-		assert_eq!(pool.on_new_collator(backup, para_id.clone()), Role::Backup);
+		assert_eq!(pool.on_new_collator(backup.clone(), para_id.clone()), Role::Backup);
 		assert_eq!(pool.on_disconnect(backup), None);
 		assert!(pool.parachain_collators.get(&para_id).unwrap().backup.is_empty());
 	}
@@ -253,19 +252,19 @@ mod tests {
 	fn await_before_collation() {
 		let mut pool = CollatorPool::new();
 		let para_id: ParaId = 5.into();
-		let primary = [0; 32].into();
+		let primary: CollatorId = [0; 32].unchecked_into();
 		let relay_parent = [1; 32].into();
 
-		assert_eq!(pool.on_new_collator(primary, para_id.clone()), Role::Primary);
+		assert_eq!(pool.on_new_collator(primary.clone(), para_id.clone()), Role::Primary);
 		let (tx1, rx1) = oneshot::channel();
 		let (tx2, rx2) = oneshot::channel();
 		pool.await_collation(relay_parent, para_id, tx1);
 		pool.await_collation(relay_parent, para_id, tx2);
-		pool.on_collation(primary, relay_parent, Collation {
+		pool.on_collation(primary.clone(), relay_parent, Collation {
 			receipt: CandidateReceipt {
 				parachain_index: para_id,
 				collator: primary.into(),
-				signature: H512::from([2; 64]).into(),
+				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
 				balance_uploads: vec![],
 				egress_queue_roots: vec![],
@@ -283,16 +282,16 @@ mod tests {
 	fn collate_before_await() {
 		let mut pool = CollatorPool::new();
 		let para_id: ParaId = 5.into();
-		let primary = [0; 32].into();
+		let primary: CollatorId = [0; 32].unchecked_into();
 		let relay_parent = [1; 32].into();
 
-		assert_eq!(pool.on_new_collator(primary, para_id.clone()), Role::Primary);
+		assert_eq!(pool.on_new_collator(primary.clone(), para_id.clone()), Role::Primary);
 
-		pool.on_collation(primary, relay_parent, Collation {
+		pool.on_collation(primary.clone(), relay_parent, Collation {
 			receipt: CandidateReceipt {
 				parachain_index: para_id,
-				collator: primary.into(),
-				signature: H512::from([2; 64]).into(),
+				collator: primary,
+				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
 				balance_uploads: vec![],
 				egress_queue_roots: vec![],

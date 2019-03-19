@@ -18,17 +18,30 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
-use super::{Hash, SessionKey};
-
-use {AccountId};
-
+use super::Hash;
 #[cfg(feature = "std")]
 use primitives::bytes;
+use primitives::ed25519;
 
 pub use polkadot_parachain::Id;
 
-/// Signature on candidate's block data by a collator.
-pub type CandidateSignature = ::runtime_primitives::Ed25519Signature;
+/// Identity that collators use.
+pub type CollatorId = ed25519::Public;
+
+/// Signature with which collators sign blocks.
+pub type CollatorSignature = ed25519::Signature;
+
+/// Identity that parachain validators use when signing validation messages.
+///
+/// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
+/// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
+pub type ValidatorId = super::SessionKey;
+
+/// Signature with which parachain validators sign blocks.
+///
+/// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
+/// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
+pub type ValidatorSignature = super::SessionSignature;
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
 #[derive(Copy, Clone, PartialEq, Encode, Decode)]
@@ -89,16 +102,14 @@ pub struct Extrinsic {
 
 /// Candidate receipt type.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
-#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct CandidateReceipt {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
-	/// The collator's relay-chain account ID
-	pub collator: super::AccountId,
+	/// The collator's signing ID
+	pub collator: CollatorId,
 	/// Signature on blake2-256 of the block data by collator.
-	pub signature: CandidateSignature,
+	pub signature: CollatorSignature,
 	/// The head-data
 	pub head_data: HeadData,
 	/// Balance uploads to the relay chain.
@@ -147,9 +158,7 @@ impl Ord for CandidateReceipt {
 
 /// A full collation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
-#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct Collation {
 	/// Block data.
 	pub block_data: BlockData,
@@ -228,11 +237,11 @@ pub enum ValidityAttestation {
 	/// implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
 	#[codec(index = "1")]
-	Implicit(CandidateSignature),
+	Implicit(CollatorSignature),
 	/// An explicit attestation. This corresponds to issuance of a
 	/// `Valid` statement.
 	#[codec(index = "2")]
-	Explicit(CandidateSignature),
+	Explicit(CollatorSignature),
 }
 
 /// An attested candidate.
@@ -242,7 +251,7 @@ pub struct AttestedCandidate {
 	/// The candidate data.
 	pub candidate: CandidateReceipt,
 	/// Validity attestations.
-	pub validity_votes: Vec<(SessionKey, ValidityAttestation)>,
+	pub validity_votes: Vec<(ValidatorId, ValidityAttestation)>,
 }
 
 impl AttestedCandidate {
@@ -261,7 +270,7 @@ decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost {
 		/// Get the current validators.
-		fn validators() -> Vec<AccountId>;
+		fn validators() -> Vec<ValidatorId>;
 		/// Get the current duty roster.
 		fn duty_roster() -> DutyRoster;
 		/// Get the currently active parachains.

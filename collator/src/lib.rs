@@ -69,8 +69,8 @@ use std::time::Duration;
 
 use futures::{future, Stream, Future, IntoFuture};
 use client::BlockchainEvents;
-use primitives::ed25519;
-use polkadot_primitives::{AccountId, Block, BlockId, Hash, SessionKey};
+use primitives::{ed25519, Pair};
+use polkadot_primitives::{BlockId, SessionKey, Hash, Block};
 use polkadot_primitives::parachain::{self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic};
 use polkadot_cli::{PolkadotService, CustomConfiguration, CoreApi, ParachainHost};
 use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi, TaskExecutor};
@@ -132,11 +132,6 @@ pub trait RelayChainContext {
 	fn unrouted_egress(&self, id: ParaId) -> Self::FutureEgress;
 }
 
-fn key_to_account_id(key: &ed25519::Pair) -> AccountId {
-	let pubkey_bytes: [u8; 32] = key.public().into();
-	pubkey_bytes.into()
-}
-
 /// Produce a candidate for the parachain, with given contexts, parent head, and signing key.
 pub fn collate<'a, R, P>(
 	local_id: ParaId,
@@ -166,7 +161,7 @@ pub fn collate<'a, R, P>(
 
 		let receipt = parachain::CandidateReceipt {
 			parachain_index: local_id,
-			collator: key_to_account_id(&*key),
+			collator: key.public(),
 			signature,
 			head_data,
 			balance_uploads: Vec::new(),
@@ -241,7 +236,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 	fn configuration(&self) -> CustomConfiguration {
 		let mut config = CustomConfiguration::default();
 		config.collating_for = Some((
-			key_to_account_id(&*self.key),
+			self.key.public(),
 			self.para_id.clone(),
 		));
 		config
@@ -400,7 +395,7 @@ pub fn run_collator<P, E, I, ArgT>(
 mod tests {
 	use std::collections::HashMap;
 	use polkadot_primitives::parachain::OutgoingMessage;
-	use keyring::Keyring;
+	use keyring::AuthorityKeyring;
 	use super::*;
 
 	#[derive(Default, Clone)]
@@ -479,7 +474,7 @@ mod tests {
 			HeadData(vec![5]),
 			context.clone(),
 			DummyParachainContext,
-			Keyring::Alice.pair().into(),
+			AuthorityKeyring::Alice.pair().into(),
 		).wait().unwrap();
 
 		// ascending order by root.

@@ -18,13 +18,14 @@
 
 use validation::NetworkService;
 use substrate_network::Context as NetContext;
-use substrate_primitives::{Ed25519AuthorityId, NativeOrEncoded};
-use substrate_keyring::Keyring;
+use substrate_primitives::NativeOrEncoded;
+use substrate_keyring::AuthorityKeyring;
 use {PolkadotProtocol};
 
 use polkadot_validation::{SharedTable, MessagesFrom, Network, TableRouter};
-use polkadot_primitives::{AccountId, Block, Hash, Header, BlockId};
-use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage};
+use polkadot_primitives::{SessionKey, Block, Hash, Header, BlockId};
+use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
+	ValidatorId};
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
 use substrate_client::runtime_api::{Core, RuntimeVersion, ApiExt};
@@ -154,7 +155,7 @@ impl NetworkService for TestNetwork {
 
 #[derive(Default)]
 struct ApiData {
-	validators: Vec<AccountId>,
+	validators: Vec<ValidatorId>,
 	duties: Vec<Chain>,
 	active_parachains: Vec<ParaId>,
 	ingress: HashMap<ParaId, Vec<(ParaId, Hash)>>,
@@ -194,7 +195,7 @@ impl Core<Block> for RuntimeApi {
 		_: ExecutionContext,
 		_: Option<()>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Vec<Ed25519AuthorityId>>> {
+	) -> ClientResult<NativeOrEncoded<Vec<SessionKey>>> {
 		unimplemented!("Not required for testing!")
 	}
 
@@ -239,7 +240,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: ExecutionContext,
 		_: Option<()>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Vec<AccountId>>> {
+	) -> ClientResult<NativeOrEncoded<Vec<ValidatorId>>> {
 		Ok(NativeOrEncoded::Native(self.data.lock().validators.clone()))
 	}
 
@@ -372,15 +373,14 @@ impl IngressBuilder {
 	}
 }
 
-fn make_table(data: &ApiData, local_key: &Keyring, parent_hash: Hash) -> Arc<SharedTable> {
+fn make_table(data: &ApiData, local_key: &AuthorityKeyring, parent_hash: Hash) -> Arc<SharedTable> {
 	use ::av_store::Store;
 
 	let store = Store::new_in_memory();
-	let authorities: Vec<_> = data.validators.iter().map(|v| v.to_fixed_bytes().into()).collect();
 	let (group_info, _) = ::polkadot_validation::make_group_info(
 		DutyRoster { validator_duty: data.duties.clone() },
-		&authorities,
-		local_key.to_raw_public().into()
+		&data.validators, // only possible as long as parachain crypto === aura crypto
+		SessionKey::from(*local_key)
 	).unwrap();
 
 	Arc::new(SharedTable::new(
@@ -400,9 +400,9 @@ fn ingress_fetch_works() {
 	let id_b: ParaId = 2.into();
 	let id_c: ParaId = 3.into();
 
-	let key_a = Keyring::Alice;
-	let key_b = Keyring::Bob;
-	let key_c = Keyring::Charlie;
+	let key_a = AuthorityKeyring::Alice;
+	let key_b = AuthorityKeyring::Bob;
+	let key_c = AuthorityKeyring::Charlie;
 
 	let messages_from_a = vec![
 		OutgoingMessage { target: id_b, data: vec![1, 2, 3] },
@@ -432,16 +432,16 @@ fn ingress_fetch_works() {
 	let parent_hash = [1; 32].into();
 
 	let (router_a, router_b, router_c) = {
-		let validators: Vec<Hash> = vec![
-			key_a.to_raw_public().into(),
-			key_b.to_raw_public().into(),
-			key_c.to_raw_public().into(),
+		let validators: Vec<ValidatorId> = vec![
+			key_a.into(),
+			key_b.into(),
+			key_c.into(),
 		];
 
-		let authorities: Vec<_> = validators.iter().cloned()
-			.map(|h| h.to_fixed_bytes())
-			.map(Ed25519AuthorityId)
-			.collect();
+		// NOTE: this is possible only because we are currently asserting that parachain validators
+		// share their crypto with the (Aura) authority set. Once that assumption breaks, so will this
+		// code.
+		let authorities = validators.clone();
 
 		let mut api_handle = built.api_handle.lock();
 		*api_handle = ApiData {
