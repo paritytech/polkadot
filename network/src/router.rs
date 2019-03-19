@@ -197,6 +197,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 						attestation_topic,
 						POLKADOT_ENGINE_ID,
 						signed.encode(),
+						false,
 					);
 				}
 
@@ -206,6 +207,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static> Router<P>
 						attestation_topic,
 						POLKADOT_ENGINE_ID,
 						signed.encode(),
+						false,
 					);
 				}
 			})
@@ -230,12 +232,14 @@ impl<P: ProvideRuntimeApi + Send> TableRouter for Router<P>
 			self.attestation_topic,
 			POLKADOT_ENGINE_ID,
 			candidate.encode(),
+			false,
 		);
 		if let Some(availability) = availability {
 			self.network.gossip_consensus_message(
 				self.attestation_topic,
 				POLKADOT_ENGINE_ID,
 				availability.encode(),
+				false,
 			);
 		}
 	}
@@ -321,9 +325,9 @@ impl DeferredStatements {
 	fn push(&mut self, statement: SignedStatement) {
 		let (hash, trace) = match statement.statement {
 			GenericStatement::Candidate(_) => return,
-			GenericStatement::Valid(hash) => (hash, StatementTrace::Valid(statement.sender, hash)),
-			GenericStatement::Invalid(hash) => (hash, StatementTrace::Invalid(statement.sender, hash)),
-			GenericStatement::Available(hash) => (hash, StatementTrace::Available(statement.sender, hash)),
+			GenericStatement::Valid(hash) => (hash, StatementTrace::Valid(statement.sender.clone(), hash)),
+			GenericStatement::Invalid(hash) => (hash, StatementTrace::Invalid(statement.sender.clone(), hash)),
+			GenericStatement::Available(hash) => (hash, StatementTrace::Available(statement.sender.clone(), hash)),
 		};
 
 		if self.known_traces.insert(trace) {
@@ -339,9 +343,9 @@ impl DeferredStatements {
 				for statement in deferred.iter() {
 					let trace = match statement.statement {
 						GenericStatement::Candidate(_) => continue,
-						GenericStatement::Valid(hash) => StatementTrace::Valid(statement.sender, hash),
-						GenericStatement::Invalid(hash) => StatementTrace::Invalid(statement.sender, hash),
-						GenericStatement::Available(hash) => StatementTrace::Available(statement.sender, hash),
+						GenericStatement::Valid(hash) => StatementTrace::Valid(statement.sender.clone(), hash),
+						GenericStatement::Invalid(hash) => StatementTrace::Invalid(statement.sender.clone(), hash),
+						GenericStatement::Available(hash) => StatementTrace::Available(statement.sender.clone(), hash),
 					};
 
 					self.known_traces.remove(&trace);
@@ -357,18 +361,19 @@ impl DeferredStatements {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_primitives::H512;
+	use substrate_primitives::crypto::UncheckedInto;
+	use polkadot_primitives::parachain::ValidatorId;
 
 	#[test]
 	fn deferred_statements_works() {
 		let mut deferred = DeferredStatements::new();
 		let hash = [1; 32].into();
-		let sig = H512::from([2; 64]).into();
-		let sender = [255; 32].into();
+		let sig = Default::default();
+		let sender: ValidatorId = [255; 32].unchecked_into();
 
 		let statement = SignedStatement {
 			statement: GenericStatement::Valid(hash),
-			sender,
+			sender: sender.clone(),
 			signature: sig,
 		};
 

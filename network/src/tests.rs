@@ -22,8 +22,8 @@ use consensus::{CurrentConsensus, Knowledge};
 use parking_lot::Mutex;
 use polkadot_consensus::GenericStatement;
 use polkadot_primitives::{Block, SessionKey};
-use polkadot_primitives::parachain::{CandidateReceipt, HeadData, BlockData};
-use substrate_primitives::H512;
+use polkadot_primitives::parachain::{CandidateReceipt, CollatorId, HeadData, BlockData};
+use substrate_primitives::crypto::UncheckedInto;
 use codec::Encode;
 use substrate_network::{
 	Severity, NodeIndex, PeerInfo, ClientHandle, Context, config::Roles,
@@ -105,10 +105,10 @@ fn sends_session_key() {
 	let peer_a = 1;
 	let peer_b = 2;
 	let parent_hash = [0; 32].into();
-	let local_key = [1; 32].into();
+	let local_key: SessionKey = [1; 32].unchecked_into();
 
 	let validator_status = Status { collating_for: None };
-	let collator_status = Status { collating_for: Some(([2; 32].into(), 5.into())) };
+	let collator_status = Status { collating_for: Some(([2; 32].unchecked_into(), 5.into())) };
 
 	{
 		let mut ctx = TestContext::default();
@@ -118,9 +118,9 @@ fn sends_session_key() {
 
 	{
 		let mut ctx = TestContext::default();
-		let (consensus, _knowledge) = make_consensus(local_key);
+		let (consensus, _knowledge) = make_consensus(local_key.clone());
 		protocol.new_consensus(&mut ctx, parent_hash, consensus);
-		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key)));
+		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key.clone())));
 	}
 
 	{
@@ -137,15 +137,15 @@ fn fetches_from_those_with_knowledge() {
 	let peer_a = 1;
 	let peer_b = 2;
 	let parent_hash = [0; 32].into();
-	let local_key = [1; 32].into();
+	let local_key: SessionKey = [1; 32].unchecked_into();
 
 	let block_data = BlockData(vec![1, 2, 3, 4]);
 	let block_data_hash = block_data.hash();
 	let candidate_receipt = CandidateReceipt {
 		parachain_index: 5.into(),
-		collator: [255; 32].into(),
+		collator: [255; 32].unchecked_into(),
 		head_data: HeadData(vec![9, 9, 9]),
-		signature: H512::from([1; 64]).into(),
+		signature: Default::default(),
 		balance_uploads: Vec::new(),
 		egress_queue_roots: Vec::new(),
 		fees: 1_000_000,
@@ -153,15 +153,15 @@ fn fetches_from_those_with_knowledge() {
 	};
 
 	let candidate_hash = candidate_receipt.hash();
-	let a_key = [3; 32].into();
-	let b_key = [4; 32].into();
+	let a_key: SessionKey = [3; 32].unchecked_into();
+	let b_key: SessionKey = [4; 32].unchecked_into();
 
 	let status = Status { collating_for: None };
 
-	let (consensus, knowledge) = make_consensus(local_key);
+	let (consensus, knowledge) = make_consensus(local_key.clone());
 	protocol.new_consensus(&mut TestContext::default(), parent_hash, consensus);
 
-	knowledge.lock().note_statement(a_key, &GenericStatement::Valid(candidate_hash));
+	knowledge.lock().note_statement(a_key.clone(), &GenericStatement::Valid(candidate_hash));
 	let recv = protocol.fetch_block_data(&mut TestContext::default(), &candidate_receipt, parent_hash);
 
 	// connect peer A
@@ -174,18 +174,18 @@ fn fetches_from_those_with_knowledge() {
 	// peer A gives session key and gets asked for data.
 	{
 		let mut ctx = TestContext::default();
-		on_message(&mut protocol, &mut ctx, peer_a, Message::SessionKey(a_key));
+		on_message(&mut protocol, &mut ctx, peer_a, Message::SessionKey(a_key.clone()));
 		assert!(protocol.validators.contains_key(&a_key));
 		assert!(ctx.has_message(peer_a, Message::RequestBlockData(1, parent_hash, candidate_hash)));
 	}
 
-	knowledge.lock().note_statement(b_key, &GenericStatement::Valid(candidate_hash));
+	knowledge.lock().note_statement(b_key.clone(), &GenericStatement::Valid(candidate_hash));
 
 	// peer B connects and sends session key. request already assigned to A
 	{
 		let mut ctx = TestContext::default();
 		protocol.on_connect(&mut ctx, peer_b, make_status(&status, Roles::AUTHORITY));
-		on_message(&mut protocol, &mut ctx, peer_b, Message::SessionKey(b_key));
+		on_message(&mut protocol, &mut ctx, peer_b, Message::SessionKey(b_key.clone()));
 		assert!(!ctx.has_message(peer_b, Message::RequestBlockData(2, parent_hash, candidate_hash)));
 
 	}
@@ -219,9 +219,9 @@ fn fetches_available_block_data() {
 	let para_id = 5.into();
 	let candidate_receipt = CandidateReceipt {
 		parachain_index: para_id,
-		collator: [255; 32].into(),
+		collator: [255; 32].unchecked_into(),
 		head_data: HeadData(vec![9, 9, 9]),
-		signature: H512::from([1; 64]).into(),
+		signature: Default::default(),
 		balance_uploads: Vec::new(),
 		egress_queue_roots: Vec::new(),
 		fees: 1_000_000,
@@ -262,9 +262,9 @@ fn remove_bad_collator() {
 	let mut protocol = PolkadotProtocol::new(None);
 
 	let who = 1;
-	let account_id = [2; 32].into();
+	let account_id: CollatorId = [2; 32].unchecked_into();
 
-	let status = Status { collating_for: Some((account_id, 5.into())) };
+	let status = Status { collating_for: Some((account_id.clone(), 5.into())) };
 
 	{
 		let mut ctx = TestContext::default();
@@ -285,16 +285,16 @@ fn many_session_keys() {
 	let parent_a = [1; 32].into();
 	let parent_b = [2; 32].into();
 
-	let local_key_a = [3; 32].into();
-	let local_key_b = [4; 32].into();
+	let local_key_a: SessionKey = [3; 32].unchecked_into();
+	let local_key_b: SessionKey = [4; 32].unchecked_into();
 
-	let (consensus_a, _knowledge_a) = make_consensus(local_key_a);
-	let (consensus_b, _knowledge_b) = make_consensus(local_key_b);
+	let (consensus_a, _knowledge_a) = make_consensus(local_key_a.clone());
+	let (consensus_b, _knowledge_b) = make_consensus(local_key_b.clone());
 
 	protocol.new_consensus(&mut TestContext::default(), parent_a, consensus_a);
 	protocol.new_consensus(&mut TestContext::default(), parent_b, consensus_b);
 
-	assert_eq!(protocol.live_consensus.recent_keys(), &[local_key_a, local_key_b]);
+	assert_eq!(protocol.live_consensus.recent_keys(), &[local_key_a.clone(), local_key_b.clone()]);
 
 	let peer_a = 1;
 
@@ -305,8 +305,8 @@ fn many_session_keys() {
 		let status = Status { collating_for: None };
 		protocol.on_connect(&mut ctx, peer_a, make_status(&status, Roles::AUTHORITY));
 
-		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_a)));
-		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_b)));
+		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_a.clone())));
+		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_b.clone())));
 	}
 
 	let peer_b = 2;
@@ -319,7 +319,7 @@ fn many_session_keys() {
 		let status = Status { collating_for: None };
 		protocol.on_connect(&mut ctx, peer_b, make_status(&status, Roles::AUTHORITY));
 
-		assert!(!ctx.has_message(peer_b, Message::SessionKey(local_key_a)));
-		assert!(ctx.has_message(peer_b, Message::SessionKey(local_key_b)));
+		assert!(!ctx.has_message(peer_b, Message::SessionKey(local_key_a.clone())));
+		assert!(ctx.has_message(peer_b, Message::SessionKey(local_key_b.clone())));
 	}
 }

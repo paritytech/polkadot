@@ -27,4 +27,3 @@ substrate-inherents = { git = "https://github.com/paritytech/substrate" }
 substrate-service = { git = "https://github.com/paritytech/substrate" }
 substrate-telemetry = { git = "https://github.com/paritytech/substrate" }
 substrate-transaction-pool = { git = "https://github.com/paritytech/substrate" }
-substrate-keystore = { git = "https://github.com/paritytech/substrate" }

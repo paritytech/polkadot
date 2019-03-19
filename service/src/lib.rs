@@ -34,7 +34,6 @@ extern crate substrate_consensus_aura as aura;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
 extern crate substrate_telemetry as telemetry;
-extern crate substrate_keystore as keystore;
 extern crate tokio;
 
 #[macro_use]
@@ -46,10 +45,10 @@ pub mod chain_spec;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, AccountId, Block, Hash, BlockId};
+use polkadot_primitives::{parachain, Block, Hash, BlockId};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
 use polkadot_network::gossip::{self as network_gossip, Known};
-use primitives::ed25519;
+use primitives::{ed25519, Pair};
 use tokio::runtime::TaskExecutor;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
 use transaction_pool::txpool::{Pool as TransactionPool};
@@ -63,7 +62,7 @@ pub use service::{
 pub use service::config::full_version_from_strs;
 pub use client::{backend::Backend, runtime_api::Core as CoreApi, ExecutionStrategy};
 pub use polkadot_network::{PolkadotProtocol, NetworkService};
-pub use polkadot_primitives::parachain::ParachainHost;
+pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use primitives::{Blake2Hasher};
 pub use sr_primitives::traits::ProvideRuntimeApi;
 pub use chain_spec::ChainSpec;
@@ -74,9 +73,9 @@ pub type Configuration = FactoryFullConfiguration<Factory>;
 /// Polkadot-specific configuration.
 #[derive(Default)]
 pub struct CustomConfiguration {
-	/// Set to `Some` with a collator `AccountId` and desired parachain
+	/// Set to `Some` with a collator `CollatorId` and desired parachain
 	/// if the network protocol should be started in collator mode.
-	pub collating_for: Option<(AccountId, parachain::Id)>,
+	pub collating_for: Option<(CollatorId, parachain::Id)>,
 
 	/// Intermediate state during setup. Will be removed in future. Set to `None`.
 	// FIXME: rather than putting this on the config, let's have an actual intermediate setup state
@@ -149,7 +148,9 @@ construct_service_factory! {
 	struct Factory {
 		Block = Block,
 		RuntimeApi = RuntimeApi,
-		NetworkProtocol = PolkadotProtocol { |config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for)) },
+		NetworkProtocol = PolkadotProtocol {
+			|config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for.clone()))
+		},
 		RuntimeDispatch = polkadot_executor::Executor,
 		FullTransactionPoolApi = TxChainApi<FullBackend<Self>, FullExecutor<Self>>
 			{ |config, client| Ok(TransactionPool::new(config, TxChainApi::new(client))) },
