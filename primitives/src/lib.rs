@@ -44,8 +44,8 @@ extern crate serde;
 extern crate substrate_client;
 
 use rstd::prelude::*;
-use primitives::{ed25519, sr25519};
-use runtime_primitives::{generic, traits::Extrinsic};
+use primitives::ed25519;
+use runtime_primitives::{generic, traits::Extrinsic, AnySignature};
 
 pub mod parachain;
 
@@ -60,8 +60,12 @@ use primitives::bytes;
 /// TODO: switch to u32
 pub type BlockNumber = u64;
 
-/// Alias to a schnorr-ristretto pubkey that identifies an account on the relay chain.
-pub type AccountId = sr25519::Public;
+/// Alias to 512-bit hash when used in the context of a signature on the relay chain.
+/// Equipped with logic for possibly "unsigned" messages.
+pub type Signature = AnySignature;
+
+/// Alias to an sr25519 or ed25519 key.
+pub type AccountId = <Signature as Verify>::Signer;
 
 /// The type for looking up accounts. We don't expect more than 4 billion of them, but you
 /// never know...
@@ -75,10 +79,6 @@ pub type Hash = primitives::H256;
 
 /// Index of a transaction in the relay chain. 32-bit should be plenty.
 pub type Nonce = u64;
-
-/// Alias to 512-bit hash when used in the context of a signature on the relay chain.
-/// Equipped with logic for possibly "unsigned" messages.
-pub type Signature = sr25519::Signature;
 
 /// Signature with which authorities sign blocks.
 pub type SessionSignature = ed25519::Signature;
