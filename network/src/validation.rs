@@ -408,7 +408,7 @@ pub(crate) struct ValidationSession {
 	parent_hash: Hash,
 	knowledge: Arc<Mutex<Knowledge>>,
 	local_session_key: Option<ValidatorId>,
-	fetch_incoming: Arc<Mutex<HashMap<ParaId, IncomingReceiver>>>,
+	fetch_incoming: Arc<Mutex<FetchIncoming>>,
 }
 
 impl ValidationSession {
@@ -419,7 +419,7 @@ impl ValidationSession {
 			parent_hash: params.parent_hash,
 			knowledge: Arc::new(Mutex::new(Knowledge::new())),
 			local_session_key: params.local_session_key,
-			fetch_incoming: Arc::new(Mutex::new(HashMap::new())),
+			fetch_incoming: Arc::new(Mutex::new(FetchIncoming::new())),
 		}
 	}
 
@@ -430,7 +430,7 @@ impl ValidationSession {
 	}
 
 	/// Get a handle to the shared list of parachains' incoming data fetch.
-	pub(crate) fn fetched_incoming(&self) -> &Arc<Mutex<HashMap<ParaId, IncomingReceiver>>> {
+	pub(crate) fn fetched_incoming(&self) -> &Arc<Mutex<FetchIncoming>> {
 		&self.fetch_incoming
 	}
 
@@ -498,8 +498,8 @@ impl RecentValidatorIds {
 pub(crate) struct LiveValidationSessions {
 	// recent local session keys.
 	recent: RecentValidatorIds,
-	// live validation session instances, on `parent_hash`.
-	live_instances: HashMap<Hash, ValidationSession>,
+	// live validation session instances, on `parent_hash`. refcount retained alongside.
+	live_instances: HashMap<Hash, (usize, ValidationSession)>,
 }
 
 impl LiveValidationSessions {
@@ -534,34 +534,53 @@ impl LiveValidationSessions {
 			}
 		};
 
-		if let Some(prev) = self.live_instances.get_mut(&parent_hash) {
+		if let Some(&mut (ref mut rc, ref mut prev)) = self.live_instances.get_mut(&parent_hash) {
 			let maybe_new = if prev.local_session_key.is_none() {
 				prev.local_session_key = key.clone();
 				check_new_key()
 			} else {
 				None
 			};
+
+			*rc += 1;
 			return (prev.clone(), maybe_new)
 		}
 
 		let session = ValidationSession::new(params);
-		self.live_instances.insert(parent_hash, session.clone());
+		self.live_instances.insert(parent_hash, (1, session.clone()));
 
 		(session, check_new_key())
 	}
 
-	/// Remove validation session.
-	pub(crate) fn remove(&mut self, parent_hash: &Hash) {
-		if let Some(session) = self.live_instances.remove(parent_hash) {
-			if let Some(ref key) = session.local_session_key {
-				let key_still_used = self.live_instances.values()
-					.any(|c| c.local_session_key.as_ref() == Some(key));
+	/// Remove validation session. true indicates that it was actually removed.
+	pub(crate) fn remove(&mut self, parent_hash: Hash) -> bool {
+		let maybe_removed = if let Entry::Occupied(mut entry) = self.live_instances.entry(parent_hash) {
+			entry.get_mut().0 -= 1;
+			if entry.get().0 == 0 {
+				let (_, session) = entry.remove();
+				Some(session)
+			} else {
+				None
+			}
+		} else {
+			None
+		};
 
-				if !key_still_used {
-					self.recent.remove(key)
-				}
+		let session = match maybe_removed {
+			None => return false,
+			Some(s) => s,
+		};
+
+		if let Some(ref key) = session.local_session_key {
+			let key_still_used = self.live_instances.values()
+				.any(|c| c.1.local_session_key.as_ref() == Some(key));
+
+			if !key_still_used {
+				self.recent.remove(key)
 			}
 		}
+
+		true
 	}
 
 	/// Recent session keys as a slice.
@@ -578,7 +597,7 @@ impl LiveValidationSessions {
 		where F: FnOnce(Result<&BlockData, Option<&[ValidatorId]>>) -> U
 	{
 		match self.live_instances.get(parent_hash) {
-			Some(c) => c.with_block_data(c_hash, |res| f(res.map_err(Some))),
+			Some(c) => c.1.with_block_data(c_hash, |res| f(res.map_err(Some))),
 			None => f(Err(None))
 		}
 	}
@@ -604,13 +623,59 @@ impl Future for BlockDataReceiver {
 			return inner.poll().map_err(map_err);
 		}
 		match self.outer.poll().map_err(map_err)? {
-			Async::Ready(mut inner) => {
-				let poll_result = inner.poll();
+			Async::Ready(inner) => {
 				self.inner = Some(inner);
-				poll_result.map_err(map_err)
+				self.poll()
 			}
 			Async::NotReady => Ok(Async::NotReady),
 		}
+	}
+}
+
+/// Wrapper around bookkeeping for tracking which parachains we're fetching incoming messages
+/// for.
+pub(crate) struct FetchIncoming {
+	exit_signal: ::exit_future::Signal,
+	parachains_fetching: HashMap<ParaId, IncomingReceiver>,
+}
+
+impl FetchIncoming {
+	fn new() -> Self {
+		FetchIncoming {
+			exit_signal: ::exit_future::signal_only(),
+			parachains_fetching: HashMap::new(),
+		}
+	}
+
+	// registers intent to fetch incoming. returns an optional piece of work
+	// that, if some, is needed to be run to completion in order for the future to
+	// resolve.
+	//
+	// impl Future has a bug here where it wrongly assigns a `'static` bound to `M`.
+	fn fetch_with_work<M, W>(&mut self, para_id: ParaId, make_work: M)
+		-> (IncomingReceiver, Option<Box<Future<Item=(),Error=()> + Send>>) where
+		M: FnOnce() -> W,
+		W: Future<Item=Option<Incoming>> + Send + 'static,
+	{
+		let (tx, rx) = match self.parachains_fetching.entry(para_id) {
+			Entry::Occupied(entry) => return (entry.get().clone(), None),
+			Entry::Vacant(entry) => {
+				// has not been requested yet.
+				let (tx, rx) = oneshot::channel();
+				let rx = IncomingReceiver { inner: rx.shared() };
+				entry.insert(rx.clone());
+
+				(tx, rx)
+			}
+		};
+
+		let exit = self.exit_signal.make_exit();
+		let work = make_work()
+			.map(move |incoming| if let Some(i) = incoming { let _ = tx.send(i); })
+			.select2(exit)
+			.then(|_| Ok(()));
+
+		(rx, Some(Box::new(work)))
 	}
 }
 
@@ -618,7 +683,7 @@ impl Future for BlockDataReceiver {
 pub struct SessionDataFetcher<P, E, N: NetworkService, T> {
 	network: Arc<N>,
 	api: Arc<P>,
-	fetch_incoming: Arc<Mutex<HashMap<ParaId, IncomingReceiver>>>,
+	fetch_incoming: Arc<Mutex<FetchIncoming>>,
 	exit: E,
 	task_executor: T,
 	knowledge: Arc<Mutex<Knowledge>>,
@@ -694,47 +759,40 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 	/// Fetch incoming messages for a parachain.
 	pub fn fetch_incoming(&self, parachain: ParaId) -> IncomingReceiver {
 		use polkadot_primitives::BlockId;
-		let (tx, rx) = {
-			let mut fetching = self.fetch_incoming.lock();
-			match fetching.entry(parachain) {
-				Entry::Occupied(entry) => return entry.get().clone(),
-				Entry::Vacant(entry) => {
-					// has not been requested yet.
-					let (tx, rx) = oneshot::channel();
-					let rx = IncomingReceiver { inner: rx.shared() };
-					entry.insert(rx.clone());
 
-					(tx, rx)
-				}
-			}
-		};
+		let (rx, work) = self.fetch_incoming.lock().fetch_with_work(parachain.clone(), move || {
+			let parent_hash: Hash = self.parent_hash();
+			let topic = incoming_message_topic(parent_hash, parachain);
 
-		let parent_hash = self.parent_hash();
-		let topic = incoming_message_topic(parent_hash, parachain);
-		let gossip_messages = self.network().gossip_messages_for(topic)
-			.map_err(|()| panic!("unbounded receivers do not throw errors; qed"))
-			.filter_map(|msg| IngressPair::decode(&mut msg.as_slice()));
+			let gossip_messages = self.network().gossip_messages_for(topic)
+				.map_err(|()| panic!("unbounded receivers do not throw errors; qed"))
+				.filter_map(|msg| IngressPair::decode(&mut msg.as_slice()));
 
-		let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
-			.map_err(|e| format!("Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
-				parachain, parent_hash, e)
-			);
+			let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
+				.map_err(|e| format!("Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
+					parachain, parent_hash, e)
+				);
 
-		let work = canon_roots.into_future()
-			.and_then(move |ingress_roots| match ingress_roots {
-				None => Err(format!("No parachain {:?} registered at {}", parachain, parent_hash)),
-				Some(roots) => Ok(roots.into_iter().collect())
-			})
-			.and_then(move |ingress_roots| ComputeIngress {
-				inner: gossip_messages,
-				ingress_roots,
-				incoming: Vec::new(),
-			})
-			.map(move |incoming| if let Some(i) = incoming { let _ = tx.send(i); })
-			.select2(self.exit.clone())
-			.then(|_| Ok(()));
+			canon_roots.into_future()
+				.and_then(move |ingress_roots| match ingress_roots {
+					None => Err(format!("No parachain {:?} registered at {}", parachain, parent_hash)),
+					Some(roots) => Ok(roots.into_iter().collect())
+				})
+				.and_then(move |ingress_roots| ComputeIngress {
+					inner: gossip_messages,
+					ingress_roots,
+					incoming: Vec::new(),
+				})
+				.select2(self.exit.clone())
+				.map(|res| match res {
+					future::Either::A((incoming, _)) => incoming,
+					future::Either::B(_) => None,
+				})
+		});
 
-		self.task_executor.spawn(work);
+		if let Some(work) = work {
+			self.task_executor.spawn(work);
+		}
 
 		rx
 	}
@@ -742,20 +800,26 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 
 impl<P, E, N: NetworkService, T> Drop for SessionDataFetcher<P, E, N, T> {
 	fn drop(&mut self) {
-		let parent_hash = self.parent_hash();
-		self.network.with_spec(move |spec, _| spec.remove_validation_session(&parent_hash));
+		// a bit of a hack...
+		let network = self.network.clone();
+		let fetch_incoming = self.fetch_incoming.clone();
+		let message_validator = self.message_validator.clone();
 
-		{
-			let mut incoming_fetched = self.fetch_incoming.lock();
-			for (para_id, _) in incoming_fetched.drain() {
-				self.network.drop_gossip(incoming_message_topic(
-					self.parent_hash,
+		let parent_hash = self.parent_hash();
+
+		self.network.with_spec(move |spec, _| {
+			if !spec.remove_validation_session(parent_hash) { return }
+
+			let mut incoming_fetched = fetch_incoming.lock();
+			for (para_id, _) in incoming_fetched.parachains_fetching.drain() {
+				network.drop_gossip(incoming_message_topic(
+					parent_hash,
 					para_id,
 				));
 			}
-		}
 
-		self.message_validator.remove_session(&parent_hash);
+			message_validator.remove_session(&parent_hash);
+		});
 	}
 }
 

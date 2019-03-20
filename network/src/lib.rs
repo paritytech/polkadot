@@ -32,6 +32,7 @@ extern crate arrayvec;
 extern crate parking_lot;
 extern crate tokio;
 extern crate slice_group_by;
+extern crate exit_future;
 
 #[macro_use]
 extern crate futures;
@@ -233,8 +234,9 @@ impl PolkadotProtocol {
 		session
 	}
 
-	fn remove_validation_session(&mut self, parent_hash: &Hash) {
-		self.live_validation_sessions.remove(parent_hash);
+	// true indicates that it was removed actually.
+	fn remove_validation_session(&mut self, parent_hash: Hash) -> bool {
+		self.live_validation_sessions.remove(parent_hash)
 	}
 
 	fn dispatch_pending_requests(&mut self, ctx: &mut Context<Block>) {

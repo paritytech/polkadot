@@ -80,6 +80,7 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement,Error=()> {
 		// spin up a task in the background that processes all incoming statements
 		// validation has been done already by the gossip validator.
+		// this will block internally until the gossip messages stream is obtained.
 		self.network().gossip_messages_for(self.attestation_topic)
 			.filter_map(|msg| {
 				debug!(target: "validation", "Processing statement for live validation session");

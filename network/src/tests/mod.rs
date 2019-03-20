@@ -313,7 +313,7 @@ fn many_session_keys() {
 
 	let peer_b = 2;
 
-	protocol.remove_validation_session(&parent_a);
+	assert!(protocol.remove_validation_session(parent_a));
 
 	{
 		let mut ctx = TestContext::default();
