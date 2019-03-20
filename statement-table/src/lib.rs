@@ -26,18 +26,18 @@ pub mod generic;
 pub use generic::Table;
 
 use primitives::parachain::{
-	Id, CandidateReceipt, CandidateSignature as Signature, Statement as PrimitiveStatement,
+	Id, CandidateReceipt, ValidatorId, ValidatorSignature, Statement as PrimitiveStatement,
 };
-use primitives::{SessionKey, Hash};
+use primitives::Hash;
 
 /// Statements about candidates on the network.
 pub type Statement = generic::Statement<CandidateReceipt, Hash>;
 
 /// Signed statements about candidates.
-pub type SignedStatement = generic::SignedStatement<CandidateReceipt, Hash, SessionKey, Signature>;
+pub type SignedStatement = generic::SignedStatement<CandidateReceipt, Hash, ValidatorId, ValidatorSignature>;
 
 /// Kinds of misbehavior, along with proof.
-pub type Misbehavior = generic::Misbehavior<CandidateReceipt, Hash, SessionKey, Signature>;
+pub type Misbehavior = generic::Misbehavior<CandidateReceipt, Hash, ValidatorId, ValidatorSignature>;
 
 /// A summary of import of a statement.
 pub type Summary = generic::Summary<Hash, Id>;
@@ -46,14 +46,14 @@ pub type Summary = generic::Summary<Hash, Id>;
 pub trait Context {
 	/// Whether a authority is a member of a group.
 	/// Members are meant to submit candidates and vote on validity.
-	fn is_member_of(&self, authority: &SessionKey, group: &Id) -> bool;
+	fn is_member_of(&self, authority: &ValidatorId, group: &Id) -> bool;
 
 	/// Whether a authority is an availability guarantor of a group.
 	/// Guarantors are meant to vote on availability for candidates submitted
 	/// in a group.
 	fn is_availability_guarantor_of(
 		&self,
-		authority: &SessionKey,
+		authority: &ValidatorId,
 		group: &Id,
 	) -> bool;
 
@@ -62,10 +62,10 @@ pub trait Context {
 }
 
 impl<C: Context> generic::Context for C {
-	type AuthorityId = SessionKey;
+	type AuthorityId = ValidatorId;
 	type Digest = Hash;
 	type GroupId = Id;
-	type Signature = Signature;
+	type Signature = ValidatorSignature;
 	type Candidate = CandidateReceipt;
 
 	fn candidate_digest(candidate: &CandidateReceipt) -> Hash {
@@ -76,11 +76,11 @@ impl<C: Context> generic::Context for C {
 		candidate.parachain_index.clone()
 	}
 
-	fn is_member_of(&self, authority: &SessionKey, group: &Id) -> bool {
+	fn is_member_of(&self, authority: &ValidatorId, group: &Id) -> bool {
 		Context::is_member_of(self, authority, group)
 	}
 
-	fn is_availability_guarantor_of(&self, authority: &SessionKey, group: &Id) -> bool {
+	fn is_availability_guarantor_of(&self, authority: &ValidatorId, group: &Id) -> bool {
 		Context::is_availability_guarantor_of(self, authority, group)
 	}
 

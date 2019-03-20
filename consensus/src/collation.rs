@@ -21,8 +21,8 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::{Block, Hash, AccountId, BlockId};
-use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic};
+use polkadot_primitives::{Block, Hash, BlockId};
+use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, CollatorId};
 use polkadot_primitives::parachain::ParachainHost;
 use runtime_primitives::traits::ProvideRuntimeApi;
 
@@ -47,7 +47,7 @@ pub trait Collators: Clone {
 	fn collate(&self, parachain: ParaId, relay_parent: Hash) -> Self::Collation;
 
 	/// Note a bad collator. TODO: take proof
-	fn note_bad_collator(&self, collator: AccountId);
+	fn note_bad_collator(&self, collator: CollatorId);
 }
 
 /// A future which resolves when a collation is available.

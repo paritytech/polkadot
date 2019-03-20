@@ -79,9 +79,9 @@ use parking_lot::Mutex;
 use polkadot_primitives::{
 	Hash, Block, BlockId, BlockNumber, Header, SessionKey
 };
-use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CandidateSignature};
+use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt, CollatorSignature};
 use polkadot_primitives::parachain::{AttestedCandidate, ParachainHost, Statement as PrimitiveStatement};
-use primitives::{Ed25519AuthorityId as AuthorityId, ed25519};
+use primitives::{Pair, ed25519::{self, Public as AuthorityId}};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
@@ -163,7 +163,7 @@ pub struct GroupInfo {
 /// Sign a table statement against a parent hash.
 /// The actual message signed is the encoded statement concatenated with the
 /// parent hash.
-pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_hash: &Hash) -> CandidateSignature {
+pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_hash: &Hash) -> CollatorSignature {
 	// we sign using the primitive statement type because that's what the runtime
 	// expects. These types probably encode the same way so this clone could be optimized
 	// out in the future.
@@ -174,7 +174,7 @@ pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_h
 }
 
 /// Check signature on table statement.
-pub fn check_statement(statement: &Statement, signature: &CandidateSignature, signer: SessionKey, parent_hash: &Hash) -> bool {
+pub fn check_statement(statement: &Statement, signature: &CollatorSignature, signer: SessionKey, parent_hash: &Hash) -> bool {
 	use runtime_primitives::traits::Verify;
 
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
@@ -756,17 +756,17 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::Keyring;
+	use substrate_keyring::AuthorityKeyring;
 
 	#[test]
 	fn sign_and_check_statement() {
 		let statement: Statement = GenericStatement::Valid([1; 32].into());
 		let parent_hash = [2; 32].into();
 
-		let sig = sign_table_statement(&statement, &Keyring::Alice.pair(), &parent_hash);
+		let sig = sign_table_statement(&statement, &AuthorityKeyring::Alice.pair(), &parent_hash);
 
-		assert!(check_statement(&statement, &sig, Keyring::Alice.to_raw_public().into(), &parent_hash));
-		assert!(!check_statement(&statement, &sig, Keyring::Alice.to_raw_public().into(), &[0xff; 32].into()));
-		assert!(!check_statement(&statement, &sig, Keyring::Bob.to_raw_public().into(), &parent_hash));
+		assert!(check_statement(&statement, &sig, AuthorityKeyring::Alice.into(), &parent_hash));
+		assert!(!check_statement(&statement, &sig, AuthorityKeyring::Alice.into(), &[0xff; 32].into()));
+		assert!(!check_statement(&statement, &sig, AuthorityKeyring::Bob.into(), &parent_hash));
 	}
 }

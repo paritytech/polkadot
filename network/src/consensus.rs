@@ -23,8 +23,10 @@ use sr_primitives::traits::{BlakeTwo256, Hash as HashT, ProvideRuntimeApi};
 use polkadot_consensus::{
 	Network, SharedTable, Collators, Statement, GenericStatement,
 };
-use polkadot_primitives::{AccountId, Block, Hash, SessionKey};
-use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData};
+use polkadot_primitives::{Block, Hash, SessionKey};
+use polkadot_primitives::parachain::{
+	Id as ParaId, Collation, CollatorId, Extrinsic, ParachainHost, BlockData
+};
 use codec::Decode;
 
 use futures::prelude::*;
@@ -240,7 +242,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E: Clone> Collators for Conse
 		AwaitingCollation { outer: rx, inner: None }
 	}
 
-	fn note_bad_collator(&self, collator: AccountId) {
+	fn note_bad_collator(&self, collator: CollatorId) {
 		self.network.with_spec(move |spec, ctx| spec.disconnect_bad_collator(ctx, collator));
 	}
 }
@@ -271,12 +273,12 @@ impl Knowledge {
 		match *statement {
 			GenericStatement::Candidate(ref c) => {
 				let mut entry = self.candidates.entry(c.hash()).or_insert_with(Default::default);
-				entry.knows_block_data.push(from);
+				entry.knows_block_data.push(from.clone());
 				entry.knows_extrinsic.push(from);
 			}
 			GenericStatement::Available(ref hash) => {
 				let mut entry = self.candidates.entry(*hash).or_insert_with(Default::default);
-				entry.knows_block_data.push(from);
+				entry.knows_block_data.push(from.clone());
 				entry.knows_extrinsic.push(from);
 			}
 			GenericStatement::Valid(ref hash) | GenericStatement::Invalid(ref hash) => self.candidates.entry(*hash)
@@ -337,13 +339,13 @@ pub(crate) enum InsertedRecentKey {
 	New(Option<SessionKey>),
 }
 
-/// Wrapper for managing recent session keys.
+/// Wrapper for managing recent .
 #[derive(Default)]
-pub(crate) struct RecentSessionKeys {
+pub(crate) struct RecentValidatorIds {
 	inner: ArrayVec<[SessionKey; RECENT_SESSIONS]>,
 }
 
-impl RecentSessionKeys {
+impl RecentValidatorIds {
 	/// Insert a new session key. This returns one to be pushed out if the
 	/// set is full.
 	pub(crate) fn insert(&mut self, key: SessionKey) -> InsertedRecentKey {
@@ -372,7 +374,7 @@ impl RecentSessionKeys {
 /// Manages requests and session keys for live consensus instances.
 pub(crate) struct LiveConsensusInstances {
 	// recent local session keys.
-	recent: RecentSessionKeys,
+	recent: RecentValidatorIds,
 	// live consensus instances, on `parent_hash`.
 	live_instances: HashMap<Hash, CurrentConsensus>,
 }
@@ -393,9 +395,9 @@ impl LiveConsensusInstances {
 		parent_hash: Hash,
 		consensus: CurrentConsensus,
 	) -> Option<SessionKey> {
-		let inserted_key = self.recent.insert(consensus.local_session_key);
+		let inserted_key = self.recent.insert(consensus.local_session_key.clone());
 		let maybe_new = if let InsertedRecentKey::New(_) = inserted_key {
-			Some(consensus.local_session_key)
+			Some(consensus.local_session_key.clone())
 		} else {
 			None
 		};
@@ -440,52 +442,53 @@ impl LiveConsensusInstances {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use substrate_primitives::crypto::UncheckedInto;
 
 	#[test]
 	fn last_keys_works() {
-		let a = [1; 32].into();
-		let b = [2; 32].into();
-		let c = [3; 32].into();
-		let d = [4; 32].into();
+		let a: SessionKey = [1; 32].unchecked_into();
+		let b: SessionKey = [2; 32].unchecked_into();
+		let c: SessionKey = [3; 32].unchecked_into();
+		let d: SessionKey = [4; 32].unchecked_into();
 
-		let mut recent = RecentSessionKeys::default();
+		let mut recent = RecentValidatorIds::default();
 
-		match recent.insert(a) {
+		match recent.insert(a.clone()) {
 			InsertedRecentKey::New(None) => {},
 			_ => panic!("is new, not at capacity"),
 		}
 
-		match recent.insert(a) {
+		match recent.insert(a.clone()) {
 			InsertedRecentKey::AlreadyKnown => {},
 			_ => panic!("not new"),
 		}
 
-		match recent.insert(b) {
+		match recent.insert(b.clone()) {
 			InsertedRecentKey::New(None) => {},
 			_ => panic!("is new, not at capacity"),
 		}
 
-		match recent.insert(b) {
+		match recent.insert(b.clone()) {
 			InsertedRecentKey::AlreadyKnown => {},
 			_ => panic!("not new"),
 		}
 
-		match recent.insert(c) {
+		match recent.insert(c.clone()) {
 			InsertedRecentKey::New(None) => {},
 			_ => panic!("is new, not at capacity"),
 		}
 
-		match recent.insert(c) {
+		match recent.insert(c.clone()) {
 			InsertedRecentKey::AlreadyKnown => {},
 			_ => panic!("not new"),
 		}
 
-		match recent.insert(d) {
+		match recent.insert(d.clone()) {
 			InsertedRecentKey::New(Some(old)) => assert_eq!(old, a),
 			_ => panic!("is new, and at capacity"),
 		}
 
-		match recent.insert(d) {
+		match recent.insert(d.clone()) {
 			InsertedRecentKey::AlreadyKnown => {},
 			_ => panic!("not new"),
 		}
