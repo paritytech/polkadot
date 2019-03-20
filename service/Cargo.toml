@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.3.15"
+version = "0.3.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
