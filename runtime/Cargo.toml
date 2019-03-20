@@ -27,7 +27,6 @@ srml-consensus = { git = "https://github.com/paritytech/substrate" }
 srml-council = { git = "https://github.com/paritytech/substrate" }
 srml-democracy = { git = "https://github.com/paritytech/substrate" }
 srml-executive = { git = "https://github.com/paritytech/substrate" }
-srml-fees = { git = "https://github.com/paritytech/substrate" }
 srml-grandpa = { git = "https://github.com/paritytech/substrate" }
 srml-indices = { git = "https://github.com/paritytech/substrate" }
 sr-primitives = { git = "https://github.com/paritytech/substrate" }
@@ -50,7 +49,7 @@ std = [
 	"polkadot-primitives/std",
 	"parity-codec/std",
 	"parity-codec-derive/std",
-    "substrate-inherents/std",
+	"substrate-inherents/std",
 	"substrate-primitives/std",
 	"sr-std/std",
 	"sr-io/std",

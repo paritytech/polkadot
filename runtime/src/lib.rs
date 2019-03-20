@@ -47,7 +47,6 @@ extern crate srml_consensus as consensus;
 extern crate srml_council as council;
 extern crate srml_democracy as democracy;
 extern crate srml_executive as executive;
-extern crate srml_fees as fees;
 extern crate srml_grandpa as grandpa;
 extern crate srml_indices as indices;
 extern crate srml_session as session;
@@ -152,6 +151,9 @@ impl balances::Trait for Runtime {
 	type OnFreeBalanceZero = Staking;
 	type OnNewAccount = Indices;
 	type Event = Event;
+	type TransactionPayment = ();
+	type DustRemoval = ();
+	type TransferPayment = ();
 }
 
 impl consensus::Trait for Runtime {
@@ -178,6 +180,8 @@ impl staking::Trait for Runtime {
 	type OnRewardMinted = Treasury;
 	type Event = Event;
 	type Currency = balances::Module<Self>;
+	type Slash = ();
+	type Reward = ();
 }
 
 impl democracy::Trait for Runtime {
@@ -188,6 +192,8 @@ impl democracy::Trait for Runtime {
 
 impl council::Trait for Runtime {
 	type Event = Event;
+	type BadPresentation = ();
+	type BadReaper = ();
 }
 
 impl council::voting::Trait for Runtime {
@@ -205,6 +211,8 @@ impl treasury::Trait for Runtime {
 	type ApproveOrigin = council_motions::EnsureMembers<_4>;
 	type RejectOrigin = council_motions::EnsureMembers<_2>;
 	type Event = Event;
+	type MintedForSpending = ();
+	type ProposalRejection = ();
 }
 
 impl grandpa::Trait for Runtime {
@@ -222,11 +230,6 @@ impl parachains::Trait for Runtime {
 impl sudo::Trait for Runtime {
 	type Event = Event;
 	type Proposal = Call;
-}
-
-impl fees::Trait for Runtime {
-	type Event = Event;
-	type TransferAsset = Balances;
 }
 
 construct_runtime!(
@@ -254,7 +257,6 @@ construct_runtime!(
 		Treasury: treasury,
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
 		Sudo: sudo,
-		Fees: fees::{Module, Storage, Config<T>, Event<T>},
 	}
 );
 
@@ -273,7 +275,7 @@ pub type UncheckedExtrinsic = generic::UncheckedMortalCompactExtrinsic<Address, 
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Fees, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Balances, AllModules>;
 
 impl_runtime_apis! {
 	impl client_api::Core<Block> for Runtime {
