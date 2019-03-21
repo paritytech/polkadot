@@ -167,9 +167,16 @@ pub trait TableRouter: Clone {
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.
 pub trait Network {
+	/// The error type of asynchronously building the table router.
+	type Error: std::fmt::Debug;
+
 	/// The table router type. This should handle importing of any statements,
 	/// routing statements to peers, and driving completion of any `StatementProducers`.
 	type TableRouter: TableRouter;
+
+	/// The future used for asynchronously building the table router.
+	/// This should not fail.
+	type BuildTableRouter: IntoFuture<Item=Self::TableRouter,Error=Self::Error>;
 
 	/// Instantiate a table router using the given shared table.
 	/// Also pass through any outgoing messages to be broadcast to peers.
@@ -178,7 +185,7 @@ pub trait Network {
 		table: Arc<SharedTable>,
 		outgoing: Outgoing,
 		authorities: &[SessionKey],
-	) -> Self::TableRouter;
+	) -> Self::BuildTableRouter;
 }
 
 /// Information about a specific group.
@@ -284,6 +291,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
+	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 {
 	/// Get an attestation table for given parent hash.
 	///
@@ -382,64 +390,77 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		&self,
 		relay_parent: Hash,
 		validation_para: ParaId,
-		router: N::TableRouter,
+		build_router: N::BuildTableRouter
 	) -> exit_future::Signal {
 		use extrinsic_store::Data;
 
 		let (signal, exit) = exit_future::signal();
-
-		let fetch_incoming = router.fetch_incoming(validation_para)
-			.into_future()
-			.map_err(|e| format!("{:?}", e));
-
-		// fetch incoming messages to our parachain from network and
-		// then fetch a local collation.
 		let (collators, client) = (self.collators.clone(), self.client.clone());
-		let collation_work = fetch_incoming
-			.map_err(|e| String::clone(&e))
-			.and_then(move |incoming| {
-				CollationFetch::new(
-					validation_para,
-					relay_parent,
-					collators,
-					client,
-					incoming,
-				).map_err(|e| format!("{:?}", e))
-			});
-
 		let extrinsic_store = self.extrinsic_store.clone();
-		let handled_work = collation_work.then(move |result| match result {
-			Ok((collation, extrinsic)) => {
-				let res = extrinsic_store.make_available(Data {
-					relay_parent,
-					parachain_id: collation.receipt.parachain_index,
-					candidate_hash: collation.receipt.hash(),
-					block_data: collation.block_data.clone(),
-					extrinsic: Some(extrinsic.clone()),
+
+		let with_router = move |router: N::TableRouter| {
+			let fetch_incoming = router.fetch_incoming(validation_para)
+				.into_future()
+				.map_err(|e| format!("{:?}", e));
+
+			// fetch incoming messages to our parachain from network and
+			// then fetch a local collation.
+			let collation_work = fetch_incoming
+				.map_err(|e| String::clone(&e))
+				.and_then(move |incoming| {
+					CollationFetch::new(
+						validation_para,
+						relay_parent,
+						collators,
+						client,
+						incoming,
+					).map_err(|e| format!("{:?}", e))
 				});
 
-				match res {
-					Ok(()) => {
-						// TODO: https://github.com/paritytech/polkadot/issues/51
-						// Erasure-code and provide merkle branches.
-						router.local_candidate(collation.receipt, collation.block_data, extrinsic)
+			collation_work.then(move |result| match result {
+				Ok((collation, extrinsic)) => {
+					let res = extrinsic_store.make_available(Data {
+						relay_parent,
+						parachain_id: collation.receipt.parachain_index,
+						candidate_hash: collation.receipt.hash(),
+						block_data: collation.block_data.clone(),
+						extrinsic: Some(extrinsic.clone()),
+					});
+
+					match res {
+						Ok(()) => {
+							// TODO: https://github.com/paritytech/polkadot/issues/51
+							// Erasure-code and provide merkle branches.
+							router.local_candidate(
+								collation.receipt,
+								collation.block_data,
+								extrinsic,
+							)
+						}
+						Err(e) => warn!(
+							target: "validation",
+							"Failed to make collation data available: {:?}",
+							e,
+						),
 					}
-					Err(e) => warn!(
-						target: "validation",
-						"Failed to make collation data available: {:?}",
-						e,
-					),
+
+					Ok(())
 				}
+				Err(e) => {
+					warn!(target: "validation", "Failed to collate candidate: {}", e);
+					Ok(())
+				}
+			})
+		};
 
-				Ok(())
-			}
-			Err(e) => {
-				warn!(target: "validation", "Failed to collate candidate: {}", e);
-				Ok(())
-			}
-		});
-
-		let cancellable_work = handled_work.select(exit).then(|_| Ok(()));
+		let cancellable_work = build_router
+			.into_future()
+			.map_err(|e| {
+				warn!(target: "validation" , "Failed to build table router: {:?}", e);
+			})
+			.and_then(with_router)
+			.select(exit)
+			.then(|_| Ok(()));
 
 		// spawn onto thread pool.
 		self.handle.spawn(cancellable_work);
@@ -472,6 +493,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
+	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 	TxApi: PoolChainApi,
 {
 	/// Create a new proposer factory.
@@ -521,6 +543,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
+	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 {
 	type Proposer = Proposer<P, TxApi>;
 	type Error = Error;

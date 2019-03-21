@@ -45,6 +45,7 @@ pub use service::{
 
 pub use cli::{VersionInfo, IntoExit};
 pub use cli::error;
+pub use tokio::runtime::TaskExecutor;
 
 fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
@@ -68,7 +69,7 @@ pub trait Worker: IntoExit {
 	fn configuration(&self) -> service::CustomConfiguration { Default::default() }
 
 	/// Do work and schedule exit.
-	fn work<S: PolkadotService>(self, service: &S) -> Self::Work;
+	fn work<S: PolkadotService>(self, service: &S, executor: TaskExecutor) -> Self::Work;
 }
 
 /// Parse command line arguments into service configuration.
@@ -129,7 +130,7 @@ fn run_until_exit<T, C, W>(
 	let executor = runtime.executor();
 	cli::informant::start(&service, exit.clone(), executor.clone());
 
-	let _ = runtime.block_on(worker.work(&*service));
+	let _ = runtime.block_on(worker.work(&*service, executor.clone()));
 	exit_send.fire();
 
 	// we eagerly drop the service so that the internal exit future is fired,

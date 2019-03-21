@@ -12,5 +12,10 @@ substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 polkadot-runtime = { path = "../runtime", version = "0.1" }
 polkadot-primitives = { path = "../primitives", version = "0.1" }
 polkadot-cli = { path = "../cli" }
+polkadot-network = { path = "../network" }
+polkadot-validation = { path = "../validation" }
 log = "0.4"
 tokio = "0.1.7"
+
+[dev-dependencies]
+substrate-keyring = { git = "https://github.com/paritytech/substrate" }
