@@ -200,7 +200,7 @@ impl<T: Trait> Module<T> {
 	pub fn calculate_duty_roster() -> DutyRoster {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
-		let validator_count = <session::Module<T>>::validator_count() as usize;
+		let validator_count = <consensus::Module<T>>::authorities().len();
 		let validators_per_parachain = if parachain_count != 0 { (validator_count - 1) / parachain_count } else { 0 };
 
 		let mut roles_val = (0..validator_count).map(|i| match i {
