@@ -2174,12 +2174,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "polkadot"
-version = "0.3.17"
+version = "0.3.18"
 dependencies = [
  "ctrlc 1.1.1 (git+https://github.com/paritytech/rust-ctrlc.git)",
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-cli 0.3.17",
+ "polkadot-cli 0.3.18",
  "vergen 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -2200,12 +2200,12 @@ dependencies = [
 
 [[package]]
 name = "polkadot-cli"
-version = "0.3.17"
+version = "0.3.18"
 dependencies = [
  "exit-future 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-service 0.3.17",
+ "polkadot-service 0.3.18",
  "substrate-cli 0.3.0 (git+https://github.com/paritytech/substrate)",
  "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -2217,7 +2217,7 @@ dependencies = [
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-cli 0.3.17",
+ "polkadot-cli 0.3.18",
  "polkadot-primitives 0.1.0",
  "polkadot-runtime 0.1.0",
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -2355,7 +2355,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-service"
-version = "0.3.17"
+version = "0.3.18"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
