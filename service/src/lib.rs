@@ -215,7 +215,7 @@ construct_service_factory! {
 						match known_oracle.block_status(&BlockId::hash(*block_hash)) {
 							Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
 							Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-							Ok(BlockStatus::InChain) => match known_oracle.leaves() {
+							Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => match known_oracle.leaves() {
 								Err(_) => None,
 								Ok(leaves) => if leaves.contains(block_hash) {
 									Some(Known::Leaf)
@@ -273,7 +273,7 @@ construct_service_factory! {
 				let justification_import = block_import.clone();
 
 				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
-				import_queue(
+ 				import_queue::<_, _, _, ed25519::Pair>(
 					slot_duration,
 					block_import,
 					Some(justification_import),
@@ -288,7 +288,7 @@ construct_service_factory! {
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<LightClient<Self>>| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
 
-				import_queue(
+				import_queue::<_, _, _, ed25519::Pair>(
 					slot_duration,
 					client.clone(),
 					None,
