@@ -16,7 +16,6 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-#[macro_use]
 extern crate parity_codec_derive;
 extern crate parity_codec as codec;
 extern crate polkadot_parachain as parachain;

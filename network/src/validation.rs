@@ -99,7 +99,7 @@ impl NetworkService for super::NetworkService {
 	}
 
 	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
-		self.gossip_consensus_message(topic, POLKADOT_ENGINE_ID, message);
+		self.gossip_consensus_message(topic, POLKADOT_ENGINE_ID, message, false);
 	}
 
 	fn drop_gossip(&self, _topic: Hash) { }

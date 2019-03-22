@@ -62,7 +62,6 @@ extern crate srml_sudo as sudo;
 extern crate srml_system as system;
 extern crate srml_timestamp as timestamp;
 extern crate srml_treasury as treasury;
-extern crate srml_fees as fees;
 
 extern crate polkadot_primitives as primitives;
 
@@ -159,6 +158,9 @@ impl balances::Trait for Runtime {
 	type OnFreeBalanceZero = Staking;
 	type OnNewAccount = Indices;
 	type Event = Event;
+	type TransactionPayment = ();
+	type TransferPayment = ();
+	type DustRemoval = ();
 }
 
 impl consensus::Trait for Runtime {
@@ -185,6 +187,8 @@ impl staking::Trait for Runtime {
 	type Currency = Balances;
 	type OnRewardMinted = Treasury;
 	type Event = Event;
+	type Slash = ();
+	type Reward = ();
 }
 
 impl democracy::Trait for Runtime {
@@ -195,6 +199,8 @@ impl democracy::Trait for Runtime {
 
 impl council::Trait for Runtime {
 	type Event = Event;
+	type BadPresentation = ();
+	type BadReaper = ();
 }
 
 impl council::voting::Trait for Runtime {
@@ -212,6 +218,8 @@ impl treasury::Trait for Runtime {
 	type ApproveOrigin = council_motions::EnsureMembers<_4>;
 	type RejectOrigin = council_motions::EnsureMembers<_2>;
 	type Event = Event;
+	type MintedForSpending = ();
+	type ProposalRejection = ();
 }
 
 impl grandpa::Trait for Runtime {
@@ -230,11 +238,6 @@ impl sudo::Trait for Runtime {
 impl claims::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
-}
-
-impl fees::Trait for Runtime {
-	type Event = Event;
-	type TransferAsset = Balances;
 }
 
 construct_runtime!(
@@ -262,7 +265,7 @@ construct_runtime!(
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
 		Sudo: sudo,
 		Claims: claims,
-		Fees: fees::{Module, Storage, Config<T>, Event<T>},
+		//Fees: fees::{Module, Storage, Config<T>, Event<T>},
 	}
 );
 
@@ -281,7 +284,7 @@ pub type UncheckedExtrinsic = generic::UncheckedMortalCompactExtrinsic<Address, 
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Fees, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Balances, AllModules>;
 
 impl_runtime_apis! {
 	impl client_api::Core<Block> for Runtime {

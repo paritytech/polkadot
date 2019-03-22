@@ -19,20 +19,20 @@
 use rstd::prelude::*;
 use sr_io::{keccak_256, secp256k1_ecdsa_recover};
 use srml_support::{StorageValue, StorageMap};
-use srml_support::traits::{Currency, ArithmeticType};
+use srml_support::traits::Currency;
 use system::ensure_signed;
 use codec::Encode;
 #[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
 use system;
 
-type BalanceOf<T> = <<T as Trait>::Currency as ArithmeticType>::Type;
+type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 
 /// Configuration trait.
 pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-	type Currency: ArithmeticType + Currency<Self::AccountId, Balance=BalanceOf<Self>>;
+	type Currency: Currency<Self::AccountId>;
 }
 
 type EthereumAddress = [u8; 20];
@@ -135,7 +135,7 @@ decl_module! {
 				*t -= balance_due
 			});
 
-			T::Currency::increase_free_balance_creating(&sender, balance_due);
+			T::Currency::deposit_creating(&sender, balance_due);
 
 			// Let's deposit an event to let the outside world know this happened.
 			Self::deposit_event(RawEvent::Claimed(sender, signer, balance_due));
@@ -186,6 +186,9 @@ mod tests {
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
 		type Event = ();
+		type TransactionPayment = ();
+		type TransferPayment = ();
+		type DustRemoval = ();
 	}
 	impl Trait for Test {
 		type Event = ();

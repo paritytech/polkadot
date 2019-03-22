@@ -22,7 +22,7 @@ use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
 	CouncilVotingConfig, GrandpaConfig, SudoConfig, IndicesConfig,
-	ClaimsConfig, FeesConfig, Permill, StakerStatus
+	ClaimsConfig, Permill, StakerStatus
 };
 use telemetry::TelemetryEndpoints;
 
@@ -90,6 +90,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			transfer_fee: 1 * CENTS,
 			creation_fee: 1 * CENTS,
 			vesting: vec![],
+			transaction_base_fee: 1 * CENTS,
+			transaction_byte_fee: 10 * MILLICENTS,
 		}),
 		indices: Some(IndicesConfig {
 			ids: endowed_accounts.iter().cloned()
@@ -153,10 +155,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
-		}),
-		fees: Some(FeesConfig {
-			transaction_base_fee: 1 * CENTS,
-			transaction_byte_fee: 10 * MILLICENTS,
 		}),
 		parachains: Some(Default::default()),
 		claims: Some(ClaimsConfig {
@@ -238,6 +236,8 @@ pub fn testnet_genesis(
 			creation_fee: 0,
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
 			vesting: vec![],
+			transaction_base_fee: 1,
+			transaction_byte_fee: 0,
 		}),
 		session: Some(SessionConfig {
 			validators: initial_authorities.iter().map(|x| x.1.clone()).collect(),
@@ -302,10 +302,6 @@ pub fn testnet_genesis(
 		}),
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
-		}),
-		fees: Some(FeesConfig {
-			transaction_base_fee: 1,
-			transaction_byte_fee: 0,
 		}),
 	}
 }
