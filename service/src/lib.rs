@@ -172,7 +172,7 @@ construct_service_factory! {
 				{
 					let voter = grandpa::run_grandpa(
 						grandpa::Config {
-							gossip_duration: Duration::new(4, 0), // FIXME: make this available through chainspec?
+							gossip_duration: Duration::from_millis(500),
 							local_key: key.clone(),
 							justification_period: 4096,
 							name: Some(service.config.name.clone()),
