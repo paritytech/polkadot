@@ -982,7 +982,7 @@ dependencies = [
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-io 0.1.0 (git+https://github.com/paritytech/substrate)",
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
- "sr-std 0.1.0 (git+https://github.com/paritytech/substrate?rev=45824913c980bb1ba3963f9bba67775a507d8624)",
+ "sr-std 0.1.0 (git+https://github.com/paritytech/substrate)",
  "sr-version 0.1.0 (git+https://github.com/paritytech/substrate)",
  "srml-aura 0.1.0 (git+https://github.com/paritytech/substrate)",
  "srml-balances 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -1491,14 +1491,6 @@ dependencies = [
 name = "sr-std"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/substrate#45824913c980bb1ba3963f9bba67775a507d8624"
-dependencies = [
- "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "sr-std"
-version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate?rev=45824913c980bb1ba3963f9bba67775a507d8624#45824913c980bb1ba3963f9bba67775a507d8624"
 dependencies = [
  "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -2692,7 +2684,6 @@ dependencies = [
 "checksum sr-io 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum sr-std 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sr-std 0.1.0 (git+https://github.com/paritytech/substrate?rev=45824913c980bb1ba3963f9bba67775a507d8624)" = "<none>"
 "checksum sr-version 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum srml-aura 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum srml-balances 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
