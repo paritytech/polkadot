@@ -75,7 +75,10 @@ decl_module! {
 					voters.swap(remaining - 1, voter_index);
 				}
 
+				// finalisation order is undefined, so grandpa's on_finalise might
+				// have already been called. calling it again is OK though.
 				let _ = grandpa::Module::<T>::schedule_change(voters, T::BlockNumber::zero(), None);
+				grandpa::Module::<T>::on_finalise(block_number);
 			}
 		}
 	}
