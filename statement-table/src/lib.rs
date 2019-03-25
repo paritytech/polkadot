@@ -26,7 +26,7 @@ pub mod generic;
 pub use generic::Table;
 
 use primitives::parachain::{
-	Id, CandidateReceipt, Statement as PrimitiveStatement, ValidatorSignature, ValidatorId
+	Id, CandidateReceipt, Statement as PrimitiveStatement, ValidatorSignature, ValidatorId, ValidatorIndex,
 };
 use primitives::Hash;
 
@@ -34,7 +34,7 @@ use primitives::Hash;
 pub type Statement = generic::Statement<CandidateReceipt, Hash>;
 
 /// Signed statements about candidates.
-pub type SignedStatement = generic::SignedStatement<CandidateReceipt, Hash, ValidatorId, ValidatorSignature>;
+pub type SignedStatement = generic::SignedStatement<CandidateReceipt, Hash, ValidatorIndex, ValidatorSignature>;
 
 /// Kinds of misbehavior, along with proof.
 pub type Misbehavior = generic::Misbehavior<CandidateReceipt, Hash, ValidatorId, ValidatorSignature>;
@@ -46,14 +46,17 @@ pub type Summary = generic::Summary<Hash, Id>;
 pub trait Context {
 	/// Whether a authority is a member of a group.
 	/// Members are meant to submit candidates and vote on validity.
-	fn is_member_of(&self, authority: &ValidatorId, group: &Id) -> bool;
+	fn is_member_of(&self, authority: ValidatorIndex, group: &Id) -> bool;
 
-	// requisite number of votes for validity from a group.
+	/// requisite number of votes for validity from a group.
 	fn requisite_votes(&self, group: &Id) -> usize;
+
+	/// Returns id of the validator corresponding to the given index.
+	fn index_to_id(&self, index: ValidatorIndex) -> Option<ValidatorId>;
 }
 
 impl<C: Context> generic::Context for C {
-	type AuthorityId = ValidatorId;
+	type AuthorityId = ValidatorIndex;
 	type Digest = Hash;
 	type GroupId = Id;
 	type Signature = ValidatorSignature;
@@ -67,8 +70,8 @@ impl<C: Context> generic::Context for C {
 		candidate.parachain_index.clone()
 	}
 
-	fn is_member_of(&self, authority: &ValidatorId, group: &Id) -> bool {
-		Context::is_member_of(self, authority, group)
+	fn is_member_of(&self, authority: &Self::AuthorityId, group: &Id) -> bool {
+		Context::is_member_of(self, *authority, group)
 	}
 
 	fn requisite_votes(&self, group: &Id) -> usize {

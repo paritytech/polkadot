@@ -22,8 +22,9 @@ use std::sync::Arc;
 
 use extrinsic_store::{Data, Store as ExtrinsicStore};
 use table::{self, Table, Context as TableContextTrait};
+use table::generic::Misbehavior as GenericMisbehavior;
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
-use polkadot_primitives::parachain::{
+use polkadot_primitives::parachain::{Id as ParaId, BlockData, Collation, Extrinsic, CandidateReceipt,
 	Id as ParaId, Collation, Extrinsic, CandidateReceipt,
 	AttestedCandidate, ParachainHost, PoVBlock
 };
@@ -49,12 +50,16 @@ struct TableContext {
 }
 
 impl table::Context for TableContext {
-	fn is_member_of(&self, authority: &SessionKey, group: &ParaId) -> bool {
-		self.groups.get(group).map_or(false, |g| g.validity_guarantors.contains(authority))
+	fn is_member_of(&self, authority: ValidatorIndex, group: &ParaId) -> bool {
+		self.groups.get(group).map_or(false, |g| g.index_mapping.get(&authority).is_some())
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
 		self.groups.get(group).map_or(usize::max_value(), |g| g.needed_validity)
+	}
+
+	fn index_to_id(&self, index: ValidatorIndex) -> Option<ValidatorId> {
+		self.groups.iter().find_map(|(_, group)| group.index_mapping.get(&index)).cloned()
 	}
 }
 
@@ -514,7 +519,17 @@ impl SharedTable {
 
 	/// Get all witnessed misbehavior.
 	pub fn get_misbehavior(&self) -> HashMap<SessionKey, table::Misbehavior> {
-		self.inner.lock().table.get_misbehavior().clone()
+		self
+			.inner
+			.lock()
+			.table
+			.get_misbehavior()
+			.iter()
+			.map(|(i, m)| {
+				let key = self.context.index_to_id(*i).expect("TODO: FIXME");
+				(key, convert_misbehaviour(key, *m))
+			})
+			.collect()
 	}
 
 	/// Track includability  of a given set of candidate hashes.
@@ -533,6 +548,18 @@ impl SharedTable {
 		}
 
 		rx
+	}
+}
+
+fn convert_misbehaviour(
+	key: SessionKey,
+	misbehaviour: GenericMisbehavior<CandidateReceipt, Hash, ValidatorIndex, ValidatorSignature>
+) -> table::Misbehavior {
+	match misbehaviour {
+		GenericMisbehavior::ValidityDoubleVote(val) => table::Misbehavior::ValidityDoubleVote(val),
+		GenericMisbehavior::MultipleCandidates(val) => table::Misbehavior::MultipleCandidates(val),
+		GenericMisbehavior::UnauthorizedStatement(val) => table::Misbehavior::UnauthorizedStatement(val),
+		GenericMisbehavior::DoubleSign(val) => table::Misbehavior::DoubleSign(val),
 	}
 }
 
