@@ -50,7 +50,7 @@ use codec::{Decode, Encode};
 use futures::sync::oneshot;
 use polkadot_primitives::{Block, SessionKey, Hash, Header};
 use polkadot_primitives::parachain::{Id as ParaId, CollatorId, BlockData, CandidateReceipt, Collation};
-use substrate_network::{NodeIndex, RequestId, Context, Severity};
+use substrate_network::{PeerId, RequestId, Context, Severity};
 use substrate_network::{message, generic_message};
 use substrate_network::specialization::NetworkSpecialization as Specialization;
 use substrate_network::StatusMessage as GenericFullStatus;
@@ -150,7 +150,7 @@ pub enum Message {
 	Collation(Hash, Collation),
 }
 
-fn send_polkadot_message(ctx: &mut Context<Block>, to: NodeIndex, message: Message) {
+fn send_polkadot_message(ctx: &mut Context<Block>, to: PeerId, message: Message) {
 	trace!(target: "p_net", "Sending polkadot message to {}: {:?}", to, message);
 	let encoded = message.encode();
 	ctx.send_message(to, generic_message::Message::ChainSpecific(encoded))
@@ -158,13 +158,13 @@ fn send_polkadot_message(ctx: &mut Context<Block>, to: NodeIndex, message: Messa
 
 /// Polkadot protocol attachment for substrate.
 pub struct PolkadotProtocol {
-	peers: HashMap<NodeIndex, PeerInfo>,
+	peers: HashMap<PeerId, PeerInfo>,
 	collating_for: Option<(CollatorId, ParaId)>,
 	collators: CollatorPool,
-	validators: HashMap<SessionKey, NodeIndex>,
+	validators: HashMap<SessionKey, PeerId>,
 	local_collations: LocalCollations<Collation>,
 	live_consensus: LiveConsensusInstances,
-	in_flight: HashMap<(RequestId, NodeIndex), BlockDataRequest>,
+	in_flight: HashMap<(RequestId, PeerId), BlockDataRequest>,
 	pending: Vec<BlockDataRequest>,
 	extrinsic_store: Option<::av_store::Store>,
 	next_req_id: u64,
@@ -216,7 +216,7 @@ impl PolkadotProtocol {
 			{
 				peer_data.collator_state.send_key(new_local.clone(), |msg| send_polkadot_message(
 					ctx,
-					*id,
+					id.clone(),
 					msg
 				));
 			}
@@ -245,7 +245,7 @@ impl PolkadotProtocol {
 				}
 				Err(Some(known_keys)) => {
 					let next_peer = known_keys.iter()
-						.filter_map(|x| validator_keys.get(x).map(|id| (x.clone(), *id)))
+						.filter_map(|x| validator_keys.get(x).map(|id| (x.clone(), id.clone())))
 						.find(|&(ref key, _)| pending.attempted_peers.insert(key.clone()))
 						.map(|(_, id)| id);
 
@@ -256,7 +256,7 @@ impl PolkadotProtocol {
 
 						send_polkadot_message(
 							ctx,
-							who,
+							who.clone(),
 							Message::RequestBlockData(req_id, parent, c_hash)
 						);
 
@@ -278,7 +278,7 @@ impl PolkadotProtocol {
 		self.pending = new_pending;
 	}
 
-	fn on_polkadot_message(&mut self, ctx: &mut Context<Block>, who: NodeIndex, msg: Message) {
+	fn on_polkadot_message(&mut self, ctx: &mut Context<Block>, who: PeerId, msg: Message) {
 		trace!(target: "p_net", "Polkadot message from {}: {:?}", who, msg);
 		match msg {
 			Message::SessionKey(key) => self.on_session_key(ctx, who, key),
@@ -301,7 +301,7 @@ impl PolkadotProtocol {
 		}
 	}
 
-	fn on_session_key(&mut self, ctx: &mut Context<Block>, who: NodeIndex, key: SessionKey) {
+	fn on_session_key(&mut self, ctx: &mut Context<Block>, who: PeerId, key: SessionKey) {
 		{
 			let info = match self.peers.get_mut(&who) {
 				Some(peer) => peer,
@@ -331,7 +331,7 @@ impl PolkadotProtocol {
 			for (relay_parent, collation) in new_collations {
 				send_polkadot_message(
 					ctx,
-					who,
+					who.clone(),
 					Message::Collation(relay_parent, collation),
 				)
 			}
@@ -342,8 +342,8 @@ impl PolkadotProtocol {
 		self.dispatch_pending_requests(ctx);
 	}
 
-	fn on_block_data(&mut self, ctx: &mut Context<Block>, who: NodeIndex, req_id: RequestId, data: Option<BlockData>) {
-		match self.in_flight.remove(&(req_id, who)) {
+	fn on_block_data(&mut self, ctx: &mut Context<Block>, who: PeerId, req_id: RequestId, data: Option<BlockData>) {
+		match self.in_flight.remove(&(req_id, who.clone())) {
 			Some(req) => {
 				if let Some(data) = data {
 					if data.hash() == req.block_data_hash {
@@ -360,7 +360,7 @@ impl PolkadotProtocol {
 	}
 
 	// when a validator sends us (a collator) a new role.
-	fn on_new_role(&mut self, ctx: &mut Context<Block>, who: NodeIndex, role: Role) {
+	fn on_new_role(&mut self, ctx: &mut Context<Block>, who: PeerId, role: Role) {
 		let info = match self.peers.get_mut(&who) {
 			Some(peer) => peer,
 			None => {
@@ -388,7 +388,7 @@ impl PolkadotProtocol {
 				debug!(target: "p_net", "Broadcasting collation on relay parent {:?}", relay_parent);
 				send_polkadot_message(
 					ctx,
-					who,
+					who.clone(),
 					Message::Collation(relay_parent, collation),
 				)
 			}
@@ -401,7 +401,7 @@ impl Specialization<Block> for PolkadotProtocol {
 		Status { collating_for: self.collating_for.clone() }.encode()
 	}
 
-	fn on_connect(&mut self, ctx: &mut Context<Block>, who: NodeIndex, status: FullStatus) {
+	fn on_connect(&mut self, ctx: &mut Context<Block>, who: PeerId, status: FullStatus) {
 		let local_status = match Status::decode(&mut &status.chain_status[..]) {
 			Some(status) => status,
 			None => {
@@ -428,7 +428,7 @@ impl Specialization<Block> for PolkadotProtocol {
 
 			peer_info.collator_state.set_role(collator_role, |msg| send_polkadot_message(
 				ctx,
-				who,
+				who.clone(),
 				msg,
 			));
 		}
@@ -438,7 +438,7 @@ impl Specialization<Block> for PolkadotProtocol {
 			for local_session_key in self.live_consensus.recent_keys() {
 				peer_info.collator_state.send_key(local_session_key.clone(), |msg| send_polkadot_message(
 					ctx,
-					who,
+					who.clone(),
 					msg,
 				));
 			}
@@ -448,7 +448,7 @@ impl Specialization<Block> for PolkadotProtocol {
 		self.dispatch_pending_requests(ctx);
 	}
 
-	fn on_disconnect(&mut self, ctx: &mut Context<Block>, who: NodeIndex) {
+	fn on_disconnect(&mut self, ctx: &mut Context<Block>, who: PeerId) {
 		if let Some(info) = self.peers.remove(&who) {
 			if let Some((acc_id, _)) = info.collating_for {
 				let new_primary = self.collators.on_disconnect(acc_id)
@@ -457,7 +457,7 @@ impl Specialization<Block> for PolkadotProtocol {
 				if let Some((new_primary, primary_info)) = new_primary {
 					primary_info.collator_state.set_role(Role::Primary, |msg| send_polkadot_message(
 						ctx,
-						new_primary,
+						new_primary.clone(),
 						msg,
 					));
 				}
@@ -490,7 +490,7 @@ impl Specialization<Block> for PolkadotProtocol {
 		}
 	}
 
-	fn on_message(&mut self, ctx: &mut Context<Block>, who: NodeIndex, message: &mut Option<message::Message<Block>>) {
+	fn on_message(&mut self, ctx: &mut Context<Block>, who: PeerId, message: &mut Option<message::Message<Block>>) {
 		match message.take() {
 			Some(generic_message::Message::ChainSpecific(raw)) => {
 				match Message::decode(&mut raw.as_slice()) {
@@ -520,7 +520,7 @@ impl Specialization<Block> for PolkadotProtocol {
 				Action::NewRole(account_id, role) => if let Some((collator, info)) = self.collator_peer(account_id) {
 					info.collator_state.set_role(role, |msg| send_polkadot_message(
 						ctx,
-						collator,
+						collator.clone(),
 						msg,
 					))
 				},
@@ -536,7 +536,7 @@ impl Specialization<Block> for PolkadotProtocol {
 
 impl PolkadotProtocol {
 	// we received a collation from a peer
-	fn on_collation(&mut self, ctx: &mut Context<Block>, from: NodeIndex, relay_parent: Hash, collation: Collation) {
+	fn on_collation(&mut self, ctx: &mut Context<Block>, from: PeerId, relay_parent: Hash, collation: Collation) {
 		let collation_para = collation.receipt.parachain_index;
 		let collated_acc = collation.receipt.collator.clone();
 
@@ -565,7 +565,7 @@ impl PolkadotProtocol {
 	}
 
 	// get connected peer with given account ID for collation.
-	fn collator_peer(&mut self, account_id: CollatorId) -> Option<(NodeIndex, &mut PeerInfo)> {
+	fn collator_peer(&mut self, account_id: CollatorId) -> Option<(PeerId, &mut PeerInfo)> {
 		let check_info = |info: &PeerInfo| info
 			.collating_for
 			.as_ref()
@@ -574,7 +574,7 @@ impl PolkadotProtocol {
 		self.peers
 			.iter_mut()
 			.filter(|&(_, ref info)| check_info(&**info))
-			.map(|(who, info)| (*who, info))
+			.map(|(who, info)| (who.clone(), info))
 			.next()
 	}
 
@@ -604,7 +604,7 @@ impl PolkadotProtocol {
 					debug!(target: "p_net", "Sending local collation to {:?}", primary);
 					send_polkadot_message(
 						ctx,
-						*who,
+						who.clone(),
 						Message::Collation(relay_parent, cloned_collation),
 					)
 				},
