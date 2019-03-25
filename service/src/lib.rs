@@ -170,10 +170,16 @@ construct_service_factory! {
 
 				// always run GRANDPA in order to sync.
 				{
+					let local_key = if service.config.disable_grandpa {
+						None
+					} else {
+						key.clone()
+					};
+
 					let voter = grandpa::run_grandpa(
 						grandpa::Config {
+							local_key,
 							gossip_duration: Duration::from_millis(500),
-							local_key: key.clone(),
 							justification_period: 4096,
 							name: Some(service.config.name.clone()),
 						},
@@ -255,6 +261,7 @@ construct_service_factory! {
 					service.network(),
 					service.on_exit(),
 					service.config.custom.inherent_data_providers.clone(),
+					service.config.force_authoring,
 				)?;
 
 				executor.spawn(task);

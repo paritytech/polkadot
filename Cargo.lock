@@ -80,7 +80,7 @@ dependencies = [
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-executor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-executor 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-timer 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -356,7 +356,7 @@ name = "cexpr"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "nom 4.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nom 4.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -786,7 +786,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "fork-tree"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -1038,12 +1038,12 @@ dependencies = [
  "net2 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-executor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-executor 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-reactor 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-tcp 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-threadpool 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-threadpool 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-timer 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "want 0.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -1161,7 +1161,7 @@ dependencies = [
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-codec 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicase 2.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -1313,7 +1313,7 @@ dependencies = [
  "smallvec 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "stdweb 0.4.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-codec 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-executor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-executor 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1343,7 +1343,7 @@ dependencies = [
  "secp256k1 0.12.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-executor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-executor 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-timer 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "unsigned-varint 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1535,7 +1535,7 @@ dependencies = [
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-core 0.5.0 (git+https://github.com/tomaka/libp2p-rs?branch=substrate-tmp-2019-03-20)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-executor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-executor 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1847,7 +1847,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "nom"
-version = "4.2.2"
+version = "4.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "memchr 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2174,12 +2174,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "polkadot"
-version = "0.3.18"
+version = "0.3.19"
 dependencies = [
  "ctrlc 1.1.1 (git+https://github.com/paritytech/rust-ctrlc.git)",
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-cli 0.3.18",
+ "polkadot-cli 0.3.19",
  "vergen 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -2200,14 +2200,14 @@ dependencies = [
 
 [[package]]
 name = "polkadot-cli"
-version = "0.3.18"
+version = "0.3.19"
 dependencies = [
  "exit-future 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-service 0.3.18",
+ "polkadot-service 0.3.19",
  "substrate-cli 0.3.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2217,12 +2217,12 @@ dependencies = [
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-cli 0.3.18",
+ "polkadot-cli 0.3.19",
  "polkadot-primitives 0.1.0",
  "polkadot-runtime 0.1.0",
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2252,7 +2252,7 @@ dependencies = [
  "substrate-keyring 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-transaction-pool 0.1.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2281,7 +2281,7 @@ dependencies = [
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-network 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2355,7 +2355,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-service"
-version = "0.3.18"
+version = "0.3.19"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2379,7 +2379,7 @@ dependencies = [
  "substrate-service 0.3.0 (git+https://github.com/paritytech/substrate)",
  "substrate-telemetry 0.3.1 (git+https://github.com/paritytech/substrate)",
  "substrate-transaction-pool 0.1.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3001,7 +3001,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "sr-api-macros"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro-crate 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3013,7 +3013,7 @@ dependencies = [
 [[package]]
 name = "sr-io"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "environmental 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hash-db 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3030,7 +3030,7 @@ dependencies = [
 [[package]]
 name = "sr-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "integer-sqrt 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3046,7 +3046,7 @@ dependencies = [
 [[package]]
 name = "sr-std"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -3054,7 +3054,7 @@ dependencies = [
 [[package]]
 name = "sr-version"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "impl-serde 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3067,7 +3067,7 @@ dependencies = [
 [[package]]
 name = "srml-aura"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3086,7 +3086,7 @@ dependencies = [
 [[package]]
 name = "srml-balances"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3102,7 +3102,7 @@ dependencies = [
 [[package]]
 name = "srml-consensus"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3119,7 +3119,7 @@ dependencies = [
 [[package]]
 name = "srml-council"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec-derive 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3137,7 +3137,7 @@ dependencies = [
 [[package]]
 name = "srml-democracy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3154,7 +3154,7 @@ dependencies = [
 [[package]]
 name = "srml-executive"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3168,7 +3168,7 @@ dependencies = [
 [[package]]
 name = "srml-finality-tracker"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3184,7 +3184,7 @@ dependencies = [
 [[package]]
 name = "srml-grandpa"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3203,7 +3203,7 @@ dependencies = [
 [[package]]
 name = "srml-indices"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3222,7 +3222,7 @@ dependencies = [
 [[package]]
 name = "srml-metadata"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3234,7 +3234,7 @@ dependencies = [
 [[package]]
 name = "srml-session"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3252,7 +3252,7 @@ dependencies = [
 [[package]]
 name = "srml-staking"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3271,7 +3271,7 @@ dependencies = [
 [[package]]
 name = "srml-sudo"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3287,7 +3287,7 @@ dependencies = [
 [[package]]
 name = "srml-support"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "bitmask 0.5.0 (git+https://github.com/paritytech/bitmask)",
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3307,7 +3307,7 @@ dependencies = [
 [[package]]
 name = "srml-support-procedural"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "proc-macro2 0.4.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3319,7 +3319,7 @@ dependencies = [
 [[package]]
 name = "srml-support-procedural-tools"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "proc-macro-crate 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 0.4.27 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3331,7 +3331,7 @@ dependencies = [
 [[package]]
 name = "srml-support-procedural-tools-derive"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "proc-macro2 0.4.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3341,7 +3341,7 @@ dependencies = [
 [[package]]
 name = "srml-system"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3358,7 +3358,7 @@ dependencies = [
 [[package]]
 name = "srml-timestamp"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3373,7 +3373,7 @@ dependencies = [
 [[package]]
 name = "srml-treasury"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3513,7 +3513,7 @@ dependencies = [
 [[package]]
 name = "substrate-cli"
 version = "0.3.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "ansi_term 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "app_dirs 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3541,13 +3541,13 @@ dependencies = [
  "substrate-telemetry 0.3.1 (git+https://github.com/paritytech/substrate)",
  "sysinfo 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-client"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3576,7 +3576,7 @@ dependencies = [
 [[package]]
 name = "substrate-client-db"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hash-db 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb 0.1.0 (git+https://github.com/paritytech/parity-common?rev=b0317f649ab2c665b7987b8475878fc4d2e1f81d)",
@@ -3597,7 +3597,7 @@ dependencies = [
 [[package]]
 name = "substrate-consensus-aura"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3617,13 +3617,13 @@ dependencies = [
  "substrate-inherents 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-telemetry 0.3.1 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-consensus-aura-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
 ]
@@ -3631,7 +3631,7 @@ dependencies = [
 [[package]]
 name = "substrate-consensus-aura-slots"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3644,17 +3644,18 @@ dependencies = [
  "substrate-consensus-common 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-inherents 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-consensus-common"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "crossbeam-channel 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.5.0 (git+https://github.com/tomaka/libp2p-rs?branch=substrate-tmp-2019-03-20)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec-derive 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3662,13 +3663,13 @@ dependencies = [
  "sr-version 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-inherents 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-executor"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3693,7 +3694,7 @@ dependencies = [
 [[package]]
 name = "substrate-finality-grandpa"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "finality-grandpa 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "fork-tree 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -3712,13 +3713,13 @@ dependencies = [
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-service 0.3.0 (git+https://github.com/paritytech/substrate)",
  "substrate-telemetry 0.3.1 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-finality-grandpa-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
@@ -3730,7 +3731,7 @@ dependencies = [
 [[package]]
 name = "substrate-inherents"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3741,7 +3742,7 @@ dependencies = [
 [[package]]
 name = "substrate-keyring"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hex-literal 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3753,7 +3754,7 @@ dependencies = [
 [[package]]
 name = "substrate-keystore"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3769,7 +3770,7 @@ dependencies = [
 [[package]]
 name = "substrate-network"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "crossbeam-channel 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3790,13 +3791,13 @@ dependencies = [
  "substrate-network-libp2p 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-peerset 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-network-libp2p"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3813,7 +3814,7 @@ dependencies = [
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "substrate-peerset 0.1.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-timer 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "unsigned-varint 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3823,7 +3824,7 @@ dependencies = [
 [[package]]
 name = "substrate-panic-handler"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "backtrace 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3832,7 +3833,7 @@ dependencies = [
 [[package]]
 name = "substrate-peerset"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3849,7 +3850,7 @@ dependencies = [
 [[package]]
 name = "substrate-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3880,7 +3881,7 @@ dependencies = [
 [[package]]
 name = "substrate-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 10.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3900,13 +3901,13 @@ dependencies = [
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-state-machine 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-transaction-pool 0.1.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-rpc-servers"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "jsonrpc-http-server 10.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-pubsub 10.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3920,7 +3921,7 @@ dependencies = [
 [[package]]
 name = "substrate-serializer"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3929,7 +3930,7 @@ dependencies = [
 [[package]]
 name = "substrate-service"
 version = "0.3.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "exit-future 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3955,13 +3956,13 @@ dependencies = [
  "substrate-telemetry 0.3.1 (git+https://github.com/paritytech/substrate)",
  "substrate-transaction-pool 0.1.0 (git+https://github.com/paritytech/substrate)",
  "target_info 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-state-db"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3972,7 +3973,7 @@ dependencies = [
 [[package]]
 name = "substrate-state-machine"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hash-db 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "heapsize 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3990,7 +3991,7 @@ dependencies = [
 [[package]]
 name = "substrate-telemetry"
 version = "0.3.1"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4008,7 +4009,7 @@ dependencies = [
 [[package]]
 name = "substrate-transaction-graph"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4022,7 +4023,7 @@ dependencies = [
 [[package]]
 name = "substrate-transaction-pool"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "error-chain 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4038,7 +4039,7 @@ dependencies = [
 [[package]]
 name = "substrate-trie"
 version = "0.4.0"
-source = "git+https://github.com/paritytech/substrate#3628a932187cc53a1a765fab935baea8a84ec1ce"
+source = "git+https://github.com/paritytech/substrate#a4204129ddfd2de862b78c1f7392f61e531e41e1"
 dependencies = [
  "hash-db 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "memory-db 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4185,13 +4186,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "tokio"
-version = "0.1.17"
+version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4199,14 +4200,14 @@ dependencies = [
  "mio 0.6.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-codec 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-current-thread 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-executor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-current-thread 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-executor 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-fs 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-reactor 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-sync 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-tcp 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-threadpool 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-threadpool 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-timer 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-trace-core 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-udp 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4225,11 +4226,11 @@ dependencies = [
 
 [[package]]
 name = "tokio-current-thread"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-executor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-executor 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4240,12 +4241,12 @@ dependencies = [
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-cpupool 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "tokio-executor"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "crossbeam-utils 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4259,7 +4260,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-threadpool 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-threadpool 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4285,7 +4286,7 @@ dependencies = [
  "num_cpus 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "slab 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-executor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-executor 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-sync 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -4314,7 +4315,7 @@ dependencies = [
 
 [[package]]
 name = "tokio-threadpool"
-version = "0.1.12"
+version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "crossbeam-deque 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4325,7 +4326,7 @@ dependencies = [
  "num_cpus 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "slab 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-executor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-executor 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4336,7 +4337,7 @@ dependencies = [
  "crossbeam-utils 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "slab 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-executor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-executor 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4607,7 +4608,7 @@ dependencies = [
  "native-tls 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha1 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-tls 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicase 1.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 1.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4920,7 +4921,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum net2 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)" = "42550d9fb7b6684a6d404d9fa7250c2eb2646df731d1c06afc06dcee9e1bcf88"
 "checksum nodrop 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)" = "2f9667ddcc6cc8a43afc9b7917599d7216aa09c463919ea32c59ed6cac8bc945"
 "checksum nohash-hasher 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0d138afcce92d219ccb6eb53d9b1e8a96ac0d633cfd3c53cd9856d96d1741bb8"
-"checksum nom 4.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "22293d25d3f33a8567cc8a1dc20f40c7eeb761ce83d0fcca059858580790cac3"
+"checksum nom 4.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "2ad2a91a8e869eeb30b9cb3119ae87773a8f4ae617f41b1eb9c154b2905f7bd6"
 "checksum num-integer 0.1.39 (registry+https://github.com/rust-lang/crates.io-index)" = "e83d528d2677f0518c570baf2b7abdcf0cd2d248860b68507bdcb3e91d4c0cea"
 "checksum num-traits 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)" = "0b3a5d7cc97d6d30d8b9bc8fa19bf45349ffe46241e8816f50f62f6d6aaabee1"
 "checksum num_cpus 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1a23f0ed30a54abaa0c7e83b1d2d87ada7c3c23078d1d87815af3e3b6385fbba"
@@ -5110,17 +5111,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum tiny-bip39 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f5388a470627f97a01a6e13389ced797a42b1611f9de7e0f6ca705675ac55297"
 "checksum tiny-keccak 1.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "e9175261fbdb60781fcd388a4d6cc7e14764a2b629a7ad94abb439aed223a44f"
 "checksum tk-listen 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "5462b0f968c0457efe38fcd2df7e487096b992419e4f5337b06775a614bbda4b"
-"checksum tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)" = "1021bb1f4150435ab8f222eb7ed37c60b2d57037def63ba43085a79f387512d7"
+"checksum tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)" = "65641e515a437b308ab131a82ce3042ff9795bef5d6c5a9be4eb24195c417fd9"
 "checksum tokio-codec 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "5c501eceaf96f0e1793cf26beb63da3d11c738c4a943fdf3746d81d64684c39f"
-"checksum tokio-current-thread 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "c756b04680eea21902a46fca4e9f410a2332c04995af590e07ff262e2193a9a3"
+"checksum tokio-current-thread 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "d16217cad7f1b840c5a97dfb3c43b0c871fef423a6e8d2118c604e843662a443"
 "checksum tokio-dns-unofficial 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "82c65483db54eb91b4ef3a9389a3364558590faf30ce473141707c0e16fda975"
-"checksum tokio-executor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "30c6dbf2d1ad1de300b393910e8a3aa272b724a400b6531da03eed99e329fbf0"
+"checksum tokio-executor 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "83ea44c6c0773cc034771693711c35c677b4b5a4b21b9e7071704c54de7d555e"
 "checksum tokio-fs 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "3fe6dc22b08d6993916647d108a1a7d15b9cd29c4f4496c62b92c45b5041b7af"
 "checksum tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)" = "5090db468dad16e1a7a54c8c67280c5e4b544f3d3e018f0b913b400261f85926"
 "checksum tokio-reactor 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)" = "6af16bfac7e112bea8b0442542161bfc41cbfa4466b580bdda7d18cb88b911ce"
 "checksum tokio-sync 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "fda385df506bf7546e70872767f71e81640f1f251bdf2fd8eb81a0eaec5fe022"
 "checksum tokio-tcp 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "1d14b10654be682ac43efee27401d792507e30fd8d26389e1da3b185de2e4119"
-"checksum tokio-threadpool 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)" = "742e511f6ce2298aeb86fc9ea0d8df81c2388c6ebae3dc8a7316e8c9df0df801"
+"checksum tokio-threadpool 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)" = "ec5759cf26cf9659555f36c431b515e3d05f66831741c85b4b5d5dfb9cf1323c"
 "checksum tokio-timer 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)" = "2910970404ba6fa78c5539126a9ae2045d62e3713041e447f695f41405a120c6"
 "checksum tokio-tls 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "354b8cd83825b3c20217a9dc174d6a0c67441a2fae5c41bcb1ea6679f6ae0f7c"
 "checksum tokio-trace-core 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "350c9edade9830dc185ae48ba45667a445ab59f6167ef6d0254ec9d2430d9dd3"
