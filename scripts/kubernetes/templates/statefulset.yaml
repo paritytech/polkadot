@@ -3,12 +3,12 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: polkadot
+  name: {{ .Values.app }}
 spec:
   selector:
     matchLabels:
-      app: polkadot
-  serviceName: polkadot
+      app: {{ .Values.GitlabEnvSlug | default .Values.app }}
+  serviceName: {{ .Values.app }}
   replicas: {{ .Values.nodes.replicas }}
   updateStrategy:
     type: RollingUpdate
@@ -16,7 +16,7 @@ spec:
   template:
     metadata:
       labels:
-        app: polkadot
+        app: {{ .Values.GitlabEnvSlug | default .Values.app }}
     spec:
       {{- if .Values.rbac.enable }}
       serviceAccountName: {{ .Values.rbac.name }}
@@ -31,7 +31,8 @@ spec:
                 - key: node
                   operator: In
                   values:
-                  - polkadot
+                  - {{ .Values.node_group }}
+        {{- if .Values.listen_node_port }}
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
@@ -39,11 +40,41 @@ spec:
                   - key: "app"
                     operator: In
                     values:
-                    - polkadot
+                    - {{ .Values.app }}
               topologyKey: "kubernetes.io/hostname"
+        {{- end }}
       terminationGracePeriodSeconds: 300
+      {{- if .Values.validator.keys }}
+      volumes:
+        - name: {{ .Values.app }}-validator-secrets
+          secret:
+            secretName: {{ .Values.app }}-secrets
+      initContainers:
+      - name: prepare-secrets
+        image: busybox
+        command: [ "/bin/sh" ]
+        args:
+          - -c
+          - sed -n -r "s/^${POD_NAME}-key ([^ ]+)$/\1/p" /etc/validator/secrets > {{ .Values.image.basepath }}/key;
+            sed -n -r "s/^${POD_NAME}-node-key ([^ ]+)$/\1/p" /etc/validator/secrets > {{ .Values.image.basepath }}/node-key;
+            sed -n -r "s/^${POD_NAME}-name ([^ ]+)$/\1/p" /etc/validator/secrets > {{ .Values.image.basepath }}/name;
+            test -s {{ .Values.image.basepath }}/name || echo "${POD_NAME}" > {{ .Values.image.basepath }}/name
+        env:
+          # from (workaround for hostname)
+          # https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        volumeMounts:
+        - name: {{ .Values.app }}-validator-secrets
+          readOnly: true
+          mountPath: "/etc/validator"
+        - name: {{ .Values.app }}dir
+          mountPath: {{ .Values.image.basepath }}
+      {{- end }}
       containers:
-      - name: polkapod
+      - name: {{ .Values.app }}
         imagePullPolicy: "{{ .Values.image.pullPolicy }}"
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         {{- if .Values.resources }}
@@ -59,40 +90,46 @@ spec:
           name: http-rpc
         - containerPort: 9944
           name: websocket-rpc
+        command: ["/bin/sh"]
         args:
-          - --base-path
-          - {{ .Values.image.basepath }}
-          - --name
-          - $(MY_POD_NAME)
-        {{- range .Values.nodes.args }}
-          - {{ . }}
-        {{- end }}
+          - -c
+          - exec {{ .Values.image.executable }}
+            --base-path {{ .Values.image.basepath }}
+            {{- if .Values.validator.keys }}
+            --validator
+            --name $(cat {{ .Values.image.basepath }}/name)
+            --key $(cat {{ .Values.image.basepath }}/key)
+            --node-key $(cat {{ .Values.image.basepath }}/node-key)
+            {{- else }}
+            --name $(POD_NAME)
+            {{- end }}
+            {{- range .Values.nodes.args }} {{ . }} {{- end }}
         env:
-          # from (workaround for hostname)
-          # https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/
-          - name: MY_POD_NAME
+          - name: POD_NAME
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
         volumeMounts:
-        - name: polkadir
+        - name: {{ .Values.app }}dir
           mountPath: {{ .Values.image.basepath }}
         readinessProbe:
-          tcpSocket:
+          httpGet:
+            path: /health
             port: http-rpc
-          initialDelaySeconds: 30
-          periodSeconds: 30
+          initialDelaySeconds: 10
+          periodSeconds: 10
         livenessProbe:
-          tcpSocket:
+          httpGet:
+            path: /health
             port: http-rpc
-          initialDelaySeconds: 30
-          periodSeconds: 30
+          initialDelaySeconds: 10
+          periodSeconds: 10
       securityContext:
         runAsUser: 1000
         fsGroup: 1000
   volumeClaimTemplates:
   - metadata:
-      name: polkadir
+      name: {{ .Values.app }}dir
     spec:
       accessModes: [ "ReadWriteOnce" ]
       storageClassName: ssd
