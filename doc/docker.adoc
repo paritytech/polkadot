@@ -25,6 +25,12 @@ docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polk
 
 **Note:** The `--chain alex` argument is important and you need to add it to the command line. If you are running older node versions (pre 0.3) you don't need it.
 
+=== Limiting Resources
+
+Chain syncing will utilise all available memory and CPU power your server has to offer, which can lead to crashing. 
+
+If running on a low resource VPS, use `--memory` and `--cpus` to limit the resources used. E.g. To allow a maximum of 512MB memory and 50% of 1 CPU, use  `--cpus=".5" --memory="512m"`. Read more about limiting a container's resources [here](https://docs.docker.com/config/containers/resource_constraints). 
+
 Start a shell session with the daemon:
 
 [source, shell]
