@@ -21,6 +21,7 @@ substrate-inherents = { git = "https://github.com/paritytech/substrate" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 substrate-client = { git = "https://github.com/paritytech/substrate" }
 substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
+substrate-offchain-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-aura = { git = "https://github.com/paritytech/substrate" }
 srml-balances = { git = "https://github.com/paritytech/substrate" }
 srml-consensus = { git = "https://github.com/paritytech/substrate" }
@@ -51,6 +52,7 @@ std = [
 	"parity-codec-derive/std",
 	"substrate-inherents/std",
 	"substrate-primitives/std",
+	"substrate-offchain-primitives/std",
 	"sr-std/std",
 	"sr-io/std",
 	"srml-support/std",
