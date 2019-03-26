@@ -194,6 +194,7 @@ dependencies = [
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-consensus-aura-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-inherents 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-offchain-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
 ]
 
@@ -691,6 +692,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "substrate-offchain-primitives"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/substrate#6afca8217d1219eb4247e720f0e7cffce44a8474"
+dependencies = [
+ "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
 name = "substrate-primitives"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/substrate#6afca8217d1219eb4247e720f0e7cffce44a8474"
@@ -802,6 +812,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum substrate-consensus-aura-primitives 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum substrate-finality-grandpa-primitives 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum substrate-inherents 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
+"checksum substrate-offchain-primitives 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum syn 0.15.29 (registry+https://github.com/rust-lang/crates.io-index)" = "1825685f977249735d510a242a6727b46efe914bb67e38d30c071b1b72b1d5c2"
 "checksum toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)" = "758664fc71a3a69038656bee8b6be6477d2a6c315a6b81f7081f591bffa4111f"

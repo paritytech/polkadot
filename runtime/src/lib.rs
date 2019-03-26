@@ -29,6 +29,7 @@ extern crate parity_codec as codec;
 extern crate substrate_consensus_aura_primitives as consensus_aura;
 extern crate substrate_inherents as inherents;
 extern crate substrate_primitives;
+extern crate substrate_offchain_primitives as offchain_primitives;
 #[macro_use]
 extern crate substrate_client as client;
 
@@ -327,6 +328,12 @@ impl_runtime_apis! {
 	impl client_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(tx: <Block as BlockT>::Extrinsic) -> TransactionValidity {
 			Executive::validate_transaction(tx)
+		}
+	}
+
+	impl offchain_primitives::OffchainWorkerApi<Block> for Runtime {
+		fn offchain_worker(number: sr_primitives::traits::NumberFor<Block>) {
+			Executive::offchain_worker(number)
 		}
 	}
 
