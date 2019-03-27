@@ -132,6 +132,43 @@ pub trait RelayChainContext {
 	fn unrouted_egress(&self, id: ParaId) -> Self::FutureEgress;
 }
 
+/// Collate the necessary ingress queue using the given context.
+pub fn collate_ingress<'a, R>(relay_context: R)
+	-> impl Future<Item=ConsolidatedIngress, Error=R::Error> + 'a
+	where
+		R: RelayChainContext,
+		R::Error: 'a,
+		R::FutureEgress: 'a,
+{
+	let mut egress_fetch = Vec::new();
+
+	for routing_parachain in relay_context.routing_parachains() {
+		let fetch = relay_context
+			.unrouted_egress(routing_parachain)
+			.into_future()
+			.map(move |egresses| (routing_parachain, egresses));
+
+		egress_fetch.push(fetch);
+	}
+
+	// create a map ordered first by the depth of the egress queue
+	// and then by the parachain ID.
+	//
+	// then transform that into the consolidated egress queue.
+	stream::futures_unordered(egress_fetch)
+		.fold(BTreeMap::new(), |mut map, (routing_id, egresses)| {
+			for (depth, egress) in egresses.into_iter().rev().enumerate() {
+				let depth = -(depth as i64);
+				map.insert((depth, routing_id), egress);
+			}
+
+			Ok(map)
+		})
+		.map(|ordered| ordered.into_iter().map(|((_, id), egress)| (id, egress)))
+		.map(|i| i.collect::<Vec<_>>())
+		.map(ConsolidatedIngress)
+}
+
 /// Produce a candidate for the parachain, with given contexts, parent head, and signing key.
 pub fn collate<'a, R, P>(
 	local_id: ParaId,

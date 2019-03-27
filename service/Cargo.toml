@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.3.0"
+version = "0.3.20"
 authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
@@ -23,8 +23,8 @@ substrate-primitives = { git = "https://github.com/paritytech/substrate" }
 substrate-client = { git = "https://github.com/paritytech/substrate" }
 substrate-consensus-aura = { git = "https://github.com/paritytech/substrate" }
 substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate" }
+substrate-inherents = { git = "https://github.com/paritytech/substrate" }
 substrate-service = { git = "https://github.com/paritytech/substrate" }
 substrate-telemetry = { git = "https://github.com/paritytech/substrate" }
-substrate-inherents = { git = "https://github.com/paritytech/substrate" }
 substrate-transaction-pool = { git = "https://github.com/paritytech/substrate" }
 substrate-keystore = { git = "https://github.com/paritytech/substrate" }

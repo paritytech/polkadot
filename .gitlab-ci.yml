@@ -235,7 +235,7 @@ publish-s3-release:
     - kubectl get nodes -l node=polkadot
       -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range @.status.addresses[?(@.type=="ExternalIP")]}{.address}{"\n"}{end}'
     - echo "# polkadots' nodes"
-    - kubectl -n polkadot get pods 
+    - kubectl -n polkadot get pods
       -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.nodeName}{"\n"}{end}'
 
 

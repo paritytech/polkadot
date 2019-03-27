@@ -419,6 +419,32 @@ impl<T: Trait> Module<T> {
 					"Candidate validity attestation signature is bad."
 				);
 			}
+
+			let mut encoded_available = None;
+			for (auth_id, sig) in &candidate.availability_votes {
+				match availability_group.iter().find(|&(idx, _)| &authorities[*idx] == auth_id) {
+					None => return Err("Attesting validator not on this chain's availability duty."),
+					Some(&(idx, _)) => {
+						if track_voters.get(authorities.len() + idx) {
+							return Err("Voter already attested availability once")
+						}
+						track_voters.set(authorities.len() + idx, true)
+					}
+				}
+
+				let hash = candidate_hash
+					.get_or_insert_with(|| candidate.candidate.hash())
+					.clone();
+
+				let payload = encoded_available.get_or_insert_with(|| localized_payload(
+					Statement::Available(hash),
+				));
+
+				ensure!(
+					sig.verify(&payload[..], &auth_id),
+					"Candidate availability attestation signature is bad."
+				)
+			}
 		}
 
 		Ok(())
@@ -478,8 +504,8 @@ mod tests {
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
 	impl consensus::Trait for Test {
-		type SessionKey = SessionKey;
 		type InherentOfflineReport = ();
+		type SessionKey = SessionKey;
 		type Log = ::Log;
 	}
 	impl system::Trait for Test {
@@ -555,8 +581,8 @@ mod tests {
 		let candidate_hash = candidate.candidate.hash();
 
 		let authorities = ::Consensus::authorities();
-		let extract_key = |public: &SessionKey| {
-			AuthorityKeyring::from_public(public).unwrap()
+		let extract_key = |public: SessionKey| {
+			AuthorityKeyring::from_raw_public(public.0).unwrap()
 		};
 
 		let validation_entries = duty_roster.validator_duty.iter()
@@ -566,7 +592,7 @@ mod tests {
 			if duty != Chain::Parachain(candidate.parachain_index()) { continue }
 			vote_implicit = !vote_implicit;
 
-			let key = extract_key(&authorities[idx]);
+			let key = extract_key(authorities[idx].clone());
 
 			let statement = if vote_implicit {
 				Statement::Candidate(candidate.candidate.clone())

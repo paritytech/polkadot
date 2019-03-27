@@ -43,7 +43,7 @@ pub use service::{
 	ProvideRuntimeApi, CoreApi, ParachainHost,
 };
 
-pub use cli::{VersionInfo, IntoExit};
+pub use cli::{VersionInfo, IntoExit, NoCustom};
 pub use cli::error;
 pub use tokio::runtime::TaskExecutor;
 

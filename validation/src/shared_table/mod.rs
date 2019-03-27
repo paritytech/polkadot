@@ -33,8 +33,7 @@ use futures::{future, prelude::*};
 
 use super::{GroupInfo, Incoming, TableRouter};
 use self::includable::IncludabilitySender;
-use primitives::{Pair, ed25519};
-use runtime_primitives::{traits::ProvideRuntimeApi};
+use primitives::{ed25519, Pair};
 
 mod includable;
 
@@ -546,7 +545,6 @@ mod tests {
 	use super::*;
 	use substrate_keyring::AuthorityKeyring;
 	use primitives::crypto::UncheckedInto;
-	use futures::future;
 
 	#[derive(Clone)]
 	struct DummyRouter;
@@ -583,6 +581,7 @@ mod tests {
 
 		groups.insert(para_id, GroupInfo {
 			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
+			availability_guarantors: Default::default(),
 			needed_validity: 2,
 		});
 
@@ -633,7 +632,8 @@ mod tests {
 		let validity_other = validity_other_key.public();
 
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
+			validity_guarantors: [validity_other.clone()].iter().cloned().collect(),
+			availability_guarantors: [local_id].iter().cloned().collect(),
 			needed_validity: 1,
 		});
 
