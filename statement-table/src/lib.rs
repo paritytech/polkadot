@@ -48,17 +48,8 @@ pub trait Context {
 	/// Members are meant to submit candidates and vote on validity.
 	fn is_member_of(&self, authority: &ValidatorId, group: &Id) -> bool;
 
-	/// Whether a authority is an availability guarantor of a group.
-	/// Guarantors are meant to vote on availability for candidates submitted
-	/// in a group.
-	fn is_availability_guarantor_of(
-		&self,
-		authority: &ValidatorId,
-		group: &Id,
-	) -> bool;
-
-	// requisite number of votes for validity and availability respectively from a group.
-	fn requisite_votes(&self, group: &Id) -> (usize, usize);
+	// requisite number of votes for validity from a group.
+	fn requisite_votes(&self, group: &Id) -> usize;
 }
 
 impl<C: Context> generic::Context for C {
@@ -80,11 +71,7 @@ impl<C: Context> generic::Context for C {
 		Context::is_member_of(self, authority, group)
 	}
 
-	fn is_availability_guarantor_of(&self, authority: &ValidatorId, group: &Id) -> bool {
-		Context::is_availability_guarantor_of(self, authority, group)
-	}
-
-	fn requisite_votes(&self, group: &Id) -> (usize, usize) {
+	fn requisite_votes(&self, group: &Id) -> usize {
 		Context::requisite_votes(self, group)
 	}
 }

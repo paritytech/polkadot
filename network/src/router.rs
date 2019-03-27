@@ -23,22 +23,26 @@
 //! the `TableRouter` trait from `polkadot-validation`, which is expected to call into a shared statement table
 //! and dispatch evaluation work as necessary when new statements come in.
 
-use sr_primitives::traits::ProvideRuntimeApi;
-use polkadot_consensus::{SharedTable, TableRouter, SignedStatement, GenericStatement, StatementProducer};
-use polkadot_primitives::{Block, Hash, BlockId, SessionKey};
-use polkadot_primitives::parachain::{BlockData, Extrinsic, CandidateReceipt, ParachainHost};
+use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
+use polkadot_validation::{
+	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Outgoing, Validated
+};
+use polkadot_primitives::{Block, Hash, SessionKey};
+use polkadot_primitives::parachain::{
+	BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message
+};
+use gossip::RegisteredMessageValidator;
 
-use codec::Encode;
+use codec::{Encode, Decode};
 use futures::prelude::*;
 use futures::sync::oneshot;
-use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 
-use validation::{self, SessionDataFetcher, NetworkService, Executor};
+use validation::{self, SessionDataFetcher, NetworkService, Executor, Incoming};
 
 type IngressPairRef<'a> = (ParaId, &'a [Message]);
 
@@ -62,22 +66,14 @@ pub struct Router<P, E, N: NetworkService, T> {
 impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
-		network: Arc<NetworkService>,
-		api: Arc<P>,
-		task_executor: TaskExecutor,
-		parent_hash: Hash,
-		knowledge: Arc<Mutex<Knowledge>>,
+		fetcher: SessionDataFetcher<P, E, N, T>,
 		message_validator: RegisteredMessageValidator,
 	) -> Self {
 		let parent_hash = fetcher.parent_hash();
 		Router {
 			table,
-			network,
-			api,
-			task_executor,
-			parent_hash,
+			fetcher,
 			attestation_topic: attestation_topic(parent_hash),
-			knowledge,
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
 			message_validator,
 		}
@@ -113,7 +109,6 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 			fetcher: self.fetcher.clone(),
 			attestation_topic: self.attestation_topic.clone(),
 			deferred_statements: self.deferred_statements.clone(),
-			knowledge: self.knowledge.clone(),
 			message_validator: self.message_validator.clone(),
 		}
 	}
@@ -223,31 +218,11 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 					validated.extrinsic().cloned(),
 				);
 
-				if produced.validity.is_none() && produced.availability.is_none() {
-					return
-				}
 
-				// propagate the statements
+				// propagate the statement.
 				// consider something more targeted than gossip in the future.
-				if let Some(validity) = produced.validity {
-					let signed = table.sign_and_import(validity.clone()).0;
-					network.gossip_consensus_message(
-						attestation_topic,
-						POLKADOT_ENGINE_ID,
-						signed.encode(),
-						false,
-					);
-				}
-
-				if let Some(availability) = produced.availability {
-					let signed = table.sign_and_import(availability).0;
-					network.gossip_consensus_message(
-						attestation_topic,
-						POLKADOT_ENGINE_ID,
-						signed.encode(),
-						false,
-					);
-				}
+				let signed = table.import_validated(validated);
+				network.gossip_message(attestation_topic, signed.encode());
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
 	}
@@ -266,45 +241,28 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	fn local_candidate(&self, receipt: CandidateReceipt, block_data: BlockData, extrinsic: Extrinsic) {
 		// produce a signed statement
 		let hash = receipt.hash();
-		let (candidate, availability) = self.table.sign_and_import(GenericStatement::Candidate(receipt));
+		let validated = Validated::collated_local(receipt, block_data.clone(), extrinsic.clone());
+		let statement = self.table.import_validated(validated);
 
-		self.knowledge.lock().note_candidate(hash, Some(block_data), Some(extrinsic));
-		self.network.gossip_consensus_message(
-			self.attestation_topic,
-			POLKADOT_ENGINE_ID,
-			candidate.encode(),
-			false,
-		);
-		if let Some(availability) = availability {
-			self.network.gossip_consensus_message(
-				self.attestation_topic,
-				POLKADOT_ENGINE_ID,
-				availability.encode(),
-				false,
-			);
-		}
-	}
-
-	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> BlockDataReceiver {
-		let parent_hash = self.parent_hash.clone();
-		let candidate = candidate.clone();
-		let (tx, rx) = oneshot::channel();
-		self.network.with_spec(move |spec, ctx| {
-			let inner_rx = spec.fetch_block_data(ctx, &candidate, parent_hash);
-			let _ = tx.send(inner_rx);
-		});
-		BlockDataReceiver { outer: rx, inner: None }
+		// give to network to make available.
+		self.fetcher.knowledge().lock().note_candidate(hash, Some(block_data), Some(extrinsic));
+		self.network().gossip_message(self.attestation_topic, statement.encode());
 	}
 
 	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> Self::FetchCandidate {
 		self.fetcher.fetch_block_data(candidate)
 	}
 
-impl<P> Drop for Router<P> {
+	fn fetch_incoming(&self, parachain: ParaId) -> Self::FetchIncoming {
+		self.fetcher.fetch_incoming(parachain)
+	}
+}
+
+impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 	fn drop(&mut self) {
-		let parent_hash = self.parent_hash.clone();
-		self.message_validator.remove_consensus(&parent_hash);
-		self.network.with_spec(move |spec, _| spec.remove_consensus(&parent_hash));
+		let parent_hash = self.parent_hash().clone();
+		self.message_validator.remove_session(&parent_hash);
+		self.network().with_spec(move |spec, _| { spec.remove_validation_session(parent_hash); });
 	}
 }
 
@@ -366,7 +324,6 @@ impl DeferredStatements {
 			GenericStatement::Candidate(_) => return,
 			GenericStatement::Valid(hash) => (hash, StatementTrace::Valid(statement.sender.clone(), hash)),
 			GenericStatement::Invalid(hash) => (hash, StatementTrace::Invalid(statement.sender.clone(), hash)),
-			GenericStatement::Available(hash) => (hash, StatementTrace::Available(statement.sender.clone(), hash)),
 		};
 
 		if self.known_traces.insert(trace) {
@@ -384,7 +341,6 @@ impl DeferredStatements {
 						GenericStatement::Candidate(_) => continue,
 						GenericStatement::Valid(hash) => StatementTrace::Valid(statement.sender.clone(), hash),
 						GenericStatement::Invalid(hash) => StatementTrace::Invalid(statement.sender.clone(), hash),
-						GenericStatement::Available(hash) => StatementTrace::Available(statement.sender.clone(), hash),
 					};
 
 					self.known_traces.remove(&trace);

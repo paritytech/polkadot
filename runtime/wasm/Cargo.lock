@@ -1574,6 +1574,7 @@ dependencies = [
  "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-consensus-aura-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-inherents 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-offchain-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-serializer 0.1.0 (git+https://github.com/paritytech/substrate)",
 ]
@@ -2670,6 +2671,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "substrate-offchain-primitives"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/substrate#72409f9fd1dcf25b094dc09a31a9f831dd56411a"
+dependencies = [
+ "sr-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-client 0.1.0 (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
 name = "substrate-panic-handler"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/substrate#72409f9fd1dcf25b094dc09a31a9f831dd56411a"
@@ -3531,6 +3541,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum substrate-finality-grandpa-primitives 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum substrate-inherents 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum substrate-keyring 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
+"checksum substrate-offchain-primitives 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum substrate-panic-handler 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
 "checksum substrate-serializer 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"

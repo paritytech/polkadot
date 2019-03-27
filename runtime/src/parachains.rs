@@ -419,32 +419,6 @@ impl<T: Trait> Module<T> {
 					"Candidate validity attestation signature is bad."
 				);
 			}
-
-			let mut encoded_available = None;
-			for (auth_id, sig) in &candidate.availability_votes {
-				match availability_group.iter().find(|&(idx, _)| &authorities[*idx] == auth_id) {
-					None => return Err("Attesting validator not on this chain's availability duty."),
-					Some(&(idx, _)) => {
-						if track_voters.get(authorities.len() + idx) {
-							return Err("Voter already attested availability once")
-						}
-						track_voters.set(authorities.len() + idx, true)
-					}
-				}
-
-				let hash = candidate_hash
-					.get_or_insert_with(|| candidate.candidate.hash())
-					.clone();
-
-				let payload = encoded_available.get_or_insert_with(|| localized_payload(
-					Statement::Available(hash),
-				));
-
-				ensure!(
-					sig.verify(&payload[..], &auth_id),
-					"Candidate availability attestation signature is bad."
-				)
-			}
 		}
 
 		Ok(())
@@ -720,7 +694,8 @@ mod tests {
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
-				}
+				},
+
 			};
 
 			assert!(Parachains::dispatch(Call::set_heads(vec![candidate]), Origin::INHERENT).is_err());

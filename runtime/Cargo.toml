@@ -21,6 +21,7 @@ substrate-primitives = { git = "https://github.com/paritytech/substrate", defaul
 substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false }
 substrate-inherents = { git = "https://github.com/paritytech/substrate", default-features = false }
 substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
+substrate-offchain-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-aura = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-balances = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-consensus = { git = "https://github.com/paritytech/substrate", default-features = false }
@@ -58,6 +59,7 @@ std = [
 	"substrate-primitives/std",
 	"substrate-client/std",
 	"substrate-inherents/std",
+	"substrate-offchain-primitives/std",
 	"sr-std/std",
 	"sr-io/std",
 	"srml-support/std",

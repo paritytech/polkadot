@@ -2312,6 +2312,7 @@ dependencies = [
  "substrate-consensus-aura-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-inherents 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-keyring 0.1.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-offchain-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-primitives 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-serializer 0.1.0 (git+https://github.com/paritytech/substrate)",
  "substrate-trie 0.4.0 (git+https://github.com/paritytech/substrate)",

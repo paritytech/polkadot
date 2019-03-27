@@ -36,7 +36,6 @@ use chain_spec::ChainSpec;
 use futures::Future;
 use tokio::runtime::Runtime;
 use service::Service as BareService;
-use cli::NoCustom;
 
 pub use service::{
 	Components as ServiceComponents, PolkadotService, CustomConfiguration, ServiceFactory, Factory,

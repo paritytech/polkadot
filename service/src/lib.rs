@@ -25,7 +25,6 @@ extern crate polkadot_network;
 extern crate sr_primitives;
 extern crate substrate_primitives as primitives;
 extern crate substrate_client as client;
-extern crate substrate_inherents as inherents;
 #[macro_use]
 extern crate substrate_service as service;
 extern crate substrate_consensus_aura as aura;
@@ -84,6 +83,16 @@ pub struct CustomConfiguration {
 	)>,
 
 	inherent_data_providers: InherentDataProviders,
+}
+
+impl Default for CustomConfiguration {
+	fn default() -> Self {
+		Self {
+			collating_for: None,
+			grandpa_import_setup: None,
+			inherent_data_providers: InherentDataProviders::new(),
+		}
+	}
 }
 
 /// Chain API type for the transaction pool.
@@ -288,7 +297,7 @@ construct_service_factory! {
 				let justification_import = block_import.clone();
 
 				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
-				import_queue(
+				import_queue::<_, _, _, ed25519::Pair>(
 					slot_duration,
 					block_import,
 					Some(justification_import),

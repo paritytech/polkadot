@@ -35,7 +35,6 @@ extern crate parity_codec_derive;
 extern crate parity_codec as codec;
 
 extern crate substrate_consensus_aura_primitives as consensus_aura;
-extern crate substrate_inherents as inherents;
 extern crate substrate_primitives;
 extern crate substrate_inherents as inherents;
 extern crate substrate_offchain_primitives as offchain_primitives;
@@ -187,7 +186,6 @@ impl session::Trait for Runtime {
 }
 
 impl staking::Trait for Runtime {
-	type Currency = Balances;
 	type OnRewardMinted = Treasury;
 	type Event = Event;
 	type Currency = balances::Module<Self>;
@@ -238,7 +236,7 @@ impl curated_grandpa::Trait for Runtime { }
 
 impl sudo::Trait for Runtime {
 	type Event = Event;
-	type TransferAsset = Balances;
+	type Proposal = Call;
 }
 
 construct_runtime!(
@@ -284,7 +282,7 @@ pub type UncheckedExtrinsic = generic::UncheckedMortalCompactExtrinsic<Address, 
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Fees, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Balances, AllModules>;
 
 impl_runtime_apis! {
 	impl client_api::Core<Block> for Runtime {

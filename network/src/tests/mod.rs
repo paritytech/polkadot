@@ -176,7 +176,7 @@ fn fetches_from_those_with_knowledge() {
 	// peer A gives session key and gets asked for data.
 	{
 		let mut ctx = TestContext::default();
-		on_message(&mut protocol, &mut ctx, peer_a, Message::SessionKey(a_key.clone()));
+		on_message(&mut protocol, &mut ctx, peer_a.clone(), Message::SessionKey(a_key.clone()));
 		assert!(protocol.validators.contains_key(&a_key));
 		assert!(ctx.has_message(peer_a.clone(), Message::RequestBlockData(1, parent_hash, candidate_hash)));
 	}
@@ -263,7 +263,7 @@ fn fetches_available_block_data() {
 fn remove_bad_collator() {
 	let mut protocol = PolkadotProtocol::new(None);
 
-	let who = 1;
+	let who = PeerId::random();
 	let collator_id: CollatorId = [2; 32].unchecked_into();
 
 	let status = Status { collating_for: Some((collator_id.clone(), 5.into())) };
@@ -307,7 +307,7 @@ fn many_session_keys() {
 		let status = Status { collating_for: None };
 		protocol.on_connect(&mut ctx, peer_a.clone(), make_status(&status, Roles::AUTHORITY));
 
-		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_a.clone())));
+		assert!(ctx.has_message(peer_a.clone(), Message::SessionKey(local_key_a.clone())));
 		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_b.clone())));
 	}
 

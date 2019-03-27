@@ -34,6 +34,7 @@ use futures::{future, prelude::*};
 use super::{GroupInfo, Incoming, TableRouter};
 use self::includable::IncludabilitySender;
 use primitives::{ed25519, Pair};
+use runtime_primitives::traits::ProvideRuntimeApi;
 
 mod includable;
 
@@ -581,7 +582,6 @@ mod tests {
 
 		groups.insert(para_id, GroupInfo {
 			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
-			availability_guarantors: Default::default(),
 			needed_validity: 2,
 		});
 
@@ -632,8 +632,7 @@ mod tests {
 		let validity_other = validity_other_key.public();
 
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [validity_other.clone()].iter().cloned().collect(),
-			availability_guarantors: [local_id].iter().cloned().collect(),
+			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
 		});
 

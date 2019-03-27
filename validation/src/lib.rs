@@ -40,7 +40,6 @@ extern crate parity_codec as codec;
 extern crate substrate_inherents as inherents;
 extern crate substrate_primitives as primitives;
 extern crate srml_aura as runtime_aura;
-extern crate srml_support as runtime_support;
 extern crate sr_primitives as runtime_primitives;
 extern crate substrate_client as client;
 extern crate substrate_trie as trie;
@@ -52,8 +51,6 @@ extern crate substrate_consensus_aura as aura;
 extern crate substrate_consensus_aura_primitives as aura_primitives;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
-extern crate substrate_inherents as inherents;
-extern crate srml_aura as runtime_aura;
 
 #[macro_use]
 extern crate error_chain;
@@ -97,7 +94,6 @@ use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_aura::timestamp::TimestampInherentData;
-use aura::SlotDuration;
 
 use ed25519::Public as AuthorityId;
 
@@ -757,6 +753,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			}
 
 			let mut unqueue_invalid = Vec::new();
+			let mut pending_size = 0;
 
 			let ready_iter = self.transaction_pool.ready();
 			for ready in ready_iter.take(MAX_TRANSACTIONS) {
@@ -772,6 +769,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 				match block_builder.push(ready.data.clone()) {
 					Ok(()) => {
 						debug!("[{:?}] Pushed to the block.", ready.hash);
+						pending_size += encoded_size;
 					}
 					Err(client::error::Error(client::error::ErrorKind::ApplyExtrinsicFailed(ApplyError::FullBlock), _)) => {
 						debug!("Block is full, proceed with proposing.");

@@ -24,6 +24,8 @@ use super::Hash;
 use primitives::bytes;
 use primitives::ed25519;
 
+pub use polkadot_parachain::Id;
+
 /// Identity that collators use.
 pub type CollatorId = ed25519::Public;
 
@@ -37,24 +39,6 @@ pub type CollatorSignature = ed25519::Signature;
 pub type ValidatorId = super::SessionKey;
 
  /// Signature with which parachain validators sign blocks.
-///
-/// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
-/// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
-pub type ValidatorSignature = super::SessionSignature;
-
-/// Identity that collators use.
-pub type CollatorId = ed25519::Public;
-
-/// Signature with which collators sign blocks.
-pub type CollatorSignature = ed25519::Signature;
-
-/// Identity that parachain validators use when signing validation messages.
-///
-/// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
-/// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
-pub type ValidatorId = super::SessionKey;
-
-/// Signature with which parachain validators sign blocks.
 ///
 /// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
@@ -269,8 +253,6 @@ pub struct AttestedCandidate {
 	pub candidate: CandidateReceipt,
 	/// Validity attestations.
 	pub validity_votes: Vec<(ValidatorId, ValidityAttestation)>,
-	/// Availability attestations.
-	pub availability_votes: Vec<(ValidatorId, ValidatorSignature)>,
 }
 
 impl AttestedCandidate {

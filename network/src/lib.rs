@@ -61,7 +61,7 @@ use substrate_network::{PeerId, RequestId, Context, Severity};
 use substrate_network::{message, generic_message};
 use substrate_network::specialization::NetworkSpecialization as Specialization;
 use substrate_network::StatusMessage as GenericFullStatus;
-use self::consensus::{LiveConsensusInstances, RecentValidatorIds, InsertedRecentKey};
+use self::validation::{LiveValidationSessions, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
 
@@ -257,7 +257,7 @@ impl PolkadotProtocol {
 				}
 				Err(Some(known_keys)) => {
 					let next_peer = known_keys.iter()
-						.filter_map(|x| validator_keys.get(x).map(|id| (x.clone(), *id)))
+						.filter_map(|x| validator_keys.get(x).map(|id| (x.clone(), id.clone())))
 						.find(|&(ref key, _)| pending.attempted_peers.insert(key.clone()))
 						.map(|(_, id)| id);
 
@@ -268,7 +268,7 @@ impl PolkadotProtocol {
 
 						send_polkadot_message(
 							ctx,
-							who,
+							who.clone(),
 							Message::RequestBlockData(req_id, parent, c_hash),
 						);
 
@@ -577,7 +577,7 @@ impl PolkadotProtocol {
 	}
 
 	// get connected peer with given account ID for collation.
-	fn collator_peer(&mut self, collator_id: CollatorId) -> Option<(NodeIndex, &mut PeerInfo)> {
+	fn collator_peer(&mut self, collator_id: CollatorId) -> Option<(PeerId, &mut PeerInfo)> {
 		let check_info = |info: &PeerInfo| info
 			.collating_for
 			.as_ref()

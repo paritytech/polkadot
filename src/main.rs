@@ -63,7 +63,7 @@ quick_main!(run);
 fn run() -> cli::error::Result<()> {
 	let version = VersionInfo {
 		name: "Parity Polkadot",
-		commit: vergen::short_sha(),
+		commit: env!("VERGEN_SHA_SHORT"),
 		version: env!("CARGO_PKG_VERSION"),
 		executable_name: "polkadot",
 		author: "Parity Team <admin@parity.io>",

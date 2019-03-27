@@ -45,15 +45,14 @@ extern crate serde;
 extern crate substrate_client;
 
 use rstd::prelude::*;
-use runtime_primitives::{generic, traits::Extrinsic};
+use runtime_primitives::{generic, traits::Extrinsic, AnySignature};
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify};
-use primitives::{ed25519, sr25519};
+use primitives::ed25519;
 
 pub mod parachain;
 
 pub use codec::Compact;
-pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
