@@ -32,6 +32,7 @@ extern crate arrayvec;
 extern crate parking_lot;
 extern crate tokio;
 extern crate slice_group_by;
+extern crate exit_future;
 
 #[macro_use]
 extern crate futures;
@@ -65,7 +66,6 @@ use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
 
 use std::collections::{HashMap, HashSet};
-
 
 #[cfg(test)]
 mod tests;
@@ -213,10 +213,13 @@ impl PolkadotProtocol {
 	fn new_validation_session(
 		&mut self,
 		ctx: &mut Context<Block>,
-		parent_hash: Hash,
-		session: validation::ValidationSession,
-	) {
-		if let Some(new_local) = self.live_validation_sessions.new_validation_session(parent_hash, session) {
+		params: validation::SessionParams,
+	) -> validation::ValidationSession {
+
+		let (session, new_local) = self.live_validation_sessions
+			.new_validation_session(params);
+
+		if let Some(new_local) = new_local {
 			for (id, peer_data) in self.peers.iter_mut()
 				.filter(|&(_, ref info)| info.should_send_key())
 			{
@@ -227,10 +230,13 @@ impl PolkadotProtocol {
 				));
 			}
 		}
+
+		session
 	}
 
-	fn remove_validation_session(&mut self, parent_hash: &Hash) {
-		self.live_validation_sessions.remove(parent_hash);
+	// true indicates that it was removed actually.
+	fn remove_validation_session(&mut self, parent_hash: Hash) -> bool {
+		self.live_validation_sessions.remove(parent_hash)
 	}
 
 	fn dispatch_pending_requests(&mut self, ctx: &mut Context<Block>) {

@@ -19,6 +19,7 @@ futures = "0.1"
 tokio = "0.1.7"
 log = "0.4"
 slice-group-by = "0.2.2"
+exit-future = "0.1.4"
 
 [dev-dependencies]
 substrate-client = { git = "https://github.com/paritytech/substrate" }

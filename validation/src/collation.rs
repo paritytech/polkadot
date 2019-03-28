@@ -170,7 +170,7 @@ pub fn message_queue_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
 }
 
 /// Compute the set of egress roots for all given outgoing messages.
-pub fn egress_roots(mut outgoing: Vec<OutgoingMessage>) -> Vec<(ParaId, Hash)> {
+pub fn egress_roots(outgoing: &mut [OutgoingMessage]) -> Vec<(ParaId, Hash)> {
 	// stable sort messages by parachain ID.
 	outgoing.sort_by_key(|msg| ParaId::from(msg.target));
 
@@ -357,7 +357,7 @@ mod tests {
 			&[(1.into(), root_1), (2.into(), root_2), (3.into(), root_3)],
 		).is_ok());
 
-		let egress_roots = egress_roots(messages.clone());
+		let egress_roots = egress_roots(&mut messages.clone()[..]);
 
 		assert!(check_extrinsic(
 			messages.clone(),

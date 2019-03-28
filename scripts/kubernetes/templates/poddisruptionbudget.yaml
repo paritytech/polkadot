@@ -1,10 +1,10 @@
 apiVersion: policy/v1beta1
 kind: PodDisruptionBudget
 metadata:
-  name: polkadot
+  name: {{ .Values.GitlabEnvSlug | default .Values.app }}
 spec:
   selector:
     matchLabels:
-      app: polkadot
+      app: {{ .Values.GitlabEnvSlug | default .Values.app }}
   maxUnavailable: 1
 

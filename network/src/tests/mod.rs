@@ -17,11 +17,10 @@
 //! Tests for polkadot and validation network.
 
 use super::{PolkadotProtocol, Status, Message, FullStatus};
-use validation::{ValidationSession, Knowledge};
+use validation::SessionParams;
 
-use parking_lot::Mutex;
 use polkadot_validation::GenericStatement;
-use polkadot_primitives::{Block, SessionKey};
+use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{CandidateReceipt, HeadData, BlockData, CollatorId, ValidatorId};
 use substrate_primitives::crypto::UncheckedInto;
 use codec::Encode;
@@ -31,7 +30,6 @@ use substrate_network::{
 	generic_message::Message as GenericMessage
 };
 
-use std::sync::Arc;
 use futures::Future;
 
 mod validation;
@@ -88,11 +86,12 @@ fn make_status(status: &Status, roles: Roles) -> FullStatus {
 	}
 }
 
-fn make_validation_session(local_key: SessionKey) -> (ValidationSession, Arc<Mutex<Knowledge>>) {
-	let knowledge = Arc::new(Mutex::new(Knowledge::new()));
-	let c = ValidationSession::new(knowledge.clone(), local_key);
-
-	(c, knowledge)
+fn make_validation_session(parent_hash: Hash, local_key: SessionKey) -> SessionParams {
+	SessionParams {
+		local_session_key: Some(local_key),
+		parent_hash,
+		authorities: Vec::new(),
+	}
 }
 
 fn on_message(protocol: &mut PolkadotProtocol, ctx: &mut TestContext, from: NodeIndex, message: Message) {
@@ -120,8 +119,8 @@ fn sends_session_key() {
 
 	{
 		let mut ctx = TestContext::default();
-		let (session, _knowledge) = make_validation_session(local_key.clone());
-		protocol.new_validation_session(&mut ctx, parent_hash, session);
+		let params = make_validation_session(parent_hash, local_key.clone());
+		protocol.new_validation_session(&mut ctx, params);
 		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key.clone())));
 	}
 
@@ -160,8 +159,9 @@ fn fetches_from_those_with_knowledge() {
 
 	let status = Status { collating_for: None };
 
-	let (session, knowledge) = make_validation_session(local_key.clone());
-	protocol.new_validation_session(&mut TestContext::default(), parent_hash, session);
+	let params = make_validation_session(parent_hash, local_key.clone());
+	let session = protocol.new_validation_session(&mut TestContext::default(), params);
+	let knowledge = session.knowledge();
 
 	knowledge.lock().note_statement(a_key.clone(), &GenericStatement::Valid(candidate_hash));
 	let recv = protocol.fetch_block_data(&mut TestContext::default(), &candidate_receipt, parent_hash);
@@ -290,11 +290,11 @@ fn many_session_keys() {
 	let local_key_a: ValidatorId = [3; 32].unchecked_into();
 	let local_key_b: ValidatorId = [4; 32].unchecked_into();
 
-	let (session_a, _knowledge_a) = make_validation_session(local_key_a.clone());
-	let (session_b, _knowledge_b) = make_validation_session(local_key_b.clone());
+	let params_a = make_validation_session(parent_a, local_key_a.clone());
+	let params_b = make_validation_session(parent_b, local_key_b.clone());
 
-	protocol.new_validation_session(&mut TestContext::default(), parent_a, session_a);
-	protocol.new_validation_session(&mut TestContext::default(), parent_b, session_b);
+	protocol.new_validation_session(&mut TestContext::default(), params_a);
+	protocol.new_validation_session(&mut TestContext::default(), params_b);
 
 	assert_eq!(protocol.live_validation_sessions.recent_keys(), &[local_key_a.clone(), local_key_b.clone()]);
 
@@ -313,7 +313,7 @@ fn many_session_keys() {
 
 	let peer_b = 2;
 
-	protocol.remove_validation_session(&parent_a);
+	assert!(protocol.remove_validation_session(parent_a));
 
 	{
 		let mut ctx = TestContext::default();

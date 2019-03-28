@@ -4,6 +4,7 @@ image:
   tag: latest
   pullPolicy: Always
   basepath: /polkadot
+  executable: /usr/local/bin/polkadot
 
 
 # if set to true a service account for polkadot will be created
@@ -11,12 +12,16 @@ rbac:
   enable: true
   name: polkadot
 
+# name of the statefulset
+app: polkadot
+node_group: polkadot
+listen_node_port: true
 
 nodes:
   replicas: 2
   args:
     - --chain
-    - krummelanke
+    - alexander
     # serve rpc within the local network
     # - fenced off the world via firewall
     # - used for health checks
@@ -24,11 +29,11 @@ nodes:
     - --ws-external
     # - --log
     # - sub-libp2p=trace
-    # - --validator
-    # - --key
-    # - key_name
 
 
+validator: {}
+# providing 'keys' string via --set commandline parameter will run the nodes
+# in validator mode (--validator).
 
 # maybe adopt resource limits here to the nodes of the pool
 # resources:

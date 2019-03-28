@@ -471,9 +471,12 @@ fn ingress_fetch_works() {
 	};
 
 	// make sure everyone can get ingress for their own parachain.
-	let fetch_a = router_a.fetch_incoming(id_a).map_err(|_| format!("Could not fetch ingress_a"));
-	let fetch_b = router_b.fetch_incoming(id_b).map_err(|_| format!("Could not fetch ingress_b"));
-	let fetch_c = router_c.fetch_incoming(id_c).map_err(|_| format!("Could not fetch ingress_c"));
+	let fetch_a = router_a.then(move |r| r.unwrap()
+		.fetch_incoming(id_a).map_err(|_| format!("Could not fetch ingress_a")));
+	let fetch_b = router_b.then(move |r| r.unwrap()
+		.fetch_incoming(id_b).map_err(|_| format!("Could not fetch ingress_b")));
+	let fetch_c = router_c.then(move |r| r.unwrap()
+		.fetch_incoming(id_c).map_err(|_| format!("Could not fetch ingress_c")));
 
 	let work = fetch_a.join3(fetch_b, fetch_c);
 	runtime.spawn(built.gossip.then(|_| Ok(()))); // in background.
