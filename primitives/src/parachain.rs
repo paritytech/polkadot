@@ -19,6 +19,7 @@
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
 use super::Hash;
+
 #[cfg(feature = "std")]
 use primitives::bytes;
 use primitives::ed25519;
@@ -28,7 +29,7 @@ pub use polkadot_parachain::Id;
 /// Identity that collators use.
 pub type CollatorId = ed25519::Public;
 
-/// Signature with which collators sign blocks.
+/// Signature on candidate's block data by a collator.
 pub type CollatorSignature = ed25519::Signature;
 
 /// Identity that parachain validators use when signing validation messages.
@@ -37,7 +38,7 @@ pub type CollatorSignature = ed25519::Signature;
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorId = super::SessionKey;
 
-/// Signature with which parachain validators sign blocks.
+ /// Signature with which parachain validators sign blocks.
 ///
 /// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
@@ -106,7 +107,7 @@ pub struct Extrinsic {
 pub struct CandidateReceipt {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
-	/// The collator's signing ID
+	/// The collator's relay-chain account ID
 	pub collator: CollatorId,
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CollatorSignature,

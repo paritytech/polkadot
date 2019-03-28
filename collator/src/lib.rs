@@ -259,14 +259,15 @@ impl<P, E> Worker for CollationNode<P, E> where
 				match known_oracle.block_status(&BlockId::hash(*block_hash)) {
 					Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
 					Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-					Ok(BlockStatus::InChain) => match known_oracle.leaves() {
-						Err(_) => None,
-						Ok(leaves) => if leaves.contains(block_hash) {
-							Some(Known::Leaf)
-						} else {
-							Some(Known::Old)
-						},
-					}
+					Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) =>
+						match known_oracle.leaves() {
+							Err(_) => None,
+							Ok(leaves) => if leaves.contains(block_hash) {
+								Some(Known::Leaf)
+							} else {
+								Some(Known::Old)
+							},
+						}
 				}
 			},
 		);
@@ -481,3 +482,4 @@ mod tests {
 		assert_eq!(collation.receipt.egress_queue_roots, vec![(a, root_a), (b, root_b)]);
 	}
 }
+

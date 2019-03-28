@@ -478,8 +478,8 @@ mod tests {
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
 	impl consensus::Trait for Test {
-		type SessionKey = SessionKey;
 		type InherentOfflineReport = ();
+		type SessionKey = SessionKey;
 		type Log = ::Log;
 	}
 	impl system::Trait for Test {
@@ -555,8 +555,8 @@ mod tests {
 		let candidate_hash = candidate.candidate.hash();
 
 		let authorities = ::Consensus::authorities();
-		let extract_key = |public: &SessionKey| {
-			AuthorityKeyring::from_public(public).unwrap()
+		let extract_key = |public: SessionKey| {
+			AuthorityKeyring::from_raw_public(public.0).unwrap()
 		};
 
 		let validation_entries = duty_roster.validator_duty.iter()
@@ -566,7 +566,7 @@ mod tests {
 			if duty != Chain::Parachain(candidate.parachain_index()) { continue }
 			vote_implicit = !vote_implicit;
 
-			let key = extract_key(&authorities[idx]);
+			let key = extract_key(authorities[idx].clone());
 
 			let statement = if vote_implicit {
 				Statement::Candidate(candidate.candidate.clone())
@@ -694,7 +694,8 @@ mod tests {
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
-				}
+				},
+
 			};
 
 			assert!(Parachains::dispatch(Call::set_heads(vec![candidate]), Origin::INHERENT).is_err());

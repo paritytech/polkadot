@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
-use substrate_primitives::{Pair as PairT, ed25519::Pair};
+use substrate_primitives::Pair;
 use parachain::codec::{Encode, Decode};
 use primitives::parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic};
 use collator::{InvalidHead, ParachainContext, VersionInfo};

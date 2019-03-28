@@ -36,14 +36,13 @@ use chain_spec::ChainSpec;
 use futures::Future;
 use tokio::runtime::Runtime;
 use service::Service as BareService;
-use cli::NoCustom;
 
 pub use service::{
 	Components as ServiceComponents, PolkadotService, CustomConfiguration, ServiceFactory, Factory,
 	ProvideRuntimeApi, CoreApi, ParachainHost,
 };
 
-pub use cli::{VersionInfo, IntoExit};
+pub use cli::{VersionInfo, IntoExit, NoCustom};
 pub use cli::error;
 pub use tokio::runtime::TaskExecutor;
 

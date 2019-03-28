@@ -25,7 +25,7 @@ use polkadot_primitives::parachain::{CandidateReceipt, HeadData, BlockData, Coll
 use substrate_primitives::crypto::UncheckedInto;
 use codec::Encode;
 use substrate_network::{
-	Severity, NodeIndex, PeerInfo, ClientHandle, Context, config::Roles,
+	Severity, PeerId, PeerInfo, ClientHandle, Context, config::Roles,
 	message::Message as SubstrateMessage, specialization::NetworkSpecialization,
 	generic_message::Message as GenericMessage
 };
@@ -36,9 +36,9 @@ mod validation;
 
 #[derive(Default)]
 struct TestContext {
-	disabled: Vec<NodeIndex>,
-	disconnected: Vec<NodeIndex>,
-	messages: Vec<(NodeIndex, SubstrateMessage<Block>)>,
+	disabled: Vec<PeerId>,
+	disconnected: Vec<PeerId>,
+	messages: Vec<(PeerId, SubstrateMessage<Block>)>,
 }
 
 impl Context<Block> for TestContext {
@@ -46,24 +46,24 @@ impl Context<Block> for TestContext {
 		unimplemented!()
 	}
 
-	fn report_peer(&mut self, peer: NodeIndex, reason: Severity) {
+	fn report_peer(&mut self, peer: PeerId, reason: Severity) {
 		match reason {
 			Severity::Bad(_) => self.disabled.push(peer),
 			_ => self.disconnected.push(peer),
 		}
 	}
 
-	fn peer_info(&self, _peer: NodeIndex) -> Option<PeerInfo<Block>> {
+	fn peer_info(&self, _peer: &PeerId) -> Option<PeerInfo<Block>> {
 		unimplemented!()
 	}
 
-	fn send_message(&mut self, who: NodeIndex, data: SubstrateMessage<Block>) {
+	fn send_message(&mut self, who: PeerId, data: SubstrateMessage<Block>) {
 		self.messages.push((who, data))
 	}
 }
 
 impl TestContext {
-	fn has_message(&self, to: NodeIndex, message: Message) -> bool {
+	fn has_message(&self, to: PeerId, message: Message) -> bool {
 		use substrate_network::generic_message::Message as GenericMessage;
 
 		let encoded = message.encode();
@@ -94,7 +94,7 @@ fn make_validation_session(parent_hash: Hash, local_key: SessionKey) -> SessionP
 	}
 }
 
-fn on_message(protocol: &mut PolkadotProtocol, ctx: &mut TestContext, from: NodeIndex, message: Message) {
+fn on_message(protocol: &mut PolkadotProtocol, ctx: &mut TestContext, from: PeerId, message: Message) {
 	let encoded = message.encode();
 	protocol.on_message(ctx, from, &mut Some(GenericMessage::ChainSpecific(encoded)));
 }
@@ -103,8 +103,8 @@ fn on_message(protocol: &mut PolkadotProtocol, ctx: &mut TestContext, from: Node
 fn sends_session_key() {
 	let mut protocol = PolkadotProtocol::new(None);
 
-	let peer_a = 1;
-	let peer_b = 2;
+	let peer_a = PeerId::random();
+	let peer_b = PeerId::random();
 	let parent_hash = [0; 32].into();
 	let local_key: ValidatorId = [1; 32].unchecked_into();
 
@@ -113,7 +113,7 @@ fn sends_session_key() {
 
 	{
 		let mut ctx = TestContext::default();
-		protocol.on_connect(&mut ctx, peer_a, make_status(&validator_status, Roles::AUTHORITY));
+		protocol.on_connect(&mut ctx, peer_a.clone(), make_status(&validator_status, Roles::AUTHORITY));
 		assert!(ctx.messages.is_empty());
 	}
 
@@ -126,8 +126,8 @@ fn sends_session_key() {
 
 	{
 		let mut ctx = TestContext::default();
-		protocol.on_connect(&mut ctx, peer_b, make_status(&collator_status, Roles::NONE));
-		assert!(ctx.has_message(peer_b, Message::SessionKey(local_key)));
+		protocol.on_connect(&mut ctx, peer_b.clone(), make_status(&collator_status, Roles::NONE));
+		assert!(ctx.has_message(peer_b.clone(), Message::SessionKey(local_key)));
 	}
 }
 
@@ -135,8 +135,8 @@ fn sends_session_key() {
 fn fetches_from_those_with_knowledge() {
 	let mut protocol = PolkadotProtocol::new(None);
 
-	let peer_a = 1;
-	let peer_b = 2;
+	let peer_a = PeerId::random();
+	let peer_b = PeerId::random();
 	let parent_hash = [0; 32].into();
 	let local_key: ValidatorId = [1; 32].unchecked_into();
 
@@ -169,16 +169,16 @@ fn fetches_from_those_with_knowledge() {
 	// connect peer A
 	{
 		let mut ctx = TestContext::default();
-		protocol.on_connect(&mut ctx, peer_a, make_status(&status, Roles::AUTHORITY));
-		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key)));
+		protocol.on_connect(&mut ctx, peer_a.clone(), make_status(&status, Roles::AUTHORITY));
+		assert!(ctx.has_message(peer_a.clone(), Message::SessionKey(local_key)));
 	}
 
 	// peer A gives session key and gets asked for data.
 	{
 		let mut ctx = TestContext::default();
-		on_message(&mut protocol, &mut ctx, peer_a, Message::SessionKey(a_key.clone()));
+		on_message(&mut protocol, &mut ctx, peer_a.clone(), Message::SessionKey(a_key.clone()));
 		assert!(protocol.validators.contains_key(&a_key));
-		assert!(ctx.has_message(peer_a, Message::RequestBlockData(1, parent_hash, candidate_hash)));
+		assert!(ctx.has_message(peer_a.clone(), Message::RequestBlockData(1, parent_hash, candidate_hash)));
 	}
 
 	knowledge.lock().note_statement(b_key.clone(), &GenericStatement::Valid(candidate_hash));
@@ -186,18 +186,18 @@ fn fetches_from_those_with_knowledge() {
 	// peer B connects and sends session key. request already assigned to A
 	{
 		let mut ctx = TestContext::default();
-		protocol.on_connect(&mut ctx, peer_b, make_status(&status, Roles::AUTHORITY));
-		on_message(&mut protocol, &mut ctx, peer_b, Message::SessionKey(b_key));
-		assert!(!ctx.has_message(peer_b, Message::RequestBlockData(2, parent_hash, candidate_hash)));
+		protocol.on_connect(&mut ctx, peer_b.clone(), make_status(&status, Roles::AUTHORITY));
+		on_message(&mut protocol, &mut ctx, peer_b.clone(), Message::SessionKey(b_key.clone()));
+		assert!(!ctx.has_message(peer_b.clone(), Message::RequestBlockData(2, parent_hash, candidate_hash)));
 
 	}
 
 	// peer A disconnects, triggering reassignment
 	{
 		let mut ctx = TestContext::default();
-		protocol.on_disconnect(&mut ctx, peer_a);
+		protocol.on_disconnect(&mut ctx, peer_a.clone());
 		assert!(!protocol.validators.contains_key(&a_key));
-		assert!(ctx.has_message(peer_b, Message::RequestBlockData(2, parent_hash, candidate_hash)));
+		assert!(ctx.has_message(peer_b.clone(), Message::RequestBlockData(2, parent_hash, candidate_hash)));
 	}
 
 	// peer B comes back with block data.
@@ -213,7 +213,7 @@ fn fetches_from_those_with_knowledge() {
 fn fetches_available_block_data() {
 	let mut protocol = PolkadotProtocol::new(None);
 
-	let peer_a = 1;
+	let peer_a = PeerId::random();
 	let parent_hash = [0; 32].into();
 
 	let block_data = BlockData(vec![1, 2, 3, 4]);
@@ -248,13 +248,13 @@ fn fetches_available_block_data() {
 	// connect peer A
 	{
 		let mut ctx = TestContext::default();
-		protocol.on_connect(&mut ctx, peer_a, make_status(&status, Roles::FULL));
+		protocol.on_connect(&mut ctx, peer_a.clone(), make_status(&status, Roles::FULL));
 	}
 
 	// peer A asks for historic block data and gets response
 	{
 		let mut ctx = TestContext::default();
-		on_message(&mut protocol, &mut ctx, peer_a, Message::RequestBlockData(1, parent_hash, candidate_hash));
+		on_message(&mut protocol, &mut ctx, peer_a.clone(), Message::RequestBlockData(1, parent_hash, candidate_hash));
 		assert!(ctx.has_message(peer_a, Message::BlockData(1, Some(block_data))));
 	}
 }
@@ -263,14 +263,14 @@ fn fetches_available_block_data() {
 fn remove_bad_collator() {
 	let mut protocol = PolkadotProtocol::new(None);
 
-	let who = 1;
+	let who = PeerId::random();
 	let collator_id: CollatorId = [2; 32].unchecked_into();
 
 	let status = Status { collating_for: Some((collator_id.clone(), 5.into())) };
 
 	{
 		let mut ctx = TestContext::default();
-		protocol.on_connect(&mut ctx, who, make_status(&status, Roles::NONE));
+		protocol.on_connect(&mut ctx, who.clone(), make_status(&status, Roles::NONE));
 	}
 
 	{
@@ -298,20 +298,20 @@ fn many_session_keys() {
 
 	assert_eq!(protocol.live_validation_sessions.recent_keys(), &[local_key_a.clone(), local_key_b.clone()]);
 
-	let peer_a = 1;
+	let peer_a = PeerId::random();
 
 	// when connecting a peer, we should get both those keys.
 	{
 		let mut ctx = TestContext::default();
 
 		let status = Status { collating_for: None };
-		protocol.on_connect(&mut ctx, peer_a, make_status(&status, Roles::AUTHORITY));
+		protocol.on_connect(&mut ctx, peer_a.clone(), make_status(&status, Roles::AUTHORITY));
 
-		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_a.clone())));
+		assert!(ctx.has_message(peer_a.clone(), Message::SessionKey(local_key_a.clone())));
 		assert!(ctx.has_message(peer_a, Message::SessionKey(local_key_b.clone())));
 	}
 
-	let peer_b = 2;
+	let peer_b = PeerId::random();
 
 	assert!(protocol.remove_validation_session(parent_a));
 
@@ -319,9 +319,9 @@ fn many_session_keys() {
 		let mut ctx = TestContext::default();
 
 		let status = Status { collating_for: None };
-		protocol.on_connect(&mut ctx, peer_b, make_status(&status, Roles::AUTHORITY));
+		protocol.on_connect(&mut ctx, peer_b.clone(), make_status(&status, Roles::AUTHORITY));
 
-		assert!(!ctx.has_message(peer_b, Message::SessionKey(local_key_a)));
-		assert!(ctx.has_message(peer_b, Message::SessionKey(local_key_b)));
+		assert!(!ctx.has_message(peer_b.clone(), Message::SessionKey(local_key_a.clone())));
+		assert!(ctx.has_message(peer_b, Message::SessionKey(local_key_b.clone())));
 	}
 }

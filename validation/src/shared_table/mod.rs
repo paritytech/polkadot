@@ -33,8 +33,8 @@ use futures::{future, prelude::*};
 
 use super::{GroupInfo, Incoming, TableRouter};
 use self::includable::IncludabilitySender;
-use primitives::{Pair, ed25519};
-use runtime_primitives::{traits::ProvideRuntimeApi};
+use primitives::{ed25519, Pair};
+use runtime_primitives::traits::ProvideRuntimeApi;
 
 mod includable;
 
@@ -546,7 +546,6 @@ mod tests {
 	use super::*;
 	use substrate_keyring::AuthorityKeyring;
 	use primitives::crypto::UncheckedInto;
-	use futures::future;
 
 	#[derive(Clone)]
 	struct DummyRouter;

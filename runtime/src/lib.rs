@@ -37,6 +37,7 @@ extern crate parity_codec as codec;
 extern crate substrate_consensus_aura_primitives as consensus_aura;
 extern crate substrate_primitives;
 extern crate substrate_inherents as inherents;
+extern crate substrate_offchain_primitives as offchain_primitives;
 #[macro_use]
 extern crate substrate_client as client;
 
@@ -62,7 +63,6 @@ extern crate srml_sudo as sudo;
 extern crate srml_system as system;
 extern crate srml_timestamp as timestamp;
 extern crate srml_treasury as treasury;
-extern crate srml_fees as fees;
 
 extern crate polkadot_primitives as primitives;
 
@@ -72,14 +72,15 @@ extern crate substrate_keyring as keyring;
 #[cfg(test)]
 extern crate substrate_trie;
 
+mod curated_grandpa;
 mod parachains;
 mod claims;
 
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
 use primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, SessionKey, SessionSignature, 
-	Signature, parachain,
+	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, SessionKey, Signature,
+	parachain, SessionSignature,
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
@@ -115,8 +116,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 1,
-	spec_version: 107,
-	impl_version: 1,
+	spec_version: 108,
+	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
 
@@ -159,6 +160,9 @@ impl balances::Trait for Runtime {
 	type OnFreeBalanceZero = Staking;
 	type OnNewAccount = Indices;
 	type Event = Event;
+	type TransactionPayment = ();
+	type DustRemoval = ();
+	type TransferPayment = ();
 }
 
 impl consensus::Trait for Runtime {
@@ -177,24 +181,28 @@ impl timestamp::Trait for Runtime {
 
 impl session::Trait for Runtime {
 	type ConvertAccountIdToSessionKey = ();
-	type OnSessionChange = (Staking, grandpa::SyncedAuthorities<Runtime>);
+	type OnSessionChange = Staking;
 	type Event = Event;
 }
 
 impl staking::Trait for Runtime {
-	type Currency = Balances;
 	type OnRewardMinted = Treasury;
 	type Event = Event;
+	type Currency = balances::Module<Self>;
+	type Slash = ();
+	type Reward = ();
 }
 
 impl democracy::Trait for Runtime {
-	type Currency = Balances;
+	type Currency = balances::Module<Self>;
 	type Proposal = Call;
 	type Event = Event;
 }
 
 impl council::Trait for Runtime {
 	type Event = Event;
+	type BadPresentation = ();
+	type BadReaper = ();
 }
 
 impl council::voting::Trait for Runtime {
@@ -208,10 +216,12 @@ impl council::motions::Trait for Runtime {
 }
 
 impl treasury::Trait for Runtime {
-	type Currency = Balances;
+	type Currency = balances::Module<Self>;
 	type ApproveOrigin = council_motions::EnsureMembers<_4>;
 	type RejectOrigin = council_motions::EnsureMembers<_2>;
 	type Event = Event;
+	type MintedForSpending = ();
+	type ProposalRejection = ();
 }
 
 impl grandpa::Trait for Runtime {
@@ -222,19 +232,11 @@ impl grandpa::Trait for Runtime {
 
 impl parachains::Trait for Runtime {}
 
+impl curated_grandpa::Trait for Runtime { }
+
 impl sudo::Trait for Runtime {
 	type Event = Event;
 	type Proposal = Call;
-}
-
-impl claims::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-}
-
-impl fees::Trait for Runtime {
-	type Event = Event;
-	type TransferAsset = Balances;
 }
 
 construct_runtime!(
@@ -254,6 +256,7 @@ construct_runtime!(
 		Staking: staking,
 		Democracy: democracy,
 		Grandpa: grandpa::{Module, Call, Storage, Config<T>, Log(), Event<T>},
+		CuratedGrandpa: curated_grandpa::{Module, Call, Config<T>, Storage},
 		Council: council::{Module, Call, Storage, Event<T>},
 		CouncilVoting: council_voting,
 		CouncilMotions: council_motions::{Module, Call, Storage, Event<T>, Origin},
@@ -261,8 +264,6 @@ construct_runtime!(
 		Treasury: treasury,
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
 		Sudo: sudo,
-		Claims: claims,
-		Fees: fees::{Module, Storage, Config<T>, Event<T>},
 	}
 );
 
@@ -281,7 +282,7 @@ pub type UncheckedExtrinsic = generic::UncheckedMortalCompactExtrinsic<Address, 
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Fees, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Balances, AllModules>;
 
 impl_runtime_apis! {
 	impl client_api::Core<Block> for Runtime {
@@ -333,6 +334,12 @@ impl_runtime_apis! {
 	impl client_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(tx: <Block as BlockT>::Extrinsic) -> TransactionValidity {
 			Executive::validate_transaction(tx)
+		}
+	}
+
+	impl offchain_primitives::OffchainWorkerApi<Block> for Runtime {
+		fn offchain_worker(number: sr_primitives::traits::NumberFor<Block>) {
+			Executive::offchain_worker(number)
 		}
 	}
 

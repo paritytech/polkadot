@@ -18,7 +18,7 @@
 
 use validation::NetworkService;
 use substrate_network::Context as NetContext;
-use substrate_primitives::NativeOrEncoded;
+use substrate_primitives::{NativeOrEncoded, ExecutionContext};
 use substrate_keyring::AuthorityKeyring;
 use {PolkadotProtocol};
 
@@ -29,7 +29,6 @@ use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, ParachainH
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
 use substrate_client::runtime_api::{Core, RuntimeVersion, ApiExt};
-use sr_primitives::ExecutionContext;
 use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 
 use std::collections::HashMap;

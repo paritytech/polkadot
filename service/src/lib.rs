@@ -43,16 +43,15 @@ pub mod chain_spec;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, parachain::CollatorId, Block, Hash, BlockId};
+use polkadot_primitives::{parachain, Block, Hash, BlockId};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
 use polkadot_network::gossip::{self as network_gossip, Known};
-use primitives::{Pair, ed25519};
+use primitives::{ed25519, Pair};
 use tokio::runtime::TaskExecutor;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
 use transaction_pool::txpool::{Pool as TransactionPool};
 use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration, NothingExtra};
 use inherents::InherentDataProviders;
-
 pub use service::{
 	Roles, PruningMode, TransactionPoolOptions, ComponentClient,
 	ErrorKind, Error, ComponentBlock, LightComponents, FullComponents,
@@ -61,7 +60,7 @@ pub use service::{
 pub use service::config::full_version_from_strs;
 pub use client::{backend::Backend, runtime_api::Core as CoreApi, ExecutionStrategy};
 pub use polkadot_network::{PolkadotProtocol, NetworkService};
-pub use polkadot_primitives::parachain::ParachainHost;
+pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use primitives::{Blake2Hasher};
 pub use sr_primitives::traits::ProvideRuntimeApi;
 pub use chain_spec::ChainSpec;
@@ -71,7 +70,7 @@ pub type Configuration = FactoryFullConfiguration<Factory>;
 
 /// Polkadot-specific configuration.
 pub struct CustomConfiguration {
-	/// Set to `Some` with a collator `AccountId` and desired parachain
+	/// Set to `Some` with a collator `CollatorId` and desired parachain
 	/// if the network protocol should be started in collator mode.
 	pub collating_for: Option<(CollatorId, parachain::Id)>,
 
@@ -156,7 +155,9 @@ construct_service_factory! {
 	struct Factory {
 		Block = Block,
 		RuntimeApi = RuntimeApi,
-		NetworkProtocol = PolkadotProtocol { |config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())) },
+		NetworkProtocol = PolkadotProtocol {
+			|config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for.clone()))
+		},
 		RuntimeDispatch = polkadot_executor::Executor,
 		FullTransactionPoolApi = TxChainApi<FullBackend<Self>, FullExecutor<Self>>
 			{ |config, client| Ok(TransactionPool::new(config, TxChainApi::new(client))) },
@@ -176,12 +177,18 @@ construct_service_factory! {
 
 				// always run GRANDPA in order to sync.
 				{
+					let local_key = if service.config.disable_grandpa {
+						None
+					} else {
+						key.clone()
+					};
+
 					let voter = grandpa::run_grandpa(
 						grandpa::Config {
 							// TODO: make gossip_duration available through chainspec
 							// https://github.com/paritytech/substrate/issues/1578
 							gossip_duration: Duration::new(4, 0),
-							local_key: key.clone(),
+							local_key,
 							justification_period: 4096,
 							name: Some(service.config.name.clone()),
 						},
@@ -230,7 +237,7 @@ construct_service_factory! {
 						match known_oracle.block_status(&BlockId::hash(*block_hash)) {
 							Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
 							Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-							Ok(BlockStatus::InChain) => match known_oracle.leaves() {
+							Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => match known_oracle.leaves() {
 								Err(_) => None,
 								Ok(leaves) => if leaves.contains(block_hash) {
 									Some(Known::Leaf)
@@ -271,6 +278,7 @@ construct_service_factory! {
 					service.network(),
 					service.on_exit(),
 					service.config.custom.inherent_data_providers.clone(),
+					service.config.force_authoring,
 				)?;
 
 				executor.spawn(task);
@@ -284,15 +292,12 @@ construct_service_factory! {
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
 
-				let (block_import, link_half) =
-					grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>>(
-						client.clone(), client.clone(),
-					)?;
+				let (block_import, link_half) = grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>>(client.clone(), client.clone())?;
 				let block_import = Arc::new(block_import);
 				let justification_import = block_import.clone();
 
 				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
-				import_queue(
+				import_queue::<_, _, _, ed25519::Pair>(
 					slot_duration,
 					block_import,
 					Some(justification_import),
@@ -307,7 +312,7 @@ construct_service_factory! {
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<LightClient<Self>>| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
 
-				import_queue(
+				import_queue::<_, _, _, ed25519::Pair>(
 					slot_duration,
 					client.clone(),
 					None,

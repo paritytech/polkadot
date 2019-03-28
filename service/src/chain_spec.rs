@@ -21,8 +21,8 @@ use polkadot_primitives::{AccountId, SessionKey};
 use polkadot_runtime::{
 	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
-	CouncilVotingConfig, GrandpaConfig, SudoConfig, IndicesConfig,
-	ClaimsConfig, FeesConfig, Permill, StakerStatus
+	CouncilVotingConfig, GrandpaConfig, SudoConfig, IndicesConfig, Permill,
+	CuratedGrandpaConfig, StakerStatus,
 };
 use telemetry::TelemetryEndpoints;
 
@@ -82,6 +82,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		system: None,
 		balances: Some(BalancesConfig {
+			transaction_base_fee: 1 * CENTS,
+			transaction_byte_fee: 10 * MILLICENTS,
 			balances: endowed_accounts.iter()
 				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
@@ -105,7 +107,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			current_era: 0,
 			offline_slash: Perbill::from_billionths(1_000_000),
 			session_reward: Perbill::from_billionths(2_065),
-			current_offline_slash: 0,
 			current_session_reward: 0,
 			validator_count: 7,
 			sessions_per_era: 12,
@@ -154,13 +155,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
 		}),
-		fees: Some(FeesConfig {
-			transaction_base_fee: 1 * CENTS,
-			transaction_byte_fee: 10 * MILLICENTS,
-		}),
 		parachains: Some(Default::default()),
-		claims: Some(ClaimsConfig {
-			claims: vec![],
+		curated_grandpa: Some(CuratedGrandpaConfig {
+			shuffle_period: 1024,
 		}),
 	}
 }
@@ -199,7 +196,7 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, Sessio
 	(
 		get_account_id_from_seed(&format!("{}//stash", seed)),
 		get_account_id_from_seed(seed),
-		get_session_key_from_seed(seed)
+		get_session_key_from_seed(seed),
 	)
 }
 
@@ -222,7 +219,6 @@ pub fn testnet_genesis(
 
 	const STASH: u128 = 1 << 20;
 	const ENDOWMENT: u128 = 1 << 20;
-	
 	GenesisConfig {
 		consensus: Some(ConsensusConfig {
 			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/polkadot_runtime.compact.wasm").to_vec(),
@@ -233,6 +229,8 @@ pub fn testnet_genesis(
 			ids: endowed_accounts.clone(),
 		}),
 		balances: Some(BalancesConfig {
+			transaction_base_fee: 1,
+			transaction_byte_fee: 0,
 			existential_deposit: 500,
 			transfer_fee: 0,
 			creation_fee: 0,
@@ -252,7 +250,6 @@ pub fn testnet_genesis(
 			bonding_duration: 2 * 60 * 12,
 			offline_slash: Perbill::zero(),
 			session_reward: Perbill::zero(),
-			current_offline_slash: 0,
 			current_session_reward: 0,
 			offline_slash_grace: 0,
 			stakers: initial_authorities.iter().map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator)).collect(),
@@ -297,15 +294,11 @@ pub fn testnet_genesis(
 		sudo: Some(SudoConfig {
 			key: root_key,
 		}),
-		claims: Some(ClaimsConfig {
-			claims: vec![],
-		}),
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
 		}),
-		fees: Some(FeesConfig {
-			transaction_base_fee: 1,
-			transaction_byte_fee: 0,
+		curated_grandpa: Some(CuratedGrandpaConfig {
+			shuffle_period: 1024,
 		}),
 	}
 }

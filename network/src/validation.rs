@@ -105,7 +105,7 @@ impl NetworkService for super::NetworkService {
 	}
 
 	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
-		self.gossip_consensus_message(topic, POLKADOT_ENGINE_ID, message);
+		self.gossip_consensus_message(topic, POLKADOT_ENGINE_ID, message, false);
 	}
 
 	fn drop_gossip(&self, _topic: Hash) { }
@@ -241,6 +241,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 			parent_hash,
 			authorities: authorities.to_vec(),
 		});
+		let message_validator = self.message_validator.clone();
 
 		let executor = self.executor.clone();
 		let work = build_fetcher
@@ -249,6 +250,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 				let table_router = Router::new(
 					table,
 					fetcher,
+					message_validator,
 				);
 
 				table_router.broadcast_egress(outgoing);

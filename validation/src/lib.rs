@@ -37,7 +37,9 @@ extern crate polkadot_runtime;
 extern crate polkadot_primitives;
 
 extern crate parity_codec as codec;
+extern crate substrate_inherents as inherents;
 extern crate substrate_primitives as primitives;
+extern crate srml_aura as runtime_aura;
 extern crate sr_primitives as runtime_primitives;
 extern crate substrate_client as client;
 extern crate substrate_trie as trie;
@@ -46,10 +48,9 @@ extern crate exit_future;
 extern crate tokio;
 extern crate substrate_consensus_common as consensus;
 extern crate substrate_consensus_aura as aura;
+extern crate substrate_consensus_aura_primitives as aura_primitives;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
-extern crate substrate_inherents as inherents;
-extern crate srml_aura as runtime_aura;
 
 #[macro_use]
 extern crate error_chain;
@@ -67,6 +68,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
+use aura::SlotDuration;
 use client::{BlockchainEvents, ChainHead, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
@@ -92,7 +94,6 @@ use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_aura::timestamp::TimestampInherentData;
-use aura::SlotDuration;
 
 use ed25519::Public as AuthorityId;
 
@@ -734,7 +735,11 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
-		let mut inherent_data = self.inherent_data.take().expect("CreateProposal is not polled after finishing; qed");
+		const MAX_TRANSACTIONS: usize = 40;
+
+		let mut inherent_data = self.inherent_data
+			.take()
+			.expect("CreateProposal is not polled after finishing; qed");
 		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(ErrorKind::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
@@ -748,16 +753,23 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			}
 
 			let mut unqueue_invalid = Vec::new();
+			let mut pending_size = 0;
 
-			for ready in self.transaction_pool.ready() {
+			let ready_iter = self.transaction_pool.ready();
+			for ready in ready_iter.take(MAX_TRANSACTIONS) {
+				let encoded_size = ready.data.encode().len();
+				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
+					break
+				}
 				if Instant::now() > self.deadline {
-					debug!("Validation deadline reached when pushing block transactions, proceeding with proposing.");
+					debug!("Consensus deadline reached when pushing block transactions, proceeding with proposing.");
 					break;
 				}
 
 				match block_builder.push(ready.data.clone()) {
 					Ok(()) => {
 						debug!("[{:?}] Pushed to the block.", ready.hash);
+						pending_size += encoded_size;
 					}
 					Err(client::error::Error(client::error::ErrorKind::ApplyExtrinsicFailed(ApplyError::FullBlock), _)) => {
 						debug!("Block is full, proceed with proposing.");

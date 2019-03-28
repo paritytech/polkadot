@@ -25,13 +25,13 @@
 
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
 use polkadot_validation::{
-	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Incoming,
-	Validated, Outgoing,
+	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Outgoing, Validated
 };
 use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{
 	BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message
 };
+use gossip::RegisteredMessageValidator;
 
 use codec::{Encode, Decode};
 use futures::prelude::*;
@@ -41,7 +41,7 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 
-use validation::{self, SessionDataFetcher, NetworkService, Executor};
+use validation::{self, SessionDataFetcher, NetworkService, Executor, Incoming};
 
 type IngressPairRef<'a> = (ParaId, &'a [Message]);
 
@@ -59,19 +59,22 @@ pub struct Router<P, E, N: NetworkService, T> {
 	attestation_topic: Hash,
 	fetcher: SessionDataFetcher<P, E, N, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
+	message_validator: RegisteredMessageValidator,
 }
 
 impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
 		fetcher: SessionDataFetcher<P, E, N, T>,
+		message_validator: RegisteredMessageValidator,
 	) -> Self {
 		let parent_hash = fetcher.parent_hash();
 		Router {
 			table,
+			fetcher,
 			attestation_topic: attestation_topic(parent_hash),
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
-			fetcher,
+			message_validator,
 		}
 	}
 
@@ -105,6 +108,7 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 			fetcher: self.fetcher.clone(),
 			attestation_topic: self.attestation_topic.clone(),
 			deferred_statements: self.deferred_statements.clone(),
+			message_validator: self.message_validator.clone(),
 		}
 	}
 }
@@ -213,6 +217,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 					validated.extrinsic().cloned(),
 				);
 
+
 				// propagate the statement.
 				// consider something more targeted than gossip in the future.
 				let signed = table.import_validated(validated);
@@ -254,7 +259,9 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 
 impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 	fn drop(&mut self) {
-		self.fetcher.network().drop_gossip(self.attestation_topic);
+		let parent_hash = self.parent_hash().clone();
+		self.message_validator.remove_session(&parent_hash);
+		self.network().with_spec(move |spec, _| { spec.remove_validation_session(parent_hash); });
 	}
 }
 
