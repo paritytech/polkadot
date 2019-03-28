@@ -35,7 +35,6 @@ use gossip::RegisteredMessageValidator;
 
 use codec::{Encode, Decode};
 use futures::prelude::*;
-use futures::sync::oneshot;
 use parking_lot::Mutex;
 
 use std::collections::{HashMap, HashSet};
@@ -263,38 +262,6 @@ impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 		let parent_hash = self.parent_hash().clone();
 		self.message_validator.remove_session(&parent_hash);
 		self.network().with_spec(move |spec, _| { spec.remove_validation_session(parent_hash); });
-	}
-}
-
-/// Receiver for block data.
-pub struct BlockDataReceiver {
-	outer: oneshot::Receiver<oneshot::Receiver<BlockData>>,
-	inner: Option<oneshot::Receiver<BlockData>>
-}
-
-impl Future for BlockDataReceiver {
-	type Item = BlockData;
-	type Error = io::Error;
-
-	fn poll(&mut self) -> Poll<BlockData, io::Error> {
-		if let Some(ref mut inner) = self.inner {
-			return inner
-				.poll()
-				.map_err(|_| io::Error::new(
-					io::ErrorKind::Other,
-					"Sending end of channel hung up",
-			))
-		}
-		match self.outer.poll() {
-			Ok(futures::Async::Ready(inner)) => {
-				self.inner = Some(inner);
-				self.poll()
-			},
-			Ok(futures::Async::NotReady) => Ok(futures::Async::NotReady),
-			Err(_) => Err(
-				io::Error::new(io::ErrorKind::Other, "Sending end of channel hung up")
-			),
-		}
 	}
 }
 
