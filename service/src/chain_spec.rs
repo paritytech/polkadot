@@ -141,7 +141,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			enact_delay_period: 0,
 		}),
 		timestamp: Some(TimestampConfig {
-			period: SECS_PER_BLOCK / 2, // due to the nature of aura the slots are 2*period
+			minimum_period: SECS_PER_BLOCK / 2, // due to the nature of aura the slots are 2*period
 		}),
 		treasury: Some(TreasuryConfig {
 			proposal_bond: Permill::from_percent(5),
@@ -283,7 +283,7 @@ pub fn testnet_genesis(
 		}),
 		parachains: Some(Default::default()),
 		timestamp: Some(TimestampConfig {
-			period: 2,                    // 2*2=4 second block time.
+			minimum_period: 2,                    // 2*2=4 second block time.
 		}),
 		treasury: Some(TreasuryConfig {
 			proposal_bond: Permill::from_percent(5),

@@ -208,7 +208,7 @@ impl Core<Block> for RuntimeApi {
 		unimplemented!("Not required for testing!")
 	}
 
-	fn initialise_block_runtime_api_impl(
+	fn initialize_block_runtime_api_impl(
 		&self,
 		_: &BlockId,
 		_: ExecutionContext,
