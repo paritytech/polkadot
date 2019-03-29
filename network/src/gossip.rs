@@ -31,7 +31,7 @@ use parking_lot::RwLock;
 use super::NetworkService;
 
 /// The engine ID of the polkadot attestation system.
-pub const POLKADOT_ENGINE_ID: substrate_network::ConsensusEngineId = [b'd', b'o', b't', b'1'];
+pub const POLKADOT_ENGINE_ID: sr_primitives::ConsensusEngineId = [b'd', b'o', b't', b'1'];
 
 /// A gossip message.
 #[derive(Encode, Decode, Clone)]

@@ -41,7 +41,7 @@ decl_module! {
 			grandpa::Module::<T>::schedule_change(voters, T::BlockNumber::zero(), None)?;
 		}
 
-		fn on_finalise(block_number: T::BlockNumber) {
+		fn on_finalize(block_number: T::BlockNumber) {
 			// every so often shuffle the voters and issue a change.
 			let shuffle_period: u64 = Self::shuffle_period().as_();
 			if shuffle_period == 0 { return }
@@ -75,10 +75,10 @@ decl_module! {
 					voters.swap(remaining - 1, voter_index);
 				}
 
-				// finalisation order is undefined, so grandpa's on_finalise might
+				// finalization order is undefined, so grandpa's on_finalize might
 				// have already been called. calling it again is OK though.
 				let _ = grandpa::Module::<T>::schedule_change(voters, T::BlockNumber::zero(), None);
-				grandpa::Module::<T>::on_finalise(block_number);
+				grandpa::Module::<T>::on_finalize(block_number);
 			}
 		}
 	}
