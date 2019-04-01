@@ -30,7 +30,7 @@ use std::sync::Arc;
 use client::{BlockchainEvents, ChainHead, BlockBody};
 use client::block_builder::api::BlockBuilder;
 use client::blockchain::HeaderBackend;
-use client::runtime_api::Core;
+use client::runtime_api::{ApiExt, Core};
 use primitives::ed25519;
 use futures::prelude::*;
 use polkadot_primitives::{Block, BlockId};
@@ -123,7 +123,7 @@ pub(crate) fn start<C, N, P>(
 		<C::Collation as IntoFuture>::Future: Send + 'static,
 		P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> + Core<Block> + BlockBuilder<Block> + AuthoritiesApi<Block>,
+		P::Api: ParachainHost<Block> + BlockBuilder<Block> + AuthoritiesApi<Block>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
 {
@@ -134,17 +134,24 @@ pub(crate) fn start<C, N, P>(
 	let thread = thread::spawn(move || {
 		let mut runtime = LocalRuntime::new().expect("Could not create local runtime");
 		let notifications = {
-			let client = client.clone();
 			let consensus = parachain_consensus.clone();
 			let key = key.clone();
+			let auth_client = client.clone();
+			#[allow(deprecated)]
+			let authorities = move |at: &BlockId| {
+				if auth_client.runtime_api().has_api::<AuthoritiesApi<Block>>(at).unwrap_or(false) {
+					AuthoritiesApi::authorities(&*auth_client.runtime_api(), at)
+				} else {
+					Core::authorities(&*auth_client.runtime_api(), at)
+				}
+			};
+			let client = client.clone();
 
 			client.import_notification_stream()
 				.for_each(move |notification| {
 					let parent_hash = notification.hash;
 					if notification.is_new_best {
-						let res = client
-							.runtime_api()
-							.authorities(&BlockId::hash(parent_hash))
+						let res = authorities(&BlockId::hash(parent_hash))
 							.map_err(Into::into)
 							.and_then(|authorities| {
 								consensus.get_or_instantiate(
