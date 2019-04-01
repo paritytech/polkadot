@@ -51,6 +51,7 @@ extern crate substrate_consensus_aura as aura;
 extern crate substrate_consensus_aura_primitives as aura_primitives;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
+extern crate substrate_consensus_authorities as consensus_authorities;
 
 #[macro_use]
 extern crate error_chain;
@@ -94,6 +95,7 @@ use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_aura::timestamp::TimestampInherentData;
+use consensus_authorities::AuthoritiesApi;
 
 pub use self::collation::{validate_collation, Collators};
 pub use self::error::{ErrorKind, Error};
@@ -363,7 +365,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block>,
+	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block> + AuthoritiesApi<Block>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	TxApi: PoolChainApi,

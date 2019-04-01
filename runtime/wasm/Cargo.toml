@@ -37,6 +37,7 @@ srml-system = { git = "https://github.com/paritytech/substrate", default-feature
 srml-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false }
 srml-treasury = { git = "https://github.com/paritytech/substrate", default-features = false }
 sr-version = { git = "https://github.com/paritytech/substrate", default-features = false }
+substrate-consensus-authorities = { git = "https://github.com/paritytech/substrate", default-features = false }
 
 [profile.release]
 panic = "abort"

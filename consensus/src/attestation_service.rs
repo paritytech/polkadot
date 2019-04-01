@@ -37,6 +37,7 @@ use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::ParachainHost;
 use extrinsic_store::Store as ExtrinsicStore;
 use runtime_primitives::traits::ProvideRuntimeApi;
+use consensus_authorities::AuthoritiesApi;
 
 use tokio::runtime::TaskExecutor;
 use tokio::runtime::current_thread::Runtime as LocalRuntime;
@@ -122,7 +123,7 @@ pub(crate) fn start<C, N, P>(
 		<C::Collation as IntoFuture>::Future: Send + 'static,
 		P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> + Core<Block> + BlockBuilder<Block>,
+		P::Api: ParachainHost<Block> + Core<Block> + BlockBuilder<Block> + AuthoritiesApi<Block>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
 {

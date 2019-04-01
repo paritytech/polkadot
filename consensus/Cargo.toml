@@ -27,6 +27,7 @@ srml-aura = { git = "https://github.com/paritytech/substrate" }
 srml-support = { git = "https://github.com/paritytech/substrate" }
 substrate-client = { git = "https://github.com/paritytech/substrate" }
 sr-primitives = { git = "https://github.com/paritytech/substrate" }
+substrate-consensus-authorities = { git = "https://github.com/paritytech/substrate" }
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate" }
