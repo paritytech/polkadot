@@ -22,6 +22,7 @@
 extern crate parity_codec as codec;
 extern crate substrate_network;
 extern crate substrate_primitives;
+extern crate substrate_consensus_common as substrate_consensus;
 extern crate sr_primitives;
 
 extern crate polkadot_validation;

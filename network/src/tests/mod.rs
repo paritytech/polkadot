@@ -22,17 +22,95 @@ use validation::SessionParams;
 use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{CandidateReceipt, HeadData, BlockData, CollatorId, ValidatorId};
+use sr_primitives::Justification;
+use sr_primitives::generic::BlockId;
+use sr_primitives::traits::NumberFor;
+use substrate_primitives::H256;
 use substrate_primitives::crypto::UncheckedInto;
 use codec::Encode;
+use substrate_consensus::import_queue::{SharedBlockImport, SharedJustificationImport, Verifier};
+use substrate_consensus::{Error as ConsensusError, ErrorKind as ConsensusErrorKind, JustificationImport};
 use substrate_network::{
 	Severity, PeerId, PeerInfo, ClientHandle, Context, config::Roles,
 	message::Message as SubstrateMessage, specialization::NetworkSpecialization,
 	generic_message::Message as GenericMessage
 };
+use substrate_network::test::{
+	Block, DummySpecialization, Hash, TestNet, TestNetFactory,
+	PassThroughVerifier, Peer, PeersClient, ProtocolConfig, SpecializationFactory
+};
 
 use futures::Future;
+use std::sync::Arc;
 
 mod validation;
+
+impl SpecializationFactory for PolkadotProtocol {
+	fn create() -> PolkadotProtocol {
+		PolkadotProtocol::new(None)
+	}
+}
+
+pub struct ForceFinalized(Arc<PeersClient>);
+
+impl JustificationImport<Block> for ForceFinalized {
+	type Error = ConsensusError;
+
+	fn import_justification(
+		&self,
+		hash: H256,
+		_number: NumberFor<Block>,
+		justification: Justification,
+	) -> Result<(), Self::Error> {
+		self.0.finalize_block(BlockId::Hash(hash), Some(justification), true)
+			.map_err(|_| ConsensusErrorKind::InvalidJustification.into())
+	}
+}
+
+struct PolkadotTestNet(TestNet);
+
+impl TestNetFactory for PolkadotTestNet {
+	type Specialization = PolkadotProtocol;
+	type Verifier = PassThroughVerifier;
+	type PeerData = ();
+
+	fn from_config(config: &ProtocolConfig) -> Self {
+		PolkadotTestNet(TestNet::from_config(config))
+	}
+
+	fn make_verifier(&self, client: Arc<PeersClient>, config: &ProtocolConfig)
+		-> Arc<Self::Verifier>
+	{
+		self.0.make_verifier(client, config)
+	}
+
+	fn peer(&self, i: usize) -> &Peer<Self::PeerData, Self::Specialization> {
+		self.0.peer(i)
+	}
+
+	fn peers(&self) -> &Vec<Arc<Peer<Self::PeerData, Self::Specialization>>> {
+		self.0.peers()
+	}
+
+	fn mut_peers<F: FnOnce(&mut Vec<Arc<Peer<Self::PeerData, Self::Specialization>>>)>(&mut self, closure: F ) {
+		self.0.mut_peers(closure)
+	}
+
+	fn started(&self) -> bool {
+		self.0.started()
+	}
+
+	fn set_started(&mut self, new: bool) {
+		self.0.set_started(new)
+	}
+
+	fn make_block_import(&self, client: Arc<PeersClient>)
+		-> (SharedBlockImport<Block>, Option<SharedJustificationImport<Block>>, Self::PeerData)
+	{
+		(client.clone(), Some(Arc::new(ForceFinalized(client))), Default::default())
+	}
+}
+
 
 #[derive(Default)]
 struct TestContext {

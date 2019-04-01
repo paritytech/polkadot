@@ -12,7 +12,8 @@ polkadot-validation = { path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
 parity-codec = "3.0"
 parity-codec-derive = "3.0"
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-consensus-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", features = ["test-helpers"] }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 futures = "0.1"
