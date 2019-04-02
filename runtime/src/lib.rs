@@ -295,7 +295,7 @@ impl_runtime_apis! {
 		}
 
 		fn authorities() -> Vec<AuthorityIdFor<Block>> {
-			panic!("Not implemented anymore.")
+			panic!("Deprecated, please use `AuthoritiesApi`.")
 		}
 	}
 
