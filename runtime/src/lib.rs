@@ -56,6 +56,7 @@ extern crate srml_sudo as sudo;
 extern crate srml_system as system;
 extern crate srml_timestamp as timestamp;
 extern crate srml_treasury as treasury;
+extern crate substrate_consensus_authorities as consensus_authorities;
 
 extern crate polkadot_primitives as primitives;
 
@@ -78,7 +79,7 @@ use client::{
 use inherents::CheckInherentsResult;
 use sr_primitives::{
 	ApplyResult, generic, transaction_validity::TransactionValidity,
-	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup}
+	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, AuthorityIdFor, CurrencyToVoteHandler}
 };
 use version::RuntimeVersion;
 use grandpa::fg_primitives::{self, ScheduledChange};
@@ -108,7 +109,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 1,
-	spec_version: 109,
+	spec_version: 110,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -179,6 +180,7 @@ impl session::Trait for Runtime {
 
 impl staking::Trait for Runtime {
 	type OnRewardMinted = Treasury;
+	type CurrencyToVote = CurrencyToVoteHandler;
 	type Event = Event;
 	type Currency = balances::Module<Self>;
 	type Slash = ();
@@ -284,16 +286,16 @@ impl_runtime_apis! {
 			VERSION
 		}
 
-		fn authorities() -> Vec<SessionKey> {
-			Consensus::authorities()
-		}
-
 		fn execute_block(block: Block) {
 			Executive::execute_block(block)
 		}
 
-		fn initialise_block(header: &<Block as BlockT>::Header) {
-			Executive::initialise_block(header)
+		fn initialize_block(header: &<Block as BlockT>::Header) {
+			Executive::initialize_block(header)
+		}
+
+		fn authorities() -> Vec<AuthorityIdFor<Block>> {
+			panic!("Deprecated, please use `AuthoritiesApi`.")
 		}
 	}
 
@@ -308,8 +310,8 @@ impl_runtime_apis! {
 			Executive::apply_extrinsic(extrinsic)
 		}
 
-		fn finalise_block() -> <Block as BlockT>::Header {
-			Executive::finalise_block()
+		fn finalize_block() -> <Block as BlockT>::Header {
+			Executive::finalize_block()
 		}
 
 		fn inherent_extrinsics(data: inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
@@ -384,6 +386,12 @@ impl_runtime_apis! {
 	impl consensus_aura::AuraApi<Block> for Runtime {
 		fn slot_duration() -> u64 {
 			Aura::slot_duration()
+		}
+	}
+
+	impl consensus_authorities::AuthoritiesApi<Block> for Runtime {
+		fn authorities() -> Vec<AuthorityIdFor<Block>> {
+			Consensus::authorities()
 		}
 	}
 }
