@@ -52,7 +52,7 @@ use primitives::{ed25519, Pair};
 use tokio::runtime::TaskExecutor;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
 use transaction_pool::txpool::{Pool as TransactionPool};
-use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration, NothingExtra};
+use aura::{import_queue_accept_old_seals, start_aura, AuraImportQueue, SlotDuration, NothingExtra};
 use inherents::InherentDataProviders;
 pub use service::{
 	Roles, PruningMode, TransactionPoolOptions, ComponentClient,
@@ -280,14 +280,13 @@ construct_service_factory! {
 				let justification_import = block_import.clone();
 
 				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
- 				import_queue::<_, _, _, ed25519::Pair>(
+ 				import_queue_accept_old_seals::<_, _, _, ed25519::Pair>(
 					slot_duration,
 					block_import,
 					Some(justification_import),
 					client.clone(),
 					NothingExtra,
 					config.custom.inherent_data_providers.clone(),
-					true,
 				).map_err(Into::into)
 			}},
 		LightImportQueue = AuraImportQueue<
@@ -296,14 +295,13 @@ construct_service_factory! {
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<LightClient<Self>>| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
 
-				import_queue::<_, _, _, ed25519::Pair>(
+				import_queue_accept_old_seals::<_, _, _, ed25519::Pair>(
 					slot_duration,
 					client.clone(),
 					None,
 					client,
 					NothingExtra,
 					config.custom.inherent_data_providers.clone(),
-					true,
 				).map_err(Into::into)
 			}},
 	}

@@ -13,36 +13,36 @@ safe-mix = { version = "1.0", default-features = false}
 polkadot-primitives = { path = "../primitives", default-features = false }
 parity-codec = "3.0"
 parity-codec-derive = "3.0"
-substrate-serializer = { git = "https://github.com/paritytech/substrate" }
-sr-std = { git = "https://github.com/paritytech/substrate" }
-sr-io = { git = "https://github.com/paritytech/substrate" }
-srml-support = { git = "https://github.com/paritytech/substrate" }
-substrate-inherents = { git = "https://github.com/paritytech/substrate" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate" }
-substrate-client = { git = "https://github.com/paritytech/substrate" }
-substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
-substrate-offchain-primitives = { git = "https://github.com/paritytech/substrate", default-features = false }
-srml-aura = { git = "https://github.com/paritytech/substrate" }
-srml-balances = { git = "https://github.com/paritytech/substrate" }
-srml-consensus = { git = "https://github.com/paritytech/substrate" }
-srml-council = { git = "https://github.com/paritytech/substrate" }
-srml-democracy = { git = "https://github.com/paritytech/substrate" }
-srml-executive = { git = "https://github.com/paritytech/substrate" }
-srml-grandpa = { git = "https://github.com/paritytech/substrate" }
-srml-indices = { git = "https://github.com/paritytech/substrate" }
-sr-primitives = { git = "https://github.com/paritytech/substrate" }
-srml-session = { git = "https://github.com/paritytech/substrate" }
-srml-staking = { git = "https://github.com/paritytech/substrate" }
-srml-sudo = { git = "https://github.com/paritytech/substrate" }
-srml-system = { git = "https://github.com/paritytech/substrate" }
-srml-timestamp = { git = "https://github.com/paritytech/substrate" }
-srml-treasury = { git = "https://github.com/paritytech/substrate" }
-sr-version = { git = "https://github.com/paritytech/substrate" }
-substrate-consensus-authorities = { git = "https://github.com/paritytech/substrate", default-features = false }
+substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+sr-std = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+sr-io = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-support = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+substrate-inherents = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+substrate-client = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", branch = "v1.0", default-features = false }
+substrate-offchain-primitives = { git = "https://github.com/paritytech/substrate", branch = "v1.0", default-features = false }
+srml-aura = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-balances = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-consensus = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-council = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-democracy = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-executive = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-grandpa = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-indices = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-session = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-staking = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-sudo = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-system = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-timestamp = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+srml-treasury = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+sr-version = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
+substrate-consensus-authorities = { git = "https://github.com/paritytech/substrate", branch = "v1.0", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.1.0"
-substrate-keyring = { git = "https://github.com/paritytech/substrate" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "v1.0" }
 
 [features]
 default = ["std"]
