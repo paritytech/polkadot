@@ -4,7 +4,7 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 build = "build.rs"
 
@@ -22,7 +22,6 @@ members = [
 	"availability-store",
 	"cli",
 	"collator",
-	"consensus",
 	"erasure-coding",
 	"executor",
 	"network",
@@ -31,6 +30,7 @@ members = [
 	"service",
 	"statement-table",
 	"service",
+	"validation",
 
 	"test-parachains/adder",
 	"test-parachains/adder/collator",

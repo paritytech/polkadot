@@ -1,5 +1,5 @@
 
-= Polkadot primitives
+= Polkadot Validation
 
 placeholder
 //TODO Write content :) (https://github.com/paritytech/polkadot/issues/159)

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 
@@ -9,5 +9,5 @@ log = "0.4.6"
 tokio = "0.1.7"
 futures = "0.1.17"
 exit-future = "0.1"
-substrate-cli = { git = "https://github.com/paritytech/substrate" }
+substrate-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 polkadot-service = { path = "../service" }

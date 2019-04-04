@@ -33,8 +33,8 @@ use futures::{future, prelude::*};
 
 use super::{GroupInfo, Incoming, TableRouter};
 use self::includable::IncludabilitySender;
-use primitives::ed25519;
-use runtime_primitives::{traits::ProvideRuntimeApi};
+use primitives::{ed25519, Pair};
+use runtime_primitives::traits::ProvideRuntimeApi;
 
 mod includable;
 
@@ -157,7 +157,7 @@ impl SharedTableInner {
 						digest,
 					);
 
-					warn!(target: "consensus", "{}", message);
+					warn!(target: "validation", "{}", message);
 					self.validated.insert(digest.clone(), ValidationWork::Error(message));
 					None
 				}
@@ -276,7 +276,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 			match res {
 				Ok(e) => Ok(e),
 				Err(e) => {
-					debug!(target: "consensus", "Encountered bad collation: {}", e);
+					debug!(target: "validation", "Encountered bad collation: {}", e);
 					Err(())
 				}
 			}
@@ -326,7 +326,7 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 
 		let candidate_hash = candidate.hash();
 
-		debug!(target: "consensus", "Making validity statement about candidate {}: is_good? {:?}",
+		debug!(target: "validation", "Making validity statement about candidate {}: is_good? {:?}",
 			candidate_hash, validation_res.is_ok());
 
 		let (validity_statement, result) = match validation_res {
@@ -544,8 +544,8 @@ impl SharedTable {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::Keyring;
-	use futures::future;
+	use substrate_keyring::AuthorityKeyring;
+	use primitives::crypto::UncheckedInto;
 
 	#[derive(Clone)]
 	struct DummyRouter;
@@ -572,15 +572,16 @@ mod tests {
 		let mut groups = HashMap::new();
 
 		let para_id = ParaId::from(1);
-		let local_id = Keyring::Alice.to_raw_public().into();
-		let local_key = Arc::new(Keyring::Alice.pair());
-
-		let validity_other = Keyring::Bob.to_raw_public().into();
-		let validity_other_key = Keyring::Bob.pair();
 		let parent_hash = Default::default();
 
+		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_id = local_key.public();
+
+		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other = validity_other_key.public();
+
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other].iter().cloned().collect(),
+			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 2,
 		});
 
@@ -593,7 +594,7 @@ mod tests {
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
-			collator: [1; 32].into(),
+			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
 			balance_uploads: Vec::new(),
@@ -622,15 +623,16 @@ mod tests {
 		let mut groups = HashMap::new();
 
 		let para_id = ParaId::from(1);
-		let local_id = Keyring::Alice.to_raw_public().into();
-		let local_key = Arc::new(Keyring::Alice.pair());
-
-		let validity_other = Keyring::Bob.to_raw_public().into();
-		let validity_other_key = Keyring::Bob.pair();
 		let parent_hash = Default::default();
 
+		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_id = local_key.public();
+
+		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other = validity_other_key.public();
+
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other].iter().cloned().collect(),
+			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
 		});
 
@@ -643,7 +645,7 @@ mod tests {
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
-			collator: [1; 32].into(),
+			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
 			balance_uploads: Vec::new(),
@@ -676,7 +678,7 @@ mod tests {
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
-			collator: [1; 32].into(),
+			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
 			balance_uploads: Vec::new(),
@@ -716,7 +718,7 @@ mod tests {
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
-			collator: [1; 32].into(),
+			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
 			balance_uploads: Vec::new(),
@@ -751,15 +753,16 @@ mod tests {
 		let mut groups = HashMap::new();
 
 		let para_id = ParaId::from(1);
-		let local_id = Keyring::Alice.to_raw_public().into();
-		let local_key = Arc::new(Keyring::Alice.pair());
-
-		let validity_other = Keyring::Bob.to_raw_public().into();
-		let validity_other_key = Keyring::Bob.pair();
 		let parent_hash = Default::default();
 
+		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_id = local_key.public();
+
+		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other = validity_other_key.public();
+
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other].iter().cloned().collect(),
+			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
 		});
 
@@ -772,7 +775,7 @@ mod tests {
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
-			collator: [1; 32].into(),
+			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
 			balance_uploads: Vec::new(),
@@ -811,13 +814,15 @@ mod tests {
 		let mut groups = HashMap::new();
 
 		let para_id = ParaId::from(1);
-		let local_id = Keyring::Alice.to_raw_public().into();
-		let local_key = Arc::new(Keyring::Alice.pair());
 		let block_data = BlockData(vec![1, 2, 3]);
 		let extrinsic = Extrinsic { outgoing_messages: Vec::new() };
-
-		let validity_other = Keyring::Bob.to_raw_public().into();
 		let parent_hash = Default::default();
+
+		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_id = local_key.public();
+
+		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other = validity_other_key.public();
 
 		groups.insert(para_id, GroupInfo {
 			validity_guarantors: [local_id, validity_other].iter().cloned().collect(),
@@ -833,7 +838,7 @@ mod tests {
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
-			collator: [1; 32].into(),
+			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
 			balance_uploads: Vec::new(),

@@ -31,9 +31,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
-use substrate_primitives::ed25519::Pair;
+use substrate_primitives::Pair;
 use parachain::codec::{Encode, Decode};
-use primitives::parachain::{HeadData, BlockData, Id as ParaId, Message};
+use primitives::parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic};
 use collator::{InvalidHead, ParachainContext, VersionInfo};
 use parking_lot::Mutex;
 
@@ -59,7 +59,7 @@ impl ParachainContext for AdderContext {
 		&self,
 		last_head: HeadData,
 		ingress: I,
-	) -> Result<(BlockData, HeadData), InvalidHead>
+	) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead>
 	{
 		let adder_head = AdderHead::decode(&mut &last_head.0[..])
 			.ok_or(InvalidHead)?;
@@ -93,12 +93,12 @@ impl ParachainContext for AdderContext {
 			next_head.number, next_body.state.overflowing_add(next_body.add).0);
 
 		db.insert(next_head.clone(), next_body);
-		Ok((encoded_body, encoded_head))
+		Ok((encoded_body, encoded_head, Extrinsic { outgoing_messages: Vec::new() }))
 	}
 }
 
 fn main() {
-	let key = Arc::new(Pair::from_seed(&[1; 32]));
+	let key = Arc::new(Pair::from_seed([1; 32]));
 	let id: ParaId = 100.into();
 
 	println!("Starting adder collator with genesis: ");

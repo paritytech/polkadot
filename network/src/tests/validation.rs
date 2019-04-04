@@ -14,21 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Tests and helpers for consensus networking.
+//! Tests and helpers for validation networking.
 
-use consensus::NetworkService;
-use substrate_network::{consensus_gossip::ConsensusMessage, Context as NetContext};
-use substrate_primitives::{Ed25519AuthorityId, NativeOrEncoded};
-use substrate_keyring::Keyring;
+use validation::NetworkService;
+use substrate_network::Context as NetContext;
+use substrate_primitives::{NativeOrEncoded, ExecutionContext};
+use substrate_keyring::AuthorityKeyring;
 use {PolkadotProtocol};
 
-use polkadot_consensus::{SharedTable, MessagesFrom, Network, TableRouter};
-use polkadot_primitives::{AccountId, Block, Hash, Header, BlockId};
-use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage};
+use polkadot_validation::{SharedTable, MessagesFrom, Network, TableRouter};
+use polkadot_primitives::{SessionKey, Block, Hash, Header, BlockId};
+use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
+	ValidatorId};
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
 use substrate_client::runtime_api::{Core, RuntimeVersion, ApiExt};
-use sr_primitives::ExecutionContext;
 use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 
 use std::collections::HashMap;
@@ -51,21 +51,21 @@ impl Future for NeverExit {
 }
 
 struct GossipRouter {
-	incoming_messages: mpsc::UnboundedReceiver<(Hash, ConsensusMessage)>,
-	incoming_streams: mpsc::UnboundedReceiver<(Hash, mpsc::UnboundedSender<ConsensusMessage>)>,
-	outgoing: Vec<(Hash, mpsc::UnboundedSender<ConsensusMessage>)>,
-	messages: Vec<(Hash, ConsensusMessage)>,
+	incoming_messages: mpsc::UnboundedReceiver<(Hash, Vec<u8>)>,
+	incoming_streams: mpsc::UnboundedReceiver<(Hash, mpsc::UnboundedSender<Vec<u8>>)>,
+	outgoing: Vec<(Hash, mpsc::UnboundedSender<Vec<u8>>)>,
+	messages: Vec<(Hash, Vec<u8>)>,
 }
 
 impl GossipRouter {
-	fn add_message(&mut self, topic: Hash, message: ConsensusMessage) {
+	fn add_message(&mut self, topic: Hash, message: Vec<u8>) {
 		self.outgoing.retain(|&(ref o_topic, ref sender)| {
 			o_topic != &topic || sender.unbounded_send(message.clone()).is_ok()
 		});
 		self.messages.push((topic, message));
 	}
 
-	fn add_outgoing(&mut self, topic: Hash, sender: mpsc::UnboundedSender<ConsensusMessage>) {
+	fn add_outgoing(&mut self, topic: Hash, sender: mpsc::UnboundedSender<Vec<u8>>) {
 		for message in self.messages.iter()
 			.filter(|&&(ref t, _)| t == &topic)
 			.map(|&(_, ref msg)| msg.clone())
@@ -105,8 +105,8 @@ impl Future for GossipRouter {
 
 #[derive(Clone)]
 struct GossipHandle {
-	send_message: mpsc::UnboundedSender<(Hash, ConsensusMessage)>,
-	send_listener: mpsc::UnboundedSender<(Hash, mpsc::UnboundedSender<ConsensusMessage>)>,
+	send_message: mpsc::UnboundedSender<(Hash, Vec<u8>)>,
+	send_listener: mpsc::UnboundedSender<(Hash, mpsc::UnboundedSender<Vec<u8>>)>,
 }
 
 fn make_gossip() -> (GossipRouter, GossipHandle) {
@@ -130,13 +130,13 @@ struct TestNetwork {
 }
 
 impl NetworkService for TestNetwork {
-	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<ConsensusMessage> {
+	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<Vec<u8>> {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
 		rx
 	}
 
-	fn gossip_message(&self, topic: Hash, message: ConsensusMessage) {
+	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
 		let _ = self.gossip.send_message.unbounded_send((topic, message));
 	}
 
@@ -154,7 +154,7 @@ impl NetworkService for TestNetwork {
 
 #[derive(Default)]
 struct ApiData {
-	validators: Vec<AccountId>,
+	validators: Vec<ValidatorId>,
 	duties: Vec<Chain>,
 	active_parachains: Vec<ParaId>,
 	ingress: HashMap<ParaId, Vec<(ParaId, Hash)>>,
@@ -178,7 +178,7 @@ impl ProvideRuntimeApi for TestApi {
 }
 
 impl Core<Block> for RuntimeApi {
-	fn version_runtime_api_impl(
+	fn Core_version_runtime_api_impl(
 		&self,
 		_: &BlockId,
 		_: ExecutionContext,
@@ -188,17 +188,17 @@ impl Core<Block> for RuntimeApi {
 		unimplemented!("Not required for testing!")
 	}
 
-	fn authorities_runtime_api_impl(
+	fn Core_authorities_runtime_api_impl(
 		&self,
 		_: &BlockId,
 		_: ExecutionContext,
 		_: Option<()>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Vec<Ed25519AuthorityId>>> {
+	) -> ClientResult<NativeOrEncoded<Vec<SessionKey>>> {
 		unimplemented!("Not required for testing!")
 	}
 
-	fn execute_block_runtime_api_impl(
+	fn Core_execute_block_runtime_api_impl(
 		&self,
 		_: &BlockId,
 		_: ExecutionContext,
@@ -208,7 +208,7 @@ impl Core<Block> for RuntimeApi {
 		unimplemented!("Not required for testing!")
 	}
 
-	fn initialise_block_runtime_api_impl(
+	fn Core_initialize_block_runtime_api_impl(
 		&self,
 		_: &BlockId,
 		_: ExecutionContext,
@@ -233,17 +233,17 @@ impl ApiExt<Block> for RuntimeApi {
 }
 
 impl ParachainHost<Block> for RuntimeApi {
-	fn validators_runtime_api_impl(
+	fn ParachainHost_validators_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
 		_: Option<()>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Vec<AccountId>>> {
+	) -> ClientResult<NativeOrEncoded<Vec<ValidatorId>>> {
 		Ok(NativeOrEncoded::Native(self.data.lock().validators.clone()))
 	}
 
-	fn duty_roster_runtime_api_impl(
+	fn ParachainHost_duty_roster_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
@@ -256,7 +256,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		}))
 	}
 
-	fn active_parachains_runtime_api_impl(
+	fn ParachainHost_active_parachains_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
@@ -266,7 +266,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
 	}
 
-	fn parachain_head_runtime_api_impl(
+	fn ParachainHost_parachain_head_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
@@ -276,7 +276,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 
-	fn parachain_code_runtime_api_impl(
+	fn ParachainHost_parachain_code_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
@@ -286,7 +286,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 
-	fn ingress_runtime_api_impl(
+	fn ParachainHost_ingress_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
@@ -298,7 +298,7 @@ impl ParachainHost<Block> for RuntimeApi {
 	}
 }
 
-type TestConsensusNetwork = ::consensus::ConsensusNetwork<
+type TestValidationNetwork = ::validation::ValidationNetwork<
 	TestApi,
 	NeverExit,
 	TestNetwork,
@@ -308,7 +308,7 @@ type TestConsensusNetwork = ::consensus::ConsensusNetwork<
 struct Built {
 	gossip: GossipRouter,
 	api_handle: Arc<Mutex<ApiData>>,
-	networks: Vec<TestConsensusNetwork>,
+	networks: Vec<TestValidationNetwork>,
 }
 
 fn build_network(n: usize, executor: TaskExecutor) -> Built {
@@ -322,9 +322,14 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 			gossip: gossip_handle.clone(),
 		});
 
-		TestConsensusNetwork::new(
+		let message_val = crate::gossip::RegisteredMessageValidator::new_test(
+			|_hash: &_| Some(crate::gossip::Known::Leaf),
+		);
+
+		TestValidationNetwork::new(
 			net,
 			NeverExit,
+			message_val,
 			runtime_api.clone(),
 			executor.clone(),
 		)
@@ -356,7 +361,7 @@ impl IngressBuilder {
 		let mut map = HashMap::new();
 		for ((source, target), messages) in self.egress {
 			map.entry(target).or_insert_with(Vec::new)
-				.push((source, polkadot_consensus::message_queue_root(&messages)));
+				.push((source, polkadot_validation::message_queue_root(&messages)));
 		}
 
 		for roots in map.values_mut() {
@@ -367,15 +372,14 @@ impl IngressBuilder {
 	}
 }
 
-fn make_table(data: &ApiData, local_key: &Keyring, parent_hash: Hash) -> Arc<SharedTable> {
+fn make_table(data: &ApiData, local_key: &AuthorityKeyring, parent_hash: Hash) -> Arc<SharedTable> {
 	use ::av_store::Store;
 
 	let store = Store::new_in_memory();
-	let authorities: Vec<_> = data.validators.iter().map(|v| v.to_fixed_bytes().into()).collect();
-	let (group_info, _) = ::polkadot_consensus::make_group_info(
+	let (group_info, _) = ::polkadot_validation::make_group_info(
 		DutyRoster { validator_duty: data.duties.clone() },
-		&authorities,
-		local_key.to_raw_public().into()
+		&data.validators, // only possible as long as parachain crypto === aura crypto
+		SessionKey::from(*local_key)
 	).unwrap();
 
 	Arc::new(SharedTable::new(
@@ -395,9 +399,9 @@ fn ingress_fetch_works() {
 	let id_b: ParaId = 2.into();
 	let id_c: ParaId = 3.into();
 
-	let key_a = Keyring::Alice;
-	let key_b = Keyring::Bob;
-	let key_c = Keyring::Charlie;
+	let key_a = AuthorityKeyring::Alice;
+	let key_b = AuthorityKeyring::Bob;
+	let key_c = AuthorityKeyring::Charlie;
 
 	let messages_from_a = vec![
 		OutgoingMessage { target: id_b, data: vec![1, 2, 3] },
@@ -427,15 +431,22 @@ fn ingress_fetch_works() {
 	let parent_hash = [1; 32].into();
 
 	let (router_a, router_b, router_c) = {
+		let validators: Vec<ValidatorId> = vec![
+			key_a.into(),
+			key_b.into(),
+			key_c.into(),
+		];
+
+		// NOTE: this is possible only because we are currently asserting that parachain validators
+		// share their crypto with the (Aura) authority set. Once that assumption breaks, so will this
+		// code.
+		let authorities = validators.clone();
+
 		let mut api_handle = built.api_handle.lock();
 		*api_handle = ApiData {
 			active_parachains: vec![id_a, id_b, id_c],
 			duties: vec![Chain::Parachain(id_a), Chain::Parachain(id_b), Chain::Parachain(id_c)],
-			validators: vec![
-				key_a.to_raw_public().into(),
-				key_b.to_raw_public().into(),
-				key_c.to_raw_public().into(),
-			],
+			validators,
 			ingress,
 		};
 
@@ -443,22 +454,28 @@ fn ingress_fetch_works() {
 			built.networks[0].communication_for(
 				make_table(&*api_handle, &key_a, parent_hash),
 				vec![MessagesFrom::from_messages(id_a, messages_from_a)],
+				&authorities,
 			),
 			built.networks[1].communication_for(
 				make_table(&*api_handle, &key_b, parent_hash),
 				vec![MessagesFrom::from_messages(id_b, messages_from_b)],
+				&authorities,
 			),
 			built.networks[2].communication_for(
 				make_table(&*api_handle, &key_c, parent_hash),
 				vec![MessagesFrom::from_messages(id_c, messages_from_c)],
+				&authorities,
 			),
 		)
 	};
 
 	// make sure everyone can get ingress for their own parachain.
-	let fetch_a = router_a.fetch_incoming(id_a).map_err(|_| format!("Could not fetch ingress_a"));
-	let fetch_b = router_b.fetch_incoming(id_b).map_err(|_| format!("Could not fetch ingress_b"));
-	let fetch_c = router_c.fetch_incoming(id_c).map_err(|_| format!("Could not fetch ingress_c"));
+	let fetch_a = router_a.then(move |r| r.unwrap()
+		.fetch_incoming(id_a).map_err(|_| format!("Could not fetch ingress_a")));
+	let fetch_b = router_b.then(move |r| r.unwrap()
+		.fetch_incoming(id_b).map_err(|_| format!("Could not fetch ingress_b")));
+	let fetch_c = router_c.then(move |r| r.unwrap()
+		.fetch_incoming(id_c).map_err(|_| format!("Could not fetch ingress_c")));
 
 	let work = fetch_a.join3(fetch_b, fetch_c);
 	runtime.spawn(built.gossip.then(|_| Ok(()))); // in background.

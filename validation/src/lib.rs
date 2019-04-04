@@ -37,7 +37,9 @@ extern crate polkadot_runtime;
 extern crate polkadot_primitives;
 
 extern crate parity_codec as codec;
+extern crate substrate_inherents as inherents;
 extern crate substrate_primitives as primitives;
+extern crate srml_aura as runtime_aura;
 extern crate sr_primitives as runtime_primitives;
 extern crate substrate_client as client;
 extern crate substrate_trie as trie;
@@ -46,10 +48,9 @@ extern crate exit_future;
 extern crate tokio;
 extern crate substrate_consensus_common as consensus;
 extern crate substrate_consensus_aura as aura;
+extern crate substrate_consensus_aura_primitives as aura_primitives;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
-extern crate substrate_inherents as inherents;
-extern crate srml_aura as runtime_aura;
 
 #[macro_use]
 extern crate error_chain;
@@ -67,6 +68,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
+use aura::SlotDuration;
 use client::{BlockchainEvents, ChainHead, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
@@ -77,10 +79,9 @@ use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt,
-	CandidateSignature, ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message,
-	OutgoingMessage,
+	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage, CollatorSignature
 };
-use primitives::{Ed25519AuthorityId as AuthorityId, ed25519};
+use primitives::{Pair, ed25519};
 use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyError};
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
@@ -93,7 +94,8 @@ use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_aura::timestamp::TimestampInherentData;
-use aura::SlotDuration;
+
+use ed25519::Public as AuthorityId;
 
 pub use self::collation::{validate_collation, message_queue_root, egress_roots, Collators};
 pub use self::error::{ErrorKind, Error};
@@ -166,9 +168,16 @@ pub trait TableRouter: Clone {
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.
 pub trait Network {
+	/// The error type of asynchronously building the table router.
+	type Error: std::fmt::Debug;
+
 	/// The table router type. This should handle importing of any statements,
 	/// routing statements to peers, and driving completion of any `StatementProducers`.
 	type TableRouter: TableRouter;
+
+	/// The future used for asynchronously building the table router.
+	/// This should not fail.
+	type BuildTableRouter: IntoFuture<Item=Self::TableRouter,Error=Self::Error>;
 
 	/// Instantiate a table router using the given shared table.
 	/// Also pass through any outgoing messages to be broadcast to peers.
@@ -176,7 +185,8 @@ pub trait Network {
 		&self,
 		table: Arc<SharedTable>,
 		outgoing: Outgoing,
-	) -> Self::TableRouter;
+		authorities: &[SessionKey],
+	) -> Self::BuildTableRouter;
 }
 
 /// Information about a specific group.
@@ -191,7 +201,7 @@ pub struct GroupInfo {
 /// Sign a table statement against a parent hash.
 /// The actual message signed is the encoded statement concatenated with the
 /// parent hash.
-pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_hash: &Hash) -> CandidateSignature {
+pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_hash: &Hash) -> CollatorSignature {
 	// we sign using the primitive statement type because that's what the runtime
 	// expects. These types probably encode the same way so this clone could be optimized
 	// out in the future.
@@ -202,7 +212,7 @@ pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_h
 }
 
 /// Check signature on table statement.
-pub fn check_statement(statement: &Statement, signature: &CandidateSignature, signer: SessionKey, parent_hash: &Hash) -> bool {
+pub fn check_statement(statement: &Statement, signature: &CollatorSignature, signer: SessionKey, parent_hash: &Hash) -> bool {
 	use runtime_primitives::traits::Verify;
 
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
@@ -258,7 +268,7 @@ pub fn make_group_info(
 }
 
 /// Constructs parachain-agreement instances.
-struct ParachainConsensus<C, N, P> {
+struct ParachainValidation<C, N, P> {
 	/// The client instance.
 	client: Arc<P>,
 	/// The backing network handle.
@@ -274,7 +284,7 @@ struct ParachainConsensus<C, N, P> {
 	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
 }
 
-impl<C, N, P> ParachainConsensus<C, N, P> where
+impl<C, N, P> ParachainValidation<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
@@ -282,6 +292,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
+	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 {
 	/// Get an attestation table for given parent hash.
 	///
@@ -316,11 +327,11 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		let outgoing: Vec<_> = {
 			// extract all extrinsic data that we have and propagate to peers.
-			live_instances.get(&grandparent_hash).map(|parent_consensus| {
+			live_instances.get(&grandparent_hash).map(|parent_validation| {
 				parent_candidates.iter().filter_map(|c| {
 					let para_id = c.parachain_index;
 					let hash = c.hash();
-					parent_consensus.table.extrinsic_data(&hash).map(|ex| MessagesFrom {
+					parent_validation.table.extrinsic_data(&hash).map(|ex| MessagesFrom {
 						from: para_id,
 						messages: ex,
 					})
@@ -341,12 +352,13 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 
 		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
 
-		debug!(target: "consensus", "Active parachains: {:?}", active_parachains);
+		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
 		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
 			table.clone(),
 			outgoing,
+			authorities,
 		);
 
 		let drop_signal = match local_duty.validation {
@@ -369,7 +381,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 		Ok(tracker)
 	}
 
-	/// Retain consensus sessions matching predicate.
+	/// Retain validation sessions matching predicate.
 	fn retain<F: FnMut(&Hash) -> bool>(&self, mut pred: F) {
 		self.live_instances.lock().retain(|k, _| pred(k))
 	}
@@ -379,64 +391,77 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 		&self,
 		relay_parent: Hash,
 		validation_para: ParaId,
-		router: N::TableRouter,
+		build_router: N::BuildTableRouter
 	) -> exit_future::Signal {
 		use extrinsic_store::Data;
 
 		let (signal, exit) = exit_future::signal();
-
-		let fetch_incoming = router.fetch_incoming(validation_para)
-			.into_future()
-			.map_err(|e| format!("{:?}", e));
-
-		// fetch incoming messages to our parachain from network and
-		// then fetch a local collation.
 		let (collators, client) = (self.collators.clone(), self.client.clone());
-		let collation_work = fetch_incoming
-			.map_err(|e| String::clone(&e))
-			.and_then(move |incoming| {
-				CollationFetch::new(
-					validation_para,
-					relay_parent,
-					collators,
-					client,
-					incoming,
-				).map_err(|e| format!("{:?}", e))
-			});
-
 		let extrinsic_store = self.extrinsic_store.clone();
-		let handled_work = collation_work.then(move |result| match result {
-			Ok((collation, extrinsic)) => {
-				let res = extrinsic_store.make_available(Data {
-					relay_parent,
-					parachain_id: collation.receipt.parachain_index,
-					candidate_hash: collation.receipt.hash(),
-					block_data: collation.block_data.clone(),
-					extrinsic: Some(extrinsic.clone()),
+
+		let with_router = move |router: N::TableRouter| {
+			let fetch_incoming = router.fetch_incoming(validation_para)
+				.into_future()
+				.map_err(|e| format!("{:?}", e));
+
+			// fetch incoming messages to our parachain from network and
+			// then fetch a local collation.
+			let collation_work = fetch_incoming
+				.map_err(|e| String::clone(&e))
+				.and_then(move |incoming| {
+					CollationFetch::new(
+						validation_para,
+						relay_parent,
+						collators,
+						client,
+						incoming,
+					).map_err(|e| format!("{:?}", e))
 				});
 
-				match res {
-					Ok(()) => {
-						// TODO: https://github.com/paritytech/polkadot/issues/51
-						// Erasure-code and provide merkle branches.
-						router.local_candidate(collation.receipt, collation.block_data, extrinsic)
+			collation_work.then(move |result| match result {
+				Ok((collation, extrinsic)) => {
+					let res = extrinsic_store.make_available(Data {
+						relay_parent,
+						parachain_id: collation.receipt.parachain_index,
+						candidate_hash: collation.receipt.hash(),
+						block_data: collation.block_data.clone(),
+						extrinsic: Some(extrinsic.clone()),
+					});
+
+					match res {
+						Ok(()) => {
+							// TODO: https://github.com/paritytech/polkadot/issues/51
+							// Erasure-code and provide merkle branches.
+							router.local_candidate(
+								collation.receipt,
+								collation.block_data,
+								extrinsic,
+							)
+						}
+						Err(e) => warn!(
+							target: "validation",
+							"Failed to make collation data available: {:?}",
+							e,
+						),
 					}
-					Err(e) => warn!(
-						target: "consensus",
-						"Failed to make collation data available: {:?}",
-						e,
-					),
+
+					Ok(())
 				}
+				Err(e) => {
+					warn!(target: "validation", "Failed to collate candidate: {}", e);
+					Ok(())
+				}
+			})
+		};
 
-				Ok(())
-			}
-			Err(e) => {
-				warn!(target: "consensus", "Failed to collate candidate: {}", e);
-				Ok(())
-			}
-		});
-
-		let cancellable_work = handled_work.select(exit).then(|_| Ok(()));
+		let cancellable_work = build_router
+			.into_future()
+			.map_err(|e| {
+				warn!(target: "validation" , "Failed to build table router: {:?}", e);
+			})
+			.and_then(with_router)
+			.select(exit)
+			.then(|_| Ok(()));
 
 		// spawn onto thread pool.
 		self.handle.spawn(cancellable_work);
@@ -444,7 +469,7 @@ impl<C, N, P> ParachainConsensus<C, N, P> where
 	}
 }
 
-/// Parachain consensus for a single block.
+/// Parachain validation for a single block.
 struct AttestationTracker {
 	_drop_signal: Option<exit_future::Signal>,
 	table: Arc<SharedTable>,
@@ -453,7 +478,7 @@ struct AttestationTracker {
 
 /// Polkadot proposer factory.
 pub struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
-	parachain_consensus: Arc<ParachainConsensus<C, N, P>>,
+	parachain_validation: Arc<ParachainValidation<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
 	key: Arc<ed25519::Pair>,
 	_service_handle: ServiceHandle,
@@ -469,6 +494,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
+	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 	TxApi: PoolChainApi,
 {
 	/// Create a new proposer factory.
@@ -482,7 +508,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 		extrinsic_store: ExtrinsicStore,
 		aura_slot_duration: SlotDuration,
 	) -> Self {
-		let parachain_consensus = Arc::new(ParachainConsensus {
+		let parachain_validation = Arc::new(ParachainValidation {
 			client: client.clone(),
 			network,
 			collators,
@@ -493,14 +519,14 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 
 		let service_handle = ::attestation_service::start(
 			client,
-			parachain_consensus.clone(),
+			parachain_validation.clone(),
 			thread_pool,
 			key.clone(),
 			extrinsic_store,
 		);
 
 		ProposerFactory {
-			parachain_consensus,
+			parachain_validation,
 			transaction_pool,
 			key,
 			_service_handle: service_handle,
@@ -518,6 +544,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
+	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 {
 	type Proposer = Proposer<P, TxApi>;
 	type Error = Error;
@@ -530,7 +557,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 		let parent_hash = parent_header.hash();
 		let parent_id = BlockId::hash(parent_hash);
 		let sign_with = self.key.clone();
-		let tracker = self.parachain_consensus.get_or_instantiate(
+		let tracker = self.parachain_validation.get_or_instantiate(
 			parent_hash,
 			parent_header.parent_hash().clone(),
 			authorities,
@@ -538,7 +565,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 		)?;
 
 		Ok(Proposer {
-			client: self.parachain_consensus.client.clone(),
+			client: self.parachain_validation.client.clone(),
 			tracker,
 			parent_hash,
 			parent_id,
@@ -708,7 +735,11 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
-		let mut inherent_data = self.inherent_data.take().expect("CreateProposal is not polled after finishing; qed");
+		const MAX_TRANSACTIONS: usize = 40;
+
+		let mut inherent_data = self.inherent_data
+			.take()
+			.expect("CreateProposal is not polled after finishing; qed");
 		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(ErrorKind::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
@@ -722,8 +753,14 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			}
 
 			let mut unqueue_invalid = Vec::new();
+			let mut pending_size = 0;
 
-			for ready in self.transaction_pool.ready() {
+			let ready_iter = self.transaction_pool.ready();
+			for ready in ready_iter.take(MAX_TRANSACTIONS) {
+				let encoded_size = ready.data.encode().len();
+				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
+					break
+				}
 				if Instant::now() > self.deadline {
 					debug!("Consensus deadline reached when pushing block transactions, proceeding with proposing.");
 					break;
@@ -732,6 +769,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 				match block_builder.push(ready.data.clone()) {
 					Ok(()) => {
 						debug!("[{:?}] Pushed to the block.", ready.hash);
+						pending_size += encoded_size;
 					}
 					Err(client::error::Error(client::error::ErrorKind::ApplyExtrinsicFailed(ApplyError::FullBlock), _)) => {
 						debug!("Block is full, proceed with proposing.");
@@ -797,17 +835,17 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::Keyring;
+	use substrate_keyring::AuthorityKeyring;
 
 	#[test]
 	fn sign_and_check_statement() {
 		let statement: Statement = GenericStatement::Valid([1; 32].into());
 		let parent_hash = [2; 32].into();
 
-		let sig = sign_table_statement(&statement, &Keyring::Alice.pair(), &parent_hash);
+		let sig = sign_table_statement(&statement, &AuthorityKeyring::Alice.pair(), &parent_hash);
 
-		assert!(check_statement(&statement, &sig, Keyring::Alice.to_raw_public().into(), &parent_hash));
-		assert!(!check_statement(&statement, &sig, Keyring::Alice.to_raw_public().into(), &[0xff; 32].into()));
-		assert!(!check_statement(&statement, &sig, Keyring::Bob.to_raw_public().into(), &parent_hash));
+		assert!(check_statement(&statement, &sig, AuthorityKeyring::Alice.into(), &parent_hash));
+		assert!(!check_statement(&statement, &sig, AuthorityKeyring::Alice.into(), &[0xff; 32].into()));
+		assert!(!check_statement(&statement, &sig, AuthorityKeyring::Bob.into(), &parent_hash));
 	}
 }

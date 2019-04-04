@@ -14,10 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Errors that can occur during the consensus process.
+//! Errors that can occur during the validation process.
 
-use primitives::Ed25519AuthorityId as AuthorityId;
 use runtime_primitives::RuntimeString;
+
+use primitives::ed25519::Public as AuthorityId;
 
 error_chain! {
 	links {
