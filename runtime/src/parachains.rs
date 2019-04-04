@@ -177,7 +177,7 @@ decl_module! {
 			Ok(())
 		}
 
-		fn on_finalise(_n: T::BlockNumber) {
+		fn on_finalize(_n: T::BlockNumber) {
 			assert!(<Self as Store>::DidUpdate::take(), "Parachain heads must be updated once in the block");
 		}
 	}
