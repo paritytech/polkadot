@@ -208,12 +208,12 @@ pub fn testnet_genesis(
 ) -> GenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
 		vec![
-			get_account_id_from_seed("Alice"),
-			get_account_id_from_seed("Bob"),
-			get_account_id_from_seed("Charlie"),
-			get_account_id_from_seed("Dave"),
-			get_account_id_from_seed("Eve"),
-			get_account_id_from_seed("Ferdie"),
+			get_authority_keys_from_seed("Alice").0,
+			get_authority_keys_from_seed("Bob").0,
+			get_authority_keys_from_seed("Charlie").0,
+			get_authority_keys_from_seed("Dave").0,
+			get_authority_keys_from_seed("Eve").0,
+			get_authority_keys_from_seed("Ferdie").0,
 		]
 	});
 
