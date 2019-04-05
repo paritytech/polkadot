@@ -20,7 +20,7 @@ use super::{PolkadotProtocol, Status, Message, FullStatus};
 use validation::SessionParams;
 
 use polkadot_validation::GenericStatement;
-use polkadot_primitives::{Block, Hash, SessionKey};
+use polkadot_primitives::SessionKey;
 use polkadot_primitives::parachain::{CandidateReceipt, HeadData, BlockData, CollatorId, ValidatorId};
 use sr_primitives::Justification;
 use sr_primitives::generic::BlockId;
@@ -31,13 +31,13 @@ use codec::Encode;
 use substrate_consensus::import_queue::{SharedBlockImport, SharedJustificationImport, Verifier};
 use substrate_consensus::{Error as ConsensusError, ErrorKind as ConsensusErrorKind, JustificationImport};
 use substrate_network::{
-	Severity, PeerId, PeerInfo, ClientHandle, Context, config::Roles,
+	Severity, PeerId, PeerInfo, ClientHandle, Context, config::ProtocolConfig, config::Roles,
 	message::Message as SubstrateMessage, specialization::NetworkSpecialization,
 	generic_message::Message as GenericMessage
 };
 use substrate_network::test::{
 	Block, DummySpecialization, Hash, TestNet, TestNetFactory,
-	PassThroughVerifier, Peer, PeersClient, ProtocolConfig, SpecializationFactory
+	PassThroughVerifier, Peer, PeersClient, SpecializationFactory
 };
 
 use futures::Future;

@@ -15,6 +15,7 @@ parity-codec-derive = "3.0"
 substrate-consensus-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", features = ["test-helpers"] }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 futures = "0.1"
 tokio = "0.1.7"
@@ -24,4 +25,5 @@ exit-future = "0.1.4"
 
 [dev-dependencies]
 substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

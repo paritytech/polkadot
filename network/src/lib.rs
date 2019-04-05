@@ -46,6 +46,9 @@ extern crate parity_codec_derive;
 extern crate substrate_client;
 
 #[cfg(test)]
+extern crate substrate_test_client;
+
+#[cfg(test)]
 extern crate substrate_keyring;
 
 mod collator_pool;
@@ -56,7 +59,9 @@ pub mod gossip;
 
 use codec::{Decode, Encode};
 use futures::sync::oneshot;
-use polkadot_primitives::{Block, SessionKey, Hash, Header};
+#[cfg(not(test))]
+use polkadot_primitives::{Block, Hash, Header};
+use polkadot_primitives::SessionKey;
 use polkadot_primitives::parachain::{Id as ParaId, CollatorId, BlockData, CandidateReceipt, Collation};
 use substrate_network::{PeerId, RequestId, Context, Severity};
 use substrate_network::{message, generic_message};
@@ -70,6 +75,9 @@ use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+use substrate_test_client::runtime::{Block, Hash, Header};
 
 /// Polkadot protocol id.
 pub const DOT_PROTOCOL_ID: ::substrate_network::ProtocolId = *b"dot";
