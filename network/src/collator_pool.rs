@@ -184,7 +184,7 @@ impl CollatorPool {
 		if let Some(para_id) = self.collators.get(&collator_id) {
 			debug_assert_eq!(para_id, &collation.receipt.parachain_index);
 
-			// TODO: punish if not primary?
+			// TODO: punish if not primary? (https://github.com/paritytech/polkadot/issues/213)
 
 			self.collations.entry((relay_parent, para_id.clone()))
 				.or_insert_with(CollationSlot::blank_now)
@@ -205,6 +205,7 @@ impl CollatorPool {
 	/// Returns a set of actions to perform on the network level.
 	pub fn maintain_peers(&mut self) -> Vec<Action> {
 		// TODO: rearrange periodically to new primary, evaluate based on latency etc.
+		// https://github.com/paritytech/polkadot/issues/214
 		Vec::new()
 	}
 

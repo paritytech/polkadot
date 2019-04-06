@@ -797,7 +797,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 				.join(", ")
 		);
 
-		// TODO: full re-evaluation
+		// TODO: full re-evaluation (https://github.com/paritytech/polkadot/issues/216)
 		let active_parachains = runtime_api.active_parachains(&self.parent_id)?;
 		assert!(evaluation::evaluate_initial(
 			&new_block,

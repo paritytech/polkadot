@@ -48,7 +48,7 @@ pub trait Collators: Clone {
 	/// will be passed to the `TableRouter` instance.
 	fn collate(&self, parachain: ParaId, relay_parent: Hash) -> Self::Collation;
 
-	/// Note a bad collator. TODO: take proof
+	/// Note a bad collator. TODO: take proof (https://github.com/paritytech/polkadot/issues/217)
 	fn note_bad_collator(&self, collator: CollatorId);
 }
 
