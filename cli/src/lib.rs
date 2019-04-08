@@ -64,7 +64,7 @@ pub trait Worker: IntoExit {
 
 	/// Return configuration for the polkadot node.
 	// TODO: make this the full configuration, so embedded nodes don't need
-	// string CLI args
+	// string CLI args (https://github.com/paritytech/polkadot/issues/111)
 	fn configuration(&self) -> service::CustomConfiguration { Default::default() }
 
 	/// Do work and schedule exit.

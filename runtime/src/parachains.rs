@@ -425,7 +425,7 @@ impl<T: Trait> Module<T> {
 	}
 
 /*
-	// TODO: Consider integrating if needed.
+	// TODO: Consider integrating if needed. (https://github.com/paritytech/polkadot/issues/223)
 	/// Extract the parachain heads from the block.
 	pub fn parachain_heads(&self) -> &[CandidateReceipt] {
 		let x = self.inner.extrinsics.get(PARACHAINS_SET_POSITION as usize).and_then(|xt| match xt.function {
