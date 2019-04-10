@@ -26,7 +26,7 @@ pub mod generic;
 pub use generic::Table;
 
 use primitives::parachain::{
-	Id, CandidateReceipt, Statement as PrimitiveStatement, ValidatorSignature, ValidatorId, ValidatorIndex,
+	Id, CandidateReceipt, Statement as PrimitiveStatement, ValidatorSignature, ValidatorIndex,
 };
 use primitives::Hash;
 
@@ -37,7 +37,7 @@ pub type Statement = generic::Statement<CandidateReceipt, Hash>;
 pub type SignedStatement = generic::SignedStatement<CandidateReceipt, Hash, ValidatorIndex, ValidatorSignature>;
 
 /// Kinds of misbehavior, along with proof.
-pub type Misbehavior = generic::Misbehavior<CandidateReceipt, Hash, ValidatorId, ValidatorSignature>;
+pub type Misbehavior = generic::Misbehavior<CandidateReceipt, Hash, ValidatorIndex, ValidatorSignature>;
 
 /// A summary of import of a statement.
 pub type Summary = generic::Summary<Hash, Id>;
@@ -50,9 +50,6 @@ pub trait Context {
 
 	/// requisite number of votes for validity from a group.
 	fn requisite_votes(&self, group: &Id) -> usize;
-
-	/// Returns id of the validator corresponding to the given index.
-	fn index_to_id(&self, index: ValidatorIndex) -> Option<ValidatorId>;
 }
 
 impl<C: Context> generic::Context for C {

@@ -22,7 +22,6 @@ use std::sync::Arc;
 
 use extrinsic_store::{Data, Store as ExtrinsicStore};
 use table::{self, Table, Context as TableContextTrait};
-use table::generic::Misbehavior as GenericMisbehavior;
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, BlockData, Collation, Extrinsic, CandidateReceipt,
 	Id as ParaId, Collation, Extrinsic, CandidateReceipt,
@@ -57,15 +56,21 @@ impl table::Context for TableContext {
 	fn requisite_votes(&self, group: &ParaId) -> usize {
 		self.groups.get(group).map_or(usize::max_value(), |g| g.needed_validity)
 	}
-
-	fn index_to_id(&self, index: ValidatorIndex) -> Option<ValidatorId> {
-		self.groups.iter().find_map(|(_, group)| group.index_mapping.get(&index)).cloned()
-	}
 }
 
 impl TableContext {
 	fn local_id(&self) -> SessionKey {
 		self.key.public().into()
+	}
+
+	fn local_index(&self) -> ValidatorIndex {
+		let id = self.local_id();
+		self
+			.groups
+			.iter()
+			.find_map(|(_, group)| group.index_mapping.iter().find(|(_, k)| k == &&id))
+			.map(|(i, _)| *i)
+			.unwrap()
 	}
 
 	fn sign_statement(&self, statement: table::Statement) -> table::SignedStatement {
@@ -74,7 +79,7 @@ impl TableContext {
 		table::SignedStatement {
 			statement,
 			signature,
-			sender: self.local_id(),
+			sender: self.local_index(),
 		}
 	}
 }
@@ -136,9 +141,9 @@ impl SharedTableInner {
 
 		self.update_trackers(&summary.candidate, context);
 
-		let local_id = context.local_id();
+		let local_index = context.local_index();
 
-		let para_member = context.is_member_of(&local_id, &summary.group_id);
+		let para_member = context.is_member_of(local_index, &summary.group_id);
 
 		let digest = &summary.candidate;
 
@@ -518,18 +523,8 @@ impl SharedTable {
 	}
 
 	/// Get all witnessed misbehavior.
-	pub fn get_misbehavior(&self) -> HashMap<SessionKey, table::Misbehavior> {
-		self
-			.inner
-			.lock()
-			.table
-			.get_misbehavior()
-			.iter()
-			.map(|(i, m)| {
-				let key = self.context.index_to_id(*i).expect("TODO: FIXME");
-				(key, convert_misbehaviour(key, *m))
-			})
-			.collect()
+	pub fn get_misbehavior(&self) -> HashMap<ValidatorIndex, table::Misbehavior> {
+		self.inner.lock().table.get_misbehavior().clone()
 	}
 
 	/// Track includability  of a given set of candidate hashes.
@@ -548,18 +543,6 @@ impl SharedTable {
 		}
 
 		rx
-	}
-}
-
-fn convert_misbehaviour(
-	key: SessionKey,
-	misbehaviour: GenericMisbehavior<CandidateReceipt, Hash, ValidatorIndex, ValidatorSignature>
-) -> table::Misbehavior {
-	match misbehaviour {
-		GenericMisbehavior::ValidityDoubleVote(val) => table::Misbehavior::ValidityDoubleVote(val),
-		GenericMisbehavior::MultipleCandidates(val) => table::Misbehavior::MultipleCandidates(val),
-		GenericMisbehavior::UnauthorizedStatement(val) => table::Misbehavior::UnauthorizedStatement(val),
-		GenericMisbehavior::DoubleSign(val) => table::Misbehavior::DoubleSign(val),
 	}
 }
 
