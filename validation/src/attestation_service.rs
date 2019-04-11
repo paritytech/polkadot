@@ -117,7 +117,6 @@ pub(crate) fn start<C, N, P>(
 		P::Api: ParachainHost<Block> + Core<Block> + BlockBuilder<Block>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
-		<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
 		<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 {
 	const TIMER_DELAY: Duration = Duration::from_secs(5);
