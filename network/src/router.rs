@@ -27,11 +27,10 @@ use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
 use polkadot_validation::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Outgoing, Validated
 };
-use polkadot_primitives::{Block, Hash, SessionKey};
-use polkadot_primitives::parachain::{
+use polkadot_primitives::{Block, Hash};
+use polkadot_primitives::parachain::{BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message, ValidatorIndex};
 	Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message,
 	Collation, PoVBlock,
-};
 use gossip::RegisteredMessageValidator;
 
 use codec::{Encode, Decode};
@@ -163,12 +162,14 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		);
 		// dispatch future work as necessary.
 		for (producer, statement) in producers.into_iter().zip(statements) {
-			self.fetcher.knowledge().lock().note_statement(statement.sender, &statement.statement);
+			if let Some(sender) = self.table.index_to_id(statement.sender) {
+				self.fetcher.knowledge().lock().note_statement(sender, &statement.statement);
 
-			if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
-				trace!(target: "validation", "driving statement work to completion");
-				let work = work.select2(self.fetcher.exit().clone()).then(|_| Ok(()));
-				self.fetcher.executor().spawn(work);
+				if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
+					trace!(target: "validation", "driving statement work to completion");
+					let work = work.select2(self.fetcher.exit().clone()).then(|_| Ok(()));
+					self.fetcher.executor().spawn(work);
+				}
 			}
 		}
 	}
@@ -270,8 +271,8 @@ impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 // A unique trace for valid statements issued by a validator.
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 enum StatementTrace {
-	Valid(SessionKey, Hash),
-	Invalid(SessionKey, Hash),
+	Valid(ValidatorIndex, Hash),
+	Invalid(ValidatorIndex, Hash),
 }
 
 // helper for deferring statements whose associated candidate is unknown.

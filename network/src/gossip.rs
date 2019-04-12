@@ -116,7 +116,7 @@ impl RegisteredMessageValidator {
 	}
 }
 
-// data needed for validating gossip.
+/// The data needed for validating gossip.
 pub(crate) struct MessageValidationData {
 	/// The authorities at a block.
 	pub(crate) authorities: Vec<SessionKey>,

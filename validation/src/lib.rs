@@ -186,11 +186,11 @@ pub trait Network {
 #[derive(Debug, Clone, Default)]
 pub struct GroupInfo {
 	/// Authorities meant to check validity of candidates.
-	pub validity_guarantors: HashSet<SessionKey>,
+	validity_guarantors: HashSet<SessionKey>,
 	/// Mapping from validator index to public key.
-	pub index_mapping: HashMap<ValidatorIndex, SessionKey>,
+	index_mapping: HashMap<ValidatorIndex, SessionKey>,
 	/// Number of votes needed for validity.
-	pub needed_validity: usize,
+	needed_validity: usize,
 }
 
 /// Sign a table statement against a parent hash.
