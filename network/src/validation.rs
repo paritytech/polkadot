@@ -24,7 +24,7 @@ use substrate_network::Context as NetContext;
 use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData, Message, CandidateReceipt,
+	Id as ParaId, Collation, Extrinsic, ParachainHost, Message, CandidateReceipt,
 	CollatorId, ValidatorId, PoVBlock,
 };
 use codec::{Encode, Decode};

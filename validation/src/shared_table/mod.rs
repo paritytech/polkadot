@@ -24,12 +24,12 @@ use extrinsic_store::{Data, Store as ExtrinsicStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{
-	Id as ParaId, BlockData, Collation, Extrinsic, CandidateReceipt,
+	Id as ParaId, Collation, Extrinsic, CandidateReceipt,
 	AttestedCandidate, ParachainHost, PoVBlock
 };
 
 use parking_lot::Mutex;
-use futures::{future, prelude::*};
+use futures::prelude::*;
 
 use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
@@ -540,7 +540,8 @@ mod tests {
 	use super::*;
 	use substrate_keyring::AuthorityKeyring;
 	use primitives::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::ConsolidatedIngress;
+	use polkadot_primitives::parachain::{BlockData, ConsolidatedIngress};
+	use futures::future;
 
 	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
 		PoVBlock {
@@ -553,7 +554,7 @@ mod tests {
 	struct DummyRouter;
 	impl TableRouter for DummyRouter {
 		type Error = ::std::io::Error;
-		type FetchValidationProof = ::futures::future::FutureResult<PoVBlock,Self::Error>;
+		type FetchValidationProof = future::FutureResult<PoVBlock,Self::Error>;
 
 		fn local_collation(&self, _collation: Collation, _extrinsic: Extrinsic) {
 		}

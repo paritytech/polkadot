@@ -56,7 +56,7 @@ pub mod gossip;
 use codec::{Decode, Encode};
 use futures::sync::oneshot;
 use polkadot_primitives::{Block, SessionKey, Hash, Header};
-use polkadot_primitives::parachain::{Id as ParaId, CollatorId, BlockData, CandidateReceipt, Collation, PoVBlock};
+use polkadot_primitives::parachain::{Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock};
 use substrate_network::{PeerId, RequestId, Context, Severity};
 use substrate_network::{message, generic_message};
 use substrate_network::specialization::NetworkSpecialization as Specialization;
@@ -148,8 +148,12 @@ pub enum Message {
 	SessionKey(SessionKey),
 	/// Requesting parachain proof-of-validation block (relay_parent, candidate_hash).
 	RequestPovBlock(RequestId, Hash, Hash),
-	/// Provide proof-of-validation block data by candidate hash or nothing if unknown.
+	/// Provide requested proof-of-validation block data by candidate hash or nothing if unknown.
 	PovBlock(RequestId, Option<PoVBlock>),
+	/// Request block data (relay_parent, candidate_hash)
+	RequestBlockData(RequestId, Hash, Hash),
+	/// Provide requested block data by candidate hash or nothing.
+	BlockData(RequestId, Option<BlockData>),
 	/// Tell a collator their role.
 	CollatorRole(Role),
 	/// A collation provided by a peer. Relay parent and collation.
@@ -295,19 +299,32 @@ impl PolkadotProtocol {
 		match msg {
 			Message::SessionKey(key) => self.on_session_key(ctx, who, key),
 			Message::RequestPovBlock(req_id, relay_parent, candidate_hash) => {
+				let pov_block = self.live_validation_sessions.with_pov_block(
+					&relay_parent,
+					&candidate_hash,
+					|res| res.ok().map(|b| b.clone()),
+				);
+
+				send_polkadot_message(ctx, who, Message::PovBlock(req_id, pov_block));
+			}
+			Message::RequestBlockData(req_id, relay_parent, candidate_hash) => {
 				let block_data = self.live_validation_sessions
 					.with_pov_block(
 						&relay_parent,
 						&candidate_hash,
-						|res| res.ok().map(|b| b.clone()),
+						|res| res.ok().map(|b| b.block_data.clone()),
 					)
 					.or_else(|| self.extrinsic_store.as_ref()
 						.and_then(|s| s.block_data(relay_parent, candidate_hash))
 					);
 
-				send_polkadot_message(ctx, who, Message::PovBlock(req_id, block_data));
+				send_polkadot_message(ctx, who, Message::BlockData(req_id, block_data));
 			}
-			Message::PovBlock(req_id, data) => self.on_block_data(ctx, who, req_id, data),
+			Message::PovBlock(req_id, data) => self.on_pov_block(ctx, who, req_id, data),
+			Message::BlockData(_req_id, _data) => {
+				// current block data is never requested bare by the node.
+				ctx.report_peer(who, Severity::Bad("Peer sent un-requested block data".to_string()));
+			}
 			Message::Collation(relay_parent, collation) => self.on_collation(ctx, who, relay_parent, collation),
 			Message::CollatorRole(role) => self.on_new_role(ctx, who, role),
 		}
@@ -354,7 +371,7 @@ impl PolkadotProtocol {
 		self.dispatch_pending_requests(ctx);
 	}
 
-	fn on_block_data(
+	fn on_pov_block(
 		&mut self,
 		ctx: &mut Context<Block>,
 		who: PeerId,

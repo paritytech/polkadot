@@ -29,7 +29,6 @@ use polkadot_primitives::parachain::{
 use runtime_primitives::traits::ProvideRuntimeApi;
 use parachain::{wasm_executor::{self, ExternalitiesError}, MessageRef};
 use error_chain::bail;
-use super::Incoming;
 
 use futures::prelude::*;
 

@@ -42,7 +42,7 @@ use tokio::runtime::TaskExecutor;
 use tokio::runtime::current_thread::Runtime as LocalRuntime;
 use tokio::timer::Interval;
 
-use super::{Network, Collators, TableRouter};
+use super::{Network, Collators};
 
 /// Gets a list of the candidates in a block.
 pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)

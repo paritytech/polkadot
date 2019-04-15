@@ -29,7 +29,7 @@ use polkadot_validation::{
 };
 use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{
-	BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message,
+	Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message,
 	Collation, PoVBlock,
 };
 use gossip::RegisteredMessageValidator;
@@ -42,7 +42,7 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 
-use validation::{self, SessionDataFetcher, NetworkService, Executor, Incoming};
+use validation::{self, SessionDataFetcher, NetworkService, Executor};
 
 type IngressPairRef<'a> = (ParaId, &'a [Message]);
 
@@ -91,6 +91,12 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 				crate::gossip::GossipMessage::decode(&mut &msg[..])
 			})
 			.map(|msg| msg.statement)
+	}
+
+	/// Get access to the session data fetcher.
+	#[cfg(test)]
+	pub(crate) fn fetcher(&self) -> &SessionDataFetcher<P, E, N, T> {
+		&self.fetcher
 	}
 
 	fn parent_hash(&self) -> Hash {
