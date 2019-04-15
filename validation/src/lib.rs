@@ -98,7 +98,9 @@ use runtime_aura::timestamp::TimestampInherentData;
 
 use ed25519::Public as AuthorityId;
 
-pub use self::collation::{validate_collation, message_queue_root, egress_roots, Collators};
+pub use self::collation::{
+	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
+};
 pub use self::error::{ErrorKind, Error};
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,

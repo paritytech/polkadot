@@ -56,7 +56,10 @@ pub mod gossip;
 use codec::{Decode, Encode};
 use futures::sync::oneshot;
 use polkadot_primitives::{Block, SessionKey, Hash, Header};
-use polkadot_primitives::parachain::{Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock};
+use polkadot_primitives::parachain::{
+	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
+	ConsolidatedIngressRoots,
+};
 use substrate_network::{PeerId, RequestId, Context, Severity};
 use substrate_network::{message, generic_message};
 use substrate_network::specialization::NetworkSpecialization as Specialization;
@@ -90,6 +93,27 @@ struct PoVBlockRequest {
 	candidate_hash: Hash,
 	block_data_hash: Hash,
 	sender: oneshot::Sender<PoVBlock>,
+	canon_roots: ConsolidatedIngressRoots,
+}
+
+impl PoVBlockRequest {
+	// attempt to process a response. If the provided block is invalid,
+	// this returns an error result containing the unmodified request.
+	//
+	// If `Ok(())` is returned, that indicates that the request has been processed.
+	fn process_response(self, pov_block: PoVBlock) -> Result<(), Self> {
+		if pov_block.block_data.hash() != self.block_data_hash {
+			return Err(self);
+		}
+
+		match polkadot_validation::validate_incoming(&self.canon_roots, &pov_block.ingress) {
+			Ok(()) => {
+				let _ = self.sender.send(pov_block);
+				Ok(())
+			}
+			Err(_) => Err(self)
+		}
+	}
 }
 
 // ensures collator-protocol messages are sent in correct order.
@@ -198,7 +222,13 @@ impl PolkadotProtocol {
 	}
 
 	/// Fetch block data by candidate receipt.
-	fn fetch_pov_block(&mut self, ctx: &mut Context<Block>, candidate: &CandidateReceipt, relay_parent: Hash) -> oneshot::Receiver<PoVBlock> {
+	fn fetch_pov_block(
+		&mut self,
+		ctx: &mut Context<Block>,
+		candidate: &CandidateReceipt,
+		relay_parent: Hash,
+		canon_roots: ConsolidatedIngressRoots,
+	) -> oneshot::Receiver<PoVBlock> {
 		let (tx, rx) = oneshot::channel();
 
 		self.pending.push(PoVBlockRequest {
@@ -207,6 +237,7 @@ impl PolkadotProtocol {
 			candidate_hash: candidate.hash(),
 			block_data_hash: candidate.block_data_hash,
 			sender: tx,
+			canon_roots,
 		});
 
 		self.dispatch_pending_requests(ctx);
@@ -379,11 +410,11 @@ impl PolkadotProtocol {
 		pov_block: Option<PoVBlock>,
 	) {
 		match self.in_flight.remove(&(req_id, who.clone())) {
-			Some(req) => {
+			Some(mut req) => {
 				if let Some(pov_block) = pov_block {
-					if pov_block.block_data.hash() == req.block_data_hash {
-						let _ = req.sender.send(pov_block);
-						return
+					match req.process_response(pov_block) {
+						Ok(()) => return,
+						Err(r) => { req = r; }
 					}
 				}
 
@@ -508,12 +539,14 @@ impl Specialization<Block> for PolkadotProtocol {
 				self.in_flight.retain(|&(_, ref peer), val| {
 					let retain = peer != &who;
 					if !retain {
+						// swap with a dummy value which will be dropped immediately.
 						let (sender, _) = oneshot::channel();
 						pending.push(::std::mem::replace(val, PoVBlockRequest {
 							attempted_peers: Default::default(),
 							validation_session_parent: Default::default(),
 							candidate_hash: Default::default(),
 							block_data_hash: Default::default(),
+							canon_roots: ConsolidatedIngressRoots(Vec::new()),
 							sender,
 						}));
 					}

@@ -762,8 +762,10 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 		let candidate = candidate.clone();
 		let (tx, rx) = ::futures::sync::oneshot::channel();
 		self.network.with_spec(move |spec, ctx| {
-			let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash);
-			let _ = tx.send(inner_rx);
+			if let Ok(Some(canon_roots)) = canon_roots {
+				let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash, canon_roots);
+				let _ = tx.send(inner_rx);
+			}
 		});
 		PoVReceiver { outer: rx, inner: None }
 	}

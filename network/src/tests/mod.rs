@@ -21,7 +21,10 @@ use validation::SessionParams;
 
 use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash, SessionKey};
-use polkadot_primitives::parachain::{CandidateReceipt, HeadData, PoVBlock, BlockData, CollatorId, ValidatorId};
+use polkadot_primitives::parachain::{
+	CandidateReceipt, HeadData, PoVBlock, BlockData, CollatorId, ValidatorId,
+	ConsolidatedIngressRoots,
+};
 use substrate_primitives::crypto::UncheckedInto;
 use codec::Encode;
 use substrate_network::{
@@ -172,7 +175,13 @@ fn fetches_from_those_with_knowledge() {
 	let knowledge = session.knowledge();
 
 	knowledge.lock().note_statement(a_key.clone(), &GenericStatement::Valid(candidate_hash));
-	let recv = protocol.fetch_pov_block(&mut TestContext::default(), &candidate_receipt, parent_hash);
+	let canon_roots = ConsolidatedIngressRoots(Vec::new());
+	let recv = protocol.fetch_pov_block(
+		&mut TestContext::default(),
+		&candidate_receipt,
+		parent_hash,
+		canon_roots,
+	);
 
 	// connect peer A
 	{
