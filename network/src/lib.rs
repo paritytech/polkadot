@@ -56,7 +56,7 @@ pub mod gossip;
 use codec::{Decode, Encode};
 use futures::sync::oneshot;
 use polkadot_primitives::{Block, SessionKey, Hash, Header};
-use polkadot_primitives::parachain::{Id as ParaId, CollatorId, BlockData, CandidateReceipt, Collation};
+use polkadot_primitives::parachain::{Id as ParaId, CollatorId, BlockData, CandidateReceipt, Collation, PoVBlock};
 use substrate_network::{PeerId, RequestId, Context, Severity};
 use substrate_network::{message, generic_message};
 use substrate_network::specialization::NetworkSpecialization as Specialization;
@@ -84,12 +84,12 @@ pub struct Status {
 	collating_for: Option<(CollatorId, ParaId)>,
 }
 
-struct BlockDataRequest {
+struct PoVBlockRequest {
 	attempted_peers: HashSet<SessionKey>,
 	validation_session_parent: Hash,
 	candidate_hash: Hash,
 	block_data_hash: Hash,
-	sender: oneshot::Sender<BlockData>,
+	sender: oneshot::Sender<PoVBlock>,
 }
 
 // ensures collator-protocol messages are sent in correct order.
@@ -146,10 +146,10 @@ pub enum Message {
 	/// As a validator, tell the peer your current session key.
 	// TODO: do this with a cryptographic proof of some kind
 	SessionKey(SessionKey),
-	/// Requesting parachain block data by (relay_parent, candidate_hash).
-	RequestBlockData(RequestId, Hash, Hash),
-	/// Provide block data by candidate hash or nothing if unknown.
-	BlockData(RequestId, Option<BlockData>),
+	/// Requesting parachain proof-of-validation block (relay_parent, candidate_hash).
+	RequestPovBlock(RequestId, Hash, Hash),
+	/// Provide proof-of-validation block data by candidate hash or nothing if unknown.
+	PovBlock(RequestId, Option<PoVBlock>),
 	/// Tell a collator their role.
 	CollatorRole(Role),
 	/// A collation provided by a peer. Relay parent and collation.
@@ -170,8 +170,8 @@ pub struct PolkadotProtocol {
 	validators: HashMap<SessionKey, PeerId>,
 	local_collations: LocalCollations<Collation>,
 	live_validation_sessions: LiveValidationSessions,
-	in_flight: HashMap<(RequestId, PeerId), BlockDataRequest>,
-	pending: Vec<BlockDataRequest>,
+	in_flight: HashMap<(RequestId, PeerId), PoVBlockRequest>,
+	pending: Vec<PoVBlockRequest>,
 	extrinsic_store: Option<::av_store::Store>,
 	next_req_id: u64,
 }
@@ -194,10 +194,10 @@ impl PolkadotProtocol {
 	}
 
 	/// Fetch block data by candidate receipt.
-	fn fetch_block_data(&mut self, ctx: &mut Context<Block>, candidate: &CandidateReceipt, relay_parent: Hash) -> oneshot::Receiver<BlockData> {
+	fn fetch_pov_block(&mut self, ctx: &mut Context<Block>, candidate: &CandidateReceipt, relay_parent: Hash) -> oneshot::Receiver<PoVBlock> {
 		let (tx, rx) = oneshot::channel();
 
-		self.pending.push(BlockDataRequest {
+		self.pending.push(PoVBlockRequest {
 			attempted_peers: Default::default(),
 			validation_session_parent: relay_parent,
 			candidate_hash: candidate.hash(),
@@ -249,7 +249,7 @@ impl PolkadotProtocol {
 			let parent = pending.validation_session_parent;
 			let c_hash = pending.candidate_hash;
 
-			let still_pending = self.live_validation_sessions.with_block_data(&parent, &c_hash, |x| match x {
+			let still_pending = self.live_validation_sessions.with_pov_block(&parent, &c_hash, |x| match x {
 				Ok(data @ &_) => {
 					// answer locally.
 					let _ = pending.sender.send(data.clone());
@@ -269,7 +269,7 @@ impl PolkadotProtocol {
 						send_polkadot_message(
 							ctx,
 							who.clone(),
-							Message::RequestBlockData(req_id, parent, c_hash),
+							Message::RequestPovBlock(req_id, parent, c_hash),
 						);
 
 						in_flight.insert((req_id, who), pending);
@@ -294,9 +294,9 @@ impl PolkadotProtocol {
 		trace!(target: "p_net", "Polkadot message from {}: {:?}", who, msg);
 		match msg {
 			Message::SessionKey(key) => self.on_session_key(ctx, who, key),
-			Message::RequestBlockData(req_id, relay_parent, candidate_hash) => {
+			Message::RequestPovBlock(req_id, relay_parent, candidate_hash) => {
 				let block_data = self.live_validation_sessions
-					.with_block_data(
+					.with_pov_block(
 						&relay_parent,
 						&candidate_hash,
 						|res| res.ok().map(|b| b.clone()),
@@ -305,9 +305,9 @@ impl PolkadotProtocol {
 						.and_then(|s| s.block_data(relay_parent, candidate_hash))
 					);
 
-				send_polkadot_message(ctx, who, Message::BlockData(req_id, block_data));
+				send_polkadot_message(ctx, who, Message::PovBlock(req_id, block_data));
 			}
-			Message::BlockData(req_id, data) => self.on_block_data(ctx, who, req_id, data),
+			Message::PovBlock(req_id, data) => self.on_block_data(ctx, who, req_id, data),
 			Message::Collation(relay_parent, collation) => self.on_collation(ctx, who, relay_parent, collation),
 			Message::CollatorRole(role) => self.on_new_role(ctx, who, role),
 		}
@@ -354,12 +354,18 @@ impl PolkadotProtocol {
 		self.dispatch_pending_requests(ctx);
 	}
 
-	fn on_block_data(&mut self, ctx: &mut Context<Block>, who: PeerId, req_id: RequestId, data: Option<BlockData>) {
+	fn on_block_data(
+		&mut self,
+		ctx: &mut Context<Block>,
+		who: PeerId,
+		req_id: RequestId,
+		pov_block: Option<PoVBlock>,
+	) {
 		match self.in_flight.remove(&(req_id, who.clone())) {
 			Some(req) => {
-				if let Some(data) = data {
-					if data.hash() == req.block_data_hash {
-						let _ = req.sender.send(data);
+				if let Some(pov_block) = pov_block {
+					if pov_block.block_data.hash() == req.block_data_hash {
+						let _ = req.sender.send(pov_block);
 						return
 					}
 				}
@@ -486,7 +492,7 @@ impl Specialization<Block> for PolkadotProtocol {
 					let retain = peer != &who;
 					if !retain {
 						let (sender, _) = oneshot::channel();
-						pending.push(::std::mem::replace(val, BlockDataRequest {
+						pending.push(::std::mem::replace(val, PoVBlockRequest {
 							attempted_peers: Default::default(),
 							validation_session_parent: Default::default(),
 							candidate_hash: Default::default(),

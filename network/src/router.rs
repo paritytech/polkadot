@@ -29,7 +29,8 @@ use polkadot_validation::{
 };
 use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{
-	BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message
+	BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message,
+	Collation, PoVBlock,
 };
 use gossip::RegisteredMessageValidator;
 
@@ -201,7 +202,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 	fn create_work<D>(&self, candidate_hash: Hash, producer: ParachainWork<D>)
 		-> impl Future<Item=(),Error=()> + Send + 'static
 		where
-		D: Future<Item=(BlockData, Incoming),Error=io::Error> + Send + 'static,
+		D: Future<Item=PoVBlock,Error=io::Error> + Send + 'static,
 	{
 		let table = self.table.clone();
 		let network = self.network().clone();
@@ -213,7 +214,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 				// store the data before broadcasting statements, so other peers can fetch.
 				knowledge.lock().note_candidate(
 					candidate_hash,
-					Some(validated.block_data().clone()),
+					Some(validated.pov_block().clone()),
 					validated.extrinsic().cloned(),
 				);
 
@@ -234,26 +235,21 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
 {
 	type Error = io::Error;
-	type FetchCandidate = validation::BlockDataReceiver;
-	type FetchIncoming = validation::IncomingReceiver;
+	type FetchValidationProof = validation::PoVReceiver;
 
-	fn local_candidate(&self, receipt: CandidateReceipt, block_data: BlockData, extrinsic: Extrinsic) {
+	fn local_collation(&self, collation: Collation, extrinsic: Extrinsic) {
 		// produce a signed statement
-		let hash = receipt.hash();
-		let validated = Validated::collated_local(receipt, block_data.clone(), extrinsic.clone());
+		let hash = collation.receipt.hash();
+		let validated = Validated::collated_local(collation.receipt, collation.pov.clone(), extrinsic.clone());
 		let statement = self.table.import_validated(validated);
 
 		// give to network to make available.
-		self.fetcher.knowledge().lock().note_candidate(hash, Some(block_data), Some(extrinsic));
+		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov), Some(extrinsic));
 		self.network().gossip_message(self.attestation_topic, statement.encode());
 	}
 
-	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> Self::FetchCandidate {
-		self.fetcher.fetch_block_data(candidate)
-	}
-
-	fn fetch_incoming(&self, parachain: ParaId) -> Self::FetchIncoming {
-		self.fetcher.fetch_incoming(parachain)
+	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof {
+		self.fetcher.fetch_pov_block(candidate)
 	}
 }
 
