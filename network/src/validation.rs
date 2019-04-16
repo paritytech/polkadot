@@ -125,6 +125,8 @@ pub struct SessionParams {
 	pub parent_hash: Hash,
 	/// The authorities.
 	pub authorities: Vec<SessionKey>,
+	/// Mapping from validator index to `SessionKey`.
+	pub index_mapping: HashMap<ValidatorIndex, SessionKey>,
 }
 
 /// Wrapper around the network service
@@ -195,7 +197,10 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 			// before requesting messages, note live consensus session.
 			message_validator.note_session(
 				parent_hash,
-				MessageValidationData { authorities: params.authorities.clone() },
+				MessageValidationData {
+					authorities: params.authorities.clone(),
+					index_mapping: params.index_mapping.clone(),
+				},
 			);
 
 			let session = spec.new_validation_session(ctx, params);
@@ -240,6 +245,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 			local_session_key: Some(local_session_key),
 			parent_hash,
 			authorities: authorities.to_vec(),
+			index_mapping: table.index_mapping(),
 		});
 		let message_validator = self.message_validator.clone();
 
