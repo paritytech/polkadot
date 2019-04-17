@@ -38,6 +38,7 @@ srml-system = { git = "https://github.com/paritytech/substrate", default-feature
 srml-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 srml-treasury = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sr-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+substrate-consensus-authorities = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 [dev-dependencies]
 hex-literal = "0.1.0"
@@ -81,5 +82,6 @@ std = [
 	"serde_derive",
 	"serde/std",
 	"log",
-	"safe-mix/std"
+	"safe-mix/std",
+	"substrate-consensus-authorities/std"
 ]

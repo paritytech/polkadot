@@ -169,6 +169,7 @@ impl PeerInfo {
 pub enum Message {
 	/// As a validator, tell the peer your current session key.
 	// TODO: do this with a cryptographic proof of some kind
+	// https://github.com/paritytech/polkadot/issues/47
 	SessionKey(SessionKey),
 	/// Requesting parachain proof-of-validation block (relay_parent, candidate_hash).
 	RequestPovBlock(RequestId, Hash, Hash),

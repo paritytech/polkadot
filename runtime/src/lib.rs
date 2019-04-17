@@ -63,6 +63,7 @@ extern crate srml_sudo as sudo;
 extern crate srml_system as system;
 extern crate srml_timestamp as timestamp;
 extern crate srml_treasury as treasury;
+extern crate substrate_consensus_authorities as consensus_authorities;
 
 extern crate polkadot_primitives as primitives;
 
@@ -88,7 +89,9 @@ use client::{
 };
 use sr_primitives::{
 	ApplyResult, generic, transaction_validity::TransactionValidity,
-	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup}
+	traits::{
+		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, CurrencyToVoteHandler, AuthorityIdFor
+	}
 };
 use version::RuntimeVersion;
 use grandpa::fg_primitives::{self, ScheduledChange};
@@ -187,6 +190,7 @@ impl session::Trait for Runtime {
 
 impl staking::Trait for Runtime {
 	type OnRewardMinted = Treasury;
+	type CurrencyToVote = CurrencyToVoteHandler;
 	type Event = Event;
 	type Currency = balances::Module<Self>;
 	type Slash = ();
@@ -395,4 +399,11 @@ impl_runtime_apis! {
 			Aura::slot_duration()
 		}
 	}
+
+	impl consensus_authorities::AuthoritiesApi<Block> for Runtime {
+		fn authorities() -> Vec<AuthorityIdFor<Block>> {
+			Consensus::authorities()
+		}
+	}
+
 }

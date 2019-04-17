@@ -177,7 +177,7 @@ decl_module! {
 			Ok(())
 		}
 
-		fn on_finalise(_n: T::BlockNumber) {
+		fn on_finalize(_n: T::BlockNumber) {
 			assert!(<Self as Store>::DidUpdate::take(), "Parachain heads must be updated once in the block");
 		}
 	}
@@ -425,7 +425,7 @@ impl<T: Trait> Module<T> {
 	}
 
 /*
-	// TODO: Consider integrating if needed.
+	// TODO: Consider integrating if needed. (https://github.com/paritytech/polkadot/issues/223)
 	/// Extract the parachain heads from the block.
 	pub fn parachain_heads(&self) -> &[CandidateReceipt] {
 		let x = self.inner.extrinsics.get(PARACHAINS_SET_POSITION as usize).and_then(|xt| match xt.function {

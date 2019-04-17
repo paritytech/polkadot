@@ -150,6 +150,7 @@ impl NetworkService for TestNetwork {
 		let mut context = TestContext::default();
 		let res = with(&mut *self.proto.lock(), &mut context);
 		// TODO: send context to worker for message routing.
+		// https://github.com/paritytech/polkadot/issues/215
 		res
 	}
 }
@@ -180,7 +181,7 @@ impl ProvideRuntimeApi for TestApi {
 }
 
 impl Core<Block> for RuntimeApi {
-	fn version_runtime_api_impl(
+	fn Core_version_runtime_api_impl(
 		&self,
 		_: &BlockId,
 		_: ExecutionContext,
@@ -190,7 +191,7 @@ impl Core<Block> for RuntimeApi {
 		unimplemented!("Not required for testing!")
 	}
 
-	fn authorities_runtime_api_impl(
+	fn Core_authorities_runtime_api_impl(
 		&self,
 		_: &BlockId,
 		_: ExecutionContext,
@@ -200,7 +201,7 @@ impl Core<Block> for RuntimeApi {
 		unimplemented!("Not required for testing!")
 	}
 
-	fn execute_block_runtime_api_impl(
+	fn Core_execute_block_runtime_api_impl(
 		&self,
 		_: &BlockId,
 		_: ExecutionContext,
@@ -210,7 +211,7 @@ impl Core<Block> for RuntimeApi {
 		unimplemented!("Not required for testing!")
 	}
 
-	fn initialize_block_runtime_api_impl(
+	fn Core_initialize_block_runtime_api_impl(
 		&self,
 		_: &BlockId,
 		_: ExecutionContext,
@@ -235,7 +236,7 @@ impl ApiExt<Block> for RuntimeApi {
 }
 
 impl ParachainHost<Block> for RuntimeApi {
-	fn validators_runtime_api_impl(
+	fn ParachainHost_validators_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
@@ -245,7 +246,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(self.data.lock().validators.clone()))
 	}
 
-	fn duty_roster_runtime_api_impl(
+	fn ParachainHost_duty_roster_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
@@ -258,7 +259,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		}))
 	}
 
-	fn active_parachains_runtime_api_impl(
+	fn ParachainHost_active_parachains_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
@@ -268,7 +269,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
 	}
 
-	fn parachain_head_runtime_api_impl(
+	fn ParachainHost_parachain_head_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
@@ -278,7 +279,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 
-	fn parachain_code_runtime_api_impl(
+	fn ParachainHost_parachain_code_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
@@ -288,7 +289,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 
-	fn ingress_runtime_api_impl(
+	fn ParachainHost_ingress_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,

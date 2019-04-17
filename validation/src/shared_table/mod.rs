@@ -138,6 +138,7 @@ impl SharedTableInner {
 		let digest = &summary.candidate;
 
 		// TODO: consider a strategy based on the number of candidate votes as well.
+		// https://github.com/paritytech/polkadot/issues/218
 		let do_validation = para_member && match self.validated.entry(digest.clone()) {
 			Entry::Occupied(_) => false,
 			Entry::Vacant(entry) => {
