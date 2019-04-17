@@ -753,11 +753,14 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 		let parent_hash = self.parent_hash;
 
 		let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
-			.map_err(|e| format!("Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
-				parachain, parent_hash, e)
+			.map_err(|e|
+				format!(
+					"Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
+					parachain,
+					parent_hash,
+					e,
+				)
 			);
-
-		// TODO: use canon roots in fetching logic.
 
 		let candidate = candidate.clone();
 		let (tx, rx) = ::futures::sync::oneshot::channel();
@@ -841,7 +844,7 @@ type IngressPair = (ParaId, Vec<Message>);
 // returns `None` if the stream concludes too early.
 #[must_use = "futures do nothing unless polled"]
 struct ComputeIngress<S> {
-	ingress_roots: HashMap<ParaId, Hash>, // TODO: rework to allow multiples.
+	ingress_roots: HashMap<ParaId, Hash>,
 	incoming: Vec<IngressPair>,
 	inner: S,
 }
