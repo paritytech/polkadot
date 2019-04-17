@@ -178,8 +178,8 @@ pub struct PoVBlock {
 }
 
 /// Parachain ingress queue message.
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Decode, Debug))]
+#[derive(PartialEq, Eq, Clone, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
 pub struct Message(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Consolidated ingress roots.
@@ -202,8 +202,8 @@ impl From<Vec<(Id, Hash)>> for ConsolidatedIngressRoots {
 /// This is just an ordered vector of other parachains' egress queues,
 /// obtained according to the routing rules. The same parachain may appear
 /// twice.
-#[derive(Default, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(Default, PartialEq, Eq, Clone, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
 pub struct ConsolidatedIngress(pub Vec<(Id, Vec<Message>)>);
 
 /// Parachain block data.
