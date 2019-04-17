@@ -326,19 +326,17 @@ impl DeferredStatements {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_primitives::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::ValidatorId;
 
 	#[test]
 	fn deferred_statements_works() {
 		let mut deferred = DeferredStatements::new();
 		let hash = [1; 32].into();
 		let sig = Default::default();
-		let sender: ValidatorId = [255; 32].unchecked_into();
+		let sender_index = 0;
 
 		let statement = SignedStatement {
 			statement: GenericStatement::Valid(hash),
-			sender: sender.clone(),
+			sender: sender_index,
 			signature: sig,
 		};
 
@@ -359,7 +357,7 @@ mod tests {
 
 			assert_eq!(traces.len(), 1);
 			assert_eq!(signed[0].clone(), statement);
-			assert_eq!(traces[0].clone(), StatementTrace::Valid(sender, hash));
+			assert_eq!(traces[0].clone(), StatementTrace::Valid(sender_index, hash));
 		}
 
 		// after draining

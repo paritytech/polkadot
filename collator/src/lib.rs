@@ -203,6 +203,7 @@ impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 			local_session_key: None,
 			parent_hash: self.parent_hash,
 			authorities: self.authorities.clone(),
+			index_mapping: (),
 		}).map_err(|e| format!("unable to instantiate validation session: {:?}", e));
 
 		let fetch_incoming = session

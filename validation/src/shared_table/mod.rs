@@ -594,13 +594,16 @@ mod tests {
 
 		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
 		let local_id = local_key.public();
+		let local_index = 0;
 
 		let validity_other_key = AuthorityKeyring::Bob.pair();
 		let validity_other = validity_other_key.public();
+		let validity_other_index = 1;
 
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
+			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 2,
+			index_mapping: [(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 		});
 
 		let shared_table = SharedTable::new(
@@ -627,7 +630,7 @@ mod tests {
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
-			sender: validity_other,
+			sender: validity_other_index,
 		};
 
 		shared_table.import_remote_statement(
@@ -645,13 +648,16 @@ mod tests {
 
 		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
 		let local_id = local_key.public();
+		let local_index = 0;
 
 		let validity_other_key = AuthorityKeyring::Bob.pair();
 		let validity_other = validity_other_key.public();
+		let validity_other_index = 1;
 
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
+			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
+			index_mapping: [(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 		});
 
 		let shared_table = SharedTable::new(
@@ -678,7 +684,7 @@ mod tests {
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
-			sender: validity_other,
+			sender: validity_other_index,
 		};
 
 		shared_table.import_remote_statement(
@@ -775,13 +781,16 @@ mod tests {
 
 		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
 		let local_id = local_key.public();
+		let local_index = 0;
 
 		let validity_other_key = AuthorityKeyring::Bob.pair();
 		let validity_other = validity_other_key.public();
+		let validity_other_index = 1;
 
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
+			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
+			index_mapping: [(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 		});
 
 		let shared_table = SharedTable::new(
@@ -809,7 +818,7 @@ mod tests {
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
-			sender: validity_other,
+			sender: validity_other_index,
 		};
 
 		let _a = shared_table.import_remote_statement(
@@ -838,13 +847,16 @@ mod tests {
 
 		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
 		let local_id = local_key.public();
+		let local_index = 0;
 
 		let validity_other_key = AuthorityKeyring::Bob.pair();
 		let validity_other = validity_other_key.public();
+		let validity_other_index = 1;
 
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other].iter().cloned().collect(),
+			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
+			index_mapping: [(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 		});
 
 		let shared_table = SharedTable::new(

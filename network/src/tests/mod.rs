@@ -34,6 +34,7 @@ use substrate_network::{
 };
 
 use futures::Future;
+use std::collections::HashMap;
 
 mod validation;
 
@@ -102,6 +103,7 @@ fn make_validation_session(parent_hash: Hash, local_key: SessionKey) -> SessionP
 		local_session_key: Some(local_key),
 		parent_hash,
 		authorities: Vec::new(),
+		index_mapping: HashMap::new(),
 	}
 }
 

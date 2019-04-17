@@ -1031,6 +1031,7 @@ mod tests {
 			parent_hash,
 			local_session_key: None,
 			authorities: Vec::new(),
+			index_mapping: HashMap::new(),
 		});
 
 		let knowledge = session.knowledge().clone();
@@ -1041,6 +1042,7 @@ mod tests {
 			parent_hash,
 			local_session_key: Some(key_a.clone()),
 			authorities: Vec::new(),
+			index_mapping: HashMap::new(),
 		});
 
 		// check that knowledge points to the same place.
@@ -1051,6 +1053,7 @@ mod tests {
 			parent_hash,
 			local_session_key: Some(key_b.clone()),
 			authorities: Vec::new(),
+			index_mapping: HashMap::new(),
 		});
 
 		assert_eq!(&**session.knowledge() as *const _, &*knowledge as *const _);
