@@ -176,7 +176,11 @@ error_chain! {
 		}
 		WrongHeadData(expected: Vec<u8>, got: Vec<u8>) {
 			description("Parachain validation produced wrong head data."),
-			display("Parachain validation produced wrong head data (expected: {:?}, got {:?}", expected, got),
+			display("Parachain validation produced wrong head data (expected: {:?}, got {:?})", expected, got),
+		}
+		BlockDataTooBig(size: u64, max_size: u64) {
+			description("Block data is too big."),
+			display("Block data is too big (maximum allowed size: {}, actual size: {})", max_size, size),
 		}
 	}
 }
@@ -328,11 +332,19 @@ pub fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
 	collation: &Collation,
+	max_block_data_size: Option<u64>,
 ) -> Result<Extrinsic, Error> where
 	P: ProvideRuntimeApi,
 	P::Api: ParachainHost<Block>,
 {
 	use parachain::{IncomingMessage, ValidationParams};
+
+	if let Some(max_size) = max_block_data_size {
+		let block_data_size = collation.block_data.0.len() as u64;
+		if block_data_size > max_size {
+			return Err(ErrorKind::BlockDataTooBig(block_data_size, max_size).into());
+		}
+	}
 
 	let api = client.runtime_api();
 	let para_id = collation.receipt.parachain_index;
