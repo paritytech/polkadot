@@ -59,7 +59,7 @@ use primitives::bytes;
 
 /// An index to a block.
 /// 32-bits will allow for 136 years of blocks assuming 1 block per second.
-/// TODO: switch to u32
+/// TODO: switch to u32 (https://github.com/paritytech/polkadot/issues/221)
 pub type BlockNumber = u64;
 
 /// Alias to 512-bit hash when used in the context of a signature on the relay chain.

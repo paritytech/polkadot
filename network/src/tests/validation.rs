@@ -148,6 +148,7 @@ impl NetworkService for TestNetwork {
 		let mut context = TestContext::default();
 		let res = with(&mut *self.proto.lock(), &mut context);
 		// TODO: send context to worker for message routing.
+		// https://github.com/paritytech/polkadot/issues/215
 		res
 	}
 }
