@@ -125,8 +125,6 @@ pub struct SessionParams {
 	pub parent_hash: Hash,
 	/// The authorities.
 	pub authorities: Vec<SessionKey>,
-	/// Mapping from validator index to `SessionKey`.
-	pub index_mapping: HashMap<ValidatorIndex, SessionKey>,
 }
 
 /// Wrapper around the network service
@@ -245,7 +243,6 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 			local_session_key: Some(local_session_key),
 			parent_hash,
 			authorities: authorities.to_vec(),
-			index_mapping: table.index_mapping(),
 		});
 		let message_validator = self.message_validator.clone();
 
@@ -1031,7 +1028,6 @@ mod tests {
 			parent_hash,
 			local_session_key: None,
 			authorities: Vec::new(),
-			index_mapping: HashMap::new(),
 		});
 
 		let knowledge = session.knowledge().clone();
@@ -1042,7 +1038,6 @@ mod tests {
 			parent_hash,
 			local_session_key: Some(key_a.clone()),
 			authorities: Vec::new(),
-			index_mapping: HashMap::new(),
 		});
 
 		// check that knowledge points to the same place.
@@ -1053,7 +1048,6 @@ mod tests {
 			parent_hash,
 			local_session_key: Some(key_b.clone()),
 			authorities: Vec::new(),
-			index_mapping: HashMap::new(),
 		});
 
 		assert_eq!(&**session.knowledge() as *const _, &*knowledge as *const _);

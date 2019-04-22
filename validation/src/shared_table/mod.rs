@@ -23,9 +23,8 @@ use std::sync::Arc;
 use extrinsic_store::{Data, Store as ExtrinsicStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
-use polkadot_primitives::parachain::{Id as ParaId, BlockData, Collation, Extrinsic, CandidateReceipt,
-	Id as ParaId, Collation, Extrinsic, CandidateReceipt,
-	AttestedCandidate, ParachainHost, PoVBlock
+use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, CandidateReceipt,
+	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex,
 };
 
 use parking_lot::Mutex;

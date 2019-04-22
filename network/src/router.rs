@@ -28,9 +28,9 @@ use polkadot_validation::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Outgoing, Validated
 };
 use polkadot_primitives::{Block, Hash};
-use polkadot_primitives::parachain::{BlockData, Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message, ValidatorIndex};
-	Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message,
-	Collation, PoVBlock,
+use polkadot_primitives::parachain::{Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message,
+	ValidatorIndex, Collation, PoVBlock,
+};
 use gossip::RegisteredMessageValidator;
 
 use codec::{Encode, Decode};

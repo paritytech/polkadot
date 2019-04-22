@@ -80,7 +80,7 @@ use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey}
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
 	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage, CollatorSignature,
-	Collation, PoVBlock,
+	Collation, PoVBlock, ValidatorIndex,
 };
 use primitives::{Pair, ed25519};
 use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyError};
