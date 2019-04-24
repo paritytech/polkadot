@@ -97,7 +97,7 @@ struct PoVBlockRequest {
 }
 
 impl PoVBlockRequest {
-	// attempt to process a response. If the provided block is invalid,
+	// Attempt to process a response. If the provided block is invalid,
 	// this returns an error result containing the unmodified request.
 	//
 	// If `Ok(())` is returned, that indicates that the request has been processed.
