@@ -22,10 +22,10 @@
 use sr_primitives::traits::{BlakeTwo256, ProvideRuntimeApi, Hash as HashT};
 use substrate_network::Context as NetContext;
 use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
-use polkadot_primitives::{Block, Hash, SessionKey};
+use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Collation, Extrinsic, ParachainHost, BlockData, Message, CandidateReceipt,
-	CollatorId, ValidatorId,
+	Id as ParaId, Collation, Extrinsic, ParachainHost, Message, CandidateReceipt,
+	CollatorId, ValidatorId, PoVBlock,
 };
 use codec::{Encode, Decode};
 
@@ -325,7 +325,7 @@ impl<P, E: Clone, N, T: Clone> Collators for ValidationNetwork<P, E, N, T> where
 struct KnowledgeEntry {
 	knows_block_data: Vec<ValidatorId>,
 	knows_extrinsic: Vec<ValidatorId>,
-	block_data: Option<BlockData>,
+	pov: Option<PoVBlock>,
 	extrinsic: Option<Extrinsic>,
 }
 
@@ -366,9 +366,9 @@ impl Knowledge {
 	}
 
 	/// Note a candidate collated or seen locally.
-	pub(crate) fn note_candidate(&mut self, hash: Hash, block_data: Option<BlockData>, extrinsic: Option<Extrinsic>) {
+	pub(crate) fn note_candidate(&mut self, hash: Hash, pov: Option<PoVBlock>, extrinsic: Option<Extrinsic>) {
 		let entry = self.candidates.entry(hash).or_insert_with(Default::default);
-		entry.block_data = entry.block_data.take().or(block_data);
+		entry.pov = entry.pov.take().or(pov);
 		entry.extrinsic = entry.extrinsic.take().or(extrinsic);
 	}
 }
@@ -436,15 +436,15 @@ impl ValidationSession {
 		&self.fetch_incoming
 	}
 
-	// execute a closure with locally stored block data for a candidate, or a slice of session identities
+	// execute a closure with locally stored proof-of-validation for a candidate, or a slice of session identities
 	// we believe should have the data.
-	fn with_block_data<F, U>(&self, hash: &Hash, f: F) -> U
-		where F: FnOnce(Result<&BlockData, &[ValidatorId]>) -> U
+	fn with_pov_block<F, U>(&self, hash: &Hash, f: F) -> U
+		where F: FnOnce(Result<&PoVBlock, &[ValidatorId]>) -> U
 	{
 		let knowledge = self.knowledge.lock();
 		let res = knowledge.candidates.get(hash)
 			.ok_or(&[] as &_)
-			.and_then(|entry| entry.block_data.as_ref().ok_or(&entry.knows_block_data[..]));
+			.and_then(|entry| entry.pov.as_ref().ok_or(&entry.knows_block_data[..]));
 
 		f(res)
 	}
@@ -590,32 +590,33 @@ impl LiveValidationSessions {
 		self.recent.as_slice()
 	}
 
-	/// Call a closure with block data from validation session at parent hash.
+	/// Call a closure with pov-data from validation session at parent hash for a given
+	/// candidate-receipt hash.
 	///
 	/// This calls the closure with `Some(data)` where the session and data are live,
 	/// `Err(Some(keys))` when the session is live but the data unknown, with a list of keys
 	/// who have the data, and `Err(None)` where the session is unknown.
-	pub(crate) fn with_block_data<F, U>(&self, parent_hash: &Hash, c_hash: &Hash, f: F) -> U
-		where F: FnOnce(Result<&BlockData, Option<&[ValidatorId]>>) -> U
+	pub(crate) fn with_pov_block<F, U>(&self, parent_hash: &Hash, c_hash: &Hash, f: F) -> U
+		where F: FnOnce(Result<&PoVBlock, Option<&[ValidatorId]>>) -> U
 	{
 		match self.live_instances.get(parent_hash) {
-			Some(c) => c.1.with_block_data(c_hash, |res| f(res.map_err(Some))),
+			Some(c) => c.1.with_pov_block(c_hash, |res| f(res.map_err(Some))),
 			None => f(Err(None))
 		}
 	}
 }
 
 /// Receiver for block data.
-pub struct BlockDataReceiver {
-	outer: Receiver<Receiver<BlockData>>,
-	inner: Option<Receiver<BlockData>>
+pub struct PoVReceiver {
+	outer: Receiver<Receiver<PoVBlock>>,
+	inner: Option<Receiver<PoVBlock>>
 }
 
-impl Future for BlockDataReceiver {
-	type Item = BlockData;
+impl Future for PoVReceiver {
+	type Item = PoVBlock;
 	type Error = io::Error;
 
-	fn poll(&mut self) -> Poll<BlockData, io::Error> {
+	fn poll(&mut self) -> Poll<PoVBlock, io::Error> {
 		let map_err = |_| io::Error::new(
 			io::ErrorKind::Other,
 			"Sending end of channel hung up",
@@ -746,22 +747,34 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 	T: Clone + Executor + Send + 'static,
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
 {
-	/// Fetch block data for the given candidate receipt.
-	pub fn fetch_block_data(&self, candidate: &CandidateReceipt) -> BlockDataReceiver {
+	/// Fetch PoV block for the given candidate receipt.
+	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> PoVReceiver {
+		let parachain = candidate.parachain_index.clone();
 		let parent_hash = self.parent_hash;
+
+		let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
+			.map_err(|e|
+				format!(
+					"Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
+					parachain,
+					parent_hash,
+					e,
+				)
+			);
+
 		let candidate = candidate.clone();
 		let (tx, rx) = ::futures::sync::oneshot::channel();
 		self.network.with_spec(move |spec, ctx| {
-			let inner_rx = spec.fetch_block_data(ctx, &candidate, parent_hash);
-			let _ = tx.send(inner_rx);
+			if let Ok(Some(canon_roots)) = canon_roots {
+				let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash, canon_roots);
+				let _ = tx.send(inner_rx);
+			}
 		});
-		BlockDataReceiver { outer: rx, inner: None }
+		PoVReceiver { outer: rx, inner: None }
 	}
 
 	/// Fetch incoming messages for a parachain.
 	pub fn fetch_incoming(&self, parachain: ParaId) -> IncomingReceiver {
-		use polkadot_primitives::BlockId;
-
 		let (rx, work) = self.fetch_incoming.lock().fetch_with_work(parachain.clone(), move || {
 			let parent_hash: Hash = self.parent_hash();
 			let topic = incoming_message_topic(parent_hash, parachain);
@@ -778,7 +791,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 			canon_roots.into_future()
 				.and_then(move |ingress_roots| match ingress_roots {
 					None => Err(format!("No parachain {:?} registered at {}", parachain, parent_hash)),
-					Some(roots) => Ok(roots.into_iter().collect())
+					Some(roots) => Ok(roots.0.into_iter().collect())
 				})
 				.and_then(move |ingress_roots| ComputeIngress {
 					inner: gossip_messages,

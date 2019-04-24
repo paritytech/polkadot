@@ -22,10 +22,12 @@ use substrate_primitives::{NativeOrEncoded, ExecutionContext};
 use substrate_keyring::AuthorityKeyring;
 use {PolkadotProtocol};
 
-use polkadot_validation::{SharedTable, MessagesFrom, Network, TableRouter};
+use polkadot_validation::{SharedTable, MessagesFrom, Network};
 use polkadot_primitives::{SessionKey, Block, Hash, Header, BlockId};
-use polkadot_primitives::parachain::{Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
-	ValidatorId};
+use polkadot_primitives::parachain::{
+	Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
+	ValidatorId, ConsolidatedIngressRoots,
+};
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
 use substrate_client::runtime_api::{Core, RuntimeVersion, ApiExt};
@@ -158,7 +160,7 @@ struct ApiData {
 	validators: Vec<ValidatorId>,
 	duties: Vec<Chain>,
 	active_parachains: Vec<ParaId>,
-	ingress: HashMap<ParaId, Vec<(ParaId, Hash)>>,
+	ingress: HashMap<ParaId, ConsolidatedIngressRoots>,
 }
 
 #[derive(Default, Clone)]
@@ -293,7 +295,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: ExecutionContext,
 		id: Option<ParaId>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<Vec<(ParaId, Hash)>>>> {
+	) -> ClientResult<NativeOrEncoded<Option<ConsolidatedIngressRoots>>> {
 		let id = id.unwrap();
 		Ok(NativeOrEncoded::Native(self.data.lock().ingress.get(&id).cloned()))
 	}
@@ -358,7 +360,7 @@ impl IngressBuilder {
 		}
 	}
 
-	fn build(self) -> HashMap<ParaId, Vec<(ParaId, Hash)>> {
+	fn build(self) -> HashMap<ParaId, ConsolidatedIngressRoots> {
 		let mut map = HashMap::new();
 		for ((source, target), messages) in self.egress {
 			map.entry(target).or_insert_with(Vec::new)
@@ -369,7 +371,7 @@ impl IngressBuilder {
 			roots.sort_by_key(|&(para_id, _)| para_id);
 		}
 
-		map
+		map.into_iter().map(|(k, v)| (k, ConsolidatedIngressRoots(v))).collect()
 	}
 }
 
@@ -471,11 +473,11 @@ fn ingress_fetch_works() {
 	};
 
 	// make sure everyone can get ingress for their own parachain.
-	let fetch_a = router_a.then(move |r| r.unwrap()
+	let fetch_a = router_a.then(move |r| r.unwrap().fetcher()
 		.fetch_incoming(id_a).map_err(|_| format!("Could not fetch ingress_a")));
-	let fetch_b = router_b.then(move |r| r.unwrap()
+	let fetch_b = router_b.then(move |r| r.unwrap().fetcher()
 		.fetch_incoming(id_b).map_err(|_| format!("Could not fetch ingress_b")));
-	let fetch_c = router_c.then(move |r| r.unwrap()
+	let fetch_c = router_c.then(move |r| r.unwrap().fetcher()
 		.fetch_incoming(id_c).map_err(|_| format!("Could not fetch ingress_c")));
 
 	let work = fetch_a.join3(fetch_b, fetch_c);

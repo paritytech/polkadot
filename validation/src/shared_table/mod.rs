@@ -24,14 +24,14 @@ use extrinsic_store::{Data, Store as ExtrinsicStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{
-	Id as ParaId, BlockData, Collation, Extrinsic, CandidateReceipt,
-	AttestedCandidate, ParachainHost
+	Id as ParaId, Collation, Extrinsic, CandidateReceipt,
+	AttestedCandidate, ParachainHost, PoVBlock
 };
 
 use parking_lot::Mutex;
-use futures::{future, prelude::*};
+use futures::prelude::*;
 
-use super::{GroupInfo, Incoming, TableRouter};
+use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
 use primitives::{ed25519, Pair};
 use runtime_primitives::traits::ProvideRuntimeApi;
@@ -75,8 +75,8 @@ impl TableContext {
 }
 
 pub(crate) enum Validation {
-	Valid(BlockData, Extrinsic),
-	Invalid(BlockData), // should take proof.
+	Valid(PoVBlock, Extrinsic),
+	Invalid(PoVBlock), // should take proof.
 }
 
 enum ValidationWork {
@@ -121,10 +121,9 @@ impl SharedTableInner {
 		context: &TableContext,
 		router: &R,
 		statement: table::SignedStatement,
-	) -> Option<ParachainWork<future::Join<
-		<R::FetchCandidate as IntoFuture>::Future,
-		<R::FetchIncoming as IntoFuture>::Future,
-	>>> {
+	) -> Option<ParachainWork<
+		<R::FetchValidationProof as IntoFuture>::Future,
+	>> {
 		let summary = match self.table.import_statement(context, statement) {
 			Some(summary) => summary,
 			None => return None,
@@ -149,7 +148,6 @@ impl SharedTableInner {
 		};
 
 		let work = if do_validation {
-			let fetch_incoming = router.fetch_incoming(summary.group_id);
 			match self.table.get_candidate(&digest) {
 				None => {
 					let message = format!(
@@ -163,11 +161,11 @@ impl SharedTableInner {
 					None
 				}
 				Some(candidate) => {
-					let fetch_block_data = router.fetch_block_data(candidate).into_future();
+					let fetch = router.fetch_pov_block(candidate).into_future();
 
 					Some(Work {
 						candidate_receipt: candidate.clone(),
-						fetch: fetch_block_data.join(fetch_incoming),
+						fetch,
 					})
 				}
 			}
@@ -202,19 +200,19 @@ pub struct Validated {
 
 impl Validated {
 	/// Note that we've validated a candidate with given hash and it is bad.
-	pub fn known_bad(hash: Hash, block_data: BlockData) -> Self {
+	pub fn known_bad(hash: Hash, collation: PoVBlock) -> Self {
 		Validated {
 			statement: GenericStatement::Invalid(hash),
-			result: Validation::Invalid(block_data),
+			result: Validation::Invalid(collation),
 		}
 	}
 
 	/// Note that we've validated a candidate with given hash and it is good.
 	/// Extrinsic data required.
-	pub fn known_good(hash: Hash, block_data: BlockData, extrinsic: Extrinsic) -> Self {
+	pub fn known_good(hash: Hash, collation: PoVBlock, extrinsic: Extrinsic) -> Self {
 		Validated {
 			statement: GenericStatement::Valid(hash),
-			result: Validation::Valid(block_data, extrinsic),
+			result: Validation::Valid(collation, extrinsic),
 		}
 	}
 
@@ -222,17 +220,17 @@ impl Validated {
 	/// Extrinsic data required.
 	pub fn collated_local(
 		receipt: CandidateReceipt,
-		block_data: BlockData,
+		collation: PoVBlock,
 		extrinsic: Extrinsic,
 	) -> Self {
 		Validated {
 			statement: GenericStatement::Candidate(receipt),
-			result: Validation::Valid(block_data, extrinsic),
+			result: Validation::Valid(collation, extrinsic),
 		}
 	}
 
-	/// Get a reference to the block data.
-	pub fn block_data(&self) -> &BlockData {
+	/// Get a reference to the proof-of-validation block.
+	pub fn pov_block(&self) -> &PoVBlock {
 		match self.result {
 			Validation::Valid(ref b, _) | Validation::Invalid(ref b) => b,
 		}
@@ -260,18 +258,17 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			Fetch,
-			impl Send + FnMut(&BlockId, &Collation, &Incoming) -> Result<Extrinsic, ()>,
+			impl Send + FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>,
 		>
 		where
 			P: Send + Sync + 'static,
 			P::Api: ParachainHost<Block>,
 	{
-		let validate = move |id: &_, collation: &_, incoming: &_| {
+		let validate = move |id: &_, collation: &_| {
 			let res = ::collation::validate_collation(
 				&*api,
 				id,
 				collation,
-				incoming,
 			);
 
 			match res {
@@ -288,7 +285,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 
 	/// Prime the parachain work with a custom validation function.
 	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<Fetch, F>
-		where F: FnMut(&BlockId, &Collation, &Incoming) -> Result<Extrinsic, ()>
+		where F: FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>
 	{
 		PrimedParachainWork { inner: self, validate }
 	}
@@ -307,8 +304,8 @@ pub struct PrimedParachainWork<Fetch, F> {
 
 impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 	where
-		Fetch: Future<Item=(BlockData, Incoming),Error=Err>,
-		F: FnMut(&BlockId, &Collation, &Incoming) -> Result<Extrinsic, ()>,
+		Fetch: Future<Item=PoVBlock,Error=Err>,
+		F: FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>,
 		Err: From<::std::io::Error>,
 {
 	type Item = Validated;
@@ -318,11 +315,10 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 		let work = &mut self.inner.work;
 		let candidate = &work.candidate_receipt;
 
-		let (block, incoming) = try_ready!(work.fetch.poll());
+		let pov_block = try_ready!(work.fetch.poll());
 		let validation_res = (self.validate)(
 			&BlockId::hash(self.inner.relay_parent),
-			&Collation { block_data: block.clone(), receipt: candidate.clone() },
-			&incoming,
+			&Collation { pov: pov_block.clone(), receipt: candidate.clone() },
 		);
 
 		let candidate_hash = candidate.hash();
@@ -333,20 +329,20 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 		let (validity_statement, result) = match validation_res {
 			Err(()) => (
 				GenericStatement::Invalid(candidate_hash),
-				Validation::Invalid(block),
+				Validation::Invalid(pov_block),
 			),
 			Ok(extrinsic) => {
 				self.inner.extrinsic_store.make_available(Data {
 					relay_parent: self.inner.relay_parent,
 					parachain_id: work.candidate_receipt.parachain_index,
 					candidate_hash,
-					block_data: block.clone(),
+					block_data: pov_block.block_data.clone(),
 					extrinsic: Some(extrinsic.clone()),
 				})?;
 
 				(
 					GenericStatement::Valid(candidate_hash),
-					Validation::Valid(block, extrinsic)
+					Validation::Valid(pov_block, extrinsic)
 				)
 			}
 		};
@@ -431,10 +427,9 @@ impl SharedTable {
 		&self,
 		router: &R,
 		statement: table::SignedStatement,
-	) -> Option<ParachainWork<future::Join<
-		<R::FetchCandidate as IntoFuture>::Future,
-		<R::FetchIncoming as IntoFuture>::Future,
-	>>> {
+	) -> Option<ParachainWork<
+		<R::FetchValidationProof as IntoFuture>::Future,
+	>> {
 		self.inner.lock().import_remote_statement(&*self.context, router, statement)
 	}
 
@@ -448,10 +443,9 @@ impl SharedTable {
 		where
 			R: TableRouter,
 			I: IntoIterator<Item=table::SignedStatement>,
-			U: ::std::iter::FromIterator<Option<ParachainWork<future::Join<
-				<R::FetchCandidate as IntoFuture>::Future,
-				<R::FetchIncoming as IntoFuture>::Future,
-			>>>>,
+			U: ::std::iter::FromIterator<Option<ParachainWork<
+				<R::FetchValidationProof as IntoFuture>::Future,
+			>>>,
 	{
 		let mut inner = self.inner.lock();
 
@@ -547,24 +541,27 @@ mod tests {
 	use super::*;
 	use substrate_keyring::AuthorityKeyring;
 	use primitives::crypto::UncheckedInto;
+	use polkadot_primitives::parachain::{BlockData, ConsolidatedIngress};
+	use futures::future;
+
+	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
+		PoVBlock {
+			block_data: BlockData(data),
+			ingress: ConsolidatedIngress(Vec::new()),
+		}
+	}
 
 	#[derive(Clone)]
 	struct DummyRouter;
 	impl TableRouter for DummyRouter {
 		type Error = ::std::io::Error;
-		type FetchCandidate = ::futures::future::FutureResult<BlockData,Self::Error>;
-		type FetchIncoming = ::futures::future::FutureResult<Incoming,Self::Error>;
+		type FetchValidationProof = future::FutureResult<PoVBlock,Self::Error>;
 
-		fn local_candidate(&self, _candidate: CandidateReceipt, _block_data: BlockData, _extrinsic: Extrinsic) {
-
+		fn local_collation(&self, _collation: Collation, _extrinsic: Extrinsic) {
 		}
 
-		fn fetch_block_data(&self, _candidate: &CandidateReceipt) -> Self::FetchCandidate {
-			future::ok(BlockData(vec![1, 2, 3, 4, 5]))
-		}
-
-		fn fetch_incoming(&self, _para_id: ParaId) -> Self::FetchIncoming {
-			future::ok(Vec::new())
+		fn fetch_pov_block(&self, _candidate: &CandidateReceipt) -> Self::FetchValidationProof {
+			future::ok(pov_block_with_data(vec![1, 2, 3, 4, 5]))
 		}
 	}
 
@@ -675,7 +672,7 @@ mod tests {
 		let store = ExtrinsicStore::new_in_memory();
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
-		let block_data = BlockData(vec![1, 2, 3]);
+		let pov_block = pov_block_with_data(vec![1, 2, 3]);
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
@@ -693,20 +690,20 @@ mod tests {
 		let producer: ParachainWork<future::FutureResult<_, ::std::io::Error>> = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
-				fetch: future::ok((block_data.clone(), Vec::new())),
+				fetch: future::ok(pov_block.clone()),
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),
 		};
 
-		let validated = producer.prime_with(|_, _, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+		let validated = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
 			.wait()
 			.unwrap();
 
-		assert_eq!(validated.block_data(), &block_data);
+		assert_eq!(validated.pov_block(), &pov_block);
 		assert_eq!(validated.statement, GenericStatement::Valid(hash));
 
-		assert_eq!(store.block_data(relay_parent, hash).unwrap(), block_data);
+		assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
 		assert!(store.extrinsic(relay_parent, hash).is_some());
 	}
 
@@ -715,7 +712,7 @@ mod tests {
 		let store = ExtrinsicStore::new_in_memory();
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
-		let block_data = BlockData(vec![1, 2, 3]);
+		let pov_block = pov_block_with_data(vec![1, 2, 3]);
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
@@ -733,19 +730,19 @@ mod tests {
 		let producer = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
-				fetch: future::ok::<_, ::std::io::Error>((block_data.clone(), Vec::new())),
+				fetch: future::ok::<_, ::std::io::Error>(pov_block.clone()),
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),
 		};
 
-		let validated = producer.prime_with(|_, _, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+		let validated = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
 			.wait()
 			.unwrap();
 
-		assert_eq!(validated.block_data(), &block_data);
+		assert_eq!(validated.pov_block(), &pov_block);
 
-		assert_eq!(store.block_data(relay_parent, hash).unwrap(), block_data);
+		assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
 		assert!(store.extrinsic(relay_parent, hash).is_some());
 	}
 
@@ -815,7 +812,7 @@ mod tests {
 		let mut groups = HashMap::new();
 
 		let para_id = ParaId::from(1);
-		let block_data = BlockData(vec![1, 2, 3]);
+		let pov_block = pov_block_with_data(vec![1, 2, 3]);
 		let extrinsic = Extrinsic { outgoing_messages: Vec::new() };
 		let parent_hash = Default::default();
 
@@ -851,7 +848,7 @@ mod tests {
 		let hash = candidate.hash();
 		let signed_statement = shared_table.import_validated(Validated::collated_local(
 			candidate,
-			block_data,
+			pov_block,
 			extrinsic,
 		));
 

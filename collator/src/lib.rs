@@ -71,7 +71,10 @@ use futures::{future, Stream, Future, IntoFuture};
 use client::BlockchainEvents;
 use primitives::{ed25519, Pair};
 use polkadot_primitives::{BlockId, SessionKey, Hash, Block};
-use polkadot_primitives::parachain::{self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic};
+use polkadot_primitives::parachain::{
+	self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic,
+	PoVBlock,
+};
 use polkadot_cli::{PolkadotService, CustomConfiguration, CoreApi, ParachainHost};
 use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi, TaskExecutor};
 use polkadot_network::validation::{ValidationNetwork, SessionParams};
@@ -148,10 +151,10 @@ pub fn collate<'a, R, P>(
 		P: ParachainContext + 'a,
 {
 	let ingress = relay_context.unrouted_egress(local_id).into_future().map_err(Error::Polkadot);
-	ingress.and_then(move |ConsolidatedIngress(ingress)| {
+	ingress.and_then(move |ingress| {
 		let (block_data, head_data, mut extrinsic) = para_context.produce_candidate(
 			last_head,
-			ingress.iter().flat_map(|&(id, ref msgs)| msgs.iter().cloned().map(move |msg| (id, msg)))
+			ingress.0.iter().flat_map(|&(id, ref msgs)| msgs.iter().cloned().map(move |msg| (id, msg)))
 		).map_err(Error::Collator)?;
 
 		let block_data_hash = block_data.hash();
@@ -170,10 +173,12 @@ pub fn collate<'a, R, P>(
 			block_data_hash,
 		};
 
-		// not necessary to send extrinsic because it is recomputed from execution.
 		Ok(parachain::Collation {
 			receipt,
-			block_data,
+			pov: PoVBlock {
+				block_data,
+				ingress,
+			},
 		})
 	})
 }

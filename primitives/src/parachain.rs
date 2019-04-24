@@ -159,26 +159,52 @@ impl Ord for CandidateReceipt {
 }
 
 /// A full collation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
 pub struct Collation {
-	/// Block data.
-	pub block_data: BlockData,
 	/// Candidate receipt itself.
 	pub receipt: CandidateReceipt,
+	/// A proof-of-validation for the receipt.
+	pub pov: PoVBlock,
+}
+
+/// A Proof-of-Validation block.
+#[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
+pub struct PoVBlock {
+	/// Block data.
+	pub block_data: BlockData,
+	/// Ingress for the parachain.
+	pub ingress: ConsolidatedIngress,
 }
 
 /// Parachain ingress queue message.
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Decode, Debug))]
+#[derive(PartialEq, Eq, Clone, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
 pub struct Message(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+
+/// Consolidated ingress roots.
+///
+/// This is an ordered vector of other parachains' egress queue roots,
+/// obtained according to the routing rules. The same parachain may appear
+/// twice.
+#[derive(Default, PartialEq, Eq, Clone, Encode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
+pub struct ConsolidatedIngressRoots(pub Vec<(Id, Hash)>);
+
+impl From<Vec<(Id, Hash)>> for ConsolidatedIngressRoots {
+	fn from(v: Vec<(Id, Hash)>) -> Self {
+		ConsolidatedIngressRoots(v)
+	}
+}
 
 /// Consolidated ingress queue data.
 ///
 /// This is just an ordered vector of other parachains' egress queues,
-/// obtained according to the routing rules.
-#[derive(Default, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+/// obtained according to the routing rules. The same parachain may appear
+/// twice.
+#[derive(Default, PartialEq, Eq, Clone, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
 pub struct ConsolidatedIngress(pub Vec<(Id, Vec<Message>)>);
 
 /// Parachain block data.
@@ -283,7 +309,7 @@ decl_runtime_apis! {
 		fn parachain_code(id: Id) -> Option<Vec<u8>>;
 		/// Get the ingress roots to a specific parachain at a
 		/// block.
-		fn ingress(to: Id) -> Option<Vec<(Id, Hash)>>;
+		fn ingress(to: Id) -> Option<ConsolidatedIngressRoots>;
 	}
 }
 
