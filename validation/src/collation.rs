@@ -146,7 +146,7 @@ error_chain! {
 			display("Collated for inactive parachain: {:?}", id),
 		}
 		EgressRootMismatch(id: ParaId, expected: Hash, got: Hash) {
-			description("Got unexpected egress rooe."),
+			description("Got unexpected egress root."),
 			display(
 				"Got unexpected egress root to {:?}. (expected: {:?}, got {:?})",
 				id, expected, got
