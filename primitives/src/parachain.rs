@@ -186,7 +186,7 @@ pub struct Message(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>
 /// Consolidated ingress roots.
 ///
 /// This is an ordered vector of other parachains' egress queue roots,
-/// obtained according tothe routing rules. The same parachain may appear
+/// obtained according to the routing rules. The same parachain may appear
 /// twice.
 #[derive(Default, PartialEq, Eq, Clone, Encode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
