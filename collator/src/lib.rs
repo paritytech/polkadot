@@ -62,7 +62,7 @@ extern crate log;
 #[cfg(test)]
 extern crate substrate_keyring as keyring;
 
-use std::collections::{HashSet, HashMap};
+use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
@@ -188,7 +188,6 @@ struct ApiContext<P, E> {
 	network: ValidationNetwork<P, E, NetworkService, TaskExecutor>,
 	parent_hash: Hash,
 	authorities: Vec<SessionKey>,
-	index_mapping: HashMap<ValidatorIndex, SessionKey>,
 }
 
 impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
@@ -204,7 +203,6 @@ impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 			local_session_key: None,
 			parent_hash: self.parent_hash,
 			authorities: self.authorities.clone(),
-			index_mapping: self.index_mapping.clone(),
 		}).map_err(|e| format!("unable to instantiate validation session: {:?}", e));
 
 		let fetch_incoming = session
@@ -329,7 +327,6 @@ impl<P, E> Worker for CollationNode<P, E> where
 						network: validation_network,
 						parent_hash: relay_parent,
 						authorities,
-						index_mapping: ()
 					};
 
 					let collation_work = collate(

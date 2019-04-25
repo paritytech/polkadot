@@ -23,10 +23,7 @@ use sr_primitives::traits::{BlakeTwo256, ProvideRuntimeApi, Hash as HashT};
 use substrate_network::Context as NetContext;
 use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
-use polkadot_primitives::parachain::{
-	Id as ParaId, Collation, Extrinsic, ParachainHost, Message, CandidateReceipt,
-	CollatorId, ValidatorId, PoVBlock,
-};
+use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, Message, CandidateReceipt, CollatorId, ValidatorId, PoVBlock, ValidatorIndex};
 use codec::{Encode, Decode};
 
 use futures::prelude::*;
@@ -189,6 +186,11 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 		let task_executor = self.executor.clone();
 		let exit = self.exit.clone();
 		let message_validator = self.message_validator.clone();
+		let index_mapping = params.authorities
+			.iter()
+			.enumerate()
+			.map(|(i, k)| (i as ValidatorIndex, k.clone()))
+			.collect();
 
 		let (tx, rx) = oneshot::channel();
 		self.network.with_spec(move |spec, ctx| {
@@ -197,7 +199,7 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 				parent_hash,
 				MessageValidationData {
 					authorities: params.authorities.clone(),
-					index_mapping: params.index_mapping.clone(),
+					index_mapping,
 				},
 			);
 

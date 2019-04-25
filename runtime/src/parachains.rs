@@ -468,7 +468,7 @@ mod tests {
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{generic, BuildStorage};
 	use sr_primitives::traits::{BlakeTwo256, IdentityLookup};
-	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey};
+	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey};
 	use keyring::{AuthorityKeyring, AccountKeyring};
 	use {consensus, timestamp};
 
@@ -578,7 +578,7 @@ mod tests {
 			let payload = localized_payload(statement, parent_hash);
 			let signature = key.sign(&payload[..]).into();
 
-			candidate.validity_votes.push((idx as u32, if vote_implicit {
+			candidate.validity_votes.push((idx as ValidatorIndex, if vote_implicit {
 				ValidityAttestation::Implicit(signature)
 			} else {
 				ValidityAttestation::Explicit(signature)
