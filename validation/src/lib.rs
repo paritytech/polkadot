@@ -187,8 +187,6 @@ pub trait Network {
 pub struct GroupInfo {
 	/// Authorities meant to check validity of candidates.
 	validity_guarantors: HashSet<SessionKey>,
-	/// Mapping from validator index to public key.
-	index_mapping: HashMap<ValidatorIndex, SessionKey>,
 	/// Number of votes needed for validity.
 	needed_validity: usize,
 }
@@ -348,7 +346,8 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
-		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
+		let index_mapping = authorities.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect();
+		let table = Arc::new(SharedTable::new(group_info, index_mapping, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
 			table.clone(),
 			outgoing,

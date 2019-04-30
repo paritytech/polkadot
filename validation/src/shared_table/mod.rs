@@ -45,11 +45,17 @@ struct TableContext {
 	parent_hash: Hash,
 	key: Arc<ed25519::Pair>,
 	groups: HashMap<ParaId, GroupInfo>,
+	index_mapping: HashMap<ValidatorIndex, SessionKey>,
 }
 
 impl table::Context for TableContext {
 	fn is_member_of(&self, authority: ValidatorIndex, group: &ParaId) -> bool {
-		self.groups.get(group).map_or(false, |g| g.index_mapping.get(&authority).is_some())
+		let key = match self.index_mapping.get(&authority) {
+			Some(val) => val,
+			None => return false,
+		};
+
+		self.groups.get(group).map_or(false, |g| g.validity_guarantors.get(&key).is_some())
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
@@ -65,9 +71,9 @@ impl TableContext {
 	fn local_index(&self) -> ValidatorIndex {
 		let id = self.local_id();
 		self
-			.groups
+			.index_mapping
 			.iter()
-			.find_map(|(_, group)| group.index_mapping.iter().find(|(_, k)| k == &&id))
+			.find(|(_, k)| k == &&id)
 			.map(|(i, _)| *i)
 			.unwrap()
 	}
@@ -385,12 +391,13 @@ impl SharedTable {
 	/// block being built.
 	pub fn new(
 		groups: HashMap<ParaId, GroupInfo>,
+		index_mapping: HashMap<ValidatorIndex, SessionKey>,
 		key: Arc<ed25519::Pair>,
 		parent_hash: Hash,
 		extrinsic_store: ExtrinsicStore,
 	) -> Self {
 		SharedTable {
-			context: Arc::new(TableContext { groups, key, parent_hash }),
+			context: Arc::new(TableContext { groups, key, parent_hash, index_mapping, }),
 			inner: Arc::new(Mutex::new(SharedTableInner {
 				table: Table::default(),
 				validated: HashMap::new(),
@@ -546,12 +553,7 @@ impl SharedTable {
 
 	/// Returns id of the validator corresponding to the given index.
 	pub fn index_to_id(&self, index: ValidatorIndex) -> Option<SessionKey> {
-		self.context.groups.iter().find_map(|(_, group)| group.index_mapping.get(&index)).cloned()
-	}
-
-	/// Returns mapping from validator index to the `SessionKey`.
-	pub fn index_mapping(&self) -> HashMap<ValidatorIndex, SessionKey> {
-		self.context.groups.iter().flat_map(|(_, g)| g.index_mapping.clone().into_iter()).collect()
+		self.context.index_mapping.get(&index).cloned()
 	}
 }
 
@@ -602,11 +604,11 @@ mod tests {
 		groups.insert(para_id, GroupInfo {
 			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 2,
-			index_mapping: [(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 		});
 
 		let shared_table = SharedTable::new(
 			groups,
+			[(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
@@ -656,11 +658,11 @@ mod tests {
 		groups.insert(para_id, GroupInfo {
 			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
-			index_mapping: [(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 		});
 
 		let shared_table = SharedTable::new(
 			groups,
+			[(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
@@ -789,11 +791,11 @@ mod tests {
 		groups.insert(para_id, GroupInfo {
 			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
-			index_mapping: [(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 		});
 
 		let shared_table = SharedTable::new(
 			groups,
+			[(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
@@ -855,11 +857,11 @@ mod tests {
 		groups.insert(para_id, GroupInfo {
 			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
-			index_mapping: [(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 		});
 
 		let shared_table = SharedTable::new(
 			groups,
+			[(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
