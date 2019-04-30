@@ -19,7 +19,6 @@
 #![warn(missing_docs)]
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg_attr(not(feature = "std"), feature(alloc))]
 
 extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;

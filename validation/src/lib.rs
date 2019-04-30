@@ -78,8 +78,9 @@ use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, BlockData, Extrinsic as ParachainExtrinsic, CandidateReceipt,
-	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage, CollatorSignature
+	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
+	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage, CollatorSignature,
+	Collation, PoVBlock,
 };
 use primitives::{Pair, ed25519};
 use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyError};
@@ -97,7 +98,9 @@ use runtime_aura::timestamp::TimestampInherentData;
 
 use ed25519::Public as AuthorityId;
 
-pub use self::collation::{validate_collation, message_queue_root, egress_roots, Collators};
+pub use self::collation::{
+	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
+};
 pub use self::error::{ErrorKind, Error};
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
@@ -146,24 +149,14 @@ pub trait TableRouter: Clone {
 	/// Errors when fetching data from the network.
 	type Error: std::fmt::Debug;
 	/// Future that resolves when candidate data is fetched.
-	type FetchCandidate: IntoFuture<Item=BlockData,Error=Self::Error>;
-	/// Fetch incoming messages for a candidate.
-	type FetchIncoming: IntoFuture<Item=Incoming,Error=Self::Error>;
+	type FetchValidationProof: IntoFuture<Item=PoVBlock,Error=Self::Error>;
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
-	fn local_candidate(&self, candidate: CandidateReceipt, block_data: BlockData, extrinsic: ParachainExtrinsic);
+	fn local_collation(&self, collation: Collation, extrinsic: ParachainExtrinsic);
 
-	/// Fetch block data for a specific candidate.
-	fn fetch_block_data(&self, candidate: &CandidateReceipt) -> Self::FetchCandidate;
-
-	/// Fetches the incoming message data to a parachain from the network. Incoming data should be
-	/// checked.
-	///
-	/// The `ParachainHost::ingress` function can be used to fetch incoming roots,
-	/// and the `message_queue_root` function can be used to check that messages actually have
-	/// expected root.
-	fn fetch_incoming(&self, id: ParaId) -> Self::FetchIncoming;
+	/// Fetch validation proof for a specific candidate.
+	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
 }
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.
@@ -291,7 +284,6 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
-	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 {
 	/// Get an attestation table for given parent hash.
@@ -400,23 +392,13 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		let extrinsic_store = self.extrinsic_store.clone();
 
 		let with_router = move |router: N::TableRouter| {
-			let fetch_incoming = router.fetch_incoming(validation_para)
-				.into_future()
-				.map_err(|e| format!("{:?}", e));
-
-			// fetch incoming messages to our parachain from network and
-			// then fetch a local collation.
-			let collation_work = fetch_incoming
-				.map_err(|e| String::clone(&e))
-				.and_then(move |incoming| {
-					CollationFetch::new(
-						validation_para,
-						relay_parent,
-						collators,
-						client,
-						incoming,
-					).map_err(|e| format!("{:?}", e))
-				});
+			// fetch a local collation from connected collators.
+			let collation_work = CollationFetch::new(
+				validation_para,
+				relay_parent,
+				collators,
+				client,
+			);
 
 			collation_work.then(move |result| match result {
 				Ok((collation, extrinsic)) => {
@@ -424,7 +406,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 						relay_parent,
 						parachain_id: collation.receipt.parachain_index,
 						candidate_hash: collation.receipt.hash(),
-						block_data: collation.block_data.clone(),
+						block_data: collation.pov.block_data.clone(),
 						extrinsic: Some(extrinsic.clone()),
 					});
 
@@ -432,11 +414,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 						Ok(()) => {
 							// TODO: https://github.com/paritytech/polkadot/issues/51
 							// Erasure-code and provide merkle branches.
-							router.local_candidate(
-								collation.receipt,
-								collation.block_data,
-								extrinsic,
-							)
+							router.local_collation(collation, extrinsic);
 						}
 						Err(e) => warn!(
 							target: "validation",
@@ -448,7 +426,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 					Ok(())
 				}
 				Err(e) => {
-					warn!(target: "validation", "Failed to collate candidate: {}", e);
+					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
 					Ok(())
 				}
 			})
@@ -493,7 +471,6 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
-	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 	TxApi: PoolChainApi,
 {
@@ -543,7 +520,6 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
-	<<N::TableRouter as TableRouter>::FetchIncoming as IntoFuture>::Future: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 {
 	type Proposer = Proposer<P, TxApi>;

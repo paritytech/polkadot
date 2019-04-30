@@ -220,8 +220,17 @@ impl CollatorPool {
 mod tests {
 	use super::*;
 	use substrate_primitives::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::{CandidateReceipt, BlockData, HeadData};
+	use polkadot_primitives::parachain::{
+		CandidateReceipt, BlockData, PoVBlock, HeadData, ConsolidatedIngress,
+	};
 	use futures::Future;
+
+	fn make_pov(block_data: Vec<u8>) -> PoVBlock {
+		PoVBlock {
+			block_data: BlockData(block_data),
+			ingress: ConsolidatedIngress(Vec::new()),
+		}
+	}
 
 	#[test]
 	fn disconnect_primary_gives_new_primary() {
@@ -272,7 +281,7 @@ mod tests {
 				fees: 0,
 				block_data_hash: [3; 32].into(),
 			},
-			block_data: BlockData(vec![4, 5, 6]),
+			pov: make_pov(vec![4, 5, 6]),
 		});
 
 		rx1.wait().unwrap();
@@ -299,7 +308,7 @@ mod tests {
 				fees: 0,
 				block_data_hash: [3; 32].into(),
 			},
-			block_data: BlockData(vec![4, 5, 6]),
+			pov: make_pov(vec![4, 5, 6]),
 		});
 
 		let (tx, rx) = oneshot::channel();

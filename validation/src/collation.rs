@@ -23,10 +23,12 @@ use std::sync::Arc;
 
 use polkadot_primitives::{Block, Hash, BlockId, parachain::CollatorId};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, OutgoingMessage};
-use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
+use polkadot_primitives::parachain::{
+	ConsolidatedIngress, ConsolidatedIngressRoots, CandidateReceipt, ParachainHost,
+};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use parachain::{wasm_executor::{self, ExternalitiesError}, MessageRef};
-use super::Incoming;
+use error_chain::bail;
 
 use futures::prelude::*;
 
@@ -60,7 +62,6 @@ pub struct CollationFetch<C: Collators, P> {
 	relay_parent_hash: Hash,
 	relay_parent: BlockId,
 	collators: C,
-	incoming: Incoming,
 	live_fetch: Option<<C::Collation as IntoFuture>::Future>,
 	client: Arc<P>,
 }
@@ -72,7 +73,6 @@ impl<C: Collators, P> CollationFetch<C, P> {
 		relay_parent_hash: Hash,
 		collators: C,
 		client: Arc<P>,
-		incoming: Incoming,
 	) -> Self {
 		CollationFetch {
 			relay_parent: BlockId::hash(relay_parent_hash),
@@ -81,7 +81,6 @@ impl<C: Collators, P> CollationFetch<C, P> {
 			client,
 			parachain,
 			live_fetch: None,
-			incoming,
 		}
 	}
 
@@ -104,7 +103,7 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 
 	fn poll(&mut self) -> Poll<(Collation, Extrinsic), C::Error> {
 		loop {
-			let x = {
+			let collation = {
 				let parachain = self.parachain.clone();
 				let (r, c)  = (self.relay_parent_hash, &self.collators);
 				let poll = self.live_fetch
@@ -114,16 +113,18 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 				try_ready!(poll)
 			};
 
-			match validate_collation(&*self.client, &self.relay_parent, &x, &self.incoming) {
+			let res = validate_collation(&*self.client, &self.relay_parent, &collation);
+
+			match res {
 				Ok(e) => {
-					return Ok(Async::Ready((x, e)))
+					return Ok(Async::Ready((collation, e)))
 				}
 				Err(e) => {
 					debug!("Failed to validate parachain due to API error: {}", e);
 
 					// just continue if we got a bad collation or failed to validate
 					self.live_fetch = None;
-					self.collators.note_bad_collator(x.receipt.collator)
+					self.collators.note_bad_collator(collation.receipt.collator)
 				}
 			}
 		}
@@ -145,15 +146,33 @@ error_chain! {
 			display("Collated for inactive parachain: {:?}", id),
 		}
 		EgressRootMismatch(id: ParaId, expected: Hash, got: Hash) {
-			description("Got unexpected egress route."),
+			description("Got unexpected egress root."),
 			display(
-				"Got unexpected egress route to {:?}. (expected: {:?}, got {:?})",
+				"Got unexpected egress root to {:?}. (expected: {:?}, got {:?})",
 				id, expected, got
 			),
 		}
-		MissingEgressRoute(expected: Option<ParaId>, got: Option<ParaId>) {
-			description("Missing or extra egress route."),
-			display("Missing or extra egress route. (expected: {:?}, got {:?})", expected, got),
+		IngressRootMismatch(id: ParaId, expected: Hash, got: Hash) {
+			description("Got unexpected ingress root."),
+			display(
+				"Got unexpected ingress root to {:?}. (expected: {:?}, got {:?})",
+				id, expected, got
+			),
+		}
+		IngressChainMismatch(expected: ParaId, got: ParaId) {
+			description("Got ingress from wrong chain"),
+			display(
+				"Got ingress from wrong chain. (expected: {:?}, got {:?})",
+				expected, got
+			),
+		}
+		IngressCanonicalityMismatch(expected: usize, got: usize) {
+			description("Ingress canonicality mismatch."),
+			display("Got data for {} roots, expected {}", got, expected),
+		}
+		MissingEgressRoot(expected: Option<ParaId>, got: Option<ParaId>) {
+			description("Missing or extra egress root."),
+			display("Missing or extra egress root. (expected: {:?}, got {:?})", expected, got),
 		}
 		WrongHeadData(expected: Vec<u8>, got: Vec<u8>) {
 			description("Parachain validation produced wrong head data."),
@@ -206,11 +225,11 @@ fn check_extrinsic(
 		let mut expected_egress_roots = expected_egress_roots.iter();
 		while let Some(batch_target) = messages_iter.peek().map(|o| o.target) {
 			let expected_root = match expected_egress_roots.next() {
-				None => return Err(ErrorKind::MissingEgressRoute(Some(batch_target), None).into()),
+				None => return Err(ErrorKind::MissingEgressRoot(Some(batch_target), None).into()),
 				Some(&(id, ref root)) => if id == batch_target {
 					root
 				} else {
-					return Err(ErrorKind::MissingEgressRoute(Some(batch_target), Some(id)).into());
+					return Err(ErrorKind::MissingEgressRoot(Some(batch_target), Some(id)).into());
 				}
 			};
 
@@ -234,7 +253,7 @@ fn check_extrinsic(
 
 		// also check that there are no more additional expected roots.
 		if let Some((next_target, _)) = expected_egress_roots.next() {
-			return Err(ErrorKind::MissingEgressRoute(None, Some(*next_target)).into());
+			return Err(ErrorKind::MissingEgressRoot(None, Some(*next_target)).into());
 		}
 	}
 
@@ -277,16 +296,38 @@ impl Externalities {
 	}
 }
 
+/// Validate incoming messages against expected roots.
+pub fn validate_incoming(
+	roots: &ConsolidatedIngressRoots,
+	ingress: &ConsolidatedIngress,
+) -> Result<(), Error> {
+	if roots.0.len() != ingress.0.len() {
+		bail!(ErrorKind::IngressCanonicalityMismatch(roots.0.len(), ingress.0.len()));
+	}
+
+	let all_iter = roots.0.iter().zip(&ingress.0);
+	for ((expected_id, root), (got_id, messages)) in all_iter {
+		if expected_id != got_id {
+			bail!(ErrorKind::IngressChainMismatch(*expected_id, *got_id));
+		}
+
+		let got_root = message_queue_root(messages.iter().map(|msg| &msg.0[..]));
+		if &got_root != root {
+			bail!(ErrorKind::IngressRootMismatch(*expected_id, *root, got_root));
+		}
+	}
+
+	Ok(())
+}
+
 /// Check whether a given collation is valid. Returns `Ok` on success, error otherwise.
 ///
 /// This assumes that basic validity checks have been done:
 ///   - Block data hash is the same as linked in candidate receipt.
-///   - incoming messages have been validated against canonical ingress roots
 pub fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
 	collation: &Collation,
-	incoming: &Incoming,
 ) -> Result<Extrinsic, Error> where
 	P: ProvideRuntimeApi,
 	P::Api: ParachainHost<Block>,
@@ -301,10 +342,14 @@ pub fn validate_collation<P>(
 	let chain_head = api.parachain_head(relay_parent, para_id)?
 		.ok_or_else(|| ErrorKind::InactiveParachain(para_id))?;
 
+	let roots = api.ingress(relay_parent, para_id)?
+		.ok_or_else(|| ErrorKind::InactiveParachain(para_id))?;
+	validate_incoming(&roots, &collation.pov.ingress)?;
+
 	let params = ValidationParams {
 		parent_head: chain_head,
-		block_data: collation.block_data.0.clone(),
-		ingress: incoming.iter()
+		block_data: collation.pov.block_data.0.clone(),
+		ingress: collation.pov.ingress.0.iter()
 			.flat_map(|&(source, ref messages)| {
 				messages.iter().map(move |msg| IncomingMessage {
 					source,

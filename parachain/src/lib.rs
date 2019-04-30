@@ -41,7 +41,6 @@
 //!  for setting up a parachain WASM module in Rust.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg_attr(not(feature = "std"), feature(alloc))]
 
 /// Re-export of parity-codec.
 pub extern crate parity_codec as codec;

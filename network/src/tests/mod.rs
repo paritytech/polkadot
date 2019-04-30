@@ -21,7 +21,10 @@ use validation::SessionParams;
 
 use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash, SessionKey};
-use polkadot_primitives::parachain::{CandidateReceipt, HeadData, BlockData, CollatorId, ValidatorId};
+use polkadot_primitives::parachain::{
+	CandidateReceipt, HeadData, PoVBlock, BlockData, CollatorId, ValidatorId,
+	ConsolidatedIngressRoots,
+};
 use substrate_primitives::crypto::UncheckedInto;
 use codec::Encode;
 use substrate_network::{
@@ -71,6 +74,14 @@ impl TestContext {
 			GenericMessage::ChainSpecific(ref data) => peer == &to && data == &encoded,
 			_ => false,
 		})
+	}
+}
+
+
+fn make_pov(block_data: Vec<u8>) -> PoVBlock {
+	PoVBlock {
+		block_data: BlockData(block_data),
+		ingress: polkadot_primitives::parachain::ConsolidatedIngress(Vec::new()),
 	}
 }
 
@@ -164,7 +175,13 @@ fn fetches_from_those_with_knowledge() {
 	let knowledge = session.knowledge();
 
 	knowledge.lock().note_statement(a_key.clone(), &GenericStatement::Valid(candidate_hash));
-	let recv = protocol.fetch_block_data(&mut TestContext::default(), &candidate_receipt, parent_hash);
+	let canon_roots = ConsolidatedIngressRoots(Vec::new());
+	let recv = protocol.fetch_pov_block(
+		&mut TestContext::default(),
+		&candidate_receipt,
+		parent_hash,
+		canon_roots,
+	);
 
 	// connect peer A
 	{
@@ -178,7 +195,7 @@ fn fetches_from_those_with_knowledge() {
 		let mut ctx = TestContext::default();
 		on_message(&mut protocol, &mut ctx, peer_a.clone(), Message::SessionKey(a_key.clone()));
 		assert!(protocol.validators.contains_key(&a_key));
-		assert!(ctx.has_message(peer_a.clone(), Message::RequestBlockData(1, parent_hash, candidate_hash)));
+		assert!(ctx.has_message(peer_a.clone(), Message::RequestPovBlock(1, parent_hash, candidate_hash)));
 	}
 
 	knowledge.lock().note_statement(b_key.clone(), &GenericStatement::Valid(candidate_hash));
@@ -188,7 +205,7 @@ fn fetches_from_those_with_knowledge() {
 		let mut ctx = TestContext::default();
 		protocol.on_connect(&mut ctx, peer_b.clone(), make_status(&status, Roles::AUTHORITY));
 		on_message(&mut protocol, &mut ctx, peer_b.clone(), Message::SessionKey(b_key.clone()));
-		assert!(!ctx.has_message(peer_b.clone(), Message::RequestBlockData(2, parent_hash, candidate_hash)));
+		assert!(!ctx.has_message(peer_b.clone(), Message::RequestPovBlock(2, parent_hash, candidate_hash)));
 
 	}
 
@@ -197,15 +214,16 @@ fn fetches_from_those_with_knowledge() {
 		let mut ctx = TestContext::default();
 		protocol.on_disconnect(&mut ctx, peer_a.clone());
 		assert!(!protocol.validators.contains_key(&a_key));
-		assert!(ctx.has_message(peer_b.clone(), Message::RequestBlockData(2, parent_hash, candidate_hash)));
+		assert!(ctx.has_message(peer_b.clone(), Message::RequestPovBlock(2, parent_hash, candidate_hash)));
 	}
 
 	// peer B comes back with block data.
 	{
 		let mut ctx = TestContext::default();
-		on_message(&mut protocol, &mut ctx, peer_b, Message::BlockData(2, Some(block_data.clone())));
+		let pov_block = make_pov(block_data.0);
+		on_message(&mut protocol, &mut ctx, peer_b, Message::PovBlock(2, Some(pov_block.clone())));
 		drop(protocol);
-		assert_eq!(recv.wait().unwrap(), block_data);
+		assert_eq!(recv.wait().unwrap(), pov_block);
 	}
 }
 
