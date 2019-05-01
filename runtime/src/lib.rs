@@ -76,6 +76,7 @@ extern crate substrate_trie;
 mod curated_grandpa;
 mod parachains;
 mod claims;
+mod slots;
 
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_2, _4};
@@ -236,6 +237,12 @@ impl grandpa::Trait for Runtime {
 
 impl parachains::Trait for Runtime {}
 
+impl slots::Trait for Runtime {
+	type Event = Event;
+	type Currency = balances::Module<Self>;
+	type Parachains = parachains::Module<Self>;
+}
+
 impl curated_grandpa::Trait for Runtime { }
 
 impl sudo::Trait for Runtime {
@@ -267,6 +274,7 @@ construct_runtime!(
 		CouncilSeats: council_seats::{Config<T>},
 		Treasury: treasury,
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
+		Slots: slots,
 		Sudo: sudo,
 	}
 );
