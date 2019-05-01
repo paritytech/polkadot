@@ -49,6 +49,7 @@ Build Polkadot PoC-4 by cloning this repository and running the following comman
 git checkout v0.4
 ./scripts/init.sh
 ./scripts/build.sh
+cargo build --release
 ```
 
 If you were previously running PoC-3 on this testnet, you may need to purge your chain data first:
