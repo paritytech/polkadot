@@ -16,10 +16,11 @@ stages:
 image:                             parity/rust-builder:latest
 
 variables:
-  CI_SERVER_NAME:                  "GitLab CI"
+  GIT_STRATEGY:                    fetch
   CARGO_HOME:                      "/ci-cache/${CI_PROJECT_NAME}/cargo/${CI_JOB_NAME}"
   SCCACHE_DIR:                     "/ci-cache/${CI_PROJECT_NAME}/sccache"
   SCCACHE_CACHE_SIZE:              50G
+  CI_SERVER_NAME:                  "GitLab CI"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
 
@@ -81,12 +82,11 @@ test-linux-stable:                 &test
     variables:
       - $DEPLOY_TAG
   before_script:
-   - test -d ${CARGO_HOME} -a -d ./target &&
-     echo "build cache size:" &&
-     du -h --max-depth=2 ${CARGO_HOME} ./target
+   - sccache -s
    - ./scripts/build.sh
   script:
     - time cargo test --all --release --verbose --locked
+    - sccache -s
 
 
 
@@ -109,7 +109,8 @@ build-linux-release:          &build
   tags:
     - linux-docker
   before_script:
-   - ./scripts/build.sh
+    - sccache -s
+    - ./scripts/build.sh
   script:
     - time cargo build --release --verbose
     - mkdir -p ./artifacts
@@ -124,6 +125,7 @@ build-linux-release:          &build
       fi
     - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
     - cp -r scripts/docker/* ./artifacts
+    - sccache -s
 
 
 
