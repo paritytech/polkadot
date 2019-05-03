@@ -15,13 +15,15 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Auctioning system to determine the set of Parachains in operation. This includes logic for the auctioning
-//! mechanism, for locking balance as part of the
+//! mechanism, for locking balance as part of the "payment", and to provide the requisite information for commissioning
+//! and decommissioning them.
 
 use sr_std::{prelude::*, result};
 use sr_primitives::traits::{CheckedSub, SimpleArithmetic, Member};
 use support::{decl_module, decl_storage, decl_event, StorageValue, dispatch::Result,
 	traits::ReservableCurrency, Parameter};
 use system::{ensure_signed, Trait};
+use super::ParachainRegistrar
 
 /// A compactly represented sub-range from the series (0, 1, 2, 3).
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
@@ -114,20 +116,6 @@ impl SlotRange {
 	}
 }
 
-/// Parachain registration API.
-pub trait ParachainRegistrar<AccountId> {
-	type ParaId: Member + Parameter + TryFrom<AccountId> + To<AccountId>;
-
-	fn new_id() -> ParaId;
-
-	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
-	/// result in a error.
-	fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> result::Result<(), &'static str>;
-
-	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
-	fn deregister_parachain(id: Self::ParaId) -> Result;
-}
-
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 type ParaIdOf<T> = <<T as Trait>::Parachains as ParachainRegistrar>::ParaId;
 
@@ -136,8 +124,10 @@ pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
+	/// The currency type used for bidding.
 	type Currency: ReservableCurrency;
 
+	/// The parachain registrar type.
 	type Parachains: ParachainRegistrar;
 }
 
@@ -188,6 +178,7 @@ type WinnersData<T> = Vec<(Option<NewBidder<T::AccountId>>, ParaIdOf<T>, Balance
 // events
 // calculate_winners
 // tests
+// integrate ParachainRegistrar new_id
 
 /// This module's storage items.
 decl_storage! {

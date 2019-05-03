@@ -20,13 +20,11 @@ use rstd::prelude::*;
 use codec::Decode;
 
 use bitvec::BigEndian;
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256};
-use primitives::Hash;
-use primitives::parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member};
+use primitives::{Hash, parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement}};
 use {system, session};
 
-use srml_support::{StorageValue, StorageMap};
-use srml_support::dispatch::Result;
+use srml_support::{StorageValue, StorageMap, Parameter, dispatch::Result};
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
@@ -37,6 +35,35 @@ use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 use rstd::marker::PhantomData;
 
 use system::ensure_inherent;
+
+/// Parachain registration API.
+pub trait ParachainRegistrar<AccountId> {
+	/// An identifier for a parachain.
+	type ParaId: Member + Parameter + TryFrom<AccountId> + To<AccountId>;
+
+	/// Create a new unique parachain identity for later registration.
+	fn new_id() -> Self::ParaId;
+
+	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
+	/// result in a error.
+	fn register_parachain(id: Self::ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> result::Result<(), &'static str>;
+
+	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
+	fn deregister_parachain(id: Self::ParaId) -> Result;
+}
+
+impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
+	type ParaId = ParaId;
+	fn new_id() -> ParaId {
+		<NextFreeId<T>>::mutate(|n| { let r = n; *n = ParaId::from(u32::from(*n) + 1); r })
+	}
+	fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> result::Result<(), &'static str> {
+		// TODO
+	}
+	fn deregister_parachain(id: ParaId) -> Result {
+		// TODO
+	}
+}
 
 pub trait Trait: session::Trait {}
 
@@ -59,6 +86,8 @@ decl_storage! {
 
 		// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
+
+		NextFreeId: ParaId;
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
