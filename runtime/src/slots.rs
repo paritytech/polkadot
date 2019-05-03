@@ -23,7 +23,7 @@ use sr_primitives::traits::{CheckedSub, SimpleArithmetic, Member};
 use support::{decl_module, decl_storage, decl_event, StorageValue, dispatch::Result,
 	traits::ReservableCurrency, Parameter};
 use system::{ensure_signed, Trait};
-use super::ParachainRegistrar
+use crate::parachains::ParachainRegistrar;
 
 /// A compactly represented sub-range from the series (0, 1, 2, 3).
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
@@ -174,11 +174,11 @@ type WinningData<T> = [Option<(Bidder<T::AccountId, ParaIdOf<T>>, BalanceOf<T>)>
 type WinnersData<T> = Vec<(Option<NewBidder<T::AccountId>>, ParaIdOf<T>, BalanceOf<T>, SlotRange)>;
 
 // TODO:
+// integrate ParachainRegistrar new_id
+// calculate_winners
 // parachain_bid
 // events
-// calculate_winners
 // tests
-// integrate ParachainRegistrar new_id
 
 /// This module's storage items.
 decl_storage! {
