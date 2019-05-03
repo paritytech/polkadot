@@ -58,10 +58,37 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 		<NextFreeId<T>>::mutate(|n| { let r = n; *n = ParaId::from(u32::from(*n) + 1); r })
 	}
 	fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> result::Result<(), &'static str> {
-		// TODO
+		let mut parachains = Self::active_parachains();
+		match parachains.binary_search(&id) {
+			Ok(_) => fail!("Parachain already exists"),
+			Err(idx) => parachains.insert(idx, id),
+		}
+
+		<Code<T>>::insert(id, code);
+		<Parachains<T>>::put(parachains);
+		<Heads<T>>::insert(id, initial_head_data);
+
+		Ok(())
 	}
 	fn deregister_parachain(id: ParaId) -> Result {
-		// TODO
+		let mut parachains = Self::active_parachains();
+		match parachains.binary_search(&id) {
+			Ok(idx) => { parachains.remove(idx); }
+			Err(_) => return Ok(()),
+		}
+
+		<Code<T>>::remove(id);
+		<Heads<T>>::remove(id);
+
+		// clear all routing entries to and from other parachains.
+		for other in parachains.iter().cloned() {
+			<Routing<T>>::remove((id, other));
+			<Routing<T>>::remove((other, id));
+		}
+
+		<Parachains<T>>::put(parachains);
+
+		Ok(())
 	}
 }
 
@@ -171,39 +198,12 @@ decl_module! {
 		/// Register a parachain with given code.
 		/// Fails if given ID is already used.
 		pub fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
-			let mut parachains = Self::active_parachains();
-			match parachains.binary_search(&id) {
-				Ok(_) => fail!("Parachain already exists"),
-				Err(idx) => parachains.insert(idx, id),
-			}
-
-			<Code<T>>::insert(id, code);
-			<Parachains<T>>::put(parachains);
-			<Heads<T>>::insert(id, initial_head_data);
-
-			Ok(())
+			<Self as ParachainRegistrar>::register_parachain(id, code, initial_head_data)
 		}
 
 		/// Deregister a parachain with given id
 		pub fn deregister_parachain(id: ParaId) -> Result {
-			let mut parachains = Self::active_parachains();
-			match parachains.binary_search(&id) {
-				Ok(idx) => { parachains.remove(idx); }
-				Err(_) => return Ok(()),
-			}
-
-			<Code<T>>::remove(id);
-			<Heads<T>>::remove(id);
-
-			// clear all routing entries to and from other parachains.
-			for other in parachains.iter().cloned() {
-				<Routing<T>>::remove((id, other));
-				<Routing<T>>::remove((other, id));
-			}
-
-			<Parachains<T>>::put(parachains);
-
-			Ok(())
+			<Self as ParachainRegistrar>::deregister_parachain(id)
 		}
 
 		fn on_finalize(_n: T::BlockNumber) {
