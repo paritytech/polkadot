@@ -72,11 +72,11 @@ decl_storage! {
 
 			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-			storage.insert(Self::hash(<Parachains<T>>::key()).to_vec(), only_ids.encode());
+			storage.insert(<Parachains<T>>::key().to_vec(), only_ids.encode());
 
 			for (id, code, genesis) in p {
-				let code_key = Self::hash(&<Code<T>>::key_for(&id)).to_vec();
-				let head_key = Self::hash(&<Heads<T>>::key_for(&id)).to_vec();
+				let code_key = <Code<T>>::key_for(&id);
+				let head_key = <Heads<T>>::key_for(&id);
 				// no ingress -- a chain cannot be routed to until it is live.
 
 				storage.insert(code_key, code.encode());
