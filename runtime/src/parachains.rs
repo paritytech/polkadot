@@ -16,11 +16,11 @@
 
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
-use rstd::prelude::*;
+use rstd::{result, prelude::*};
 use codec::Decode;
 
 use bitvec::BigEndian;
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, Convert};
 use primitives::{Hash, parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement}};
 use {system, session};
 
@@ -36,17 +36,27 @@ use rstd::marker::PhantomData;
 
 use system::ensure_inherent;
 
+pub trait TryFrom<T> {
+	type Error;
+
+	fn try_from(self) -> result::Result<T, Self::Error>;
+}
+
 /// Parachain registration API.
 pub trait ParachainRegistrar<AccountId> {
 	/// An identifier for a parachain.
-	type ParaId: Member + Parameter + TryFrom<AccountId> + To<AccountId>;
+	type ParaId: Member + Parameter;
+
+	type ParaIdOfAccount: Convert<AccountId, Option<Self::ParaId>>;
+
+	type AccountIdOfPara: Convert<Self::ParaId, AccountId>;
 
 	/// Create a new unique parachain identity for later registration.
 	fn new_id() -> Self::ParaId;
 
 	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
 	/// result in a error.
-	fn register_parachain(id: Self::ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> result::Result<(), &'static str>;
+	fn register_parachain(id: Self::ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result;
 
 	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
 	fn deregister_parachain(id: Self::ParaId) -> Result;
@@ -54,10 +64,12 @@ pub trait ParachainRegistrar<AccountId> {
 
 impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 	type ParaId = ParaId;
+	type ParaIdOfAccount = T::ParaIdOfAccount;
+	type AccountIdOfPara = T::AccountIdOfPara;
 	fn new_id() -> ParaId {
-		<NextFreeId<T>>::mutate(|n| { let r = n; *n = ParaId::from(u32::from(*n) + 1); r })
+		<NextFreeId<T>>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
 	}
-	fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> result::Result<(), &'static str> {
+	fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
 		let mut parachains = Self::active_parachains();
 		match parachains.binary_search(&id) {
 			Ok(_) => fail!("Parachain already exists"),
@@ -92,7 +104,10 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 	}
 }
 
-pub trait Trait: session::Trait {}
+pub trait Trait: session::Trait {
+	type ParaIdOfAccount: Convert<Self::AccountId, Option<ParaId>>;
+	type AccountIdOfPara: Convert<ParaId, Self::AccountId>;
+}
 
 // result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
 const EMPTY_TRIE_ROOT: [u8; 32] = [
@@ -114,6 +129,7 @@ decl_storage! {
 		// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
 
+		/// The next unused ParaId value.
 		NextFreeId: ParaId;
 	}
 	add_extra_genesis {
@@ -198,12 +214,12 @@ decl_module! {
 		/// Register a parachain with given code.
 		/// Fails if given ID is already used.
 		pub fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
-			<Self as ParachainRegistrar>::register_parachain(id, code, initial_head_data)
+			<Self as ParachainRegistrar<T::AccountId>>::register_parachain(id, code, initial_head_data)
 		}
 
 		/// Deregister a parachain with given id
 		pub fn deregister_parachain(id: ParaId) -> Result {
-			<Self as ParachainRegistrar>::deregister_parachain(id)
+			<Self as ParachainRegistrar<T::AccountId>>::deregister_parachain(id)
 		}
 
 		fn on_finalize(_n: T::BlockNumber) {

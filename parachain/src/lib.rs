@@ -100,7 +100,7 @@ pub struct ValidationResult {
 }
 
 /// Unique identifier of a parachain.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Encode, Decode)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Default, Clone, Copy, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct Id(u32);
 

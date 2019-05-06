@@ -91,7 +91,7 @@ use client::{
 use sr_primitives::{
 	ApplyResult, generic, transaction_validity::TransactionValidity,
 	traits::{
-		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, CurrencyToVoteHandler, AuthorityIdFor
+		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, CurrencyToVoteHandler, AuthorityIdFor, Convert
 	}
 };
 use version::RuntimeVersion;
@@ -235,7 +235,23 @@ impl grandpa::Trait for Runtime {
 	type Event = Event;
 }
 
-impl parachains::Trait for Runtime {}
+pub struct ParaIdOfAccount;
+impl Convert<AccountId, Option<parachain::Id>> for ParaIdOfAccount {
+	fn convert(_x: AccountId) -> Option<parachain::Id> {
+		unimplemented!()
+	}
+}
+pub struct AccountIdOfPara;
+impl Convert<parachain::Id, AccountId> for AccountIdOfPara {
+	fn convert(_x: parachain::Id) -> AccountId {
+		unimplemented!()
+	}
+}
+
+impl parachains::Trait for Runtime {
+	type ParaIdOfAccount = ParaIdOfAccount;
+	type AccountIdOfPara = AccountIdOfPara;
+}
 
 impl slots::Trait for Runtime {
 	type Event = Event;
@@ -274,7 +290,7 @@ construct_runtime!(
 		CouncilSeats: council_seats::{Config<T>},
 		Treasury: treasury,
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
-		Slots: slots,
+		Slots: slots::{Module, Call, Storage, Event<T>},
 		Sudo: sudo,
 	}
 );

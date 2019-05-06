@@ -50,6 +50,7 @@ impl EcdsaSignature {
 		r[64] = self.2 as u8;
 		r
 	}
+	#[cfg(test)]
 	pub fn from_blob(blob: &[u8; 65]) -> Self {
 		let mut r = Self([0u8; 32], [0u8; 32], 0);
 		r.0[..].copy_from_slice(&blob[0..32]);
