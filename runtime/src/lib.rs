@@ -79,7 +79,7 @@ use client::{
 use inherents::CheckInherentsResult;
 use sr_primitives::{
 	ApplyResult, generic, transaction_validity::TransactionValidity,
-	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, AuthorityIdFor, CurrencyToVoteHandler}
+	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, AuthorityIdFor, Convert}
 };
 use version::RuntimeVersion;
 use grandpa::fg_primitives::{self, ScheduledChange};
@@ -176,6 +176,20 @@ impl session::Trait for Runtime {
 	type ConvertAccountIdToSessionKey = ();
 	type OnSessionChange = Staking;
 	type Event = Event;
+}
+
+pub struct CurrencyToVoteHandler;
+
+impl CurrencyToVoteHandler {
+	fn factor() -> u128 { (Balances::total_issuance() / u64::max_value() as u128).max(1) }
+}
+
+impl Convert<u128, u64> for CurrencyToVoteHandler {
+	fn convert(x: u128) -> u64 { (x / Self::factor()) as u64 }
+}
+
+impl Convert<u128, u128> for CurrencyToVoteHandler {
+	fn convert(x: u128) -> u128 { x * Self::factor() }
 }
 
 impl staking::Trait for Runtime {
