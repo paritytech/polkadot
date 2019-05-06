@@ -18,12 +18,15 @@
 //! mechanism, for locking balance as part of the "payment", and to provide the requisite information for commissioning
 //! and decommissioning them.
 
-use rstd::{prelude::*, result};
-use sr_primitives::traits::{CheckedSub, SimpleArithmetic, Zero, As, Convert};
+use rstd::{prelude::*, result, mem::swap};
+use std::convert::{TryFrom, TryInto};
+use sr_io::blake2_256;
+use sr_primitives::traits::{CheckedSub, SimpleArithmetic, StaticLookup, Zero, As, Convert};
 use codec::Decode;
 use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement}};
 use crate::parachains::ParachainRegistrar;
+use system::ensure_signed;
 
 /// A compactly represented sub-range from the series (0, 1, 2, 3).
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
@@ -81,10 +84,6 @@ impl SlotRange {
 		}.ok_or("range ends too late")
 	}
 
-	fn lookup<T>(self, a: &[T; SLOT_RANGE_COUNT]) -> &T {
-		&a[self as u8 as usize]
-	}
-
 	fn as_pair(&self) -> (u8, u8) {
 		match self {
 			SlotRange::ZeroZero => (0, 0),
@@ -106,6 +105,10 @@ impl SlotRange {
 		a.1 >= b.0 || b.1 >= a.0
 	}
 
+	fn lookup<T>(self, a: &[T; SLOT_RANGE_COUNT]) -> &T {
+		&a[self as u8 as usize]
+	}
+
 	fn contains(&self, i: usize) -> bool {
 		match self {
 			SlotRange::ZeroZero => i == 0,
@@ -122,8 +125,31 @@ impl SlotRange {
 	}
 }
 
+impl TryFrom<usize> for SlotRange {
+	type Error = ();
+	fn try_from(x: usize) -> Result<SlotRange, ()> {
+		Ok(match x {
+			0 => SlotRange::ZeroZero,
+			1 => SlotRange::ZeroOne,
+			2 => SlotRange::ZeroTwo,
+			3 => SlotRange::ZeroThree,
+			4 => SlotRange::OneOne,
+			5 => SlotRange::OneTwo,
+			6 => SlotRange::OneThree,
+			7 => SlotRange::TwoTwo,
+			8 => SlotRange::TwoThree,
+			9 => SlotRange::ThreeThree,
+			_ => return Err(()),
+		})
+	}
+}
+
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 type ParaIdOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
+type AccountIdOfParaOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>
+	::AccountIdOfPara;
+type ParaIdOfAccountOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>
+	::ParaIdOfAccount;
 
 /// The module's configuration trait.
 pub trait Trait: system::Trait {
@@ -191,7 +217,7 @@ decl_storage! {
 
 		/// The winning bids for each of the 10 ranges at each block in the final `ENDING_PERIOD` of the current
 		/// auction.
-		pub Winning get(winning): map u32 => WinningData<T>;
+		pub Winning get(winning): map u32 => Option<WinningData<T>>;
 
 		/// Amounts currently reserved in the accounts of the current winning bidders.
 		pub ReservedAmounts: map Bidder<T::AccountId, ParaIdOf<T>> => Option<BalanceOf<T>>;
@@ -218,6 +244,9 @@ decl_storage! {
 
 		/// Map from Blake2 hash to preimage for any code hashes contained in `Winners`.
 		pub CodeHash: map [u8; 32] => Vec<u8>;
+
+		/// The number of auctions that been started so far.
+		pub AuctionCounter: u32;
 	}
 }
 
@@ -241,7 +270,7 @@ decl_module! {
 				// unreserve all amounts
 				for (bidder, _) in winning_ranges.iter().filter_map(|x| x.as_ref()) {
 					if let Some(amount) = <ReservedAmounts<T>>::take(bidder) {
-						T::Currency::unreserve(&bidder.account_id::<<T::Parachains as ParachainRegistrar<T::AccountId>>::AccountIdOfPara>(), amount);
+						T::Currency::unreserve(&bidder.account_id::<AccountIdOfParaOf<T>>(), amount);
 					}
 				}
 
@@ -276,7 +305,7 @@ decl_module! {
 							// have held on deposit for them.
 							if let Some(additional) = amount.checked_sub(&Self::deposit_held(&para_id)) {
 								if T::Currency::withdraw(
-									&<T::Parachains as ParachainRegistrar<T::AccountId>>::AccountIdOfPara::convert(para_id.clone()),
+									&<AccountIdOfParaOf<T>>::convert(para_id.clone()),
 									additional,
 									WithdrawReason::Fee,
 									ExistenceRequirement::AllowDeath
@@ -294,7 +323,7 @@ decl_module! {
 					if let Some(offset) = index.checked_sub(current) {
 						let pair = range.as_pair();
 						let pair = (pair.0 as usize + offset, pair.1 as usize + offset + 1);
-						let deposits = <Deposits<T>>::mutate(para_id, |d| {
+						<Deposits<T>>::mutate(para_id, |d| {
 							if d.len() < pair.0 {
 								d.resize_with(pair.0, Default::default);
 							}
@@ -332,7 +361,7 @@ decl_module! {
 								let new_held = d.into_iter().max().unwrap_or_default();
 								if let Some(rebate) = outgoing.checked_sub(&new_held) {
 									T::Currency::deposit_creating(
-										&<T::Parachains as ParachainRegistrar<T::AccountId>>::AccountIdOfPara::convert(id.clone()),
+										&<AccountIdOfParaOf<T>>::convert(id.clone()),
 										rebate
 									);
 								}
@@ -361,19 +390,25 @@ decl_module! {
 				}
 			}
 		}
-/*
-		fn on_finalize(n: T::BlockNumber) {
+
+		fn on_finalize(now: T::BlockNumber) {
 			// if auction is_ending() copy previous block's winning to this block's winning if it's unset.
-			if Self::is_ending() {
-				if !<Winning<T>>::exists(now) {
-					<Winning<T>>::insert(now, <Winning<T>>::get(now - One::one()).unwrap_or_default());
+			if let Some(offset) = Self::is_ending(now) {
+				if !<Winning<T>>::exists(&offset) {
+					<Winning<T>>::insert(
+						offset,
+						offset.checked_sub(1).and_then(<Winning<T>>::get).unwrap_or_default()
+					);
 				}
 			}
 		}
 
 		/// Begin an auction.
 		fn new_auction(#[compact] duration: T::BlockNumber, #[compact] lease_period_index: LeasePeriodOf<T>) {
-			ensure!(!Self::auction_in_progress(), "auction already in progress");
+			ensure!(!Self::is_in_progress(), "auction already in progress");
+
+			// Bump the counter.
+			<AuctionCounter<T>>::mutate(|n| *n += 1);
 
 			// set the info
 			<AuctionInfo<T>>::put((lease_period_index, <system::Module<T>>::block_number() + duration));
@@ -381,45 +416,51 @@ decl_module! {
 
 		fn bid(origin,
 			#[compact] sub: SubId,
-			#[compact] auction_id: AuctionId,
-			#[compact] first_slot: T::LeasePeriodId,
-			#[compact] last_slot: T::LeasePeriodId,
-			#[compact] amount: BalanceOf<T>,
+			#[compact] auction_index: u32,
+			#[compact] first_slot: LeasePeriodOf<T>,
+			#[compact] last_slot: LeasePeriodOf<T>,
+			#[compact] amount: BalanceOf<T>
 		) {
 			let who = ensure_signed(origin)?;
 			// bidding on latest auction.
-			ensure!(auction_id + 1 == <AuctionCount<T>>::get(), "not current auction");
+			ensure!(auction_index == <AuctionCounter<T>>::get(), "not current auction");
 			// assume it's actually an auction (this should never fail because of above).
-			let first_lease_period = <AuctionInfo<T>>::get(&auction_id).ok_or("not an auction")?;
+			let (first_lease_period, _) = <AuctionInfo<T>>::get().ok_or("not an auction")?;
 
 			let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
 			let range_index = range as u8 as usize;
-			let now = <system::Module<T>>::now();
-			let mut current_winning = Self::winning(now)
-				.or_else(|| Self::winning(now - One::one()))
+			let offset = Self::is_ending(<system::Module<T>>::block_number()).unwrap_or_default();
+			let mut current_winning = <Winning<T>>::get(offset)
+				.or_else(|| offset.checked_sub(1).and_then(<Winning<T>>::get))
 				.unwrap_or_default();
+			if current_winning[range_index].as_ref().map_or(true, |last| amount > last.1) {
+				let bidder = Bidder::New(NewBidder{who: who.clone(), sub});
 
-			if amount > current_winning[range].1 {
 				// this must overlap with all existing ranges that we're winning or it's invalid.
 				ensure!(current_winning.iter()
 					.enumerate()
-					.all(|(i, x)| x.map_or(true, |(w, _)| w != bidder || range.intersects(i as u8 as SlotRange))),
+					.all(|(i, x)| x.as_ref().map_or(true, |(w, _)| w != &bidder || range.intersects(i.try_into()
+						.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
+					))),
 					"bidder winning non-intersecting range"
 				);
 
 				// new winner - reserve the additional amount and record
-				let bidder = Bidder::New(NewBidder{who: who.clone(), sub});
-				let already_reserved = <ReservedAmounts<T>>::get(bidder);
-				if let Some(additional) = amount.checked_sub(already_reserved) {
-					T::Currency::reserve(who, additional)?;
-					<ReservedAmounts<T>>::put(bidder, amount);
+				let already_reserved = <ReservedAmounts<T>>::get(&bidder).unwrap_or_default();
+				if let Some(additional) = amount.checked_sub(&already_reserved) {
+					T::Currency::reserve(&who, additional)?;
+					<ReservedAmounts<T>>::insert(&bidder, amount);
 				}
-				let outgoing_winner = current_winning[range].0;
-				current_winning[range] = (bidder, amount);
-				if current_winning.iter().all(|x| x.0 != outgoing_winner) {
-					// previous bidder no longer in winning set - unreserve their bid
-					let amount = <ReservedAmounts<T>>::take(&outgoing_winner);
-					let _ = T::Currency::unreserve(outgoing_winner.account_id(), amount);
+				let mut outgoing_winner = Some((bidder, amount));
+				swap(&mut current_winning[range_index], &mut outgoing_winner);
+				if let Some((who, _)) = outgoing_winner {
+					if current_winning.iter().filter_map(Option::as_ref).all(|&(ref other, _)| other != &who) {
+						// previous bidder no longer in winning set - unreserve their bid
+						if let Some(amount) = <ReservedAmounts<T>>::take(&who) {
+							// it really should be reserved; if it's not, then there's not much we can do here.
+							let _ = T::Currency::unreserve(&who.account_id::<AccountIdOfParaOf<T>>(), amount);
+						}
+					}
 				}
 			}
 		}
@@ -427,16 +468,18 @@ decl_module! {
 		fn parachain_bid(origin,
 			#[compact] sub_id: SubId,
 			#[compact] auction_id: AuctionId,
-			#[compact] first_slot: T::LeasePeriodId,
-			#[compact] last_slot: T::LeasePeriodId,
-			#[compact] amount: BalanceOf<T>,
+			#[compact] first_slot: LeasePeriodOf<T>,
+			#[compact] last_slot: LeasePeriodOf<T>,
+			#[compact] amount: BalanceOf<T>
 		) {
 			unimplemented!()
 		}
 
 		fn set_offboarding(origin, dest: <T::Lookup as StaticLookup>::Source) {
-			let who = T::Lookup::lookup(ensure_signed(origin)?)?;
-			let para_id = ParaId::try_from(who).ok_or("not a parachain origin")?;
+			let who = ensure_signed(origin)?;
+			let dest = T::Lookup::lookup(dest)?;
+			let para_id = <ParaIdOfAccountOf<T>>::convert(who)
+				.ok_or("not a parachain origin")?;
 			<Offboarding<T>>::insert(para_id, dest);
 		}
 
@@ -450,14 +493,14 @@ decl_module! {
 			let code_hash = blake2_256(&code);
 			ensure!(!<CodeHash<T>>::exists(&code_hash), "Parachain code blob already in use");
 
-			let ours = IncomingParachain::Unset(Bidder::New(NewBidder{who: who.clone(), sub}));
+			let ours = IncomingParachain::Unset(NewBidder{who: who.clone(), sub});
 			<Onboarding<T>>::mutate(lease_period_index, |starters|
-				if let Some(&mut item) = starters.iter_mut().find(|ref x| x.0 == ours) {
+				if let Some(item) = starters.iter_mut().find(|ref x| x.1 == ours) {
 					<CodeHash<T>>::insert(&code_hash, &code);
-					item.0 = IncomingParachain::Deploy((code_hash, initial_head_data))
+					item.1 = IncomingParachain::Deploy{code_hash, initial_head_data}
 				}
 			)
-		}*/
+		}
 	}
 }
 
@@ -468,12 +511,16 @@ impl<T: Trait> Module<T> {
 	fn is_in_progress() -> bool {
 		<AuctionInfo<T>>::exists()
 	}
-	fn is_ending(now: T::BlockNumber) -> bool {
+	fn is_ending(now: T::BlockNumber) -> Option<u32> {
 		if let Some((_, early_end)) = <AuctionInfo<T>>::get() {
-			now >= early_end && now < early_end + T::BlockNumber::sa(ENDING_PERIOD as u64)
-		} else {
-			false
+			if let Some(after_early_end) = now.checked_sub(&early_end) {
+				let after_early_end = after_early_end.as_() as u32;
+				if after_early_end < ENDING_PERIOD {
+					return Some(after_early_end)
+				}
+			}
 		}
+		None
 	}
 	/// Some when the auction's end is known (with the end block number). None if it is unknown. If Some then
 	/// the block number must be at most the previous block and at least the previous block minus `ENDING_PERIOD`.
@@ -483,7 +530,7 @@ impl<T: Trait> Module<T> {
 				// Just ended!
 				let offset = u32::decode(&mut<system::Module<T>>::random_seed().as_ref())
 					.expect("secure hashes are always greater than 4 bytes; qed") % ENDING_PERIOD;
-				let res = <Winning<T>>::get(offset);
+				let res = <Winning<T>>::get(offset).unwrap_or_default();
 				for i in 0..ENDING_PERIOD {
 					<Winning<T>>::remove(i)
 				}
