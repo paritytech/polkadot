@@ -90,7 +90,7 @@ use client::{
 use sr_primitives::{
 	ApplyResult, generic, transaction_validity::TransactionValidity,
 	traits::{
-		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, CurrencyToVoteHandler, AuthorityIdFor
+		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Convert, AuthorityIdFor
 	}
 };
 use version::RuntimeVersion;
@@ -187,6 +187,22 @@ impl session::Trait for Runtime {
 	type OnSessionChange = Staking;
 	type Event = Event;
 }
+
+/// Converter for currencies to votes.
+pub struct CurrencyToVoteHandler;
+
+impl CurrencyToVoteHandler {
+	fn factor() -> u128 { (Balances::total_issuance() / u64::max_value() as u128).max(1) }
+}
+
+impl Convert<u128, u64> for CurrencyToVoteHandler {
+	fn convert(x: u128) -> u64 { (x / Self::factor()) as u64 }
+}
+
+impl Convert<u128, u128> for CurrencyToVoteHandler {
+	fn convert(x: u128) -> u128 { x * Self::factor() }
+}
+
 
 impl staking::Trait for Runtime {
 	type OnRewardMinted = Treasury;

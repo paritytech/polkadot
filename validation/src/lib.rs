@@ -547,7 +547,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 			parent_id,
 			parent_number: parent_header.number,
 			transaction_pool: self.transaction_pool.clone(),
-			slot_duration: self.aura_slot_duration,
+			slot_duration: self.aura_slot_duration.clone(),
 		})
 	}
 }
@@ -720,7 +720,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 
 		let runtime_api = self.client.runtime_api();
 
-		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client)?;
+		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false)?;
 
 		{
 			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
@@ -747,7 +747,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 						debug!("[{:?}] Pushed to the block.", ready.hash);
 						pending_size += encoded_size;
 					}
-					Err(client::error::Error(client::error::ErrorKind::ApplyExtrinsicFailed(ApplyError::FullBlock), _)) => {
+					Err(client::error::Error::ApplyExtrinsicFailed(ApplyError::FullBlock)) => {
 						debug!("Block is full, proceed with proposing.");
 						break;
 					}

@@ -18,6 +18,7 @@
 
 use validation::NetworkService;
 use substrate_network::Context as NetContext;
+use substrate_network::consensus_gossip::TopicNotification;
 use substrate_primitives::{NativeOrEncoded, ExecutionContext};
 use substrate_keyring::AuthorityKeyring;
 use {PolkadotProtocol};
@@ -52,25 +53,32 @@ impl Future for NeverExit {
 	}
 }
 
+fn clone_gossip(n: &TopicNotification) -> TopicNotification {
+	TopicNotification {
+		message: n.message.clone(),
+		sender: n.sender.clone(),
+	}
+}
+
 struct GossipRouter {
-	incoming_messages: mpsc::UnboundedReceiver<(Hash, Vec<u8>)>,
-	incoming_streams: mpsc::UnboundedReceiver<(Hash, mpsc::UnboundedSender<Vec<u8>>)>,
-	outgoing: Vec<(Hash, mpsc::UnboundedSender<Vec<u8>>)>,
-	messages: Vec<(Hash, Vec<u8>)>,
+	incoming_messages: mpsc::UnboundedReceiver<(Hash, TopicNotification)>,
+	incoming_streams: mpsc::UnboundedReceiver<(Hash, mpsc::UnboundedSender<TopicNotification>)>,
+	outgoing: Vec<(Hash, mpsc::UnboundedSender<TopicNotification>)>,
+	messages: Vec<(Hash, TopicNotification)>,
 }
 
 impl GossipRouter {
-	fn add_message(&mut self, topic: Hash, message: Vec<u8>) {
+	fn add_message(&mut self, topic: Hash, message: TopicNotification) {
 		self.outgoing.retain(|&(ref o_topic, ref sender)| {
-			o_topic != &topic || sender.unbounded_send(message.clone()).is_ok()
+			o_topic != &topic || sender.unbounded_send(clone_gossip(&message)).is_ok()
 		});
 		self.messages.push((topic, message));
 	}
 
-	fn add_outgoing(&mut self, topic: Hash, sender: mpsc::UnboundedSender<Vec<u8>>) {
+	fn add_outgoing(&mut self, topic: Hash, sender: mpsc::UnboundedSender<TopicNotification>) {
 		for message in self.messages.iter()
 			.filter(|&&(ref t, _)| t == &topic)
-			.map(|&(_, ref msg)| msg.clone())
+			.map(|&(_, ref msg)| clone_gossip(msg))
 		{
 			if let Err(_) = sender.unbounded_send(message) { return }
 		}
@@ -107,8 +115,8 @@ impl Future for GossipRouter {
 
 #[derive(Clone)]
 struct GossipHandle {
-	send_message: mpsc::UnboundedSender<(Hash, Vec<u8>)>,
-	send_listener: mpsc::UnboundedSender<(Hash, mpsc::UnboundedSender<Vec<u8>>)>,
+	send_message: mpsc::UnboundedSender<(Hash, TopicNotification)>,
+	send_listener: mpsc::UnboundedSender<(Hash, mpsc::UnboundedSender<TopicNotification>)>,
 }
 
 fn make_gossip() -> (GossipRouter, GossipHandle) {
@@ -132,14 +140,15 @@ struct TestNetwork {
 }
 
 impl NetworkService for TestNetwork {
-	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<Vec<u8>> {
+	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<TopicNotification> {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
 		rx
 	}
 
 	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
-		let _ = self.gossip.send_message.unbounded_send((topic, message));
+		let notification = TopicNotification { message, sender: None };
+		let _ = self.gossip.send_message.unbounded_send((topic, notification));
 	}
 
 	fn drop_gossip(&self, _topic: Hash) {}
@@ -232,6 +241,12 @@ impl ApiExt<Block> for RuntimeApi {
 
 	fn runtime_version_at(&self, _: &BlockId) -> ClientResult<RuntimeVersion> {
 		unimplemented!("Not required for testing!")
+	}
+
+	fn record_proof(&mut self) { }
+
+	fn extract_proof(&mut self) -> Option<Vec<Vec<u8>>> {
+		None
 	}
 }
 
