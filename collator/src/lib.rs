@@ -48,6 +48,7 @@ extern crate futures;
 extern crate substrate_client as client;
 extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;
+extern crate substrate_consensus_authorities as consensus_authorities;
 extern crate tokio;
 
 extern crate polkadot_cli;
@@ -75,11 +76,12 @@ use polkadot_primitives::parachain::{
 	self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic,
 	PoVBlock,
 };
-use polkadot_cli::{PolkadotService, CustomConfiguration, CoreApi, ParachainHost};
+use polkadot_cli::{PolkadotService, CustomConfiguration, ParachainHost};
 use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi, TaskExecutor};
 use polkadot_network::validation::{ValidationNetwork, SessionParams};
 use polkadot_network::NetworkService;
 use tokio::timer::Timeout;
+use consensus_authorities::AuthoritiesApi;
 
 pub use polkadot_cli::VersionInfo;
 pub use polkadot_network::validation::Incoming;
