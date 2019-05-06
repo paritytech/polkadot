@@ -58,7 +58,7 @@ pub enum SlotRange {
 const SLOT_RANGE_COUNT: usize = 10;
 
 impl SlotRange {
-	fn new_bounded<Index: SimpleArithmetic + Copy>(initial: Index, first: Index, last: Index) -> result::Result<Self, &'static str> {
+	pub fn new_bounded<Index: SimpleArithmetic + Copy>(initial: Index, first: Index, last: Index) -> result::Result<Self, &'static str> {
 		if first > last || first < initial || last > initial + Index::sa(3) {
 			return Err("Invalid range for this auction")
 		}
@@ -84,7 +84,7 @@ impl SlotRange {
 		}.ok_or("range ends too late")
 	}
 
-	fn as_pair(&self) -> (u8, u8) {
+	pub fn as_pair(&self) -> (u8, u8) {
 		match self {
 			SlotRange::ZeroZero => (0, 0),
 			SlotRange::ZeroOne => (0, 1),
@@ -99,29 +99,10 @@ impl SlotRange {
 		}
 	}
 
-	fn intersects(&self, other: SlotRange) -> bool {
+	pub fn intersects(&self, other: SlotRange) -> bool {
 		let a = self.as_pair();
 		let b = other.as_pair();
 		a.1 >= b.0 || b.1 >= a.0
-	}
-
-	fn lookup<T>(self, a: &[T; SLOT_RANGE_COUNT]) -> &T {
-		&a[self as u8 as usize]
-	}
-
-	fn contains(&self, i: usize) -> bool {
-		match self {
-			SlotRange::ZeroZero => i == 0,
-			SlotRange::ZeroOne => i <= 1,
-			SlotRange::ZeroTwo => i <= 2,
-			SlotRange::ZeroThree => i <= 3,
-			SlotRange::OneOne => i == 1,
-			SlotRange::OneTwo => i >= 1 && i <= 2,
-			SlotRange::OneThree => i >= 1 && i <= 3,
-			SlotRange::TwoTwo => i == 2,
-			SlotRange::TwoThree => i >= 2 && i <= 3,
-			SlotRange::ThreeThree => i == 3,
-		}
 	}
 }
 
@@ -164,7 +145,7 @@ pub trait Trait: system::Trait {
 }
 
 pub type SubId = u32;
-pub type AuctionId = u32;
+pub type AuctionIndex = u32;
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 pub struct NewBidder<AccountId> {
@@ -207,7 +188,6 @@ type WinnersData<T> = Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, P
 
 // TODO:
 // calculate_winners
-// parachain_bid
 // events
 // tests
 
@@ -246,7 +226,7 @@ decl_storage! {
 		pub CodeHash: map [u8; 32] => Vec<u8>;
 
 		/// The number of auctions that been started so far.
-		pub AuctionCounter: u32;
+		pub AuctionCounter: AuctionIndex;
 	}
 }
 
@@ -414,65 +394,32 @@ decl_module! {
 			<AuctionInfo<T>>::put((lease_period_index, <system::Module<T>>::block_number() + duration));
 		}
 
+		/// Make a new bid from an account (including a parachain account) for deploying a new parachain.
 		fn bid(origin,
 			#[compact] sub: SubId,
-			#[compact] auction_index: u32,
+			#[compact] auction_index: AuctionIndex,
 			#[compact] first_slot: LeasePeriodOf<T>,
 			#[compact] last_slot: LeasePeriodOf<T>,
 			#[compact] amount: BalanceOf<T>
 		) {
 			let who = ensure_signed(origin)?;
-			// bidding on latest auction.
-			ensure!(auction_index == <AuctionCounter<T>>::get(), "not current auction");
-			// assume it's actually an auction (this should never fail because of above).
-			let (first_lease_period, _) = <AuctionInfo<T>>::get().ok_or("not an auction")?;
-
-			let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
-			let range_index = range as u8 as usize;
-			let offset = Self::is_ending(<system::Module<T>>::block_number()).unwrap_or_default();
-			let mut current_winning = <Winning<T>>::get(offset)
-				.or_else(|| offset.checked_sub(1).and_then(<Winning<T>>::get))
-				.unwrap_or_default();
-			if current_winning[range_index].as_ref().map_or(true, |last| amount > last.1) {
-				let bidder = Bidder::New(NewBidder{who: who.clone(), sub});
-
-				// this must overlap with all existing ranges that we're winning or it's invalid.
-				ensure!(current_winning.iter()
-					.enumerate()
-					.all(|(i, x)| x.as_ref().map_or(true, |(w, _)| w != &bidder || range.intersects(i.try_into()
-						.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
-					))),
-					"bidder winning non-intersecting range"
-				);
-
-				// new winner - reserve the additional amount and record
-				let already_reserved = <ReservedAmounts<T>>::get(&bidder).unwrap_or_default();
-				if let Some(additional) = amount.checked_sub(&already_reserved) {
-					T::Currency::reserve(&who, additional)?;
-					<ReservedAmounts<T>>::insert(&bidder, amount);
-				}
-				let mut outgoing_winner = Some((bidder, amount));
-				swap(&mut current_winning[range_index], &mut outgoing_winner);
-				if let Some((who, _)) = outgoing_winner {
-					if current_winning.iter().filter_map(Option::as_ref).all(|&(ref other, _)| other != &who) {
-						// previous bidder no longer in winning set - unreserve their bid
-						if let Some(amount) = <ReservedAmounts<T>>::take(&who) {
-							// it really should be reserved; if it's not, then there's not much we can do here.
-							let _ = T::Currency::unreserve(&who.account_id::<AccountIdOfParaOf<T>>(), amount);
-						}
-					}
-				}
-			}
+			let bidder = Bidder::New(NewBidder{who: who.clone(), sub});
+			Self::handle_bid(who, bidder, auction_index, first_slot, last_slot, amount)?;
 		}
 
-		fn parachain_bid(origin,
-			#[compact] sub_id: SubId,
-			#[compact] auction_id: AuctionId,
+		/// Make a new bid from a parachain account for renewing that (pre-existing) parachain.
+		///
+		/// The origin must be a parachain account.
+		fn bid_renew(origin,
+			#[compact] auction_index: AuctionIndex,
 			#[compact] first_slot: LeasePeriodOf<T>,
 			#[compact] last_slot: LeasePeriodOf<T>,
 			#[compact] amount: BalanceOf<T>
 		) {
-			unimplemented!()
+			let who = ensure_signed(origin)?;
+			let para_id = <ParaIdOfAccountOf<T>>::convert(who.clone()).ok_or("account is not a parachain")?;
+			let bidder = Bidder::Existing(para_id);
+			Self::handle_bid(who, bidder, auction_index, first_slot, last_slot, amount)?;
 		}
 
 		fn set_offboarding(origin, dest: <T::Lookup as StaticLookup>::Source) {
@@ -539,6 +486,61 @@ impl<T: Trait> Module<T> {
 			}
 		}
 		None
+	}
+
+	fn handle_bid(
+		who: T::AccountId,
+		bidder: Bidder<T::AccountId, ParaIdOf<T>>,
+		auction_index: u32,
+		first_slot: LeasePeriodOf<T>,
+		last_slot: LeasePeriodOf<T>,
+		amount: BalanceOf<T>
+	) -> Result<(), &'static str> {
+		// bidding on latest auction.
+		ensure!(auction_index == <AuctionCounter<T>>::get(), "not current auction");
+		// assume it's actually an auction (this should never fail because of above).
+		let (first_lease_period, _) = <AuctionInfo<T>>::get().ok_or("not an auction")?;
+
+		let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
+		let range_index = range as u8 as usize;
+		let offset = Self::is_ending(<system::Module<T>>::block_number()).unwrap_or_default();
+		let mut current_winning = <Winning<T>>::get(offset)
+			.or_else(|| offset.checked_sub(1).and_then(<Winning<T>>::get))
+			.unwrap_or_default();
+		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.1) {
+			// this must overlap with all existing ranges that we're winning or it's invalid.
+			ensure!(current_winning.iter()
+				.enumerate()
+				.all(|(i, x)| x.as_ref().map_or(true, |(w, _)| w != &bidder || range.intersects(i.try_into()
+					.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
+				))),
+				"bidder winning non-intersecting range"
+			);
+
+			// new winner - reserve the additional amount and record
+			let deposit_held = if let Bidder::Existing(ref bidder_para_id) = bidder {
+				Self::deposit_held(bidder_para_id)
+			} else {
+				Zero::zero()
+			};
+			let already_reserved = <ReservedAmounts<T>>::get(&bidder).unwrap_or_default() + deposit_held;
+			if let Some(additional) = amount.checked_sub(&already_reserved) {
+				T::Currency::reserve(&who, additional)?;
+				<ReservedAmounts<T>>::insert(&bidder, amount);
+			}
+			let mut outgoing_winner = Some((bidder, amount));
+			swap(&mut current_winning[range_index], &mut outgoing_winner);
+			if let Some((who, _)) = outgoing_winner {
+				if current_winning.iter().filter_map(Option::as_ref).all(|&(ref other, _)| other != &who) {
+					// previous bidder no longer in winning set - unreserve their bid
+					if let Some(amount) = <ReservedAmounts<T>>::take(&who) {
+						// it really should be reserved; if it's not, then there's not much we can do here.
+						let _ = T::Currency::unreserve(&who.account_id::<AccountIdOfParaOf<T>>(), amount);
+					}
+				}
+			}
+		}
+		Ok(())
 	}
 
 	fn calculate_winning(_winning: WinningData<T>) -> WinnersData<T> {
