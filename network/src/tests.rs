@@ -21,15 +21,16 @@ use consensus::{CurrentConsensus, Knowledge};
 
 use parking_lot::Mutex;
 use polkadot_consensus::GenericStatement;
-use polkadot_primitives::{Block, SessionKey};
+use polkadot_primitives::{Block, SessionKey, Hash, BlockNumber};
 use polkadot_primitives::parachain::{CandidateReceipt, CollatorId, HeadData, BlockData};
 use substrate_primitives::crypto::UncheckedInto;
 use codec::Encode;
 use substrate_network::{
 	Severity, PeerId, PeerInfo, ClientHandle, Context, config::Roles,
-	message::Message as SubstrateMessage, specialization::NetworkSpecialization,
-	generic_message::Message as GenericMessage
+	specialization::NetworkSpecialization,
+	generic_message::{BlockRequest, Message as GenericMessage},
 };
+use substrate_network::consensus_gossip::ConsensusMessage;
 
 use std::sync::Arc;
 use futures::Future;
@@ -38,7 +39,7 @@ use futures::Future;
 struct TestContext {
 	disabled: Vec<PeerId>,
 	disconnected: Vec<PeerId>,
-	messages: Vec<(PeerId, SubstrateMessage<Block>)>,
+	messages: Vec<(PeerId, Vec<u8>)>,
 }
 
 impl Context<Block> for TestContext {
@@ -57,20 +58,25 @@ impl Context<Block> for TestContext {
 		unimplemented!()
 	}
 
-	fn send_message(&mut self, who: PeerId, data: SubstrateMessage<Block>) {
+	fn send_consensus(&mut self, _who: PeerId, _message: ConsensusMessage) {
+		unimplemented!()
+	}
+
+	fn send_chain_specific(&mut self, who: PeerId, data: Vec<u8>) {
 		self.messages.push((who, data))
+	}
+
+	fn send_block_request(&mut self, _who: PeerId, _message: BlockRequest<Hash, BlockNumber>) {
+		unimplemented!()
 	}
 }
 
 impl TestContext {
 	fn has_message(&self, to: PeerId, message: Message) -> bool {
-		use substrate_network::generic_message::Message as GenericMessage;
-
 		let encoded = message.encode();
-		self.messages.iter().any(|&(ref peer, ref msg)| match msg {
-			GenericMessage::ChainSpecific(ref data) => peer == &to && data == &encoded,
-			_ => false,
-		})
+		self.messages.iter().any(|&(ref peer, ref data)|
+			peer == &to && data == &encoded
+		)
 	}
 }
 
