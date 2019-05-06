@@ -183,22 +183,43 @@ construct_service_factory! {
 						key.clone()
 					};
 
-					let voter = grandpa::run_grandpa(
-						grandpa::Config {
-							// TODO: make gossip_duration available through chainspec
-							// https://github.com/paritytech/substrate/issues/1578
-							gossip_duration: Duration::new(4, 0),
-							local_key,
-							justification_period: 4096,
-							name: Some(service.config.name.clone()),
-						},
-						link_half,
-						grandpa::NetworkBridge::new(service.network()),
-						service.config.custom.inherent_data_providers.clone(),
-						service.on_exit(),
-					)?;
+					let config = grandpa::Config {
+						local_key,
+						// FIXME #1578 make this available through chainspec
+						gossip_duration: Duration::from_millis(333),
+						justification_period: 4096,
+						name: Some(service.config.name.clone())
+					};
 
-					executor.spawn(voter);
+					match config.local_key {
+						None => {
+							executor.spawn(grandpa::run_grandpa_observer(
+								config,
+								link_half,
+								service.network(),
+								service.on_exit(),
+							)?);
+						},
+						Some(_) => {
+							use service::TelemetryOnConnect;
+
+							let telemetry_on_connect = TelemetryOnConnect {
+								on_exit: Box::new(service.on_exit()),
+								telemetry_connection_sinks: service.telemetry_on_connect_stream(),
+								executor: &executor,
+							};
+
+							let grandpa_config = grandpa::GrandpaParams {
+								config: config,
+								link: link_half,
+								network: service.network(),
+								inherent_data_providers: service.config.custom.inherent_data_providers.clone(),
+								on_exit: service.on_exit(),
+								telemetry_on_connect: Some(telemetry_on_connect),
+							};
+							executor.spawn(grandpa::run_grandpa_voter(grandpa_config)?);
+						},
+					}
 				}
 
 				let extrinsic_store = {
