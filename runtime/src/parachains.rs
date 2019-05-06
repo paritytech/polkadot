@@ -45,7 +45,7 @@ pub trait TryFrom<T> {
 /// Parachain registration API.
 pub trait ParachainRegistrar<AccountId> {
 	/// An identifier for a parachain.
-	type ParaId: Member + Parameter;
+	type ParaId: Member + Parameter + Default;
 
 	type ParaIdOfAccount: Convert<AccountId, Option<Self::ParaId>>;
 

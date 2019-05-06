@@ -18,7 +18,7 @@
 //! mechanism, for locking balance as part of the "payment", and to provide the requisite information for commissioning
 //! and decommissioning them.
 
-use rstd::{prelude::*, result, mem::swap};
+use rstd::{prelude::*, result, mem::swap, ops::Add};
 use std::convert::{TryFrom, TryInto};
 use sr_io::blake2_256;
 use sr_primitives::traits::{CheckedSub, SimpleArithmetic, StaticLookup, Zero, As, Convert};
@@ -58,7 +58,11 @@ pub enum SlotRange {
 const SLOT_RANGE_COUNT: usize = 10;
 
 impl SlotRange {
-	pub fn new_bounded<Index: SimpleArithmetic + Copy>(initial: Index, first: Index, last: Index) -> result::Result<Self, &'static str> {
+	pub fn new_bounded<Index: Add<Output=Index> + CheckedSub + As<u64> + Copy + Ord>(
+		initial: Index,
+		first: Index,
+		last: Index
+	) -> result::Result<Self, &'static str> {
 		if first > last || first < initial || last > initial + Index::sa(3) {
 			return Err("Invalid range for this auction")
 		}
@@ -103,6 +107,21 @@ impl SlotRange {
 		let a = self.as_pair();
 		let b = other.as_pair();
 		a.1 >= b.0 || b.1 >= a.0
+	}
+
+	pub fn len(&self) -> usize {
+		match self {
+			SlotRange::ZeroZero => 1,
+			SlotRange::ZeroOne => 2,
+			SlotRange::ZeroTwo => 3,
+			SlotRange::ZeroThree => 4,
+			SlotRange::OneOne => 1,
+			SlotRange::OneTwo => 2,
+			SlotRange::OneThree => 3,
+			SlotRange::TwoTwo => 1,
+			SlotRange::TwoThree => 2,
+			SlotRange::ThreeThree => 1,
+		}
 	}
 }
 
@@ -543,10 +562,47 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
-	fn calculate_winning(_winning: WinningData<T>) -> WinnersData<T> {
-		unimplemented!()
+	fn calculate_winning(mut winning: WinningData<T>) -> WinnersData<T> {
+		let winning_ranges = {
+			let mut best_winners_ending_at: [(Vec<SlotRange>, BalanceOf<T>); 4] = Default::default();
+			let best_bid = |range: SlotRange| {
+				winning[range as u8 as usize].as_ref()
+					.map(|(_, amount)| *amount * <BalanceOf<T>>::sa(range.len() as u64))
+			};
+			for i in 0..4 {
+				let r = SlotRange::new_bounded(0, 0, i).expect("`i < 4`; qed");
+				if let Some(bid) = best_bid(r) {
+					best_winners_ending_at[i] = (vec![r], bid);
+				}
+				for j in 0..i {
+					let r = SlotRange::new_bounded(0, j + 1, i).expect("`i < 4`; `j < i`; `j + 1 < 4`; qed");
+					if let Some(mut bid) = best_bid(r) {
+						bid += best_winners_ending_at[j].1;
+						if bid > best_winners_ending_at[i].1 {
+							let mut new_winners = best_winners_ending_at[j].0.clone();
+							new_winners.push(r);
+							best_winners_ending_at[i] = (new_winners, bid);
+						}
+					}
+				}
+			}
+			let [_, _, _, (winning_ranges, _)] = best_winners_ending_at;
+			winning_ranges
+		};
+
+		winning_ranges.into_iter().map(|r| {
+			let mut final_winner = (Bidder::Existing(Default::default()), Default::default());
+			swap(&mut final_winner, winning[r as u8 as usize].as_mut()
+				.expect("none values are filtered out in previous logic; qed"));
+			let (slot_winner, bid) = final_winner;
+			match slot_winner {
+				Bidder::New(new_bidder) => (Some(new_bidder), T::Parachains::new_id(), bid, r),
+				Bidder::Existing(para_id) => (None, para_id, bid, r),
+			}
+		}).collect::<Vec<_>>()
 	}
 }
+
 
 /// tests for this module
 #[cfg(test)]
