@@ -51,6 +51,7 @@ extern crate substrate_consensus_aura as aura;
 extern crate substrate_consensus_aura_primitives as aura_primitives;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
+extern crate substrate_consensus_authorities as consensus_authorities;
 
 #[macro_use]
 extern crate error_chain;
@@ -72,7 +73,6 @@ use aura::SlotDuration;
 use client::{BlockchainEvents, ChainHead, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
-use client::runtime_api::Core;
 use codec::Encode;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
@@ -87,6 +87,7 @@ use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyEr
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
+use consensus_authorities::AuthoritiesApi;
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
@@ -468,7 +469,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuthoritiesApi<Block>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,

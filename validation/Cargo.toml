@@ -27,6 +27,7 @@ srml-aura = { git = "https://github.com/paritytech/substrate", branch = "polkado
 substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-consensus-authorities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
