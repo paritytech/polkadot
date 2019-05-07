@@ -10,17 +10,15 @@ Implementation of a https://polkadot.network node in Rust.
 
 In 2017 we split our implementation of "Polkadot" from its platform-level component "Substrate". When we split them, we split the Polkadot code off into another repo (this repo), leaving the link:https://github.com/paritytech/substrate[**Substrate** repo] to be what used to be Polkadot, along with its branches and releases.
 
-We are actively building both Substrate and Polkadot, but things will be a little odd for a while.
+We are actively building both Substrate and Polkadot, but things will be a little odd for a while.  If you see "substrate" and are wondering why you need it for Polkadot, now you know.
 
-To play on the ("Alexander") testnet, you'll want the PoC-3 code which is in this **Polkadot** repo.
+To play on the ("Alexander") testnet, you'll want the PoC-4 code which is in this **Polkadot** repo.  Note that PoC-3 uses the Alexander testnet, but will not be able to sync to the latest block.
+
+* **Polkadot PoC-4 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.4[**Polkadot**]repo branch `v0.4`
 
 * **Polkadot PoC-3 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.3[**Polkadot**]repo branch `v0.3`
 
 * **Polkadot PoC-2 "Krumme Lanke"** is in the link:https://github.com/paritytech/substrate/tree/v0.2[**Substrate**] repo branch `v0.2`
-
-If you see "substrate" and are wondering why you need it for Polkadot, now you know.
-
-Note that **Polkadot PoC-4** is yet to be released and *will be* in branch `v0.4` in this **Polkadot** repo.
 
 
 == To play
@@ -43,7 +41,32 @@ If you already have Rust installed, make sure you're using the latest version by
 rustup update
 ----
 
+=== Install PoC-4 on "Alexander" Testnet
+
+Build Polkadot PoC-4 by cloning this repository and running the following commands from the root directory of the repo:
+
+```bash
+git checkout v0.4
+./scripts/init.sh
+./scripts/build.sh
+cargo build --release
+```
+
+If you were previously running PoC-3 on this testnet, you may need to purge your chain data first:
+
+```bash
+./target/release/polkadot purge-chain
+```
+
+Finally, connect to the global "Alexander" testnet by default by running:
+
+```bash
+./target/release/polkadot
+```
+
 === Install PoC-3 "Alexander" Testnet
+
+_Note: Connecting to the current Alexander testnet with this version will not allow synchronization._
 
 Install Polkadot PoC-3 and have a `polkadot` binary installed to your `PATH` with:
 
@@ -81,7 +104,7 @@ cargo install --git https://github.com/paritytech/substrate.git --tag v0.2.5 pol
 
 === Obtaining DOTs
 
-If you want to do anything on it (not that there's much to do), then you'll need to get an account and some Alexander or Krumme Lanke DOTs. Ask in the Polkadot watercooler ( https://riot.im/app/#/room/#polkadot-watercooler:matrix.org ).
+If you want to do anything on it (not that there's much to do), then you'll need to get an account and some Alexander or Krumme Lanke DOTs. Ask in the Polkadot watercooler ( https://riot.im/app/#/room/#polkadot-watercooler:matrix.org ) or get some from the Polkadot Testnet Faucet ( https://faucet.polkadot.network/ ).
 
 === Development
 

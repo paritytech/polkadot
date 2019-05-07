@@ -73,9 +73,6 @@ use std::collections::{HashMap, HashSet};
 #[cfg(test)]
 mod tests;
 
-/// Polkadot protocol id.
-pub const DOT_PROTOCOL_ID: ::substrate_network::ProtocolId = *b"dot";
-
 type FullStatus = GenericFullStatus<Block>;
 
 /// Specialization of the network service for the polkadot protocol.
@@ -188,7 +185,7 @@ pub enum Message {
 fn send_polkadot_message(ctx: &mut Context<Block>, to: PeerId, message: Message) {
 	trace!(target: "p_net", "Sending polkadot message to {}: {:?}", to, message);
 	let encoded = message.encode();
-	ctx.send_message(to, generic_message::Message::ChainSpecific(encoded))
+	ctx.send_chain_specific(to, encoded)
 }
 
 /// Polkadot protocol attachment for substrate.

@@ -21,6 +21,7 @@
 
 use sr_primitives::traits::{BlakeTwo256, ProvideRuntimeApi, Hash as HashT};
 use substrate_network::Context as NetContext;
+use substrate_network::consensus_gossip::{TopicNotification, MessageRecipient as GossipMessageRecipient};
 use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, Message, CandidateReceipt, CollatorId, ValidatorId, PoVBlock, ValidatorIndex};
@@ -73,7 +74,7 @@ impl Executor for TaskExecutor {
 /// Basic functionality that a network has to fulfill.
 pub trait NetworkService: Send + Sync + 'static {
 	/// Get a stream of gossip messages for a given hash.
-	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<Vec<u8>>;
+	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<TopicNotification>;
 
 	/// Gossip a message on given topic.
 	fn gossip_message(&self, topic: Hash, message: Vec<u8>);
@@ -87,7 +88,7 @@ pub trait NetworkService: Send + Sync + 'static {
 }
 
 impl NetworkService for super::NetworkService {
-	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<Vec<u8>> {
+	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<TopicNotification> {
 		let (tx, rx) = std::sync::mpsc::channel();
 
 		self.with_gossip(move |gossip, _| {
@@ -102,7 +103,12 @@ impl NetworkService for super::NetworkService {
 	}
 
 	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
-		self.gossip_consensus_message(topic, POLKADOT_ENGINE_ID, message, false);
+		self.gossip_consensus_message(
+			topic,
+			POLKADOT_ENGINE_ID,
+			message,
+			GossipMessageRecipient::BroadcastToAll,
+		);
 	}
 
 	fn drop_gossip(&self, _topic: Hash) { }
@@ -786,7 +792,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 
 			let gossip_messages = self.network().gossip_messages_for(topic)
 				.map_err(|()| panic!("unbounded receivers do not throw errors; qed"))
-				.filter_map(|msg| IngressPair::decode(&mut msg.as_slice()));
+				.filter_map(|msg| IngressPair::decode(&mut msg.message.as_slice()));
 
 			let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
 				.map_err(|e| format!("Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
