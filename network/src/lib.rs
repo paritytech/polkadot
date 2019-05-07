@@ -60,7 +60,7 @@ use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
 	ConsolidatedIngressRoots,
 };
-use substrate_network::{PeerId, RequestId, Context, Severity};
+use substrate_network::{PeerId, RequestId, Context};
 use substrate_network::{message, generic_message};
 use substrate_network::specialization::NetworkSpecialization as Specialization;
 use substrate_network::StatusMessage as GenericFullStatus;
@@ -72,6 +72,15 @@ use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
 mod tests;
+
+mod cost {
+	pub(super) const UNEXPECTED_MESSAGE: i32 = -200;
+	pub(super) const INVALID_FORMAT: i32 = -200;
+
+	pub(super) const UNKNOWN_PEER: i32 = -50;
+	pub(super) const COLLATOR_ALREADY_KNOWN: i32 = -100;
+	pub(super) const BAD_COLLATION: i32 = -1000;
+}
 
 type FullStatus = GenericFullStatus<Block>;
 
@@ -352,7 +361,7 @@ impl PolkadotProtocol {
 			Message::PovBlock(req_id, data) => self.on_pov_block(ctx, who, req_id, data),
 			Message::BlockData(_req_id, _data) => {
 				// current block data is never requested bare by the node.
-				ctx.report_peer(who, Severity::Bad("Peer sent un-requested block data".to_string()));
+				ctx.report_peer(who, cost::UNEXPECTED_MESSAGE);
 			}
 			Message::Collation(relay_parent, collation) => self.on_collation(ctx, who, relay_parent, collation),
 			Message::CollatorRole(role) => self.on_new_role(ctx, who, role),
@@ -370,7 +379,7 @@ impl PolkadotProtocol {
 			};
 
 			if !info.claimed_validator {
-				ctx.report_peer(who, Severity::Bad("Session key broadcasted without setting authority role".to_string()));
+				ctx.report_peer(who, cost::UNEXPECTED_MESSAGE);
 				return;
 			}
 
@@ -419,7 +428,7 @@ impl PolkadotProtocol {
 				self.pending.push(req);
 				self.dispatch_pending_requests(ctx);
 			}
-			None => ctx.report_peer(who, Severity::Bad("Unexpected block data response".to_string())),
+			None => ctx.report_peer(who, cost::UNEXPECTED_MESSAGE),
 		}
 	}
 
@@ -436,10 +445,7 @@ impl PolkadotProtocol {
 		debug!(target: "p_net", "New collator role {:?} from {}", role, who);
 
 		if info.validator_keys.as_slice().is_empty() {
-			ctx.report_peer(
-				who,
-				Severity::Bad("Sent collator role without registering first as validator".to_string()),
-			);
+			ctx.report_peer(who, cost::UNEXPECTED_MESSAGE);
 		} else {
 			// update role for all saved session keys for this validator.
 			let local_collations = &mut self.local_collations;
@@ -484,7 +490,7 @@ impl Specialization<Block> for PolkadotProtocol {
 
 		if let Some((ref acc_id, ref para_id)) = local_status.collating_for {
 			if self.collator_peer(acc_id.clone()).is_some() {
-				ctx.report_peer(who, Severity::Useless("Unknown Polkadot-specific reason".to_string()));
+				ctx.report_peer(who, cost::COLLATOR_ALREADY_KNOWN);
 				return
 			}
 
@@ -563,7 +569,7 @@ impl Specialization<Block> for PolkadotProtocol {
 					Some(msg) => self.on_polkadot_message(ctx, who, msg),
 					None => {
 						trace!(target: "p_net", "Bad message from {}", who);
-						ctx.report_peer(who, Severity::Bad("Invalid polkadot protocol message format".to_string()));
+						ctx.report_peer(who, cost::INVALID_FORMAT);
 						*message = Some(generic_message::Message::ChainSpecific(raw));
 					}
 				}
@@ -607,16 +613,16 @@ impl PolkadotProtocol {
 		let collated_acc = collation.receipt.collator.clone();
 
 		match self.peers.get(&from) {
-			None => ctx.report_peer(from, Severity::Useless("Unknown Polkadot specific reason".to_string())),
+			None => ctx.report_peer(from, cost::UNKNOWN_PEER),
 			Some(peer_info) => match peer_info.collating_for {
-				None => ctx.report_peer(from, Severity::Bad("Sent collation without registering collator intent".to_string())),
+				None => ctx.report_peer(from, cost::UNEXPECTED_MESSAGE),
 				Some((ref acc_id, ref para_id)) => {
 					let structurally_valid = para_id == &collation_para && acc_id == &collated_acc;
 					if structurally_valid && collation.receipt.check_signature().is_ok() {
 						debug!(target: "p_net", "Received collation for parachain {:?} from peer {}", para_id, from);
 						self.collators.on_collation(acc_id.clone(), relay_parent, collation)
 					} else {
-						ctx.report_peer(from, Severity::Bad("Sent malformed collation".to_string()))
+						ctx.report_peer(from, cost::INVALID_FORMAT)
 					};
 				}
 			},
@@ -647,7 +653,7 @@ impl PolkadotProtocol {
 	// disconnect a collator by account-id.
 	fn disconnect_bad_collator(&mut self, ctx: &mut Context<Block>, collator_id: CollatorId) {
 		if let Some((who, _)) = self.collator_peer(collator_id) {
-			ctx.report_peer(who, Severity::Bad("Consensus layer determined the given collator misbehaved".to_string()))
+			ctx.report_peer(who, cost::BAD_COLLATION)
 		}
 	}
 }
