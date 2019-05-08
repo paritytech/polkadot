@@ -16,15 +16,17 @@
 
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
-use rstd::{result, prelude::*};
+use rstd::prelude::*;
 use codec::Decode;
 
 use bitvec::BigEndian;
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, Convert};
-use primitives::{Hash, parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement}};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member};
+use primitives::{Hash, parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion}};
 use {system, session};
 
 use srml_support::{StorageValue, StorageMap, Parameter, dispatch::Result};
+#[cfg(feature = "std")]
+use srml_support::storage::hashed::generator;
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
@@ -36,20 +38,10 @@ use rstd::marker::PhantomData;
 
 use system::ensure_inherent;
 
-pub trait TryFrom<T> {
-	type Error;
-
-	fn try_from(self) -> result::Result<T, Self::Error>;
-}
-
 /// Parachain registration API.
 pub trait ParachainRegistrar<AccountId> {
 	/// An identifier for a parachain.
-	type ParaId: Member + Parameter + Default;
-
-	type ParaIdOfAccount: Convert<AccountId, Option<Self::ParaId>>;
-
-	type AccountIdOfPara: Convert<Self::ParaId, AccountId>;
+	type ParaId: Member + Parameter + Default + AccountIdConversion<AccountId>;
 
 	/// Create a new unique parachain identity for later registration.
 	fn new_id() -> Self::ParaId;
@@ -64,8 +56,6 @@ pub trait ParachainRegistrar<AccountId> {
 
 impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 	type ParaId = ParaId;
-	type ParaIdOfAccount = T::ParaIdOfAccount;
-	type AccountIdOfPara = T::AccountIdOfPara;
 	fn new_id() -> ParaId {
 		<NextFreeId<T>>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
 	}
@@ -105,8 +95,6 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 }
 
 pub trait Trait: session::Trait {
-	type ParaIdOfAccount: Convert<Self::AccountId, Option<ParaId>>;
-	type AccountIdOfPara: Convert<ParaId, Self::AccountId>;
 }
 
 // result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
@@ -136,7 +124,7 @@ decl_storage! {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
 		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
-			use codec::Encode;
+			let storage = std::cell::RefCell::new(storage);
 
 			let mut p = config.parachains.clone();
 			p.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
@@ -144,15 +132,12 @@ decl_storage! {
 
 			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-			storage.insert(Self::hash(<Parachains<T>>::key()).to_vec(), only_ids.encode());
+			<Parachains<T> as generator::StorageValue<_>>::put(&only_ids, &storage);
 
 			for (id, code, genesis) in p {
-				let code_key = Self::hash(&<Code<T>>::key_for(&id)).to_vec();
-				let head_key = Self::hash(&<Heads<T>>::key_for(&id)).to_vec();
 				// no ingress -- a chain cannot be routed to until it is live.
-
-				storage.insert(code_key, code.encode());
-				storage.insert(head_key, genesis.encode());
+				<Code<T> as generator::StorageMap<_, _>>::insert(&id, &code, &storage);
+				<Heads<T> as generator::StorageMap<_, _>>::insert(&id, &genesis, &storage);
 			}
 		});
 	}

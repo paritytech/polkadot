@@ -24,7 +24,7 @@ use super::Hash;
 use primitives::bytes;
 use primitives::ed25519;
 
-pub use polkadot_parachain::Id;
+pub use polkadot_parachain::{Id, AccountIdConversion};
 
 /// Identity that collators use.
 pub type CollatorId = ed25519::Public;

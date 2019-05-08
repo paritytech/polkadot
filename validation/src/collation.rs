@@ -135,8 +135,11 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 error_chain! {
 	types { Error, ErrorKind, ResultExt; }
 
+	foreign_links {
+		Client(::client::error::Error);
+	}
+
 	links {
-		Client(::client::error::Error, ::client::error::ErrorKind);
 		WasmValidation(wasm_executor::Error, wasm_executor::ErrorKind);
 	}
 

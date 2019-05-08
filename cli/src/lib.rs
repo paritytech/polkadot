@@ -86,7 +86,7 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 {
 	cli::parse_and_execute::<service::Factory, NoCustom, NoCustom, _, _, _, _, _>(
 		load_spec, &version, "parity-polkadot", args, worker,
-		|worker, _custom_args, mut config| {
+		|worker, _cli_args, _custom_args, mut config| {
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
 			info!("  by {}, 2017-2019", version.author);

@@ -91,7 +91,7 @@ use client::{
 use sr_primitives::{
 	ApplyResult, generic, transaction_validity::TransactionValidity,
 	traits::{
-		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, CurrencyToVoteHandler, AuthorityIdFor, Convert
+		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Convert, AuthorityIdFor
 	}
 };
 use version::RuntimeVersion;
@@ -102,6 +102,7 @@ use council::seats as council_seats;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
+use codec::Encode;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -189,6 +190,22 @@ impl session::Trait for Runtime {
 	type Event = Event;
 }
 
+/// Converter for currencies to votes.
+pub struct CurrencyToVoteHandler;
+
+impl CurrencyToVoteHandler {
+	fn factor() -> u128 { (Balances::total_issuance() / u64::max_value() as u128).max(1) }
+}
+
+impl Convert<u128, u64> for CurrencyToVoteHandler {
+	fn convert(x: u128) -> u64 { (x / Self::factor()) as u64 }
+}
+
+impl Convert<u128, u128> for CurrencyToVoteHandler {
+	fn convert(x: u128) -> u128 { x * Self::factor() }
+}
+
+
 impl staking::Trait for Runtime {
 	type OnRewardMinted = Treasury;
 	type CurrencyToVote = CurrencyToVoteHandler;
@@ -235,23 +252,7 @@ impl grandpa::Trait for Runtime {
 	type Event = Event;
 }
 
-pub struct ParaIdOfAccount;
-impl Convert<AccountId, Option<parachain::Id>> for ParaIdOfAccount {
-	fn convert(_x: AccountId) -> Option<parachain::Id> {
-		unimplemented!()
-	}
-}
-pub struct AccountIdOfPara;
-impl Convert<parachain::Id, AccountId> for AccountIdOfPara {
-	fn convert(_x: parachain::Id) -> AccountId {
-		unimplemented!()
-	}
-}
-
-impl parachains::Trait for Runtime {
-	type ParaIdOfAccount = ParaIdOfAccount;
-	type AccountIdOfPara = AccountIdOfPara;
-}
+impl parachains::Trait for Runtime {}
 
 impl slots::Trait for Runtime {
 	type Event = Event;

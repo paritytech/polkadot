@@ -18,13 +18,13 @@
 //! mechanism, for locking balance as part of the "payment", and to provide the requisite information for commissioning
 //! and decommissioning them.
 
-use rstd::{prelude::*, result, mem::swap, ops::Add};
-use std::convert::{TryFrom, TryInto};
+use rstd::{prelude::*, result, mem::swap, ops::Add, convert::{TryFrom, TryInto}};
 use sr_io::blake2_256;
-use sr_primitives::traits::{CheckedSub, SimpleArithmetic, StaticLookup, Zero, As, Convert};
+use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, As};
 use codec::Decode;
 use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement}};
+use primitives::parachain::AccountIdConversion;
 use crate::parachains::ParachainRegistrar;
 use system::ensure_signed;
 
@@ -146,10 +146,6 @@ impl TryFrom<usize> for SlotRange {
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 type ParaIdOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
-type AccountIdOfParaOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>
-	::AccountIdOfPara;
-type ParaIdOfAccountOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>
-	::ParaIdOfAccount;
 
 /// The module's configuration trait.
 pub trait Trait: system::Trait {
@@ -183,11 +179,11 @@ pub enum Bidder<AccountId, ParaId> {
 	Existing(ParaId),
 }
 
-impl<AccountId: Clone, ParaId: Clone> Bidder<AccountId, ParaId> {
-	fn account_id<AccountIdOfPara: Convert<ParaId, AccountId>>(&self) -> AccountId {
+impl<AccountId: Clone, ParaId: AccountIdConversion<AccountId>> Bidder<AccountId, ParaId> {
+	fn account_id(&self) -> AccountId {
 		match self {
 			Bidder::New(new_bidder) => new_bidder.who.clone(),
-			Bidder::Existing(para_id) => AccountIdOfPara::convert(para_id.clone()),
+			Bidder::Existing(para_id) => para_id.into_account(),
 		}
 	}
 }
@@ -206,9 +202,9 @@ type WinningData<T> = [Option<(Bidder<<T as system::Trait>::AccountId, ParaIdOf<
 type WinnersData<T> = Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, ParaIdOf<T>, BalanceOf<T>, SlotRange)>;
 
 // TODO:
-// calculate_winners
 // events
 // tests
+// docs
 
 /// This module's storage items.
 decl_storage! {
@@ -269,7 +265,7 @@ decl_module! {
 				// unreserve all amounts
 				for (bidder, _) in winning_ranges.iter().filter_map(|x| x.as_ref()) {
 					if let Some(amount) = <ReservedAmounts<T>>::take(bidder) {
-						T::Currency::unreserve(&bidder.account_id::<AccountIdOfParaOf<T>>(), amount);
+						T::Currency::unreserve(&bidder.account_id(), amount);
 					}
 				}
 
@@ -304,7 +300,7 @@ decl_module! {
 							// have held on deposit for them.
 							if let Some(additional) = amount.checked_sub(&Self::deposit_held(&para_id)) {
 								if T::Currency::withdraw(
-									&<AccountIdOfParaOf<T>>::convert(para_id.clone()),
+									&para_id.into_account(),
 									additional,
 									WithdrawReason::Fee,
 									ExistenceRequirement::AllowDeath
@@ -360,7 +356,7 @@ decl_module! {
 								let new_held = d.into_iter().max().unwrap_or_default();
 								if let Some(rebate) = outgoing.checked_sub(&new_held) {
 									T::Currency::deposit_creating(
-										&<AccountIdOfParaOf<T>>::convert(id.clone()),
+										&id.into_account(),
 										rebate
 									);
 								}
@@ -436,7 +432,7 @@ decl_module! {
 			#[compact] amount: BalanceOf<T>
 		) {
 			let who = ensure_signed(origin)?;
-			let para_id = <ParaIdOfAccountOf<T>>::convert(who.clone()).ok_or("account is not a parachain")?;
+			let para_id = <ParaIdOf<T>>::try_from_account(&who).ok_or("account is not a parachain")?;
 			let bidder = Bidder::Existing(para_id);
 			Self::handle_bid(who, bidder, auction_index, first_slot, last_slot, amount)?;
 		}
@@ -444,7 +440,7 @@ decl_module! {
 		fn set_offboarding(origin, dest: <T::Lookup as StaticLookup>::Source) {
 			let who = ensure_signed(origin)?;
 			let dest = T::Lookup::lookup(dest)?;
-			let para_id = <ParaIdOfAccountOf<T>>::convert(who)
+			let para_id = <ParaIdOf<T>>::try_from_account(&who)
 				.ok_or("not a parachain origin")?;
 			<Offboarding<T>>::insert(para_id, dest);
 		}
@@ -471,12 +467,17 @@ decl_module! {
 }
 
 impl<T: Trait> Module<T> {
+	/// Deposit currently held for a particular parachain that we administer.
 	fn deposit_held(para_id: &ParaIdOf<T>) -> BalanceOf<T> {
 		<Deposits<T>>::get(para_id).into_iter().max().unwrap_or_else(Zero::zero)
 	}
+
+	/// True if an auction is in progress.
 	fn is_in_progress() -> bool {
 		<AuctionInfo<T>>::exists()
 	}
+
+	/// True if an auction is in its final ending period.
 	fn is_ending(now: T::BlockNumber) -> Option<u32> {
 		if let Some((_, early_end)) = <AuctionInfo<T>>::get() {
 			if let Some(after_early_end) = now.checked_sub(&early_end) {
@@ -488,6 +489,7 @@ impl<T: Trait> Module<T> {
 		}
 		None
 	}
+
 	/// Some when the auction's end is known (with the end block number). None if it is unknown. If Some then
 	/// the block number must be at most the previous block and at least the previous block minus `ENDING_PERIOD`.
 	fn check_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
@@ -507,6 +509,7 @@ impl<T: Trait> Module<T> {
 		None
 	}
 
+	/// Actually handle a bid.
 	fn handle_bid(
 		who: T::AccountId,
 		bidder: Bidder<T::AccountId, ParaIdOf<T>>,
@@ -554,7 +557,7 @@ impl<T: Trait> Module<T> {
 					// previous bidder no longer in winning set - unreserve their bid
 					if let Some(amount) = <ReservedAmounts<T>>::take(&who) {
 						// it really should be reserved; if it's not, then there's not much we can do here.
-						let _ = T::Currency::unreserve(&who.account_id::<AccountIdOfParaOf<T>>(), amount);
+						let _ = T::Currency::unreserve(&who.account_id(), amount);
 					}
 				}
 			}
@@ -562,6 +565,7 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
+	/// Calculate the final winners from the winning slots.
 	fn calculate_winning(mut winning: WinningData<T>) -> WinnersData<T> {
 		let winning_ranges = {
 			let mut best_winners_ending_at: [(Vec<SlotRange>, BalanceOf<T>); 4] = Default::default();
@@ -609,6 +613,7 @@ impl<T: Trait> Module<T> {
 mod tests {
 	use super::*;
 
+	use balances;
 	use runtime_io::with_externalities;
 	use primitives::{H256, Blake2Hasher};
 	use support::{impl_outer_origin, assert_ok};
@@ -640,8 +645,15 @@ mod tests {
 		type Event = ();
 		type Log = DigestItem;
 	}
+
+	pub struct TestCurrency;
+
+	pub struct TestParachains;
+
 	impl Trait for Test {
 		type Event = ();
+		type Currency = TestCurrency;
+		type Parachains = TestParachains;
 	}
 	type Slots = Module<Test>;
 
