@@ -27,7 +27,7 @@ use polkadot_validation::{SharedTable, MessagesFrom, Network};
 use polkadot_primitives::{SessionKey, Block, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
-	ValidatorId, ConsolidatedIngressRoots, ValidatorIndex,
+	ValidatorId, ConsolidatedIngressRoots,
 };
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
@@ -401,8 +401,8 @@ fn make_table(data: &ApiData, local_key: &AuthorityKeyring, parent_hash: Hash) -
 	).unwrap();
 
 	Arc::new(SharedTable::new(
+		data.validators.as_slice(),
 		group_info,
-		data.validators.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect(),
 		Arc::new(local_key.pair()),
 		parent_hash,
 		store,

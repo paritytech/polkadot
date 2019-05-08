@@ -390,13 +390,14 @@ impl SharedTable {
 	/// Provide the key to sign with, and the parent hash of the relay chain
 	/// block being built.
 	pub fn new(
+		authorities: &[ed25519::Public],
 		groups: HashMap<ParaId, GroupInfo>,
-		index_mapping: HashMap<ValidatorIndex, SessionKey>,
 		key: Arc<ed25519::Pair>,
 		parent_hash: Hash,
 		extrinsic_store: ExtrinsicStore,
 	) -> Self {
-		SharedTable {
+		let index_mapping = authorities.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect();
+		Self {
 			context: Arc::new(TableContext { groups, key, parent_hash, index_mapping, }),
 			inner: Arc::new(Mutex::new(SharedTableInner {
 				table: Table::default(),
@@ -595,7 +596,6 @@ mod tests {
 
 		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
 		let local_id = local_key.public();
-		let local_index = 0;
 
 		let validity_other_key = AuthorityKeyring::Bob.pair();
 		let validity_other = validity_other_key.public();
@@ -607,8 +607,8 @@ mod tests {
 		});
 
 		let shared_table = SharedTable::new(
+			&[local_id, validity_other],
 			groups,
-			[(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
@@ -649,7 +649,6 @@ mod tests {
 
 		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
 		let local_id = local_key.public();
-		let local_index = 0;
 
 		let validity_other_key = AuthorityKeyring::Bob.pair();
 		let validity_other = validity_other_key.public();
@@ -661,8 +660,8 @@ mod tests {
 		});
 
 		let shared_table = SharedTable::new(
+			&[local_id, validity_other],
 			groups,
-			[(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
@@ -782,7 +781,6 @@ mod tests {
 
 		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
 		let local_id = local_key.public();
-		let local_index = 0;
 
 		let validity_other_key = AuthorityKeyring::Bob.pair();
 		let validity_other = validity_other_key.public();
@@ -794,8 +792,8 @@ mod tests {
 		});
 
 		let shared_table = SharedTable::new(
+			&[local_id, validity_other],
 			groups,
-			[(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
@@ -848,11 +846,9 @@ mod tests {
 
 		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
 		let local_id = local_key.public();
-		let local_index = 0;
 
 		let validity_other_key = AuthorityKeyring::Bob.pair();
 		let validity_other = validity_other_key.public();
-		let validity_other_index = 1;
 
 		groups.insert(para_id, GroupInfo {
 			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
@@ -860,8 +856,8 @@ mod tests {
 		});
 
 		let shared_table = SharedTable::new(
+			&[local_id, validity_other],
 			groups,
-			[(local_index, local_id), (validity_other_index, validity_other)].iter().cloned().collect(),
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
@@ -893,5 +889,29 @@ mod tests {
 		);
 
 		assert!(a.is_none());
+	}
+
+	#[test]
+	fn index_mapping_from_authorities() {
+		let authorities_set: &[&[_]] = &[
+			&[],
+			&[AuthorityKeyring::Alice.pair().public()],
+			&[AuthorityKeyring::Alice.pair().public(), AuthorityKeyring::Bob.pair().public()],
+			&[AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Alice.pair().public()],
+			&[AuthorityKeyring::Alice.pair().public(), AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Charlie.pair().public()],
+			&[AuthorityKeyring::Charlie.pair().public(), AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Alice.pair().public()],
+		];
+
+		for authorities in authorities_set {
+			let shared_table = SharedTable::new(
+				authorities,
+				HashMap::new(),
+				Arc::new(AuthorityKeyring::Alice.pair()),
+				Default::default(),
+				ExtrinsicStore::new_in_memory(),
+			);
+			let expected_mapping = authorities.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect();
+			assert_eq!(shared_table.context.index_mapping, expected_mapping);
+		}
 	}
 }

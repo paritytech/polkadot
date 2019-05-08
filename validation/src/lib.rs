@@ -80,7 +80,7 @@ use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey}
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
 	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage, CollatorSignature,
-	Collation, PoVBlock, ValidatorIndex,
+	Collation, PoVBlock,
 };
 use primitives::{Pair, ed25519};
 use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyError};
@@ -346,8 +346,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
-		let index_mapping = authorities.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect();
-		let table = Arc::new(SharedTable::new(group_info, index_mapping, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
+		let table = Arc::new(SharedTable::new(authorities, group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
 			table.clone(),
 			outgoing,
