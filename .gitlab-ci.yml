@@ -13,18 +13,18 @@ stages:
   - publish
   - deploy
 
-image:                             parity/rust:nightly
+image:                             parity/rust-builder:latest
 
 variables:
+  GIT_STRATEGY:                    fetch
+  CARGO_HOME:                      "/ci-cache/${CI_PROJECT_NAME}/cargo/${CI_JOB_NAME}"
+  SCCACHE_DIR:                     "/ci-cache/${CI_PROJECT_NAME}/sccache"
+  SCCACHE_CACHE_SIZE:              50G
   CI_SERVER_NAME:                  "GitLab CI"
-  CARGO_HOME:                      "${CI_PROJECT_DIR}/.cargo"
-  # have OS based build containers in the future
-  DOCKER_OS:                       "ubuntu:xenial"
+  DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
 
 
-
-cache:                             {}
 
 .collect-artifacts:                &collect-artifacts
   artifacts:
@@ -62,13 +62,8 @@ check-merge-conflict:
 
 
 
-test-linux-stable:                  &test
+test-linux-stable:                 &test
   stage:                           test
-  cache:
-    key:                           "${CI_JOB_NAME}-test"
-    paths:
-      - ${CARGO_HOME}
-      - ./target
   variables:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
@@ -87,12 +82,11 @@ test-linux-stable:                  &test
     variables:
       - $DEPLOY_TAG
   before_script:
-   - test -d ${CARGO_HOME} -a -d ./target &&
-     echo "build cache size:" &&
-     du -h --max-depth=2 ${CARGO_HOME} ./target
+   - sccache -s
    - ./scripts/build.sh
   script:
     - time cargo test --all --release --verbose --locked
+    - sccache -s
 
 
 
@@ -107,11 +101,6 @@ test-linux-stable:                  &test
 
 build-linux-release:          &build
   stage:                           build
-  cache:
-    key:                           "${CI_JOB_NAME}-build"
-    paths:
-      - ${CARGO_HOME}
-      - ./target
   <<:                              *collect-artifacts
   <<:                              *build-only
   except:
@@ -120,7 +109,8 @@ build-linux-release:          &build
   tags:
     - linux-docker
   before_script:
-   - ./scripts/build.sh
+    - sccache -s
+    - ./scripts/build.sh
   script:
     - time cargo build --release --verbose
     - mkdir -p ./artifacts
@@ -135,6 +125,7 @@ build-linux-release:          &build
       fi
     - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
     - cp -r scripts/docker/* ./artifacts
+    - sccache -s
 
 
 
@@ -143,7 +134,7 @@ build-linux-release:          &build
   stage:                           publish
   dependencies:
     - build-linux-release
-  cache: {}
+  cache:                           {}
   <<:                              *build-only
   <<:                              *kubernetes-build
 

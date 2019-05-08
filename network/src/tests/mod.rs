@@ -28,9 +28,9 @@ use polkadot_primitives::parachain::{
 use substrate_primitives::crypto::UncheckedInto;
 use codec::Encode;
 use substrate_network::{
-	Severity, PeerId, PeerInfo, ClientHandle, Context, config::Roles,
-	message::Message as SubstrateMessage, specialization::NetworkSpecialization,
-	generic_message::Message as GenericMessage
+	PeerId, PeerInfo, ClientHandle, Context, config::Roles,
+	message::{BlockRequest, generic::ConsensusMessage},
+	specialization::NetworkSpecialization, generic_message::Message as GenericMessage
 };
 
 use futures::Future;
@@ -41,7 +41,7 @@ mod validation;
 struct TestContext {
 	disabled: Vec<PeerId>,
 	disconnected: Vec<PeerId>,
-	messages: Vec<(PeerId, SubstrateMessage<Block>)>,
+	messages: Vec<(PeerId, Vec<u8>)>,
 }
 
 impl Context<Block> for TestContext {
@@ -49,10 +49,11 @@ impl Context<Block> for TestContext {
 		unimplemented!()
 	}
 
-	fn report_peer(&mut self, peer: PeerId, reason: Severity) {
-		match reason {
-			Severity::Bad(_) => self.disabled.push(peer),
-			_ => self.disconnected.push(peer),
+	fn report_peer(&mut self, peer: PeerId, reputation: i32) {
+		match reputation {
+			i if i < -100 => self.disabled.push(peer),
+			i if i < 0 => self.disconnected.push(peer),
+			_ => {}
 		}
 	}
 
@@ -60,20 +61,27 @@ impl Context<Block> for TestContext {
 		unimplemented!()
 	}
 
-	fn send_message(&mut self, who: PeerId, data: SubstrateMessage<Block>) {
-		self.messages.push((who, data))
+	fn send_block_request(&mut self, _who: PeerId, _request: BlockRequest<Block>) {
+		unimplemented!()
 	}
+
+	fn send_consensus(&mut self, _who: PeerId, _consensus: ConsensusMessage) {
+		unimplemented!()
+	}
+
+	fn send_chain_specific(&mut self, who: PeerId, message: Vec<u8>) {
+		self.messages.push((who, message))
+	}
+
+	fn disconnect_peer(&mut self, _who: PeerId) { }
 }
 
 impl TestContext {
 	fn has_message(&self, to: PeerId, message: Message) -> bool {
-		use substrate_network::generic_message::Message as GenericMessage;
-
 		let encoded = message.encode();
-		self.messages.iter().any(|&(ref peer, ref msg)| match msg {
-			GenericMessage::ChainSpecific(ref data) => peer == &to && data == &encoded,
-			_ => false,
-		})
+		self.messages.iter().any(|&(ref peer, ref data)|
+			peer == &to && data == &encoded
+		)
 	}
 }
 

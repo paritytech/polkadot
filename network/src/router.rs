@@ -88,7 +88,7 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 		self.network().gossip_messages_for(self.attestation_topic)
 			.filter_map(|msg| {
 				debug!(target: "validation", "Processing statement for live validation session");
-				crate::gossip::GossipMessage::decode(&mut &msg[..])
+				crate::gossip::GossipMessage::decode(&mut &msg.message[..])
 			})
 			.map(|msg| msg.statement)
 	}

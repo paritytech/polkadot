@@ -47,14 +47,28 @@ decl_module! {
 			if shuffle_period == 0 { return }
 
 			if block_number.as_() % shuffle_period == 0 {
-				let mut seed = system::Module::<T>::random_seed().as_ref().to_vec();
-				seed.extend(b"grandpa_shuffling");
-				let mut seed = BlakeTwo256::hash(&seed);
-
 				let mut voters = grandpa::Module::<T>::grandpa_authorities();
 				let voter_count = voters.len();
 
 				if voter_count == 0 { return }
+
+				let mut seed = {
+					let phrase = b"grandpa_shuffling";
+					let seed = system::Module::<T>::random(&phrase[..]);
+					let seed_len = seed.as_ref().len();
+					let needed_bytes = voter_count * 4;
+
+					// hash only the needed bits of the random seed.
+					// if earlier bits are influencable, they will not factor into
+					// the seed used here.
+					let seed_off = if needed_bytes >= seed_len {
+						0
+					} else {
+						seed_len - needed_bytes
+					};
+
+					BlakeTwo256::hash(&seed.as_ref()[seed_off..])
+				};
 
 				for i in 0..(voter_count - 1) {
 					// 4 bytes of entropy used per cycle, 32 bytes entropy per hash

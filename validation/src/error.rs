@@ -21,8 +21,11 @@ use runtime_primitives::RuntimeString;
 use primitives::ed25519::Public as AuthorityId;
 
 error_chain! {
+	foreign_links {
+		Client(::client::error::Error);
+	}
+
 	links {
-		Client(::client::error::Error, ::client::error::ErrorKind);
 		Consensus(::consensus::error::Error, ::consensus::error::ErrorKind);
 	}
 
@@ -53,9 +56,3 @@ error_chain! {
 		}
 	}
 }
-
-// impl From<::bft::InputStreamConcluded> for Error {
-// 	fn from(err: ::bft::InputStreamConcluded) -> Self {
-// 		::bft::Error::from(err).into()
-// 	}
-// }
