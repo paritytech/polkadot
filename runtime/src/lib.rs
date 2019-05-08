@@ -102,7 +102,6 @@ use council::seats as council_seats;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
-use codec::Encode;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
