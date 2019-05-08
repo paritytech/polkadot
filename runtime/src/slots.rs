@@ -48,6 +48,7 @@ pub type SubId = u32;
 pub type AuctionIndex = u32;
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct NewBidder<AccountId> {
 	who: AccountId,
 	sub: SubId,
@@ -55,6 +56,7 @@ pub struct NewBidder<AccountId> {
 
 /// The desired target of a bidder in an auction.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub enum Bidder<AccountId, ParaId> {
 	/// An account ID, funds coming from that account.
 	New(NewBidder<AccountId>),
@@ -74,6 +76,7 @@ impl<AccountId: Clone, ParaId: AccountIdConversion<AccountId>> Bidder<AccountId,
 }
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub enum IncomingParachain<AccountId> {
 	Unset(NewBidder<AccountId>),
 	Deploy { code_hash: [u8; 32], initial_head_data: Vec<u8> },
@@ -155,7 +158,7 @@ decl_module! {
 				}
 
 				// figure out the actual winners
-				let winners = Self::calculate_winning(winning_ranges);
+				let winners = Self::calculate_winners(winning_ranges, T::Parachains::new_id);
 
 				// go through winners and deduct their bid.
 				for (maybe_new_deploy, para_id, amount, range) in winners.into_iter() {
@@ -451,7 +454,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Calculate the final winners from the winning slots.
-	fn calculate_winning(mut winning: WinningData<T>) -> WinnersData<T> {
+	fn calculate_winners(mut winning: WinningData<T>, new_id: impl Fn() -> ParaIdOf<T>) -> WinnersData<T> {
 		let winning_ranges = {
 			let mut best_winners_ending_at: [(Vec<SlotRange>, BalanceOf<T>); 4] = Default::default();
 			let best_bid = |range: SlotRange| {
@@ -485,7 +488,7 @@ impl<T: Trait> Module<T> {
 				.expect("none values are filtered out in previous logic; qed"));
 			let (slot_winner, bid) = final_winner;
 			match slot_winner {
-				Bidder::New(new_bidder) => (Some(new_bidder), T::Parachains::new_id(), bid, r),
+				Bidder::New(new_bidder) => (Some(new_bidder), new_id(), bid, r),
 				Bidder::Existing(para_id) => (None, para_id, bid, r),
 			}
 		}).collect::<Vec<_>>()
@@ -505,7 +508,7 @@ mod tests {
 	use sr_io::with_externalities;
 	use sr_primitives::{
 		BuildStorage,
-		traits::{BlakeTwo256, IdentityLookup},
+		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},
 		testing::{Digest, DigestItem, Header}
 	};
 	use srml_support::{impl_outer_origin, assert_ok};
@@ -579,6 +582,7 @@ mod tests {
 		type Parachains = TestParachains;
 	}
 
+	type System = system::Module<Test>;
 	type Balances = balances::Module<Test>;
 	type Slots = Module<Test>;
 
@@ -598,9 +602,28 @@ mod tests {
 		t.into()
 	}
 
+	fn run_to_block(n: u64) {
+		while System::block_number() < n {
+			Slots::on_finalize(System::block_number());
+			Balances::on_finalize(System::block_number());
+			System::on_finalize(System::block_number());
+			System::set_block_number(System::block_number() + 1);
+			System::on_initialize(System::block_number());
+			Balances::on_initialize(System::block_number());
+			Slots::on_initialize(System::block_number());
+		}
+	}
+
 	#[test]
 	fn it_works_for_default_value() {
 		with_externalities(&mut new_test_ext(), || {
+			assert_eq!(Slots::auction_counter(), 0);
+			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
+			assert_eq!(Slots::is_in_progress(), false);
+			assert_eq!(Slots::is_ending(1), None);
+
+			run_to_block(10);
+
 			assert_eq!(Slots::auction_counter(), 0);
 			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
 			assert_eq!(Slots::is_in_progress(), false);
@@ -609,7 +632,56 @@ mod tests {
 	}
 
 	#[test]
-	fn calculate_winning_works() {
-		
+	fn calculate_winners_works() {
+		let mut winning = [
+			/*0..0*/
+			Some((Bidder::New(NewBidder{who: 2, sub: 0}), 2)),
+			/*0..1*/
+			None,
+			/*0..2*/
+			None,
+			/*0..3*/
+			Some((Bidder::New(NewBidder{who: 1, sub: 0}), 1)),
+			/*1..1*/
+			Some((Bidder::New(NewBidder{who: 3, sub: 0}), 1)),
+			/*1..2*/
+			None,
+			/*1..3*/
+			None,
+			/*2..2*/
+			//Some((Bidder::New(NewBidder{who: 4, sub: 0}), 1)),
+			Some((Bidder::New(NewBidder{who: 1, sub: 0}), 53)),
+			/*2..3*/
+			None,
+			/*3..3*/
+			Some((Bidder::New(NewBidder{who: 5, sub: 0}), 1)),
+		];
+		let winners = vec![
+			(Some(NewBidder{who: 2,sub: 0}), 0.into(), 2, SlotRange::ZeroZero),
+			(Some(NewBidder{who: 3,sub: 0}), 1.into(), 1, SlotRange::OneOne),
+			(Some(NewBidder{who: 1,sub: 0}), 2.into(), 53, SlotRange::TwoTwo),
+			(Some(NewBidder{who: 5,sub: 0}), 3.into(), 1, SlotRange::ThreeThree)
+		];
+
+		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
+
+		*PARACHAIN_COUNT.lock() = 0;
+		winning[SlotRange::ZeroThree as u8 as usize] = Some((Bidder::New(NewBidder{who: 1, sub: 0}), 2));
+		let winners = vec![
+			(Some(NewBidder{who: 2,sub: 0}), 0.into(), 2, SlotRange::ZeroZero),
+			(Some(NewBidder{who: 3,sub: 0}), 1.into(), 1, SlotRange::OneOne),
+			(Some(NewBidder{who: 1,sub: 0}), 2.into(), 53, SlotRange::TwoTwo),
+			(Some(NewBidder{who: 5,sub: 0}), 3.into(), 1, SlotRange::ThreeThree)
+		];
+		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
+
+		*PARACHAIN_COUNT.lock() = 0;
+		winning[SlotRange::ZeroOne as u8 as usize] = Some((Bidder::New(NewBidder{who: 4, sub: 0}), 3));
+		let winners = vec![
+			(Some(NewBidder{who: 4,sub: 0}), 0.into(), 3, SlotRange::ZeroOne),
+			(Some(NewBidder{who: 1,sub: 0}), 1.into(), 53, SlotRange::TwoTwo),
+			(Some(NewBidder{who: 5,sub: 0}), 2.into(), 1, SlotRange::ThreeThree)
+		];
+		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
 	}
 }

@@ -50,6 +50,14 @@ pub enum SlotRange {
 	ThreeThree = 9,     // == SLOT_RANGE_COUNT - 1
 }
 
+#[cfg(feature = "std")]
+impl std::fmt::Debug for SlotRange {
+	fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+		let p = self.as_pair();
+		write!(fmt, "[{}..{}]", p.0, p.1)
+	}
+}
+
 impl SlotRange {
 	pub fn new_bounded<Index: Add<Output=Index> + CheckedSub + As<u64> + Copy + Ord>(
 		initial: Index,
