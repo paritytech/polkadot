@@ -241,9 +241,24 @@ impl<T: Trait> Module<T> {
 			_ => Chain::Relay,
 		}).collect::<Vec<_>>();
 
-		let mut random_seed = system::Module::<T>::random_seed().as_ref().to_vec();
-		random_seed.extend(b"validator_role_pairs");
-		let mut seed = BlakeTwo256::hash(&random_seed);
+
+		let mut seed = {
+			let phrase = b"validator_role_pairs";
+			let seed = system::Module::<T>::random(&phrase[..]);
+			let seed_len = seed.as_ref().len();
+			let needed_bytes = validator_count * 4;
+
+			// hash only the needed bits of the random seed.
+			// if earlier bits are influencable, they will not factor into
+			// the seed used here.
+			let seed_off = if needed_bytes >= seed_len {
+				0
+			} else {
+				seed_len - needed_bytes
+			};
+
+			BlakeTwo256::hash(&seed.as_ref()[seed_off..])
+		};
 
 		// shuffle
 		for i in 0..(validator_count - 1) {
@@ -537,6 +552,7 @@ mod tests {
 	impl Trait for Test {}
 
 	type Parachains = Module<Test>;
+	type System = system::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
@@ -686,17 +702,16 @@ mod tests {
 				assert_eq!(duty_roster.validator_duty.iter().filter(|&&j| j == Chain::Relay).count(), 2);
 			};
 
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let duty_roster_0 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_0);
 
-			system::Module::<Test>::set_random_seed([1u8; 32].into());
+			System::initialize(&1, &H256::from([1; 32]), &Default::default());
 			let duty_roster_1 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_1);
 			assert!(duty_roster_0 != duty_roster_1);
 
 
-			system::Module::<Test>::set_random_seed([2u8; 32].into());
+			System::initialize(&2, &H256::from([2; 32]), &Default::default());
 			let duty_roster_2 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_2);
 			assert!(duty_roster_0 != duty_roster_2);
@@ -712,7 +727,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let candidate = AttestedCandidate {
 				validity_votes: vec![],
 				candidate: CandidateReceipt {
@@ -740,7 +754,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
 				candidate: CandidateReceipt {
@@ -792,7 +805,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
 				candidate: CandidateReceipt {
@@ -828,7 +840,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let from_a = vec![(1.into(), [1; 32].into())];
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
@@ -898,7 +909,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 99 does not exist
 			let non_existent = vec![(99.into(), [1; 32].into())];
 			let mut candidate = new_candidate_with_egress_roots(non_existent);
@@ -923,7 +933,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 0 is self
 			let to_self = vec![(0.into(), [1; 32].into())];
 			let mut candidate = new_candidate_with_egress_roots(to_self);
@@ -948,7 +957,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 0 is self
 			let out_of_order = vec![(1.into(), [1; 32].into()), ((0.into(), [1; 32].into()))];
 			let mut candidate = new_candidate_with_egress_roots(out_of_order);
@@ -973,7 +981,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 0 is self
 			let contains_empty_trie_root = vec![(1.into(), [1; 32].into()), ((2.into(), EMPTY_TRIE_ROOT.into()))];
 			let mut candidate = new_candidate_with_egress_roots(contains_empty_trie_root);
