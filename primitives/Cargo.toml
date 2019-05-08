@@ -4,10 +4,10 @@ version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
-serde = { version = "1.0", optional = true }
-serde_derive = { version = "1.0", optional = true }
-parity-codec = { version = "3.0", default-features = false }
-parity-codec-derive = { version = "3.0", default-features = false }
+serde = { version = "1.0.91", optional = true }
+serde_derive = { version = "1.0.91", optional = true }
+parity-codec = { version = "3.5.1", default-features = false }
+parity-codec-derive = { version = "3.3.0", default-features = false }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sr-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -17,7 +17,7 @@ polkadot-parachain = { path = "../parachain", default-features = false }
 
 [dev-dependencies]
 substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-pretty_assertions = "0.5.1"
+pretty_assertions = "0.6.1"
 
 [features]
 default = ["std"]

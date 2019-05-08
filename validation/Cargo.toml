@@ -4,13 +4,13 @@ version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
-futures = "0.1.17"
-parking_lot = "0.7.1"
-tokio = "0.1.7"
-error-chain = "0.12"
+futures = "0.1.26"
+parking_lot = "0.8.0"
+tokio = "0.1.19"
+error-chain = "0.12.0"
 log = "0.4.6"
-exit-future = "0.1"
-parity-codec = "3.1"
+exit-future = "0.1.4"
+parity-codec = "3.5.1"
 polkadot-availability-store = { path = "../availability-store" }
 polkadot-parachain = { path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }

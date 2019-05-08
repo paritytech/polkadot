@@ -4,13 +4,13 @@ version = "0.4.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 
 [dependencies]
-parking_lot = "0.7.1"
-error-chain = "0.12"
-lazy_static = "1.0"
+parking_lot = "0.8.0"
+error-chain = "0.12.0"
+lazy_static = "1.3.0"
 log = "0.4.6"
-slog = "^2"
-tokio = "0.1.7"
-hex-literal = "0.1"
+slog = "2.4.1"
+tokio = "0.1.19"
+hex-literal = "0.2.0"
 polkadot-availability-store = { path = "../availability-store" }
 polkadot-validation = { path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
