@@ -77,6 +77,27 @@ extern crate substrate_keyring as keyring;
 #[cfg(test)]
 extern crate substrate_trie;
 
+pub trait Get<T> {
+	fn get() -> T;
+}
+
+macro_rules! parameter_types {
+	(pub const $name:ident: $type:ty = $value:expr; $( $rest:tt )*) => (
+		pub struct $name;
+		parameter_types!{IMPL $name , $type , $value}
+		parameter_types!{ $( $rest )* }
+	);
+	(const $name:ident: $type:ty = $value:expr; $( $rest:tt )*) => (
+		struct $name;
+		parameter_types!{IMPL $name , $type , $value}
+		parameter_types!{ $( $rest )* }
+	);
+	() => ();
+	(IMPL $name:ident , $type:ty , $value:expr) => {
+		impl $crate::Get<$type> for $name { fn get() -> $type { $value } }
+	}
+}
+
 mod curated_grandpa;
 mod parachains;
 mod claims;
@@ -258,10 +279,17 @@ impl grandpa::Trait for Runtime {
 
 impl parachains::Trait for Runtime {}
 
+parameter_types!{
+	pub const LeasePeriod: BlockNumber = 100000;
+	pub const EndingPeriod: BlockNumber = 1000;
+}
+
 impl slots::Trait for Runtime {
 	type Event = Event;
 	type Currency = balances::Module<Self>;
 	type Parachains = parachains::Module<Self>;
+	type LeasePeriod = LeasePeriod;
+	type EndingPeriod = EndingPeriod;
 }
 
 impl curated_grandpa::Trait for Runtime { }

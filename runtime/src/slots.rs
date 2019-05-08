@@ -18,7 +18,7 @@
 //! mechanism, for locking balance as part of the "payment", and to provide the requisite information for commissioning
 //! and decommissioning them.
 
-use rstd::{prelude::*, result, mem::swap, ops::Add, convert::{TryFrom, TryInto}};
+use rstd::{prelude::*, mem::swap, convert::TryInto};
 use sr_io::blake2_256;
 use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, As};
 use codec::Decode;
@@ -28,6 +28,7 @@ use primitives::parachain::AccountIdConversion;
 use crate::parachains::ParachainRegistrar;
 use system::ensure_signed;
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
+use super::Get;
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 type ParaIdOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
@@ -42,6 +43,12 @@ pub trait Trait: system::Trait {
 
 	/// The parachain registrar type.
 	type Parachains: ParachainRegistrar<Self::AccountId>;
+
+	/// The number of blocks over which an auction may be retroactively ended.
+	type EndingPeriod: Get<Self::BlockNumber>;
+
+	/// The number of blocks over which a single period lasts.
+	type LeasePeriod: Get<Self::BlockNumber>;
 }
 
 pub type SubId = u32;
@@ -82,9 +89,6 @@ pub enum IncomingParachain<AccountId> {
 	Deploy { code_hash: [u8; 32], initial_head_data: Vec<u8> },
 }
 
-const ENDING_PERIOD: u32 = 1000;
-const LEASE_PERIOD: u32 = 100000;
-
 type LeasePeriodOf<T> = <T as system::Trait>::BlockNumber;
 type WinningData<T> = [Option<(Bidder<<T as system::Trait>::AccountId, ParaIdOf<T>>, BalanceOf<T>)>; SLOT_RANGE_COUNT];
 type WinnersData<T> = Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, ParaIdOf<T>, BalanceOf<T>, SlotRange)>;
@@ -98,7 +102,7 @@ type WinnersData<T> = Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, P
 decl_storage! {
 	trait Store for Module<T: Trait> as Slots {
 
-		/// The winning bids for each of the 10 ranges at each block in the final `ENDING_PERIOD` of the current
+		/// The winning bids for each of the 10 ranges at each block in the final Ending Period of the current
 		/// auction.
 		pub Winning get(winning): map u32 => Option<WinningData<T>>;
 
@@ -144,7 +148,7 @@ decl_module! {
 		fn deposit_event<T>() = default;
 
 		fn on_initialize(n: T::BlockNumber) {
-			let lease_period = T::BlockNumber::sa(LEASE_PERIOD as u64);
+			let lease_period = T::LeasePeriod::get();
 			let lease_period_index: LeasePeriodOf<T> = (n / lease_period).into();
 
 			if let Some((winning_ranges, auction_lease_period_index)) = Self::check_end(n) {
@@ -369,9 +373,8 @@ impl<T: Trait> Module<T> {
 	fn is_ending(now: T::BlockNumber) -> Option<u32> {
 		if let Some((_, early_end)) = <AuctionInfo<T>>::get() {
 			if let Some(after_early_end) = now.checked_sub(&early_end) {
-				let after_early_end = after_early_end.as_() as u32;
-				if after_early_end < ENDING_PERIOD {
-					return Some(after_early_end)
+				if after_early_end < T::EndingPeriod::get() {
+					return Some(after_early_end.as_() as u32)
 				}
 			}
 		}
@@ -379,15 +382,17 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Some when the auction's end is known (with the end block number). None if it is unknown. If Some then
-	/// the block number must be at most the previous block and at least the previous block minus `ENDING_PERIOD`.
+	/// the block number must be at most the previous block and at least the previous block minus
+	/// `T::EndingPeriod::get()`.
 	fn check_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
 		if let Some((lease_period_index, early_end)) = <AuctionInfo<T>>::get() {
-			if early_end + T::BlockNumber::sa(ENDING_PERIOD as u64) == now {
+			if early_end + T::EndingPeriod::get() == now {
 				// Just ended!
+				let ending_period: u32 = T::EndingPeriod::get().as_() as u32;
 				let offset = u32::decode(&mut<system::Module<T>>::random_seed().as_ref())
-					.expect("secure hashes are always greater than 4 bytes; qed") % ENDING_PERIOD;
+					.expect("secure hashes are always greater than 4 bytes; qed") % ending_period;
 				let res = <Winning<T>>::get(offset).unwrap_or_default();
-				for i in 0..ENDING_PERIOD {
+				for i in 0..ending_period {
 					<Winning<T>>::remove(i)
 				}
 				<AuctionInfo<T>>::kill();
@@ -576,10 +581,17 @@ mod tests {
 		}
 	}
 
+	parameter_types!{
+		pub const LeasePeriod: u64 = 10;
+		pub const EndingPeriod: u64 = 3;
+	}
+
 	impl Trait for Test {
 		type Event = ();
 		type Currency = Balances;
 		type Parachains = TestParachains;
+		type LeasePeriod = LeasePeriod;
+		type EndingPeriod = EndingPeriod;
 	}
 
 	type System = system::Module<Test>;
@@ -620,18 +632,86 @@ mod tests {
 			assert_eq!(Slots::auction_counter(), 0);
 			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
 			assert_eq!(Slots::is_in_progress(), false);
-			assert_eq!(Slots::is_ending(1), None);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
 
 			run_to_block(10);
 
 			assert_eq!(Slots::auction_counter(), 0);
 			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
 			assert_eq!(Slots::is_in_progress(), false);
-			assert_eq!(Slots::is_ending(1), None);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
 		});
 	}
 
+	#[test]
+	fn can_start_auction() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
 
+			assert_ok!(Slots::new_auction(5, 1));
+
+			assert_eq!(Slots::auction_counter(), 1);
+			assert_eq!(Slots::is_in_progress(), true);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
+		});
+	}
+
+	#[test]
+	fn auction_proceeds_correctly() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+
+			assert_ok!(Slots::new_auction(5, 1));
+
+			assert_eq!(Slots::auction_counter(), 1);
+			assert_eq!(Slots::is_in_progress(), true);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
+
+			run_to_block(2);
+			assert_eq!(Slots::is_in_progress(), true);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
+
+			run_to_block(3);
+			assert_eq!(Slots::is_in_progress(), true);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
+
+			run_to_block(4);
+			assert_eq!(Slots::is_in_progress(), true);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
+
+			run_to_block(5);
+			assert_eq!(Slots::is_in_progress(), true);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
+
+			run_to_block(6);
+			assert_eq!(Slots::is_in_progress(), true);
+			assert_eq!(Slots::is_ending(System::block_number()), Some(0));
+
+			run_to_block(7);
+			assert_eq!(Slots::is_in_progress(), true);
+			assert_eq!(Slots::is_ending(System::block_number()), Some(1));
+
+			run_to_block(8);
+			assert_eq!(Slots::is_in_progress(), true);
+			assert_eq!(Slots::is_ending(System::block_number()), Some(2));
+
+			run_to_block(9);
+			assert_eq!(Slots::is_in_progress(), false);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
+		});
+	}
+
+	#[test]
+	fn can_win_auction() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+
+			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
+
+			run_to_block(10);
+		});
+	}
 
 	#[test]
 	fn calculate_winners_works() {

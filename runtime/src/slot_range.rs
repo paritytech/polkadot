@@ -17,9 +17,8 @@
 //! The SlotRange struct which succinctly handles the ten values that
 //! represent all sub ranges between 0 and 3 inclusive.
 
-use rstd::{prelude::*, result, mem::swap, ops::Add, convert::{TryFrom, TryInto}};
-use sr_io::blake2_256;
-use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, As};
+use rstd::{result, ops::Add, convert::TryFrom};
+use sr_primitives::traits::{CheckedSub, As};
 
 /// Total number of possible sub ranges of slots.
 pub const SLOT_RANGE_COUNT: usize = 10;
