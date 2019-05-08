@@ -27,122 +27,7 @@ use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageM
 use primitives::parachain::AccountIdConversion;
 use crate::parachains::ParachainRegistrar;
 use system::ensure_signed;
-
-/// A compactly represented sub-range from the series (0, 1, 2, 3).
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
-#[repr(u8)]
-pub enum SlotRange {
-	/// Sub range from index 0 to index 0 inclusive.
-	ZeroZero = 0,
-	/// Sub range from index 0 to index 1 inclusive.
-	ZeroOne = 1,
-	/// Sub range from index 0 to index 2 inclusive.
-	ZeroTwo = 2,
-	/// Sub range from index 0 to index 3 inclusive.
-	ZeroThree = 3,
-	/// Sub range from index 1 to index 1 inclusive.
-	OneOne = 4,
-	/// Sub range from index 1 to index 2 inclusive.
-	OneTwo = 5,
-	/// Sub range from index 1 to index 3 inclusive.
-	OneThree = 6,
-	/// Sub range from index 2 to index 2 inclusive.
-	TwoTwo = 7,
-	/// Sub range from index 2 to index 3 inclusive.
-	TwoThree = 8,
-	/// Sub range from index 3 to index 3 inclusive.
-	ThreeThree = 9,     // == SLOT_RANGE_COUNT - 1
-}
-
-/// Total number of possible sub ranges of slots.
-const SLOT_RANGE_COUNT: usize = 10;
-
-impl SlotRange {
-	pub fn new_bounded<Index: Add<Output=Index> + CheckedSub + As<u64> + Copy + Ord>(
-		initial: Index,
-		first: Index,
-		last: Index
-	) -> result::Result<Self, &'static str> {
-		if first > last || first < initial || last > initial + Index::sa(3) {
-			return Err("Invalid range for this auction")
-		}
-		let count: u64 = (last.checked_sub(&first).ok_or("range ends before it begins")?).as_();
-		let first: u64 = first.checked_sub(&initial).ok_or("range begins too early")?.as_();
-		match first {
-			0 => match count {
-				0 => Some(SlotRange::ZeroZero),
-				1 => Some(SlotRange::ZeroOne),
-				2 => Some(SlotRange::ZeroTwo),
-				3 => Some(SlotRange::ZeroThree),
-				_ => None,
-			},
-			1 => match count {
-				0 => Some(SlotRange::OneOne),
-				1 => Some(SlotRange::OneTwo),
-				2 => Some(SlotRange::OneThree),
-				_ => None
-			},
-			2 => match count { 0 => Some(SlotRange::TwoTwo), 1 => Some(SlotRange::TwoThree), _ => None },
-			3 => match count { 0 => Some(SlotRange::ThreeThree), _ => None },
-			_ => return Err("range begins too late"),
-		}.ok_or("range ends too late")
-	}
-
-	pub fn as_pair(&self) -> (u8, u8) {
-		match self {
-			SlotRange::ZeroZero => (0, 0),
-			SlotRange::ZeroOne => (0, 1),
-			SlotRange::ZeroTwo => (0, 2),
-			SlotRange::ZeroThree => (0, 3),
-			SlotRange::OneOne => (1, 1),
-			SlotRange::OneTwo => (1, 2),
-			SlotRange::OneThree => (1, 3),
-			SlotRange::TwoTwo => (2, 2),
-			SlotRange::TwoThree => (2, 3),
-			SlotRange::ThreeThree => (3, 3),
-		}
-	}
-
-	pub fn intersects(&self, other: SlotRange) -> bool {
-		let a = self.as_pair();
-		let b = other.as_pair();
-		a.1 >= b.0 || b.1 >= a.0
-	}
-
-	pub fn len(&self) -> usize {
-		match self {
-			SlotRange::ZeroZero => 1,
-			SlotRange::ZeroOne => 2,
-			SlotRange::ZeroTwo => 3,
-			SlotRange::ZeroThree => 4,
-			SlotRange::OneOne => 1,
-			SlotRange::OneTwo => 2,
-			SlotRange::OneThree => 3,
-			SlotRange::TwoTwo => 1,
-			SlotRange::TwoThree => 2,
-			SlotRange::ThreeThree => 1,
-		}
-	}
-}
-
-impl TryFrom<usize> for SlotRange {
-	type Error = ();
-	fn try_from(x: usize) -> Result<SlotRange, ()> {
-		Ok(match x {
-			0 => SlotRange::ZeroZero,
-			1 => SlotRange::ZeroOne,
-			2 => SlotRange::ZeroTwo,
-			3 => SlotRange::ZeroThree,
-			4 => SlotRange::OneOne,
-			5 => SlotRange::OneTwo,
-			6 => SlotRange::OneThree,
-			7 => SlotRange::TwoTwo,
-			8 => SlotRange::TwoThree,
-			9 => SlotRange::ThreeThree,
-			_ => return Err(()),
-		})
-	}
-}
+use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 type ParaIdOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
@@ -241,7 +126,7 @@ decl_storage! {
 		pub CodeHash: map [u8; 32] => Vec<u8>;
 
 		/// The number of auctions that been started so far.
-		pub AuctionCounter: AuctionIndex;
+		pub AuctionCounter get(auction_counter): AuctionIndex;
 	}
 }
 
@@ -612,16 +497,20 @@ impl<T: Trait> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use lazy_static::lazy_static;
+	use parking_lot::Mutex;
+	use std::{result::Result, collections::HashMap};
 
-	use balances;
-	use runtime_io::with_externalities;
-	use primitives::{H256, Blake2Hasher};
-	use support::{impl_outer_origin, assert_ok};
-	use runtime_primitives::{
+	use substrate_primitives::{Blake2Hasher, H256};
+	use sr_io::with_externalities;
+	use sr_primitives::{
 		BuildStorage,
 		traits::{BlakeTwo256, IdentityLookup},
 		testing::{Digest, DigestItem, Header}
 	};
+	use srml_support::{impl_outer_origin, assert_ok};
+	use balances;
+	use primitives::parachain::Id as ParaId;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -646,31 +535,81 @@ mod tests {
 		type Log = DigestItem;
 	}
 
-	pub struct TestCurrency;
+	impl balances::Trait for Test {
+		type Balance = u64;
+		type OnFreeBalanceZero = ();
+		type OnNewAccount = ();
+		type TransactionPayment = ();
+		type TransferPayment = ();
+		type DustRemoval = ();
+		type Event = ();
+	}
+
+	lazy_static! {
+		static ref PARACHAIN_COUNT: Mutex<u32> = Mutex::new(0);
+		static ref PARACHAINS: Mutex<HashMap<u32, (Vec<u8>, Vec<u8>)>> = Mutex::new(HashMap::new());
+	}
 
 	pub struct TestParachains;
+	impl ParachainRegistrar<u64> for TestParachains {
+		type ParaId = ParaId;
+		fn new_id() -> Self::ParaId {
+			*PARACHAIN_COUNT.lock() += 1;
+			(*PARACHAIN_COUNT.lock() - 1).into()
+		}
+		fn register_parachain(id: Self::ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result<(), &'static str> {
+			if PARACHAINS.lock().contains_key(&id.into_inner()) {
+				return Err("ID already exists")
+			}
+			PARACHAINS.lock().insert(id.into_inner(), (code, initial_head_data));
+			Ok(())
+		}
+		fn deregister_parachain(id: Self::ParaId) -> Result<(), &'static str> {
+			if PARACHAINS.lock().contains_key(&id.into_inner()) {
+				return Err("ID doesn't exist")
+			}
+			PARACHAINS.lock().remove(&id.into_inner());
+			Ok(())
+		}
+	}
 
 	impl Trait for Test {
 		type Event = ();
-		type Currency = TestCurrency;
+		type Currency = Balances;
 		type Parachains = TestParachains;
 	}
+
+	type Balances = balances::Module<Test>;
 	type Slots = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
-	// our desired mockup.
-	fn new_test_ext() -> runtime_io::TestExternalities<Blake2Hasher> {
-		system::GenesisConfig::<Test>::default().build_storage().unwrap().0.into()
+	// our desired mock up.
+	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
+		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
+		t.extend(balances::GenesisConfig::<Test>{
+			transaction_base_fee: 0,
+			transaction_byte_fee: 0,
+			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
+			existential_deposit: 0,
+			transfer_fee: 0,
+			creation_fee: 0,
+			vesting: vec![],
+		}.build_storage().unwrap().0);
+		t.into()
 	}
 
 	#[test]
 	fn it_works_for_default_value() {
 		with_externalities(&mut new_test_ext(), || {
-			// Just a dummy test for the dummy funtion `do_something`
-			// calling the `do_something` function with a value 42
-			assert_ok!(Slots::do_something(Origin::signed(1), 42));
-			// asserting that the stored value is equal to what we stored
-			assert_eq!(Slots::something(), Some(42));
+			assert_eq!(Slots::auction_counter(), 0);
+			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
+			assert_eq!(Slots::is_in_progress(), false);
+			assert_eq!(Slots::is_ending(1), None);
 		});
+	}
+
+	#[test]
+	fn calculate_winning_works() {
+		
 	}
 }

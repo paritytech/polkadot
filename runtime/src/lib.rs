@@ -27,6 +27,10 @@ extern crate hex_literal;
 extern crate secp256k1;
 #[cfg(test)]
 extern crate tiny_keccak;
+#[cfg(test)]
+extern crate lazy_static;
+#[cfg(test)]
+extern crate parking_lot;
 
 #[macro_use]
 extern crate bitvec;
@@ -76,6 +80,7 @@ extern crate substrate_trie;
 mod curated_grandpa;
 mod parachains;
 mod claims;
+mod slot_range;
 mod slots;
 
 use rstd::prelude::*;
