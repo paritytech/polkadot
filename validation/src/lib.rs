@@ -187,9 +187,9 @@ pub trait Network {
 #[derive(Debug, Clone, Default)]
 pub struct GroupInfo {
 	/// Authorities meant to check validity of candidates.
-	pub validity_guarantors: HashSet<SessionKey>,
+	validity_guarantors: HashSet<SessionKey>,
 	/// Number of votes needed for validity.
-	pub needed_validity: usize,
+	needed_validity: usize,
 }
 
 /// Sign a table statement against a parent hash.
@@ -347,7 +347,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
-		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
+		let table = Arc::new(SharedTable::new(authorities, group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
 			table.clone(),
 			outgoing,

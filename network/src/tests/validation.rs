@@ -401,6 +401,7 @@ fn make_table(data: &ApiData, local_key: &AuthorityKeyring, parent_hash: Hash) -
 	).unwrap();
 
 	Arc::new(SharedTable::new(
+		data.validators.as_slice(),
 		group_info,
 		Arc::new(local_key.pair()),
 		parent_hash,

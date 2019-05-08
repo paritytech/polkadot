@@ -38,6 +38,9 @@ pub type CollatorSignature = ed25519::Signature;
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorId = super::SessionKey;
 
+/// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
+pub type ValidatorIndex = u32;
+
  /// Signature with which parachain validators sign blocks.
 ///
 /// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
@@ -279,7 +282,7 @@ pub struct AttestedCandidate {
 	/// The candidate data.
 	pub candidate: CandidateReceipt,
 	/// Validity attestations.
-	pub validity_votes: Vec<(ValidatorId, ValidityAttestation)>,
+	pub validity_votes: Vec<(ValidatorIndex, ValidityAttestation)>,
 }
 
 impl AttestedCandidate {

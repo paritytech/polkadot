@@ -51,7 +51,7 @@ pub trait Context {
 	/// Members are meant to submit candidates and vote on validity.
 	fn is_member_of(&self, authority: &Self::AuthorityId, group: &Self::GroupId) -> bool;
 
-	// requisite number of votes for validity from a group.
+	/// requisite number of votes for validity from a group.
 	fn requisite_votes(&self, group: &Self::GroupId) -> usize;
 }
 

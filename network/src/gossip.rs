@@ -22,7 +22,7 @@ use substrate_network::consensus_gossip::{
 	ValidatorContext,
 };
 use polkadot_validation::SignedStatement;
-use polkadot_primitives::{Block, Hash, SessionKey};
+use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorIndex};
 use codec::Decode;
 
 use std::collections::HashMap;
@@ -120,19 +120,26 @@ impl RegisteredMessageValidator {
 	}
 }
 
-// data needed for validating gossip.
+/// The data needed for validating gossip.
 pub(crate) struct MessageValidationData {
 	/// The authorities at a block.
 	pub(crate) authorities: Vec<SessionKey>,
+	/// Mapping from validator index to `SessionKey`.
+	pub(crate) index_mapping: HashMap<ValidatorIndex, SessionKey>,
 }
 
 impl MessageValidationData {
 	fn check_statement(&self, relay_parent: &Hash, statement: &SignedStatement) -> bool {
-		self.authorities.contains(&statement.sender) &&
+		let sender = match self.index_mapping.get(&statement.sender) {
+			Some(val) => val,
+			None => return false,
+		};
+
+		self.authorities.contains(&sender) &&
 			::polkadot_validation::check_statement(
 				&statement.statement,
 				&statement.signature,
-				statement.sender.clone(),
+				sender.clone(),
 				relay_parent,
 			)
 	}
