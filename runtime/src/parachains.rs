@@ -27,7 +27,7 @@ use sr_primitives::traits::{Hash as HashT, BlakeTwo256};
 use primitives::parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement};
 use {system, session};
 
-use srml_support::{StorageValue, StorageMap};
+use srml_support::{StorageValue, StorageMap, storage::hashed::generator};
 use srml_support::dispatch::Result;
 
 #[cfg(any(feature = "std", test))]
@@ -60,8 +60,10 @@ decl_storage! {
 		config(_phdata): PhantomData<T>;
 		build(|storage: &mut sr_primitives::StorageOverlay,
 			_: &mut ChildrenStorageOverlay,
-			config: &GenesisConfig<T>| {
-			use codec::Encode;
+			config: &GenesisConfig<T>|
+		{
+
+			let storage = std::cell::RefCell::new(storage);
 
 			let mut p = config.parachains.clone();
 			p.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
@@ -69,14 +71,11 @@ decl_storage! {
 
 			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-			storage.insert(Self::hash(<Parachains<T>>::key()).to_vec(), only_ids.encode());
+			<Parachains<T> as generator::StorageValue<_>>::put(&only_ids, &storage);
 
 			for (id, code, genesis) in p {
-				let code_key = Self::hash(&<Code<T>>::key_for(&id)).to_vec();
-				let head_key = Self::hash(&<Heads<T>>::key_for(&id)).to_vec();
-
-				storage.insert(code_key, code.encode());
-				storage.insert(head_key, genesis.encode());
+				<Code<T> as generator::StorageMap<_, _>>::insert(&id, &code, &storage);
+				<Heads<T> as generator::StorageMap<_, _>>::insert(&id, &genesis, &storage);
 			}
 		});
 	}
