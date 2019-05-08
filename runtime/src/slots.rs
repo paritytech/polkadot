@@ -615,7 +615,7 @@ mod tests {
 	}
 
 	#[test]
-	fn it_works_for_default_value() {
+	fn basic_setup_works() {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Slots::auction_counter(), 0);
 			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
@@ -630,6 +630,8 @@ mod tests {
 			assert_eq!(Slots::is_ending(1), None);
 		});
 	}
+
+
 
 	#[test]
 	fn calculate_winners_works() {
