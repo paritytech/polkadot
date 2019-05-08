@@ -16,10 +16,10 @@
 
 //! Gossip messages and the message validator
 
-use substrate_network::PeerId;
+use substrate_network::{config::Roles, PeerId};
 use substrate_network::consensus_gossip::{
 	self as network_gossip, ValidationResult as GossipValidationResult,
-	ValidatorContext,
+	ValidatorContext, MessageIntent,
 };
 use polkadot_validation::SignedStatement;
 use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorIndex};
@@ -35,13 +35,68 @@ use super::NetworkService;
 /// The engine ID of the polkadot attestation system.
 pub const POLKADOT_ENGINE_ID: sr_primitives::ConsensusEngineId = [b'd', b'o', b't', b'1'];
 
+// arbitrary; in practice this should not be more than 2.
+const MAX_CHAIN_HEADS: usize = 5;
+
+mod benefit {
+	/// When a peer sends us a previously-unknown candidate statement.
+	pub const NEW_CANDIDATE: i32 = 100;
+	/// When a peer sends us a previously-unknown attestation.
+	pub const NEW_ATTESTATION: i32 = 50;
+}
+
+mod cost {
+	/// A peer sent us an attestation and we don't know the candidate.
+	pub const ATTESTATION_NO_CANDIDATE: i32 = -100;
+	/// A peer sent us a statement we consider in the future.
+	pub const FUTURE_MESSAGE: i32 = -100;
+	/// A peer sent us a statement from the past.
+	pub const PAST_MESSAGE: i32 = -30;
+}
+
 /// A gossip message.
 #[derive(Encode, Decode, Clone)]
-pub(crate) struct GossipMessage {
+pub(crate) enum GossipMessage {
+	/// A packet sent to a neighbor but not relayed.
+	#[codec(index = "1")]
+	Neighbor(VersionedNeighborPacket),
+	/// An attestation-statement about the candidate.
+	/// Non-candidate statements should only be sent to peers who are aware of the candidate.
+	#[codec(index = "2")]
+	Statement(GossipStatement),
+	// TODO: https://github.com/paritytech/polkadot/issues/253
+	// erasure-coded chunks.
+}
+
+/// A gossip message containing a statement.
+#[derive(Encode, Decode, Clone)]
+pub(crate) struct GossipStatement {
 	/// The relay chain parent hash.
 	pub(crate) relay_parent: Hash,
 	/// The signed statement being gossipped.
 	pub(crate) statement: SignedStatement,
+}
+
+/// A versioned neighbor message.
+#[derive(Encode, Decode, Clone)]
+pub enum VersionedNeighborPacket {
+	#[codec(index = "1")]
+	V1(NeighborPacket),
+}
+
+impl VersionedNeighborPacket {
+	fn into_inner(self) -> NeighborPacket {
+		match self {
+			VersionedNeighborPacket::V1(packet) => packet,
+		}
+	}
+}
+
+/// Contains information on which chain heads the peer is
+/// accepting messages for.
+#[derive(Encode, Decode, Clone)]
+pub struct NeighborPacket {
+	chain_heads: Vec<Hash>,
 }
 
 /// whether a block is known.
@@ -77,8 +132,11 @@ pub fn register_validator<O: KnownOracle + 'static>(
 	oracle: O,
 ) -> RegisteredMessageValidator {
 	let validator = Arc::new(MessageValidator {
-		live_session: RwLock::new(HashMap::new()),
-		oracle,
+		inner: RwLock::new(Inner {
+			peers: HashMap::new(),
+			our_live_sessions: HashMap::new(),
+			oracle,
+		})
 	});
 
 	let gossip_side = validator.clone();
@@ -101,8 +159,11 @@ impl RegisteredMessageValidator {
 	#[cfg(test)]
 	pub(crate) fn new_test<O: KnownOracle + 'static>(oracle: O) -> Self {
 		let validator = Arc::new(MessageValidator {
-			live_session: RwLock::new(HashMap::new()),
-			oracle,
+			inner: RwLock::new(Inner {
+				peers: HashMap::new(),
+				our_live_sessions: HashMap::new(),
+				oracle,
+			})
 		});
 
 		RegisteredMessageValidator { inner: validator as _ }
@@ -111,12 +172,12 @@ impl RegisteredMessageValidator {
 	/// Note a live attestation session. This must be removed later with
 	/// `remove_session`.
 	pub(crate) fn note_session(&self, relay_parent: Hash, validation: MessageValidationData) {
-		self.inner.live_session.write().insert(relay_parent, validation);
+		unimplemented!()
 	}
 
 	/// Remove a live attestation session when it is no longer live.
 	pub(crate) fn remove_session(&self, relay_parent: &Hash) {
-		self.inner.live_session.write().remove(relay_parent);
+		unimplemented!()
 	}
 }
 
@@ -145,41 +206,81 @@ impl MessageValidationData {
 	}
 }
 
-/// An unregistered message validator. Register this with `register_validator`.
-pub struct MessageValidator<O: ?Sized> {
-	live_session: RwLock<HashMap<Hash, MessageValidationData>>,
+// knowledge about attestations on a single parent-hash.
+struct Knowledge {
+	candidates: HashMap<Hash, Vec<SessionKey>>,
+}
+
+impl Knowledge {
+	// whether the peer is aware of a candidate with given hash.
+	fn is_aware_of(&self, candidate_hash: &Hash) -> bool {
+		self.candidates.contains_key(candidate_hash)
+	}
+
+	// whether the peer is aware of a candidate with given hash from a specific author.
+	fn is_aware_of_from(&self, candidate_hash: &Hash, author_key: &SessionKey) -> bool {
+		self.candidates.get(candidate_hash)
+			.and_then(|f| f.iter().position(|k| k == author_key)).is_some()
+	}
+}
+
+struct PeerData {
+	live: HashMap<Hash, Knowledge>,
+}
+
+impl PeerData {
+	fn knowledge_at(&self, parent_hash: &Hash) -> Option<&Knowledge> {
+		self.live.get(parent_hash)
+	}
+
+	fn believes_live(&self, parent_hash: &Hash) -> bool {
+		self.live.contains_key(&parent_hash)
+	}
+}
+
+struct Inner<O: ?Sized> {
+	peers: HashMap<PeerId, PeerData>,
+	our_live_sessions: HashMap<Hash, MessageValidationData>,
 	oracle: O,
 }
 
+impl<O: ?Sized + KnownOracle> Inner<O> {
+	fn validate_statement(&mut self, sender: &PeerId, statement: GossipStatement) {
+
+	}
+}
+
+/// An unregistered message validator. Register this with `register_validator`.
+pub struct MessageValidator<O: ?Sized> {
+	inner: RwLock<Inner<O>>,
+}
+
+impl<O: KnownOracle + ?Sized> MessageValidator<O> {
+	fn report(&self, _who: &PeerId, cost_benefit: i32) {
+
+	}
+}
+
 impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValidator<O> {
+	fn new_peer(&self, _context: &mut ValidatorContext<Block>, who: &PeerId, _roles: Roles) {
+		unimplemented!()
+	}
+
+	fn peer_disconnected(&self, _context: &mut ValidatorContext<Block>, who: &PeerId) {
+		unimplemented!()
+	}
+
 	fn validate(&self, context: &mut ValidatorContext<Block>, _sender: &PeerId, mut data: &[u8])
 		-> GossipValidationResult<Hash>
 	{
-		let orig_data = data;
-		match GossipMessage::decode(&mut data) {
-			Some(GossipMessage { relay_parent, statement }) => {
-				let live = self.live_session.read();
-				let topic = || ::router::attestation_topic(relay_parent.clone());
-				if let Some(validation) = live.get(&relay_parent) {
-					if validation.check_statement(&relay_parent, &statement) {
-						// repropagate
-						let topic = topic();
-						context.broadcast_message(topic, orig_data.to_owned(), false);
-						GossipValidationResult::ProcessAndKeep(topic)
-					} else {
-						GossipValidationResult::Discard
-					}
-				} else {
-					match self.oracle.is_known(&relay_parent) {
-						None | Some(Known::Leaf) => GossipValidationResult::ProcessAndKeep(topic()),
-						Some(Known::Old) | Some(Known::Bad) => GossipValidationResult::Discard,
-					}
-				}
-			}
-			None => {
-				debug!(target: "validation", "Error decoding gossip message");
-				GossipValidationResult::Discard
-			}
-		}
+		unimplemented!()
+	}
+
+	fn message_expired<'a>(&'a self) -> Box<FnMut(Hash, &[u8]) -> bool + 'a> {
+		Box::new(move |_topic, _data| false)
+	}
+
+	fn message_allowed<'a>(&'a self) -> Box<FnMut(&PeerId, MessageIntent, &Hash, &[u8]) -> bool + 'a> {
+		Box::new(move |_who, _intent, _topic, _data| true)
 	}
 }

@@ -241,7 +241,6 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
-		outgoing: polkadot_validation::Outgoing,
 		authorities: &[ValidatorId],
 	) -> Self::BuildTableRouter {
 		let parent_hash = table.consensus_parent_hash().clone();
@@ -263,8 +262,6 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 					fetcher,
 					message_validator,
 				);
-
-				table_router.broadcast_egress(outgoing);
 
 				let table_router_clone = table_router.clone();
 				let work = table_router.checked_statements()
@@ -782,45 +779,6 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 			}
 		});
 		PoVReceiver { outer: rx, inner: None }
-	}
-
-	/// Fetch incoming messages for a parachain.
-	pub fn fetch_incoming(&self, parachain: ParaId) -> IncomingReceiver {
-		let (rx, work) = self.fetch_incoming.lock().fetch_with_work(parachain.clone(), move || {
-			let parent_hash: Hash = self.parent_hash();
-			let topic = incoming_message_topic(parent_hash, parachain);
-
-			let gossip_messages = self.network().gossip_messages_for(topic)
-				.map_err(|()| panic!("unbounded receivers do not throw errors; qed"))
-				.filter_map(|msg| IngressPair::decode(&mut msg.message.as_slice()));
-
-			let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
-				.map_err(|e| format!("Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
-					parachain, parent_hash, e)
-				);
-
-			canon_roots.into_future()
-				.and_then(move |ingress_roots| match ingress_roots {
-					None => Err(format!("No parachain {:?} registered at {}", parachain, parent_hash)),
-					Some(roots) => Ok(roots.0.into_iter().collect())
-				})
-				.and_then(move |ingress_roots| ComputeIngress {
-					inner: gossip_messages,
-					ingress_roots,
-					incoming: Vec::new(),
-				})
-				.select2(self.exit.clone())
-				.map(|res| match res {
-					future::Either::A((incoming, _)) => incoming,
-					future::Either::B(_) => None,
-				})
-		});
-
-		if let Some(work) = work {
-			self.task_executor.spawn(work);
-		}
-
-		rx
 	}
 }
 

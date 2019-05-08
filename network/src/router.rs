@@ -86,10 +86,14 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 		// this will block internally until the gossip messages stream is obtained.
 		self.network().gossip_messages_for(self.attestation_topic)
 			.filter_map(|msg| {
+				use crate::gossip::GossipMessage;
+
 				debug!(target: "validation", "Processing statement for live validation session");
-				crate::gossip::GossipMessage::decode(&mut &msg.message[..])
+				match GossipMessage::decode(&mut &msg.message[..]) {
+					Some(GossipMessage::Statement(s)) => Some(s.statement),
+					_ => None,
+				}
 			})
-			.map(|msg| msg.statement)
 	}
 
 	/// Get access to the session data fetcher.
@@ -170,38 +174,6 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 					let work = work.select2(self.fetcher.exit().clone()).then(|_| Ok(()));
 					self.fetcher.executor().spawn(work);
 				}
-			}
-		}
-	}
-
-	/// Broadcast outgoing messages to peers.
-	pub(crate) fn broadcast_egress(&self, outgoing: Outgoing) {
-		use slice_group_by::LinearGroupBy;
-
-		let mut group_messages = Vec::new();
-		for egress in outgoing {
-			let source = egress.from;
-			let messages = egress.messages.outgoing_messages;
-
-			let groups = LinearGroupBy::new(&messages, |a, b| a.target == b.target);
-			for group in groups {
-				let target = match group.get(0) {
-					Some(msg) => msg.target,
-					None => continue, // skip empty.
-				};
-
-				group_messages.clear(); // reuse allocation from previous iterations.
-				group_messages.extend(group.iter().map(|msg| msg.data.clone()).map(Message));
-
-				debug!(target: "valdidation", "Circulating messages from {:?} to {:?} at {}",
-					source, target, self.parent_hash());
-
-				// this is the ingress from source to target, with given messages.
-				let target_incoming =
-					validation::incoming_message_topic(self.parent_hash(), target);
-				let ingress_for: IngressPairRef = (source, &group_messages[..]);
-
-				self.network().gossip_message(target_incoming, ingress_for.encode());
 			}
 		}
 	}

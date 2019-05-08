@@ -31,7 +31,6 @@ extern crate polkadot_primitives;
 extern crate arrayvec;
 extern crate parking_lot;
 extern crate tokio;
-extern crate slice_group_by;
 extern crate exit_future;
 
 #[macro_use]
