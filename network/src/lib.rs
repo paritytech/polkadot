@@ -80,8 +80,9 @@ mod cost {
 	pub(super) const UNKNOWN_PEER: i32 = -50;
 	pub(super) const COLLATOR_ALREADY_KNOWN: i32 = -100;
 	pub(super) const BAD_COLLATION: i32 = -1000;
+}
 
-
+mod benefit {
 	pub(super) const EXPECTED_MESSAGE: i32 = 20;
 	pub(super) const VALID_FORMAT: i32 = 20;
 
@@ -390,7 +391,7 @@ impl PolkadotProtocol {
 				ctx.report_peer(who, cost::UNEXPECTED_MESSAGE);
 				return;
 			}
-			ctx.report_peer(who.clone(), cost::EXPECTED_MESSAGE);
+			ctx.report_peer(who.clone(), benefit::EXPECTED_MESSAGE);
 
 			let local_collations = &mut self.local_collations;
 			let new_collations = match info.validator_keys.insert(key.clone()) {
@@ -427,7 +428,7 @@ impl PolkadotProtocol {
 	) {
 		match self.in_flight.remove(&(req_id, who.clone())) {
 			Some(mut req) => {
-				ctx.report_peer(who, cost::EXPECTED_MESSAGE);
+				ctx.report_peer(who, benefit::EXPECTED_MESSAGE);
 				if let Some(pov_block) = pov_block {
 					match req.process_response(pov_block) {
 						Ok(()) => return,
@@ -457,7 +458,6 @@ impl PolkadotProtocol {
 		if info.validator_keys.as_slice().is_empty() {
 			ctx.report_peer(who, cost::UNEXPECTED_MESSAGE);
 		} else {
-			ctx.report_peer(who.clone(), cost::EXPECTED_MESSAGE);
 			// update role for all saved session keys for this validator.
 			let local_collations = &mut self.local_collations;
 			for (relay_parent, collation) in info.validator_keys
@@ -504,7 +504,7 @@ impl Specialization<Block> for PolkadotProtocol {
 				ctx.report_peer(who, cost::COLLATOR_ALREADY_KNOWN);
 				return
 			}
-			ctx.report_peer(who.clone(), cost::NEW_COLLATOR);
+			ctx.report_peer(who.clone(), benefit::NEW_COLLATOR);
 
 			let collator_role = self.collators.on_new_collator(acc_id.clone(), para_id.clone());
 
@@ -579,7 +579,7 @@ impl Specialization<Block> for PolkadotProtocol {
 			Some(generic_message::Message::ChainSpecific(raw)) => {
 				match Message::decode(&mut raw.as_slice()) {
 					Some(msg) => {
-						ctx.report_peer(who.clone(), cost::VALID_FORMAT);
+						ctx.report_peer(who.clone(), benefit::VALID_FORMAT);
 						self.on_polkadot_message(ctx, who, msg)
 					},
 					None => {
@@ -630,15 +630,15 @@ impl PolkadotProtocol {
 		match self.peers.get(&from) {
 			None => ctx.report_peer(from, cost::UNKNOWN_PEER),
 			Some(peer_info) => {
-				ctx.report_peer(from.clone(), cost::KNOWN_PEER);
+				ctx.report_peer(from.clone(), benefit::KNOWN_PEER);
 				match peer_info.collating_for {
 					None => ctx.report_peer(from, cost::UNEXPECTED_MESSAGE),
 					Some((ref acc_id, ref para_id)) => {
-						ctx.report_peer(from.clone(), cost::EXPECTED_MESSAGE);
+						ctx.report_peer(from.clone(), benefit::EXPECTED_MESSAGE);
 						let structurally_valid = para_id == &collation_para && acc_id == &collated_acc;
 						if structurally_valid && collation.receipt.check_signature().is_ok() {
 							debug!(target: "p_net", "Received collation for parachain {:?} from peer {}", para_id, from);
-							ctx.report_peer(from, cost::GOOD_COLLATION);
+							ctx.report_peer(from, benefit::GOOD_COLLATION);
 							self.collators.on_collation(acc_id.clone(), relay_parent, collation)
 						} else {
 							ctx.report_peer(from, cost::INVALID_FORMAT)
