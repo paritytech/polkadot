@@ -107,30 +107,30 @@ decl_storage! {
 		pub Winning get(winning): map u32 => Option<WinningData<T>>;
 
 		/// Amounts currently reserved in the accounts of the current winning bidders.
-		pub ReservedAmounts: map Bidder<T::AccountId, ParaIdOf<T>> => Option<BalanceOf<T>>;
+		pub ReservedAmounts get(reserved_amounts): map Bidder<T::AccountId, ParaIdOf<T>> => Option<BalanceOf<T>>;
 
 		/// All `ParaId` values that are managed by this module. This includes chains that are not yet deployed (but
-		/// have won an auction in the future). Once a managed ID
-		pub ManagedIds: Vec<ParaIdOf<T>>;
+		/// have won an auction in the future).
+		pub ManagedIds get(managed_ids): Vec<ParaIdOf<T>>;
 
 		/// Winners of a given auction; deleted once all four slots have been used.
-		pub Onboarding: map LeasePeriodOf<T> => Vec<(ParaIdOf<T>, IncomingParachain<T::AccountId>)>;
+		pub Onboarding get(onboarding): map LeasePeriodOf<T> => Vec<(ParaIdOf<T>, IncomingParachain<T::AccountId>)>;
 
 		/// Offboarding account; currency held on deposit for the parachain gets placed here if the parachain gets
 		/// completely offboarded.
-		pub Offboarding: map ParaIdOf<T> => T::AccountId;
+		pub Offboarding get(offboarding): map ParaIdOf<T> => T::AccountId;
 
 		/// Various amounts on deposit for each parachain. The actual amount locked on its behalf at any time is the
 		/// maximum item in this list. The first item in the list is the amount locked for the current Lease Period.
 		/// The default value (an empty list) implies that the parachain no longer exists (or never existed).
-		pub Deposits: map ParaIdOf<T> => Vec<BalanceOf<T>>;
+		pub Deposits get(deposits): map ParaIdOf<T> => Vec<BalanceOf<T>>;
 
 		/// Information relating to the current auction, if there is one. Right now it's just the initial Lease Period
 		/// that it's for.
-		pub AuctionInfo: Option<(LeasePeriodOf<T>, T::BlockNumber)>;
+		pub AuctionInfo get(auction_info): Option<(LeasePeriodOf<T>, T::BlockNumber)>;
 
 		/// Map from Blake2 hash to preimage for any code hashes contained in `Winners`.
-		pub CodeHash: map [u8; 32] => Vec<u8>;
+		CodeHash: map [u8; 32] => Vec<u8>;
 
 		/// The number of auctions that been started so far.
 		pub AuctionCounter get(auction_counter): AuctionIndex;
@@ -454,6 +454,7 @@ impl<T: Trait> Module<T> {
 					}
 				}
 			}
+			<Winning<T>>::insert(offset, &current_winning);
 		}
 		Ok(())
 	}
@@ -709,7 +710,9 @@ mod tests {
 			assert_ok!(Slots::new_auction(5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 
-			run_to_block(10);
+			run_to_block(9);
+
+			assert_eq!(Slots::onboarding(1), vec![(0.into(), IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))]);
 		});
 	}
 
