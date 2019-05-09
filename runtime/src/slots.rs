@@ -506,9 +506,7 @@ impl<T: Trait> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use lazy_static::lazy_static;
-	use parking_lot::Mutex;
-	use std::{result::Result, collections::HashMap};
+	use std::{result::Result, collections::HashMap, cell::RefCell};
 
 	use substrate_primitives::{Blake2Hasher, H256};
 	use sr_io::with_externalities;
@@ -554,32 +552,42 @@ mod tests {
 		type Event = ();
 	}
 
-	lazy_static! {
-		static ref PARACHAIN_COUNT: Mutex<u32> = Mutex::new(0);
-		static ref PARACHAINS: Mutex<HashMap<u32, (Vec<u8>, Vec<u8>)>> = Mutex::new(HashMap::new());
+	thread_local! {
+		pub static PARACHAIN_COUNT: RefCell<u32> = RefCell::new(0);
+		pub static PARACHAINS: RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
 	}
 
 	pub struct TestParachains;
 	impl ParachainRegistrar<u64> for TestParachains {
 		type ParaId = ParaId;
 		fn new_id() -> Self::ParaId {
-			*PARACHAIN_COUNT.lock() += 1;
-			(*PARACHAIN_COUNT.lock() - 1).into()
+			PARACHAIN_COUNT.with(|p| {
+				*p.borrow_mut() += 1;
+				(*p.borrow_mut() - 1).into()
+			})
 		}
 		fn register_parachain(id: Self::ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result<(), &'static str> {
-			if PARACHAINS.lock().contains_key(&id.into_inner()) {
-				return Err("ID already exists")
-			}
-			PARACHAINS.lock().insert(id.into_inner(), (code, initial_head_data));
-			Ok(())
+			PARACHAINS.with(|p| {
+				if p.borrow_mut().contains_key(&id.into_inner()) {
+					return Err("ID already exists")
+				}
+				p.borrow_mut().insert(id.into_inner(), (code, initial_head_data));
+				Ok(())
+			})
 		}
 		fn deregister_parachain(id: Self::ParaId) -> Result<(), &'static str> {
-			if PARACHAINS.lock().contains_key(&id.into_inner()) {
-				return Err("ID doesn't exist")
-			}
-			PARACHAINS.lock().remove(&id.into_inner());
-			Ok(())
+			PARACHAINS.with(|p| {
+				if p.borrow_mut().contains_key(&id.into_inner()) {
+					return Err("ID doesn't exist")
+				}
+				p.borrow_mut().remove(&id.into_inner());
+				Ok(())
+			})
 		}
+	}
+
+	fn reset_count() {
+		PARACHAIN_COUNT.with(|p| *p.borrow_mut() = 0);
 	}
 
 	parameter_types!{
@@ -750,7 +758,7 @@ mod tests {
 
 		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
 
-		*PARACHAIN_COUNT.lock() = 0;
+		reset_count();
 		winning[SlotRange::ZeroThree as u8 as usize] = Some((Bidder::New(NewBidder{who: 1, sub: 0}), 2));
 		let winners = vec![
 			(Some(NewBidder{who: 2,sub: 0}), 0.into(), 2, SlotRange::ZeroZero),
@@ -760,7 +768,7 @@ mod tests {
 		];
 		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
 
-		*PARACHAIN_COUNT.lock() = 0;
+		reset_count();
 		winning[SlotRange::ZeroOne as u8 as usize] = Some((Bidder::New(NewBidder{who: 4, sub: 0}), 3));
 		let winners = vec![
 			(Some(NewBidder{who: 4,sub: 0}), 0.into(), 3, SlotRange::ZeroOne),
