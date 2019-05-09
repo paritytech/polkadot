@@ -23,9 +23,8 @@ use std::sync::Arc;
 use extrinsic_store::{Data, Store as ExtrinsicStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
-use polkadot_primitives::parachain::{
-	Id as ParaId, Collation, Extrinsic, CandidateReceipt,
-	AttestedCandidate, ParachainHost, PoVBlock
+use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, CandidateReceipt,
+	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex,
 };
 
 use parking_lot::Mutex;
@@ -46,11 +45,17 @@ struct TableContext {
 	parent_hash: Hash,
 	key: Arc<ed25519::Pair>,
 	groups: HashMap<ParaId, GroupInfo>,
+	index_mapping: HashMap<ValidatorIndex, SessionKey>,
 }
 
 impl table::Context for TableContext {
-	fn is_member_of(&self, authority: &SessionKey, group: &ParaId) -> bool {
-		self.groups.get(group).map_or(false, |g| g.validity_guarantors.contains(authority))
+	fn is_member_of(&self, authority: ValidatorIndex, group: &ParaId) -> bool {
+		let key = match self.index_mapping.get(&authority) {
+			Some(val) => val,
+			None => return false,
+		};
+
+		self.groups.get(group).map_or(false, |g| g.validity_guarantors.get(&key).is_some())
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
@@ -63,13 +68,23 @@ impl TableContext {
 		self.key.public().into()
 	}
 
+	fn local_index(&self) -> ValidatorIndex {
+		let id = self.local_id();
+		self
+			.index_mapping
+			.iter()
+			.find(|(_, k)| k == &&id)
+			.map(|(i, _)| *i)
+			.unwrap()
+	}
+
 	fn sign_statement(&self, statement: table::Statement) -> table::SignedStatement {
 		let signature = ::sign_table_statement(&statement, &self.key, &self.parent_hash).into();
 
 		table::SignedStatement {
 			statement,
 			signature,
-			sender: self.local_id(),
+			sender: self.local_index(),
 		}
 	}
 }
@@ -131,9 +146,9 @@ impl SharedTableInner {
 
 		self.update_trackers(&summary.candidate, context);
 
-		let local_id = context.local_id();
+		let local_index = context.local_index();
 
-		let para_member = context.is_member_of(&local_id, &summary.group_id);
+		let para_member = context.is_member_of(local_index, &summary.group_id);
 
 		let digest = &summary.candidate;
 
@@ -375,13 +390,15 @@ impl SharedTable {
 	/// Provide the key to sign with, and the parent hash of the relay chain
 	/// block being built.
 	pub fn new(
+		authorities: &[ed25519::Public],
 		groups: HashMap<ParaId, GroupInfo>,
 		key: Arc<ed25519::Pair>,
 		parent_hash: Hash,
 		extrinsic_store: ExtrinsicStore,
 	) -> Self {
-		SharedTable {
-			context: Arc::new(TableContext { groups, key, parent_hash }),
+		let index_mapping = authorities.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect();
+		Self {
+			context: Arc::new(TableContext { groups, key, parent_hash, index_mapping, }),
 			inner: Arc::new(Mutex::new(SharedTableInner {
 				table: Table::default(),
 				validated: HashMap::new(),
@@ -513,7 +530,7 @@ impl SharedTable {
 	}
 
 	/// Get all witnessed misbehavior.
-	pub fn get_misbehavior(&self) -> HashMap<SessionKey, table::Misbehavior> {
+	pub fn get_misbehavior(&self) -> HashMap<ValidatorIndex, table::Misbehavior> {
 		self.inner.lock().table.get_misbehavior().clone()
 	}
 
@@ -533,6 +550,11 @@ impl SharedTable {
 		}
 
 		rx
+	}
+
+	/// Returns id of the validator corresponding to the given index.
+	pub fn index_to_id(&self, index: ValidatorIndex) -> Option<SessionKey> {
+		self.context.index_mapping.get(&index).cloned()
 	}
 }
 
@@ -577,13 +599,15 @@ mod tests {
 
 		let validity_other_key = AuthorityKeyring::Bob.pair();
 		let validity_other = validity_other_key.public();
+		let validity_other_index = 1;
 
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
+			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 2,
 		});
 
 		let shared_table = SharedTable::new(
+			&[local_id, validity_other],
 			groups,
 			local_key.clone(),
 			parent_hash,
@@ -607,7 +631,7 @@ mod tests {
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
-			sender: validity_other,
+			sender: validity_other_index,
 		};
 
 		shared_table.import_remote_statement(
@@ -628,13 +652,15 @@ mod tests {
 
 		let validity_other_key = AuthorityKeyring::Bob.pair();
 		let validity_other = validity_other_key.public();
+		let validity_other_index = 1;
 
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
+			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
 		});
 
 		let shared_table = SharedTable::new(
+			&[local_id, validity_other],
 			groups,
 			local_key.clone(),
 			parent_hash,
@@ -658,7 +684,7 @@ mod tests {
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
-			sender: validity_other,
+			sender: validity_other_index,
 		};
 
 		shared_table.import_remote_statement(
@@ -758,13 +784,15 @@ mod tests {
 
 		let validity_other_key = AuthorityKeyring::Bob.pair();
 		let validity_other = validity_other_key.public();
+		let validity_other_index = 1;
 
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other.clone()].iter().cloned().collect(),
+			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
 		});
 
 		let shared_table = SharedTable::new(
+			&[local_id, validity_other],
 			groups,
 			local_key.clone(),
 			parent_hash,
@@ -789,7 +817,7 @@ mod tests {
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
-			sender: validity_other,
+			sender: validity_other_index,
 		};
 
 		let _a = shared_table.import_remote_statement(
@@ -823,11 +851,12 @@ mod tests {
 		let validity_other = validity_other_key.public();
 
 		groups.insert(para_id, GroupInfo {
-			validity_guarantors: [local_id, validity_other].iter().cloned().collect(),
+			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
 			needed_validity: 1,
 		});
 
 		let shared_table = SharedTable::new(
+			&[local_id, validity_other],
 			groups,
 			local_key.clone(),
 			parent_hash,
@@ -860,5 +889,29 @@ mod tests {
 		);
 
 		assert!(a.is_none());
+	}
+
+	#[test]
+	fn index_mapping_from_authorities() {
+		let authorities_set: &[&[_]] = &[
+			&[],
+			&[AuthorityKeyring::Alice.pair().public()],
+			&[AuthorityKeyring::Alice.pair().public(), AuthorityKeyring::Bob.pair().public()],
+			&[AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Alice.pair().public()],
+			&[AuthorityKeyring::Alice.pair().public(), AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Charlie.pair().public()],
+			&[AuthorityKeyring::Charlie.pair().public(), AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Alice.pair().public()],
+		];
+
+		for authorities in authorities_set {
+			let shared_table = SharedTable::new(
+				authorities,
+				HashMap::new(),
+				Arc::new(AuthorityKeyring::Alice.pair()),
+				Default::default(),
+				ExtrinsicStore::new_in_memory(),
+			);
+			let expected_mapping = authorities.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect();
+			assert_eq!(shared_table.context.index_mapping, expected_mapping);
+		}
 	}
 }
