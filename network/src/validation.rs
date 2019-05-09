@@ -25,7 +25,7 @@ use substrate_network::consensus_gossip::{TopicNotification, MessageRecipient as
 use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, Message, CandidateReceipt, CollatorId, ValidatorId, PoVBlock, ValidatorIndex};
-use codec::{Encode, Decode};
+use codec::Encode;
 
 use futures::prelude::*;
 use futures::future::{self, Executor as FutureExecutor};

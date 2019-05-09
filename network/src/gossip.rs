@@ -21,7 +21,7 @@ use substrate_network::consensus_gossip::{
 	self as network_gossip, ValidationResult as GossipValidationResult,
 	ValidatorContext, MessageIntent,
 };
-use polkadot_validation::SignedStatement;
+use polkadot_validation::{GenericStatement, SignedStatement};
 use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorIndex};
 use codec::Decode;
 
@@ -52,6 +52,10 @@ mod cost {
 	pub const FUTURE_MESSAGE: i32 = -100;
 	/// A peer sent us a statement from the past.
 	pub const PAST_MESSAGE: i32 = -30;
+	/// A peer sent us a malformed message.
+	pub const MALFORMED_MESSAGE: i32 = -500;
+	/// A peer sent us a wrongly signed message.
+	pub const BAD_SIGNATURE: i32 = -500;
 }
 
 /// A gossip message.
@@ -74,7 +78,7 @@ pub(crate) struct GossipStatement {
 	/// The relay chain parent hash.
 	pub(crate) relay_parent: Hash,
 	/// The signed statement being gossipped.
-	pub(crate) statement: SignedStatement,
+	pub(crate) signed_statement: SignedStatement,
 }
 
 /// A versioned neighbor message.
@@ -134,7 +138,7 @@ pub fn register_validator<O: KnownOracle + 'static>(
 	let validator = Arc::new(MessageValidator {
 		inner: RwLock::new(Inner {
 			peers: HashMap::new(),
-			our_live_sessions: HashMap::new(),
+			our_view: Default::default(),
 			oracle,
 		})
 	});
@@ -161,7 +165,7 @@ impl RegisteredMessageValidator {
 		let validator = Arc::new(MessageValidator {
 			inner: RwLock::new(Inner {
 				peers: HashMap::new(),
-				our_live_sessions: HashMap::new(),
+				our_view: Default::default(),
 				oracle,
 			})
 		});
@@ -190,23 +194,30 @@ pub(crate) struct MessageValidationData {
 }
 
 impl MessageValidationData {
-	fn check_statement(&self, relay_parent: &Hash, statement: &SignedStatement) -> bool {
+	fn check_statement(&self, relay_parent: &Hash, statement: &SignedStatement) -> Result<(), ()> {
 		let sender = match self.index_mapping.get(&statement.sender) {
 			Some(val) => val,
-			None => return false,
+			None => return Err(()),
 		};
 
-		self.authorities.contains(&sender) &&
+		let good = self.authorities.contains(&sender) &&
 			::polkadot_validation::check_statement(
 				&statement.statement,
 				&statement.signature,
 				sender.clone(),
 				relay_parent,
-			)
+			);
+
+		if good {
+			Ok(())
+		} else {
+			Err(())
+		}
 	}
 }
 
 // knowledge about attestations on a single parent-hash.
+#[derive(Default)]
 struct Knowledge {
 	candidates: HashMap<Hash, Vec<SessionKey>>,
 }
@@ -238,15 +249,83 @@ impl PeerData {
 	}
 }
 
+#[derive(Default)]
+struct OurView {
+	live_sessions: HashMap<Hash, SessionView>,
+}
+
+impl OurView {
+	fn session_view(&self, relay_parent: &Hash) -> Option<&SessionView> {
+		self.live_sessions.get(relay_parent)
+	}
+}
+
+struct SessionView {
+	validation_data: MessageValidationData,
+	knowledge: Knowledge,
+}
+
 struct Inner<O: ?Sized> {
 	peers: HashMap<PeerId, PeerData>,
-	our_live_sessions: HashMap<Hash, MessageValidationData>,
+	our_view: OurView,
 	oracle: O,
 }
 
 impl<O: ?Sized + KnownOracle> Inner<O> {
-	fn validate_statement(&mut self, sender: &PeerId, statement: GossipStatement) {
+	fn validate_statement(&mut self, sender: &PeerId, message: GossipStatement)
+		-> (GossipValidationResult<Hash>, i32)
+	{
+		// message must reference one of our chain heads and one
+		// if message is not a `Candidate` we should have the candidate available
+		// in `our_view`.
+		match self.our_view.session_view(&message.relay_parent) {
+			None => {
+				let cost = match self.oracle.is_known(&message.relay_parent) {
+					Some(Known::Leaf) => {
+						warn!(
+							target: "network",
+							"Leaf block {} not considered live for attestation",
+							message.relay_parent,
+						);
 
+						0
+					}
+					Some(Known::Old) => cost::PAST_MESSAGE,
+					_ => cost::FUTURE_MESSAGE,
+				};
+
+				(GossipValidationResult::Discard, cost)
+			}
+			Some(view) => {
+				// first check that we are capable of receiving this message
+				// in a DoS-proof manner.
+				let benefit = match message.signed_statement.statement {
+					GenericStatement::Candidate(_) => benefit::NEW_CANDIDATE,
+					GenericStatement::Valid(ref h) | GenericStatement::Invalid(ref h) => {
+						if !view.knowledge.is_aware_of(h) {
+							let cost = cost::ATTESTATION_NO_CANDIDATE;
+							return (GossipValidationResult::Discard, cost);
+						}
+
+						benefit::NEW_ATTESTATION
+					}
+				};
+
+				// validate signature.
+				let res = view.validation_data.check_statement(
+					&message.relay_parent,
+					&message.signed_statement,
+				);
+
+				match res {
+					Ok(()) => {
+						let topic = crate::router::attestation_topic(message.relay_parent);
+						(GossipValidationResult::ProcessAndKeep(topic), benefit)
+					}
+					Err(()) => (GossipValidationResult::Discard, cost::BAD_SIGNATURE),
+				}
+			}
+		}
 	}
 }
 
@@ -257,30 +336,55 @@ pub struct MessageValidator<O: ?Sized> {
 
 impl<O: KnownOracle + ?Sized> MessageValidator<O> {
 	fn report(&self, _who: &PeerId, cost_benefit: i32) {
-
+		// TODO: forward to implemented
 	}
 }
 
 impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValidator<O> {
 	fn new_peer(&self, _context: &mut ValidatorContext<Block>, who: &PeerId, _roles: Roles) {
-		unimplemented!()
+		let mut inner = self.inner.write();
+		inner.peers.insert(who.clone(), PeerData {
+			live: HashMap::new(),
+		});
 	}
 
 	fn peer_disconnected(&self, _context: &mut ValidatorContext<Block>, who: &PeerId) {
-		unimplemented!()
+		let mut inner = self.inner.write();
+		inner.peers.remove(who);
 	}
 
-	fn validate(&self, context: &mut ValidatorContext<Block>, _sender: &PeerId, mut data: &[u8])
+	fn validate(&self, context: &mut ValidatorContext<Block>, sender: &PeerId, mut data: &[u8])
 		-> GossipValidationResult<Hash>
 	{
-		unimplemented!()
+		let (res, cost_benefit) = match GossipMessage::decode(&mut data) {
+			None => (GossipValidationResult::Discard, cost::MALFORMED_MESSAGE),
+			Some(GossipMessage::Neighbor(_)) =>
+				// TODO [now]: validate
+				(GossipValidationResult::Discard, 0),
+			Some(GossipMessage::Statement(statement)) =>
+				self.inner.write().validate_statement(sender, statement)
+		};
+
+		self.report(sender, cost_benefit);
+		res
 	}
 
 	fn message_expired<'a>(&'a self) -> Box<FnMut(Hash, &[u8]) -> bool + 'a> {
-		Box::new(move |_topic, _data| false)
+		Box::new(move |topic, data| {
+			// check that topic is one of our live sessions. everything else is expired
+			unimplemented!();
+		})
 	}
 
 	fn message_allowed<'a>(&'a self) -> Box<FnMut(&PeerId, MessageIntent, &Hash, &[u8]) -> bool + 'a> {
-		Box::new(move |_who, _intent, _topic, _data| true)
+		Box::new(move |_who, _intent, _topic, _data| {
+			// check that topic is one of our peers' live sessions.
+			// `valid` and `invalid` statements can only be propagated after
+			// a candidate message is known by that peer.
+			//
+			// if we are sending a `Candidate` message we should make sure that
+			// our_view and their_view reflects that we know about the candidate.
+			unimplemented!()
+		})
 	}
 }

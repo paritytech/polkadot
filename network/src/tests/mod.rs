@@ -85,7 +85,6 @@ impl TestContext {
 	}
 }
 
-
 fn make_pov(block_data: Vec<u8>) -> PoVBlock {
 	PoVBlock {
 		block_data: BlockData(block_data),

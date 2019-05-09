@@ -25,7 +25,7 @@
 
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
 use polkadot_validation::{
-	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Outgoing, Validated
+	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Validated
 };
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message,
@@ -90,7 +90,7 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 
 				debug!(target: "validation", "Processing statement for live validation session");
 				match GossipMessage::decode(&mut &msg.message[..]) {
-					Some(GossipMessage::Statement(s)) => Some(s.statement),
+					Some(GossipMessage::Statement(s)) => Some(s.signed_statement),
 					_ => None,
 				}
 			})
