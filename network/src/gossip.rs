@@ -25,7 +25,7 @@ use polkadot_validation::{GenericStatement, SignedStatement};
 use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorIndex};
 use codec::Decode;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -219,19 +219,18 @@ impl MessageValidationData {
 // knowledge about attestations on a single parent-hash.
 #[derive(Default)]
 struct Knowledge {
-	candidates: HashMap<Hash, Vec<SessionKey>>,
+	candidates: HashSet<Hash>,
 }
 
 impl Knowledge {
 	// whether the peer is aware of a candidate with given hash.
 	fn is_aware_of(&self, candidate_hash: &Hash) -> bool {
-		self.candidates.contains_key(candidate_hash)
+		self.candidates.contains(candidate_hash)
 	}
 
-	// whether the peer is aware of a candidate with given hash from a specific author.
-	fn is_aware_of_from(&self, candidate_hash: &Hash, author_key: &SessionKey) -> bool {
-		self.candidates.get(candidate_hash)
-			.and_then(|f| f.iter().position(|k| k == author_key)).is_some()
+	// note that the peer is aware of a candidate with given hash.
+	fn note_aware(&mut self, candidate_hash: Hash) {
+		self.candidates.insert(candidate_hash);
 	}
 }
 
@@ -252,6 +251,7 @@ impl PeerData {
 #[derive(Default)]
 struct OurView {
 	live_sessions: HashMap<Hash, SessionView>,
+	topics: HashMap<Hash, Hash>, // maps topic hashes to block hashes.
 }
 
 impl OurView {
@@ -370,21 +370,58 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 	}
 
 	fn message_expired<'a>(&'a self) -> Box<FnMut(Hash, &[u8]) -> bool + 'a> {
+		let inner = self.inner.read();
+
 		Box::new(move |topic, data| {
 			// check that topic is one of our live sessions. everything else is expired
-			unimplemented!();
+			!inner.our_view.topics.contains_key(&topic)
 		})
 	}
 
 	fn message_allowed<'a>(&'a self) -> Box<FnMut(&PeerId, MessageIntent, &Hash, &[u8]) -> bool + 'a> {
-		Box::new(move |_who, _intent, _topic, _data| {
+		let mut inner = self.inner.write();
+		Box::new(move |who, intent, topic, data| {
+			match intent {
+				MessageIntent::PeriodicRebroadcast => return false,
+				_ => {},
+			}
+
+			let relay_parent = match inner.our_view.topics.get(topic) {
+				None => return false,
+				Some(hash) => hash,
+			};
+
 			// check that topic is one of our peers' live sessions.
-			// `valid` and `invalid` statements can only be propagated after
-			// a candidate message is known by that peer.
-			//
-			// if we are sending a `Candidate` message we should make sure that
-			// our_view and their_view reflects that we know about the candidate.
-			unimplemented!()
+			let peer_knowledge = match inner.peers.get_mut(who)
+				.and_then(|p| p.knowledge_at(&relay_parent))
+			{
+				Some(p) => p,
+				None => return false,
+			};
+
+			match GossipMessage::decode(&mut &data[..]) {
+				Some(GossipMessage::Statement(statement)) => {
+					let signed = statement.signed_statement;
+					let sender = signed.sender;
+
+					match signed {
+						GenericStatement::Valid(ref h) | GenericStatement::Invalid(ref h) => {
+							// `valid` and `invalid` statements can only be propagated after
+							// a candidate message is known by that peer.
+							if !peer_knowledge.is_aware_of(h) {
+								return false;
+							}
+						}
+						GenericStatement::Candidate(ref c) => {
+							// if we are sending a `Candidate` message we should make sure that
+							// our_view and their_view reflects that we know about the candidate.
+							peer_knowledge.note_aware(c.hash());
+							true
+						}
+					}
+				}
+				_ => return false,
+			}
 		})
 	}
 }
