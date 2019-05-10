@@ -89,6 +89,7 @@ mod benefit {
 	pub(super) const KNOWN_PEER: i32 = 5;
 	pub(super) const NEW_COLLATOR: i32 = 10;
 	pub(super) const GOOD_COLLATION: i32 = 100;
+	pub(super) const GOOD_POV_BLOCK: i32 = 100;
 }
 
 type FullStatus = GenericFullStatus<Block>;
@@ -428,11 +429,21 @@ impl PolkadotProtocol {
 	) {
 		match self.in_flight.remove(&(req_id, who.clone())) {
 			Some(mut req) => {
-				ctx.report_peer(who, benefit::EXPECTED_MESSAGE);
-				if let Some(pov_block) = pov_block {
-					match req.process_response(pov_block) {
-						Ok(()) => return,
-						Err(r) => { req = r; }
+				match pov_block {
+					Some(pov_block) => {
+						match req.process_response(pov_block) {
+							Ok(()) => {
+								ctx.report_peer(who, benefit::GOOD_POV_BLOCK);
+								return;
+							}
+							Err(r) => {
+								ctx.report_peer(who, cost::UNEXPECTED_MESSAGE);
+								req = r;
+							}
+						}
+					},
+					None => {
+						ctx.report_peer(who, benefit::EXPECTED_MESSAGE);
 					}
 				}
 
