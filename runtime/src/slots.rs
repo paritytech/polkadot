@@ -594,6 +594,10 @@ mod tests {
 		PARACHAIN_COUNT.with(|p| *p.borrow_mut() = 0);
 	}
 
+	fn with_parachains<T>(f: impl FnOnce(&HashMap<u32, (Vec<u8>, Vec<u8>)>) -> T) -> T {
+		PARACHAINS.with(|p| f(&*p.borrow()))
+	}
+
 	parameter_types!{
 		pub const LeasePeriod: u64 = 10;
 		pub const EndingPeriod: u64 = 3;
@@ -725,7 +729,6 @@ mod tests {
 			assert_eq!(Balances::free_balance(&1), 9);
 
 			run_to_block(9);
-
 			assert_eq!(Slots::onboarding(1), vec![(0.into(), IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))]);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
 			assert_eq!(Balances::reserved_balance(&1), 0);
@@ -734,7 +737,7 @@ mod tests {
 	}
 
 	#[test]
-	fn get_deposit_back() {
+	fn offboarding_works() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(5, 1));
@@ -751,6 +754,24 @@ mod tests {
 			run_to_block(50);
 			assert_eq!(Slots::deposit_held(&0.into()), 0);
 			assert_eq!(Balances::free_balance(&10), 1);
+		});
+	}
+
+	#[test]
+	fn onboarding_works() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
+
+			run_to_block(9);
+			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 1, vec![42], vec![69]));
+
+			run_to_block(10);
+			with_parachains(|p| {
+				assert_eq!(p.len(), 1);
+				assert_eq!(p[&0], (vec![42], vec![69]));
+			});
 		});
 	}
 
