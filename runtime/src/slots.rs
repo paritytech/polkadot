@@ -209,7 +209,7 @@ decl_module! {
 					let index = index as usize;
 					if let Some(offset) = index.checked_sub(current) {
 						let pair = range.as_pair();
-						let pair = (pair.0 as usize + offset, pair.1 as usize + offset + 1);
+						let pair = (pair.0 as usize + offset + 1, pair.1 as usize + offset + 2);
 						<Deposits<T>>::mutate(para_id, |d| {
 							if d.len() < pair.0 {
 								d.resize_with(pair.0, Default::default);
@@ -227,6 +227,7 @@ decl_module! {
 
 			// if beginning a new lease period...
 			if (n % lease_period).is_zero() {
+				println!("New lease period {:?} at block {:?}", lease_period_index, n);
 				// bump off old deposits and unreserve accordingly.
 				<ManagedIds<T>>::mutate(|ids| {
 					let new = ids.drain(..).filter(|id| {
@@ -236,12 +237,15 @@ decl_module! {
 
 							if d.len() == 1 {
 								// decommission
+								println!("Decommissioning {:?}", id);
 								let _ = T::Parachains::deregister_parachain(id.clone());
+								println!("Offboarding {:?} DOTs to {:?}", d[0], <Offboarding<T>>::get(id));
 								T::Currency::deposit_creating(&<Offboarding<T>>::take(id), d[0]);
 								<Deposits<T>>::remove(id);
 								false
 							} else {
 								// continuing
+								println!("Continuing {:?}", id);
 								let outgoing = d[0];
 								d.remove(0);
 								<Deposits<T>>::insert(id, &d);
@@ -717,10 +721,84 @@ mod tests {
 
 			assert_ok!(Slots::new_auction(5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
+			assert_eq!(Balances::reserved_balance(&1), 1);
+			assert_eq!(Balances::free_balance(&1), 9);
 
 			run_to_block(9);
 
 			assert_eq!(Slots::onboarding(1), vec![(0.into(), IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))]);
+			assert_eq!(Slots::deposit_held(&0.into()), 1);
+			assert_eq!(Balances::reserved_balance(&1), 0);
+			assert_eq!(Balances::free_balance(&1), 9);
+		});
+	}
+
+	#[test]
+	fn get_deposit_back() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
+
+			run_to_block(9);
+			assert_eq!(Slots::deposit_held(&0.into()), 1);
+			assert_eq!(Slots::deposits(&0.into())[0], 0);
+
+			run_to_block(49);
+			assert_eq!(Slots::deposit_held(&0.into()), 1);
+			assert_ok!(Slots::set_offboarding(Origin::signed(ParaId::from(0).into_account()), 10));
+
+			run_to_block(50);
+			assert_eq!(Slots::deposit_held(&0.into()), 0);
+			assert_eq!(Balances::free_balance(&10), 1);
+		});
+	}
+
+	#[test]
+	fn multiple_bids_work_pre_ending() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+
+			assert_ok!(Slots::new_auction(5, 1));
+
+			for i in 1..6 {
+				run_to_block(i);
+				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
+				for j in 1..6 {
+					assert_eq!(Balances::reserved_balance(&j), if j == i { j } else { 0 });
+					assert_eq!(Balances::free_balance(&j), if j == i { j * 9 } else { j * 10 });
+				}
+			}
+
+			run_to_block(9);
+			assert_eq!(Slots::onboarding(1), vec![(0.into(), IncomingParachain::Unset(NewBidder { who: 5, sub: 0 }))]);
+			assert_eq!(Slots::deposit_held(&0.into()), 5);
+			assert_eq!(Balances::reserved_balance(&5), 0);
+			assert_eq!(Balances::free_balance(&5), 45);
+		});
+	}
+
+	#[test]
+	fn multiple_bids_work_post_ending() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+
+			assert_ok!(Slots::new_auction(5, 1));
+
+			for i in 1..6 {
+				run_to_block(i + 3);
+				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
+				for j in 1..6 {
+					assert_eq!(Balances::reserved_balance(&j), if j == i { j } else { 0 });
+					assert_eq!(Balances::free_balance(&j), if j == i { j * 9 } else { j * 10 });
+				}
+			}
+
+			run_to_block(9);
+			assert_eq!(Slots::onboarding(1), vec![(0.into(), IncomingParachain::Unset(NewBidder { who: 3, sub: 0 }))]);
+			assert_eq!(Slots::deposit_held(&0.into()), 3);
+			assert_eq!(Balances::reserved_balance(&3), 0);
+			assert_eq!(Balances::free_balance(&3), 27);
 		});
 	}
 
