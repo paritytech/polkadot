@@ -80,6 +80,7 @@ mod cost {
 	pub(super) const UNKNOWN_PEER: i32 = -50;
 	pub(super) const COLLATOR_ALREADY_KNOWN: i32 = -100;
 	pub(super) const BAD_COLLATION: i32 = -1000;
+	pub(super) const BAD_POV_BLOCK: i32 = -1000;
 }
 
 mod benefit {
@@ -437,7 +438,7 @@ impl PolkadotProtocol {
 								return;
 							}
 							Err(r) => {
-								ctx.report_peer(who, cost::UNEXPECTED_MESSAGE);
+								ctx.report_peer(who, cost::BAD_POV_BLOCK);
 								req = r;
 							}
 						}
