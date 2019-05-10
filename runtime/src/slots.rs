@@ -491,13 +491,18 @@ impl<T: Trait> Module<T> {
 					best_winners_ending_at[i] = (vec![r], bid);
 				}
 				for j in 0..i {
-					let r = SlotRange::new_bounded(0, j + 1, i).expect("`i < 4`; `j < i`; `j + 1 < 4`; qed");
+					let r = SlotRange::new_bounded(0, j + 1, i)
+						.expect("`i < 4`; `j < i`; `j + 1 < 4`; qed");
 					if let Some(mut bid) = best_bid(r) {
 						bid += best_winners_ending_at[j].1;
 						if bid > best_winners_ending_at[i].1 {
 							let mut new_winners = best_winners_ending_at[j].0.clone();
 							new_winners.push(r);
 							best_winners_ending_at[i] = (new_winners, bid);
+						}
+					} else {
+						if best_winners_ending_at[j].1 > best_winners_ending_at[i].1 {
+							best_winners_ending_at[i] = best_winners_ending_at[j].clone();
 						}
 					}
 				}
@@ -913,6 +918,49 @@ mod tests {
 	}
 
 	#[test]
+	fn extensions_should_work() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 0.into(), vec![1], vec![1]));
+
+			assert_ok!(Slots::new_auction(5, 2));
+			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 1));
+
+			with_parachains(|p| {
+				assert_eq!(p.len(), 1);
+				assert_eq!(p[&0], (vec![1], vec![1]));
+			});
+
+			run_to_block(20);
+			with_parachains(|p| {
+				assert_eq!(p.len(), 1);
+				assert_eq!(p[&0], (vec![1], vec![1]));
+			});
+			assert_ok!(Slots::new_auction(5, 2));
+			assert_ok!(Balances::transfer(Origin::signed(1), ParaId::from(0).into_account(), 1));
+			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 2));
+
+			run_to_block(30);
+			with_parachains(|p| {
+				assert_eq!(p.len(), 1);
+				assert_eq!(p[&0], (vec![1], vec![1]));
+			});
+
+			run_to_block(40);
+			with_parachains(|p| {
+				assert_eq!(p.len(), 0);
+			});
+		});
+	}
+
+	#[test]
 	fn can_win_incomplete_auction() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
@@ -998,7 +1046,28 @@ mod tests {
 			(Some(NewBidder{who: 1, sub: 0}), 0.into(), 1, SlotRange::ThreeThree)
 		];
 
-		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
+		assert_eq!(Slots::calculate_winners(winning, TestParachains::new_id), winners);
+	}
+
+	#[test]
+	fn first_incomplete_calculate_winners_works() {
+		let winning = [
+			Some((Bidder::New(NewBidder{who: 1, sub: 0}), 1)),
+			None,
+			None,
+			None,
+			None,
+			None,
+			None,
+			None,
+			None,
+			None,
+		];
+		let winners = vec![
+			(Some(NewBidder{who: 1, sub: 0}), 0.into(), 1, SlotRange::ZeroZero)
+		];
+
+		assert_eq!(Slots::calculate_winners(winning, TestParachains::new_id), winners);
 	}
 
 	#[test]
