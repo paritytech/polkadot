@@ -243,6 +243,10 @@ impl PeerData {
 		self.live.get(parent_hash)
 	}
 
+	fn knowledge_at_mut(&mut self, parent_hash: &Hash) -> Option<&mut Knowledge> {
+		self.live.get_mut(parent_hash)
+	}
+
 	fn believes_live(&self, parent_hash: &Hash) -> bool {
 		self.live.contains_key(&parent_hash)
 	}
@@ -388,12 +392,12 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 
 			let relay_parent = match inner.our_view.topics.get(topic) {
 				None => return false,
-				Some(hash) => hash,
+				Some(hash) => hash.clone(),
 			};
 
 			// check that topic is one of our peers' live sessions.
 			let peer_knowledge = match inner.peers.get_mut(who)
-				.and_then(|p| p.knowledge_at(&relay_parent))
+				.and_then(|p| p.knowledge_at_mut(&relay_parent))
 			{
 				Some(p) => p,
 				None => return false,
@@ -404,7 +408,7 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 					let signed = statement.signed_statement;
 					let sender = signed.sender;
 
-					match signed {
+					match signed.statement {
 						GenericStatement::Valid(ref h) | GenericStatement::Invalid(ref h) => {
 							// `valid` and `invalid` statements can only be propagated after
 							// a candidate message is known by that peer.
@@ -416,12 +420,13 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 							// if we are sending a `Candidate` message we should make sure that
 							// our_view and their_view reflects that we know about the candidate.
 							peer_knowledge.note_aware(c.hash());
-							true
 						}
 					}
 				}
 				_ => return false,
 			}
+
+			true
 		})
 	}
 }
