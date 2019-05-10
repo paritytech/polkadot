@@ -41,7 +41,7 @@ use system::ensure_inherent;
 /// Parachain registration API.
 pub trait ParachainRegistrar<AccountId> {
 	/// An identifier for a parachain.
-	type ParaId: Member + Parameter + Default + AccountIdConversion<AccountId>;
+	type ParaId: Member + Parameter + Default + AccountIdConversion<AccountId> + Copy;
 
 	/// Create a new unique parachain identity for later registration.
 	fn new_id() -> Self::ParaId;

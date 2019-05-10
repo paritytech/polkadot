@@ -19,7 +19,6 @@
 //! and decommissioning them.
 
 use rstd::{prelude::*, mem::swap, convert::TryInto};
-use sr_io::blake2_256;
 use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, As};
 use codec::Decode;
 use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap,
@@ -86,7 +85,7 @@ impl<AccountId: Clone, ParaId: AccountIdConversion<AccountId>> Bidder<AccountId,
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum IncomingParachain<AccountId> {
 	Unset(NewBidder<AccountId>),
-	Deploy { code_hash: [u8; 32], initial_head_data: Vec<u8> },
+	Deploy { code: Vec<u8>, initial_head_data: Vec<u8> },
 }
 
 type LeasePeriodOf<T> = <T as system::Trait>::BlockNumber;
@@ -113,8 +112,14 @@ decl_storage! {
 		/// have won an auction in the future).
 		pub ManagedIds get(managed_ids): Vec<ParaIdOf<T>>;
 
-		/// Winners of a given auction; deleted once all four slots have been used.
-		pub Onboarding get(onboarding): map LeasePeriodOf<T> => Vec<(ParaIdOf<T>, IncomingParachain<T::AccountId>)>;
+		/// The queue of Para IDs that have won and need to be on-boarded at an upcoming lease-period.
+		pub OnboardQueue get(onboard_queue): map LeasePeriodOf<T> => Vec<ParaIdOf<T>>;
+
+		/// The actual onboarding information. Only exists what one of the following is true:
+		/// - It is before the lease period that the parachain should be onboarded.
+		/// - The onboarding information has not yet been provided and the parachain has not yet been due to be
+		/// offboarded.
+		pub Onboarding get(onboarding): map ParaIdOf<T> => Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId>)>;
 
 		/// Offboarding account; currency held on deposit for the parachain gets placed here if the parachain gets
 		/// completely offboarded.
@@ -128,9 +133,6 @@ decl_storage! {
 		/// Information relating to the current auction, if there is one. Right now it's just the initial Lease Period
 		/// that it's for.
 		pub AuctionInfo get(auction_info): Option<(LeasePeriodOf<T>, T::BlockNumber)>;
-
-		/// Map from Blake2 hash to preimage for any code hashes contained in `Winners`.
-		CodeHash: map [u8; 32] => Vec<u8>;
 
 		/// The number of auctions that been started so far.
 		pub AuctionCounter get(auction_counter): AuctionIndex;
@@ -162,7 +164,9 @@ decl_module! {
 				}
 
 				// figure out the actual winners
+//				dbg!(&winning_ranges);
 				let winners = Self::calculate_winners(winning_ranges, T::Parachains::new_id);
+//				dbg!(&winners);
 
 				// go through winners and deduct their bid.
 				for (maybe_new_deploy, para_id, amount, range) in winners.into_iter() {
@@ -183,9 +187,10 @@ decl_module! {
 							<ManagedIds<T>>::mutate(|m| m.push(para_id.clone()));
 
 							// add deployment record
-							<Onboarding<T>>::mutate(auction_lease_period_index, |starters|
-								starters.push((para_id.clone(), IncomingParachain::Unset(bidder)))
-							);
+							let begin_lease_period =
+								auction_lease_period_index + <LeasePeriodOf<T>>::sa(range.as_pair().0 as u64);
+							<OnboardQueue<T>>::mutate(begin_lease_period, |starters| starters.push(para_id.clone()));
+							<Onboarding<T>>::insert(&para_id, (begin_lease_period, IncomingParachain::Unset(bidder)));
 						}
 						None =>
 							// for renewals it's more complicated. we just reserve any extra on top of what we already
@@ -209,13 +214,13 @@ decl_module! {
 					let index = index as usize;
 					if let Some(offset) = index.checked_sub(current) {
 						let pair = range.as_pair();
-						let pair = (pair.0 as usize + offset + 1, pair.1 as usize + offset + 2);
+						let pair = (pair.0 as usize + offset, pair.1 as usize + offset + 1);
 						<Deposits<T>>::mutate(para_id, |d| {
 							if d.len() < pair.0 {
 								d.resize_with(pair.0, Default::default);
 							}
 							for i in pair.0 .. pair.1 {
-								if d.len() >= i {
+								if d.len() > i {
 									continue
 								}
 								d.push(amount);
@@ -238,7 +243,10 @@ decl_module! {
 							if d.len() == 1 {
 								// decommission
 								println!("Decommissioning {:?}", id);
-								let _ = T::Parachains::deregister_parachain(id.clone());
+								if <Onboarding<T>>::take(id).is_none() {
+									// Only unregister it if it was actually registered in the first place.
+									let _ = T::Parachains::deregister_parachain(id.clone());
+								}
 								println!("Offboarding {:?} DOTs to {:?}", d[0], <Offboarding<T>>::get(id));
 								T::Currency::deposit_creating(&<Offboarding<T>>::take(id), d[0]);
 								<Deposits<T>>::remove(id);
@@ -266,17 +274,14 @@ decl_module! {
 				});
 
 				// create new chains.
-				for (para_id, data) in <Onboarding<T>>::take(lease_period_index) {
-					match data {
-						IncomingParachain::Unset(_) => {
-							// Parachain not set by the time it should start!
-							// Slot lost.
-						}
-						IncomingParachain::Deploy{code_hash, initial_head_data} => {
-							let code = <CodeHash<T>>::take(code_hash);
-							let _ = T::Parachains::register_parachain(para_id, code, initial_head_data);
-							// ^^ not much we can do if it fails for some reason.
-						}
+				for para_id in <OnboardQueue<T>>::take(lease_period_index) {
+					if let Some((_, IncomingParachain::Deploy{code, initial_head_data}))
+						= <Onboarding<T>>::get(&para_id)
+					{
+						println!("Commissioning id {:?} (code {:?})", para_id, code);
+						let _ = T::Parachains::register_parachain(para_id.clone(), code, initial_head_data);
+						// ^^ not much we can do if it fails for some reason.
+						<Onboarding<T>>::remove(para_id)
 					}
 				}
 			}
@@ -343,21 +348,25 @@ decl_module! {
 
 		fn set_deploy_data(origin,
 			#[compact] sub: SubId,
-			#[compact] lease_period_index: LeasePeriodOf<T>,
+			para_id: ParaIdOf<T>,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>
 		) {
 			let who = ensure_signed(origin)?;
-			let code_hash = blake2_256(&code);
-			ensure!(!<CodeHash<T>>::exists(&code_hash), "Parachain code blob already in use");
-
-			let ours = IncomingParachain::Unset(NewBidder{who: who.clone(), sub});
-			<Onboarding<T>>::mutate(lease_period_index, |starters|
-				if let Some(item) = starters.iter_mut().find(|ref x| x.1 == ours) {
-					<CodeHash<T>>::insert(&code_hash, &code);
-					item.1 = IncomingParachain::Deploy{code_hash, initial_head_data}
-				}
-			)
+			let (starts, details) = <Onboarding<T>>::get(&para_id).ok_or("parachain id not in onboarding")?;
+			if let IncomingParachain::Unset(ref nb) = details {
+				ensure!(nb.who == who && nb.sub == sub, "parachain not registered by origin");
+			} else {
+				return Err("already registered")
+			}
+			if starts > Self::lease_period_index() {
+				// Hasn't yet begun. Replace.
+				<Onboarding<T>>::insert(&para_id, (starts, IncomingParachain::Deploy{code, initial_head_data}));
+			} else {
+				// Should have begun. Remove & register.
+				<Onboarding<T>>::remove(&para_id);
+				let _ = T::Parachains::register_parachain(para_id, code, initial_head_data);
+			}
 		}
 	}
 }
@@ -383,6 +392,11 @@ impl<T: Trait> Module<T> {
 			}
 		}
 		None
+	}
+
+	/// Return the current lease period.
+	fn lease_period_index() -> LeasePeriodOf<T> {
+		(<system::Module<T>>::block_number() / T::LeasePeriod::get()).into()
 	}
 
 	/// Some when the auction's end is known (with the end block number). None if it is unknown. If Some then
@@ -567,24 +581,28 @@ mod tests {
 		fn new_id() -> Self::ParaId {
 			PARACHAIN_COUNT.with(|p| {
 				*p.borrow_mut() += 1;
-				(*p.borrow_mut() - 1).into()
+				(*p.borrow() - 1).into()
 			})
 		}
 		fn register_parachain(id: Self::ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result<(), &'static str> {
+			println!("Register {:?}", id);
 			PARACHAINS.with(|p| {
-				if p.borrow_mut().contains_key(&id.into_inner()) {
-					return Err("ID already exists")
+				if p.borrow().contains_key(&id.into_inner()) {
+					panic!("ID already exists")
 				}
 				p.borrow_mut().insert(id.into_inner(), (code, initial_head_data));
+				println!("parachains: {:?}", p.borrow());
 				Ok(())
 			})
 		}
 		fn deregister_parachain(id: Self::ParaId) -> Result<(), &'static str> {
 			PARACHAINS.with(|p| {
-				if p.borrow_mut().contains_key(&id.into_inner()) {
-					return Err("ID doesn't exist")
+				println!("Deregister {:?}", id);
+				if !p.borrow().contains_key(&id.into_inner()) {
+					panic!("ID doesn't exist")
 				}
 				p.borrow_mut().remove(&id.into_inner());
+				println!("parachains: {:?}", p.borrow());
 				Ok(())
 			})
 		}
@@ -729,7 +747,8 @@ mod tests {
 			assert_eq!(Balances::free_balance(&1), 9);
 
 			run_to_block(9);
-			assert_eq!(Slots::onboarding(1), vec![(0.into(), IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))]);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+			assert_eq!(Slots::onboarding(&0.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))));
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
 			assert_eq!(Balances::reserved_balance(&1), 0);
 			assert_eq!(Balances::free_balance(&1), 9);
@@ -765,13 +784,149 @@ mod tests {
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 
 			run_to_block(9);
-			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 1, vec![42], vec![69]));
+			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 0.into(), vec![42], vec![69]));
 
 			run_to_block(10);
 			with_parachains(|p| {
 				assert_eq!(p.len(), 1);
 				assert_eq!(p[&0], (vec![42], vec![69]));
 			});
+		});
+	}
+
+	#[test]
+	fn late_onboarding_works() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
+
+			run_to_block(10);
+			with_parachains(|p| {
+				assert_eq!(p.len(), 0);
+			});
+
+			run_to_block(11);
+			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 0.into(), vec![42], vec![69]));
+			with_parachains(|p| {
+				assert_eq!(p.len(), 1);
+				assert_eq!(p[&0], (vec![42], vec![69]));
+			});
+		});
+	}
+
+	#[test]
+	fn under_bidding_works() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 5));
+			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 1, 4, 1));
+			assert_eq!(Balances::reserved_balance(&2), 0);
+			assert_eq!(Balances::free_balance(&2), 20);
+			assert_eq!(
+				Slots::winning(0).unwrap()[SlotRange::ZeroThree as u8 as usize],
+				Some((Bidder::New(NewBidder{who: 1, sub: 0}), 5))
+			);
+		});
+	}
+
+	#[test]
+	fn should_choose_best_combination() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
+			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 2, 3, 1));
+			assert_ok!(Slots::bid(Origin::signed(3), 0, 1, 4, 4, 2));
+			assert_ok!(Slots::bid(Origin::signed(1), 1, 1, 1, 4, 1));
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+			assert_eq!(Slots::onboarding(&0.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))));
+			assert_eq!(Slots::onboard_queue(2), vec![1.into()]);
+			assert_eq!(Slots::onboarding(&1.into()), Some((2, IncomingParachain::Unset(NewBidder { who: 2, sub: 0 }))));
+			assert_eq!(Slots::onboard_queue(4), vec![2.into()]);
+			assert_eq!(Slots::onboarding(&2.into()), Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 }))));
+		});
+	}
+
+	#[test]
+	fn multiple_onboards_offboards_should_work() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(1, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
+			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 2, 3, 1));
+			assert_ok!(Slots::bid(Origin::signed(3), 0, 1, 4, 4, 1));
+
+			run_to_block(5);
+			assert_ok!(Slots::new_auction(1, 1));
+			assert_ok!(Slots::bid(Origin::signed(4), 1, 2, 1, 2, 1));
+			assert_ok!(Slots::bid(Origin::signed(5), 1, 2, 3, 4, 1));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into(), 3.into()]);
+			assert_eq!(Slots::onboarding(&0.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))));
+			assert_eq!(Slots::onboarding(&3.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 4, sub: 1 }))));
+			assert_eq!(Slots::onboard_queue(2), vec![1.into()]);
+			assert_eq!(Slots::onboarding(&1.into()), Some((2, IncomingParachain::Unset(NewBidder { who: 2, sub: 0 }))));
+			assert_eq!(Slots::onboard_queue(3), vec![4.into()]);
+			assert_eq!(Slots::onboarding(&4.into()), Some((3, IncomingParachain::Unset(NewBidder { who: 5, sub: 1 }))));
+			assert_eq!(Slots::onboard_queue(4), vec![2.into()]);
+			assert_eq!(Slots::onboarding(&2.into()), Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 }))));
+
+			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 0.into(), vec![1], vec![1]));
+			assert_ok!(Slots::set_deploy_data(Origin::signed(2), 0, 1.into(), vec![2], vec![2]));
+			assert_ok!(Slots::set_deploy_data(Origin::signed(3), 0, 2.into(), vec![3], vec![3]));
+			assert_ok!(Slots::set_deploy_data(Origin::signed(4), 1, 3.into(), vec![4], vec![4]));
+			assert_ok!(Slots::set_deploy_data(Origin::signed(5), 1, 4.into(), vec![5], vec![5]));
+
+			run_to_block(10);
+			with_parachains(|p| {
+				assert_eq!(p.len(), 2);
+				assert_eq!(p[&0], (vec![1], vec![1]));
+				assert_eq!(p[&3], (vec![4], vec![4]));
+			});
+			run_to_block(20);
+			with_parachains(|p| {
+				assert_eq!(p.len(), 2);
+				assert_eq!(p[&1], (vec![2], vec![2]));
+				assert_eq!(p[&3], (vec![4], vec![4]));
+			});
+			run_to_block(30);
+			with_parachains(|p| {
+				assert_eq!(p.len(), 2);
+				assert_eq!(p[&1], (vec![2], vec![2]));
+				assert_eq!(p[&4], (vec![5], vec![5]));
+			});
+			run_to_block(40);
+			with_parachains(|p| {
+				assert_eq!(p.len(), 2);
+				assert_eq!(p[&2], (vec![3], vec![3]));
+				assert_eq!(p[&4], (vec![5], vec![5]));
+			});
+			run_to_block(50);
+			with_parachains(|p| {
+				assert_eq!(p.len(), 0);
+			});
+		});
+	}
+
+	#[test]
+	fn can_win_incomplete_auction() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+
+			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 4, 4, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![]);
+			assert_eq!(Slots::onboard_queue(2), vec![]);
+			assert_eq!(Slots::onboard_queue(3), vec![]);
+			assert_eq!(Slots::onboard_queue(4), vec![0.into()]);
+			assert_eq!(Slots::onboarding(&0.into()), Some((4, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))));
+			assert_eq!(Slots::deposit_held(&0.into()), 5);
 		});
 	}
 
@@ -792,7 +947,8 @@ mod tests {
 			}
 
 			run_to_block(9);
-			assert_eq!(Slots::onboarding(1), vec![(0.into(), IncomingParachain::Unset(NewBidder { who: 5, sub: 0 }))]);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+			assert_eq!(Slots::onboarding(&0.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 5, sub: 0 }))));
 			assert_eq!(Slots::deposit_held(&0.into()), 5);
 			assert_eq!(Balances::reserved_balance(&5), 0);
 			assert_eq!(Balances::free_balance(&5), 45);
@@ -816,11 +972,33 @@ mod tests {
 			}
 
 			run_to_block(9);
-			assert_eq!(Slots::onboarding(1), vec![(0.into(), IncomingParachain::Unset(NewBidder { who: 3, sub: 0 }))]);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+			assert_eq!(Slots::onboarding(&0.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 }))));
 			assert_eq!(Slots::deposit_held(&0.into()), 3);
 			assert_eq!(Balances::reserved_balance(&3), 0);
 			assert_eq!(Balances::free_balance(&3), 27);
 		});
+	}
+
+	#[test]
+	fn incomplete_calculate_winners_works() {
+		let winning = [
+			None,
+			None,
+			None,
+			None,
+			None,
+			None,
+			None,
+			None,
+			None,
+			Some((Bidder::New(NewBidder{who: 1, sub: 0}), 1)),
+		];
+		let winners = vec![
+			(Some(NewBidder{who: 1, sub: 0}), 0.into(), 1, SlotRange::ThreeThree)
+		];
+
+		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
 	}
 
 	#[test]
