@@ -29,6 +29,15 @@ use system::ensure_signed;
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 use super::Get;
 
+#[cfg(feature = "std")]
+macro_rules! nprintln {
+	( $( $x:tt )* ) => ( println!($( $x )*) )
+}
+#[cfg(not(feature = "std"))]
+macro_rules! nprintln {
+	( $( $x:tt )* ) => ()
+}
+
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 type ParaIdOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
 
@@ -164,9 +173,7 @@ decl_module! {
 				}
 
 				// figure out the actual winners
-//				dbg!(&winning_ranges);
 				let winners = Self::calculate_winners(winning_ranges, T::Parachains::new_id);
-//				dbg!(&winners);
 
 				// go through winners and deduct their bid.
 				for (maybe_new_deploy, para_id, amount, range) in winners.into_iter() {
@@ -232,7 +239,7 @@ decl_module! {
 
 			// if beginning a new lease period...
 			if (n % lease_period).is_zero() {
-				println!("New lease period {:?} at block {:?}", lease_period_index, n);
+				nprintln!("New lease period {:?} at block {:?}", lease_period_index, n);
 				// bump off old deposits and unreserve accordingly.
 				<ManagedIds<T>>::mutate(|ids| {
 					let new = ids.drain(..).filter(|id| {
@@ -242,18 +249,18 @@ decl_module! {
 
 							if d.len() == 1 {
 								// decommission
-								println!("Decommissioning {:?}", id);
+								nprintln!("Decommissioning {:?}", id);
 								if <Onboarding<T>>::take(id).is_none() {
 									// Only unregister it if it was actually registered in the first place.
 									let _ = T::Parachains::deregister_parachain(id.clone());
 								}
-								println!("Offboarding {:?} DOTs to {:?}", d[0], <Offboarding<T>>::get(id));
+								nprintln!("Offboarding {:?} DOTs to {:?}", d[0], <Offboarding<T>>::get(id));
 								T::Currency::deposit_creating(&<Offboarding<T>>::take(id), d[0]);
 								<Deposits<T>>::remove(id);
 								false
 							} else {
 								// continuing
-								println!("Continuing {:?}", id);
+								nprintln!("Continuing {:?}", id);
 								let outgoing = d[0];
 								d.remove(0);
 								<Deposits<T>>::insert(id, &d);
@@ -278,7 +285,7 @@ decl_module! {
 					if let Some((_, IncomingParachain::Deploy{code, initial_head_data}))
 						= <Onboarding<T>>::get(&para_id)
 					{
-						println!("Commissioning id {:?} (code {:?})", para_id, code);
+						nprintln!("Commissioning id {:?} (code {:?})", para_id, code);
 						let _ = T::Parachains::register_parachain(para_id.clone(), code, initial_head_data);
 						// ^^ not much we can do if it fails for some reason.
 						<Onboarding<T>>::remove(para_id)
@@ -590,24 +597,24 @@ mod tests {
 			})
 		}
 		fn register_parachain(id: Self::ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result<(), &'static str> {
-			println!("Register {:?}", id);
+			nprintln!("Register {:?}", id);
 			PARACHAINS.with(|p| {
 				if p.borrow().contains_key(&id.into_inner()) {
 					panic!("ID already exists")
 				}
 				p.borrow_mut().insert(id.into_inner(), (code, initial_head_data));
-				println!("parachains: {:?}", p.borrow());
+				nprintln!("parachains: {:?}", p.borrow());
 				Ok(())
 			})
 		}
 		fn deregister_parachain(id: Self::ParaId) -> Result<(), &'static str> {
 			PARACHAINS.with(|p| {
-				println!("Deregister {:?}", id);
+				nprintln!("Deregister {:?}", id);
 				if !p.borrow().contains_key(&id.into_inner()) {
 					panic!("ID doesn't exist")
 				}
 				p.borrow_mut().remove(&id.into_inner());
-				println!("parachains: {:?}", p.borrow());
+				nprintln!("parachains: {:?}", p.borrow());
 				Ok(())
 			})
 		}
