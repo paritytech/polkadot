@@ -17,7 +17,7 @@
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
 use rstd::prelude::*;
-use codec::Decode;
+use codec::{Decode, HasCompact};
 
 use bitvec::BigEndian;
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member};
@@ -41,7 +41,7 @@ use system::ensure_inherent;
 /// Parachain registration API.
 pub trait ParachainRegistrar<AccountId> {
 	/// An identifier for a parachain.
-	type ParaId: Member + Parameter + Default + AccountIdConversion<AccountId> + Copy;
+	type ParaId: Member + Parameter + Default + AccountIdConversion<AccountId> + Copy + HasCompact;
 
 	/// Create a new unique parachain identity for later registration.
 	fn new_id() -> Self::ParaId;

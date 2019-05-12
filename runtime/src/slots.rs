@@ -307,14 +307,18 @@ decl_module! {
 		}
 
 		/// Begin an auction.
-		fn new_auction(#[compact] duration: T::BlockNumber, #[compact] lease_period_index: LeasePeriodOf<T>) {
+		fn new_auction(
+			#[compact] duration: T::BlockNumber,
+			#[compact] lease_period_index: LeasePeriodOf<T>
+		) {
 			ensure!(!Self::is_in_progress(), "auction already in progress");
 
 			// Bump the counter.
 			<AuctionCounter<T>>::mutate(|n| *n += 1);
 
 			// set the info
-			<AuctionInfo<T>>::put((lease_period_index, <system::Module<T>>::block_number() + duration));
+			let ending = <system::Module<T>>::block_number() + duration;
+			<AuctionInfo<T>>::put((lease_period_index, ending));
 		}
 
 		/// Make a new bid from an account (including a parachain account) for deploying a new parachain.
@@ -340,7 +344,8 @@ decl_module! {
 			#[compact] amount: BalanceOf<T>
 		) {
 			let who = ensure_signed(origin)?;
-			let para_id = <ParaIdOf<T>>::try_from_account(&who).ok_or("account is not a parachain")?;
+			let para_id = <ParaIdOf<T>>::try_from_account(&who)
+				.ok_or("account is not a parachain")?;
 			let bidder = Bidder::Existing(para_id);
 			Self::handle_bid(who, bidder, auction_index, first_slot, last_slot, amount)?;
 		}
@@ -355,12 +360,13 @@ decl_module! {
 
 		fn set_deploy_data(origin,
 			#[compact] sub: SubId,
-			para_id: ParaIdOf<T>,
+			#[compact] para_id: ParaIdOf<T>,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>
 		) {
 			let who = ensure_signed(origin)?;
-			let (starts, details) = <Onboarding<T>>::get(&para_id).ok_or("parachain id not in onboarding")?;
+			let (starts, details) = <Onboarding<T>>::get(&para_id)
+				.ok_or("parachain id not in onboarding")?;
 			if let IncomingParachain::Unset(ref nb) = details {
 				ensure!(nb.who == who && nb.sub == sub, "parachain not registered by origin");
 			} else {
@@ -368,7 +374,8 @@ decl_module! {
 			}
 			if starts > Self::lease_period_index() {
 				// Hasn't yet begun. Replace.
-				<Onboarding<T>>::insert(&para_id, (starts, IncomingParachain::Deploy{code, initial_head_data}));
+				let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
+				<Onboarding<T>>::insert(&para_id, item);
 			} else {
 				// Should have begun. Remove & register.
 				<Onboarding<T>>::remove(&para_id);
@@ -463,7 +470,8 @@ impl<T: Trait> Module<T> {
 			} else {
 				Zero::zero()
 			};
-			let already_reserved = <ReservedAmounts<T>>::get(&bidder).unwrap_or_default() + deposit_held;
+			let already_reserved =
+				<ReservedAmounts<T>>::get(&bidder).unwrap_or_default() + deposit_held;
 			if let Some(additional) = amount.checked_sub(&already_reserved) {
 				T::Currency::reserve(&who, additional)?;
 				<ReservedAmounts<T>>::insert(&bidder, amount);
@@ -471,7 +479,10 @@ impl<T: Trait> Module<T> {
 			let mut outgoing_winner = Some((bidder, amount));
 			swap(&mut current_winning[range_index], &mut outgoing_winner);
 			if let Some((who, _)) = outgoing_winner {
-				if current_winning.iter().filter_map(Option::as_ref).all(|&(ref other, _)| other != &who) {
+				if current_winning.iter()
+					.filter_map(Option::as_ref)
+					.all(|&(ref other, _)| other != &who)
+				{
 					// previous bidder no longer in winning set - unreserve their bid
 					if let Some(amount) = <ReservedAmounts<T>>::take(&who) {
 						// it really should be reserved; if it's not, then there's not much we can do here.
@@ -485,7 +496,10 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Calculate the final winners from the winning slots.
-	fn calculate_winners(mut winning: WinningData<T>, new_id: impl Fn() -> ParaIdOf<T>) -> WinnersData<T> {
+	fn calculate_winners(
+		mut winning: WinningData<T>,
+		new_id: impl Fn() -> ParaIdOf<T>
+	) -> WinnersData<T> {
 		let winning_ranges = {
 			let mut best_winners_ending_at: [(Vec<SlotRange>, BalanceOf<T>); 4] = Default::default();
 			let best_bid = |range: SlotRange| {
@@ -584,7 +598,8 @@ mod tests {
 
 	thread_local! {
 		pub static PARACHAIN_COUNT: RefCell<u32> = RefCell::new(0);
-		pub static PARACHAINS: RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
+		pub static PARACHAINS:
+			RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
 	}
 
 	pub struct TestParachains;
@@ -596,7 +611,11 @@ mod tests {
 				(*p.borrow() - 1).into()
 			})
 		}
-		fn register_parachain(id: Self::ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result<(), &'static str> {
+		fn register_parachain(
+			id: Self::ParaId,
+			code: Vec<u8>,
+			initial_head_data: Vec<u8>
+		) -> Result<(), &'static str> {
 			nprintln!("Register {:?}", id);
 			PARACHAINS.with(|p| {
 				if p.borrow().contains_key(&id.into_inner()) {

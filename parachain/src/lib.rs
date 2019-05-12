@@ -119,6 +119,21 @@ pub struct ValidationResult {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct Id(u32);
 
+impl codec::CompactAs for Id {
+	type As = u32;
+	fn encode_as(&self) -> &u32 {
+		&self.0
+	}
+	fn decode_from(x: u32) -> Self {
+		Self(x)
+	}
+}
+impl From<codec::Compact<Id>> for Id {
+	fn from(x: codec::Compact<Id>) -> Id {
+		x.0
+	}
+}
+
 /// This type can be converted into and possibly from an AccountId (which itself is generic).
 pub trait AccountIdConversion<AccountId>: Sized {
 	/// Convert into an account ID. This is infallible.
