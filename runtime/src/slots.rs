@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Auctioning system to determine the set of Parachains in operation. This includes logic for the auctioning
-//! mechanism, for locking balance as part of the "payment", and to provide the requisite information for commissioning
-//! and decommissioning them.
+//! Auctioning system to determine the set of Parachains in operation. This includes logic for the
+//! auctioning mechanism, for locking balance as part of the "payment", and to provide the requisite
+//! information for commissioning and decommissioning them.
 
 use rstd::{prelude::*, mem::swap, convert::TryInto};
 use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, As};
@@ -85,8 +85,8 @@ pub enum Bidder<AccountId, ParaId> {
 	/// An account ID, funds coming from that account.
 	New(NewBidder<AccountId>),
 
-	/// An existing parachain, funds coming from the amount locked as part of a previous bid topped up with funds
-	/// administered by the parachain.
+	/// An existing parachain, funds coming from the amount locked as part of a previous bid topped
+	/// up with funds administered by the parachain.
 	Existing(ParaId),
 }
 
@@ -484,7 +484,9 @@ impl<T: Trait> Module<T> {
 				None => {
 					// For renewals, reserve any extra on top of what we already have held
 					// on deposit for their chain.
-					let extra = if let Some(additional) = amount.checked_sub(&Self::deposit_held(&para_id)) {
+					let extra = if let Some(additional) =
+						amount.checked_sub(&Self::deposit_held(&para_id))
+					{
 						if T::Currency::withdraw(
 							&para_id.into_account(),
 							additional,
@@ -645,9 +647,11 @@ impl<T: Trait> Module<T> {
 			// This must overlap with all existing ranges that we're winning on or it's invalid.
 			ensure!(current_winning.iter()
 				.enumerate()
-				.all(|(i, x)| x.as_ref().map_or(true, |(w, _)| w != &bidder || range.intersects(i.try_into()
-					.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
-				))),
+				.all(|(i, x)| x.as_ref().map_or(true, |(w, _)|
+					w != &bidder || range.intersects(i.try_into()
+						.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
+					)
+				)),
 				"bidder winning non-intersecting range"
 			);
 
@@ -711,7 +715,8 @@ impl<T: Trait> Module<T> {
 		new_id: impl Fn() -> ParaIdOf<T>
 	) -> WinnersData<T> {
 		let winning_ranges = {
-			let mut best_winners_ending_at: [(Vec<SlotRange>, BalanceOf<T>); 4] = Default::default();
+			let mut best_winners_ending_at:
+				[(Vec<SlotRange>, BalanceOf<T>); 4] = Default::default();
 			let best_bid = |range: SlotRange| {
 				winning[range as u8 as usize].as_ref()
 					.map(|(_, amount)| *amount * <BalanceOf<T>>::sa(range.len() as u64))
@@ -989,7 +994,9 @@ mod tests {
 
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-			assert_eq!(Slots::onboarding(&0.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))));
+			assert_eq!(Slots::onboarding(&0.into()),
+				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
+			);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
 			assert_eq!(Balances::reserved_balance(&1), 0);
 			assert_eq!(Balances::free_balance(&1), 9);
@@ -1083,11 +1090,20 @@ mod tests {
 			assert_ok!(Slots::bid(Origin::signed(1), 1, 1, 1, 4, 1));
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-			assert_eq!(Slots::onboarding(&0.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))));
+			assert_eq!(
+				Slots::onboarding(&0.into()),
+				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
+			);
 			assert_eq!(Slots::onboard_queue(2), vec![1.into()]);
-			assert_eq!(Slots::onboarding(&1.into()), Some((2, IncomingParachain::Unset(NewBidder { who: 2, sub: 0 }))));
+			assert_eq!(
+				Slots::onboarding(&1.into()),
+				Some((2, IncomingParachain::Unset(NewBidder { who: 2, sub: 0 })))
+			);
 			assert_eq!(Slots::onboard_queue(4), vec![2.into()]);
-			assert_eq!(Slots::onboarding(&2.into()), Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 }))));
+			assert_eq!(
+				Slots::onboarding(&2.into()),
+				Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
+			);
 		});
 	}
 
@@ -1099,7 +1115,10 @@ mod tests {
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 2, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 4, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 2, 1));
-			assert_noop!(Slots::bid(Origin::signed(1), 0, 1, 3, 3, 1), "bidder winning non-intersecting range");
+			assert_noop!(
+				Slots::bid(Origin::signed(1), 0, 1, 3, 3, 1),
+				"bidder winning non-intersecting range"
+			);
 		});
 	}
 
@@ -1119,14 +1138,29 @@ mod tests {
 
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into(), 3.into()]);
-			assert_eq!(Slots::onboarding(&0.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))));
-			assert_eq!(Slots::onboarding(&3.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 4, sub: 1 }))));
+			assert_eq!(
+				Slots::onboarding(&0.into()),
+				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
+			);
+			assert_eq!(
+				Slots::onboarding(&3.into()),
+				Some((1, IncomingParachain::Unset(NewBidder { who: 4, sub: 1 })))
+			);
 			assert_eq!(Slots::onboard_queue(2), vec![1.into()]);
-			assert_eq!(Slots::onboarding(&1.into()), Some((2, IncomingParachain::Unset(NewBidder { who: 2, sub: 0 }))));
+			assert_eq!(
+				Slots::onboarding(&1.into()),
+				Some((2, IncomingParachain::Unset(NewBidder { who: 2, sub: 0 })))
+			);
 			assert_eq!(Slots::onboard_queue(3), vec![4.into()]);
-			assert_eq!(Slots::onboarding(&4.into()), Some((3, IncomingParachain::Unset(NewBidder { who: 5, sub: 1 }))));
+			assert_eq!(
+				Slots::onboarding(&4.into()),
+				Some((3, IncomingParachain::Unset(NewBidder { who: 5, sub: 1 })))
+			);
 			assert_eq!(Slots::onboard_queue(4), vec![2.into()]);
-			assert_eq!(Slots::onboarding(&2.into()), Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 }))));
+			assert_eq!(
+				Slots::onboarding(&2.into()),
+				Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
+			);
 
 			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 0.into(), vec![1], vec![1]));
 			assert_ok!(Slots::set_deploy_data(Origin::signed(2), 0, 1.into(), vec![2], vec![2]));
@@ -1248,7 +1282,10 @@ mod tests {
 			assert_eq!(Slots::onboard_queue(2), vec![]);
 			assert_eq!(Slots::onboard_queue(3), vec![]);
 			assert_eq!(Slots::onboard_queue(4), vec![0.into()]);
-			assert_eq!(Slots::onboarding(&0.into()), Some((4, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 }))));
+			assert_eq!(Slots::onboarding(
+				&0.into()),
+				Some((4, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
+			);
 			assert_eq!(Slots::deposit_held(&0.into()), 5);
 		});
 	}
@@ -1271,7 +1308,10 @@ mod tests {
 
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-			assert_eq!(Slots::onboarding(&0.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 5, sub: 0 }))));
+			assert_eq!(
+				Slots::onboarding(&0.into()),
+				Some((1, IncomingParachain::Unset(NewBidder { who: 5, sub: 0 })))
+			);
 			assert_eq!(Slots::deposit_held(&0.into()), 5);
 			assert_eq!(Balances::reserved_balance(&5), 0);
 			assert_eq!(Balances::free_balance(&5), 45);
@@ -1296,7 +1336,10 @@ mod tests {
 
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-			assert_eq!(Slots::onboarding(&0.into()), Some((1, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 }))));
+			assert_eq!(Slots::onboarding(
+				&0.into()),
+				Some((1, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
+			);
 			assert_eq!(Slots::deposit_held(&0.into()), 3);
 			assert_eq!(Balances::reserved_balance(&3), 0);
 			assert_eq!(Balances::free_balance(&3), 27);
