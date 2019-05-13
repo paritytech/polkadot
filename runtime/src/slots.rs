@@ -29,15 +29,6 @@ use system::ensure_signed;
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 use super::Get;
 
-#[cfg(feature = "std")]
-macro_rules! nprintln {
-	( $( $x:tt )* ) => ( println!($( $x )*) )
-}
-#[cfg(not(feature = "std"))]
-macro_rules! nprintln {
-	( $( $x:tt )* ) => ()
-}
-
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 type ParaIdOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
 
@@ -225,7 +216,6 @@ decl_module! {
 			}
 			// If we're beginning a new lease period then handle that, too.
 			if (n % lease_period).is_zero() {
-				nprintln!("New lease period {:?} at block {:?}", lease_period_index, n);
 				Self::manage_lease_period_start(lease_period_index);
 			}
 		}
@@ -555,14 +545,12 @@ impl<T: Trait> Module<T> {
 					if d.len() == 1 {
 						// Just one entry, which corresponds to the now-ended lease period. Time
 						// to decommission this chain.
-						nprintln!("Decommissioning {:?}", id);
 						if <Onboarding<T>>::take(id).is_none() {
 							// Only unregister it if it was actually registered in the first place.
 							// If the on-boarding entry still existed, then it was never actually
 							// commissioned.
 							let _ = T::Parachains::deregister_parachain(id.clone());
 						}
-						nprintln!("Offboarding {:?} DOTs to {:?}", d[0], <Offboarding<T>>::get(id));
 						// Return the full deposit to the off-boarding account.
 						T::Currency::deposit_creating(&<Offboarding<T>>::take(id), d[0]);
 						// Remove the now-empty deposits set and don't keep the ID around.
@@ -570,7 +558,6 @@ impl<T: Trait> Module<T> {
 						false
 					} else {
 						// The parachain entry is continuing into the next lease period.
-						nprintln!("Continuing {:?}", id);
 						// We need to pop the first deposit entry, which corresponds to the now-
 						// ended lease period.
 						let outgoing = d[0];
@@ -604,7 +591,6 @@ impl<T: Trait> Module<T> {
 			{
 				// The chain's deployment data is set; go ahead and register it, and remove the
 				// now-redundant on-boarding entry.
-				nprintln!("Commissioning id {:?} (code {:?})", para_id, code);
 				let _ = T::Parachains::register_parachain(para_id.clone(), code, initial_head_data);
 				// ^^ not much we can do if it fails for some reason.
 				<Onboarding<T>>::remove(para_id)
@@ -831,24 +817,20 @@ mod tests {
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>
 		) -> Result<(), &'static str> {
-			nprintln!("Register {:?}", id);
 			PARACHAINS.with(|p| {
 				if p.borrow().contains_key(&id.into_inner()) {
 					panic!("ID already exists")
 				}
 				p.borrow_mut().insert(id.into_inner(), (code, initial_head_data));
-				nprintln!("parachains: {:?}", p.borrow());
 				Ok(())
 			})
 		}
 		fn deregister_parachain(id: Self::ParaId) -> Result<(), &'static str> {
 			PARACHAINS.with(|p| {
-				nprintln!("Deregister {:?}", id);
 				if !p.borrow().contains_key(&id.into_inner()) {
 					panic!("ID doesn't exist")
 				}
 				p.borrow_mut().remove(&id.into_inner());
-				nprintln!("parachains: {:?}", p.borrow());
 				Ok(())
 			})
 		}
