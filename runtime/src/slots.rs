@@ -22,12 +22,11 @@ use rstd::{prelude::*, mem::swap, convert::TryInto};
 use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, As};
 use codec::Decode;
 use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap,
-	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement}};
+	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}};
 use primitives::parachain::AccountIdConversion;
 use crate::parachains::ParachainRegistrar;
 use system::ensure_signed;
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
-use super::Get;
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 type ParaIdOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
@@ -754,7 +753,7 @@ mod tests {
 	use std::{result::Result, collections::HashMap, cell::RefCell};
 
 	use substrate_primitives::{Blake2Hasher, H256};
-	use sr_io::{with_externalities, self as runtime_io};
+	use sr_io::with_externalities;
 	use sr_primitives::{
 		BuildStorage,
 		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},

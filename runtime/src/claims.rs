@@ -149,7 +149,7 @@ mod tests {
 	use tiny_keccak::keccak256;
 	use super::*;
 
-	use sr_io::{self as runtime_io, with_externalities};
+	use sr_io::with_externalities;
 	use substrate_primitives::{H256, Blake2Hasher};
 	use codec::{Decode, Encode};
 	// The testing primitives are very useful for avoiding having to work with signatures
