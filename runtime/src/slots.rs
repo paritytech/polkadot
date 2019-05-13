@@ -19,7 +19,7 @@
 //! and decommissioning them.
 
 use rstd::{prelude::*, mem::swap, convert::TryInto};
-use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, As};
+use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, As};
 use codec::Decode;
 use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement}};
@@ -156,8 +156,7 @@ decl_storage! {
 		/// The winning bids for each of the 10 ranges at each block in the final Ending Period of
 		/// the current auction. The map's key is the 0-based index into the Ending Period. The
 		/// first block of the ending period is 0; the last is `EndingPeriod - 1`.
-		// TODO: Switch key to T::BlockNumber
-		pub Winning get(winning): map u32 => Option<WinningData<T>>;
+		pub Winning get(winning): map T::BlockNumber => Option<WinningData<T>>;
 
 		/// Amounts currently reserved in the accounts of the bidders currently winning
 		/// (sub-)ranges.
@@ -237,9 +236,10 @@ decl_module! {
 			// in this block.
 			if let Some(offset) = Self::is_ending(now) {
 				if !<Winning<T>>::exists(&offset) {
-					<Winning<T>>::insert(
-						offset,
-						offset.checked_sub(1).and_then(<Winning<T>>::get).unwrap_or_default()
+					<Winning<T>>::insert(offset,
+						offset.checked_sub(&One::one())
+							.and_then(<Winning<T>>::get)
+							.unwrap_or_default()
 					);
 				}
 			}
@@ -386,11 +386,11 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// True if an auction is in its final ending period.
-	fn is_ending(now: T::BlockNumber) -> Option<u32> {
+	fn is_ending(now: T::BlockNumber) -> Option<T::BlockNumber> {
 		if let Some((_, early_end)) = <AuctionInfo<T>>::get() {
 			if let Some(after_early_end) = now.checked_sub(&early_end) {
 				if after_early_end < T::EndingPeriod::get() {
-					return Some(after_early_end.as_() as u32)
+					return Some(after_early_end)
 				}
 			}
 		}
@@ -412,12 +412,14 @@ impl<T: Trait> Module<T> {
 		if let Some((lease_period_index, early_end)) = <AuctionInfo<T>>::get() {
 			if early_end + T::EndingPeriod::get() == now {
 				// Just ended!
-				let ending_period: u32 = T::EndingPeriod::get().as_() as u32;
-				let offset = u32::decode(&mut<system::Module<T>>::random_seed().as_ref())
-					.expect("secure hashes are always greater than 4 bytes; qed") % ending_period;
+				let ending_period = T::EndingPeriod::get();
+				let offset = T::BlockNumber::decode(&mut<system::Module<T>>::random_seed().as_ref())
+					.expect("secure hashes always bigger than block numbers; qed") % ending_period;
 				let res = <Winning<T>>::get(offset).unwrap_or_default();
-				for i in 0..ending_period {
-					<Winning<T>>::remove(i)
+				let mut i = T::BlockNumber::zero();
+				while i < ending_period {
+					<Winning<T>>::remove(i);
+					i += One::one();
 				}
 				<AuctionInfo<T>>::kill();
 				return Some((res, lease_period_index))
@@ -636,7 +638,7 @@ impl<T: Trait> Module<T> {
 		let offset = Self::is_ending(<system::Module<T>>::block_number()).unwrap_or_default();
 		// The current winning ranges.
 		let mut current_winning = <Winning<T>>::get(offset)
-			.or_else(|| offset.checked_sub(1).and_then(<Winning<T>>::get))
+			.or_else(|| offset.checked_sub(&One::one()).and_then(<Winning<T>>::get))
 			.unwrap_or_default();
 		// If this bid beat the previous winner of our range.
 		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.1) {
@@ -761,7 +763,7 @@ mod tests {
 	use std::{result::Result, collections::HashMap, cell::RefCell};
 
 	use substrate_primitives::{Blake2Hasher, H256};
-	use sr_io::with_externalities;
+	use sr_io::{with_externalities, self as runtime_io};
 	use sr_primitives::{
 		BuildStorage,
 		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},
@@ -916,9 +918,6 @@ mod tests {
 			assert_eq!(Slots::is_ending(System::block_number()), None);
 		});
 	}
-
-	// TODO: test parachain renewals that go up and down in value. (make sure it's returned/charged)
-	// TODO: test mutually exclusive bidding
 
 	#[test]
 	fn can_start_auction() {
@@ -1089,6 +1088,20 @@ mod tests {
 			assert_eq!(Slots::onboarding(&1.into()), Some((2, IncomingParachain::Unset(NewBidder { who: 2, sub: 0 }))));
 			assert_eq!(Slots::onboard_queue(4), vec![2.into()]);
 			assert_eq!(Slots::onboarding(&2.into()), Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 }))));
+		});
+	}
+
+	// TODO: test parachain renewals that go up and down in value. (make sure it's returned/charged)
+
+	#[test]
+	fn independent_bids_should_fail() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(1, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 2, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 4, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 2, 1));
+			assert_noop!(Slots::bid(Origin::signed(1), 0, 1, 3, 3, 1), "bidder winning non-intersecting range");
 		});
 	}
 

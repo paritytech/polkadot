@@ -106,7 +106,8 @@ impl SlotRange {
 	pub fn intersects(&self, other: SlotRange) -> bool {
 		let a = self.as_pair();
 		let b = other.as_pair();
-		a.1 >= b.0 || b.1 >= a.0
+		b.0 <= a.1 && a.0 <= b.1
+//		== !(b.0 > a.1 || a.0 > b.1)
 	}
 
 	pub fn len(&self) -> usize {
