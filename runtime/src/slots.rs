@@ -120,9 +120,6 @@ type WinningData<T> = [Option<(Bidder<<T as system::Trait>::AccountId, ParaIdOf<
 // index assigned to them, their winning bid and the range that they won.
 type WinnersData<T> = Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, ParaIdOf<T>, BalanceOf<T>, SlotRange)>;
 
-// TODO:
-// events
-
 /// This module's storage items.
 decl_storage! {
 	trait Store for Module<T: Trait> as Slots {
@@ -183,8 +180,29 @@ decl_storage! {
 }
 
 decl_event!(
-	pub enum Event<T> where AccountId = <T as system::Trait>::AccountId {
-		Nothing(AccountId),
+	pub enum Event<T> where
+		AccountId = <T as system::Trait>::AccountId,
+		BlockNumber = <T as system::Trait>::BlockNumber,
+		LeasePeriod = LeasePeriodOf<T>,
+		ParaId = ParaIdOf<T>,
+		Balance = BalanceOf<T>,
+	{
+		/// A new lease period is beginning.
+		NewLeasePeriod(LeasePeriod),
+		/// An auction started. Provides its index and the block number where it will begin to
+		/// close and the first lease period of the quadruplet that is auctioned.
+		AuctionStarted(AuctionIndex, LeasePeriod, BlockNumber),
+		/// An auction ended. All funds become unreserved.
+		AuctionClosed(AuctionIndex),
+		/// Someone won the right to deploy a parachain. Balance amount is deducted for deposit.
+		WonDeploy(NewBidder<AccountId>, SlotRange, ParaId, Balance),
+		/// An existing parachain won the right to continue.
+		WonRenewal(ParaId, SlotRange, Balance, Balance),
+		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
+		/// Second is the total.
+		Reserved(AccountId, Balance, Balance),
+		/// Funds were unreserved since bidder is no longer active.
+		Unreserved(AccountId, Balance),
 	}
 );
 
@@ -239,11 +257,13 @@ decl_module! {
 			ensure!(!Self::is_in_progress(), "auction already in progress");
 
 			// Bump the counter.
-			<AuctionCounter<T>>::mutate(|n| *n += 1);
+			let n = <AuctionCounter<T>>::mutate(|n| { *n += 1; *n });
 
 			// Set the information.
 			let ending = <system::Module<T>>::block_number() + duration;
 			<AuctionInfo<T>>::put((lease_period_index, ending));
+
+			Self::deposit_event(RawEvent::AuctionStarted(n, lease_period_index, ending))
 		}
 
 		/// Make a new bid from an account (including a parachain account) for deploying a new
@@ -427,6 +447,8 @@ impl<T: Trait> Module<T> {
 		// auction.
 		let winners = Self::calculate_winners(winning_ranges, T::Parachains::new_id);
 
+		Self::deposit_event(RawEvent::AuctionClosed(Self::auction_counter()));
+
 		// Go through those winners and deduct their bid, updating our table of deposits
 		// accordingly.
 		for (maybe_new_deploy, para_id, amount, range) in winners.into_iter() {
@@ -445,7 +467,9 @@ impl<T: Trait> Module<T> {
 
 					// Add para IDs of any chains that will be newly deployed to our set of managed
 					// IDs
-					<ManagedIds<T>>::mutate(|m| m.push(para_id.clone()));
+					<ManagedIds<T>>::mutate(|m| m.push(para_id));
+
+					Self::deposit_event(RawEvent::WonDeploy(bidder.clone(), range, para_id, amount));
 
 					// Add a deployment record so we know to on-board them at the appropriate
 					// juncture.
@@ -455,10 +479,10 @@ impl<T: Trait> Module<T> {
 					let entry = (begin_lease_period, IncomingParachain::Unset(bidder));
 					<Onboarding<T>>::insert(&para_id, entry);
 				}
-				None =>
+				None => {
 					// For renewals, reserve any extra on top of what we already have held
 					// on deposit for their chain.
-					if let Some(additional) = amount.checked_sub(&Self::deposit_held(&para_id)) {
+					let extra = if let Some(additional) = amount.checked_sub(&Self::deposit_held(&para_id)) {
 						if T::Currency::withdraw(
 							&para_id.into_account(),
 							additional,
@@ -467,7 +491,12 @@ impl<T: Trait> Module<T> {
 						).is_err() {
 							continue;
 						}
-					},
+						additional
+					} else {
+						Default::default()
+					};
+					Self::deposit_event(RawEvent::WonRenewal(para_id, range, amount, extra));
+				}
 			}
 
 			// Finally, we update the deposit held so it is `amount` for the new lease period
@@ -510,6 +539,7 @@ impl<T: Trait> Module<T> {
 	/// We need to on-board and off-board parachains as needed. We should also handle reducing/
 	/// returning deposits.
 	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) {
+		Self::deposit_event(RawEvent::NewLeasePeriod(lease_period_index));
 		// First, bump off old deposits and decommission any managed chains that are coming
 		// to a close.
 		<ManagedIds<T>>::mutate(|ids| {
@@ -638,6 +668,12 @@ impl<T: Trait> Module<T> {
 				T::Currency::reserve(&bidder.funding_account(), additional)?;
 				// ...and record the amount reserved.
 				<ReservedAmounts<T>>::insert(&bidder, amount);
+
+				Self::deposit_event(RawEvent::Reserved(
+					bidder.funding_account(),
+					additional,
+					amount
+				));
 			}
 
 			// Return any funds reserved for the previous winner if they no longer have any active
@@ -653,6 +689,8 @@ impl<T: Trait> Module<T> {
 					if let Some(amount) = <ReservedAmounts<T>>::take(&who) {
 						// It really should be reserved; there's not much we can do here on fail.
 						let _ = T::Currency::unreserve(&who.funding_account(), amount);
+
+						Self::deposit_event(RawEvent::Unreserved(who.funding_account(), amount));
 					}
 				}
 			}
@@ -880,6 +918,7 @@ mod tests {
 	}
 
 	// TODO: test parachain renewals that go up and down in value. (make sure it's returned/charged)
+	// TODO: test mutually exclusive bidding
 
 	#[test]
 	fn can_start_auction() {

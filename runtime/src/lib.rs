@@ -78,6 +78,7 @@ extern crate substrate_keyring as keyring;
 extern crate substrate_trie;
 
 /// New trait for querying a single fixed value from a type.
+// TODO: move into substrate: https://github.com/paritytech/substrate/issues/2400
 pub trait Get<T> {
 	/// Return a constant value.
 	fn get() -> T;
@@ -99,6 +100,7 @@ pub trait Get<T> {
 /// }
 /// ```
 #[macro_export]
+// TODO: move into substrate: https://github.com/paritytech/substrate/issues/2400
 macro_rules! parameter_types {
 	(pub const $name:ident: $type:ty = $value:expr; $( $rest:tt )*) => (
 		pub struct $name;
