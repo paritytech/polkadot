@@ -77,10 +77,28 @@ extern crate substrate_keyring as keyring;
 #[cfg(test)]
 extern crate substrate_trie;
 
+/// New trait for querying a single fixed value from a type.
 pub trait Get<T> {
+	/// Return a constant value.
 	fn get() -> T;
 }
 
+/// Macro for easily creating a new implementation of the `Get` trait. Use similarly to
+/// how you would declare a `const`:
+///
+/// ```no_compile
+/// parameter_types! {
+///   pub const Argument: u64 = 42;
+/// }
+/// trait Config {
+///   type Parameter: Get<u64>;
+/// }
+/// struct Runtime;
+/// impl Config for Runtime {
+///   type Parameter = Argument;
+/// }
+/// ```
+#[macro_export]
 macro_rules! parameter_types {
 	(pub const $name:ident: $type:ty = $value:expr; $( $rest:tt )*) => (
 		pub struct $name;

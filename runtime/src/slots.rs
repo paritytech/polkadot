@@ -59,13 +59,22 @@ pub trait Trait: system::Trait {
 	type LeasePeriod: Get<Self::BlockNumber>;
 }
 
+/// A sub-bidder identifier. Used to distinguish between different logical bidders coming from the
+/// same account ID.
 pub type SubId = u32;
+/// An auction index. We count auctions in this type.
 pub type AuctionIndex = u32;
 
+/// A bidder identifier, which is just the combination of an account ID and a sub-bidder ID.
+/// This is called `NewBidder` in order to distinguish between bidders that would deploy a *new*
+/// parachain and pre-existing parachains bidding to renew themselves.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct NewBidder<AccountId> {
+	/// The bidder's account ID; this is the account that funds the bid.
 	who: AccountId,
+	/// An additional ID to allow the same account ID (and funding source) to have multiple
+	/// logical bidders.
 	sub: SubId,
 }
 
@@ -82,7 +91,8 @@ pub enum Bidder<AccountId, ParaId> {
 }
 
 impl<AccountId: Clone, ParaId: AccountIdConversion<AccountId>> Bidder<AccountId, ParaId> {
-	fn account_id(&self) -> AccountId {
+	/// Get the account that will fund this bid.
+	fn funding_account(&self) -> AccountId {
 		match self {
 			Bidder::New(new_bidder) => new_bidder.who.clone(),
 			Bidder::Existing(para_id) => para_id.into_account(),
@@ -90,61 +100,85 @@ impl<AccountId: Clone, ParaId: AccountIdConversion<AccountId>> Bidder<AccountId,
 	}
 }
 
+/// Information regarding a parachain that will be deployed.
+///
+/// We store either the bidder that will be able to set the final deployment information or the
+/// information itself.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum IncomingParachain<AccountId> {
+	/// Deploy information not yet set; just the bidder identity.
 	Unset(NewBidder<AccountId>),
+	/// Deploy information set; so we store the code and head data.
 	Deploy { code: Vec<u8>, initial_head_data: Vec<u8> },
 }
 
 type LeasePeriodOf<T> = <T as system::Trait>::BlockNumber;
+// Winning data type. This encodes the top bidders of each range together with their bid.
 type WinningData<T> = [Option<(Bidder<<T as system::Trait>::AccountId, ParaIdOf<T>>, BalanceOf<T>)>; SLOT_RANGE_COUNT];
+// Winners data type. This encodes each of the final winners of a parachain auction, the parachain
+// index assigned to them, their winning bid and the range that they won.
 type WinnersData<T> = Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, ParaIdOf<T>, BalanceOf<T>, SlotRange)>;
 
 // TODO:
 // events
-// tests
-// docs
 
 /// This module's storage items.
 decl_storage! {
 	trait Store for Module<T: Trait> as Slots {
 
-		/// The winning bids for each of the 10 ranges at each block in the final Ending Period of the current
-		/// auction.
-		pub Winning get(winning): map u32 => Option<WinningData<T>>;
-
-		/// Amounts currently reserved in the accounts of the current winning bidders.
-		pub ReservedAmounts get(reserved_amounts): map Bidder<T::AccountId, ParaIdOf<T>> => Option<BalanceOf<T>>;
-
-		/// All `ParaId` values that are managed by this module. This includes chains that are not yet deployed (but
-		/// have won an auction in the future).
-		pub ManagedIds get(managed_ids): Vec<ParaIdOf<T>>;
-
-		/// The queue of Para IDs that have won and need to be on-boarded at an upcoming lease-period.
-		pub OnboardQueue get(onboard_queue): map LeasePeriodOf<T> => Vec<ParaIdOf<T>>;
-
-		/// The actual onboarding information. Only exists what one of the following is true:
-		/// - It is before the lease period that the parachain should be onboarded.
-		/// - The onboarding information has not yet been provided and the parachain has not yet been due to be
-		/// offboarded.
-		pub Onboarding get(onboarding): map ParaIdOf<T> => Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId>)>;
-
-		/// Offboarding account; currency held on deposit for the parachain gets placed here if the parachain gets
-		/// completely offboarded.
-		pub Offboarding get(offboarding): map ParaIdOf<T> => T::AccountId;
-
-		/// Various amounts on deposit for each parachain. The actual amount locked on its behalf at any time is the
-		/// maximum item in this list. The first item in the list is the amount locked for the current Lease Period.
-		/// The default value (an empty list) implies that the parachain no longer exists (or never existed).
-		pub Deposits get(deposits): map ParaIdOf<T> => Vec<BalanceOf<T>>;
-
-		/// Information relating to the current auction, if there is one. Right now it's just the initial Lease Period
-		/// that it's for.
-		pub AuctionInfo get(auction_info): Option<(LeasePeriodOf<T>, T::BlockNumber)>;
-
 		/// The number of auctions that been started so far.
 		pub AuctionCounter get(auction_counter): AuctionIndex;
+
+		/// All `ParaId` values that are managed by this module. This includes chains that are not
+		/// yet deployed (but have won an auction in the future).
+		pub ManagedIds get(managed_ids): Vec<ParaIdOf<T>>;
+
+		/// Various amounts on deposit for each parachain. An entry in `ManagedIds` implies a non-
+		/// default entry here.
+		///
+		/// The actual amount locked on its behalf at any time is the maximum item in this list. The
+		/// first item in the list is the amount locked for the current Lease Period. Following
+		/// items are for the subsequent lease periods.
+		///
+		/// The default value (an empty list) implies that the parachain no longer exists (or never
+		/// existed) as far as this module is concerned.
+		///
+		/// If a parachain doesn't exist *yet* but is scheduled to exist in the future, then it
+		/// will be left-padded with one of more zeroes to denote the fact that nothing is held on
+		/// deposit for the non-existent chain currently, but is held at some point in the future.
+		pub Deposits get(deposits): map ParaIdOf<T> => Vec<BalanceOf<T>>;
+
+		/// Information relating to the current auction, if there is one.
+		///
+		/// The first item in the tuple is the lease period index that the first of the four
+		/// contiguous lease periods on auction is for. The second is the block number when the
+		/// auction will "begin to end", i.e. the first block of the Ending Period of the auction.
+		pub AuctionInfo get(auction_info): Option<(LeasePeriodOf<T>, T::BlockNumber)>;
+
+		/// The winning bids for each of the 10 ranges at each block in the final Ending Period of
+		/// the current auction. The map's key is the 0-based index into the Ending Period. The
+		/// first block of the ending period is 0; the last is `EndingPeriod - 1`.
+		// TODO: Switch key to T::BlockNumber
+		pub Winning get(winning): map u32 => Option<WinningData<T>>;
+
+		/// Amounts currently reserved in the accounts of the bidders currently winning
+		/// (sub-)ranges.
+		pub ReservedAmounts get(reserved_amounts): map Bidder<T::AccountId, ParaIdOf<T>> => Option<BalanceOf<T>>;
+
+		/// The set of Para IDs that have won and need to be on-boarded at an upcoming lease-period.
+		/// This is cleared out on the first block of the lease period.
+		pub OnboardQueue get(onboard_queue): map LeasePeriodOf<T> => Vec<ParaIdOf<T>>;
+
+		/// The actual on-boarding information. Only exists what one of the following is true:
+		/// - It is before the lease period that the parachain should be on-boarded.
+		/// - The on-boarding information has not yet been provided and the parachain is not yet
+		/// due to be off-boarded.
+		pub Onboarding get(onboarding): map ParaIdOf<T> => Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId>)>;
+
+		/// Off-boarding account; currency held on deposit for the parachain gets placed here if the
+		/// parachain gets off-boarded; i.e. its lease period is up and it isn't renewed.
+		pub Offboarding get(offboarding): map ParaIdOf<T> => T::AccountId;
 	}
 }
 
@@ -162,140 +196,27 @@ decl_module! {
 			let lease_period = T::LeasePeriod::get();
 			let lease_period_index: LeasePeriodOf<T> = (n / lease_period).into();
 
-			if let Some((winning_ranges, auction_lease_period_index)) = Self::check_end(n) {
-				// Auction is ended now. We have the winning ranges and the lease period index which acts as the offset.
-
-				// unreserve all amounts
-				for (bidder, _) in winning_ranges.iter().filter_map(|x| x.as_ref()) {
-					if let Some(amount) = <ReservedAmounts<T>>::take(bidder) {
-						T::Currency::unreserve(&bidder.account_id(), amount);
-					}
-				}
-
-				// figure out the actual winners
-				let winners = Self::calculate_winners(winning_ranges, T::Parachains::new_id);
-
-				// go through winners and deduct their bid.
-				for (maybe_new_deploy, para_id, amount, range) in winners.into_iter() {
-					match maybe_new_deploy {
-						Some(bidder) => {
-							// for new deployments we ensure the full amount is deducted. This should always succeed as
-							// we just unreserved the same amount.
-							if T::Currency::withdraw(
-								&bidder.who,
-								amount,
-								WithdrawReason::Fee,
-								ExistenceRequirement::AllowDeath
-							).is_err() {
-								continue;
-							}
-
-							// add para IDs of any chains that will be newly deployed to our set of managed IDs
-							<ManagedIds<T>>::mutate(|m| m.push(para_id.clone()));
-
-							// add deployment record
-							let begin_lease_period =
-								auction_lease_period_index + <LeasePeriodOf<T>>::sa(range.as_pair().0 as u64);
-							<OnboardQueue<T>>::mutate(begin_lease_period, |starters| starters.push(para_id.clone()));
-							<Onboarding<T>>::insert(&para_id, (begin_lease_period, IncomingParachain::Unset(bidder)));
-						}
-						None =>
-							// for renewals it's more complicated. we just reserve any extra on top of what we already
-							// have held on deposit for them.
-							if let Some(additional) = amount.checked_sub(&Self::deposit_held(&para_id)) {
-								if T::Currency::withdraw(
-									&para_id.into_account(),
-									additional,
-									WithdrawReason::Fee,
-									ExistenceRequirement::AllowDeath
-								).is_err() {
-									continue;
-								}
-							},
-					}
-
-					// update deposit held so it is `amount` for the new lease period indices.
-					let current: u64 = lease_period_index.as_();
-					let current = current as usize;
-					let index: u64 = auction_lease_period_index.as_();
-					let index = index as usize;
-					if let Some(offset) = index.checked_sub(current) {
-						let pair = range.as_pair();
-						let pair = (pair.0 as usize + offset, pair.1 as usize + offset + 1);
-						<Deposits<T>>::mutate(para_id, |d| {
-							if d.len() < pair.0 {
-								d.resize_with(pair.0, Default::default);
-							}
-							for i in pair.0 .. pair.1 {
-								if d.len() > i {
-									continue
-								}
-								d.push(amount);
-							}
-						});
-					}
-				}
+			// Check to see if an auction just ended.
+			if let Some((winning_ranges, auction_lease_period_index)) = Self::check_auction_end(n) {
+				// Auction is ended now. We have the winning ranges and the lease period index which
+				// acts as the offset. Handle it.
+				Self::manage_auction_end(
+					lease_period_index,
+					auction_lease_period_index,
+					winning_ranges,
+				);
 			}
-
-			// if beginning a new lease period...
+			// If we're beginning a new lease period then handle that, too.
 			if (n % lease_period).is_zero() {
 				nprintln!("New lease period {:?} at block {:?}", lease_period_index, n);
-				// bump off old deposits and unreserve accordingly.
-				<ManagedIds<T>>::mutate(|ids| {
-					let new = ids.drain(..).filter(|id| {
-						let mut d = <Deposits<T>>::get(id);
-						if !d.is_empty() {
-							// ^^ should always be true.
-
-							if d.len() == 1 {
-								// decommission
-								nprintln!("Decommissioning {:?}", id);
-								if <Onboarding<T>>::take(id).is_none() {
-									// Only unregister it if it was actually registered in the first place.
-									let _ = T::Parachains::deregister_parachain(id.clone());
-								}
-								nprintln!("Offboarding {:?} DOTs to {:?}", d[0], <Offboarding<T>>::get(id));
-								T::Currency::deposit_creating(&<Offboarding<T>>::take(id), d[0]);
-								<Deposits<T>>::remove(id);
-								false
-							} else {
-								// continuing
-								nprintln!("Continuing {:?}", id);
-								let outgoing = d[0];
-								d.remove(0);
-								<Deposits<T>>::insert(id, &d);
-								let new_held = d.into_iter().max().unwrap_or_default();
-								if let Some(rebate) = outgoing.checked_sub(&new_held) {
-									T::Currency::deposit_creating(
-										&id.into_account(),
-										rebate
-									);
-								}
-								true
-							}
-						} else {
-							false
-						}
-					}).collect::<Vec<_>>();
-					*ids = new;
-				});
-
-				// create new chains.
-				for para_id in <OnboardQueue<T>>::take(lease_period_index) {
-					if let Some((_, IncomingParachain::Deploy{code, initial_head_data}))
-						= <Onboarding<T>>::get(&para_id)
-					{
-						nprintln!("Commissioning id {:?} (code {:?})", para_id, code);
-						let _ = T::Parachains::register_parachain(para_id.clone(), code, initial_head_data);
-						// ^^ not much we can do if it fails for some reason.
-						<Onboarding<T>>::remove(para_id)
-					}
-				}
+				Self::manage_lease_period_start(lease_period_index);
 			}
 		}
 
 		fn on_finalize(now: T::BlockNumber) {
-			// if auction is_ending() copy previous block's winning to this block's winning if it's unset.
+			// If the current auction is in it ending period, then ensure that the (sub-)range
+			// winner information is duplicated from the previous block in case no bids happened
+			// in this block.
 			if let Some(offset) = Self::is_ending(now) {
 				if !<Winning<T>>::exists(&offset) {
 					<Winning<T>>::insert(
@@ -306,7 +227,11 @@ decl_module! {
 			}
 		}
 
-		/// Begin an auction.
+		/// Create a new auction.
+		///
+		/// This can only happen when there isn't already an auction in progress and may only be
+		/// called by the root origin. Accepts the `duration` of this auction and the
+		/// `lease_period_index` at which it should begin.
 		fn new_auction(
 			#[compact] duration: T::BlockNumber,
 			#[compact] lease_period_index: LeasePeriodOf<T>
@@ -316,12 +241,27 @@ decl_module! {
 			// Bump the counter.
 			<AuctionCounter<T>>::mutate(|n| *n += 1);
 
-			// set the info
+			// Set the information.
 			let ending = <system::Module<T>>::block_number() + duration;
 			<AuctionInfo<T>>::put((lease_period_index, ending));
 		}
 
-		/// Make a new bid from an account (including a parachain account) for deploying a new parachain.
+		/// Make a new bid from an account (including a parachain account) for deploying a new
+		/// parachain.
+		///
+		/// Multiple simultaneous bids from the same bidder are allowed only as long as all active
+		/// bids overlap each other (i.e. are mutually exclusive). Bids cannot be redacted.
+		///
+		/// - `sub` is the sub-bidder ID, allowing for multiple competing bids to be made by (and
+		/// funded by) the same account.
+		/// - `auction_index` is the index of the auction to bid on. Should just be the present
+		/// value of `AuctionCounter`.
+		/// - `first_slot` is the first lease period index of the range to bid on. This is the
+		/// absolute lease period index value, not an auction-specific offset.
+		/// - `last_slot` is the last lease period index of the range to bid on. This is the
+		/// absolute lease period index value, not an auction-specific offset.
+		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
+		/// bid win. This amount is held throughout the range.
 		fn bid(origin,
 			#[compact] sub: SubId,
 			#[compact] auction_index: AuctionIndex,
@@ -331,12 +271,24 @@ decl_module! {
 		) {
 			let who = ensure_signed(origin)?;
 			let bidder = Bidder::New(NewBidder{who: who.clone(), sub});
-			Self::handle_bid(who, bidder, auction_index, first_slot, last_slot, amount)?;
+			Self::handle_bid(bidder, auction_index, first_slot, last_slot, amount)?;
 		}
 
 		/// Make a new bid from a parachain account for renewing that (pre-existing) parachain.
 		///
-		/// The origin must be a parachain account.
+		/// The origin *must* be a parachain account.
+		///
+		/// Multiple simultaneous bids from the same bidder are allowed only as long as all active
+		/// bids overlap each other (i.e. are mutually exclusive). Bids cannot be redacted.
+		///
+		/// - `auction_index` is the index of the auction to bid on. Should just be the present
+		/// value of `AuctionCounter`.
+		/// - `first_slot` is the first lease period index of the range to bid on. This is the
+		/// absolute lease period index value, not an auction-specific offset.
+		/// - `last_slot` is the last lease period index of the range to bid on. This is the
+		/// absolute lease period index value, not an auction-specific offset.
+		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
+		/// bid win. This amount is held throughout the range.
 		fn bid_renew(origin,
 			#[compact] auction_index: AuctionIndex,
 			#[compact] first_slot: LeasePeriodOf<T>,
@@ -347,9 +299,14 @@ decl_module! {
 			let para_id = <ParaIdOf<T>>::try_from_account(&who)
 				.ok_or("account is not a parachain")?;
 			let bidder = Bidder::Existing(para_id);
-			Self::handle_bid(who, bidder, auction_index, first_slot, last_slot, amount)?;
+			Self::handle_bid(bidder, auction_index, first_slot, last_slot, amount)?;
 		}
 
+		/// Set the off-boarding information for a parachain.
+		///
+		/// The origin *must* be a parachain account.
+		///
+		/// - `dest` is the destination account to receive the parachain's deposit.
 		fn set_offboarding(origin, dest: <T::Lookup as StaticLookup>::Source) {
 			let who = ensure_signed(origin)?;
 			let dest = T::Lookup::lookup(dest)?;
@@ -358,6 +315,17 @@ decl_module! {
 			<Offboarding<T>>::insert(para_id, dest);
 		}
 
+		/// Set the deploy information for a successful bid to deploy a new parachain.
+		///
+		/// This may be called before or after the beginning of the parachain's first lease period.
+		/// If called before then the parachain will become active at the first block of its
+		/// starting lease period. If after, then it will become active immediately after this call.
+		///
+		/// - `origin` must be the successful bidder account.
+		/// - `sub` is the sub-bidder ID of the bidder.
+		/// - `para_id` is the parachain ID allotted to the winning bidder.
+		/// - `code` is the parachain's Wasm validation function.
+		/// - `initial_head_data` is the parachain's initial head data.
 		fn set_deploy_data(origin,
 			#[compact] sub: SubId,
 			#[compact] para_id: ParaIdOf<T>,
@@ -373,11 +341,12 @@ decl_module! {
 				return Err("already registered")
 			}
 			if starts > Self::lease_period_index() {
-				// Hasn't yet begun. Replace.
+				// Hasn't yet begun. Replace the on-boarding entry with the new information.
 				let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
 				<Onboarding<T>>::insert(&para_id, item);
 			} else {
-				// Should have begun. Remove & register.
+				// Should have already begun. Remove te on-boarding entry and register the parachain
+				// for its immediate start.
 				<Onboarding<T>>::remove(&para_id);
 				let _ = T::Parachains::register_parachain(para_id, code, initial_head_data);
 			}
@@ -408,15 +377,18 @@ impl<T: Trait> Module<T> {
 		None
 	}
 
-	/// Return the current lease period.
+	/// Returns the current lease period.
 	fn lease_period_index() -> LeasePeriodOf<T> {
 		(<system::Module<T>>::block_number() / T::LeasePeriod::get()).into()
 	}
 
-	/// Some when the auction's end is known (with the end block number). None if it is unknown. If Some then
-	/// the block number must be at most the previous block and at least the previous block minus
-	/// `T::EndingPeriod::get()`.
-	fn check_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
+	/// Some when the auction's end is known (with the end block number). None if it is unknown.
+	/// If `Some` then the block number must be at most the previous block and at least the
+	/// previous block minus `T::EndingPeriod::get()`.
+	///
+	/// This mutates the state, cleaning up `AuctionInfo` and `Winning` in the case of an auction
+	/// ending. An immediately subsequent call with the same argument will always return `None`.
+	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
 		if let Some((lease_period_index, early_end)) = <AuctionInfo<T>>::get() {
 			if early_end + T::EndingPeriod::get() == now {
 				// Just ended!
@@ -434,28 +406,211 @@ impl<T: Trait> Module<T> {
 		None
 	}
 
-	/// Actually handle a bid.
+	/// Auction just ended. We have the current lease period, the auction's lease period (which
+	/// is guaranteed to be at least the current period) and the bidders that were winning each
+	/// range at the time of the auction's close.
+	fn manage_auction_end(
+		lease_period_index: LeasePeriodOf<T>,
+		auction_lease_period_index: LeasePeriodOf<T>,
+		winning_ranges: WinningData<T>,
+	) {
+		// First, unreserve all amounts that were reserved for the bids. We will later deduct the
+		// amounts from the bidders that ended up being assigned the slot so there's no need to
+		// special-case them here.
+		for (bidder, _) in winning_ranges.iter().filter_map(|x| x.as_ref()) {
+			if let Some(amount) = <ReservedAmounts<T>>::take(bidder) {
+				T::Currency::unreserve(&bidder.funding_account(), amount);
+			}
+		}
+
+		// Next, calculate the winning combination of slots and thus the final winners of the
+		// auction.
+		let winners = Self::calculate_winners(winning_ranges, T::Parachains::new_id);
+
+		// Go through those winners and deduct their bid, updating our table of deposits
+		// accordingly.
+		for (maybe_new_deploy, para_id, amount, range) in winners.into_iter() {
+			match maybe_new_deploy {
+				Some(bidder) => {
+					// For new deployments we ensure the full amount is deducted. This should always
+					// succeed as we just unreserved the same amount above.
+					if T::Currency::withdraw(
+						&bidder.who,
+						amount,
+						WithdrawReason::Fee,
+						ExistenceRequirement::AllowDeath
+					).is_err() {
+						continue;
+					}
+
+					// Add para IDs of any chains that will be newly deployed to our set of managed
+					// IDs
+					<ManagedIds<T>>::mutate(|m| m.push(para_id.clone()));
+
+					// Add a deployment record so we know to on-board them at the appropriate
+					// juncture.
+					let begin_offset = <LeasePeriodOf<T>>::sa(range.as_pair().0 as u64);
+					let begin_lease_period = auction_lease_period_index + begin_offset;
+					<OnboardQueue<T>>::mutate(begin_lease_period, |starts| starts.push(para_id));
+					let entry = (begin_lease_period, IncomingParachain::Unset(bidder));
+					<Onboarding<T>>::insert(&para_id, entry);
+				}
+				None =>
+					// For renewals, reserve any extra on top of what we already have held
+					// on deposit for their chain.
+					if let Some(additional) = amount.checked_sub(&Self::deposit_held(&para_id)) {
+						if T::Currency::withdraw(
+							&para_id.into_account(),
+							additional,
+							WithdrawReason::Fee,
+							ExistenceRequirement::AllowDeath
+						).is_err() {
+							continue;
+						}
+					},
+			}
+
+			// Finally, we update the deposit held so it is `amount` for the new lease period
+			// indices that were won in the auction.
+			let current: u64 = lease_period_index.as_();
+			let current = current as usize;
+			let index: u64 = auction_lease_period_index.as_();
+			let index = index as usize;
+
+			if let Some(offset) = index.checked_sub(current) {
+				// Should always succeed; for it to fail it would mean we auctioned a lease period
+				// that already ended.
+
+				// The lease period index range (begin, end) that newly belongs to this parachain
+				// ID. We need to ensure that it features in `Deposits` to prevent it from being
+				// reaped too early (any managed parachain whose `Deposits` set runs low will be
+				// removed).
+				let pair = range.as_pair();
+				let pair = (pair.0 as usize + offset, pair.1 as usize + offset + 1);
+				<Deposits<T>>::mutate(para_id, |d| {
+					// Left-pad with zeroes as necessary.
+					if d.len() < pair.0 {
+						d.resize_with(pair.0, Default::default);
+					}
+					// Then place the deposit values for as long as the chain should exist.
+					for i in pair.0 .. pair.1 {
+						if d.len() > i {
+							// The chain bought the same lease period twice. Ignore.
+							continue
+						}
+						d.push(amount);
+					}
+				});
+			}
+		}
+	}
+
+	/// A new lease period is beginning. We're at the start of the first block of it.
+	///
+	/// We need to on-board and off-board parachains as needed. We should also handle reducing/
+	/// returning deposits.
+	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) {
+		// First, bump off old deposits and decommission any managed chains that are coming
+		// to a close.
+		<ManagedIds<T>>::mutate(|ids| {
+			let new = ids.drain(..).filter(|id| {
+				let mut d = <Deposits<T>>::get(id);
+				if !d.is_empty() {
+					// ^^ should always be true, since we would have deleted the entry otherwise.
+
+					if d.len() == 1 {
+						// Just one entry, which corresponds to the now-ended lease period. Time
+						// to decommission this chain.
+						nprintln!("Decommissioning {:?}", id);
+						if <Onboarding<T>>::take(id).is_none() {
+							// Only unregister it if it was actually registered in the first place.
+							// If the on-boarding entry still existed, then it was never actually
+							// commissioned.
+							let _ = T::Parachains::deregister_parachain(id.clone());
+						}
+						nprintln!("Offboarding {:?} DOTs to {:?}", d[0], <Offboarding<T>>::get(id));
+						// Return the full deposit to the off-boarding account.
+						T::Currency::deposit_creating(&<Offboarding<T>>::take(id), d[0]);
+						// Remove the now-empty deposits set and don't keep the ID around.
+						<Deposits<T>>::remove(id);
+						false
+					} else {
+						// The parachain entry is continuing into the next lease period.
+						nprintln!("Continuing {:?}", id);
+						// We need to pop the first deposit entry, which corresponds to the now-
+						// ended lease period.
+						let outgoing = d[0];
+						d.remove(0);
+						<Deposits<T>>::insert(id, &d);
+						// Then we need to get the new amount that should continue to be held on
+						// deposit for the parachain.
+						let new_held = d.into_iter().max().unwrap_or_default();
+						// If this is less than what we were holding previously, then return it
+						// to the parachain itself.
+						if let Some(rebate) = outgoing.checked_sub(&new_held) {
+							T::Currency::deposit_creating(
+								&id.into_account(),
+								rebate
+							);
+						}
+						// We keep this entry around until the next lease period.
+						true
+					}
+				} else {
+					false
+				}
+			}).collect::<Vec<_>>();
+			*ids = new;
+		});
+
+		// Deploy any new chains that are due to be commissioned.
+		for para_id in <OnboardQueue<T>>::take(lease_period_index) {
+			if let Some((_, IncomingParachain::Deploy{code, initial_head_data}))
+				= <Onboarding<T>>::get(&para_id)
+			{
+				// The chain's deployment data is set; go ahead and register it, and remove the
+				// now-redundant on-boarding entry.
+				nprintln!("Commissioning id {:?} (code {:?})", para_id, code);
+				let _ = T::Parachains::register_parachain(para_id.clone(), code, initial_head_data);
+				// ^^ not much we can do if it fails for some reason.
+				<Onboarding<T>>::remove(para_id)
+			}
+		}
+	}
+
+	/// Actually place a bid in the current auction.
+	///
+	/// - `bidder`: The account that will be funding this bid.
+	/// - `auction_index`: The auction index of the bid. For this to succeed, must equal
+	/// the current value of `AuctionCounter`.
+	/// - `first_slot`: The first lease period index of the range to be bid on.
+	/// - `last_slot`: The last lease period index of the range to be bid on (inclusive).
+	/// - `amount`: The total amount to be the bid for deposit over the range.
 	fn handle_bid(
-		who: T::AccountId,
 		bidder: Bidder<T::AccountId, ParaIdOf<T>>,
 		auction_index: u32,
 		first_slot: LeasePeriodOf<T>,
 		last_slot: LeasePeriodOf<T>,
 		amount: BalanceOf<T>
 	) -> Result<(), &'static str> {
-		// bidding on latest auction.
+		// Bidding on latest auction.
 		ensure!(auction_index == <AuctionCounter<T>>::get(), "not current auction");
-		// assume it's actually an auction (this should never fail because of above).
+		// Assume it's actually an auction (this should never fail because of above).
 		let (first_lease_period, _) = <AuctionInfo<T>>::get().ok_or("not an auction")?;
 
+		// Our range.
 		let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
+		// Range as an array index.
 		let range_index = range as u8 as usize;
+		// The offset into the auction ending set.
 		let offset = Self::is_ending(<system::Module<T>>::block_number()).unwrap_or_default();
+		// The current winning ranges.
 		let mut current_winning = <Winning<T>>::get(offset)
 			.or_else(|| offset.checked_sub(1).and_then(<Winning<T>>::get))
 			.unwrap_or_default();
+		// If this bid beat the previous winner of our range.
 		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.1) {
-			// this must overlap with all existing ranges that we're winning or it's invalid.
+			// This must overlap with all existing ranges that we're winning on or it's invalid.
 			ensure!(current_winning.iter()
 				.enumerate()
 				.all(|(i, x)| x.as_ref().map_or(true, |(w, _)| w != &bidder || range.intersects(i.try_into()
@@ -464,18 +619,29 @@ impl<T: Trait> Module<T> {
 				"bidder winning non-intersecting range"
 			);
 
-			// new winner - reserve the additional amount and record
+			// Ok; we are the new winner of this range - reserve the additional amount and record.
+
+			// Get the amount already held on deposit on our behalf if this is a renewal bid from
+			// an existing parachain.
 			let deposit_held = if let Bidder::Existing(ref bidder_para_id) = bidder {
 				Self::deposit_held(bidder_para_id)
 			} else {
 				Zero::zero()
 			};
+			// Get the amount already reserved in any prior and still active bids by us.
 			let already_reserved =
 				<ReservedAmounts<T>>::get(&bidder).unwrap_or_default() + deposit_held;
+			// If these don't already cover the bid...
 			if let Some(additional) = amount.checked_sub(&already_reserved) {
-				T::Currency::reserve(&who, additional)?;
+				// ...then reserve some more funds from their account, failing if there's not
+				// enough funds.
+				T::Currency::reserve(&bidder.funding_account(), additional)?;
+				// ...and record the amount reserved.
 				<ReservedAmounts<T>>::insert(&bidder, amount);
 			}
+
+			// Return any funds reserved for the previous winner if they no longer have any active
+			// bids.
 			let mut outgoing_winner = Some((bidder, amount));
 			swap(&mut current_winning[range_index], &mut outgoing_winner);
 			if let Some((who, _)) = outgoing_winner {
@@ -483,19 +649,23 @@ impl<T: Trait> Module<T> {
 					.filter_map(Option::as_ref)
 					.all(|&(ref other, _)| other != &who)
 				{
-					// previous bidder no longer in winning set - unreserve their bid
+					// Previous bidder is no longer winning any ranges: unreserve their funds.
 					if let Some(amount) = <ReservedAmounts<T>>::take(&who) {
-						// it really should be reserved; if it's not, then there's not much we can do here.
-						let _ = T::Currency::unreserve(&who.account_id(), amount);
+						// It really should be reserved; there's not much we can do here on fail.
+						let _ = T::Currency::unreserve(&who.funding_account(), amount);
 					}
 				}
 			}
+			// Update the range winner.
 			<Winning<T>>::insert(offset, &current_winning);
 		}
 		Ok(())
 	}
 
 	/// Calculate the final winners from the winning slots.
+	///
+	/// This is a simple dynamic programming algorithm designed by Al, the original code is at:
+	/// https://github.com/w3f/consensus/blob/master/NPoS/auctiondynamicthing.py
 	fn calculate_winners(
 		mut winning: WinningData<T>,
 		new_id: impl Fn() -> ParaIdOf<T>
@@ -708,6 +878,8 @@ mod tests {
 			assert_eq!(Slots::is_ending(System::block_number()), None);
 		});
 	}
+
+	// TODO: test parachain renewals that go up and down in value. (make sure it's returned/charged)
 
 	#[test]
 	fn can_start_auction() {
