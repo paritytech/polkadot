@@ -251,7 +251,7 @@ construct_service_factory! {
 				let known_oracle = client.clone();
 
 				let gossip_validator = network_gossip::register_validator(
-					&*service.network(),
+					service.network(),
 					move |block_hash: &Hash| {
 						use client::{BlockStatus, ChainHead};
 

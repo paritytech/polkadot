@@ -28,7 +28,7 @@ use polkadot_validation::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Validated
 };
 use polkadot_primitives::{Block, Hash};
-use polkadot_primitives::parachain::{Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message,
+use polkadot_primitives::parachain::{Extrinsic, CandidateReceipt, ParachainHost,
 	ValidatorIndex, Collation, PoVBlock,
 };
 use gossip::RegisteredMessageValidator;
@@ -42,8 +42,6 @@ use std::io;
 use std::sync::Arc;
 
 use validation::{self, SessionDataFetcher, NetworkService, Executor};
-
-type IngressPairRef<'a> = (ParaId, &'a [Message]);
 
 /// Compute the gossip topic for attestations on the given parent hash.
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
@@ -235,7 +233,6 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 	fn drop(&mut self) {
 		let parent_hash = self.parent_hash().clone();
-		self.message_validator.remove_session(&parent_hash);
 		self.network().with_spec(move |spec, _| { spec.remove_validation_session(parent_hash); });
 	}
 }

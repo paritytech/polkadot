@@ -19,11 +19,11 @@
 use substrate_network::{config::Roles, PeerId};
 use substrate_network::consensus_gossip::{
 	self as network_gossip, ValidationResult as GossipValidationResult,
-	ValidatorContext, MessageIntent,
+	ValidatorContext, MessageIntent, ConsensusMessage,
 };
 use polkadot_validation::{GenericStatement, SignedStatement};
 use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorIndex};
-use codec::Decode;
+use codec::{Decode, Encode};
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -56,6 +56,8 @@ mod cost {
 	pub const MALFORMED_MESSAGE: i32 = -500;
 	/// A peer sent us a wrongly signed message.
 	pub const BAD_SIGNATURE: i32 = -500;
+	/// A peer sent us a bad neighbor packet.
+	pub const BAD_NEIGHBOR_PACKET: i32 = -300;
 }
 
 /// A gossip message.
@@ -86,14 +88,6 @@ pub(crate) struct GossipStatement {
 pub enum VersionedNeighborPacket {
 	#[codec(index = "1")]
 	V1(NeighborPacket),
-}
-
-impl VersionedNeighborPacket {
-	fn into_inner(self) -> NeighborPacket {
-		match self {
-			VersionedNeighborPacket::V1(packet) => packet,
-		}
-	}
 }
 
 /// Contains information on which chain heads the peer is
@@ -132,10 +126,15 @@ impl<F> KnownOracle for F where F: Fn(&Hash) -> Option<Known> + Send + Sync {
 // that we've actually done the registration, this should be the only way
 // to construct it outside of tests.
 pub fn register_validator<O: KnownOracle + 'static>(
-	service: &NetworkService,
+	service: Arc<NetworkService>,
 	oracle: O,
 ) -> RegisteredMessageValidator {
+	let s = service.clone();
+	let report_handle = Box::new(move |peer: &PeerId, cost_benefit| {
+		s.report_peer(peer.clone(), cost_benefit);
+	});
 	let validator = Arc::new(MessageValidator {
+		report_handle,
 		inner: RwLock::new(Inner {
 			peers: HashMap::new(),
 			our_view: Default::default(),
@@ -161,8 +160,12 @@ pub struct RegisteredMessageValidator {
 
 impl RegisteredMessageValidator {
 	#[cfg(test)]
-	pub(crate) fn new_test<O: KnownOracle + 'static>(oracle: O) -> Self {
+	pub(crate) fn new_test<O: KnownOracle + 'static>(
+		oracle: O,
+		report_handle: Box<Fn(&PeerId, i32) + Send + Sync>,
+	) -> Self {
 		let validator = Arc::new(MessageValidator {
+			report_handle,
 			inner: RwLock::new(Inner {
 				peers: HashMap::new(),
 				our_view: Default::default(),
@@ -175,13 +178,27 @@ impl RegisteredMessageValidator {
 
 	/// Note a live attestation session. This must be removed later with
 	/// `remove_session`.
-	pub(crate) fn note_session(&self, relay_parent: Hash, validation: MessageValidationData) {
-		unimplemented!()
-	}
+	pub(crate) fn note_session<F: FnMut(&PeerId, ConsensusMessage)>(
+		&self,
+		relay_parent: Hash,
+		validation: MessageValidationData,
+		send_neighbor_packet: F,
+	) {
+		// add an entry in our_view
+        // prune any entries from our_view which are no longer leaves
+		let mut inner = self.inner.inner.write();
+		inner.our_view.add_session(relay_parent, validation);
+		{
 
-	/// Remove a live attestation session when it is no longer live.
-	pub(crate) fn remove_session(&self, relay_parent: &Hash) {
-		unimplemented!()
+			let &mut Inner { ref oracle, ref mut our_view, .. } = &mut *inner;
+			our_view.prune_old_sessions(|parent| match oracle.is_known(parent) {
+				Some(Known::Leaf) => true,
+				_ => false,
+			});
+		}
+
+		// send neighbor packets to peers
+		inner.multicast_neighbor_packet(send_neighbor_packet);
 	}
 }
 
@@ -239,28 +256,52 @@ struct PeerData {
 }
 
 impl PeerData {
-	fn knowledge_at(&self, parent_hash: &Hash) -> Option<&Knowledge> {
-		self.live.get(parent_hash)
-	}
-
 	fn knowledge_at_mut(&mut self, parent_hash: &Hash) -> Option<&mut Knowledge> {
 		self.live.get_mut(parent_hash)
 	}
-
-	fn believes_live(&self, parent_hash: &Hash) -> bool {
-		self.live.contains_key(&parent_hash)
-	}
 }
 
-#[derive(Default)]
 struct OurView {
-	live_sessions: HashMap<Hash, SessionView>,
+	live_sessions: Vec<(Hash, SessionView)>,
 	topics: HashMap<Hash, Hash>, // maps topic hashes to block hashes.
+}
+
+impl Default for OurView {
+	fn default() -> Self {
+		OurView {
+			live_sessions: Vec::with_capacity(MAX_CHAIN_HEADS),
+			topics: Default::default(),
+		}
+	}
 }
 
 impl OurView {
 	fn session_view(&self, relay_parent: &Hash) -> Option<&SessionView> {
-		self.live_sessions.get(relay_parent)
+		self.live_sessions.iter()
+			.find_map(|&(ref h, ref sesh)| if h == relay_parent { Some(sesh) } else { None } )
+	}
+
+	fn session_view_mut(&mut self, relay_parent: &Hash) -> Option<&mut SessionView> {
+		self.live_sessions.iter_mut()
+			.find_map(|&mut (ref h, ref mut sesh)| if h == relay_parent { Some(sesh) } else { None } )
+	}
+
+	fn add_session(&mut self, relay_parent: Hash, validation_data: MessageValidationData) {
+		self.live_sessions.push((
+			relay_parent,
+			SessionView {
+				validation_data,
+				knowledge: Default::default(),
+			},
+		))
+	}
+
+	fn prune_old_sessions<F: Fn(&Hash) -> bool>(&mut self, is_leaf: F) {
+		self.live_sessions.retain(|&(ref relay_parent, _)| is_leaf(relay_parent))
+	}
+
+	fn neighbor_info(&self) -> Vec<Hash> {
+		self.live_sessions.iter().take(MAX_CHAIN_HEADS).map(|(p, _)| p.clone()).collect()
 	}
 }
 
@@ -276,7 +317,7 @@ struct Inner<O: ?Sized> {
 }
 
 impl<O: ?Sized + KnownOracle> Inner<O> {
-	fn validate_statement(&mut self, sender: &PeerId, message: GossipStatement)
+	fn validate_statement(&mut self, message: GossipStatement)
 		-> (GossipValidationResult<Hash>, i32)
 	{
 		// message must reference one of our chain heads and one
@@ -331,16 +372,52 @@ impl<O: ?Sized + KnownOracle> Inner<O> {
 			}
 		}
 	}
+
+	fn validate_neighbor_packet(&mut self, sender: &PeerId, packet: NeighborPacket)
+		-> (GossipValidationResult<Hash>, i32)
+	{
+		let chain_heads = packet.chain_heads;
+		if chain_heads.len() > MAX_CHAIN_HEADS {
+			(GossipValidationResult::Discard, cost::BAD_NEIGHBOR_PACKET)
+		} else {
+			if let Some(ref mut peer) = self.peers.get_mut(sender) {
+				peer.live.retain(|k, _| chain_heads.contains(k));
+				for head in chain_heads {
+					peer.live.entry(head).or_insert_with(Default::default);
+				}
+			}
+			(GossipValidationResult::Discard, 0)
+		}
+	}
+
+	fn multicast_neighbor_packet<F: FnMut(&PeerId, ConsensusMessage)>(
+		&self,
+		mut send_neighbor_packet: F,
+	) {
+		let neighbor_packet = GossipMessage::Neighbor(VersionedNeighborPacket::V1(NeighborPacket {
+			chain_heads: self.our_view.neighbor_info()
+		}));
+
+		let message = ConsensusMessage {
+			data: neighbor_packet.encode(),
+			engine_id: POLKADOT_ENGINE_ID,
+		};
+
+		for peer in self.peers.keys() {
+			send_neighbor_packet(peer, message.clone())
+		}
+	}
 }
 
 /// An unregistered message validator. Register this with `register_validator`.
 pub struct MessageValidator<O: ?Sized> {
+	report_handle: Box<Fn(&PeerId, i32) + Send + Sync>,
 	inner: RwLock<Inner<O>>,
 }
 
 impl<O: KnownOracle + ?Sized> MessageValidator<O> {
-	fn report(&self, _who: &PeerId, cost_benefit: i32) {
-		// TODO: forward to implemented
+	fn report(&self, who: &PeerId, cost_benefit: i32) {
+		(self.report_handle)(who, cost_benefit)
 	}
 }
 
@@ -357,16 +434,15 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 		inner.peers.remove(who);
 	}
 
-	fn validate(&self, context: &mut ValidatorContext<Block>, sender: &PeerId, mut data: &[u8])
+	fn validate(&self, _context: &mut ValidatorContext<Block>, sender: &PeerId, mut data: &[u8])
 		-> GossipValidationResult<Hash>
 	{
 		let (res, cost_benefit) = match GossipMessage::decode(&mut data) {
 			None => (GossipValidationResult::Discard, cost::MALFORMED_MESSAGE),
-			Some(GossipMessage::Neighbor(_)) =>
-				// TODO [now]: validate
-				(GossipValidationResult::Discard, 0),
+			Some(GossipMessage::Neighbor(VersionedNeighborPacket::V1(packet))) =>
+				self.inner.write().validate_neighbor_packet(sender, packet),
 			Some(GossipMessage::Statement(statement)) =>
-				self.inner.write().validate_statement(sender, statement)
+				self.inner.write().validate_statement(statement),
 		};
 
 		self.report(sender, cost_benefit);
@@ -376,7 +452,7 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 	fn message_expired<'a>(&'a self) -> Box<FnMut(Hash, &[u8]) -> bool + 'a> {
 		let inner = self.inner.read();
 
-		Box::new(move |topic, data| {
+		Box::new(move |topic, _data| {
 			// check that topic is one of our live sessions. everything else is expired
 			!inner.our_view.topics.contains_key(&topic)
 		})
@@ -385,18 +461,20 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 	fn message_allowed<'a>(&'a self) -> Box<FnMut(&PeerId, MessageIntent, &Hash, &[u8]) -> bool + 'a> {
 		let mut inner = self.inner.write();
 		Box::new(move |who, intent, topic, data| {
+			let &mut Inner { ref mut peers, ref mut our_view, .. } = &mut *inner;
+
 			match intent {
 				MessageIntent::PeriodicRebroadcast => return false,
 				_ => {},
 			}
 
-			let relay_parent = match inner.our_view.topics.get(topic) {
+			let relay_parent = match our_view.topics.get(topic) {
 				None => return false,
 				Some(hash) => hash.clone(),
 			};
 
 			// check that topic is one of our peers' live sessions.
-			let peer_knowledge = match inner.peers.get_mut(who)
+			let peer_knowledge = match peers.get_mut(who)
 				.and_then(|p| p.knowledge_at_mut(&relay_parent))
 			{
 				Some(p) => p,
@@ -406,7 +484,6 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 			match GossipMessage::decode(&mut &data[..]) {
 				Some(GossipMessage::Statement(statement)) => {
 					let signed = statement.signed_statement;
-					let sender = signed.sender;
 
 					match signed.statement {
 						GenericStatement::Valid(ref h) | GenericStatement::Invalid(ref h) => {
@@ -419,7 +496,11 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 						GenericStatement::Candidate(ref c) => {
 							// if we are sending a `Candidate` message we should make sure that
 							// our_view and their_view reflects that we know about the candidate.
-							peer_knowledge.note_aware(c.hash());
+							let hash = c.hash();
+							peer_knowledge.note_aware(hash);
+							if let Some(our_view) = our_view.session_view_mut(&relay_parent) {
+								our_view.knowledge.note_aware(hash);
+							}
 						}
 					}
 				}

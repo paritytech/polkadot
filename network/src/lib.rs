@@ -33,7 +33,6 @@ extern crate parking_lot;
 extern crate tokio;
 extern crate exit_future;
 
-#[macro_use]
 extern crate futures;
 #[macro_use]
 extern crate log;
