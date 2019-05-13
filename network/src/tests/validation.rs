@@ -16,7 +16,9 @@
 
 //! Tests and helpers for validation networking.
 
-use validation::NetworkService;
+#![allow(unused)]
+
+use validation::{NetworkService, GossipService};
 use substrate_network::Context as NetContext;
 use substrate_network::consensus_gossip::TopicNotification;
 use substrate_primitives::{NativeOrEncoded, ExecutionContext};
@@ -151,7 +153,11 @@ impl NetworkService for TestNetwork {
 		let _ = self.gossip.send_message.unbounded_send((topic, notification));
 	}
 
-	fn drop_gossip(&self, _topic: Hash) {}
+	fn with_gossip<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut GossipService, &mut NetContext<Block>)
+	{
+		unimplemented!()
+	}
 
 	fn with_spec<F: Send + 'static>(&self, with: F)
 		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>)
@@ -342,6 +348,7 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 
 		let message_val = crate::gossip::RegisteredMessageValidator::new_test(
 			|_hash: &_| Some(crate::gossip::Known::Leaf),
+			Box::new(|_, _| {}),
 		);
 
 		TestValidationNetwork::new(

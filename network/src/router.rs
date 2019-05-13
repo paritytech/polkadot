@@ -94,12 +94,6 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 			})
 	}
 
-	/// Get access to the session data fetcher.
-	#[cfg(test)]
-	pub(crate) fn fetcher(&self) -> &SessionDataFetcher<P, E, N, T> {
-		&self.fetcher
-	}
-
 	fn parent_hash(&self) -> Hash {
 		self.fetcher.parent_hash()
 	}
