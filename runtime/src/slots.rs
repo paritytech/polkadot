@@ -1091,8 +1091,6 @@ mod tests {
 		});
 	}
 
-	// TODO: test parachain renewals that go up and down in value. (make sure it's returned/charged)
-
 	#[test]
 	fn independent_bids_should_fail() {
 		with_externalities(&mut new_test_ext(), || {
@@ -1207,6 +1205,33 @@ mod tests {
 			with_parachains(|p| {
 				assert_eq!(p.len(), 0);
 			});
+		});
+	}
+
+	#[test]
+	fn renewal_with_lower_value_should_work() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 0.into(), vec![1], vec![1]));
+
+			assert_ok!(Slots::new_auction(5, 2));
+			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 3));
+
+			run_to_block(20);
+			assert_eq!(Balances::free_balance(&ParaId::from(0).into_account()), 2);
+
+			assert_ok!(Slots::new_auction(5, 2));
+			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 4));
+
+			run_to_block(30);
+			assert_eq!(Balances::free_balance(&ParaId::from(0).into_account()), 1);
 		});
 	}
 
