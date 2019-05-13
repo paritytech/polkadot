@@ -28,6 +28,7 @@ extern crate substrate_client as client;
 #[macro_use]
 extern crate substrate_service as service;
 extern crate substrate_consensus_aura as aura;
+extern crate substrate_consensus_common as consensus_common;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
 extern crate substrate_telemetry as telemetry;
@@ -41,6 +42,7 @@ extern crate hex_literal;
 
 pub mod chain_spec;
 
+use client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Block, Hash, BlockId};
@@ -253,19 +255,24 @@ construct_service_factory! {
 				let gossip_validator = network_gossip::register_validator(
 					&*service.network(),
 					move |block_hash: &Hash| {
-						use client::{BlockStatus, ChainHead};
+						use client::BlockStatus;
+						use consensus_common::SelectChain;
 
 						match known_oracle.block_status(&BlockId::hash(*block_hash)) {
 							Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
 							Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-							Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => match known_oracle.leaves() {
-								Err(_) => None,
-								Ok(leaves) => if leaves.contains(block_hash) {
-									Some(Known::Leaf)
-								} else {
-									Some(Known::Old)
-								},
+							Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
+								// TODO TODO:
+								None
 							}
+							// match known_oracle.leaves() {
+							// 	Err(_) => None,
+							// 	Ok(leaves) => if leaves.contains(block_hash) {
+							// 		Some(Known::Leaf)
+							// 	} else {
+							// 		Some(Known::Old)
+							// 	},
+							// }
 						}
 					},
 				);
@@ -342,5 +349,16 @@ construct_service_factory! {
 					config.custom.inherent_data_providers.clone(),
 				).map_err(Into::into)
 			}},
+		SelectChain = LongestChain<FullBackend<Self>, Self::Block>
+			{ |config: &FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
+				Ok(LongestChain::new(
+					client.backend().clone(),
+					client.import_lock()
+				))
+			}
+		},
+		FinalityProofProvider = { |client: Arc<FullClient<Self>>| {
+			Ok(Some(Arc::new(grandpa::FinalityProofProvider::new(client.clone(), client)) as _))
+		}},
 	}
 }

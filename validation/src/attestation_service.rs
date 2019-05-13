@@ -27,16 +27,17 @@ use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::Arc;
 
-use client::{error::Result as ClientResult, BlockchainEvents, ChainHead, BlockBody};
+use client::{error::Result as ClientResult, BlockchainEvents, BlockBody};
 use client::block_builder::api::BlockBuilder;
 use client::blockchain::HeaderBackend;
-use primitives::ed25519;
+use consensus::SelectChain;
+use consensus_authorities::AuthoritiesApi;
+use extrinsic_store::Store as ExtrinsicStore;
 use futures::prelude::*;
+use primitives::ed25519;
 use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
-use extrinsic_store::Store as ExtrinsicStore;
 use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
-use consensus_authorities::AuthoritiesApi;
 
 use tokio::runtime::TaskExecutor;
 use tokio::runtime::current_thread::Runtime as LocalRuntime;
@@ -112,7 +113,7 @@ pub(crate) fn start<C, N, P>(
 	where
 		C: Collators + Send + Sync + 'static,
 		<C::Collation as IntoFuture>::Future: Send + 'static,
-		P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
+		P: BlockchainEvents<Block> + SelectChain<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block> + BlockBuilder<Block> + AuthoritiesApi<Block>,
 		N: Network + Send + Sync + 'static,

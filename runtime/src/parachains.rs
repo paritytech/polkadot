@@ -36,7 +36,7 @@ use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
 
-use system::ensure_inherent;
+use system::ensure_none;
 
 pub trait Trait: session::Trait {}
 
@@ -88,7 +88,7 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
-			ensure_inherent(origin)?;
+			ensure_none(origin)?;
 			ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
 
 			let active_parachains = Self::active_parachains();
@@ -710,7 +710,7 @@ mod tests {
 
 			};
 
-			assert!(Parachains::dispatch(Call::set_heads(vec![candidate]), Origin::INHERENT).is_err());
+			assert!(Parachains::dispatch(Call::set_heads(vec![candidate]), Origin::NONE).is_err());
 		})
 	}
 
@@ -755,12 +755,12 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![candidate_b.clone(), candidate_a.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_err());
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_ok());
 		});
 	}
@@ -794,7 +794,7 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![double_validity]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_err());
 		});
 	}
@@ -846,7 +846,7 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![candidate_a, candidate_b]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_ok());
 
 			assert_eq!(
@@ -885,7 +885,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Routing to non-existent parachain"), result);
@@ -909,7 +909,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Parachain routing to self"), result);
@@ -933,7 +933,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Egress routes out of order by ID"), result);
@@ -957,7 +957,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Empty trie root included"), result);

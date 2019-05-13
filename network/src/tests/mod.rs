@@ -26,10 +26,11 @@ use polkadot_primitives::parachain::{
 	ConsolidatedIngressRoots,
 };
 use substrate_primitives::crypto::UncheckedInto;
+use sr_primitives::traits::Block as BlockT;
 use codec::Encode;
 use substrate_network::{
 	PeerId, PeerInfo, ClientHandle, Context, config::Roles,
-	message::{BlockRequest, generic::ConsensusMessage},
+	message::{BlockRequest, generic::{ConsensusMessage, FinalityProofRequest}},
 	specialization::NetworkSpecialization, generic_message::Message as GenericMessage
 };
 
@@ -62,6 +63,14 @@ impl Context<Block> for TestContext {
 	}
 
 	fn send_block_request(&mut self, _who: PeerId, _request: BlockRequest<Block>) {
+		unimplemented!()
+	}
+
+	fn send_finality_proof_request(
+		&mut self,
+		_who: PeerId,
+		_request: FinalityProofRequest<<Block as BlockT>::Hash>,
+	) {
 		unimplemented!()
 	}
 

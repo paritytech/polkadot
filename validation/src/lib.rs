@@ -70,10 +70,11 @@ use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
 use aura::SlotDuration;
-use client::{BlockchainEvents, ChainHead, BlockBody};
+use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
 use codec::Encode;
+use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey};
@@ -467,7 +468,7 @@ pub struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
 impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 	C: Collators + Send + Sync + 'static,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
-	P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
+	P: BlockchainEvents<Block> + SelectChain<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuthoritiesApi<Block>,
 	N: Network + Send + Sync + 'static,
