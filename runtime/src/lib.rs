@@ -256,7 +256,10 @@ impl grandpa::Trait for Runtime {
 	type Event = Event;
 }
 
-impl parachains::Trait for Runtime {}
+impl parachains::Trait for Runtime {
+	type Origin = Origin;
+	type Proposal = Call;
+}
 
 parameter_types!{
 	pub const LeasePeriod: BlockNumber = 100000;
@@ -301,7 +304,7 @@ construct_runtime!(
 		CouncilMotions: council_motions::{Module, Call, Storage, Event<T>, Origin},
 		CouncilSeats: council_seats::{Config<T>},
 		Treasury: treasury,
-		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent},
+		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Sudo: sudo,
 	}

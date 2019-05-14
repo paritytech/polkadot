@@ -21,10 +21,13 @@ use codec::{Decode, HasCompact};
 
 use bitvec::BigEndian;
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member};
-use primitives::{Hash, parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion}};
+use primitives::{Hash, parachain::{
+	Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
+	ParachainDispatchOrigin
+}};
 use {system, session};
 
-use srml_support::{StorageValue, StorageMap, Parameter, dispatch::Result};
+use srml_support::{StorageValue, StorageMap, Parameter, Dispatchable, dispatch::Result};
 #[cfg(feature = "std")]
 use srml_support::storage::hashed::generator;
 
@@ -95,6 +98,22 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 }
 
 pub trait Trait: session::Trait {
+	/// The outer origin type.
+	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
+
+	/// The outer call dispatch type.
+	type Proposal: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
+
+//	/// The outer event type.
+//	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+}
+
+/// Origin for the parachains module.
+#[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub enum Origin {
+	/// It comes from a parachain.
+	Parachain(ParaId),
 }
 
 // result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
@@ -145,7 +164,7 @@ decl_storage! {
 
 decl_module! {
 	/// Parachains module.
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
 			ensure_inherent(origin)?;
@@ -188,6 +207,22 @@ decl_module! {
 				// update egress.
 				for &(to, root) in &head.candidate.egress_queue_roots {
 					<Routing<T>>::insert((id, to), root);
+				}
+
+				// Execute upwards messages (from parachains to relay chain).
+//				let id = head.parachain_index();
+				for &(ref origin, ref data) in &head.candidate.upward_messages {
+					// execute motion, assuming it exists.
+					if let Some(message_call) = T::Proposal::decode(&mut &data[..]) {
+						let origin: <T as Trait>::Origin = match *origin {
+							ParachainDispatchOrigin::Signed =>
+								system::RawOrigin::Signed(id.into_account()).into(),
+							ParachainDispatchOrigin::Parachain =>
+								Origin::Parachain(id).into(),
+						};
+						let _ok = message_call.dispatch(origin).is_ok();
+//						Self::deposit_event(RawEvent::Executed(proposal, ok));
+					}
 				}
 			}
 
@@ -269,7 +304,8 @@ impl<T: Trait> Module<T> {
 			let remaining = (validator_count - i) as usize;
 
 			// 8 32-bit ints per 256-bit seed.
-			let val_index = u32::decode(&mut &seed[offset..offset + 4]).expect("using 4 bytes for a 32-bit quantity") as usize % remaining;
+			let val_index = u32::decode(&mut &seed[offset..offset + 4])
+				.expect("using 4 bytes for a 32-bit quantity") as usize % remaining;
 
 			if offset == 28 {
 				// into the last 4 bytes - rehash to gather new entropy

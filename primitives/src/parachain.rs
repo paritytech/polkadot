@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
-use super::Hash;
+use super::{Hash, Balance};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
@@ -101,6 +101,18 @@ pub struct Extrinsic {
 	pub outgoing_messages: Vec<OutgoingMessage>
 }
 
+/// Which origin a parachain's message to the relay chain should be dispatched from.
+#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub enum ParachainDispatchOrigin {
+	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
+	/// interacting with standard modules such as `balances`.
+	Signed,
+	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with modules
+	/// capable of recognising this origin and doing something special.
+	Parachain,
+}
+
 /// Candidate receipt type.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
@@ -114,14 +126,16 @@ pub struct CandidateReceipt {
 	/// The head-data
 	pub head_data: HeadData,
 	/// Balance uploads to the relay chain.
-	pub balance_uploads: Vec<(super::AccountId, u64)>,
+	pub balance_uploads: Vec<(super::AccountId, Balance)>,
 	/// Egress queue roots. Must be sorted lexicographically (ascending)
 	/// by parachain ID.
 	pub egress_queue_roots: Vec<(Id, Hash)>,
 	/// Fees paid from the chain to the relay chain validators
-	pub fees: u64,
+	pub fees: Balance,
 	/// blake2-256 Hash of block data.
 	pub block_data_hash: Hash,
+	/// Messages destined to be interpreted by the Relay chain itself.
+	pub upward_messages: Vec<(ParachainDispatchOrigin, Vec<u8>)>,
 }
 
 impl CandidateReceipt {
