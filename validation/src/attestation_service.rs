@@ -103,8 +103,9 @@ pub(crate) struct ServiceHandle {
 }
 
 /// Create and start a new instance of the attestation service.
-pub(crate) fn start<C, N, P>(
+pub(crate) fn start<C, N, P, SC>(
 	client: Arc<P>,
+	select_chain: SC,
 	parachain_validation: Arc<::ParachainValidation<C, N, P>>,
 	thread_pool: TaskExecutor,
 	key: Arc<ed25519::Pair>,
@@ -113,12 +114,13 @@ pub(crate) fn start<C, N, P>(
 	where
 		C: Collators + Send + Sync + 'static,
 		<C::Collation as IntoFuture>::Future: Send + 'static,
-		P: BlockchainEvents<Block> + SelectChain<Block> + BlockBody<Block>,
+		P: BlockchainEvents<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block> + BlockBuilder<Block> + AuthoritiesApi<Block>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
 		<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+		SC: SelectChain<Block> + 'static,
 {
 	const TIMER_DELAY: Duration = Duration::from_secs(5);
 	const TIMER_INTERVAL: Duration = Duration::from_secs(30);
@@ -161,13 +163,14 @@ pub(crate) fn start<C, N, P>(
 
 		let prune_old_sessions = {
 			let client = client.clone();
+			let select_chain = select_chain.clone();
 			let interval = Interval::new(
 				Instant::now() + TIMER_DELAY,
 				TIMER_INTERVAL,
 			);
 
 			interval
-				.for_each(move |_| match client.leaves() {
+				.for_each(move |_| match select_chain.leaves() {
 					Ok(leaves) => {
 						parachain_validation.retain(|h| leaves.contains(h));
 						Ok(())

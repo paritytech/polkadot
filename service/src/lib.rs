@@ -250,13 +250,13 @@ construct_service_factory! {
 				}
 
 				let client = service.client();
+				let select_chain = service.select_chain();
 				let known_oracle = client.clone();
 
 				let gossip_validator = network_gossip::register_validator(
 					&*service.network(),
 					move |block_hash: &Hash| {
 						use client::BlockStatus;
-						use consensus_common::SelectChain;
 
 						match known_oracle.block_status(&BlockId::hash(*block_hash)) {
 							Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
@@ -287,6 +287,7 @@ construct_service_factory! {
 				);
 				let proposer_factory = ::consensus::ProposerFactory::new(
 					client.clone(),
+					select_chain.clone(),
 					validation_network.clone(),
 					validation_network,
 					service.transaction_pool(),
@@ -301,6 +302,7 @@ construct_service_factory! {
 					SlotDuration::get_or_compute(&*client)?,
 					key,
 					client.clone(),
+					select_chain,
 					block_import,
 					Arc::new(proposer_factory),
 					service.network(),
@@ -317,10 +319,13 @@ construct_service_factory! {
 		FullImportQueue = AuraImportQueue<
 			Self::Block,
 		>
-			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
+			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>, select_chain: Self::SelectChain| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
 
-				let (block_import, link_half) = grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>>(client.clone(), client.clone())?;
+				let (block_import, link_half) =
+					grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>, _>(
+						client.clone(), client.clone(), select_chain
+					)?;
 				let block_import = Arc::new(block_import);
 				let justification_import = block_import.clone();
 
@@ -329,6 +334,8 @@ construct_service_factory! {
 					slot_duration,
 					block_import,
 					Some(justification_import),
+					None,
+					None,
 					client,
 					NothingExtra,
 					config.custom.inherent_data_providers.clone(),
@@ -338,12 +345,23 @@ construct_service_factory! {
 			Self::Block,
 		>
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<LightClient<Self>>| {
-				let slot_duration = SlotDuration::get_or_compute(&*client)?;
+				let fetch_checker = client.backend().blockchain().fetcher()
+					.upgrade()
+					.map(|fetcher| fetcher.checker().clone())
+					.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
+				let block_import = grandpa::light_block_import::<_, _, _, RuntimeApi, LightClient<Self>>(
+					client.clone(), Arc::new(fetch_checker), client.clone()
+				)?;
+				let block_import = Arc::new(block_import);
+				let finality_proof_import = block_import.clone();
+				let finality_proof_request_builder = finality_proof_import.create_finality_proof_request_builder();
 
 				import_queue::<_, _, _, ed25519::Pair>(
-					slot_duration,
-					client.clone(),
+					SlotDuration::get_or_compute(&*client)?,
+					block_import,
 					None,
+					Some(finality_proof_import),
+					Some(finality_proof_request_builder),
 					client,
 					NothingExtra,
 					config.custom.inherent_data_providers.clone(),
