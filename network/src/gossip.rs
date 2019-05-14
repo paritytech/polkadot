@@ -31,6 +31,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use super::NetworkService;
+use router::attestation_topic;
 
 /// The engine ID of the polkadot attestation system.
 pub const POLKADOT_ENGINE_ID: sr_primitives::ConsensusEngineId = [b'd', b'o', b't', b'1'];
@@ -364,7 +365,7 @@ impl<O: ?Sized + KnownOracle> Inner<O> {
 
 				match res {
 					Ok(()) => {
-						let topic = crate::router::attestation_topic(message.relay_parent);
+						let topic = attestation_topic(message.relay_parent);
 						(GossipValidationResult::ProcessAndKeep(topic), benefit)
 					}
 					Err(()) => (GossipValidationResult::Discard, cost::BAD_SIGNATURE),
@@ -374,19 +375,23 @@ impl<O: ?Sized + KnownOracle> Inner<O> {
 	}
 
 	fn validate_neighbor_packet(&mut self, sender: &PeerId, packet: NeighborPacket)
-		-> (GossipValidationResult<Hash>, i32)
+		-> (GossipValidationResult<Hash>, i32, Vec<Hash>)
 	{
 		let chain_heads = packet.chain_heads;
 		if chain_heads.len() > MAX_CHAIN_HEADS {
-			(GossipValidationResult::Discard, cost::BAD_NEIGHBOR_PACKET)
+			(GossipValidationResult::Discard, cost::BAD_NEIGHBOR_PACKET, Vec::new())
 		} else {
+			let mut new_topics = Vec::new();
 			if let Some(ref mut peer) = self.peers.get_mut(sender) {
 				peer.live.retain(|k, _| chain_heads.contains(k));
 				for head in chain_heads {
-					peer.live.entry(head).or_insert_with(Default::default);
+					peer.live.entry(head).or_insert_with(|| {
+						new_topics.push(attestation_topic(head));
+						Default::default()
+					});
 				}
 			}
-			(GossipValidationResult::Discard, 0)
+			(GossipValidationResult::Discard, 0, new_topics)
 		}
 	}
 
@@ -434,15 +439,25 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 		inner.peers.remove(who);
 	}
 
-	fn validate(&self, _context: &mut ValidatorContext<Block>, sender: &PeerId, mut data: &[u8])
+	fn validate(&self, context: &mut ValidatorContext<Block>, sender: &PeerId, mut data: &[u8])
 		-> GossipValidationResult<Hash>
 	{
 		let (res, cost_benefit) = match GossipMessage::decode(&mut data) {
 			None => (GossipValidationResult::Discard, cost::MALFORMED_MESSAGE),
-			Some(GossipMessage::Neighbor(VersionedNeighborPacket::V1(packet))) =>
-				self.inner.write().validate_neighbor_packet(sender, packet),
-			Some(GossipMessage::Statement(statement)) =>
-				self.inner.write().validate_statement(statement),
+			Some(GossipMessage::Neighbor(VersionedNeighborPacket::V1(packet))) => {
+				let (res, cb, topics) = self.inner.write().validate_neighbor_packet(sender, packet);
+				for new_topic in topics {
+					context.send_topic(sender, new_topic, false);
+				}
+				(res, cb)
+			}
+			Some(GossipMessage::Statement(statement)) => {
+				let (res, cb) = self.inner.write().validate_statement(statement);
+				if let GossipValidationResult::ProcessAndKeep(ref topic) = res {
+					context.broadcast_message(topic.clone(), data.to_vec(), false);
+				}
+				(res, cb)
+			}
 		};
 
 		self.report(sender, cost_benefit);
