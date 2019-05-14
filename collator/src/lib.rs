@@ -254,20 +254,21 @@ impl<P, E> Worker for CollationNode<P, E> where
 	{
 		let CollationNode { parachain_context, exit, para_id, key } = self;
 		let client = service.client();
+		let select_chain = service.select_chain();
 		let network = service.network();
 		let known_oracle = client.clone();
 
 		let message_validator = polkadot_network::gossip::register_validator(
 			&*network,
 			move |block_hash: &Hash| {
-				use client::{BlockStatus, ChainHead};
+				use client::BlockStatus;
 				use polkadot_network::gossip::Known;
 
 				match known_oracle.block_status(&BlockId::hash(*block_hash)) {
 					Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
 					Ok(BlockStatus::KnownBad) => Some(Known::Bad),
 					Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) =>
-						match known_oracle.leaves() {
+						match select_chain.leaves() {
 							Err(_) => None,
 							Ok(leaves) => if leaves.contains(block_hash) {
 								Some(Known::Leaf)

@@ -127,6 +127,11 @@ impl PolkadotService for Service<FullComponents<Factory>> {
 	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>> {
 		Service::client(self)
 	}
+
+	fn select_chain(&self) -> () {
+		Service::client(self)
+	}
+
 	fn network(&self) -> Arc<NetworkService> {
 		Service::network(self)
 	}

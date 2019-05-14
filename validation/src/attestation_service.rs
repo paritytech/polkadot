@@ -162,7 +162,6 @@ pub(crate) fn start<C, N, P, SC>(
 		};
 
 		let prune_old_sessions = {
-			let client = client.clone();
 			let select_chain = select_chain.clone();
 			let interval = Interval::new(
 				Instant::now() + TIMER_DELAY,
