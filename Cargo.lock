@@ -2274,6 +2274,7 @@ dependencies = [
  "polkadot-validation 0.1.0",
  "substrate-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=gui-polkadot-master)",
  "substrate-consensus-authorities 2.0.0 (git+https://github.com/paritytech/substrate?branch=gui-polkadot-master)",
+ "substrate-consensus-common 2.0.0 (git+https://github.com/paritytech/substrate?branch=gui-polkadot-master)",
  "substrate-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=gui-polkadot-master)",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=gui-polkadot-master)",
  "tokio 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",

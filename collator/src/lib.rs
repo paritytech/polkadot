@@ -49,6 +49,7 @@ extern crate substrate_client as client;
 extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;
 extern crate substrate_consensus_authorities as consensus_authorities;
+extern crate substrate_consensus_common as consensus_common;
 extern crate tokio;
 
 extern crate polkadot_cli;
@@ -82,6 +83,7 @@ use polkadot_network::validation::{ValidationNetwork, SessionParams};
 use polkadot_network::NetworkService;
 use tokio::timer::Timeout;
 use consensus_authorities::AuthoritiesApi;
+use consensus_common::SelectChain;
 
 pub use polkadot_cli::VersionInfo;
 pub use polkadot_network::validation::Incoming;

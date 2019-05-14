@@ -10,6 +10,7 @@ substrate-client = { git = "https://github.com/paritytech/substrate", branch = "
 parity-codec = "3.0"
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "gui-polkadot-master" }
 substrate-consensus-authorities = { git = "https://github.com/paritytech/substrate", branch = "gui-polkadot-master" }
+substrate-consensus-common= { git = "https://github.com/paritytech/substrate", branch = "gui-polkadot-master" }
 polkadot-runtime = { path = "../runtime", version = "0.1" }
 polkadot-primitives = { path = "../primitives", version = "0.1" }
 polkadot-cli = { path = "../cli" }

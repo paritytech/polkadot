@@ -113,6 +113,8 @@ pub trait PolkadotService {
 	/// Get a handle to the client.
 	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>>;
 
+	fn select_chain(&self) -> client::LongestChain<Self::Backend, Block>;
+
 	/// Get a handle to the network.
 	fn network(&self) -> Arc<NetworkService>;
 
@@ -128,8 +130,8 @@ impl PolkadotService for Service<FullComponents<Factory>> {
 		Service::client(self)
 	}
 
-	fn select_chain(&self) -> () {
-		Service::client(self)
+	fn select_chain(&self) -> client::LongestChain<Self::Backend, Block> {
+		Service::select_chain(self)
 	}
 
 	fn network(&self) -> Arc<NetworkService> {
@@ -147,6 +149,10 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 
 	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>> {
 		Service::client(self)
+	}
+
+	fn select_chain(&self) -> client::LongestChain<Self::Backend, Block> {
+		unimplemented!();
 	}
 
 	fn network(&self) -> Arc<NetworkService> {
