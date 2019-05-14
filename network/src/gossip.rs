@@ -99,6 +99,7 @@ pub struct NeighborPacket {
 }
 
 /// whether a block is known.
+#[derive(Clone, Copy)]
 pub enum Known {
 	/// The block is a known leaf.
 	Leaf,
@@ -165,14 +166,7 @@ impl RegisteredMessageValidator {
 		oracle: O,
 		report_handle: Box<Fn(&PeerId, i32) + Send + Sync>,
 	) -> Self {
-		let validator = Arc::new(MessageValidator {
-			report_handle,
-			inner: RwLock::new(Inner {
-				peers: HashMap::new(),
-				our_view: Default::default(),
-				oracle,
-			})
-		});
+		let validator = Arc::new(MessageValidator::new_test(oracle, report_handle));
 
 		RegisteredMessageValidator { inner: validator as _ }
 	}
@@ -204,6 +198,7 @@ impl RegisteredMessageValidator {
 }
 
 /// The data needed for validating gossip.
+#[derive(Default)]
 pub(crate) struct MessageValidationData {
 	/// The authorities at a block.
 	pub(crate) authorities: Vec<SessionKey>,
@@ -294,11 +289,14 @@ impl OurView {
 				validation_data,
 				knowledge: Default::default(),
 			},
-		))
+		));
+		self.topics.insert(attestation_topic(relay_parent), relay_parent);
 	}
 
 	fn prune_old_sessions<F: Fn(&Hash) -> bool>(&mut self, is_leaf: F) {
-		self.live_sessions.retain(|&(ref relay_parent, _)| is_leaf(relay_parent))
+		let live_sessions = &mut self.live_sessions;
+		live_sessions.retain(|&(ref relay_parent, _)| is_leaf(relay_parent));
+		self.topics.retain(|_, v| live_sessions.iter().find(|(p, _)| p == v).is_some());
 	}
 
 	fn neighbor_info(&self) -> Vec<Hash> {
@@ -421,6 +419,21 @@ pub struct MessageValidator<O: ?Sized> {
 }
 
 impl<O: KnownOracle + ?Sized> MessageValidator<O> {
+	#[cfg(test)]
+	fn new_test(
+		oracle: O,
+		report_handle: Box<Fn(&PeerId, i32) + Send + Sync>,
+	) -> Self where O: Sized{
+		MessageValidator {
+			report_handle,
+			inner: RwLock::new(Inner {
+				peers: HashMap::new(),
+				our_view: Default::default(),
+				oracle,
+			})
+		}
+	}
+
 	fn report(&self, who: &PeerId, cost_benefit: i32) {
 		(self.report_handle)(who, cost_benefit)
 	}
@@ -524,5 +537,133 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 
 			true
 		})
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use substrate_network::consensus_gossip::Validator as ValidatorT;
+	use std::sync::mpsc;
+	use parking_lot::Mutex;
+	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
+	use substrate_primitives::crypto::UncheckedInto;
+	use substrate_primitives::ed25519::Signature as Ed25519Signature;
+
+	#[derive(PartialEq, Clone, Debug)]
+	enum ContextEvent {
+		BroadcastTopic(Hash, bool),
+		BroadcastMessage(Hash, Vec<u8>, bool),
+		SendMessage(PeerId, Vec<u8>),
+		SendTopic(PeerId, Hash, bool),
+	}
+
+	#[derive(Default)]
+	struct MockValidatorContext {
+		events: Vec<ContextEvent>,
+	}
+
+	impl MockValidatorContext {
+		fn clear(&mut self) {
+			self.events.clear()
+		}
+	}
+
+	impl network_gossip::ValidatorContext<Block> for MockValidatorContext {
+		fn broadcast_topic(&mut self, topic: Hash, force: bool) {
+			self.events.push(ContextEvent::BroadcastTopic(topic, force));
+		}
+		fn broadcast_message(&mut self, topic: Hash, message: Vec<u8>, force: bool) {
+			self.events.push(ContextEvent::BroadcastMessage(topic, message, force));
+		}
+		fn send_message(&mut self, who: &PeerId, message: Vec<u8>) {
+			self.events.push(ContextEvent::SendMessage(who.clone(), message));
+		}
+		fn send_topic(&mut self, who: &PeerId, topic: Hash, force: bool) {
+			self.events.push(ContextEvent::SendTopic(who.clone(), topic, force));
+		}
+	}
+
+	#[test]
+	fn message_allowed() {
+		let (tx, _rx) = mpsc::channel();
+		let tx = Mutex::new(tx);
+		let known_map = HashMap::<Hash, Known>::new();
+		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+		let validator = MessageValidator::new_test(
+			move |hash: &Hash| known_map.get(hash).map(|x| x.clone()),
+			report_handle,
+		);
+
+		let peer_a = PeerId::random();
+
+		let mut validator_context = MockValidatorContext::default();
+		validator.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		assert!(validator_context.events.is_empty());
+		validator_context.clear();
+
+		let hash_a = [1u8; 32].into();
+		let hash_b = [2u8; 32].into();
+		let hash_c = [3u8; 32].into();
+
+		let message = GossipMessage::Neighbor(VersionedNeighborPacket::V1(NeighborPacket {
+				chain_heads: vec![hash_a, hash_b],
+			})).encode();
+		let res = validator.validate(
+			&mut validator_context,
+			&peer_a,
+			&message[..],
+		);
+
+		match res {
+			GossipValidationResult::Discard => {},
+			_ => panic!("wrong result"),
+		}
+		assert_eq!(
+			validator_context.events,
+			vec![
+				ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_a), false),
+				ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_b), false),
+			],
+		);
+
+		validator_context.clear();
+
+		let candidate_receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: [255; 32].unchecked_into(),
+			head_data: HeadData(vec![9, 9, 9]),
+			signature: Default::default(),
+			balance_uploads: Vec::new(),
+			egress_queue_roots: Vec::new(),
+			fees: 1_000_000,
+			block_data_hash: [20u8; 32].into(),
+		};
+
+		let statement = GossipMessage::Statement(GossipStatement {
+			relay_parent: hash_a,
+			signed_statement: SignedStatement {
+				statement: GenericStatement::Candidate(candidate_receipt),
+				signature: Ed25519Signature([255u8; 64]),
+				sender: 1,
+			}
+		});
+		let encoded = statement.encode();
+
+		let topic_a = attestation_topic(hash_a);
+		let topic_b = attestation_topic(hash_b);
+		let topic_c = attestation_topic(hash_c);
+
+		// topic_a is in all 3 views -> succeed
+		validator.inner.write().our_view.add_session(hash_a, MessageValidationData::default());
+		// topic_b is in the neighbor's view but not ours -> fail
+		// topic_c is not in either -> fail
+
+		{
+			let mut message_allowed = validator.message_allowed();
+			assert!(message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded));
+			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast, &topic_b, &encoded));
+			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast, &topic_c, &encoded));
+		}
 	}
 }
