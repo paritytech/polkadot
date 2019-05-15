@@ -49,6 +49,7 @@ extern crate substrate_client as client;
 extern crate parity_codec as codec;
 extern crate substrate_primitives as primitives;
 extern crate substrate_consensus_authorities as consensus_authorities;
+extern crate substrate_consensus_common as consensus_common;
 extern crate tokio;
 
 extern crate polkadot_cli;
@@ -82,6 +83,7 @@ use polkadot_network::validation::{ValidationNetwork, SessionParams};
 use polkadot_network::NetworkService;
 use tokio::timer::Timeout;
 use consensus_authorities::AuthoritiesApi;
+use consensus_common::SelectChain;
 
 pub use polkadot_cli::VersionInfo;
 pub use polkadot_network::validation::Incoming;
@@ -256,18 +258,24 @@ impl<P, E> Worker for CollationNode<P, E> where
 		let client = service.client();
 		let network = service.network();
 		let known_oracle = client.clone();
+		let select_chain = if let Some(select_chain) = service.select_chain() {
+			select_chain
+		} else {
+			info!("The node cannot work because it can't select chain.");
+			return Box::new(future::err(()));
+		};
 
 		let message_validator = polkadot_network::gossip::register_validator(
 			&*network,
 			move |block_hash: &Hash| {
-				use client::{BlockStatus, ChainHead};
+				use client::BlockStatus;
 				use polkadot_network::gossip::Known;
 
 				match known_oracle.block_status(&BlockId::hash(*block_hash)) {
 					Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
 					Ok(BlockStatus::KnownBad) => Some(Known::Bad),
 					Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) =>
-						match known_oracle.leaves() {
+						match select_chain.leaves() {
 							Err(_) => None,
 							Ok(leaves) => if leaves.contains(block_hash) {
 								Some(Known::Leaf)

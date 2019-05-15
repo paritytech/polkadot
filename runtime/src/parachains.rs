@@ -36,7 +36,7 @@ use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
 
-use system::ensure_inherent;
+use system::ensure_none;
 
 /// Parachain registration API.
 pub trait ParachainRegistrar<AccountId> {
@@ -148,7 +148,7 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
-			ensure_inherent(origin)?;
+			ensure_none(origin)?;
 			ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
 
 			let active_parachains = Self::active_parachains();
@@ -426,9 +426,10 @@ impl<T: Trait> Module<T> {
 
 			// track which voters have voted already, 1 bit per authority.
 			let mut track_voters = bitvec![0; authorities.len()];
-			for (auth_id, validity_attestation) in &candidate.validity_votes {
+			for (auth_index, validity_attestation) in &candidate.validity_votes {
+				let auth_index = *auth_index as usize;
 				// protect against double-votes.
-				match validator_group.iter().find(|&(idx, _)| &authorities[*idx] == auth_id) {
+				match validator_group.iter().find(|&(idx, _)| *idx == auth_index) {
 					None => return Err("Attesting validator not on this chain's validation duty."),
 					Some(&(idx, _)) => {
 						if track_voters.get(idx) {
@@ -460,7 +461,7 @@ impl<T: Trait> Module<T> {
 				};
 
 				ensure!(
-					sig.verify(&payload[..], &auth_id),
+					sig.verify(&payload[..], &authorities[auth_index]),
 					"Candidate validity attestation signature is bad."
 				);
 			}
@@ -512,7 +513,7 @@ mod tests {
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{generic, BuildStorage};
 	use sr_primitives::traits::{BlakeTwo256, IdentityLookup};
-	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey};
+	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey};
 	use keyring::{AuthorityKeyring, AccountKeyring};
 	use {consensus, timestamp};
 
@@ -623,7 +624,7 @@ mod tests {
 			let payload = localized_payload(statement, parent_hash);
 			let signature = key.sign(&payload[..]).into();
 
-			candidate.validity_votes.push((authorities[idx].clone(), if vote_implicit {
+			candidate.validity_votes.push((idx as ValidatorIndex, if vote_implicit {
 				ValidityAttestation::Implicit(signature)
 			} else {
 				ValidityAttestation::Explicit(signature)
@@ -742,7 +743,7 @@ mod tests {
 
 			};
 
-			assert!(Parachains::dispatch(Call::set_heads(vec![candidate]), Origin::INHERENT).is_err());
+			assert!(Parachains::dispatch(Call::set_heads(vec![candidate]), Origin::NONE).is_err());
 		})
 	}
 
@@ -787,12 +788,12 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![candidate_b.clone(), candidate_a.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_err());
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_ok());
 		});
 	}
@@ -826,7 +827,7 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![double_validity]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_err());
 		});
 	}
@@ -878,7 +879,7 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![candidate_a, candidate_b]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_ok());
 
 			assert_eq!(
@@ -917,7 +918,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Routing to non-existent parachain"), result);
@@ -941,7 +942,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Parachain routing to self"), result);
@@ -965,7 +966,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Egress routes out of order by ID"), result);
@@ -989,7 +990,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Empty trie root included"), result);
