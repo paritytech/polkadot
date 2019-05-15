@@ -256,10 +256,14 @@ impl<P, E> Worker for CollationNode<P, E> where
 	{
 		let CollationNode { parachain_context, exit, para_id, key } = self;
 		let client = service.client();
-		// TODO TODO: expect or return none
-		let select_chain = service.select_chain().unwrap();
 		let network = service.network();
 		let known_oracle = client.clone();
+		let select_chain = if let Some(select_chain) = service.select_chain() {
+			select_chain
+		} else {
+			info!("The node cannot work because it can't select chain.");
+			return Box::new(future::ok(()));
+		};
 
 		let message_validator = polkadot_network::gossip::register_validator(
 			&*network,

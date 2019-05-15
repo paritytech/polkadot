@@ -262,9 +262,13 @@ construct_service_factory! {
 				}
 
 				let client = service.client();
-				// TODO TODO: return Ok(service if none)
-				let select_chain = service.select_chain().unwrap();
 				let known_oracle = client.clone();
+				let select_chain = if let Some(select_chain) = service.select_chain() {
+					select_chain
+				} else {
+					info!("The node cannot start as an authority because it can't select chain.");
+					return Ok(service);
+				};
 
 				let gossip_validator_select_chain = select_chain.clone();
 				let gossip_validator = network_gossip::register_validator(
