@@ -46,32 +46,12 @@ struct TestContext {
 }
 
 impl Context<Block> for TestContext {
-	fn client(&self) -> &ClientHandle<Block> {
-		unimplemented!()
-	}
-
 	fn report_peer(&mut self, peer: PeerId, reputation: i32) {
 		match reputation {
 			i if i < -100 => self.disabled.push(peer),
 			i if i < 0 => self.disconnected.push(peer),
 			_ => {}
 		}
-	}
-
-	fn peer_info(&self, _peer: &PeerId) -> Option<PeerInfo<Block>> {
-		unimplemented!()
-	}
-
-	fn send_block_request(&mut self, _who: PeerId, _request: BlockRequest<Block>) {
-		unimplemented!()
-	}
-
-	fn send_finality_proof_request(
-		&mut self,
-		_who: PeerId,
-		_request: FinalityProofRequest<<Block as BlockT>::Hash>,
-	) {
-		unimplemented!()
 	}
 
 	fn send_consensus(&mut self, _who: PeerId, _consensus: ConsensusMessage) {

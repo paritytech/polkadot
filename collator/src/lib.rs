@@ -256,7 +256,8 @@ impl<P, E> Worker for CollationNode<P, E> where
 	{
 		let CollationNode { parachain_context, exit, para_id, key } = self;
 		let client = service.client();
-		let select_chain = service.select_chain();
+		// TODO TODO: expect or return none
+		let select_chain = service.select_chain().unwrap();
 		let network = service.network();
 		let known_oracle = client.clone();
 

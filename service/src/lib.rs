@@ -43,6 +43,7 @@ extern crate hex_literal;
 pub mod chain_spec;
 
 use client::LongestChain;
+use consensus_common::SelectChain;
 use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Block, Hash, BlockId};
@@ -113,7 +114,7 @@ pub trait PolkadotService {
 	/// Get a handle to the client.
 	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>>;
 
-	fn select_chain(&self) -> client::LongestChain<Self::Backend, Block>;
+	fn select_chain(&self) -> Option<client::LongestChain<Self::Backend, Block>>;
 
 	/// Get a handle to the network.
 	fn network(&self) -> Arc<NetworkService>;
@@ -130,7 +131,7 @@ impl PolkadotService for Service<FullComponents<Factory>> {
 		Service::client(self)
 	}
 
-	fn select_chain(&self) -> client::LongestChain<Self::Backend, Block> {
+	fn select_chain(&self) -> Option<client::LongestChain<Self::Backend, Block>> {
 		Service::select_chain(self)
 	}
 
@@ -151,8 +152,8 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 		Service::client(self)
 	}
 
-	fn select_chain(&self) -> client::LongestChain<Self::Backend, Block> {
-		unimplemented!();
+	fn select_chain(&self) -> Option<client::LongestChain<Self::Backend, Block>> {
+		None
 	}
 
 	fn network(&self) -> Arc<NetworkService> {
@@ -261,9 +262,11 @@ construct_service_factory! {
 				}
 
 				let client = service.client();
-				let select_chain = service.select_chain();
+				// TODO TODO: return Ok(service if none)
+				let select_chain = service.select_chain().unwrap();
 				let known_oracle = client.clone();
 
+				let gossip_validator_select_chain = select_chain.clone();
 				let gossip_validator = network_gossip::register_validator(
 					&*service.network(),
 					move |block_hash: &Hash| {
@@ -273,17 +276,15 @@ construct_service_factory! {
 							Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
 							Ok(BlockStatus::KnownBad) => Some(Known::Bad),
 							Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
-								// TODO TODO:
-								None
+								match gossip_validator_select_chain.leaves() {
+									Err(_) => None,
+									Ok(leaves) => if leaves.contains(block_hash) {
+										Some(Known::Leaf)
+									} else {
+										Some(Known::Old)
+									},
+								}
 							}
-							// match known_oracle.leaves() {
-							// 	Err(_) => None,
-							// 	Ok(leaves) => if leaves.contains(block_hash) {
-							// 		Some(Known::Leaf)
-							// 	} else {
-							// 		Some(Known::Old)
-							// 	},
-							// }
 						}
 					},
 				);
