@@ -262,7 +262,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 			select_chain
 		} else {
 			info!("The node cannot work because it can't select chain.");
-			return Box::new(future::ok(()));
+			return Box::new(future::err(()));
 		};
 
 		let message_validator = polkadot_network::gossip::register_validator(
