@@ -70,10 +70,11 @@ use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
 use aura::SlotDuration;
-use client::{BlockchainEvents, ChainHead, BlockBody};
+use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
 use codec::Encode;
+use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey};
@@ -456,28 +457,31 @@ struct AttestationTracker {
 }
 
 /// Polkadot proposer factory.
-pub struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
+pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	parachain_validation: Arc<ParachainValidation<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
 	key: Arc<ed25519::Pair>,
 	_service_handle: ServiceHandle,
 	aura_slot_duration: SlotDuration,
+	select_chain: SC,
 }
 
-impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
+impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	C: Collators + Send + Sync + 'static,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
-	P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
+	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuthoritiesApi<Block>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 	TxApi: PoolChainApi,
+	SC: SelectChain<Block> + 'static,
 {
 	/// Create a new proposer factory.
 	pub fn new(
 		client: Arc<P>,
+		select_chain: SC,
 		network: N,
 		collators: C,
 		transaction_pool: Arc<Pool<TxApi>>,
@@ -497,6 +501,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 
 		let service_handle = ::attestation_service::start(
 			client,
+			select_chain.clone(),
 			parachain_validation.clone(),
 			thread_pool,
 			key.clone(),
@@ -509,11 +514,12 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 			key,
 			_service_handle: service_handle,
 			aura_slot_duration,
+			select_chain
 		}
 	}
 }
 
-impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, TxApi> where
+impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxApi> where
 	C: Collators + Send + 'static,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
@@ -522,6 +528,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	SC: SelectChain<Block>,
 {
 	type Proposer = Proposer<P, TxApi>;
 	type Error = Error;

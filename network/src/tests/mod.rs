@@ -27,10 +27,11 @@ use polkadot_primitives::parachain::{
 	ConsolidatedIngressRoots,
 };
 use substrate_primitives::crypto::UncheckedInto;
+use sr_primitives::traits::Block as BlockT;
 use codec::Encode;
 use substrate_network::{
 	PeerId, PeerInfo, ClientHandle, Context, config::Roles,
-	message::{BlockRequest, generic::ConsensusMessage},
+	message::{BlockRequest, generic::{ConsensusMessage, FinalityProofRequest}},
 	specialization::NetworkSpecialization, generic_message::Message as GenericMessage
 };
 
@@ -47,10 +48,6 @@ struct TestContext {
 }
 
 impl Context<Block> for TestContext {
-	fn client(&self) -> &ClientHandle<Block> {
-		unimplemented!()
-	}
-
 	fn report_peer(&mut self, peer: PeerId, reputation: i32) {
         let reputation = self.reputations.get(&peer).map_or(reputation, |v| v + reputation);
         self.reputations.insert(peer.clone(), reputation);
@@ -60,14 +57,6 @@ impl Context<Block> for TestContext {
 			i if i < 0 => self.disconnected.push(peer),
 			_ => {}
 		}
-	}
-
-	fn peer_info(&self, _peer: &PeerId) -> Option<PeerInfo<Block>> {
-		unimplemented!()
-	}
-
-	fn send_block_request(&mut self, _who: PeerId, _request: BlockRequest<Block>) {
-		unimplemented!()
 	}
 
 	fn send_consensus(&mut self, _who: PeerId, _consensus: ConsensusMessage) {
