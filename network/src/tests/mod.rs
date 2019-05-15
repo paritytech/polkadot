@@ -27,11 +27,10 @@ use polkadot_primitives::parachain::{
 	ConsolidatedIngressRoots,
 };
 use substrate_primitives::crypto::UncheckedInto;
-use sr_primitives::traits::Block as BlockT;
 use codec::Encode;
 use substrate_network::{
-	PeerId, PeerInfo, ClientHandle, Context, config::Roles,
-	message::{BlockRequest, generic::{ConsensusMessage, FinalityProofRequest}},
+	PeerId, Context, config::Roles,
+	message::generic::ConsensusMessage,
 	specialization::NetworkSpecialization, generic_message::Message as GenericMessage
 };
 

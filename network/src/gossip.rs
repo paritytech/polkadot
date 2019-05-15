@@ -666,4 +666,127 @@ mod tests {
 			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast, &topic_c, &encoded));
 		}
 	}
+
+	#[test]
+	fn too_many_chain_heads_is_report() {
+		let (tx, rx) = mpsc::channel();
+		let tx = Mutex::new(tx);
+		let known_map = HashMap::<Hash, Known>::new();
+		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+		let validator = MessageValidator::new_test(
+			move |hash: &Hash| known_map.get(hash).map(|x| x.clone()),
+			report_handle,
+		);
+
+		let peer_a = PeerId::random();
+
+		let mut validator_context = MockValidatorContext::default();
+		validator.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		assert!(validator_context.events.is_empty());
+		validator_context.clear();
+
+		let chain_heads = (0..MAX_CHAIN_HEADS+1).map(|i| [i as u8; 32].into()).collect();
+
+		let message = GossipMessage::Neighbor(VersionedNeighborPacket::V1(NeighborPacket {
+				chain_heads,
+			})).encode();
+		let res = validator.validate(
+			&mut validator_context,
+			&peer_a,
+			&message[..],
+		);
+
+		match res {
+			GossipValidationResult::Discard => {},
+			_ => panic!("wrong result"),
+		}
+		assert_eq!(
+			validator_context.events,
+			Vec::new(),
+		);
+
+		drop(validator);
+
+		assert_eq!(rx.iter().collect::<Vec<_>>(), vec![(peer_a, cost::BAD_NEIGHBOR_PACKET)]);
+	}
+
+	#[test]
+	fn statement_only_sent_when_candidate_known() {
+		let (tx, _rx) = mpsc::channel();
+		let tx = Mutex::new(tx);
+		let known_map = HashMap::<Hash, Known>::new();
+		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+		let validator = MessageValidator::new_test(
+			move |hash: &Hash| known_map.get(hash).map(|x| x.clone()),
+			report_handle,
+		);
+
+		let peer_a = PeerId::random();
+
+		let mut validator_context = MockValidatorContext::default();
+		validator.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		assert!(validator_context.events.is_empty());
+		validator_context.clear();
+
+		let hash_a = [1u8; 32].into();
+		let hash_b = [2u8; 32].into();
+
+		let message = GossipMessage::Neighbor(VersionedNeighborPacket::V1(NeighborPacket {
+				chain_heads: vec![hash_a, hash_b],
+			})).encode();
+		let res = validator.validate(
+			&mut validator_context,
+			&peer_a,
+			&message[..],
+		);
+
+		match res {
+			GossipValidationResult::Discard => {},
+			_ => panic!("wrong result"),
+		}
+		assert_eq!(
+			validator_context.events,
+			vec![
+				ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_a), false),
+				ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_b), false),
+			],
+		);
+
+		validator_context.clear();
+
+		let topic_a = attestation_topic(hash_a);
+		let c_hash = [99u8; 32].into();
+
+		let statement = GossipMessage::Statement(GossipStatement {
+			relay_parent: hash_a,
+			signed_statement: SignedStatement {
+				statement: GenericStatement::Valid(c_hash),
+				signature: Ed25519Signature([255u8; 64]),
+				sender: 1,
+			}
+		});
+		let encoded = statement.encode();
+		validator.inner.write().our_view.add_session(hash_a, MessageValidationData::default());
+
+		{
+			let mut message_allowed = validator.message_allowed();
+			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded[..]));
+		}
+
+		validator
+			.inner
+			.write()
+			.peers
+			.get_mut(&peer_a)
+			.unwrap()
+			.live
+			.get_mut(&hash_a)
+			.unwrap()
+			.note_aware(c_hash);
+
+		{
+			let mut message_allowed = validator.message_allowed();
+			assert!(message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded[..]));
+		}
+	}
 }
