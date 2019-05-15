@@ -6,10 +6,11 @@ description = "Collator node implementation"
 
 [dependencies]
 futures = "0.1.17"
-substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-client = { git = "https://github.com/paritytech/substrate", branch = "gui-polkadot-master" }
 parity-codec = "3.0"
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-consensus-authorities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "gui-polkadot-master" }
+substrate-consensus-authorities = { git = "https://github.com/paritytech/substrate", branch = "gui-polkadot-master" }
+substrate-consensus-common= { git = "https://github.com/paritytech/substrate", branch = "gui-polkadot-master" }
 polkadot-runtime = { path = "../runtime", version = "0.1" }
 polkadot-primitives = { path = "../primitives", version = "0.1" }
 polkadot-cli = { path = "../cli" }
@@ -19,4 +20,4 @@ log = "0.4"
 tokio = "0.1.7"
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "gui-polkadot-master" }

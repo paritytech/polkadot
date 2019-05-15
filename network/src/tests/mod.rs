@@ -16,6 +16,7 @@
 
 //! Tests for polkadot and validation network.
 
+use std::collections::HashMap;
 use super::{PolkadotProtocol, Status, Message, FullStatus};
 use validation::SessionParams;
 
@@ -26,10 +27,11 @@ use polkadot_primitives::parachain::{
 	ConsolidatedIngressRoots,
 };
 use substrate_primitives::crypto::UncheckedInto;
+use sr_primitives::traits::Block as BlockT;
 use codec::Encode;
 use substrate_network::{
 	PeerId, PeerInfo, ClientHandle, Context, config::Roles,
-	message::{BlockRequest, generic::ConsensusMessage},
+	message::{BlockRequest, generic::{ConsensusMessage, FinalityProofRequest}},
 	specialization::NetworkSpecialization, generic_message::Message as GenericMessage
 };
 
@@ -41,28 +43,20 @@ mod validation;
 struct TestContext {
 	disabled: Vec<PeerId>,
 	disconnected: Vec<PeerId>,
+	reputations: HashMap<PeerId, i32>,
 	messages: Vec<(PeerId, Vec<u8>)>,
 }
 
 impl Context<Block> for TestContext {
-	fn client(&self) -> &ClientHandle<Block> {
-		unimplemented!()
-	}
-
 	fn report_peer(&mut self, peer: PeerId, reputation: i32) {
+        let reputation = self.reputations.get(&peer).map_or(reputation, |v| v + reputation);
+        self.reputations.insert(peer.clone(), reputation);
+
 		match reputation {
 			i if i < -100 => self.disabled.push(peer),
 			i if i < 0 => self.disconnected.push(peer),
 			_ => {}
 		}
-	}
-
-	fn peer_info(&self, _peer: &PeerId) -> Option<PeerInfo<Block>> {
-		unimplemented!()
-	}
-
-	fn send_block_request(&mut self, _who: PeerId, _request: BlockRequest<Block>) {
-		unimplemented!()
 	}
 
 	fn send_consensus(&mut self, _who: PeerId, _consensus: ConsensusMessage) {
@@ -303,6 +297,22 @@ fn remove_bad_collator() {
 		protocol.disconnect_bad_collator(&mut ctx, collator_id);
 		assert!(ctx.disabled.contains(&who));
 	}
+}
+
+#[test]
+fn kick_collator() {
+    let mut protocol = PolkadotProtocol::new(None);
+
+    let who = PeerId::random();
+    let collator_id: CollatorId = [2; 32].unchecked_into();
+
+    let mut ctx = TestContext::default();
+    let status = Status { collating_for: Some((collator_id.clone(), 5.into())) };
+    protocol.on_connect(&mut ctx, who.clone(), make_status(&status, Roles::NONE));
+    assert!(!ctx.disconnected.contains(&who));
+
+    protocol.on_connect(&mut ctx, who.clone(), make_status(&status, Roles::NONE));
+    assert!(ctx.disconnected.contains(&who));
 }
 
 #[test]

@@ -126,10 +126,6 @@ If you'd actually like hack on Polkadot, you can just grab the source code and b
 [source, shell]
 ----
 curl https://sh.rustup.rs -sSf | sh
-rustup update nightly
-rustup target add wasm32-unknown-unknown --toolchain nightly
-rustup update stable
-cargo install --git https://github.com/alexcrichton/wasm-gc
 sudo apt install cmake pkg-config libssl-dev git clang
 ----
 
@@ -145,6 +141,7 @@ Then build the code:
 
 [source, shell]
 ----
+./scripts/init.sh   # Install WebAssembly. Update Rust
 ./scripts/build.sh  # Builds the WebAssembly binaries
 cargo build # Builds all native code
 ----

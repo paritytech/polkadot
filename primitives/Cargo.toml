@@ -8,15 +8,15 @@ serde = { version = "1.0", optional = true }
 serde_derive = { version = "1.0", optional = true }
 parity-codec = { version = "3.0", default-features = false }
 parity-codec-derive = { version = "3.0", default-features = false }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sr-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sr-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "gui-polkadot-master" }
+substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "gui-polkadot-master" }
+sr-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "gui-polkadot-master" }
+sr-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "gui-polkadot-master" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "gui-polkadot-master" }
 polkadot-parachain = { path = "../parachain", default-features = false }
 
 [dev-dependencies]
-substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "gui-polkadot-master" }
 pretty_assertions = "0.5.1"
 
 [features]
