@@ -180,7 +180,7 @@ impl RegisteredMessageValidator {
 		send_neighbor_packet: F,
 	) {
 		// add an entry in our_view
-        // prune any entries from our_view which are no longer leaves
+		// prune any entries from our_view which are no longer leaves
 		let mut inner = self.inner.inner.write();
 		inner.our_view.add_session(relay_parent, validation);
 		{
@@ -297,6 +297,14 @@ impl OurView {
 		let live_sessions = &mut self.live_sessions;
 		live_sessions.retain(|&(ref relay_parent, _)| is_leaf(relay_parent));
 		self.topics.retain(|_, v| live_sessions.iter().find(|(p, _)| p == v).is_some());
+	}
+
+	fn knows_topic(&self, topic: &Hash) -> bool {
+		self.topics.contains_key(topic)
+	}
+
+	fn topic_block(&self, topic: &Hash) -> Option<&Hash> {
+		self.topics.get(topic)
 	}
 
 	fn neighbor_info(&self) -> Vec<Hash> {
@@ -482,7 +490,7 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 
 		Box::new(move |topic, _data| {
 			// check that topic is one of our live sessions. everything else is expired
-			!inner.our_view.topics.contains_key(&topic)
+			!inner.our_view.knows_topic(&topic)
 		})
 	}
 
@@ -496,7 +504,7 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 				_ => {},
 			}
 
-			let relay_parent = match our_view.topics.get(topic) {
+			let relay_parent = match our_view.topic_block(topic) {
 				None => return false,
 				Some(hash) => hash.clone(),
 			};
