@@ -23,8 +23,8 @@ use polkadot_primitives::{Block, Hash, BlockNumber};
 use polkadot_primitives::parachain::Id as ParaId;
 
 error_chain! {
-	links {
-		Client(::client::error::Error, ::client::error::ErrorKind);
+	foreign_links {
+		Client(::client::error::Error);
 	}
 
 	errors {

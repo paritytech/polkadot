@@ -25,7 +25,7 @@ use primitives::Hash;
 use primitives::parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement};
 use {system, session};
 
-use srml_support::{StorageValue, StorageMap};
+use srml_support::{StorageValue, StorageMap, storage::hashed::generator};
 use srml_support::dispatch::Result;
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
@@ -36,7 +36,7 @@ use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
 
-use system::ensure_inherent;
+use system::ensure_none;
 
 pub trait Trait: session::Trait {}
 
@@ -64,7 +64,7 @@ decl_storage! {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
 		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
-			use codec::Encode;
+			let storage = std::cell::RefCell::new(storage);
 
 			let mut p = config.parachains.clone();
 			p.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
@@ -72,15 +72,12 @@ decl_storage! {
 
 			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-			storage.insert(Self::hash(<Parachains<T>>::key()).to_vec(), only_ids.encode());
+			<Parachains<T> as generator::StorageValue<_>>::put(&only_ids, &storage);
 
 			for (id, code, genesis) in p {
-				let code_key = Self::hash(&<Code<T>>::key_for(&id)).to_vec();
-				let head_key = Self::hash(&<Heads<T>>::key_for(&id)).to_vec();
 				// no ingress -- a chain cannot be routed to until it is live.
-
-				storage.insert(code_key, code.encode());
-				storage.insert(head_key, genesis.encode());
+				<Code<T> as generator::StorageMap<_, _>>::insert(&id, &code, &storage);
+				<Heads<T> as generator::StorageMap<_, _>>::insert(&id, &genesis, &storage);
 			}
 		});
 	}
@@ -91,7 +88,7 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
-			ensure_inherent(origin)?;
+			ensure_none(origin)?;
 			ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
 
 			let active_parachains = Self::active_parachains();
@@ -211,9 +208,24 @@ impl<T: Trait> Module<T> {
 			_ => Chain::Relay,
 		}).collect::<Vec<_>>();
 
-		let mut random_seed = system::Module::<T>::random_seed().as_ref().to_vec();
-		random_seed.extend(b"validator_role_pairs");
-		let mut seed = BlakeTwo256::hash(&random_seed);
+
+		let mut seed = {
+			let phrase = b"validator_role_pairs";
+			let seed = system::Module::<T>::random(&phrase[..]);
+			let seed_len = seed.as_ref().len();
+			let needed_bytes = validator_count * 4;
+
+			// hash only the needed bits of the random seed.
+			// if earlier bits are influencable, they will not factor into
+			// the seed used here.
+			let seed_off = if needed_bytes >= seed_len {
+				0
+			} else {
+				seed_len - needed_bytes
+			};
+
+			BlakeTwo256::hash(&seed.as_ref()[seed_off..])
+		};
 
 		// shuffle
 		for i in 0..(validator_count - 1) {
@@ -381,9 +393,10 @@ impl<T: Trait> Module<T> {
 
 			// track which voters have voted already, 1 bit per authority.
 			let mut track_voters = bitvec![0; authorities.len()];
-			for (auth_id, validity_attestation) in &candidate.validity_votes {
+			for (auth_index, validity_attestation) in &candidate.validity_votes {
+				let auth_index = *auth_index as usize;
 				// protect against double-votes.
-				match validator_group.iter().find(|&(idx, _)| &authorities[*idx] == auth_id) {
+				match validator_group.iter().find(|&(idx, _)| *idx == auth_index) {
 					None => return Err("Attesting validator not on this chain's validation duty."),
 					Some(&(idx, _)) => {
 						if track_voters.get(idx) {
@@ -415,7 +428,7 @@ impl<T: Trait> Module<T> {
 				};
 
 				ensure!(
-					sig.verify(&payload[..], &auth_id),
+					sig.verify(&payload[..], &authorities[auth_index]),
 					"Candidate validity attestation signature is bad."
 				);
 			}
@@ -467,7 +480,7 @@ mod tests {
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{generic, BuildStorage};
 	use sr_primitives::traits::{BlakeTwo256, IdentityLookup};
-	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey};
+	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey};
 	use keyring::{AuthorityKeyring, AccountKeyring};
 	use {consensus, timestamp};
 
@@ -507,6 +520,7 @@ mod tests {
 	impl Trait for Test {}
 
 	type Parachains = Module<Test>;
+	type System = system::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
@@ -577,7 +591,7 @@ mod tests {
 			let payload = localized_payload(statement, parent_hash);
 			let signature = key.sign(&payload[..]).into();
 
-			candidate.validity_votes.push((authorities[idx].clone(), if vote_implicit {
+			candidate.validity_votes.push((idx as ValidatorIndex, if vote_implicit {
 				ValidityAttestation::Implicit(signature)
 			} else {
 				ValidityAttestation::Explicit(signature)
@@ -656,17 +670,16 @@ mod tests {
 				assert_eq!(duty_roster.validator_duty.iter().filter(|&&j| j == Chain::Relay).count(), 2);
 			};
 
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let duty_roster_0 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_0);
 
-			system::Module::<Test>::set_random_seed([1u8; 32].into());
+			System::initialize(&1, &H256::from([1; 32]), &Default::default());
 			let duty_roster_1 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_1);
 			assert!(duty_roster_0 != duty_roster_1);
 
 
-			system::Module::<Test>::set_random_seed([2u8; 32].into());
+			System::initialize(&2, &H256::from([2; 32]), &Default::default());
 			let duty_roster_2 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_2);
 			assert!(duty_roster_0 != duty_roster_2);
@@ -682,7 +695,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let candidate = AttestedCandidate {
 				validity_votes: vec![],
 				candidate: CandidateReceipt {
@@ -698,7 +710,7 @@ mod tests {
 
 			};
 
-			assert!(Parachains::dispatch(Call::set_heads(vec![candidate]), Origin::INHERENT).is_err());
+			assert!(Parachains::dispatch(Call::set_heads(vec![candidate]), Origin::NONE).is_err());
 		})
 	}
 
@@ -710,7 +722,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
 				candidate: CandidateReceipt {
@@ -744,12 +755,12 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![candidate_b.clone(), candidate_a.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_err());
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_ok());
 		});
 	}
@@ -762,7 +773,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
 				candidate: CandidateReceipt {
@@ -784,7 +794,7 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![double_validity]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_err());
 		});
 	}
@@ -798,7 +808,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			let from_a = vec![(1.into(), [1; 32].into())];
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
@@ -837,7 +846,7 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				Call::set_heads(vec![candidate_a, candidate_b]),
-				Origin::INHERENT,
+				Origin::NONE,
 			).is_ok());
 
 			assert_eq!(
@@ -868,7 +877,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 99 does not exist
 			let non_existent = vec![(99.into(), [1; 32].into())];
 			let mut candidate = new_candidate_with_egress_roots(non_existent);
@@ -877,7 +885,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Routing to non-existent parachain"), result);
@@ -893,7 +901,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 0 is self
 			let to_self = vec![(0.into(), [1; 32].into())];
 			let mut candidate = new_candidate_with_egress_roots(to_self);
@@ -902,7 +909,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Parachain routing to self"), result);
@@ -918,7 +925,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 0 is self
 			let out_of_order = vec![(1.into(), [1; 32].into()), ((0.into(), [1; 32].into()))];
 			let mut candidate = new_candidate_with_egress_roots(out_of_order);
@@ -927,7 +933,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Egress routes out of order by ID"), result);
@@ -943,7 +949,6 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			system::Module::<Test>::set_random_seed([0u8; 32].into());
 			// parachain 0 is self
 			let contains_empty_trie_root = vec![(1.into(), [1; 32].into()), ((2.into(), EMPTY_TRIE_ROOT.into()))];
 			let mut candidate = new_candidate_with_egress_roots(contains_empty_trie_root);
@@ -952,7 +957,7 @@ mod tests {
 
 			let result = Parachains::dispatch(
 				Call::set_heads(vec![candidate.clone()]),
-				Origin::INHERENT,
+				Origin::NONE,
 			);
 
 			assert_eq!(Err("Empty trie root included"), result);

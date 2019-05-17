@@ -22,6 +22,7 @@ sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "pol
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-consensus-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

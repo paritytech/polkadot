@@ -16,6 +16,7 @@
 
 //! Tests for polkadot and validation network.
 
+use std::collections::HashMap;
 use super::{PolkadotProtocol, Status, Message, FullStatus};
 use validation::SessionParams;
 
@@ -26,11 +27,12 @@ use polkadot_primitives::parachain::{
 	ConsolidatedIngressRoots,
 };
 use substrate_primitives::crypto::UncheckedInto;
+use sr_primitives::traits::Block as BlockT;
 use codec::Encode;
 use substrate_network::{
-	Severity, PeerId, PeerInfo, ClientHandle, Context, config::Roles,
-	message::Message as SubstrateMessage, specialization::NetworkSpecialization,
-	generic_message::Message as GenericMessage
+	PeerId, PeerInfo, ClientHandle, Context, config::Roles,
+	message::{BlockRequest, generic::{ConsensusMessage, FinalityProofRequest}},
+	specialization::NetworkSpecialization, generic_message::Message as GenericMessage
 };
 
 use futures::Future;
@@ -41,39 +43,39 @@ mod validation;
 struct TestContext {
 	disabled: Vec<PeerId>,
 	disconnected: Vec<PeerId>,
-	messages: Vec<(PeerId, SubstrateMessage<Block>)>,
+	reputations: HashMap<PeerId, i32>,
+	messages: Vec<(PeerId, Vec<u8>)>,
 }
 
 impl Context<Block> for TestContext {
-	fn client(&self) -> &ClientHandle<Block> {
-		unimplemented!()
-	}
+	fn report_peer(&mut self, peer: PeerId, reputation: i32) {
+        let reputation = self.reputations.get(&peer).map_or(reputation, |v| v + reputation);
+        self.reputations.insert(peer.clone(), reputation);
 
-	fn report_peer(&mut self, peer: PeerId, reason: Severity) {
-		match reason {
-			Severity::Bad(_) => self.disabled.push(peer),
-			_ => self.disconnected.push(peer),
+		match reputation {
+			i if i < -100 => self.disabled.push(peer),
+			i if i < 0 => self.disconnected.push(peer),
+			_ => {}
 		}
 	}
 
-	fn peer_info(&self, _peer: &PeerId) -> Option<PeerInfo<Block>> {
+	fn send_consensus(&mut self, _who: PeerId, _consensus: ConsensusMessage) {
 		unimplemented!()
 	}
 
-	fn send_message(&mut self, who: PeerId, data: SubstrateMessage<Block>) {
-		self.messages.push((who, data))
+	fn send_chain_specific(&mut self, who: PeerId, message: Vec<u8>) {
+		self.messages.push((who, message))
 	}
+
+	fn disconnect_peer(&mut self, _who: PeerId) { }
 }
 
 impl TestContext {
 	fn has_message(&self, to: PeerId, message: Message) -> bool {
-		use substrate_network::generic_message::Message as GenericMessage;
-
 		let encoded = message.encode();
-		self.messages.iter().any(|&(ref peer, ref msg)| match msg {
-			GenericMessage::ChainSpecific(ref data) => peer == &to && data == &encoded,
-			_ => false,
-		})
+		self.messages.iter().any(|&(ref peer, ref data)|
+			peer == &to && data == &encoded
+		)
 	}
 }
 
@@ -296,6 +298,22 @@ fn remove_bad_collator() {
 		protocol.disconnect_bad_collator(&mut ctx, collator_id);
 		assert!(ctx.disabled.contains(&who));
 	}
+}
+
+#[test]
+fn kick_collator() {
+    let mut protocol = PolkadotProtocol::new(None);
+
+    let who = PeerId::random();
+    let collator_id: CollatorId = [2; 32].unchecked_into();
+
+    let mut ctx = TestContext::default();
+    let status = Status { collating_for: Some((collator_id.clone(), 5.into())) };
+    protocol.on_connect(&mut ctx, who.clone(), make_status(&status, Roles::NONE));
+    assert!(!ctx.disconnected.contains(&who));
+
+    protocol.on_connect(&mut ctx, who.clone(), make_status(&status, Roles::NONE));
+    assert!(ctx.disconnected.contains(&who));
 }
 
 #[test]

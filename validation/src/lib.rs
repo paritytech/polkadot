@@ -51,6 +51,7 @@ extern crate substrate_consensus_aura as aura;
 extern crate substrate_consensus_aura_primitives as aura_primitives;
 extern crate substrate_finality_grandpa as grandpa;
 extern crate substrate_transaction_pool as transaction_pool;
+extern crate substrate_consensus_authorities as consensus_authorities;
 
 #[macro_use]
 extern crate error_chain;
@@ -69,11 +70,11 @@ use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
 use aura::SlotDuration;
-use client::{BlockchainEvents, ChainHead, BlockBody};
+use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
-use client::runtime_api::Core;
 use codec::Encode;
+use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey};
@@ -87,6 +88,7 @@ use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyEr
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
+use consensus_authorities::AuthoritiesApi;
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
@@ -186,9 +188,9 @@ pub trait Network {
 #[derive(Debug, Clone, Default)]
 pub struct GroupInfo {
 	/// Authorities meant to check validity of candidates.
-	pub validity_guarantors: HashSet<SessionKey>,
+	validity_guarantors: HashSet<SessionKey>,
 	/// Number of votes needed for validity.
-	pub needed_validity: usize,
+	needed_validity: usize,
 }
 
 /// Sign a table statement against a parent hash.
@@ -347,7 +349,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
-		let table = Arc::new(SharedTable::new(group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
+		let table = Arc::new(SharedTable::new(authorities, group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
 			table.clone(),
 			outgoing,
@@ -459,29 +461,32 @@ struct AttestationTracker {
 }
 
 /// Polkadot proposer factory.
-pub struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
+pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	parachain_validation: Arc<ParachainValidation<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
 	key: Arc<ed25519::Pair>,
 	_service_handle: ServiceHandle,
 	aura_slot_duration: SlotDuration,
+  select_chain: SC,
 	max_block_data_size: Option<u64>,
 }
 
-impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
+impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	C: Collators + Send + Sync + 'static,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
-	P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
+	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + Core<Block> + BlockBuilderApi<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuthoritiesApi<Block>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 	TxApi: PoolChainApi,
+	SC: SelectChain<Block> + 'static,
 {
 	/// Create a new proposer factory.
 	pub fn new(
 		client: Arc<P>,
+		select_chain: SC,
 		network: N,
 		collators: C,
 		transaction_pool: Arc<Pool<TxApi>>,
@@ -502,6 +507,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 
 		let service_handle = ::attestation_service::start(
 			client,
+			select_chain.clone(),
 			parachain_validation.clone(),
 			thread_pool,
 			key.clone(),
@@ -515,12 +521,13 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 			key,
 			_service_handle: service_handle,
 			aura_slot_duration,
+			select_chain
 			max_block_data_size,
 		}
 	}
 }
 
-impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, TxApi> where
+impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxApi> where
 	C: Collators + Send + 'static,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
@@ -529,6 +536,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	SC: SelectChain<Block>,
 {
 	type Proposer = Proposer<P, TxApi>;
 	type Error = Error;
@@ -556,7 +564,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 			parent_id,
 			parent_number: parent_header.number,
 			transaction_pool: self.transaction_pool.clone(),
-			slot_duration: self.aura_slot_duration,
+			slot_duration: self.aura_slot_duration.clone(),
 		})
 	}
 }
@@ -729,7 +737,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 
 		let runtime_api = self.client.runtime_api();
 
-		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client)?;
+		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false)?;
 
 		{
 			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
@@ -756,7 +764,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 						debug!("[{:?}] Pushed to the block.", ready.hash);
 						pending_size += encoded_size;
 					}
-					Err(client::error::Error(client::error::ErrorKind::ApplyExtrinsicFailed(ApplyError::FullBlock), _)) => {
+					Err(client::error::Error::ApplyExtrinsicFailed(ApplyError::FullBlock)) => {
 						debug!("Block is full, proceed with proposing.");
 						break;
 					}

@@ -16,11 +16,13 @@
 
 //! Gossip messages and the message validator
 
+use substrate_network::PeerId;
 use substrate_network::consensus_gossip::{
 	self as network_gossip, ValidationResult as GossipValidationResult,
+	ValidatorContext,
 };
 use polkadot_validation::SignedStatement;
-use polkadot_primitives::{Hash, SessionKey};
+use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorIndex};
 use codec::Decode;
 
 use std::collections::HashMap;
@@ -80,7 +82,9 @@ pub fn register_validator<O: KnownOracle + 'static>(
 	});
 
 	let gossip_side = validator.clone();
-	service.with_gossip(|gossip, _| gossip.register_validator(POLKADOT_ENGINE_ID, gossip_side));
+	service.with_gossip(|gossip, ctx|
+		gossip.register_validator(ctx, POLKADOT_ENGINE_ID, gossip_side)
+	);
 
 	RegisteredMessageValidator { inner: validator as _ }
 }
@@ -116,19 +120,26 @@ impl RegisteredMessageValidator {
 	}
 }
 
-// data needed for validating gossip.
+/// The data needed for validating gossip.
 pub(crate) struct MessageValidationData {
 	/// The authorities at a block.
 	pub(crate) authorities: Vec<SessionKey>,
+	/// Mapping from validator index to `SessionKey`.
+	pub(crate) index_mapping: HashMap<ValidatorIndex, SessionKey>,
 }
 
 impl MessageValidationData {
 	fn check_statement(&self, relay_parent: &Hash, statement: &SignedStatement) -> bool {
-		self.authorities.contains(&statement.sender) &&
+		let sender = match self.index_mapping.get(&statement.sender) {
+			Some(val) => val,
+			None => return false,
+		};
+
+		self.authorities.contains(&sender) &&
 			::polkadot_validation::check_statement(
 				&statement.statement,
 				&statement.signature,
-				statement.sender.clone(),
+				sender.clone(),
 				relay_parent,
 			)
 	}
@@ -140,29 +151,34 @@ pub struct MessageValidator<O: ?Sized> {
 	oracle: O,
 }
 
-impl<O: KnownOracle + ?Sized> network_gossip::Validator<Hash> for MessageValidator<O> {
-	fn validate(&self, mut data: &[u8]) -> GossipValidationResult<Hash> {
+impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValidator<O> {
+	fn validate(&self, context: &mut ValidatorContext<Block>, _sender: &PeerId, mut data: &[u8])
+		-> GossipValidationResult<Hash>
+	{
+		let orig_data = data;
 		match GossipMessage::decode(&mut data) {
 			Some(GossipMessage { relay_parent, statement }) => {
 				let live = self.live_session.read();
 				let topic = || ::router::attestation_topic(relay_parent.clone());
 				if let Some(validation) = live.get(&relay_parent) {
 					if validation.check_statement(&relay_parent, &statement) {
-						GossipValidationResult::Valid(topic())
+						// repropagate
+						let topic = topic();
+						context.broadcast_message(topic, orig_data.to_owned(), false);
+						GossipValidationResult::ProcessAndKeep(topic)
 					} else {
-						GossipValidationResult::Invalid
+						GossipValidationResult::Discard
 					}
 				} else {
 					match self.oracle.is_known(&relay_parent) {
-						None | Some(Known::Leaf) => GossipValidationResult::Future(topic()),
-						Some(Known::Old) => GossipValidationResult::Expired,
-						Some(Known::Bad) => GossipValidationResult::Invalid,
+						None | Some(Known::Leaf) => GossipValidationResult::ProcessAndKeep(topic()),
+						Some(Known::Old) | Some(Known::Bad) => GossipValidationResult::Discard,
 					}
 				}
 			}
 			None => {
 				debug!(target: "validation", "Error decoding gossip message");
-				GossipValidationResult::Invalid
+				GossipValidationResult::Discard
 			}
 		}
 	}
