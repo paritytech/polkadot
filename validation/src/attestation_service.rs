@@ -108,6 +108,7 @@ pub(crate) fn start<C, N, P>(
 	thread_pool: TaskExecutor,
 	key: Arc<ed25519::Pair>,
 	extrinsic_store: ExtrinsicStore,
+	max_block_data_size: Option<u64>,
 ) -> ServiceHandle
 	where
 		C: Collators + Send + Sync + 'static,
@@ -144,6 +145,7 @@ pub(crate) fn start<C, N, P>(
 									notification.header.parent_hash().clone(),
 									&authorities,
 									key.clone(),
+									max_block_data_size,
 								)
 							});
 

@@ -269,6 +269,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 				&*api,
 				id,
 				collation,
+				None,
 			);
 
 			match res {
