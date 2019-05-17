@@ -179,7 +179,6 @@ pub trait Network {
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
-		outgoing: Outgoing,
 		authorities: &[SessionKey],
 	) -> Self::BuildTableRouter;
 }
@@ -319,7 +318,11 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			.map(|x| x.collect())
 			.unwrap_or_default();
 
-		let outgoing: Vec<_> = {
+		// TODO: https://github.com/paritytech/polkadot/issues/253
+		//
+		// We probably don't only want active validators to do this, or messages
+		// will disappear when validators exit the set.
+		let _outgoing: Vec<_> = {
 			// extract all extrinsic data that we have and propagate to peers.
 			live_instances.get(&grandparent_hash).map(|parent_validation| {
 				parent_candidates.iter().filter_map(|c| {
@@ -351,7 +354,6 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		let table = Arc::new(SharedTable::new(authorities, group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
 		let router = self.network.communication_for(
 			table.clone(),
-			outgoing,
 			authorities,
 		);
 

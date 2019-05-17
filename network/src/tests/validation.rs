@@ -16,7 +16,9 @@
 
 //! Tests and helpers for validation networking.
 
-use validation::NetworkService;
+#![allow(unused)]
+
+use validation::{NetworkService, GossipService};
 use substrate_network::Context as NetContext;
 use substrate_network::consensus_gossip::TopicNotification;
 use substrate_primitives::{NativeOrEncoded, ExecutionContext};
@@ -151,7 +153,11 @@ impl NetworkService for TestNetwork {
 		let _ = self.gossip.send_message.unbounded_send((topic, notification));
 	}
 
-	fn drop_gossip(&self, _topic: Hash) {}
+	fn with_gossip<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut GossipService, &mut NetContext<Block>)
+	{
+		unimplemented!()
+	}
 
 	fn with_spec<F: Send + 'static>(&self, with: F)
 		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>)
@@ -342,6 +348,7 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 
 		let message_val = crate::gossip::RegisteredMessageValidator::new_test(
 			|_hash: &_| Some(crate::gossip::Known::Leaf),
+			Box::new(|_, _| {}),
 		);
 
 		TestValidationNetwork::new(
@@ -407,96 +414,4 @@ fn make_table(data: &ApiData, local_key: &AuthorityKeyring, parent_hash: Hash) -
 		parent_hash,
 		store,
 	))
-}
-
-#[test]
-fn ingress_fetch_works() {
-	let mut runtime = Runtime::new().unwrap();
-	let built = build_network(3, runtime.executor());
-
-	let id_a: ParaId = 1.into();
-	let id_b: ParaId = 2.into();
-	let id_c: ParaId = 3.into();
-
-	let key_a = AuthorityKeyring::Alice;
-	let key_b = AuthorityKeyring::Bob;
-	let key_c = AuthorityKeyring::Charlie;
-
-	let messages_from_a = vec![
-		OutgoingMessage { target: id_b, data: vec![1, 2, 3] },
-		OutgoingMessage { target: id_b, data: vec![3, 4, 5] },
-		OutgoingMessage { target: id_c, data: vec![9, 9, 9] },
-	];
-
-	let messages_from_b = vec![
-		OutgoingMessage { target: id_a, data: vec![1, 1, 1, 1, 1,] },
-		OutgoingMessage { target: id_c, data: b"hello world".to_vec() },
-	];
-
-	let messages_from_c = vec![
-		OutgoingMessage { target: id_a, data: b"dog42".to_vec() },
-		OutgoingMessage { target: id_b, data: b"dogglesworth".to_vec() },
-	];
-
-	let ingress = {
-		let mut builder = IngressBuilder::default();
-		builder.add_messages(id_a, &messages_from_a);
-		builder.add_messages(id_b, &messages_from_b);
-		builder.add_messages(id_c, &messages_from_c);
-
-		builder.build()
-	};
-
-	let parent_hash = [1; 32].into();
-
-	let (router_a, router_b, router_c) = {
-		let validators: Vec<ValidatorId> = vec![
-			key_a.into(),
-			key_b.into(),
-			key_c.into(),
-		];
-
-		// NOTE: this is possible only because we are currently asserting that parachain validators
-		// share their crypto with the (Aura) authority set. Once that assumption breaks, so will this
-		// code.
-		let authorities = validators.clone();
-
-		let mut api_handle = built.api_handle.lock();
-		*api_handle = ApiData {
-			active_parachains: vec![id_a, id_b, id_c],
-			duties: vec![Chain::Parachain(id_a), Chain::Parachain(id_b), Chain::Parachain(id_c)],
-			validators,
-			ingress,
-		};
-
-		(
-			built.networks[0].communication_for(
-				make_table(&*api_handle, &key_a, parent_hash),
-				vec![MessagesFrom::from_messages(id_a, messages_from_a)],
-				&authorities,
-			),
-			built.networks[1].communication_for(
-				make_table(&*api_handle, &key_b, parent_hash),
-				vec![MessagesFrom::from_messages(id_b, messages_from_b)],
-				&authorities,
-			),
-			built.networks[2].communication_for(
-				make_table(&*api_handle, &key_c, parent_hash),
-				vec![MessagesFrom::from_messages(id_c, messages_from_c)],
-				&authorities,
-			),
-		)
-	};
-
-	// make sure everyone can get ingress for their own parachain.
-	let fetch_a = router_a.then(move |r| r.unwrap().fetcher()
-		.fetch_incoming(id_a).map_err(|_| format!("Could not fetch ingress_a")));
-	let fetch_b = router_b.then(move |r| r.unwrap().fetcher()
-		.fetch_incoming(id_b).map_err(|_| format!("Could not fetch ingress_b")));
-	let fetch_c = router_c.then(move |r| r.unwrap().fetcher()
-		.fetch_incoming(id_c).map_err(|_| format!("Could not fetch ingress_c")));
-
-	let work = fetch_a.join3(fetch_b, fetch_c);
-	runtime.spawn(built.gossip.then(|_| Ok(()))); // in background.
-	runtime.block_on(work).unwrap();
 }

@@ -58,7 +58,7 @@ pub trait Context {
 /// Statements circulated among peers.
 #[derive(PartialEq, Eq, Debug, Clone, Encode, Decode)]
 pub enum Statement<C, D> {
-	/// Broadcast by a authority to indicate that this is his candidate for
+	/// Broadcast by an authority to indicate that this is his candidate for
 	/// inclusion.
 	///
 	/// Broadcasting two different candidate messages per round is not allowed.
