@@ -521,7 +521,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			key,
 			_service_handle: service_handle,
 			aura_slot_duration,
-			select_chain
+			select_chain,
 			max_block_data_size,
 		}
 	}
