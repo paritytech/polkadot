@@ -406,6 +406,7 @@ fn make_table(data: &ApiData, local_key: &AuthorityKeyring, parent_hash: Hash) -
 		Arc::new(local_key.pair()),
 		parent_hash,
 		store,
+		None,
 	))
 }
 

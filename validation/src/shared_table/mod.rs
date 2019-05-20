@@ -621,6 +621,7 @@ mod tests {
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
+			None,
 		);
 
 		let candidate = CandidateReceipt {
@@ -674,6 +675,7 @@ mod tests {
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
+			None,
 		);
 
 		let candidate = CandidateReceipt {
@@ -729,6 +731,7 @@ mod tests {
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),
+			max_block_data_size: None,
 		};
 
 		let validated = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
@@ -769,6 +772,7 @@ mod tests {
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),
+			max_block_data_size: None,
 		};
 
 		let validated = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
@@ -806,6 +810,7 @@ mod tests {
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
+			None,
 		);
 
 		let candidate = CandidateReceipt {
@@ -870,6 +875,7 @@ mod tests {
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
+			None,
 		);
 
 		let candidate = CandidateReceipt {
@@ -918,6 +924,7 @@ mod tests {
 				Arc::new(AuthorityKeyring::Alice.pair()),
 				Default::default(),
 				ExtrinsicStore::new_in_memory(),
+				None,
 			);
 			let expected_mapping = authorities.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect();
 			assert_eq!(shared_table.context.index_mapping, expected_mapping);
