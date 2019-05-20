@@ -349,7 +349,14 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
-		let table = Arc::new(SharedTable::new(authorities, group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
+		let table = Arc::new(SharedTable::new(
+			authorities,
+			group_info,
+			sign_with.clone(),
+			parent_hash,
+			self.extrinsic_store.clone(),
+			max_block_data_size,
+		));
 		let router = self.network.communication_for(
 			table.clone(),
 			outgoing,
@@ -467,7 +474,7 @@ pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	key: Arc<ed25519::Pair>,
 	_service_handle: ServiceHandle,
 	aura_slot_duration: SlotDuration,
-  select_chain: SC,
+	select_chain: SC,
 	max_block_data_size: Option<u64>,
 }
 
