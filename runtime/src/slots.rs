@@ -19,7 +19,7 @@
 //! information for commissioning and decommissioning them.
 
 use rstd::{prelude::*, mem::swap, convert::TryInto};
-use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, As};
+use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion};
 use codec::Decode;
 use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}};
@@ -494,12 +494,10 @@ impl<T: Trait> Module<T> {
 
 			// Finally, we update the deposit held so it is `amount` for the new lease period
 			// indices that were won in the auction.
-			let current: u64 = lease_period_index.as_();
-			let current = current as usize;
-			let index: u64 = auction_lease_period_index.as_();
-			let index = index as usize;
-
-			if let Some(offset) = index.checked_sub(current) {
+			let maybe_offset = auction_lease_period_index
+				.checked_sub(&lease_period_index)
+				.and_then(|x| x.checked_into::<usize>());
+			if let Some(offset) = maybe_offset {
 				// Should always succeed; for it to fail it would mean we auctioned a lease period
 				// that already ended.
 

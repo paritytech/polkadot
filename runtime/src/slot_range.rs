@@ -17,8 +17,8 @@
 //! The SlotRange struct which succinctly handles the ten values that
 //! represent all sub ranges between 0 and 3 inclusive.
 
-use rstd::{result, ops::Add, convert::TryFrom};
-use sr_primitives::traits::{CheckedSub, As};
+use rstd::{result, ops::Add, convert::{TryFrom, TryInto}};
+use sr_primitives::traits::CheckedSub;
 
 /// Total number of possible sub ranges of slots.
 pub const SLOT_RANGE_COUNT: usize = 10;
@@ -58,16 +58,24 @@ impl std::fmt::Debug for SlotRange {
 }
 
 impl SlotRange {
-	pub fn new_bounded<Index: Add<Output=Index> + CheckedSub + As<u64> + Copy + Ord>(
+	pub fn new_bounded<
+		Index: Add<Output=Index> + CheckedSub + Copy + Ord + From<u32> + TryInto<u32>
+	>(
 		initial: Index,
 		first: Index,
 		last: Index
 	) -> result::Result<Self, &'static str> {
-		if first > last || first < initial || last > initial + Index::sa(3) {
+		if first > last || first < initial || last > initial + 3.into() {
 			return Err("Invalid range for this auction")
 		}
-		let count: u64 = (last.checked_sub(&first).ok_or("range ends before it begins")?).as_();
-		let first: u64 = first.checked_sub(&initial).ok_or("range begins too early")?.as_();
+		let count: u32 = last.checked_sub(&first)
+			.ok_or("range ends before it begins")?
+			.try_into()
+			.map_err(|_| "range too big")?;
+		let first: u32 = first.checked_sub(&initial)
+			.ok_or("range begins too early")?
+			.try_into()
+			.map_err(|_| "start too far")?;
 		match first {
 			0 => match count {
 				0 => Some(SlotRange::ZeroZero),
