@@ -23,7 +23,8 @@ use srml_support::traits::Currency;
 use system::ensure_none;
 use codec::Encode;
 #[cfg(feature = "std")]
-use sr_primitives::traits::{Zero, ValidateUnsigned};
+use sr_primitives::traits::Zero;
+use sr_primitives::traits::ValidateUnsigned;
 use sr_primitives::transaction_validity::{TransactionLongevity, TransactionValidity};
 use system;
 
