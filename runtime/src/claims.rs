@@ -352,6 +352,10 @@ mod tests {
 				<Module<Test>>::validate_unsigned(&Call::claim(1, bob_sig(&1u64.encode()))),
 				TransactionValidity::Invalid(-20)
 			);
+			assert_eq!(
+				<Module<Test>>::validate_unsigned(&Call::claim(0, bob_sig(&1u64.encode()))),
+				TransactionValidity::Invalid(-20)
+			);
 		});
 	}
 }
