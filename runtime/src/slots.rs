@@ -134,7 +134,7 @@ decl_storage! {
 		/// existed) as far as this module is concerned.
 		///
 		/// If a parachain doesn't exist *yet* but is scheduled to exist in the future, then it
-		/// will be left-padded with one of more zeroes to denote the fact that nothing is held on
+		/// will be left-padded with one or more zeroes to denote the fact that nothing is held on
 		/// deposit for the non-existent chain currently, but is held at some point in the future.
 		pub Deposits get(deposits): map ParaIdOf<T> => Vec<BalanceOf<T>>;
 
