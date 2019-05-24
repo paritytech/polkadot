@@ -27,10 +27,10 @@ extern crate hex_literal;
 extern crate secp256k1;
 #[cfg(test)]
 extern crate tiny_keccak;
-#[cfg(test)]
-extern crate lazy_static;
-#[cfg(test)]
-extern crate parking_lot;
+//#[cfg(test)]
+//extern crate lazy_static;
+//#[cfg(test)]
+//®extern crate parking_lot;
 
 #[macro_use]
 extern crate bitvec;
@@ -125,7 +125,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 1,
-	spec_version: 108,
+	spec_version: 1000,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -325,7 +325,7 @@ pub type UncheckedExtrinsic = generic::UncheckedMortalCompactExtrinsic<Address, 
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Balances, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Balances, Runtime, AllModules>;
 
 impl_runtime_apis! {
 	impl client_api::Core<Block> for Runtime {

@@ -25,12 +25,11 @@
 
 use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
 use polkadot_validation::{
-	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Outgoing, Validated
+	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Validated
 };
-use polkadot_primitives::{Block, Hash, SessionKey};
-use polkadot_primitives::parachain::{
-	Extrinsic, CandidateReceipt, ParachainHost, Id as ParaId, Message,
-	Collation, PoVBlock,
+use polkadot_primitives::{Block, Hash};
+use polkadot_primitives::parachain::{Extrinsic, CandidateReceipt, ParachainHost,
+	ValidatorIndex, Collation, PoVBlock,
 };
 use gossip::RegisteredMessageValidator;
 
@@ -43,8 +42,6 @@ use std::io;
 use std::sync::Arc;
 
 use validation::{self, SessionDataFetcher, NetworkService, Executor};
-
-type IngressPairRef<'a> = (ParaId, &'a [Message]);
 
 /// Compute the gossip topic for attestations on the given parent hash.
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
@@ -87,16 +84,14 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 		// this will block internally until the gossip messages stream is obtained.
 		self.network().gossip_messages_for(self.attestation_topic)
 			.filter_map(|msg| {
-				debug!(target: "validation", "Processing statement for live validation session");
-				crate::gossip::GossipMessage::decode(&mut &msg.message[..])
-			})
-			.map(|msg| msg.statement)
-	}
+				use crate::gossip::GossipMessage;
 
-	/// Get access to the session data fetcher.
-	#[cfg(test)]
-	pub(crate) fn fetcher(&self) -> &SessionDataFetcher<P, E, N, T> {
-		&self.fetcher
+				debug!(target: "validation", "Processing statement for live validation session");
+				match GossipMessage::decode(&mut &msg.message[..]) {
+					Some(GossipMessage::Statement(s)) => Some(s.signed_statement),
+					_ => None,
+				}
+			})
 	}
 
 	fn parent_hash(&self) -> Hash {
@@ -163,44 +158,14 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		);
 		// dispatch future work as necessary.
 		for (producer, statement) in producers.into_iter().zip(statements) {
-			self.fetcher.knowledge().lock().note_statement(statement.sender, &statement.statement);
+			if let Some(sender) = self.table.index_to_id(statement.sender) {
+				self.fetcher.knowledge().lock().note_statement(sender, &statement.statement);
 
-			if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
-				trace!(target: "validation", "driving statement work to completion");
-				let work = work.select2(self.fetcher.exit().clone()).then(|_| Ok(()));
-				self.fetcher.executor().spawn(work);
-			}
-		}
-	}
-
-	/// Broadcast outgoing messages to peers.
-	pub(crate) fn broadcast_egress(&self, outgoing: Outgoing) {
-		use slice_group_by::LinearGroupBy;
-
-		let mut group_messages = Vec::new();
-		for egress in outgoing {
-			let source = egress.from;
-			let messages = egress.messages.outgoing_messages;
-
-			let groups = LinearGroupBy::new(&messages, |a, b| a.target == b.target);
-			for group in groups {
-				let target = match group.get(0) {
-					Some(msg) => msg.target,
-					None => continue, // skip empty.
-				};
-
-				group_messages.clear(); // reuse allocation from previous iterations.
-				group_messages.extend(group.iter().map(|msg| msg.data.clone()).map(Message));
-
-				debug!(target: "valdidation", "Circulating messages from {:?} to {:?} at {}",
-					source, target, self.parent_hash());
-
-				// this is the ingress from source to target, with given messages.
-				let target_incoming =
-					validation::incoming_message_topic(self.parent_hash(), target);
-				let ingress_for: IngressPairRef = (source, &group_messages[..]);
-
-				self.network().gossip_message(target_incoming, ingress_for.encode());
+				if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
+					trace!(target: "validation", "driving statement work to completion");
+					let work = work.select2(self.fetcher.exit().clone()).then(|_| Ok(()));
+					self.fetcher.executor().spawn(work);
+				}
 			}
 		}
 	}
@@ -262,7 +227,6 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 	fn drop(&mut self) {
 		let parent_hash = self.parent_hash().clone();
-		self.message_validator.remove_session(&parent_hash);
 		self.network().with_spec(move |spec, _| { spec.remove_validation_session(parent_hash); });
 	}
 }
@@ -270,8 +234,8 @@ impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 // A unique trace for valid statements issued by a validator.
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 enum StatementTrace {
-	Valid(SessionKey, Hash),
-	Invalid(SessionKey, Hash),
+	Valid(ValidatorIndex, Hash),
+	Invalid(ValidatorIndex, Hash),
 }
 
 // helper for deferring statements whose associated candidate is unknown.
@@ -325,19 +289,17 @@ impl DeferredStatements {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_primitives::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::ValidatorId;
 
 	#[test]
 	fn deferred_statements_works() {
 		let mut deferred = DeferredStatements::new();
 		let hash = [1; 32].into();
 		let sig = Default::default();
-		let sender: ValidatorId = [255; 32].unchecked_into();
+		let sender_index = 0;
 
 		let statement = SignedStatement {
 			statement: GenericStatement::Valid(hash),
-			sender: sender.clone(),
+			sender: sender_index,
 			signature: sig,
 		};
 
@@ -358,7 +320,7 @@ mod tests {
 
 			assert_eq!(traces.len(), 1);
 			assert_eq!(signed[0].clone(), statement);
-			assert_eq!(traces[0].clone(), StatementTrace::Valid(sender, hash));
+			assert_eq!(traces[0].clone(), StatementTrace::Valid(sender_index, hash));
 		}
 
 		// after draining

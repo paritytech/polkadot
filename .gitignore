@@ -2,10 +2,10 @@
 **/*.rs.bk
 *.swp
 .wasm-binaries
+runtime/wasm/target/
 **/._*
 .idea
 .vscode
 .idea
 polkadot.*
 .DS_Store
-runtime/wasm/target
