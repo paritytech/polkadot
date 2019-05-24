@@ -122,9 +122,8 @@ decl_module! {
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
-			let signer = dest.using_encoded(|data|
-					eth_recover(&ethereum_signature, data)
-				).ok_or("Invalid Ethereum signature")?;
+			let signer = dest.using_encoded(|data| eth_recover(&ethereum_signature, data))
+				.ok_or("Invalid Ethereum signature")?;
 
 			let balance_due = <Claims<T>>::take(&signer)
 				.ok_or("Ethereum address has no claim")?;
