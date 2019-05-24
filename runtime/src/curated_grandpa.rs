@@ -42,8 +42,9 @@ decl_module! {
 		}
 
 		fn on_finalize(block_number: T::BlockNumber) {
+			let shuffle_period = Self::shuffle_period();
+
 			// every so often shuffle the voters and issue a change.
-			let shuffle_period: u64 = Self::shuffle_period();
 			if shuffle_period.is_zero() { return }
 
 			if (block_number % shuffle_period).is_zero() {
