@@ -19,7 +19,7 @@
 //! information for commissioning and decommissioning them.
 
 use rstd::{prelude::*, mem::swap, convert::TryInto};
-use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion};
+use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash};
 use codec::Decode;
 use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}};
@@ -100,7 +100,7 @@ pub enum IncomingParachain<AccountId, Hash> {
 	/// Deploy information not yet set; just the bidder identity.
 	Unset(NewBidder<AccountId>),
 	/// Deploy information set only by code hash; so we store the code hash and head data.
-	CodeHash { code: Hash, initial_head_data: Vec<u8> },
+	Fixed { code_hash: Hash, initial_head_data: Vec<u8> },
 	/// Deploy information fully set; so we store the code and head data.
 	Deploy { code: Vec<u8>, initial_head_data: Vec<u8> },
 }
@@ -348,7 +348,7 @@ decl_module! {
 			} else {
 				return Err("already registered")
 			}
-			let item = (starts, IncomingParachain::CodeHash{code_hash, initial_head_data});
+			let item = (starts, IncomingParachain::Fixed{code_hash, initial_head_data});
 			<Onboarding<T>>::insert(&para_id, item);
 		}
 
@@ -367,8 +367,8 @@ decl_module! {
 		fn elaborate_deploy_data(_origin, #[compact] para_id: ParaIdOf<T>, code: Vec<u8>) {
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
 				.ok_or("parachain id not in onboarding")?;
-			if let IncomingParachain::CodeHash{code_hash, initial_head_data} = details {
-				ensure!(T::Hasher::hash(&code) == code_hash, "code not doesn't correspond to hash");
+			if let IncomingParachain::Fixed{code_hash, initial_head_data} = details {
+				ensure!(<T as system::Trait>::Hashing::hash(&code) == code_hash, "code not doesn't correspond to hash");
 				if starts > Self::lease_period_index() {
 					// Hasn't yet begun. Replace the on-boarding entry with the new information.
 					let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
@@ -725,15 +725,15 @@ impl<T: Trait> Module<T> {
 				[(Vec<SlotRange>, BalanceOf<T>); 4] = Default::default();
 			let best_bid = |range: SlotRange| {
 				winning[range as u8 as usize].as_ref()
-					.map(|(_, amount)| *amount * <BalanceOf<T>>::sa(range.len() as u64))
+					.map(|(_, amount)| *amount * (range.len() as u32).into())
 			};
 			for i in 0..4 {
-				let r = SlotRange::new_bounded(0, 0, i).expect("`i < 4`; qed");
+				let r = SlotRange::new_bounded(0, 0, i as u32).expect("`i < 4`; qed");
 				if let Some(bid) = best_bid(r) {
 					best_winners_ending_at[i] = (vec![r], bid);
 				}
 				for j in 0..i {
-					let r = SlotRange::new_bounded(0, j + 1, i)
+					let r = SlotRange::new_bounded(0, j as u32 + 1, i as u32)
 						.expect("`i < 4`; `j < i`; `j + 1 < 4`; qed");
 					if let Some(mut bid) = best_bid(r) {
 						bid += best_winners_ending_at[j].1;
@@ -777,7 +777,7 @@ mod tests {
 	use sr_io::with_externalities;
 	use sr_primitives::{
 		BuildStorage,
-		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},
+		traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
 		testing::{Digest, DigestItem, Header}
 	};
 	use srml_support::{impl_outer_origin, assert_ok};
@@ -1034,7 +1034,9 @@ mod tests {
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 
 			run_to_block(9);
-			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 0.into(), vec![42], vec![69]));
+			let h = BlakeTwo256::hash(&[42u8][..]);
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![69]));
+			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42]));
 
 			run_to_block(10);
 			with_parachains(|p| {
@@ -1057,7 +1059,9 @@ mod tests {
 			});
 
 			run_to_block(11);
-			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 0.into(), vec![42], vec![69]));
+			let h = BlakeTwo256::hash(&[42u8][..]);
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![69]));
+			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42]));
 			with_parachains(|p| {
 				assert_eq!(p.len(), 1);
 				assert_eq!(p[&0], (vec![42], vec![69]));
@@ -1164,11 +1168,11 @@ mod tests {
 				Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
 			);
 
-			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 0.into(), vec![1], vec![1]));
-			assert_ok!(Slots::set_deploy_data(Origin::signed(2), 0, 1.into(), vec![2], vec![2]));
-			assert_ok!(Slots::set_deploy_data(Origin::signed(3), 0, 2.into(), vec![3], vec![3]));
-			assert_ok!(Slots::set_deploy_data(Origin::signed(4), 1, 3.into(), vec![4], vec![4]));
-			assert_ok!(Slots::set_deploy_data(Origin::signed(5), 1, 4.into(), vec![5], vec![5]));
+			for &(para, sub, acc) in &[(0, 0, 1), (1, 0, 2), (2, 0, 3), (3, 1, 4), (4, 1, 5)] {
+				let h = BlakeTwo256::hash(&[acc][..]);
+				assert_ok!(Slots::fix_deploy_data(Origin::signed(acc as _), sub, para.into(), h, vec![acc]));
+				assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), para.into(), vec![acc]));
+			}
 
 			run_to_block(10);
 			with_parachains(|p| {
@@ -1212,7 +1216,9 @@ mod tests {
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
 
 			run_to_block(10);
-			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 0.into(), vec![1], vec![1]));
+			let h = BlakeTwo256::hash(&[1u8][..]);
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![1]));
+			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1]));
 
 			assert_ok!(Slots::new_auction(5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 1));
@@ -1255,7 +1261,9 @@ mod tests {
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
 
 			run_to_block(10);
-			assert_ok!(Slots::set_deploy_data(Origin::signed(1), 0, 0.into(), vec![1], vec![1]));
+			let h = BlakeTwo256::hash(&[1u8][..]);
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![1]));
+			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1]));
 
 			assert_ok!(Slots::new_auction(5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 3));
