@@ -272,7 +272,7 @@ construct_service_factory! {
 
 				let gossip_validator_select_chain = select_chain.clone();
 				let gossip_validator = network_gossip::register_validator(
-					&*service.network(),
+					service.network(),
 					move |block_hash: &Hash| {
 						use client::BlockStatus;
 

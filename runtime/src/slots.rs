@@ -96,10 +96,12 @@ impl<AccountId: Clone, ParaId: AccountIdConversion<AccountId>> Bidder<AccountId,
 /// information itself.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub enum IncomingParachain<AccountId> {
+pub enum IncomingParachain<AccountId, Hash> {
 	/// Deploy information not yet set; just the bidder identity.
 	Unset(NewBidder<AccountId>),
-	/// Deploy information set; so we store the code and head data.
+	/// Deploy information set only by code hash; so we store the code hash and head data.
+	CodeHash { code: Hash, initial_head_data: Vec<u8> },
+	/// Deploy information fully set; so we store the code and head data.
 	Deploy { code: Vec<u8>, initial_head_data: Vec<u8> },
 }
 
@@ -158,9 +160,10 @@ decl_storage! {
 
 		/// The actual on-boarding information. Only exists what one of the following is true:
 		/// - It is before the lease period that the parachain should be on-boarded.
-		/// - The on-boarding information has not yet been provided and the parachain is not yet
-		/// due to be off-boarded.
-		pub Onboarding get(onboarding): map ParaIdOf<T> => Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId>)>;
+		/// - The full on-boarding information has not yet been provided and the parachain is not
+		/// yet due to be off-boarded.
+		pub Onboarding get(onboarding): map ParaIdOf<T> =>
+			Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId, T::Hash>)>;
 
 		/// Off-boarding account; currency held on deposit for the parachain gets placed here if the
 		/// parachain gets off-boarded; i.e. its lease period is up and it isn't renewed.
@@ -326,19 +329,15 @@ decl_module! {
 
 		/// Set the deploy information for a successful bid to deploy a new parachain.
 		///
-		/// This may be called before or after the beginning of the parachain's first lease period.
-		/// If called before then the parachain will become active at the first block of its
-		/// starting lease period. If after, then it will become active immediately after this call.
-		///
 		/// - `origin` must be the successful bidder account.
 		/// - `sub` is the sub-bidder ID of the bidder.
 		/// - `para_id` is the parachain ID allotted to the winning bidder.
-		/// - `code` is the parachain's Wasm validation function.
+		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
-		fn set_deploy_data(origin,
+		fn fix_deploy_data(origin,
 			#[compact] sub: SubId,
 			#[compact] para_id: ParaIdOf<T>,
-			code: Vec<u8>,
+			code_hash: T::Hash,
 			initial_head_data: Vec<u8>
 		) {
 			let who = ensure_signed(origin)?;
@@ -349,15 +348,39 @@ decl_module! {
 			} else {
 				return Err("already registered")
 			}
-			if starts > Self::lease_period_index() {
-				// Hasn't yet begun. Replace the on-boarding entry with the new information.
-				let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
-				<Onboarding<T>>::insert(&para_id, item);
+			let item = (starts, IncomingParachain::CodeHash{code_hash, initial_head_data});
+			<Onboarding<T>>::insert(&para_id, item);
+		}
+
+		/// Note a new parachain's code.
+		///
+		/// This must be called after `fix_deploy_data` and `code` must be the preimage of the
+		/// `code_hash` passed there for the same `para_id`.
+		///
+		/// This may be called before or after the beginning of the parachain's first lease period.
+		/// If called before then the parachain will become active at the first block of its
+		/// starting lease period. If after, then it will become active immediately after this call.
+		///
+		/// - `_origin` is irrelevant.
+		/// - `para_id` is the parachain ID whose code will be elaborated.
+		/// - `code` is the preimage of the registered `code_hash` of `para_id`.
+		fn elaborate_deploy_data(_origin, #[compact] para_id: ParaIdOf<T>, code: Vec<u8>) {
+			let (starts, details) = <Onboarding<T>>::get(&para_id)
+				.ok_or("parachain id not in onboarding")?;
+			if let IncomingParachain::CodeHash{code_hash, initial_head_data} = details {
+				ensure!(T::Hasher::hash(&code) == code_hash, "code not doesn't correspond to hash");
+				if starts > Self::lease_period_index() {
+					// Hasn't yet begun. Replace the on-boarding entry with the new information.
+					let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
+					<Onboarding<T>>::insert(&para_id, item);
+				} else {
+					// Should have already begun. Remove the on-boarding entry and register the
+					// parachain for its immediate start.
+					<Onboarding<T>>::remove(&para_id);
+					let _ = T::Parachains::register_parachain(para_id, code, initial_head_data);
+				}
 			} else {
-				// Should have already begun. Remove te on-boarding entry and register the parachain
-				// for its immediate start.
-				<Onboarding<T>>::remove(&para_id);
-				let _ = T::Parachains::register_parachain(para_id, code, initial_head_data);
+				return Err("deploy data not yet fixed")
 			}
 		}
 	}
@@ -464,7 +487,7 @@ impl<T: Trait> Module<T> {
 
 					// Add a deployment record so we know to on-board them at the appropriate
 					// juncture.
-					let begin_offset = <LeasePeriodOf<T>>::sa(range.as_pair().0 as u64);
+					let begin_offset = <LeasePeriodOf<T>>::from(range.as_pair().0 as u32);
 					let begin_lease_period = auction_lease_period_index + begin_offset;
 					<OnboardQueue<T>>::mutate(begin_lease_period, |starts| starts.push(para_id));
 					let entry = (begin_lease_period, IncomingParachain::Unset(bidder));

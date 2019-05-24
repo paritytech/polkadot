@@ -136,7 +136,7 @@ pub trait RelayChainContext {
 	type FutureEgress: IntoFuture<Item=ConsolidatedIngress, Error=Self::Error>;
 
 	/// Get un-routed egress queues from a parachain to the local parachain.
-	fn unrouted_egress(&self, id: ParaId) -> Self::FutureEgress;
+	fn unrouted_egress(&self, _id: ParaId) -> Self::FutureEgress;
 }
 
 /// Produce a candidate for the parachain, with given contexts, parent head, and signing key.
@@ -202,20 +202,17 @@ impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 	type Error = String;
 	type FutureEgress = Box<Future<Item=ConsolidatedIngress, Error=String> + Send>;
 
-	fn unrouted_egress(&self, id: ParaId) -> Self::FutureEgress {
-		let session = self.network.instantiate_session(SessionParams {
+	fn unrouted_egress(&self, _id: ParaId) -> Self::FutureEgress {
+		// TODO: https://github.com/paritytech/polkadot/issues/253
+		//
+		// Fetch ingress and accumulate all unrounted egress
+		let _session = self.network.instantiate_session(SessionParams {
 			local_session_key: None,
 			parent_hash: self.parent_hash,
 			authorities: self.authorities.clone(),
 		}).map_err(|e| format!("unable to instantiate validation session: {:?}", e));
 
-		let fetch_incoming = session
-			.and_then(move |session| session.fetch_incoming(id).map_err(|e|
-				format!("unable to fetch incoming data: {:?}", e)
-			))
-			.map(ConsolidatedIngress);
-
-		Box::new(fetch_incoming)
+		Box::new(future::ok(ConsolidatedIngress(Vec::new())))
 	}
 }
 
@@ -266,7 +263,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 		};
 
 		let message_validator = polkadot_network::gossip::register_validator(
-			&*network,
+			network.clone(),
 			move |block_hash: &Hash| {
 				use client::BlockStatus;
 				use polkadot_network::gossip::Known;
