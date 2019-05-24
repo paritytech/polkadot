@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2019 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -158,7 +158,7 @@ decl_storage! {
 		/// This is cleared out on the first block of the lease period.
 		pub OnboardQueue get(onboard_queue): map LeasePeriodOf<T> => Vec<ParaIdOf<T>>;
 
-		/// The actual on-boarding information. Only exists what one of the following is true:
+		/// The actual on-boarding information. Only exists when one of the following is true:
 		/// - It is before the lease period that the parachain should be on-boarded.
 		/// - The full on-boarding information has not yet been provided and the parachain is not
 		/// yet due to be off-boarded.
@@ -241,12 +241,13 @@ decl_module! {
 		///
 		/// This can only happen when there isn't already an auction in progress and may only be
 		/// called by the root origin. Accepts the `duration` of this auction and the
-		/// `lease_period_index` at which it should begin.
+		/// `lease_period_index` of the initial lease period of the four that are to be auctioned.
 		fn new_auction(
 			#[compact] duration: T::BlockNumber,
 			#[compact] lease_period_index: LeasePeriodOf<T>
 		) {
 			ensure!(!Self::is_in_progress(), "auction already in progress");
+			ensure!(lease_period_index >= Self::lease_period_index(), "lease period in past");
 
 			// Bump the counter.
 			let n = <AuctionCounter<T>>::mutate(|n| { *n += 1; *n });
@@ -397,7 +398,8 @@ impl<T: Trait> Module<T> {
 		<AuctionInfo<T>>::exists()
 	}
 
-	/// True if an auction is in its final ending period.
+	/// Returns `Some(n)` if the now block is part of the ending period of an auction, where `n`
+	/// represents how far into the ending period this block is. Otherwise, returns `None`.
 	fn is_ending(now: T::BlockNumber) -> Option<T::BlockNumber> {
 		if let Some((_, early_end)) = <AuctionInfo<T>>::get() {
 			if let Some(after_early_end) = now.checked_sub(&early_end) {
@@ -529,19 +531,22 @@ impl<T: Trait> Module<T> {
 				// reaped too early (any managed parachain whose `Deposits` set runs low will be
 				// removed).
 				let pair = range.as_pair();
-				let pair = (pair.0 as usize + offset, pair.1 as usize + offset + 1);
+				let pair = (pair.0 as usize + offset, pair.1 as usize + offset);
 				<Deposits<T>>::mutate(para_id, |d| {
 					// Left-pad with zeroes as necessary.
 					if d.len() < pair.0 {
 						d.resize_with(pair.0, Default::default);
 					}
 					// Then place the deposit values for as long as the chain should exist.
-					for i in pair.0 .. pair.1 {
+					for i in pair.0 ..= pair.1 {
 						if d.len() > i {
-							// The chain bought the same lease period twice. Ignore.
-							continue
+							// The chain bought the same lease period twice. Just take the maximum.
+							d[i] = d[i].max(amount);
+						} else if d.len() == i {
+							d.push(amount);
+						} else {
+							unreachable!("earlier resize means it must be >= i; qed")
 						}
-						d.push(amount);
 					}
 				});
 			}
