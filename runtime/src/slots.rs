@@ -158,7 +158,7 @@ decl_storage! {
 		/// This is cleared out on the first block of the lease period.
 		pub OnboardQueue get(onboard_queue): map LeasePeriodOf<T> => Vec<ParaIdOf<T>>;
 
-		/// The actual on-boarding information. Only exists what one of the following is true:
+		/// The actual on-boarding information. Only exists when one of the following is true:
 		/// - It is before the lease period that the parachain should be on-boarded.
 		/// - The full on-boarding information has not yet been provided and the parachain is not
 		/// yet due to be off-boarded.
