@@ -64,20 +64,18 @@ decl_storage! {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
 		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
-			let storage = std::cell::RefCell::new(storage);
-
 			let mut p = config.parachains.clone();
 			p.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
 			p.dedup_by_key(|&mut (ref id, _, _)| id.clone());
 
 			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-			<Parachains<T> as generator::StorageValue<_>>::put(&only_ids, &storage);
+			<Parachains<T> as generator::StorageValue<_>>::put(&only_ids, storage);
 
 			for (id, code, genesis) in p {
 				// no ingress -- a chain cannot be routed to until it is live.
-				<Code<T> as generator::StorageMap<_, _>>::insert(&id, &code, &storage);
-				<Heads<T> as generator::StorageMap<_, _>>::insert(&id, &genesis, &storage);
+				<Code<T> as generator::StorageMap<_, _>>::insert(&id, &code, storage);
+				<Heads<T> as generator::StorageMap<_, _>>::insert(&id, &genesis, storage);
 			}
 		});
 	}
