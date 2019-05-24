@@ -157,12 +157,11 @@ publish-docker-release:
   script:
     - VERSION="$(cat ./artifacts/VERSION)"
     - EXTRATAG="${CI_COMMIT_TAG:-latest}"
-    # something wrong with EXTRATAG https://gitlab.parity.io/parity/polkadot/-/jobs/143145  
     - echo "Polkadot version = ${VERSION}"
     - test -z "${VERSION}" && exit 1
     - cd ./artifacts
     - docker build
-      --build-arg VCS_REF="${CI_COMMIT_SHORT_SHA}"
+      --build-arg VCS_REF="${CI_COMMIT_SHA}"
       --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
       --tag $CONTAINER_IMAGE:$VERSION 
       --tag $CONTAINER_IMAGE:$EXTRATAG .
