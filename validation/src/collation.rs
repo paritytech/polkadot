@@ -64,6 +64,7 @@ pub struct CollationFetch<C: Collators, P> {
 	collators: C,
 	live_fetch: Option<<C::Collation as IntoFuture>::Future>,
 	client: Arc<P>,
+	max_block_data_size: Option<u64>,
 }
 
 impl<C: Collators, P> CollationFetch<C, P> {
@@ -73,6 +74,7 @@ impl<C: Collators, P> CollationFetch<C, P> {
 		relay_parent_hash: Hash,
 		collators: C,
 		client: Arc<P>,
+		max_block_data_size: Option<u64>,
 	) -> Self {
 		CollationFetch {
 			relay_parent: BlockId::hash(relay_parent_hash),
@@ -81,6 +83,7 @@ impl<C: Collators, P> CollationFetch<C, P> {
 			client,
 			parachain,
 			live_fetch: None,
+			max_block_data_size,
 		}
 	}
 
@@ -113,7 +116,7 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 				try_ready!(poll)
 			};
 
-			let res = validate_collation(&*self.client, &self.relay_parent, &collation);
+			let res = validate_collation(&*self.client, &self.relay_parent, &collation, self.max_block_data_size);
 
 			match res {
 				Ok(e) => {
@@ -179,7 +182,11 @@ error_chain! {
 		}
 		WrongHeadData(expected: Vec<u8>, got: Vec<u8>) {
 			description("Parachain validation produced wrong head data."),
-			display("Parachain validation produced wrong head data (expected: {:?}, got {:?}", expected, got),
+			display("Parachain validation produced wrong head data (expected: {:?}, got {:?})", expected, got),
+		}
+		BlockDataTooBig(size: u64, max_size: u64) {
+			description("Block data is too big."),
+			display("Block data is too big (maximum allowed size: {}, actual size: {})", max_size, size),
 		}
 	}
 }
@@ -331,11 +338,19 @@ pub fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
 	collation: &Collation,
+	max_block_data_size: Option<u64>,
 ) -> Result<Extrinsic, Error> where
 	P: ProvideRuntimeApi,
 	P::Api: ParachainHost<Block>,
 {
 	use parachain::{IncomingMessage, ValidationParams};
+
+	if let Some(max_size) = max_block_data_size {
+		let block_data_size = collation.pov.block_data.0.len() as u64;
+		if block_data_size > max_size {
+			return Err(ErrorKind::BlockDataTooBig(block_data_size, max_size).into());
+		}
+	}
 
 	let api = client.runtime_api();
 	let para_id = collation.receipt.parachain_index;

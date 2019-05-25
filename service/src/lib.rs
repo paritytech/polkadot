@@ -85,6 +85,9 @@ pub struct CustomConfiguration {
 		grandpa::LinkHalfForService<Factory>
 	)>,
 
+	/// Maximal `block_data` size.
+	pub max_block_data_size: Option<u64>,
+
 	inherent_data_providers: InherentDataProviders,
 }
 
@@ -94,6 +97,7 @@ impl Default for CustomConfiguration {
 			collating_for: None,
 			grandpa_import_setup: None,
 			inherent_data_providers: InherentDataProviders::new(),
+			max_block_data_size: None,
 		}
 	}
 }
@@ -311,6 +315,7 @@ construct_service_factory! {
 					key.clone(),
 					extrinsic_store,
 					SlotDuration::get_or_compute(&*client)?,
+					service.config.custom.max_block_data_size,
 				);
 
 				info!("Using authority key {}", key.public());

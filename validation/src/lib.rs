@@ -300,6 +300,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		grandparent_hash: Hash,
 		authorities: &[AuthorityId],
 		sign_with: Arc<ed25519::Pair>,
+		max_block_data_size: Option<u64>,
 	)
 		-> Result<Arc<AttestationTracker>, Error>
 	{
@@ -351,7 +352,14 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
-		let table = Arc::new(SharedTable::new(authorities, group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
+		let table = Arc::new(SharedTable::new(
+			authorities,
+			group_info,
+			sign_with.clone(),
+			parent_hash,
+			self.extrinsic_store.clone(),
+			max_block_data_size,
+		));
 		let router = self.network.communication_for(
 			table.clone(),
 			authorities,
@@ -362,6 +370,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				parent_hash,
 				id,
 				router,
+				max_block_data_size,
 			)),
 			Chain::Relay => None,
 		};
@@ -387,7 +396,8 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		&self,
 		relay_parent: Hash,
 		validation_para: ParaId,
-		build_router: N::BuildTableRouter
+		build_router: N::BuildTableRouter,
+		max_block_data_size: Option<u64>,
 	) -> exit_future::Signal {
 		use extrinsic_store::Data;
 
@@ -402,6 +412,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				relay_parent,
 				collators,
 				client,
+				max_block_data_size,
 			);
 
 			collation_work.then(move |result| match result {
@@ -466,6 +477,7 @@ pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	_service_handle: ServiceHandle,
 	aura_slot_duration: SlotDuration,
 	select_chain: SC,
+	max_block_data_size: Option<u64>,
 }
 
 impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
@@ -491,6 +503,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 		key: Arc<ed25519::Pair>,
 		extrinsic_store: ExtrinsicStore,
 		aura_slot_duration: SlotDuration,
+		max_block_data_size: Option<u64>,
 	) -> Self {
 		let parachain_validation = Arc::new(ParachainValidation {
 			client: client.clone(),
@@ -508,6 +521,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			thread_pool,
 			key.clone(),
 			extrinsic_store,
+			max_block_data_size,
 		);
 
 		ProposerFactory {
@@ -516,7 +530,8 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			key,
 			_service_handle: service_handle,
 			aura_slot_duration,
-			select_chain
+			select_chain,
+			max_block_data_size,
 		}
 	}
 }
@@ -548,6 +563,7 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 			parent_header.parent_hash().clone(),
 			authorities,
 			sign_with,
+			self.max_block_data_size,
 		)?;
 
 		Ok(Proposer {
