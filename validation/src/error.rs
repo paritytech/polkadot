@@ -23,10 +23,7 @@ use primitives::ed25519::Public as AuthorityId;
 error_chain! {
 	foreign_links {
 		Client(::client::error::Error);
-	}
-
-	links {
-		Consensus(::consensus::error::Error, ::consensus::error::ErrorKind);
+		Consensus(::consensus::error::Error);
 	}
 
 	errors {

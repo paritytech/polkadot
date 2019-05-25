@@ -57,7 +57,7 @@ use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration, NothingExtra
 use inherents::InherentDataProviders;
 pub use service::{
 	Roles, PruningMode, TransactionPoolOptions, ComponentClient,
-	ErrorKind, Error, ComponentBlock, LightComponents, FullComponents,
+	Error, ComponentBlock, LightComponents, FullComponents,
 	FullClient, LightClient, Components, Service, ServiceFactory
 };
 pub use service::config::full_version_from_strs;
