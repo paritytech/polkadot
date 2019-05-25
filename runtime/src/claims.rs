@@ -167,7 +167,7 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 				}
 
 				TransactionValidity::Valid {
-					priority: PRIORIY,
+					priority: PRIORITY,
 					requires: vec![],
 					provides: vec![],
 					longevity: TransactionLongevity::max_value(),
