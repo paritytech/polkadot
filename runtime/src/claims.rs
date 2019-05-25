@@ -151,7 +151,7 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 		const SIGNER_HAS_NO_CLAIM: i8 = -20;
 		const INVALID_CALL: i8 = -30;
 
-		const PRIORIY: u64 = 100;
+		const PRIORITY: u64 = 100;
 
 		match call {
 			Call::claim(account, ethereum_signature) => {
