@@ -143,7 +143,7 @@ decl_module! {
 }
 
 impl<T: Trait> ValidateUnsigned for Module<T> {
-	type Call=Call<T>;
+	type Call = Call<T>;
 
 	fn validate_unsigned(call: &Self::Call) -> TransactionValidity {
 		// Note errors > 0 are from ApplyError
