@@ -9,7 +9,6 @@ authors = ["Parity Technologies <admin@parity.io>"]
 build = "build.rs"
 
 [dependencies]
-error-chain = "0.12"
 polkadot-cli = { path = "cli" }
 futures = "0.1"
 ctrlc = { version = "3.0", features = ["termination"] }
