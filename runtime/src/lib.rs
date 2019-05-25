@@ -270,6 +270,19 @@ impl slots::Trait for Runtime {
 	type EndingPeriod = EndingPeriod;
 }
 
+parameter_types!{
+	pub const LeasePeriod: BlockNumber = 100000;
+	pub const EndingPeriod: BlockNumber = 1000;
+}
+
+impl slots::Trait for Runtime {
+	type Event = Event;
+	type Currency = balances::Module<Self>;
+	type Parachains = parachains::Module<Self>;
+	type LeasePeriod = LeasePeriod;
+	type EndingPeriod = EndingPeriod;
+}
+
 impl curated_grandpa::Trait for Runtime { }
 
 impl sudo::Trait for Runtime {

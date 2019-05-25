@@ -20,10 +20,12 @@ use rstd::prelude::*;
 use sr_io::{keccak_256, secp256k1_ecdsa_recover};
 use srml_support::{StorageValue, StorageMap};
 use srml_support::traits::Currency;
-use system::ensure_signed;
+use system::ensure_none;
 use codec::Encode;
 #[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
+use sr_primitives::traits::ValidateUnsigned;
+use sr_primitives::transaction_validity::{TransactionLongevity, TransactionValidity};
 use system;
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -118,13 +120,11 @@ decl_module! {
 		fn deposit_event<T>() = default;
 
 		/// Make a claim.
-		fn claim(origin, ethereum_signature: EcdsaSignature) {
-			// This is a public call, so we ensure that the origin is some signed account.
-			let sender = ensure_signed(origin)?;
+		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
+			ensure_none(origin)?;
 
-			let signer = sender.using_encoded(|data|
-					eth_recover(&ethereum_signature, data)
-				).ok_or("Invalid Ethereum signature")?;
+			let signer = dest.using_encoded(|data| eth_recover(&ethereum_signature, data))
+				.ok_or("Invalid Ethereum signature")?;
 
 			let balance_due = <Claims<T>>::take(&signer)
 				.ok_or("Ethereum address has no claim")?;
@@ -135,10 +135,46 @@ decl_module! {
 				*t -= balance_due
 			});
 
-			T::Currency::deposit_creating(&sender, balance_due);
+			T::Currency::deposit_creating(&dest, balance_due);
 
 			// Let's deposit an event to let the outside world know this happened.
-			Self::deposit_event(RawEvent::Claimed(sender, signer, balance_due));
+			Self::deposit_event(RawEvent::Claimed(dest, signer, balance_due));
+		}
+	}
+}
+
+impl<T: Trait> ValidateUnsigned for Module<T> {
+	type Call = Call<T>;
+
+	fn validate_unsigned(call: &Self::Call) -> TransactionValidity {
+		// Note errors > 0 are from ApplyError
+		const INVALID_ETHEREUM_SIGNATURE: i8 = -10;
+		const SIGNER_HAS_NO_CLAIM: i8 = -20;
+		const INVALID_CALL: i8 = -30;
+
+		const PRIORITY: u64 = 100;
+
+		match call {
+			Call::claim(account, ethereum_signature) => {
+				let signer = account.using_encoded(|data| eth_recover(&ethereum_signature, data));
+				let signer = if let Some(signer) = signer {
+					signer
+				} else {
+					return TransactionValidity::Invalid(INVALID_ETHEREUM_SIGNATURE);
+				};
+
+				if !<Claims<T>>::exists(&signer) {
+					return TransactionValidity::Invalid(SIGNER_HAS_NO_CLAIM);
+				}
+
+				TransactionValidity::Valid {
+					priority: PRIORITY,
+					requires: vec![],
+					provides: vec![],
+					longevity: TransactionLongevity::max_value(),
+				}
+			}
+			_ => TransactionValidity::Invalid(INVALID_CALL)
 		}
 	}
 }
@@ -249,8 +285,17 @@ mod tests {
 	fn claiming_works() {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_ok!(Claims::claim(Origin::signed(42), alice_sig(&42u64.encode())));
+			assert_ok!(Claims::claim(Origin::NONE, 42, alice_sig(&42u64.encode())));
 			assert_eq!(Balances::free_balance(&42), 100);
+		});
+	}
+
+	#[test]
+	fn origin_signed_claiming_fail() {
+		with_externalities(&mut new_test_ext(), || {
+			assert_eq!(Balances::free_balance(&42), 0);
+			assert_err!(Claims::claim(Origin::signed(42), 42, alice_sig(&42u64.encode())),
+				"bad origin: expected to be no origin");
 		});
 	}
 
@@ -258,8 +303,8 @@ mod tests {
 	fn double_claiming_doesnt_work() {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_ok!(Claims::claim(Origin::signed(42), alice_sig(&42u64.encode())));
-			assert_noop!(Claims::claim(Origin::signed(42), alice_sig(&42u64.encode())), "Ethereum address has no claim");
+			assert_ok!(Claims::claim(Origin::NONE, 42, alice_sig(&42u64.encode())));
+			assert_noop!(Claims::claim(Origin::NONE, 42, alice_sig(&42u64.encode())), "Ethereum address has no claim");
 		});
 	}
 
@@ -267,7 +312,7 @@ mod tests {
 	fn non_sender_sig_doesnt_work() {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_noop!(Claims::claim(Origin::signed(42), alice_sig(&69u64.encode())), "Ethereum address has no claim");
+			assert_noop!(Claims::claim(Origin::NONE, 42, alice_sig(&69u64.encode())), "Ethereum address has no claim");
 		});
 	}
 
@@ -275,7 +320,7 @@ mod tests {
 	fn non_claimant_doesnt_work() {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_noop!(Claims::claim(Origin::signed(42), bob_sig(&69u64.encode())), "Ethereum address has no claim");
+			assert_noop!(Claims::claim(Origin::NONE, 42, bob_sig(&69u64.encode())), "Ethereum address has no claim");
 		});
 	}
 
@@ -286,5 +331,32 @@ mod tests {
 		let who = 42u64.encode();
 		let signer = eth_recover(&sig, &who).unwrap();
 		assert_eq!(signer, hex!["DF67EC7EAe23D2459694685257b6FC59d1BAA1FE"]);
+	}
+
+	#[test]
+	fn validate_unsigned_works() {
+		with_externalities(&mut new_test_ext(), || {
+			assert_eq!(
+				<Module<Test>>::validate_unsigned(&Call::claim(1, alice_sig(&1u64.encode()))),
+				TransactionValidity::Valid {
+					priority: 100,
+					requires: vec![],
+					provides: vec![],
+					longevity: TransactionLongevity::max_value(),
+				}
+			);
+			assert_eq!(
+				<Module<Test>>::validate_unsigned(&Call::claim(0, EcdsaSignature::from_blob(&[0; 65]))),
+				TransactionValidity::Invalid(-10)
+			);
+			assert_eq!(
+				<Module<Test>>::validate_unsigned(&Call::claim(1, bob_sig(&1u64.encode()))),
+				TransactionValidity::Invalid(-20)
+			);
+			assert_eq!(
+				<Module<Test>>::validate_unsigned(&Call::claim(0, bob_sig(&1u64.encode()))),
+				TransactionValidity::Invalid(-20)
+			);
+		});
 	}
 }

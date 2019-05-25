@@ -26,8 +26,8 @@ use primitives::{Hash, parachain::{
 	ParachainDispatchOrigin
 }};
 use {system, session};
-
 use srml_support::{StorageValue, StorageMap, Parameter, Dispatchable, dispatch::Result};
+
 #[cfg(feature = "std")]
 use srml_support::storage::hashed::generator;
 
@@ -102,7 +102,7 @@ pub trait Trait: session::Trait {
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
 
 	/// The outer call dispatch type.
-	type Proposal: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
+	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
 
 //	/// The outer event type.
 //	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
@@ -211,7 +211,7 @@ decl_module! {
 //				let id = head.parachain_index();
 				for &(ref origin, ref data) in &head.candidate.upward_messages {
 					// execute motion, assuming it exists.
-					if let Some(message_call) = T::Proposal::decode(&mut &data[..]) {
+					if let Some(message_call) = T::Call::decode(&mut &data[..]) {
 						let origin: <T as Trait>::Origin = match *origin {
 							ParachainDispatchOrigin::Signed =>
 								system::RawOrigin::Signed(id.into_account()).into(),
