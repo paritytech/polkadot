@@ -18,10 +18,10 @@
 
 use rstd::prelude::*;
 use sr_io::{keccak_256, secp256k1_ecdsa_recover};
-use srml_support::{StorageValue, StorageMap};
+use srml_support::{StorageValue, StorageMap, decl_event, decl_storage, decl_module};
 use srml_support::traits::Currency;
 use system::ensure_none;
-use codec::Encode;
+use parity_codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
 use sr_primitives::traits::ValidateUnsigned;
@@ -183,17 +183,19 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 mod tests {
 	use secp256k1;
 	use tiny_keccak::keccak256;
+	use hex_literal::hex;
 	use super::*;
 
 	use sr_io::with_externalities;
 	use substrate_primitives::{H256, Blake2Hasher};
-	use codec::{Decode, Encode};
+	use parity_codec::{Decode, Encode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sr_primitives::{
 		BuildStorage, traits::{BlakeTwo256, IdentityLookup}, testing::{Digest, DigestItem, Header}
 	};
 	use balances;
+	use srml_support::{impl_outer_origin, assert_ok, assert_err, assert_noop};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}

@@ -29,42 +29,6 @@
 //!
 //! Groups themselves may be compromised by malicious authorities.
 
-extern crate parking_lot;
-extern crate polkadot_availability_store as extrinsic_store;
-extern crate polkadot_statement_table as table;
-extern crate polkadot_parachain as parachain;
-extern crate polkadot_runtime;
-extern crate polkadot_primitives;
-
-extern crate parity_codec as codec;
-extern crate substrate_inherents as inherents;
-extern crate substrate_primitives as primitives;
-extern crate srml_aura as runtime_aura;
-extern crate sr_primitives as runtime_primitives;
-extern crate substrate_client as client;
-extern crate substrate_trie as trie;
-
-extern crate exit_future;
-extern crate tokio;
-extern crate substrate_consensus_common as consensus;
-extern crate substrate_consensus_aura as aura;
-extern crate substrate_consensus_aura_primitives as aura_primitives;
-extern crate substrate_finality_grandpa as grandpa;
-extern crate substrate_transaction_pool as transaction_pool;
-extern crate substrate_consensus_authorities as consensus_authorities;
-
-#[macro_use]
-extern crate error_chain;
-
-#[macro_use]
-extern crate futures;
-
-#[macro_use]
-extern crate log;
-
-#[cfg(test)]
-extern crate substrate_keyring;
-
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{self, Duration, Instant};
@@ -73,7 +37,7 @@ use aura::SlotDuration;
 use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
-use codec::Encode;
+use parity_codec::Encode;
 use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
@@ -97,6 +61,8 @@ use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_aura::timestamp::TimestampInherentData;
+use log::{info, debug, warn, trace};
+use error_chain::bail;
 
 use ed25519::Public as AuthorityId;
 
@@ -313,7 +279,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		// compute the parent candidates, if we know of them.
 		// this will allow us to circulate outgoing messages to other peers as necessary.
-		let parent_candidates: Vec<_> = ::attestation_service::fetch_candidates(&*self.client, &id)
+		let parent_candidates: Vec<_> = crate::attestation_service::fetch_candidates(&*self.client, &id)
 			.ok()
 			.and_then(|x| x)
 			.map(|x| x.collect())
@@ -514,7 +480,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			live_instances: Mutex::new(HashMap::new()),
 		});
 
-		let service_handle = ::attestation_service::start(
+		let service_handle = crate::attestation_service::start(
 			client,
 			select_chain.clone(),
 			parachain_validation.clone(),
@@ -825,7 +791,7 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 		// 1. try to propose if we have enough includable candidates and other
 		// delays have concluded.
 		let included = self.table.includable_count();
-		try_ready!(self.timing.poll(included));
+		futures::try_ready!(self.timing.poll(included));
 
 		// 2. propose
 		let proposed_candidates = self.table.proposed_set();

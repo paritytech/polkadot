@@ -18,12 +18,12 @@
 
 #![allow(unused)]
 
-use validation::{NetworkService, GossipService};
+use crate::validation::{NetworkService, GossipService};
 use substrate_network::Context as NetContext;
 use substrate_network::consensus_gossip::TopicNotification;
 use substrate_primitives::{NativeOrEncoded, ExecutionContext};
 use substrate_keyring::AuthorityKeyring;
-use {PolkadotProtocol};
+use crate::PolkadotProtocol;
 
 use polkadot_validation::{SharedTable, MessagesFrom, Network};
 use polkadot_primitives::{SessionKey, Block, Hash, Header, BlockId};
@@ -322,7 +322,7 @@ impl ParachainHost<Block> for RuntimeApi {
 	}
 }
 
-type TestValidationNetwork = ::validation::ValidationNetwork<
+type TestValidationNetwork = crate::validation::ValidationNetwork<
 	TestApi,
 	NeverExit,
 	TestNetwork,

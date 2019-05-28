@@ -21,7 +21,7 @@
 
 use polkadot_primitives::{Hash, SessionKey};
 
-use collator_pool::Role;
+use crate::collator_pool::Role;
 
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};

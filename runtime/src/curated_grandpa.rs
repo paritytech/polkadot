@@ -17,9 +17,10 @@
 //! A module for manually curated GRANDPA set.
 
 use {grandpa, system};
-use codec::Decode;
+use parity_codec::Decode;
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Zero};
 use rstd::prelude::*;
+use srml_support::{decl_storage, decl_module};
 
 pub trait Trait: grandpa::Trait {}
 

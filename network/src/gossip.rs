@@ -23,15 +23,16 @@ use substrate_network::consensus_gossip::{
 };
 use polkadot_validation::{GenericStatement, SignedStatement};
 use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorIndex};
-use codec::{Decode, Encode};
+use parity_codec::{Decode, Encode};
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use parking_lot::RwLock;
+use log::warn;
 
 use super::NetworkService;
-use router::attestation_topic;
+use crate::router::attestation_topic;
 
 /// The engine ID of the polkadot attestation system.
 pub const POLKADOT_ENGINE_ID: sr_primitives::ConsensusEngineId = [b'd', b'o', b't', b'1'];

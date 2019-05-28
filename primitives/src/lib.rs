@@ -20,38 +20,19 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-extern crate parity_codec as codec;
-extern crate substrate_primitives as primitives;
-extern crate sr_primitives as runtime_primitives;
-extern crate sr_std as rstd;
-extern crate sr_version;
-extern crate polkadot_parachain;
-
-#[cfg(test)]
-extern crate substrate_serializer;
-
-#[macro_use]
-extern crate parity_codec_derive;
-
 #[cfg(feature = "std")]
-#[macro_use]
-extern crate serde_derive;
-
-#[cfg(feature = "std")]
-extern crate serde;
-
-#[macro_use]
-extern crate substrate_client;
+use serde::{Serialize, Deserialize};
 
 use rstd::prelude::*;
 use runtime_primitives::{generic, traits::Extrinsic, AnySignature};
+use parity_codec::{Encode, Decode};
+use primitives::ed25519;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify};
-use primitives::ed25519;
 
 pub mod parachain;
 
-pub use codec::Compact;
+pub use parity_codec::Compact;
 
 #[cfg(feature = "std")]
 use primitives::bytes;

@@ -31,17 +31,18 @@ use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{Extrinsic, CandidateReceipt, ParachainHost,
 	ValidatorIndex, Collation, PoVBlock,
 };
-use gossip::RegisteredMessageValidator;
+use crate::gossip::RegisteredMessageValidator;
 
-use codec::{Encode, Decode};
+use parity_codec::{Encode, Decode};
 use futures::prelude::*;
 use parking_lot::Mutex;
+use log::{debug, trace};
 
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 
-use validation::{self, SessionDataFetcher, NetworkService, Executor};
+use crate::validation::{self, SessionDataFetcher, NetworkService, Executor};
 
 /// Compute the gossip topic for attestations on the given parent hash.
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {

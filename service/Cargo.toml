@@ -2,6 +2,7 @@
 name = "polkadot-service"
 version = "0.5.0"
 authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
 
 [dependencies]
 parking_lot = "0.7.1"
@@ -10,22 +11,22 @@ lazy_static = "1.0"
 log = "0.4.6"
 slog = "^2"
 tokio = "0.1.7"
-hex-literal = "0.1"
-polkadot-availability-store = { path = "../availability-store" }
-polkadot-validation = { path = "../validation" }
+hex-literal = "0.2"
+av_store = { package = "polkadot-availability-store", path = "../availability-store" }
+consensus = { package = "polkadot-validation", path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-executor = { path = "../executor" }
 polkadot-network = { path = "../network"  }
 sr-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-consensus-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-telemetry = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+aura = { package = "substrate-consensus-aura", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

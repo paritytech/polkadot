@@ -18,7 +18,11 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
+use parity_codec::{Encode, Decode};
 use super::Hash;
+
+#[cfg(feature = "std")]
+use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
@@ -297,7 +301,7 @@ impl AttestedCandidate {
 	}
 }
 
-decl_runtime_apis! {
+substrate_client::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost {
 		/// Get the current validators.

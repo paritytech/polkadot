@@ -19,6 +19,7 @@
 
 use rstd::{result, ops::Add, convert::{TryFrom, TryInto}};
 use sr_primitives::traits::CheckedSub;
+use parity_codec::{Encode, Decode};
 
 /// Total number of possible sub ranges of slots.
 pub const SLOT_RANGE_COUNT: usize = 10;

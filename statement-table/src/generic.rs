@@ -28,6 +28,8 @@ use std::collections::hash_map::{HashMap, Entry};
 use std::hash::Hash;
 use std::fmt::Debug;
 
+use parity_codec::{Encode, Decode};
+
 /// Context for the statement table.
 pub trait Context {
 	/// A authority ID
