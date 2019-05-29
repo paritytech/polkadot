@@ -606,7 +606,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 
 	fn propose(&self,
 		inherent_data: InherentData,
-		digest: <Block::Header as HeaderT>::Digest,
+		digest: <<Block as BlockT>::Header as HeaderT>::Digest,
 		max_duration: Duration,
 	) -> Self::Create {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
@@ -750,7 +750,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 
 		let runtime_api = self.client.runtime_api();
 
-		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false)?;
+		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false, Default::default())?;
 
 		{
 			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
