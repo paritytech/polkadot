@@ -542,6 +542,7 @@ impl<T: Trait> ProvideInherent for Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use super::Call as ParachainsCall;
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
@@ -550,9 +551,18 @@ mod tests {
 	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey};
 	use keyring::{AuthorityKeyring, AccountKeyring};
 	use {consensus, timestamp};
+	use crate::parachains;
 
 	impl_outer_origin! {
-		pub enum Origin for Test {}
+		pub enum Origin for Test {
+			parachains
+		}
+	}
+
+	impl_outer_dispatch! {
+		pub enum Call for Test where origin: Origin {
+			parachains::Parachains,
+		}
 	}
 
 	#[derive(Clone, Eq, PartialEq)]
@@ -584,7 +594,10 @@ mod tests {
 		type Moment = u64;
 		type OnTimestampSet = ();
 	}
-	impl Trait for Test {}
+	impl Trait for Test {
+		type Origin = Origin;
+		type Call = Call;
+	}
 
 	type Parachains = Module<Test>;
 	type System = system::Module<Test>;
@@ -622,10 +635,14 @@ mod tests {
 			keys: vec![],
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
-			parachains: parachains,
+			parachains,
 			_phdata: Default::default(),
 		}.build_storage().unwrap().0);
 		t.into()
+	}
+
+	fn set_heads(v: Vec<AttestedCandidate>) -> ParachainsCall<Test> {
+		ParachainsCall::set_heads(v)
 	}
 
 	fn make_attestations(candidate: &mut AttestedCandidate) {
@@ -678,6 +695,7 @@ mod tests {
 				egress_queue_roots,
 				fees: 0,
 				block_data_hash: Default::default(),
+				upward_messages: vec![],
 			}
 		}
 	}
@@ -773,11 +791,12 @@ mod tests {
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				},
 
 			};
 
-			assert!(Parachains::dispatch(Call::set_heads(vec![candidate]), Origin::NONE).is_err());
+			assert!(Parachains::dispatch(set_heads(vec![candidate]), Origin::NONE).is_err());
 		})
 	}
 
@@ -800,6 +819,7 @@ mod tests {
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				}
 			};
 
@@ -814,6 +834,7 @@ mod tests {
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				}
 			};
 
@@ -821,12 +842,12 @@ mod tests {
 			make_attestations(&mut candidate_b);
 
 			assert!(Parachains::dispatch(
-				Call::set_heads(vec![candidate_b.clone(), candidate_a.clone()]),
+				set_heads(vec![candidate_b.clone(), candidate_a.clone()]),
 				Origin::NONE,
 			).is_err());
 
 			assert!(Parachains::dispatch(
-				Call::set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
+				set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
 				Origin::NONE,
 			).is_ok());
 		});
@@ -851,6 +872,7 @@ mod tests {
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				}
 			};
 
@@ -860,7 +882,7 @@ mod tests {
 			double_validity.validity_votes.push(candidate.validity_votes[0].clone());
 
 			assert!(Parachains::dispatch(
-				Call::set_heads(vec![double_validity]),
+				set_heads(vec![double_validity]),
 				Origin::NONE,
 			).is_err());
 		});
@@ -887,6 +909,7 @@ mod tests {
 					egress_queue_roots: from_a.clone(),
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				}
 			};
 
@@ -902,6 +925,7 @@ mod tests {
 					egress_queue_roots: from_b.clone(),
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				}
 			};
 
@@ -912,7 +936,7 @@ mod tests {
 			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
 
 			assert!(Parachains::dispatch(
-				Call::set_heads(vec![candidate_a, candidate_b]),
+				set_heads(vec![candidate_a, candidate_b]),
 				Origin::NONE,
 			).is_ok());
 
@@ -951,7 +975,7 @@ mod tests {
 			make_attestations(&mut candidate);
 
 			let result = Parachains::dispatch(
-				Call::set_heads(vec![candidate.clone()]),
+				set_heads(vec![candidate.clone()]),
 				Origin::NONE,
 			);
 
@@ -975,7 +999,7 @@ mod tests {
 			make_attestations(&mut candidate);
 
 			let result = Parachains::dispatch(
-				Call::set_heads(vec![candidate.clone()]),
+				set_heads(vec![candidate.clone()]),
 				Origin::NONE,
 			);
 
@@ -999,7 +1023,7 @@ mod tests {
 			make_attestations(&mut candidate);
 
 			let result = Parachains::dispatch(
-				Call::set_heads(vec![candidate.clone()]),
+				set_heads(vec![candidate.clone()]),
 				Origin::NONE,
 			);
 
@@ -1023,7 +1047,7 @@ mod tests {
 			make_attestations(&mut candidate);
 
 			let result = Parachains::dispatch(
-				Call::set_heads(vec![candidate.clone()]),
+				set_heads(vec![candidate.clone()]),
 				Origin::NONE,
 			);
 
