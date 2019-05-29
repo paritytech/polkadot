@@ -3,6 +3,7 @@ name = "polkadot-availability-store"
 description = "Persistent database for parachain data"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
 
 [dependencies]
 polkadot-primitives = { path = "../primitives" }

@@ -31,6 +31,8 @@ use parachain::{wasm_executor::{self, ExternalitiesError}, MessageRef};
 use error_chain::bail;
 
 use futures::prelude::*;
+use error_chain::*;
+use log::debug;
 
 /// Encapsulates connections to collators and allows collation on any parachain.
 ///
@@ -113,7 +115,7 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 					.get_or_insert_with(move || c.collate(parachain, r).into_future())
 					.poll();
 
-				try_ready!(poll)
+				futures::try_ready!(poll)
 			};
 
 			let res = validate_collation(&*self.client, &self.relay_parent, &collation, self.max_block_data_size);

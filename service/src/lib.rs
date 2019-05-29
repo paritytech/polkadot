@@ -16,30 +16,6 @@
 
 //! Polkadot service. Specialized wrapper over substrate service.
 
-extern crate polkadot_availability_store as av_store;
-extern crate polkadot_validation as consensus;
-extern crate polkadot_primitives;
-extern crate polkadot_runtime;
-extern crate polkadot_executor;
-extern crate polkadot_network;
-extern crate sr_primitives;
-extern crate substrate_primitives as primitives;
-extern crate substrate_client as client;
-#[macro_use]
-extern crate substrate_service as service;
-extern crate substrate_consensus_aura as aura;
-extern crate substrate_consensus_common as consensus_common;
-extern crate substrate_finality_grandpa as grandpa;
-extern crate substrate_transaction_pool as transaction_pool;
-extern crate substrate_telemetry as telemetry;
-extern crate tokio;
-extern crate substrate_inherents as inherents;
-
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate hex_literal;
-
 pub mod chain_spec;
 
 use client::LongestChain;
@@ -55,6 +31,7 @@ use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor,
 use transaction_pool::txpool::{Pool as TransactionPool};
 use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration, NothingExtra};
 use inherents::InherentDataProviders;
+use log::info;
 pub use service::{
 	Roles, PruningMode, TransactionPoolOptions, ComponentClient,
 	Error, ComponentBlock, LightComponents, FullComponents,
@@ -169,7 +146,7 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 	}
 }
 
-construct_service_factory! {
+service::construct_service_factory! {
 	struct Factory {
 		Block = Block,
 		RuntimeApi = RuntimeApi,

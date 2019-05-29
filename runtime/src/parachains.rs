@@ -17,9 +17,10 @@
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
 use rstd::prelude::*;
-use codec::{Decode, HasCompact};
+use parity_codec::{Decode, HasCompact};
+use srml_support::{decl_storage, decl_module, fail, ensure};
 
-use bitvec::BigEndian;
+use bitvec::{bitvec, BigEndian};
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member};
 use primitives::{Hash, parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion}};
 use {system, session};
@@ -216,7 +217,7 @@ fn majority_of(list_len: usize) -> usize {
 }
 
 fn localized_payload(statement: Statement, parent_hash: ::primitives::Hash) -> Vec<u8> {
-	use codec::Encode;
+	use parity_codec::Encode;
 
 	let mut encoded = statement.encode();
 	encoded.extend(parent_hash.as_ref());
@@ -513,6 +514,7 @@ mod tests {
 	use sr_primitives::traits::{BlakeTwo256, IdentityLookup};
 	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey};
 	use keyring::{AuthorityKeyring, AccountKeyring};
+	use srml_support::{impl_outer_origin, assert_ok};
 	use {consensus, timestamp};
 
 	impl_outer_origin! {
@@ -524,20 +526,20 @@ mod tests {
 	impl consensus::Trait for Test {
 		type InherentOfflineReport = ();
 		type SessionKey = SessionKey;
-		type Log = ::Log;
+		type Log = crate::Log;
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
-		type Index = ::Nonce;
+		type Index = crate::Nonce;
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
-		type Digest = generic::Digest<::Log>;
-		type AccountId = ::AccountId;
-		type Lookup = IdentityLookup<::AccountId>;
-		type Header = ::Header;
+		type Digest = generic::Digest<crate::Log>;
+		type AccountId = crate::AccountId;
+		type Lookup = IdentityLookup<crate::AccountId>;
+		type Header = crate::Header;
 		type Event = ();
-		type Log = ::Log;
+		type Log = crate::Log;
 	}
 	impl session::Trait for Test {
 		type ConvertAccountIdToSessionKey = ();
@@ -582,7 +584,7 @@ mod tests {
 		}.build_storage().unwrap().0);
 		t.extend(session::GenesisConfig::<Test>{
 			session_length: 1000,
-			validators: validator_keys.iter().map(|k| ::AccountId::from(*k)).collect(),
+			validators: validator_keys.iter().map(|k| crate::AccountId::from(*k)).collect(),
 			keys: vec![],
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
@@ -594,12 +596,12 @@ mod tests {
 
 	fn make_attestations(candidate: &mut AttestedCandidate) {
 		let mut vote_implicit = false;
-		let parent_hash = ::System::parent_hash();
+		let parent_hash = crate::System::parent_hash();
 
 		let duty_roster = Parachains::calculate_duty_roster();
 		let candidate_hash = candidate.candidate.hash();
 
-		let authorities = ::Consensus::authorities();
+		let authorities = crate::Consensus::authorities();
 		let extract_key = |public: SessionKey| {
 			AuthorityKeyring::from_raw_public(public.0).unwrap()
 		};

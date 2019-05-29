@@ -22,12 +22,6 @@
 	alloc, core_intrinsics, lang_items, core_panic_info, alloc_error_handler
 )]
 
-extern crate alloc;
-extern crate adder;
-extern crate polkadot_parachain as parachain;
-extern crate tiny_keccak;
-extern crate dlmalloc;
-
 #[global_allocator]
 static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 

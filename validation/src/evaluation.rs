@@ -18,9 +18,10 @@
 
 use super::MAX_TRANSACTIONS_SIZE;
 
-use codec::Encode;
+use parity_codec::Encode;
 use polkadot_primitives::{Block, Hash, BlockNumber};
 use polkadot_primitives::parachain::Id as ParaId;
+use error_chain::*;
 
 error_chain! {
 	foreign_links {

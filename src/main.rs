@@ -18,10 +18,6 @@
 
 #![warn(missing_docs)]
 
-extern crate polkadot_cli as cli;
-extern crate ctrlc;
-extern crate futures;
-
 use cli::{PolkadotService, VersionInfo, TaskExecutor};
 use futures::sync::oneshot;
 use futures::{future, Future};

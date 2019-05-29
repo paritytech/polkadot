@@ -25,6 +25,7 @@ use polkadot_runtime::{
 	CuratedGrandpaConfig, StakerStatus,
 };
 use telemetry::TelemetryEndpoints;
+use hex_literal::hex;
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";

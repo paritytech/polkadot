@@ -16,16 +16,6 @@
 
 //! Collator for polkadot
 
-extern crate adder;
-extern crate substrate_primitives;
-extern crate polkadot_parachain as parachain;
-extern crate polkadot_primitives as primitives;
-extern crate polkadot_collator as collator;
-extern crate parking_lot;
-extern crate ctrlc;
-extern crate futures;
-extern crate exit_future;
-
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;

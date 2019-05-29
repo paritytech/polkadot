@@ -18,5 +18,4 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-extern crate polkadot_runtime;
 pub use polkadot_runtime::*;

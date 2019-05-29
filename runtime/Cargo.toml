@@ -2,6 +2,7 @@
 name = "polkadot-runtime"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
 
 [dependencies]
 bitvec = { version = "0.8", default-features = false, features = ["alloc"] }
@@ -10,41 +11,40 @@ log = { version = "0.3", optional = true }
 serde = { version = "1.0", default-features = false }
 serde_derive = { version = "1.0", optional = true }
 safe-mix = { version = "1.0", default-features = false}
-polkadot-primitives = { path = "../primitives", default-features = false }
-parity-codec = { version = "3.0", default-features = false }
-parity-codec-derive = { version = "3.0", default-features = false }
+primitives = { package = "polkadot-primitives", path = "../primitives", default-features = false }
+parity-codec = { version = "3.0", default-features = false, features = ["derive"] }
 substrate-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sr-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sr-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 srml-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-substrate-inherents = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-substrate-consensus-aura-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-substrate-offchain-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-aura = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-balances = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-consensus = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-council = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-democracy = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-executive = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-indices = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+consensus_aura = { package = "substrate-consensus-aura-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+offchain_primitives = { package = "substrate-offchain-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+aura = { package = "srml-aura", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+consensus = { package = "srml-consensus", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+council = { package = "srml-council", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+democracy = { package = "srml-democracy", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+executive = { package = "srml-executive", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+indices = { package = "srml-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-sudo = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-treasury = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sr-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-substrate-consensus-authorities = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+session = { package = "srml-session", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+staking = { package = "srml-staking", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sudo = { package = "srml-sudo", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+system = { package = "srml-system", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+timestamp = { package = "srml-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+treasury = { package = "srml-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+version = { package = "sr-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+consensus_authorities = { package = "substrate-consensus-authorities", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 [dev-dependencies]
-hex-literal = "0.1.0"
+hex-literal = "0.2.0"
 libsecp256k1 = "0.2.1"
 tiny-keccak = "1.4.2"
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 trie-db = "0.12"
 
@@ -52,36 +52,34 @@ trie-db = "0.12"
 default = ["std"]
 std = [
 	"bitvec/std",
-	"polkadot-primitives/std",
+	"primitives/std",
 	"rustc-hex/std",
 	"parity-codec/std",
-	"parity-codec-derive/std",
-	"substrate-inherents/std",
+	"inherents/std",
 	"substrate-primitives/std",
-	"substrate-client/std",
-	"substrate-inherents/std",
-	"substrate-offchain-primitives/std",
-	"sr-std/std",
+	"client/std",
+	"offchain_primitives/std",
+	"rstd/std",
 	"sr-io/std",
 	"srml-support/std",
-	"srml-balances/std",
-	"srml-consensus/std",
-	"srml-council/std",
-	"srml-democracy/std",
-	"srml-executive/std",
-	"srml-grandpa/std",
-	"srml-indices/std",
+	"balances/std",
+	"consensus/std",
+	"council/std",
+	"democracy/std",
+	"executive/std",
+	"grandpa/std",
+	"indices/std",
 	"sr-primitives/std",
-	"srml-session/std",
-	"srml-staking/std",
-	"srml-sudo/std",
-	"srml-system/std",
-	"srml-timestamp/std",
-	"srml-treasury/std",
-	"sr-version/std",
+	"session/std",
+	"staking/std",
+	"sudo/std",
+	"system/std",
+	"timestamp/std",
+	"treasury/std",
+	"version/std",
 	"serde_derive",
 	"serde/std",
 	"log",
 	"safe-mix/std",
-	"substrate-consensus-authorities/std"
+	"consensus_authorities/std"
 ]

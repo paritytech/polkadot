@@ -24,13 +24,7 @@
 //! f is the maximum number of faulty vaildators in the system.
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
-extern crate polkadot_primitives as primitives;
-extern crate reed_solomon_erasure as reed_solomon;
-extern crate parity_codec as codec;
-extern crate substrate_primitives;
-extern crate substrate_trie as trie;
-
-use codec::{Encode, Decode};
+use parity_codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::{Hash as H256, BlakeTwo256, HashT};
 use primitives::parachain::{BlockData, Extrinsic};
@@ -297,7 +291,7 @@ struct ShardInput<'a, I> {
 	cur_shard: Option<(&'a [u8], usize)>,
 }
 
-impl<'a, I: Iterator<Item=&'a [u8]>> codec::Input for ShardInput<'a, I> {
+impl<'a, I: Iterator<Item=&'a [u8]>> parity_codec::Input for ShardInput<'a, I> {
 	fn read(&mut self, into: &mut [u8]) -> usize {
 		let mut read_bytes = 0;
 
