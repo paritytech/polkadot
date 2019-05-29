@@ -105,9 +105,6 @@ pub trait Trait: session::Trait {
 
 	/// The outer call dispatch type.
 	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
-
-//	/// The outer event type.
-//	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 }
 
 /// Origin for the parachains module.
@@ -186,110 +183,110 @@ decl_module! {
 			ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
 
 			let active_parachains = Self::active_parachains();
+			let parachain_count = active_parachains.len();
+			ensure!(heads.len() <= parachain_count, "Too many parachain candidates");
 
-			// perform integrity checks before writing to storage.
-			{
-				let n_parachains = active_parachains.len();
-				ensure!(heads.len() <= n_parachains, "Too many parachain candidates");
-
-				let mut last_id = None;
-				let mut iter = active_parachains.iter();
-				for head in &heads {
-					let id = head.parachain_index();
-					// proposed heads must be ascending order by parachain ID without duplicate.
-					ensure!(
-						last_id.as_ref().map_or(true, |x| x < &id),
-						"Parachain candidates out of order by ID"
-					);
-
-					// must be unknown since active parachains are always sorted.
-					ensure!(
-						iter.find(|x| x == &&id).is_some(),
-						"Submitted candidate for unregistered or out-of-order parachain {}"
-					);
-
-					// Either there are no more messages to add...
-					if !head.candidate.upward_messages.is_empty() {
-						let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
+			if !active_parachains.is_empty() {
+				// perform integrity checks before writing to storage.
+				{
+					let mut last_id = None;
+					let mut iter = active_parachains.iter();
+					for head in &heads {
+						let id = head.parachain_index();
+						// proposed heads must be ascending order by parachain ID without duplicate.
 						ensure!(
-							// ...or we are appending one message onto an empty queue...
-							head.candidate.upward_messages.len() + count as usize == 1
-							// ...or...
-							|| (
-								// ...the total messages in the queue ends up being no greater than the
-								// limit...
-								head.candidate.upward_messages.len() + count as usize <= MAX_QUEUE_COUNT
-							&&
-								// ...and the total size of the payloads in the queue ends up being no
-								// greater than the limit.
-								head.candidate.upward_messages.iter()
-									.fold(size as usize, |a, x| a + x.1.len())
-								<= WATERMARK_QUEUE_SIZE
-							),
-							"Messages added when queue full"
+							last_id.as_ref().map_or(true, |x| x < &id),
+							"Parachain candidates out of order by ID"
 						);
+
+						// must be unknown since active parachains are always sorted.
+						ensure!(
+							iter.find(|x| x == &&id).is_some(),
+							"Submitted candidate for unregistered or out-of-order parachain {}"
+						);
+
+						// Either there are no more messages to add...
+						if !head.candidate.upward_messages.is_empty() {
+							let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
+							ensure!(
+								// ...or we are appending one message onto an empty queue...
+								head.candidate.upward_messages.len() + count as usize == 1
+								// ...or...
+								|| (
+									// ...the total messages in the queue ends up being no greater than the
+									// limit...
+									head.candidate.upward_messages.len() + count as usize <= MAX_QUEUE_COUNT
+								&&
+									// ...and the total size of the payloads in the queue ends up being no
+									// greater than the limit.
+									head.candidate.upward_messages.iter()
+										.fold(size as usize, |a, x| a + x.1.len())
+									<= WATERMARK_QUEUE_SIZE
+								),
+								"Messages added when queue full"
+							);
+						}
+
+						Self::check_egress_queue_roots(&head, &active_parachains)?;
+
+						last_id = Some(head.parachain_index());
+					}
+				}
+
+				Self::check_attestations(&heads)?;
+
+				for head in heads.iter() {
+					let id = head.parachain_index();
+					<Heads<T>>::insert(id, &head.candidate.head_data.0);
+
+					// update egress.
+					for &(to, root) in &head.candidate.egress_queue_roots {
+						<Routing<T>>::insert((id, to), root);
 					}
 
-					Self::check_egress_queue_roots(&head, &active_parachains)?;
-
-					last_id = Some(head.parachain_index());
-				}
-			}
-
-			Self::check_attestations(&heads)?;
-
-			for head in heads.iter() {
-				let id = head.parachain_index();
-				<Heads<T>>::insert(id, &head.candidate.head_data.0);
-
-				// update egress.
-				for &(to, root) in &head.candidate.egress_queue_roots {
-					<Routing<T>>::insert((id, to), root);
+					// Queue up upwards messages (from parachains to relay chain).
+					if !head.candidate.upward_messages.is_empty() {
+						<RelayDispatchQueueSize<T>>::mutate(id, |&mut(ref mut count, ref mut len)| {
+							*count += head.candidate.upward_messages.len() as u32;
+							*len += head.candidate.upward_messages.iter()
+								.fold(0, |a, x| a + x.1.len()) as u32;
+						});
+						// Should never be able to fail assuming our state is uncorrupted, but best not
+						// to panic, even if it does.
+						let _ = <RelayDispatchQueue<T>>::append(id, &head.candidate.upward_messages[..]);
+					}
 				}
 
-				// Queue up upwards messages (from parachains to relay chain).
-				if !head.candidate.upward_messages.is_empty() {
-					<RelayDispatchQueueSize<T>>::mutate(id, |&mut(ref mut count, ref mut len)| {
-						*count += head.candidate.upward_messages.len() as u32;
-						*len += head.candidate.upward_messages.iter()
-							.fold(0, |a, x| a + x.1.len()) as u32;
-					});
-					// Should never be able to fail assuming our state is uncorrupted, but best not
-					// to panic, even if it does.
-					let _ = <RelayDispatchQueue<T>>::append(id, &head.candidate.upward_messages[..]);
-				}
-			}
+				// simple round-robin dispatcher, using block number modulo parachain count
+				// to decide which takes precedence and proceeding from there.
+				let now = <system::Module<T>>::block_number();
+				let offset = (now % T::BlockNumber::from(parachain_count as u32))
+					.checked_into::<usize>()
+					.expect("value is modulo a usize value; qed");
 
-			// simple round-robin dispatcher, using block number modulo parachain count
-			// to decide which takes precedence and proceeding from there.
-			let now = <system::Module<T>>::block_number();
-			let pids = Self::active_parachains();
-			let offset = (now % T::BlockNumber::from(Self::active_parachains().len() as u32))
-				.checked_into::<usize>()
-				.expect("value is modulo a usize value; qed");
-
-			let mut dispatched_count = 0usize;
-			let mut dispatched_size = 0usize;
-			for id in pids.iter().cycle().skip(offset).take(pids.len()) {
-				let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
-				let count = count as usize;
-				let size = size as usize;
-				if dispatched_count == 0 || (
-					dispatched_count + count <= MAX_QUEUE_COUNT
-					&& dispatched_size + size <= WATERMARK_QUEUE_SIZE
-				) {
-					if count > 0 {
-						// still dispatching messages...
-						<RelayDispatchQueueSize<T>>::remove(id);
-						for (origin, data) in <RelayDispatchQueue<T>>::take(id).into_iter() {
-							Self::dispatch_message(*id, origin, &data);
-						}
-						dispatched_count += count;
-						dispatched_size += size;
-						if dispatched_count >= MAX_QUEUE_COUNT
-							|| dispatched_size >= WATERMARK_QUEUE_SIZE
-						{
-							break
+				let mut dispatched_count = 0usize;
+				let mut dispatched_size = 0usize;
+				for id in active_parachains.iter().cycle().skip(offset).take(parachain_count) {
+					let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
+					let count = count as usize;
+					let size = size as usize;
+					if dispatched_count == 0 || (
+						dispatched_count + count <= MAX_QUEUE_COUNT
+						&& dispatched_size + size <= WATERMARK_QUEUE_SIZE
+					) {
+						if count > 0 {
+							// still dispatching messages...
+							<RelayDispatchQueueSize<T>>::remove(id);
+							for (origin, data) in <RelayDispatchQueue<T>>::take(id).into_iter() {
+								Self::dispatch_message(*id, origin, &data);
+							}
+							dispatched_count += count;
+							dispatched_size += size;
+							if dispatched_count >= MAX_QUEUE_COUNT
+								|| dispatched_size >= WATERMARK_QUEUE_SIZE
+							{
+								break
+							}
 						}
 					}
 				}
@@ -330,7 +327,7 @@ fn localized_payload(statement: Statement, parent_hash: ::primitives::Hash) -> V
 }
 
 impl<T: Trait> Module<T> {
-	/// Dispatch some messages from a parachain, .
+	/// Dispatch some messages from a parachain.
 	pub fn dispatch_message(
 		id: ParaId,
 		origin: ParachainDispatchOrigin,
@@ -344,7 +341,8 @@ impl<T: Trait> Module<T> {
 					Origin::Parachain(id).into(),
 			};
 			let _ok = message_call.dispatch(origin).is_ok();
-//			Self::deposit_event(RawEvent::Executed(proposal, ok));
+			// Not much to do with the result as it is. It's up to the parachain to ensure that the
+			// message makes sense.
 		}
 	}
 
