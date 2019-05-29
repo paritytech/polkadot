@@ -572,7 +572,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 
 	fn propose(&self,
 		inherent_data: InherentData,
-		digest: <<Block as BlockT>::Header as HeaderT>::Digest,
+		_digest: <<Block as BlockT>::Header as HeaderT>::Digest,
 		max_duration: Duration,
 	) -> Self::Create {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
