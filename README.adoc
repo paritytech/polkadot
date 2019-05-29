@@ -14,9 +14,9 @@ We are actively building both Substrate and Polkadot, but things will be a littl
 
 To play on the ("Alexander") testnet, you'll want the PoC-4 code which is in this **Polkadot** repo.  Note that PoC-3 uses the Alexander testnet, but will not be able to sync to the latest block.
 
-* **Polkadot PoC-4 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.4[**Polkadot**]repo branch `v0.4`
+* **Polkadot PoC-4 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.4[**Polkadot**] repo branch `v0.4`
 
-* **Polkadot PoC-3 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.3[**Polkadot**]repo branch `v0.3`
+* **Polkadot PoC-3 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.3[**Polkadot**] repo branch `v0.3`
 
 * **Polkadot PoC-2 "Krumme Lanke"** is in the link:https://github.com/paritytech/substrate/tree/v0.2[**Substrate**] repo branch `v0.2`
 
