@@ -158,10 +158,10 @@ fn fetches_from_those_with_knowledge() {
 		collator: [255; 32].unchecked_into(),
 		head_data: HeadData(vec![9, 9, 9]),
 		signature: Default::default(),
-		balance_uploads: Vec::new(),
 		egress_queue_roots: Vec::new(),
 		fees: 1_000_000,
 		block_data_hash,
+		upward_messages: Vec::new(),
 	};
 
 	let candidate_hash = candidate_receipt.hash();
@@ -242,10 +242,10 @@ fn fetches_available_block_data() {
 		collator: [255; 32].unchecked_into(),
 		head_data: HeadData(vec![9, 9, 9]),
 		signature: Default::default(),
-		balance_uploads: Vec::new(),
 		egress_queue_roots: Vec::new(),
 		fees: 1_000_000,
 		block_data_hash,
+		upward_messages: Vec::new(),
 	};
 
 	let candidate_hash = candidate_receipt.hash();

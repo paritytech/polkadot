@@ -20,13 +20,15 @@ use rstd::prelude::*;
 use codec::{Decode, HasCompact};
 
 use bitvec::BigEndian;
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion};
 use primitives::{Hash, parachain::{
 	Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin
 }};
 use {system, session};
-use srml_support::{StorageValue, StorageMap, Parameter, Dispatchable, dispatch::Result};
+use srml_support::{
+	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result
+};
 
 #[cfg(feature = "std")]
 use srml_support::storage::hashed::generator;
@@ -122,6 +124,13 @@ const EMPTY_TRIE_ROOT: [u8; 32] = [
 	98, 177, 87, 231, 135, 134, 216, 192, 130, 242, 157, 207, 76, 17, 19, 20
 ];
 
+/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
+const MAX_QUEUE_COUNT: usize = 100;
+/// Total size of messages allowed in the parachain -> relay-chain message queue before which no
+/// further messages may be added to it. If it exceeds this then the queue may contain only a
+/// single message.
+const WATERMARK_QUEUE_SIZE: usize = 20000;
+
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		// Vector of all parachain IDs.
@@ -132,6 +141,14 @@ decl_storage! {
 		pub Heads get(parachain_head): map ParaId => Option<Vec<u8>>;
 		// message routing roots (from, to).
 		pub Routing: map (ParaId, ParaId) => Option<Hash>;
+
+		/// Messages ready to be dispatched onto the relay chain. It is subject to
+		/// `MAX_MESSAGE_COUNT` and `WATERMARK_MESSAGE_SIZE`.
+		pub RelayDispatchQueue: map ParaId => Vec<(ParachainDispatchOrigin, Vec<u8>)>;
+		/// Size of the dispatch queues. Separated from actual data in order to avoid costly
+		/// decoding when checking receipt validity. First item in tuple is the count of messages
+		//	second if the total length (in bytes) of the message payloads.
+		pub RelayDispatchQueueSize: map ParaId => (u32, u32);
 
 		// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
@@ -178,17 +195,40 @@ decl_module! {
 				let mut last_id = None;
 				let mut iter = active_parachains.iter();
 				for head in &heads {
+					let id = head.parachain_index();
 					// proposed heads must be ascending order by parachain ID without duplicate.
 					ensure!(
-						last_id.as_ref().map_or(true, |x| x < &head.parachain_index()),
+						last_id.as_ref().map_or(true, |x| x < &id),
 						"Parachain candidates out of order by ID"
 					);
 
 					// must be unknown since active parachains are always sorted.
 					ensure!(
-						iter.find(|x| x == &&head.parachain_index()).is_some(),
+						iter.find(|x| x == &&id).is_some(),
 						"Submitted candidate for unregistered or out-of-order parachain {}"
 					);
+
+					// Either there are no more messages to add...
+					if !head.candidate.upward_messages.is_empty() {
+						let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
+						ensure!(
+							// ...or we are appending one message onto an empty queue...
+							head.candidate.upward_messages.len() + count as usize == 1
+							// ...or...
+							|| (
+								// ...the total messages in the queue ends up being no greater than the
+								// limit...
+								head.candidate.upward_messages.len() + count as usize <= MAX_QUEUE_COUNT
+							&&
+								// ...and the total size of the payloads in the queue ends up being no
+								// greater than the limit.
+								head.candidate.upward_messages.iter()
+									.fold(size as usize, |a, x| a + x.1.len())
+								<= WATERMARK_QUEUE_SIZE
+							),
+							"Messages added when queue full"
+						);
+					}
 
 					Self::check_egress_queue_roots(&head, &active_parachains)?;
 
@@ -198,28 +238,59 @@ decl_module! {
 
 			Self::check_attestations(&heads)?;
 
-			for head in heads {
+			for head in heads.iter() {
 				let id = head.parachain_index();
-				<Heads<T>>::insert(id, head.candidate.head_data.0);
+				<Heads<T>>::insert(id, &head.candidate.head_data.0);
 
 				// update egress.
 				for &(to, root) in &head.candidate.egress_queue_roots {
 					<Routing<T>>::insert((id, to), root);
 				}
 
-				// Execute upwards messages (from parachains to relay chain).
-//				let id = head.parachain_index();
-				for &(ref origin, ref data) in &head.candidate.upward_messages {
-					// execute motion, assuming it exists.
-					if let Some(message_call) = T::Call::decode(&mut &data[..]) {
-						let origin: <T as Trait>::Origin = match *origin {
-							ParachainDispatchOrigin::Signed =>
-								system::RawOrigin::Signed(id.into_account()).into(),
-							ParachainDispatchOrigin::Parachain =>
-								Origin::Parachain(id).into(),
-						};
-						let _ok = message_call.dispatch(origin).is_ok();
-//						Self::deposit_event(RawEvent::Executed(proposal, ok));
+				// Queue up upwards messages (from parachains to relay chain).
+				if !head.candidate.upward_messages.is_empty() {
+					<RelayDispatchQueueSize<T>>::mutate(id, |&mut(ref mut count, ref mut len)| {
+						*count += head.candidate.upward_messages.len() as u32;
+						*len += head.candidate.upward_messages.iter()
+							.fold(0, |a, x| a + x.1.len()) as u32;
+					});
+					// Should never be able to fail assuming our state is uncorrupted, but best not
+					// to panic, even if it does.
+					let _ = <RelayDispatchQueue<T>>::append(id, &head.candidate.upward_messages[..]);
+				}
+			}
+
+			// simple round-robin dispatcher, using block number modulo parachain count
+			// to decide which takes precedence and proceeding from there.
+			let now = <system::Module<T>>::block_number();
+			let pids = Self::active_parachains();
+			let offset = (now % T::BlockNumber::from(Self::active_parachains().len() as u32))
+				.checked_into::<usize>()
+				.expect("value is modulo a usize value; qed");
+
+			let mut dispatched_count = 0usize;
+			let mut dispatched_size = 0usize;
+			for id in pids.iter().cycle().skip(offset).take(pids.len()) {
+				let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
+				let count = count as usize;
+				let size = size as usize;
+				if dispatched_count == 0 || (
+					dispatched_count + count <= MAX_QUEUE_COUNT
+					&& dispatched_size + size <= WATERMARK_QUEUE_SIZE
+				) {
+					if count > 0 {
+						// still dispatching messages...
+						<RelayDispatchQueueSize<T>>::remove(id);
+						for (origin, data) in <RelayDispatchQueue<T>>::take(id).into_iter() {
+							Self::dispatch_message(*id, origin, &data);
+						}
+						dispatched_count += count;
+						dispatched_size += size;
+						if dispatched_count >= MAX_QUEUE_COUNT
+							|| dispatched_size >= WATERMARK_QUEUE_SIZE
+						{
+							break
+						}
 					}
 				}
 			}
@@ -259,6 +330,24 @@ fn localized_payload(statement: Statement, parent_hash: ::primitives::Hash) -> V
 }
 
 impl<T: Trait> Module<T> {
+	/// Dispatch some messages from a parachain, .
+	pub fn dispatch_message(
+		id: ParaId,
+		origin: ParachainDispatchOrigin,
+		data: &Vec<u8>,
+	) {
+		if let Some(message_call) = T::Call::decode(&mut &data[..]) {
+			let origin: <T as Trait>::Origin = match origin {
+				ParachainDispatchOrigin::Signed =>
+					system::RawOrigin::Signed(id.into_account()).into(),
+				ParachainDispatchOrigin::Parachain =>
+					Origin::Parachain(id).into(),
+			};
+			let _ok = message_call.dispatch(origin).is_ok();
+//			Self::deposit_event(RawEvent::Executed(proposal, ok));
+		}
+	}
+
 	/// Calculate the current block's duty roster using system's random seed.
 	pub fn calculate_duty_roster() -> DutyRoster {
 		let parachains = Self::active_parachains();
@@ -691,7 +780,6 @@ mod tests {
 				collator: Default::default(),
 				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
-				balance_uploads: vec![],
 				egress_queue_roots,
 				fees: 0,
 				block_data_hash: Default::default(),
@@ -758,13 +846,13 @@ mod tests {
 			let duty_roster_0 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_0);
 
-			System::initialize(&1, &H256::from([1; 32]), &Default::default());
+			System::initialize(&1, &H256::from([1; 32]), &Default::default(), &Default::default());
 			let duty_roster_1 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_1);
 			assert!(duty_roster_0 != duty_roster_1);
 
 
-			System::initialize(&2, &H256::from([2; 32]), &Default::default());
+			System::initialize(&2, &H256::from([2; 32]), &Default::default(), &Default::default());
 			let duty_roster_2 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_2);
 			assert!(duty_roster_0 != duty_roster_2);
@@ -787,7 +875,6 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
@@ -815,7 +902,6 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
@@ -830,7 +916,6 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![2, 3, 4]),
-					balance_uploads: vec![],
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
@@ -868,7 +953,6 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
@@ -905,7 +989,6 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
 					egress_queue_roots: from_a.clone(),
 					fees: 0,
 					block_data_hash: Default::default(),
@@ -921,7 +1004,6 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
 					egress_queue_roots: from_b.clone(),
 					fees: 0,
 					block_data_hash: Default::default(),

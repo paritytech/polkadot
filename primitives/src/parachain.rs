@@ -128,8 +128,6 @@ pub struct CandidateReceipt {
 	pub signature: CollatorSignature,
 	/// The head-data
 	pub head_data: HeadData,
-	/// Balance uploads to the relay chain.
-	pub balance_uploads: Vec<(super::AccountId, Balance)>,
 	/// Egress queue roots. Must be sorted lexicographically (ascending)
 	/// by parachain ID.
 	pub egress_queue_roots: Vec<(Id, Hash)>,

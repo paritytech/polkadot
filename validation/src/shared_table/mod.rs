@@ -629,10 +629,10 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
@@ -683,10 +683,10 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
@@ -716,10 +716,10 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let hash = candidate.hash();
@@ -757,10 +757,10 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let hash = candidate.hash();
@@ -818,10 +818,10 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let hash = candidate.hash();
@@ -883,10 +883,10 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let hash = candidate.hash();
