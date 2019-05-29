@@ -638,7 +638,7 @@ mod tests {
 	use sr_primitives::traits::{BlakeTwo256, IdentityLookup};
 	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey};
 	use keyring::{AuthorityKeyring, AccountKeyring};
-	use srml_support::{impl_outer_origin, assert_ok};
+	use srml_support::{impl_outer_origin, impl_outer_dispatch, assert_ok};
 	use {consensus, timestamp};
 	use crate::parachains;
 
