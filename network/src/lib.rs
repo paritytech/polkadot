@@ -19,39 +19,13 @@
 //! This manages routing for parachain statements, parachain block and extrinsic data fetching,
 //! communication between collators and validators, and more.
 
-extern crate parity_codec as codec;
-extern crate substrate_network;
-extern crate substrate_primitives;
-extern crate sr_primitives;
-
-extern crate polkadot_validation;
-extern crate polkadot_availability_store as av_store;
-extern crate polkadot_primitives;
-
-extern crate arrayvec;
-extern crate parking_lot;
-extern crate tokio;
-extern crate exit_future;
-
-extern crate futures;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate parity_codec_derive;
-
-#[cfg(test)]
-extern crate substrate_client;
-
-#[cfg(test)]
-extern crate substrate_keyring;
-
 mod collator_pool;
 mod local_collations;
 mod router;
 pub mod validation;
 pub mod gossip;
 
-use codec::{Decode, Encode};
+use parity_codec::{Decode, Encode};
 use futures::sync::oneshot;
 use polkadot_primitives::{Block, SessionKey, Hash, Header};
 use polkadot_primitives::parachain::{
@@ -65,6 +39,7 @@ use substrate_network::StatusMessage as GenericFullStatus;
 use self::validation::{LiveValidationSessions, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
+use log::{trace, debug, warn};
 
 use std::collections::{HashMap, HashSet};
 

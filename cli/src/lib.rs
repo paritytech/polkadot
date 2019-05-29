@@ -19,16 +19,6 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-extern crate futures;
-extern crate tokio;
-
-extern crate substrate_cli as cli;
-extern crate polkadot_service as service;
-extern crate exit_future;
-
-#[macro_use]
-extern crate log;
-
 mod chain_spec;
 
 use std::ops::Deref;
@@ -36,6 +26,7 @@ use chain_spec::ChainSpec;
 use futures::Future;
 use tokio::runtime::Runtime;
 use service::Service as BareService;
+use log::info;
 
 pub use service::{
 	Components as ServiceComponents, PolkadotService, CustomConfiguration, ServiceFactory, Factory,
@@ -127,7 +118,8 @@ fn run_until_exit<T, C, W>(
 	let (exit_send, exit) = exit_future::signal();
 
 	let executor = runtime.executor();
-	cli::informant::start(&service, exit.clone(), executor.clone());
+	let informant = cli::informant::build(&service);
+	executor.spawn(exit.until(informant).map(|_| ()));
 
 	let _ = runtime.block_on(worker.work(&*service, executor.clone()));
 	exit_send.fire();

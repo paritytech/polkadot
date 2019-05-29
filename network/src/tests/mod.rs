@@ -18,7 +18,7 @@
 
 use std::collections::HashMap;
 use super::{PolkadotProtocol, Status, Message, FullStatus};
-use validation::SessionParams;
+use crate::validation::SessionParams;
 
 use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash, SessionKey};
@@ -27,7 +27,7 @@ use polkadot_primitives::parachain::{
 	ConsolidatedIngressRoots,
 };
 use substrate_primitives::crypto::UncheckedInto;
-use codec::Encode;
+use parity_codec::Encode;
 use substrate_network::{
 	PeerId, Context, config::Roles,
 	message::generic::ConsensusMessage,

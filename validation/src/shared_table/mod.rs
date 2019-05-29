@@ -29,6 +29,7 @@ use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, Candida
 
 use parking_lot::Mutex;
 use futures::prelude::*;
+use log::{warn, debug};
 
 use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
@@ -79,7 +80,7 @@ impl TableContext {
 	}
 
 	fn sign_statement(&self, statement: table::Statement) -> table::SignedStatement {
-		let signature = ::sign_table_statement(&statement, &self.key, &self.parent_hash).into();
+		let signature = crate::sign_table_statement(&statement, &self.key, &self.parent_hash).into();
 
 		table::SignedStatement {
 			statement,
@@ -284,7 +285,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 	{
 		let max_block_data_size = self.max_block_data_size;
 		let validate = move |id: &_, collation: &_| {
-			let res = ::collation::validate_collation(
+			let res = crate::collation::validate_collation(
 				&*api,
 				id,
 				collation,
@@ -335,7 +336,7 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 		let work = &mut self.inner.work;
 		let candidate = &work.candidate_receipt;
 
-		let pov_block = try_ready!(work.fetch.poll());
+		let pov_block = futures::try_ready!(work.fetch.poll());
 		let validation_res = (self.validate)(
 			&BlockId::hash(self.inner.relay_parent),
 			&Collation { pov: pov_block.clone(), receipt: candidate.clone() },
@@ -637,7 +638,7 @@ mod tests {
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
-		let signature = ::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
+		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
@@ -691,7 +692,7 @@ mod tests {
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
-		let signature = ::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
+		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
@@ -827,7 +828,7 @@ mod tests {
 		let hash = candidate.hash();
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
-		let signature = ::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
+		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),

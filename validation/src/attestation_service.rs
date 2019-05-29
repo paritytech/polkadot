@@ -42,6 +42,7 @@ use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
 use tokio::runtime::TaskExecutor;
 use tokio::runtime::current_thread::Runtime as LocalRuntime;
 use tokio::timer::Interval;
+use log::{warn, debug};
 
 use super::{Network, Collators};
 
@@ -49,7 +50,7 @@ use super::{Network, Collators};
 pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
 	-> ClientResult<Option<impl Iterator<Item=CandidateReceipt>>>
 {
-	use codec::{Encode, Decode};
+	use parity_codec::{Encode, Decode};
 	use polkadot_runtime::{Call, ParachainsCall, UncheckedExtrinsic as RuntimeExtrinsic};
 
 	let extrinsics = client.block_body(block)?;
@@ -106,7 +107,7 @@ pub(crate) struct ServiceHandle {
 pub(crate) fn start<C, N, P, SC>(
 	client: Arc<P>,
 	select_chain: SC,
-	parachain_validation: Arc<::ParachainValidation<C, N, P>>,
+	parachain_validation: Arc<crate::ParachainValidation<C, N, P>>,
 	thread_pool: TaskExecutor,
 	key: Arc<ed25519::Pair>,
 	extrinsic_store: ExtrinsicStore,

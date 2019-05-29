@@ -17,9 +17,7 @@
 //! A `CodeExecutor` specialisation which uses natively compiled runtime when the wasm to be
 //! executed is equivalent to the natively compiled code.
 
-extern crate polkadot_runtime;
-#[macro_use] extern crate substrate_executor;
-extern crate substrate_primitives as primitives;
+use substrate_executor::native_executor_instance;
 
 native_executor_instance!(
     pub Executor,

@@ -20,8 +20,8 @@
 
 use rstd::{prelude::*, mem::swap, convert::TryInto};
 use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash};
-use codec::Decode;
-use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap,
+use parity_codec::{Encode, Decode};
+use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}};
 use primitives::parachain::AccountIdConversion;
 use crate::parachains::ParachainRegistrar;
@@ -785,7 +785,7 @@ mod tests {
 		traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
 		testing::{Digest, DigestItem, Header}
 	};
-	use srml_support::{impl_outer_origin, assert_ok};
+	use srml_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
 	use balances;
 	use primitives::parachain::Id as ParaId;
 

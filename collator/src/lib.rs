@@ -44,32 +44,13 @@
 //! This crate defines traits which provide context necessary for collation logic
 //! to be performed, as the collation logic itself.
 
-extern crate futures;
-extern crate substrate_client as client;
-extern crate parity_codec as codec;
-extern crate substrate_primitives as primitives;
-extern crate substrate_consensus_authorities as consensus_authorities;
-extern crate substrate_consensus_common as consensus_common;
-extern crate tokio;
-
-extern crate polkadot_cli;
-extern crate polkadot_runtime;
-extern crate polkadot_primitives;
-extern crate polkadot_network;
-extern crate polkadot_validation;
-
-#[macro_use]
-extern crate log;
-
-#[cfg(test)]
-extern crate substrate_keyring as keyring;
-
 use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures::{future, Stream, Future, IntoFuture};
+use log::{info, warn};
 use client::BlockchainEvents;
 use primitives::{ed25519, Pair};
 use polkadot_primitives::{BlockId, SessionKey, Hash, Block};

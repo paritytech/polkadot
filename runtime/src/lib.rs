@@ -20,59 +20,6 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit="256"]
 
-#[cfg(test)]
-#[macro_use]
-extern crate hex_literal;
-#[cfg(test)]
-extern crate secp256k1;
-#[cfg(test)]
-extern crate tiny_keccak;
-
-#[macro_use]
-extern crate bitvec;
-
-extern crate parity_codec_derive;
-extern crate parity_codec as codec;
-
-extern crate substrate_consensus_aura_primitives as consensus_aura;
-extern crate substrate_primitives;
-extern crate substrate_inherents as inherents;
-extern crate substrate_offchain_primitives as offchain_primitives;
-#[macro_use]
-extern crate substrate_client as client;
-
-extern crate sr_std as rstd;
-extern crate sr_io;
-extern crate sr_version as version;
-#[macro_use]
-extern crate sr_primitives;
-
-#[macro_use]
-extern crate srml_support;
-extern crate srml_aura as aura;
-extern crate srml_balances as balances;
-extern crate srml_consensus as consensus;
-extern crate srml_council as council;
-extern crate srml_democracy as democracy;
-extern crate srml_executive as executive;
-extern crate srml_grandpa as grandpa;
-extern crate srml_indices as indices;
-extern crate srml_session as session;
-extern crate srml_staking as staking;
-extern crate srml_sudo as sudo;
-extern crate srml_system as system;
-extern crate srml_timestamp as timestamp;
-extern crate srml_treasury as treasury;
-extern crate substrate_consensus_authorities as consensus_authorities;
-
-extern crate polkadot_primitives as primitives;
-
-#[cfg(test)]
-extern crate substrate_keyring as keyring;
-
-#[cfg(test)]
-extern crate substrate_trie;
-
 mod curated_grandpa;
 mod parachains;
 mod claims;
@@ -87,10 +34,10 @@ use primitives::{
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
-	runtime_api as client_api,
+	runtime_api as client_api, impl_runtime_apis,
 };
 use sr_primitives::{
-	ApplyResult, generic, transaction_validity::TransactionValidity,
+	ApplyResult, generic, transaction_validity::TransactionValidity, create_runtime_str,
 	traits::{
 		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Convert, AuthorityIdFor
 	}
@@ -103,6 +50,7 @@ use council::seats as council_seats;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
+use srml_support::{parameter_types, construct_runtime};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;

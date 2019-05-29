@@ -17,8 +17,8 @@
 //! Errors that can occur during the validation process.
 
 use runtime_primitives::RuntimeString;
-
 use primitives::ed25519::Public as AuthorityId;
+use error_chain::*;
 
 error_chain! {
 	foreign_links {

@@ -16,22 +16,12 @@
 
 //! Persistent database for parachain data.
 
-extern crate polkadot_primitives;
-extern crate parking_lot;
-extern crate parity_codec as codec;
-extern crate substrate_primitives;
-extern crate kvdb;
-extern crate kvdb_rocksdb;
-extern crate kvdb_memorydb;
-
-#[macro_use]
-extern crate log;
-
-use codec::{Encode, Decode};
+use parity_codec::{Encode, Decode};
 use kvdb::{KeyValueDB, DBTransaction};
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{Id as ParaId, BlockData, Extrinsic};
+use log::warn;
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -101,7 +91,7 @@ impl Store {
 	/// Create a new `Store` in-memory. Useful for tests.
 	pub fn new_in_memory() -> Self {
 		Store {
-			inner: Arc::new(::kvdb_memorydb::create(::columns::NUM_COLUMNS)),
+			inner: Arc::new(::kvdb_memorydb::create(columns::NUM_COLUMNS)),
 		}
 	}
 
