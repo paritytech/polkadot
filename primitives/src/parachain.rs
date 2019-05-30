@@ -115,8 +115,8 @@ pub enum ParachainDispatchOrigin {
 	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
 	/// interacting with standard modules such as `balances`.
 	Signed,
-	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with modules
-	/// capable of recognising this origin and doing something special.
+	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with parachain-
+	/// aware modules which need to succinctly verify that the origin is a parachain.
 	Parachain,
 }
 
