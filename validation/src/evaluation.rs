@@ -30,23 +30,19 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
 	/// Client error
 	Client(client::error::Error),
+	/// Too many parachain candidates in proposal
 	#[display(fmt = "Proposal included {} candidates for {} parachains", expected, got)]
-	TooManyCandidates {
-		expected: usize,
-		got: usize
-	},
+	TooManyCandidates { expected: usize, got: usize },
+	/// Proposal included unregistered parachain
 	#[display(fmt = "Proposal included unregistered parachain {:?}", _0)]
 	UnknownParachain(ParaId),
+	/// Proposal had wrong parent hash
 	#[display(fmt = "Proposal had wrong parent hash. Expected {:?}, got {:?}", expected, got)]
-	WrongParentHash {
-		expected: Hash,
-		got: Hash
-	},
+	WrongParentHash { expected: Hash, got: Hash },
+	/// Proposal had wrong number
 	#[display(fmt = "Proposal had wrong number. Expected {:?}, got {:?}", expected, got)]
-	WrongNumber {
-		expected: BlockNumber,
-		got: BlockNumber
-	},
+	WrongNumber { expected: BlockNumber, got: BlockNumber },
+	/// Proposal exceeded the maximum size
 	#[display(
 		fmt = "Proposal exceeded the maximum size of {} by {} bytes.",
 		MAX_TRANSACTIONS_SIZE, MAX_TRANSACTIONS_SIZE.saturating_sub(*_0)

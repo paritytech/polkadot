@@ -33,14 +33,19 @@ pub enum Error {
 		/// Actual roster length
 		got: usize,
 	},
+	/// Local account not a validator at this block
 	#[display(fmt = "Local account ID ({:?}) not a validator at this block.", _0)]
 	NotValidator(AuthorityId),
+	/// Unexpected error checking inherents
 	#[display(fmt = "Unexpected error while checking inherents: {}", _0)]
 	InherentError(RuntimeString),
+	/// Proposer destroyed before finishing proposing or evaluating
 	#[display(fmt = "Proposer destroyed before finishing proposing or evaluating")]
 	PrematureDestruction,
+	/// Timer failed
 	#[display(fmt = "Timer failed: {}", _0)]
 	Timer(tokio::timer::Error),
+	/// Unable to dispatch agreement future
 	#[display(fmt = "Unable to dispatch agreement future: {:?}", _0)]
 	Executor(futures::future::ExecuteErrorKind),
 }

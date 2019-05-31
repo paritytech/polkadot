@@ -141,45 +141,30 @@ pub enum Error {
 	Client(client::error::Error),
 	/// Wasm validation error
 	WasmValidation(wasm_executor::Error),
+	/// Collated for inactive parachain
 	#[display(fmt = "Collated for inactive parachain: {:?}", _0)]
 	InactiveParachain(ParaId),
+	/// Unexpected egress root
 	#[display(fmt = "Got unexpected egress root to {:?}. (expected: {:?}, got {:?})", id, expected, got)]
-	EgressRootMismatch {
-		id: ParaId,
-		expected: Hash,
-		got: Hash
-	},
+	EgressRootMismatch { id: ParaId, expected: Hash, got: Hash },
+	/// Unexpected ingress root
 	#[display(fmt = "Got unexpected ingress root to {:?}. (expected: {:?}, got {:?})", id, expected, got)]
-	IngressRootMismatch {
-		id: ParaId,
-		expected: Hash,
-		got: Hash
-	},
+	IngressRootMismatch { id: ParaId, expected: Hash, got: Hash },
+	/// Ingress from wrong chain
 	#[display(fmt = "Got ingress from wrong chain. (expected: {:?}, got {:?})", expected, got)]
-	IngressChainMismatch {
-		expected: ParaId,
-		got: ParaId
-	},
+	IngressChainMismatch { expected: ParaId, got: ParaId },
+	/// Ingress canonicality mismatch
 	#[display(fmt = "Got data for {} roots, expected {}", expected, got)]
-	IngressCanonicalityMismatch {
-		expected: usize,
-		got: usize
-	},
+	IngressCanonicalityMismatch { expected: usize, got: usize },
+	/// Missing or extra egress root
 	#[display(fmt = "Missing or extra egress root. (expected: {:?}, got {:?})", expected, got)]
-	MissingEgressRoot {
-		expected: Option<ParaId>,
-		got: Option<ParaId>,
-	},
+	MissingEgressRoot { expected: Option<ParaId>, got: Option<ParaId>, },
+	/// Parachain validation produced wrong head data
 	#[display(fmt = "Parachain validation produced wrong head data (expected: {:?}, got {:?})", expected, got)]
-	WrongHeadData {
-		expected: Vec<u8>,
-		got: Vec<u8>
-	},
+	WrongHeadData { expected: Vec<u8>, got: Vec<u8> },
+	/// Block data is too big
 	#[display(fmt = "Block data is too big (maximum allowed size: {}, actual size: {})", size, max_size)]
-	BlockDataTooBig {
-		size: u64,
-		max_size: u64
-	},
+	BlockDataTooBig { size: u64, max_size: u64 },
 }
 
 impl std::error::Error for Error {
