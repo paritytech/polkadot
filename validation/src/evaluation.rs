@@ -85,11 +85,17 @@ pub fn evaluate_initial(
 	}
 
 	if proposal.header.parent_hash != *parent_hash {
-		return Err(Error::WrongParentHash(*parent_hash, proposal.header.parent_hash));
+		return Err(Error::WrongParentHash {
+			expected: *parent_hash,
+			got: proposal.header.parent_hash
+		});
 	}
 
 	if proposal.header.number != parent_number + 1 {
-		return Err(Error::WrongNumber(parent_number + 1, proposal.header.number));
+		return Err(Error::WrongNumber {
+			expected: parent_number + 1,
+			got: proposal.header.number
+		});
 	}
 
 	Ok(())

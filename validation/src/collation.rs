@@ -135,58 +135,59 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 }
 
 // Errors that can occur when validating a parachain.
-error_chain! {
-	types { Error, ErrorKind, ResultExt; }
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum Error {
+	/// Client error
+	Client(client::error::Error),
+	/// Wasm validation error
+	WasmValidation(wasm_executor::Error),
+	#[display(fmt = "Collated for inactive parachain: {:?}", _0)]
+	InactiveParachain(ParaId),
+	#[display(fmt = "Got unexpected egress root to {:?}. (expected: {:?}, got {:?})", id, expected, got)]
+	EgressRootMismatch {
+		id: ParaId,
+		expected: Hash,
+		got: Hash
+	},
+	#[display(fmt = "Got unexpected ingress root to {:?}. (expected: {:?}, got {:?})", id, expected, got)]
+	IngressRootMismatch {
+		id: ParaId,
+		expected: Hash,
+		got: Hash
+	},
+	#[display(fmt = "Got ingress from wrong chain. (expected: {:?}, got {:?})", expected, got)]
+	IngressChainMismatch {
+		expected: ParaId,
+		got: ParaId
+	},
+	#[display(fmt = "Got data for {} roots, expected {}", expected, got)]
+	IngressCanonicalityMismatch {
+		expected: usize,
+		got: usize
+	},
+	#[display(fmt = "Missing or extra egress root. (expected: {:?}, got {:?})", expected, got)]
+	MissingEgressRoot {
+		expected: Option<ParaId>,
+		got: Option<ParaId>,
+	},
+	#[display(fmt = "Parachain validation produced wrong head data (expected: {:?}, got {:?})", expected, got)]
+	WrongHeadData {
+		expected: Vec<u8>,
+		got: Vec<u8>
+	},
+	#[display(fmt = "Block data is too big (maximum allowed size: {}, actual size: {})", size, max_size)]
+	BlockDataTooBig {
+		size: u64,
+		max_size: u64
+	},
+}
 
-	foreign_links {
-		Client(::client::error::Error);
-	}
-
-	links {
-		WasmValidation(wasm_executor::Error, wasm_executor::ErrorKind);
-	}
-
-	errors {
-		InactiveParachain(id: ParaId) {
-			description("Collated for inactive parachain"),
-			display("Collated for inactive parachain: {:?}", id),
-		}
-		EgressRootMismatch(id: ParaId, expected: Hash, got: Hash) {
-			description("Got unexpected egress root."),
-			display(
-				"Got unexpected egress root to {:?}. (expected: {:?}, got {:?})",
-				id, expected, got
-			),
-		}
-		IngressRootMismatch(id: ParaId, expected: Hash, got: Hash) {
-			description("Got unexpected ingress root."),
-			display(
-				"Got unexpected ingress root to {:?}. (expected: {:?}, got {:?})",
-				id, expected, got
-			),
-		}
-		IngressChainMismatch(expected: ParaId, got: ParaId) {
-			description("Got ingress from wrong chain"),
-			display(
-				"Got ingress from wrong chain. (expected: {:?}, got {:?})",
-				expected, got
-			),
-		}
-		IngressCanonicalityMismatch(expected: usize, got: usize) {
-			description("Ingress canonicality mismatch."),
-			display("Got data for {} roots, expected {}", got, expected),
-		}
-		MissingEgressRoot(expected: Option<ParaId>, got: Option<ParaId>) {
-			description("Missing or extra egress root."),
-			display("Missing or extra egress root. (expected: {:?}, got {:?})", expected, got),
-		}
-		WrongHeadData(expected: Vec<u8>, got: Vec<u8>) {
-			description("Parachain validation produced wrong head data."),
-			display("Parachain validation produced wrong head data (expected: {:?}, got {:?})", expected, got),
-		}
-		BlockDataTooBig(size: u64, max_size: u64) {
-			description("Block data is too big."),
-			display("Block data is too big (maximum allowed size: {}, actual size: {})", max_size, size),
+impl std::error::Error for Error {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		match self {
+			Error::Client(ref err) => Some(err),
+			Error::WasmValidation(ref err) => Some(err),
+			_ => None,
 		}
 	}
 }
@@ -235,11 +236,17 @@ fn check_extrinsic(
 		let mut expected_egress_roots = expected_egress_roots.iter();
 		while let Some(batch_target) = messages_iter.peek().map(|o| o.target) {
 			let expected_root = match expected_egress_roots.next() {
-				None => return Err(ErrorKind::MissingEgressRoot(Some(batch_target), None).into()),
+				None => return Err(Error::MissingEgressRoot {
+					expected:Some(batch_target),
+					got: None
+				}),
 				Some(&(id, ref root)) => if id == batch_target {
 					root
 				} else {
-					return Err(ErrorKind::MissingEgressRoot(Some(batch_target), Some(id)).into());
+					return Err(Error::MissingEgressRoot{
+						expected: Some(batch_target),
+						got: Some(id)
+					});
 				}
 			};
 
@@ -253,17 +260,17 @@ fn check_extrinsic(
 
 			let computed_root = message_queue_root(messages_to);
 			if &computed_root != expected_root {
-				return Err(ErrorKind::EgressRootMismatch(
-					batch_target,
-					expected_root.clone(),
-					computed_root,
-				).into());
+				return Err(Error::EgressRootMismatch {
+					id: batch_target,
+					expected: expected_root.clone(),
+					got: computed_root,
+				});
 			}
 		}
 
 		// also check that there are no more additional expected roots.
 		if let Some((next_target, _)) = expected_egress_roots.next() {
-			return Err(ErrorKind::MissingEgressRoot(None, Some(*next_target)).into());
+			return Err(Error::MissingEgressRoot { expected: None, got: Some(*next_target) });
 		}
 	}
 
@@ -312,18 +319,28 @@ pub fn validate_incoming(
 	ingress: &ConsolidatedIngress,
 ) -> Result<(), Error> {
 	if roots.0.len() != ingress.0.len() {
-		bail!(ErrorKind::IngressCanonicalityMismatch(roots.0.len(), ingress.0.len()));
+		return Err(Error::IngressCanonicalityMismatch {
+			expected: roots.0.len(),
+			got: ingress.0.len()
+		});
 	}
 
 	let all_iter = roots.0.iter().zip(&ingress.0);
 	for ((expected_id, root), (got_id, messages)) in all_iter {
 		if expected_id != got_id {
-			bail!(ErrorKind::IngressChainMismatch(*expected_id, *got_id));
+			return Err(Error::IngressChainMismatch {
+				expected: *expected_id,
+				got: *got_id
+			});
 		}
 
 		let got_root = message_queue_root(messages.iter().map(|msg| &msg.0[..]));
 		if &got_root != root {
-			bail!(ErrorKind::IngressRootMismatch(*expected_id, *root, got_root));
+			return Err(Error::IngressRootMismatch{
+				id: *expected_id,
+				expected: *root,
+				got: got_root
+			});
 		}
 	}
 
@@ -348,20 +365,20 @@ pub fn validate_collation<P>(
 	if let Some(max_size) = max_block_data_size {
 		let block_data_size = collation.pov.block_data.0.len() as u64;
 		if block_data_size > max_size {
-			return Err(ErrorKind::BlockDataTooBig(block_data_size, max_size).into());
+			return Err(Error::BlockDataTooBig { size: block_data_size, max_size });
 		}
 	}
 
 	let api = client.runtime_api();
 	let para_id = collation.receipt.parachain_index;
 	let validation_code = api.parachain_code(relay_parent, para_id)?
-		.ok_or_else(|| ErrorKind::InactiveParachain(para_id))?;
+		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
 	let chain_head = api.parachain_head(relay_parent, para_id)?
-		.ok_or_else(|| ErrorKind::InactiveParachain(para_id))?;
+		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
 	let roots = api.ingress(relay_parent, para_id)?
-		.ok_or_else(|| ErrorKind::InactiveParachain(para_id))?;
+		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 	validate_incoming(&roots, &collation.pov.ingress)?;
 
 	let params = ValidationParams {
@@ -387,10 +404,10 @@ pub fn validate_collation<P>(
 			if result.head_data == collation.receipt.head_data.0 {
 				ext.final_checks(&collation.receipt)
 			} else {
-				Err(ErrorKind::WrongHeadData(
-					collation.receipt.head_data.0.clone(),
-					result.head_data
-				).into())
+				Err(Error::WrongHeadData {
+					expected: collation.receipt.head_data.0.clone(),
+					got: result.head_data
+				})
 			}
 		}
 		Err(e) => Err(e.into())
