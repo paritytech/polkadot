@@ -58,10 +58,6 @@ extern crate core;
 extern crate wasmi;
 
 #[cfg(feature = "std")]
-#[macro_use]
-extern crate error_chain;
-
-#[cfg(feature = "std")]
 extern crate serde;
 
 #[cfg(feature = "std")]
