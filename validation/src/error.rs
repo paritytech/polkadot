@@ -19,9 +19,6 @@
 use runtime_primitives::RuntimeString;
 use primitives::ed25519::Public as AuthorityId;
 
-/// Result type alias for validation
-pub type Result<T> = std::result::Result<T, Error>;
-
 /// Error type for validation
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
