@@ -30,15 +30,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
 	/// Client error
 	Client(client::error::Error),
-	#[display(fmt = "Proposal provided not a Polkadot block.")]
-	ProposalNotForPolkadot,
 	#[display(fmt = "Proposal included {} candidates for {} parachains", expected, got)]
 	TooManyCandidates {
 		expected: usize,
 		got: usize
 	},
-	#[display(fmt = "Proposal included parachains out of order.")]
-	ParachainOutOfOrder,
 	#[display(fmt = "Proposal included unregistered parachain {:?}", _0)]
 	UnknownParachain(ParaId),
 	#[display(fmt = "Proposal had wrong parent hash. Expected {:?}, got {:?}", expected, got)]
