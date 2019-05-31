@@ -592,7 +592,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 
 		let believed_timestamp = match inherent_data.timestamp_inherent_data() {
 			Ok(timestamp) => timestamp,
-			Err(e) => return Either::B(future::err(Error::InherentError(e).into())),
+			Err(e) => return Either::B(future::err(Error::InherentError(e))),
 		};
 
 		// set up delay until next allowed timestamp.

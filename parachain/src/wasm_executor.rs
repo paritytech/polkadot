@@ -267,7 +267,7 @@ pub fn validate_candidate<E: Externalities>(
 		.map_err(|e| -> Error {
 			e.as_host_error()
 				.and_then(|he| he.downcast_ref::<ExternalitiesError>())
-				.map(|ee| Error::Externalities(ee.clone()).into())
+				.map(|ee| Error::Externalities(ee.clone()))
 				.unwrap_or_else(move || e.into())
 		})?;
 
@@ -290,7 +290,7 @@ pub fn validate_candidate<E: Externalities>(
 
 			memory.with_direct_access(|mem| {
 				if mem.len() < return_offset + len {
-					return Err(Error::BadReturn.into());
+					return Err(Error::BadReturn);
 				}
 
 				ValidationResult::decode(&mut &mem[return_offset..][..len])
