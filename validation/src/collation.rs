@@ -222,7 +222,7 @@ fn check_extrinsic(
 		while let Some(batch_target) = messages_iter.peek().map(|o| o.target) {
 			let expected_root = match expected_egress_roots.next() {
 				None => return Err(Error::MissingEgressRoot {
-					expected:Some(batch_target),
+					expected: Some(batch_target),
 					got: None
 				}),
 				Some(&(id, ref root)) => if id == batch_target {
