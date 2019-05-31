@@ -28,10 +28,8 @@ use polkadot_primitives::parachain::{
 };
 use runtime_primitives::traits::ProvideRuntimeApi;
 use parachain::{wasm_executor::{self, ExternalitiesError}, MessageRef};
-use error_chain::bail;
 
 use futures::prelude::*;
-use error_chain::*;
 use log::debug;
 
 /// Encapsulates connections to collators and allows collation on any parachain.

@@ -62,14 +62,13 @@ use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_aura::timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace};
-use error_chain::bail;
 
 use ed25519::Public as AuthorityId;
 
 pub use self::collation::{
 	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
 };
-pub use self::error::{ErrorKind, Error};
+pub use self::error::Error;
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
@@ -188,7 +187,7 @@ pub fn make_group_info(
 	local_id: AuthorityId,
 ) -> Result<(HashMap<ParaId, GroupInfo>, LocalDuty), Error> {
 	if roster.validator_duty.len() != authorities.len() {
-		bail!(ErrorKind::InvalidDutyRosterLength(authorities.len(), roster.validator_duty.len()))
+		return Err(Error::InvalidDutyRosterLength(authorities.len(), roster.validator_duty.len()))
 	}
 
 	let mut local_validation = None;
@@ -223,7 +222,7 @@ pub fn make_group_info(
 
 			Ok((map, local_duty))
 		}
-		None => bail!(ErrorKind::NotValidator(local_id)),
+		None => return Err(Error::NotValidator(local_id)),
 	}
 }
 
