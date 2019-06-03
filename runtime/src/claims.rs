@@ -172,6 +172,7 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 					requires: vec![],
 					provides: vec![],
 					longevity: TransactionLongevity::max_value(),
+					propagate: true,
 				}
 			}
 			_ => TransactionValidity::Invalid(INVALID_CALL)
@@ -345,6 +346,7 @@ mod tests {
 					requires: vec![],
 					provides: vec![],
 					longevity: TransactionLongevity::max_value(),
+					propagate: true,
 				}
 			);
 			assert_eq!(
