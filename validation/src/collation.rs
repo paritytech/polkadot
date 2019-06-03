@@ -429,6 +429,8 @@ pub fn validate_collation<P>(
 mod tests {
 	use super::*;
 	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
+	use parachain::ParachainDispatchOrigin;
+	use polkadot_primitives::parachain::{Statement::Candidate, CandidateReceipt, HeadData};
 
 	#[test]
 	fn compute_and_check_egress() {
@@ -484,5 +486,69 @@ mod tests {
 
 		assert!(ext.post_message(MessageRef { target: 1.into(), data: &[] }).is_ok());
 		assert!(ext.post_message(MessageRef { target: 5.into(), data: &[] }).is_err());
+	}
+
+	#[test]
+	fn ext_checks_upward_messages() {
+		let ext = || Externalities {
+			parachain_index: 5.into(),
+			outgoing: Vec::new(),
+			upward: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
+			],
+		};
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			egress_queue_roots: Vec::new(),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Signed },
+				UpwardMessage{ data: vec![69], origin: ParachainDispatchOrigin::Parachain },
+			],
+		};
+		assert!(ext().final_checks(&receipt).is_err());
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			egress_queue_roots: Vec::new(),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Signed },
+			],
+		};
+		assert!(ext().final_checks(&receipt).is_err());
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			egress_queue_roots: Vec::new(),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![69], origin: ParachainDispatchOrigin::Parachain },
+			],
+		};
+		assert!(ext().final_checks(&receipt).is_err());
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			egress_queue_roots: Vec::new(),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
+			],
+		};
+		assert!(ext().final_checks(&receipt).is_ok());
 	}
 }
