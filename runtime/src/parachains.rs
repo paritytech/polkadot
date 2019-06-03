@@ -24,7 +24,7 @@ use bitvec::{bitvec, BigEndian};
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion};
 use primitives::{Hash, parachain::{
 	Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
-	ParachainDispatchOrigin
+	ParachainDispatchOrigin, UpwardMessage
 }};
 use {system, session};
 use srml_support::{
@@ -142,7 +142,7 @@ decl_storage! {
 
 		/// Messages ready to be dispatched onto the relay chain. It is subject to
 		/// `MAX_MESSAGE_COUNT` and `WATERMARK_MESSAGE_SIZE`.
-		pub RelayDispatchQueue: map ParaId => Vec<(ParachainDispatchOrigin, Vec<u8>)>;
+		pub RelayDispatchQueue: map ParaId => Vec<UpwardMessage>;
 		/// Size of the dispatch queues. Separated from actual data in order to avoid costly
 		/// decoding when checking receipt validity. First item in tuple is the count of messages
 		//	second if the total length (in bytes) of the message payloads.
@@ -221,7 +221,7 @@ decl_module! {
 									// ...and the total size of the payloads in the queue ends up being no
 									// greater than the limit.
 									head.candidate.upward_messages.iter()
-										.fold(size as usize, |a, x| a + x.1.len())
+										.fold(size as usize, |a, x| a + x.data.len())
 									<= WATERMARK_QUEUE_SIZE
 								),
 								"Messages added when queue full"
@@ -250,7 +250,7 @@ decl_module! {
 						<RelayDispatchQueueSize<T>>::mutate(id, |&mut(ref mut count, ref mut len)| {
 							*count += head.candidate.upward_messages.len() as u32;
 							*len += head.candidate.upward_messages.iter()
-								.fold(0, |a, x| a + x.1.len()) as u32;
+								.fold(0, |a, x| a + x.data.len()) as u32;
 						});
 						// Should never be able to fail assuming our state is uncorrupted, but best not
 						// to panic, even if it does.
@@ -278,7 +278,8 @@ decl_module! {
 						if count > 0 {
 							// still dispatching messages...
 							<RelayDispatchQueueSize<T>>::remove(id);
-							for (origin, data) in <RelayDispatchQueue<T>>::take(id).into_iter() {
+							let messages = <RelayDispatchQueue<T>>::take(id);
+							for UpwardMessage { origin, data } in messages.into_iter() {
 								Self::dispatch_message(*id, origin, &data);
 							}
 							dispatched_count += count;

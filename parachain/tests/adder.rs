@@ -22,7 +22,7 @@ extern crate parity_codec as codec;
 extern crate polkadot_parachain as parachain;
 extern crate tiny_keccak;
 
-use parachain::{MessageRef, IncomingMessage, ValidationParams};
+use parachain::{MessageRef, UpwardMessageRef, IncomingMessage, ValidationParams};
 use parachain::wasm_executor::{Externalities, ExternalitiesError};
 use codec::{Decode, Encode};
 
@@ -55,6 +55,9 @@ struct AddMessage {
 struct DummyExt;
 impl Externalities for DummyExt {
 	fn post_message(&mut self, _message: MessageRef) -> Result<(), ExternalitiesError> {
+		Ok(())
+	}
+	fn post_upward_message(&mut self, _message: UpwardMessageRef) -> Result<(), ExternalitiesError> {
 		Ok(())
 	}
 }

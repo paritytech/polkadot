@@ -28,7 +28,7 @@ use serde::{Serialize, Deserialize};
 use primitives::bytes;
 use primitives::ed25519;
 
-pub use polkadot_parachain::{Id, AccountIdConversion};
+pub use polkadot_parachain::{Id, AccountIdConversion, ParachainDispatchOrigin};
 
 /// Identity that collators use.
 pub type CollatorId = ed25519::Public;
@@ -108,16 +108,14 @@ pub struct Extrinsic {
 	pub outgoing_messages: Vec<OutgoingMessage>
 }
 
-/// Which origin a parachain's message to the relay chain should be dispatched from.
+/// An outgoing message
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub enum ParachainDispatchOrigin {
-	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
-	/// interacting with standard modules such as `balances`.
-	Signed,
-	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with parachain-
-	/// aware modules which need to succinctly verify that the origin is a parachain.
-	Parachain,
+pub struct UpwardMessage {
+	/// The origin for the message to be sent from.
+	pub origin: ParachainDispatchOrigin,
+	/// The message data.
+	pub data: Vec<u8>,
 }
 
 /// Candidate receipt type.
@@ -140,7 +138,7 @@ pub struct CandidateReceipt {
 	/// blake2-256 Hash of block data.
 	pub block_data_hash: Hash,
 	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<(ParachainDispatchOrigin, Vec<u8>)>,
+	pub upward_messages: Vec<UpwardMessage>,
 }
 
 impl CandidateReceipt {
