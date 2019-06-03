@@ -224,9 +224,9 @@ impl core::convert::TryFrom<u8> for ParachainDispatchOrigin {
 	}
 }
 
-/// A reference to a message.
+/// A reference to an upward message.
 pub struct UpwardMessageRef<'a> {
-	/// The target parachain.
+	/// The origin type.
 	pub origin: ParachainDispatchOrigin,
 	/// Underlying data of the message.
 	pub data: &'a [u8],

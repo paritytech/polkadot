@@ -108,7 +108,7 @@ pub struct Extrinsic {
 	pub outgoing_messages: Vec<OutgoingMessage>
 }
 
-/// An outgoing message
+/// A message from a parachain to its Relay Chain.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct UpwardMessage {
