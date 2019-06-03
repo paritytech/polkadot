@@ -192,8 +192,9 @@ impl<'a, E: 'a + Externalities> ValidationExternals<'a, E> {
 			}
 		})
 	}
-	/// Signature: post_upward_message(*const u8, u32) -> None
-	/// usage: post_upward_message(data ptr, data len).
+	/// Signature: post_upward_message(u32, *const u8, u32) -> None
+	/// usage: post_upward_message(origin, data ptr, data len).
+	/// Origin is the integer representation of the dispatch origin.
 	/// Data is the raw data of the message.
 	fn ext_post_upward_message(&mut self, args: ::wasmi::RuntimeArgs) -> Result<(), Trap> {
 		let origin: u32 = args.nth_checked(0)?;
