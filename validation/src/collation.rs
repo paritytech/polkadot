@@ -309,10 +309,10 @@ impl Externalities {
 		candidate: &CandidateReceipt,
 	) -> Result<Extrinsic, Error> {
 		if &self.upward != &candidate.upward_messages {
-			bail!(ErrorKind::UpwardMessagesInvalid(
-				candidate.upward_messages.clone(),
-				self.upward.clone(),
-			));
+			return Err(Error::UpwardMessagesInvalid {
+				expected: candidate.upward_messages.clone(),
+				got: self.upward.clone(),
+			});
 		}
 
 		check_extrinsic(
