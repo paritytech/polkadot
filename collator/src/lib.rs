@@ -152,10 +152,10 @@ pub fn collate<'a, R, P>(
 			collator: key.public(),
 			signature,
 			head_data,
-			balance_uploads: Vec::new(),
 			egress_queue_roots,
 			fees: 0,
 			block_data_hash,
+			upward_messages: Vec::new(),
 		};
 
 		Ok(parachain::Collation {

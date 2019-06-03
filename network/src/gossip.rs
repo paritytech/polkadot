@@ -643,10 +643,10 @@ mod tests {
 			collator: [255; 32].unchecked_into(),
 			head_data: HeadData(vec![9, 9, 9]),
 			signature: Default::default(),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [20u8; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let statement = GossipMessage::Statement(GossipStatement {

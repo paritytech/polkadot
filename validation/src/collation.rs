@@ -21,13 +21,12 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::{Block, Hash, BlockId, parachain::CollatorId};
-use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, OutgoingMessage};
-use polkadot_primitives::parachain::{
+use polkadot_primitives::{Block, Hash, BlockId, parachain::CollatorId, parachain::{
 	ConsolidatedIngress, ConsolidatedIngressRoots, CandidateReceipt, ParachainHost,
-};
+	Id as ParaId, Collation, Extrinsic, OutgoingMessage, UpwardMessage
+}};
 use runtime_primitives::traits::ProvideRuntimeApi;
-use parachain::{wasm_executor::{self, ExternalitiesError}, MessageRef};
+use parachain::{wasm_executor::{self, ExternalitiesError}, MessageRef, UpwardMessageRef};
 use error_chain::bail;
 
 use futures::prelude::*;
@@ -190,6 +189,10 @@ error_chain! {
 			description("Block data is too big."),
 			display("Block data is too big (maximum allowed size: {}, actual size: {})", max_size, size),
 		}
+		UpwardMessagesInvalid(expected: Vec<UpwardMessage>, got: Vec<UpwardMessage>) {
+			description("Parachain validation produced wrong relay-chain messages."),
+			display("Parachain validation produced wrong relay-chain messages (expected: {:?}, got {:?})", expected, got),
+		}
 	}
 }
 
@@ -275,6 +278,7 @@ fn check_extrinsic(
 struct Externalities {
 	parachain_index: ParaId,
 	outgoing: Vec<OutgoingMessage>,
+	upward: Vec<UpwardMessage>,
 }
 
 impl wasm_executor::Externalities for Externalities {
@@ -293,7 +297,21 @@ impl wasm_executor::Externalities for Externalities {
 
 		Ok(())
 	}
+
+	fn post_upward_message(&mut self, message: UpwardMessageRef)
+		-> Result<(), ExternalitiesError>
+	{
+		// TODO: https://github.com/paritytech/polkadot/issues/92
+		// check per-message and per-byte fees for the parachain.
+		self.upward.push(UpwardMessage {
+			origin: message.origin,
+			data: message.data.to_vec(),
+		});
+		Ok(())
+	}
 }
+
+
 
 impl Externalities {
 	// Performs final checks of validity, producing the extrinsic data.
@@ -301,6 +319,13 @@ impl Externalities {
 		self,
 		candidate: &CandidateReceipt,
 	) -> Result<Extrinsic, Error> {
+		if &self.upward != &candidate.upward_messages {
+			bail!(ErrorKind::UpwardMessagesInvalid(
+				candidate.upward_messages.clone(),
+				self.upward.clone(),
+			));
+		}
+
 		check_extrinsic(
 			self.outgoing,
 			&candidate.egress_queue_roots[..],
@@ -382,6 +407,7 @@ pub fn validate_collation<P>(
 	let mut ext = Externalities {
 		parachain_index: collation.receipt.parachain_index.clone(),
 		outgoing: Vec::new(),
+		upward: Vec::new(),
 	};
 
 	match wasm_executor::validate_candidate(&validation_code, params, &mut ext) {
@@ -403,6 +429,8 @@ pub fn validate_collation<P>(
 mod tests {
 	use super::*;
 	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
+	use parachain::ParachainDispatchOrigin;
+	use polkadot_primitives::parachain::{Statement::Candidate, CandidateReceipt, HeadData};
 
 	#[test]
 	fn compute_and_check_egress() {
@@ -453,9 +481,74 @@ mod tests {
 		let mut ext = Externalities {
 			parachain_index: 5.into(),
 			outgoing: Vec::new(),
+			upward: Vec::new(),
 		};
 
 		assert!(ext.post_message(MessageRef { target: 1.into(), data: &[] }).is_ok());
 		assert!(ext.post_message(MessageRef { target: 5.into(), data: &[] }).is_err());
+	}
+
+	#[test]
+	fn ext_checks_upward_messages() {
+		let ext = || Externalities {
+			parachain_index: 5.into(),
+			outgoing: Vec::new(),
+			upward: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
+			],
+		};
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			egress_queue_roots: Vec::new(),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Signed },
+				UpwardMessage{ data: vec![69], origin: ParachainDispatchOrigin::Parachain },
+			],
+		};
+		assert!(ext().final_checks(&receipt).is_err());
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			egress_queue_roots: Vec::new(),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Signed },
+			],
+		};
+		assert!(ext().final_checks(&receipt).is_err());
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			egress_queue_roots: Vec::new(),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![69], origin: ParachainDispatchOrigin::Parachain },
+			],
+		};
+		assert!(ext().final_checks(&receipt).is_err());
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			egress_queue_roots: Vec::new(),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
+			],
+		};
+		assert!(ext().final_checks(&receipt).is_ok());
 	}
 }

@@ -21,11 +21,16 @@ use parity_codec::{Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
 use bitvec::{bitvec, BigEndian};
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member};
-use primitives::{Hash, parachain::{Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion}};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion};
+use primitives::{Hash, parachain::{
+	Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
+	ParachainDispatchOrigin, UpwardMessage
+}};
 use {system, session};
+use srml_support::{
+	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result
+};
 
-use srml_support::{StorageValue, StorageMap, Parameter, dispatch::Result};
 #[cfg(feature = "std")]
 use srml_support::storage::hashed::generator;
 
@@ -96,6 +101,19 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 }
 
 pub trait Trait: session::Trait {
+	/// The outer origin type.
+	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
+
+	/// The outer call dispatch type.
+	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
+}
+
+/// Origin for the parachains module.
+#[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub enum Origin {
+	/// It comes from a parachain.
+	Parachain(ParaId),
 }
 
 // result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
@@ -103,6 +121,13 @@ const EMPTY_TRIE_ROOT: [u8; 32] = [
 	3, 23, 10, 46, 117, 151, 183, 183, 227, 216, 76, 5, 57, 29, 19, 154,
 	98, 177, 87, 231, 135, 134, 216, 192, 130, 242, 157, 207, 76, 17, 19, 20
 ];
+
+/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
+const MAX_QUEUE_COUNT: usize = 100;
+/// Total size of messages allowed in the parachain -> relay-chain message queue before which no
+/// further messages may be added to it. If it exceeds this then the queue may contain only a
+/// single message.
+const WATERMARK_QUEUE_SIZE: usize = 20000;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
@@ -114,6 +139,14 @@ decl_storage! {
 		pub Heads get(parachain_head): map ParaId => Option<Vec<u8>>;
 		// message routing roots (from, to).
 		pub Routing: map (ParaId, ParaId) => Option<Hash>;
+
+		/// Messages ready to be dispatched onto the relay chain. It is subject to
+		/// `MAX_MESSAGE_COUNT` and `WATERMARK_MESSAGE_SIZE`.
+		pub RelayDispatchQueue: map ParaId => Vec<UpwardMessage>;
+		/// Size of the dispatch queues. Separated from actual data in order to avoid costly
+		/// decoding when checking receipt validity. First item in tuple is the count of messages
+		//	second if the total length (in bytes) of the message payloads.
+		pub RelayDispatchQueueSize: map ParaId => (u32, u32);
 
 		// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
@@ -144,50 +177,69 @@ decl_storage! {
 
 decl_module! {
 	/// Parachains module.
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
 
 			let active_parachains = Self::active_parachains();
+			let parachain_count = active_parachains.len();
+			ensure!(heads.len() <= parachain_count, "Too many parachain candidates");
 
-			// perform integrity checks before writing to storage.
-			{
-				let n_parachains = active_parachains.len();
-				ensure!(heads.len() <= n_parachains, "Too many parachain candidates");
+			if !active_parachains.is_empty() {
+				// perform integrity checks before writing to storage.
+				{
+					let mut last_id = None;
+					let mut iter = active_parachains.iter();
+					for head in &heads {
+						let id = head.parachain_index();
+						// proposed heads must be ascending order by parachain ID without duplicate.
+						ensure!(
+							last_id.as_ref().map_or(true, |x| x < &id),
+							"Parachain candidates out of order by ID"
+						);
 
-				let mut last_id = None;
-				let mut iter = active_parachains.iter();
-				for head in &heads {
-					// proposed heads must be ascending order by parachain ID without duplicate.
-					ensure!(
-						last_id.as_ref().map_or(true, |x| x < &head.parachain_index()),
-						"Parachain candidates out of order by ID"
-					);
+						// must be unknown since active parachains are always sorted.
+						ensure!(
+							iter.find(|x| x == &&id).is_some(),
+							"Submitted candidate for unregistered or out-of-order parachain {}"
+						);
 
-					// must be unknown since active parachains are always sorted.
-					ensure!(
-						iter.find(|x| x == &&head.parachain_index()).is_some(),
-						"Submitted candidate for unregistered or out-of-order parachain {}"
-					);
+						Self::check_upward_messages(
+							id,
+							&head.candidate.upward_messages,
+							MAX_QUEUE_COUNT,
+							WATERMARK_QUEUE_SIZE,
+						)?;
+						Self::check_egress_queue_roots(&head, &active_parachains)?;
 
-					Self::check_egress_queue_roots(&head, &active_parachains)?;
-
-					last_id = Some(head.parachain_index());
+						last_id = Some(head.parachain_index());
+					}
 				}
-			}
 
-			Self::check_attestations(&heads)?;
+				Self::check_attestations(&heads)?;
 
-			for head in heads {
-				let id = head.parachain_index();
-				<Heads<T>>::insert(id, head.candidate.head_data.0);
+				for head in heads.iter() {
+					let id = head.parachain_index();
+					<Heads<T>>::insert(id, &head.candidate.head_data.0);
 
-				// update egress.
-				for &(to, root) in &head.candidate.egress_queue_roots {
-					<Routing<T>>::insert((id, to), root);
+					// update egress.
+					for &(to, root) in &head.candidate.egress_queue_roots {
+						<Routing<T>>::insert((id, to), root);
+					}
+
+					// Queue up upwards messages (from parachains to relay chain).
+					Self::queue_upward_messages(id, &head.candidate.upward_messages);
 				}
+
+				Self::dispatch_upward_messages(
+					<system::Module<T>>::block_number(),
+					&active_parachains,
+					MAX_QUEUE_COUNT,
+					WATERMARK_QUEUE_SIZE,
+					Self::dispatch_message,
+				);
 			}
 
 			<DidUpdate<T>>::put(true);
@@ -225,6 +277,113 @@ fn localized_payload(statement: Statement, parent_hash: ::primitives::Hash) -> V
 }
 
 impl<T: Trait> Module<T> {
+	/// Dispatch some messages from a parachain.
+	fn dispatch_message(
+		id: ParaId,
+		origin: ParachainDispatchOrigin,
+		data: &[u8],
+	) {
+		if let Some(message_call) = T::Call::decode(&mut &data[..]) {
+			let origin: <T as Trait>::Origin = match origin {
+				ParachainDispatchOrigin::Signed =>
+					system::RawOrigin::Signed(id.into_account()).into(),
+				ParachainDispatchOrigin::Parachain =>
+					Origin::Parachain(id).into(),
+			};
+			let _ok = message_call.dispatch(origin).is_ok();
+			// Not much to do with the result as it is. It's up to the parachain to ensure that the
+			// message makes sense.
+		}
+	}
+
+	/// Ensure all is well with the upward messages.
+	fn check_upward_messages(
+		id: ParaId,
+		upward_messages: &[UpwardMessage],
+		max_queue_count: usize,
+		watermark_queue_size: usize,
+	) -> Result {
+		// Either there are no more messages to add...
+		if !upward_messages.is_empty() {
+			let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
+			ensure!(
+				// ...or we are appending one message onto an empty queue...
+				upward_messages.len() + count as usize == 1
+				// ...or...
+				|| (
+					// ...the total messages in the queue ends up being no greater than the
+					// limit...
+					upward_messages.len() + count as usize <= max_queue_count
+				&&
+					// ...and the total size of the payloads in the queue ends up being no
+					// greater than the limit.
+					upward_messages.iter()
+						.fold(size as usize, |a, x| a + x.data.len())
+					<= watermark_queue_size
+				),
+				"Messages added when queue full"
+			);
+		}
+		Ok(())
+	}
+
+	/// Place any new upward messages into our queue for later dispatch.
+	fn queue_upward_messages(id: ParaId, upward_messages: &[UpwardMessage]) {
+		if !upward_messages.is_empty() {
+			<RelayDispatchQueueSize<T>>::mutate(id, |&mut(ref mut count, ref mut len)| {
+				*count += upward_messages.len() as u32;
+				*len += upward_messages.iter()
+					.fold(0, |a, x| a + x.data.len()) as u32;
+			});
+			// Should never be able to fail assuming our state is uncorrupted, but best not
+			// to panic, even if it does.
+			let _ = <RelayDispatchQueue<T>>::append(id, upward_messages);
+		}
+	}
+
+	/// Simple round-robin dispatcher, using block number modulo parachain count
+	/// to decide which takes precedence and proceeding from there.
+	fn dispatch_upward_messages(
+		now: T::BlockNumber,
+		active_parachains: &[ParaId],
+		max_queue_count: usize,
+		watermark_queue_size: usize,
+		mut dispatch_message: impl FnMut(ParaId, ParachainDispatchOrigin, &[u8]),
+	) {
+		let para_count = active_parachains.len();
+		let offset = (now % T::BlockNumber::from(para_count as u32))
+			.checked_into::<usize>()
+			.expect("value is modulo a usize value; qed");
+
+		let mut dispatched_count = 0usize;
+		let mut dispatched_size = 0usize;
+		for id in active_parachains.iter().cycle().skip(offset).take(para_count) {
+			let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
+			let count = count as usize;
+			let size = size as usize;
+			if dispatched_count == 0 || (
+				dispatched_count + count <= max_queue_count
+					&& dispatched_size + size <= watermark_queue_size
+			) {
+				if count > 0 {
+					// still dispatching messages...
+					<RelayDispatchQueueSize<T>>::remove(id);
+					let messages = <RelayDispatchQueue<T>>::take(id);
+					for UpwardMessage { origin, data } in messages.into_iter() {
+						dispatch_message(*id, origin, &data);
+					}
+					dispatched_count += count;
+					dispatched_size += size;
+					if dispatched_count >= max_queue_count
+						|| dispatched_size >= watermark_queue_size
+					{
+						break
+					}
+				}
+			}
+		}
+	}
+
 	/// Calculate the current block's duty roster using system's random seed.
 	pub fn calculate_duty_roster() -> DutyRoster {
 		let parachains = Self::active_parachains();
@@ -268,7 +427,8 @@ impl<T: Trait> Module<T> {
 			let remaining = (validator_count - i) as usize;
 
 			// 8 32-bit ints per 256-bit seed.
-			let val_index = u32::decode(&mut &seed[offset..offset + 4]).expect("using 4 bytes for a 32-bit quantity") as usize % remaining;
+			let val_index = u32::decode(&mut &seed[offset..offset + 4])
+				.expect("using 4 bytes for a 32-bit quantity") as usize % remaining;
 
 			if offset == 28 {
 				// into the last 4 bytes - rehash to gather new entropy
@@ -507,18 +667,30 @@ impl<T: Trait> ProvideInherent for Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use super::Call as ParachainsCall;
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{generic, BuildStorage};
 	use sr_primitives::traits::{BlakeTwo256, IdentityLookup};
-	use primitives::{parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey};
+	use primitives::{
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey
+	};
 	use keyring::{AuthorityKeyring, AccountKeyring};
-	use srml_support::{impl_outer_origin, assert_ok};
+	use srml_support::{impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err};
 	use {consensus, timestamp};
+	use crate::parachains;
 
 	impl_outer_origin! {
-		pub enum Origin for Test {}
+		pub enum Origin for Test {
+			parachains
+		}
+	}
+
+	impl_outer_dispatch! {
+		pub enum Call for Test where origin: Origin {
+			parachains::Parachains,
+		}
 	}
 
 	#[derive(Clone, Eq, PartialEq)]
@@ -550,7 +722,10 @@ mod tests {
 		type Moment = u64;
 		type OnTimestampSet = ();
 	}
-	impl Trait for Test {}
+	impl Trait for Test {
+		type Origin = Origin;
+		type Call = Call;
+	}
 
 	type Parachains = Module<Test>;
 	type System = system::Module<Test>;
@@ -588,10 +763,14 @@ mod tests {
 			keys: vec![],
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
-			parachains: parachains,
+			parachains,
 			_phdata: Default::default(),
 		}.build_storage().unwrap().0);
 		t.into()
+	}
+
+	fn set_heads(v: Vec<AttestedCandidate>) -> ParachainsCall<Test> {
+		ParachainsCall::set_heads(v)
 	}
 
 	fn make_attestations(candidate: &mut AttestedCandidate) {
@@ -640,12 +819,298 @@ mod tests {
 				collator: Default::default(),
 				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
-				balance_uploads: vec![],
 				egress_queue_roots,
 				fees: 0,
 				block_data_hash: Default::default(),
+				upward_messages: vec![],
 			}
 		}
+	}
+
+	fn new_candidate_with_upward_messages(
+		id: u32,
+		upward_messages: Vec<(ParachainDispatchOrigin, Vec<u8>)>
+	) -> AttestedCandidate {
+		AttestedCandidate {
+			validity_votes: vec![],
+			candidate: CandidateReceipt {
+				parachain_index: id.into(),
+				collator: Default::default(),
+				signature: Default::default(),
+				head_data: HeadData(vec![1, 2, 3]),
+				egress_queue_roots: vec![],
+				fees: 0,
+				block_data_hash: Default::default(),
+				upward_messages: upward_messages.into_iter()
+					.map(|x| UpwardMessage { origin: x.0, data: x.1 })
+					.collect(),
+			}
+		}
+	}
+
+	#[test]
+	fn check_dispatch_upward_works() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+			(2u32.into(), vec![], vec![]),
+		];
+		with_externalities(&mut new_test_ext(parachains.clone()), || {
+			let parachains = vec![0.into(), 1.into(), 2.into()];
+			Parachains::queue_upward_messages(0.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 4] }
+			]);
+			Parachains::queue_upward_messages(1.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 4] }
+			]);
+			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
+			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
+			Parachains::dispatch_upward_messages(0, &parachains, 2, 3, dummy);
+			assert_eq!(dispatched, vec![
+				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 4])
+			]);
+			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).len(), 1);
+		});
+		with_externalities(&mut new_test_ext(parachains.clone()), || {
+			let parachains = vec![0.into(), 1.into(), 2.into()];
+			Parachains::queue_upward_messages(0.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
+			]);
+			Parachains::queue_upward_messages(1.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
+			]);
+			Parachains::queue_upward_messages(2.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
+			]);
+			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
+			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
+			Parachains::dispatch_upward_messages(0, &parachains, 2, 3, dummy);
+			assert_eq!(dispatched, vec![
+				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
+				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
+			]);
+			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).len(), 1);
+			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(2)).is_empty());
+		});
+		with_externalities(&mut new_test_ext(parachains.clone()), || {
+			let parachains = vec![0.into(), 1.into(), 2.into()];
+			Parachains::queue_upward_messages(0.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
+			]);
+			Parachains::queue_upward_messages(1.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
+			]);
+			Parachains::queue_upward_messages(2.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
+			]);
+			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
+			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
+			Parachains::dispatch_upward_messages(1, &parachains, 2, 3, dummy);
+			assert_eq!(dispatched, vec![
+				(1.into(), ParachainDispatchOrigin::Parachain, vec![1; 2]),
+				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
+			]);
+			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).len(), 1);
+			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).is_empty());
+			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(2)).is_empty());
+		});
+		with_externalities(&mut new_test_ext(parachains.clone()), || {
+			let parachains = vec![0.into(), 1.into(), 2.into()];
+			Parachains::queue_upward_messages(0.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
+			]);
+			Parachains::queue_upward_messages(1.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
+			]);
+			Parachains::queue_upward_messages(2.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
+			]);
+			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
+			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
+			Parachains::dispatch_upward_messages(2, &parachains, 2, 3, dummy);
+			assert_eq!(dispatched, vec![
+				(2.into(), ParachainDispatchOrigin::Parachain, vec![2]),
+				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2])
+			]);
+			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).len(), 1);
+			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(2)).is_empty());
+		});
+	}
+
+	#[test]
+	fn check_queue_upward_messages_works() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+		];
+		with_externalities(&mut new_test_ext(parachains), || {
+			let messages = vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] }
+			];
+			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
+
+			// all good.
+			Parachains::queue_upward_messages(0.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
+			]);
+			let messages = vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1, 2] }
+			];
+			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
+			Parachains::queue_upward_messages(0.into(), &messages);
+			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)), vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
+				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1, 2] },
+			]);
+		});
+	}
+
+	#[test]
+	fn check_queue_full_upward_messages_fails() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+		];
+		with_externalities(&mut new_test_ext(parachains), || {
+			// oversize, but ok since it's just one and the queue is empty.
+			let messages = vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] },
+			];
+			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
+
+			// oversize and bad since it's not just one.
+			let messages = vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] },
+			];
+			assert_err!(
+				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
+				"Messages added when queue full"
+			);
+
+			// too many messages.
+			let messages = vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![1] },
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![2] },
+			];
+			assert_err!(
+				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
+				"Messages added when queue full"
+			);
+		});
+	}
+
+	#[test]
+	fn check_queued_too_many_upward_messages_fails() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+		];
+		with_externalities(&mut new_test_ext(parachains), || {
+			// too many messages.
+			Parachains::queue_upward_messages(0.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
+			]);
+			let messages = vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![1] },
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![2] },
+			];
+			assert_err!(
+				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
+				"Messages added when queue full"
+			);
+		});
+	}
+
+	#[test]
+	fn check_queued_total_oversize_upward_messages_fails() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+		];
+		with_externalities(&mut new_test_ext(parachains), || {
+			// too much data.
+			Parachains::queue_upward_messages(0.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0, 1] },
+			]);
+			let messages = vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![2, 3] },
+			];
+			assert_err!(
+				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
+				"Messages added when queue full"
+			);
+		});
+	}
+
+	#[test]
+	fn check_queued_pre_jumbo_upward_messages_fails() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+		];
+		with_externalities(&mut new_test_ext(parachains), || {
+			// bad - already an oversize messages queued.
+			Parachains::queue_upward_messages(0.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] },
+			]);
+			let messages = vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] }
+			];
+			assert_err!(
+				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
+				"Messages added when queue full"
+			);
+		});
+	}
+
+	#[test]
+	fn check_queued_post_jumbo_upward_messages_fails() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+		];
+		with_externalities(&mut new_test_ext(parachains), || {
+			// bad - oversized and already a message queued.
+			Parachains::queue_upward_messages(0.into(), &vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
+			]);
+			let messages = vec![
+				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] }
+			];
+			assert_err!(
+				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
+				"Messages added when queue full"
+			);
+		});
+	}
+
+	#[test]
+	fn upward_queuing_works() {
+		// That the list of egress queue roots is in ascending order by `ParaId`.
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			// parachain 0 is self
+			let mut candidates = vec![
+				new_candidate_with_upward_messages(0, vec![
+					(ParachainDispatchOrigin::Signed, vec![1]),
+				]),
+				new_candidate_with_upward_messages(1, vec![
+					(ParachainDispatchOrigin::Parachain, vec![2]),
+				])
+			];
+			candidates.iter_mut().for_each(make_attestations);
+
+			assert_ok!(Parachains::dispatch(
+				set_heads(candidates),
+				Origin::NONE,
+			));
+
+			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
+			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).is_empty());
+		});
 	}
 
 	#[test]
@@ -706,13 +1171,13 @@ mod tests {
 			let duty_roster_0 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_0);
 
-			System::initialize(&1, &H256::from([1; 32]), &Default::default());
+			System::initialize(&1, &H256::from([1; 32]), &Default::default(), &Default::default());
 			let duty_roster_1 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_1);
 			assert!(duty_roster_0 != duty_roster_1);
 
 
-			System::initialize(&2, &H256::from([2; 32]), &Default::default());
+			System::initialize(&2, &H256::from([2; 32]), &Default::default(), &Default::default());
 			let duty_roster_2 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_2);
 			assert!(duty_roster_0 != duty_roster_2);
@@ -735,15 +1200,15 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				},
 
 			};
 
-			assert!(Parachains::dispatch(Call::set_heads(vec![candidate]), Origin::NONE).is_err());
+			assert!(Parachains::dispatch(set_heads(vec![candidate]), Origin::NONE).is_err());
 		})
 	}
 
@@ -762,10 +1227,10 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				}
 			};
 
@@ -776,10 +1241,10 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![2, 3, 4]),
-					balance_uploads: vec![],
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				}
 			};
 
@@ -787,12 +1252,12 @@ mod tests {
 			make_attestations(&mut candidate_b);
 
 			assert!(Parachains::dispatch(
-				Call::set_heads(vec![candidate_b.clone(), candidate_a.clone()]),
+				set_heads(vec![candidate_b.clone(), candidate_a.clone()]),
 				Origin::NONE,
 			).is_err());
 
 			assert!(Parachains::dispatch(
-				Call::set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
+				set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
 				Origin::NONE,
 			).is_ok());
 		});
@@ -813,10 +1278,10 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				}
 			};
 
@@ -826,7 +1291,7 @@ mod tests {
 			double_validity.validity_votes.push(candidate.validity_votes[0].clone());
 
 			assert!(Parachains::dispatch(
-				Call::set_heads(vec![double_validity]),
+				set_heads(vec![double_validity]),
 				Origin::NONE,
 			).is_err());
 		});
@@ -849,10 +1314,10 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
 					egress_queue_roots: from_a.clone(),
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				}
 			};
 
@@ -864,10 +1329,10 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
-					balance_uploads: vec![],
 					egress_queue_roots: from_b.clone(),
 					fees: 0,
 					block_data_hash: Default::default(),
+					upward_messages: vec![],
 				}
 			};
 
@@ -878,7 +1343,7 @@ mod tests {
 			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
 
 			assert!(Parachains::dispatch(
-				Call::set_heads(vec![candidate_a, candidate_b]),
+				set_heads(vec![candidate_a, candidate_b]),
 				Origin::NONE,
 			).is_ok());
 
@@ -917,7 +1382,7 @@ mod tests {
 			make_attestations(&mut candidate);
 
 			let result = Parachains::dispatch(
-				Call::set_heads(vec![candidate.clone()]),
+				set_heads(vec![candidate.clone()]),
 				Origin::NONE,
 			);
 
@@ -941,7 +1406,7 @@ mod tests {
 			make_attestations(&mut candidate);
 
 			let result = Parachains::dispatch(
-				Call::set_heads(vec![candidate.clone()]),
+				set_heads(vec![candidate.clone()]),
 				Origin::NONE,
 			);
 
@@ -965,7 +1430,7 @@ mod tests {
 			make_attestations(&mut candidate);
 
 			let result = Parachains::dispatch(
-				Call::set_heads(vec![candidate.clone()]),
+				set_heads(vec![candidate.clone()]),
 				Origin::NONE,
 			);
 
@@ -989,7 +1454,7 @@ mod tests {
 			make_attestations(&mut candidate);
 
 			let result = Parachains::dispatch(
-				Call::set_heads(vec![candidate.clone()]),
+				set_heads(vec![candidate.clone()]),
 				Origin::NONE,
 			);
 

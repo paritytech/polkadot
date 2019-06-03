@@ -20,20 +20,21 @@
 //! Assuming the parameters are correct, this module provides a wrapper around
 //! a WASM VM for re-execution of a parachain candidate.
 
+use std::{cell::RefCell, fmt, convert::TryInto};
 use codec::{Decode, Encode};
-
-use wasmi::{self, Module, ModuleInstance, Trap, MemoryInstance, MemoryDescriptor, MemoryRef, ModuleImportResolver};
-use wasmi::{memory_units, RuntimeValue, Externals, Error as WasmError, ValueType};
-use wasmi::memory_units::{Bytes, Pages, RoundUpTo};
-
-use super::{ValidationParams, ValidationResult, MessageRef};
-
-use std::cell::RefCell;
-use std::fmt;
+use wasmi::{
+	self, Module, ModuleInstance, Trap, MemoryInstance, MemoryDescriptor, MemoryRef,
+	ModuleImportResolver, RuntimeValue, Externals, Error as WasmError, ValueType,
+	memory_units::{self, Bytes, Pages, RoundUpTo}
+};
+use super::{ValidationParams, ValidationResult, MessageRef, UpwardMessageRef};
 
 mod ids {
 	/// Post a message to another parachain.
 	pub const POST_MESSAGE: usize = 1;
+
+	/// Post a message to this parachain's relay chain.
+	pub const POST_UPWARDS_MESSAGE: usize = 2;
 }
 
 error_chain! {
@@ -67,6 +68,9 @@ pub enum ExternalitiesError {
 pub trait Externalities {
 	/// Called when a message is to be posted to another parachain.
 	fn post_message(&mut self, message: MessageRef) -> Result<(), ExternalitiesError>;
+
+	/// Called when a message is to be posted to the parachain's relay chain.
+	fn post_upward_message(&mut self, message: UpwardMessageRef) -> Result<(), ExternalitiesError>;
 }
 
 impl fmt::Display for ExternalitiesError {
@@ -96,7 +100,23 @@ impl ModuleImportResolver for Resolver {
 			"ext_post_message" => {
 				let index = ids::POST_MESSAGE;
 				let (params, ret_ty): (&[ValueType], Option<ValueType>) =
-				(&[ValueType::I32, ValueType::I32, ValueType::I32], None);
+					(&[ValueType::I32, ValueType::I32, ValueType::I32], None);
+
+				if signature.params() != params && signature.return_type() != ret_ty {
+					Err(WasmError::Instantiation(
+						format!("Export {} has a bad signature", field_name)
+					))
+				} else {
+					Ok(wasmi::FuncInstance::alloc_host(
+						wasmi::Signature::new(&params[..], ret_ty),
+						index,
+					))
+				}
+			}
+			"ext_upwards_post_message" => {
+				let index = ids::POST_UPWARDS_MESSAGE;
+				let (params, ret_ty): (&[ValueType], Option<ValueType>) =
+					(&[ValueType::I32, ValueType::I32], None);
 
 				if signature.params() != params && signature.return_type() != ret_ty {
 					Err(WasmError::Instantiation(
@@ -172,6 +192,31 @@ impl<'a, E: 'a + Externalities> ValidationExternals<'a, E> {
 			}
 		})
 	}
+	/// Signature: post_upward_message(u32, *const u8, u32) -> None
+	/// usage: post_upward_message(origin, data ptr, data len).
+	/// Origin is the integer representation of the dispatch origin.
+	/// Data is the raw data of the message.
+	fn ext_post_upward_message(&mut self, args: ::wasmi::RuntimeArgs) -> Result<(), Trap> {
+		let origin: u32 = args.nth_checked(0)?;
+		let data_ptr: u32 = args.nth_checked(1)?;
+		let data_len: u32 = args.nth_checked(2)?;
+
+		let (data_ptr, data_len) = (data_ptr as usize, data_len as usize);
+
+		self.memory.with_direct_access(|mem| {
+			if mem.len() < (data_ptr + data_len) {
+				Err(Trap::new(wasmi::TrapKind::MemoryAccessOutOfBounds))
+			} else {
+				let origin = (origin as u8).try_into()
+					.map_err(|_| Trap::new(wasmi::TrapKind::UnexpectedSignature))?;
+				let message = UpwardMessageRef { origin, data: &mem[data_ptr..][..data_len] };
+				let res = self.externalities.post_upward_message(message);
+				res.map_err(|e| Trap::new(wasmi::TrapKind::Host(
+					Box::new(e) as Box<_>
+				)))
+			}
+		})
+	}
 }
 
 impl<'a, E: 'a + Externalities> Externals for ValidationExternals<'a, E> {
@@ -182,6 +227,7 @@ impl<'a, E: 'a + Externalities> Externals for ValidationExternals<'a, E> {
 	) -> Result<Option<RuntimeValue>, Trap> {
 		match index {
 			ids::POST_MESSAGE => self.ext_post_message(args).map(|_| None),
+			ids::POST_UPWARDS_MESSAGE => self.ext_post_upward_message(args).map(|_| None),
 			_ => panic!("no externality at given index"),
 		}
 	}

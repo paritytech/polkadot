@@ -48,7 +48,7 @@ use polkadot_primitives::parachain::{
 	Collation, PoVBlock,
 };
 use primitives::{Pair, ed25519};
-use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyError};
+use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT, Block as BlockT}, ApplyError};
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
@@ -570,7 +570,11 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	type Error = Error;
 	type Create = Either<CreateProposal<C, TxApi>, future::FutureResult<Block, Error>>;
 
-	fn propose(&self, inherent_data: InherentData, max_duration: Duration) -> Self::Create {
+	fn propose(&self,
+		inherent_data: InherentData,
+		_digest: <<Block as BlockT>::Header as HeaderT>::Digest,
+		max_duration: Duration,
+	) -> Self::Create {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
 		const SLOT_DURATION_DENOMINATOR: u64 = 3; // wait up to 1/3 of the slot for candidates.
 
@@ -712,7 +716,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 
 		let runtime_api = self.client.runtime_api();
 
-		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false)?;
+		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false, Default::default())?;
 
 		{
 			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
