@@ -81,5 +81,7 @@ std = [
 	"serde/std",
 	"log",
 	"safe-mix/std",
-	"consensus_authorities/std"
+	"consensus_authorities/std",
+	"consensus_aura/std",
+	"aura/std",
 ]
