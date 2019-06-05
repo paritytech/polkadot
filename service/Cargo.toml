@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies]
 parking_lot = "0.7.1"
-error-chain = "0.12"
 lazy_static = "1.0"
 log = "0.4.6"
 slog = "^2"

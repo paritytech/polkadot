@@ -37,22 +37,27 @@ mod ids {
 	pub const POST_UPWARDS_MESSAGE: usize = 2;
 }
 
-error_chain! {
-	types { Error, ErrorKind, ResultExt; }
-	foreign_links {
-		Wasm(WasmError);
-		Externalities(ExternalitiesError);
-	}
-	errors {
-		/// Call data too big. WASM32 only has a 32-bit address space.
-		ParamsTooLarge(len: usize) {
-			description("Validation parameters took up too much space to execute in WASM"),
-			display("Validation parameters took up {} bytes, max allowed by WASM is {}", len, i32::max_value()),
-		}
-		/// Bad return data or type.
-		BadReturn {
-			description("Validation function returned invalid data."),
-			display("Validation function returned invalid data."),
+/// Error type for the wasm executor
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum Error {
+	/// Wasm error
+	Wasm(WasmError),
+	/// Externalities error
+	Externalities(ExternalitiesError),
+	/// Call data too big. WASM32 only has a 32-bit address space.
+	#[display(fmt = "Validation parameters took up {} bytes, max allowed by WASM is {}", _0, i32::max_value())]
+	ParamsTooLarge(usize),
+	/// Bad return data or type.
+	#[display(fmt = "Validation function returned invalid data.")]
+	BadReturn,
+}
+
+impl std::error::Error for Error {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		match self {
+			Error::Wasm(ref err) => Some(err),
+			Error::Externalities(ref err) => Some(err),
+			_ => None,
 		}
 	}
 }
@@ -284,7 +289,7 @@ pub fn validate_candidate<E: Externalities>(
 
 		// hard limit from WASM.
 		if encoded_call_data.len() > i32::max_value() as usize {
-			bail!(ErrorKind::ParamsTooLarge(encoded_call_data.len()));
+			return Err(Error::ParamsTooLarge(encoded_call_data.len()));
 		}
 
 		// allocate sufficient amount of wasm pages to fit encoded call data.
@@ -308,7 +313,7 @@ pub fn validate_candidate<E: Externalities>(
 		.map_err(|e| -> Error {
 			e.as_host_error()
 				.and_then(|he| he.downcast_ref::<ExternalitiesError>())
-				.map(|ee| ErrorKind::Externalities(ee.clone()).into())
+				.map(|ee| Error::Externalities(ee.clone()))
 				.unwrap_or_else(move || e.into())
 		})?;
 
@@ -321,24 +326,24 @@ pub fn validate_candidate<E: Externalities>(
 			let len_offset = len_offset as usize;
 
 			let len = u32::decode(&mut &len_bytes[..])
-				.ok_or_else(|| ErrorKind::BadReturn)? as usize;
+				.ok_or_else(|| Error::BadReturn)? as usize;
 
 			let return_offset = if len > len_offset {
-				bail!(ErrorKind::BadReturn);
+				return Err(Error::BadReturn);
 			} else {
 				len_offset - len
 			};
 
 			memory.with_direct_access(|mem| {
 				if mem.len() < return_offset + len {
-					return Err(ErrorKind::BadReturn.into());
+					return Err(Error::BadReturn);
 				}
 
 				ValidationResult::decode(&mut &mem[return_offset..][..len])
-					.ok_or_else(|| ErrorKind::BadReturn)
+					.ok_or_else(|| Error::BadReturn)
 					.map_err(Into::into)
 			})
 		}
-		_ => bail!(ErrorKind::BadReturn),
+		_ => return Err(Error::BadReturn),
 	}
 }

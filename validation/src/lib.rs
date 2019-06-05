@@ -62,14 +62,13 @@ use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_aura::timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace};
-use error_chain::bail;
 
 use ed25519::Public as AuthorityId;
 
 pub use self::collation::{
 	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
 };
-pub use self::error::{ErrorKind, Error};
+pub use self::error::Error;
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
@@ -188,7 +187,10 @@ pub fn make_group_info(
 	local_id: AuthorityId,
 ) -> Result<(HashMap<ParaId, GroupInfo>, LocalDuty), Error> {
 	if roster.validator_duty.len() != authorities.len() {
-		bail!(ErrorKind::InvalidDutyRosterLength(authorities.len(), roster.validator_duty.len()))
+		return Err(Error::InvalidDutyRosterLength {
+			expected: authorities.len(),
+			got: roster.validator_duty.len()
+		});
 	}
 
 	let mut local_validation = None;
@@ -223,7 +225,7 @@ pub fn make_group_info(
 
 			Ok((map, local_duty))
 		}
-		None => bail!(ErrorKind::NotValidator(local_id)),
+		None => return Err(Error::NotValidator(local_id)),
 	}
 }
 
@@ -594,7 +596,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 
 		let believed_timestamp = match inherent_data.timestamp_inherent_data() {
 			Ok(timestamp) => timestamp,
-			Err(e) => return Either::B(future::err(ErrorKind::InherentError(e).into())),
+			Err(e) => return Either::B(future::err(Error::InherentError(e))),
 		};
 
 		// set up delay until next allowed timestamp.
@@ -649,26 +651,26 @@ struct ProposalTiming {
 impl ProposalTiming {
 	// whether it's time to attempt a proposal.
 	// shouldn't be called outside of the context of a task.
-	fn poll(&mut self, included: usize) -> Poll<(), ErrorKind> {
+	fn poll(&mut self, included: usize) -> Poll<(), Error> {
 		// first drain from the interval so when the minimum delay is up
 		// we don't have any notifications built up.
 		//
 		// this interval is just meant to produce periodic task wakeups
 		// that lead to the `dynamic_inclusion` getting updated as necessary.
-		while let Async::Ready(x) = self.attempt_propose.poll().map_err(ErrorKind::Timer)? {
+		while let Async::Ready(x) = self.attempt_propose.poll().map_err(Error::Timer)? {
 			x.expect("timer still alive; intervals never end; qed");
 		}
 
 		// wait until the minimum time has passed.
 		if let Some(mut minimum) = self.minimum.take() {
-			if let Async::NotReady = minimum.poll().map_err(ErrorKind::Timer)? {
+			if let Async::NotReady = minimum.poll().map_err(Error::Timer)? {
 				self.minimum = Some(minimum);
 				return Ok(Async::NotReady);
 			}
 		}
 
 		if included == self.last_included {
-			return self.enough_candidates.poll().map_err(ErrorKind::Timer);
+			return self.enough_candidates.poll().map_err(Error::Timer);
 		}
 
 		// the amount of includable candidates has changed. schedule a wakeup
@@ -677,7 +679,7 @@ impl ProposalTiming {
 			Some(instant) => {
 				self.last_included = included;
 				self.enough_candidates.reset(instant);
-				self.enough_candidates.poll().map_err(ErrorKind::Timer)
+				self.enough_candidates.poll().map_err(Error::Timer)
 			}
 			None => Ok(Async::Ready(())),
 		}
@@ -712,7 +714,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let mut inherent_data = self.inherent_data
 			.take()
 			.expect("CreateProposal is not polled after finishing; qed");
-		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(ErrorKind::InherentError)?;
+		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(Error::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
 

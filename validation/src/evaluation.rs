@@ -21,44 +21,40 @@ use super::MAX_TRANSACTIONS_SIZE;
 use parity_codec::Encode;
 use polkadot_primitives::{Block, Hash, BlockNumber};
 use polkadot_primitives::parachain::Id as ParaId;
-use error_chain::*;
 
-error_chain! {
-	foreign_links {
-		Client(::client::error::Error);
-	}
+/// Result type alias for block evaluation
+pub type Result<T> = std::result::Result<T, Error>;
 
-	errors {
-		ProposalNotForPolkadot {
-			description("Proposal provided not a Polkadot block."),
-			display("Proposal provided not a Polkadot block."),
-		}
-		TooManyCandidates(expected: usize, got: usize) {
-			description("Proposal included more candidates than is possible."),
-			display("Proposal included {} candidates for {} parachains", got, expected),
-		}
-		ParachainOutOfOrder {
-			description("Proposal included parachains out of order."),
-			display("Proposal included parachains out of order."),
-		}
-		UnknownParachain(id: ParaId) {
-			description("Proposal included unregistered parachain."),
-			display("Proposal included unregistered parachain {:?}", id),
-		}
-		WrongParentHash(expected: Hash, got: Hash) {
-			description("Proposal had wrong parent hash."),
-			display("Proposal had wrong parent hash. Expected {:?}, got {:?}", expected, got),
-		}
-		WrongNumber(expected: BlockNumber, got: BlockNumber) {
-			description("Proposal had wrong number."),
-			display("Proposal had wrong number. Expected {:?}, got {:?}", expected, got),
-		}
-		ProposalTooLarge(size: usize) {
-			description("Proposal exceeded the maximum size."),
-			display(
-				"Proposal exceeded the maximum size of {} by {} bytes.",
-				MAX_TRANSACTIONS_SIZE, MAX_TRANSACTIONS_SIZE.saturating_sub(*size)
-			),
+/// Error type for block evaluation
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum Error {
+	/// Client error
+	Client(client::error::Error),
+	/// Too many parachain candidates in proposal
+	#[display(fmt = "Proposal included {} candidates for {} parachains", expected, got)]
+	TooManyCandidates { expected: usize, got: usize },
+	/// Proposal included unregistered parachain
+	#[display(fmt = "Proposal included unregistered parachain {:?}", _0)]
+	UnknownParachain(ParaId),
+	/// Proposal had wrong parent hash
+	#[display(fmt = "Proposal had wrong parent hash. Expected {:?}, got {:?}", expected, got)]
+	WrongParentHash { expected: Hash, got: Hash },
+	/// Proposal had wrong number
+	#[display(fmt = "Proposal had wrong number. Expected {:?}, got {:?}", expected, got)]
+	WrongNumber { expected: BlockNumber, got: BlockNumber },
+	/// Proposal exceeded the maximum size
+	#[display(
+		fmt = "Proposal exceeded the maximum size of {} by {} bytes.",
+		MAX_TRANSACTIONS_SIZE, MAX_TRANSACTIONS_SIZE.saturating_sub(*_0)
+	)]
+	ProposalTooLarge(usize),
+}
+
+impl std::error::Error for Error {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		match self {
+			Error::Client(ref err) => Some(err),
+			_ => None,
 		}
 	}
 }
@@ -77,15 +73,21 @@ pub fn evaluate_initial(
 	});
 
 	if transactions_size > MAX_TRANSACTIONS_SIZE {
-		bail!(ErrorKind::ProposalTooLarge(transactions_size))
+		return Err(Error::ProposalTooLarge(transactions_size))
 	}
 
 	if proposal.header.parent_hash != *parent_hash {
-		bail!(ErrorKind::WrongParentHash(*parent_hash, proposal.header.parent_hash));
+		return Err(Error::WrongParentHash {
+			expected: *parent_hash,
+			got: proposal.header.parent_hash
+		});
 	}
 
 	if proposal.header.number != parent_number + 1 {
-		bail!(ErrorKind::WrongNumber(parent_number + 1, proposal.header.number));
+		return Err(Error::WrongNumber {
+			expected: parent_number + 1,
+			got: proposal.header.number
+		});
 	}
 
 	Ok(())

@@ -18,38 +18,44 @@
 
 use runtime_primitives::RuntimeString;
 use primitives::ed25519::Public as AuthorityId;
-use error_chain::*;
 
-error_chain! {
-	foreign_links {
-		Client(::client::error::Error);
-		Consensus(::consensus::error::Error);
-	}
+/// Error type for validation
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum Error {
+	/// Client error
+	Client(client::error::Error),
+	/// Consensus error
+	Consensus(consensus::error::Error),
+	#[display(fmt = "Invalid duty roster length: expected {}, got {}", expected, got)]
+	InvalidDutyRosterLength {
+		/// Expected roster length
+		expected: usize,
+		/// Actual roster length
+		got: usize,
+	},
+	/// Local account not a validator at this block
+	#[display(fmt = "Local account ID ({:?}) not a validator at this block.", _0)]
+	NotValidator(AuthorityId),
+	/// Unexpected error checking inherents
+	#[display(fmt = "Unexpected error while checking inherents: {}", _0)]
+	InherentError(RuntimeString),
+	/// Proposer destroyed before finishing proposing or evaluating
+	#[display(fmt = "Proposer destroyed before finishing proposing or evaluating")]
+	PrematureDestruction,
+	/// Timer failed
+	#[display(fmt = "Timer failed: {}", _0)]
+	Timer(tokio::timer::Error),
+	/// Unable to dispatch agreement future
+	#[display(fmt = "Unable to dispatch agreement future: {:?}", _0)]
+	Executor(futures::future::ExecuteErrorKind),
+}
 
-	errors {
-		InvalidDutyRosterLength(expected: usize, got: usize) {
-			description("Duty Roster had invalid length"),
-			display("Invalid duty roster length: expected {}, got {}", expected, got),
-		}
-		NotValidator(id: AuthorityId) {
-			description("Local account ID not a validator at this block."),
-			display("Local account ID ({:?}) not a validator at this block.", id),
-		}
-		InherentError(reason: RuntimeString) {
-			description("Unexpected error while checking inherents"),
-			display("Unexpected error while checking inherents: {}", reason),
-		}
-		PrematureDestruction {
-			description("Proposer destroyed before finishing proposing or evaluating"),
-			display("Proposer destroyed before finishing proposing or evaluating"),
-		}
-		Timer(e: ::tokio::timer::Error) {
-			description("Failed to register or resolve async timer."),
-			display("Timer failed: {}", e),
-		}
-		Executor(e: ::futures::future::ExecuteErrorKind) {
-			description("Unable to dispatch agreement future"),
-			display("Unable to dispatch agreement future: {:?}", e),
+impl std::error::Error for Error {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		match self {
+			Error::Client(ref err) => Some(err),
+			Error::Consensus(ref err) => Some(err),
+			_ => None,
 		}
 	}
 }
