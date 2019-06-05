@@ -206,16 +206,6 @@ impl Core<Block> for RuntimeApi {
 		unimplemented!("Not required for testing!")
 	}
 
-	fn Core_authorities_runtime_api_impl(
-		&self,
-		_: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Vec<SessionKey>>> {
-		unimplemented!("Not required for testing!")
-	}
-
 	fn Core_execute_block_runtime_api_impl(
 		&self,
 		_: &BlockId,

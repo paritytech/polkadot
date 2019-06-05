@@ -20,7 +20,7 @@
 //! each time a validation session begins on a new chain head.
 
 use sr_primitives::traits::ProvideRuntimeApi;
-use substrate_network::{PeerId, specialization::Context as NetContext};
+use substrate_network::{PeerId, Context as NetContext};
 use substrate_network::consensus_gossip::{
 	self, TopicNotification, MessageRecipient as GossipMessageRecipient, ConsensusMessage,
 };
