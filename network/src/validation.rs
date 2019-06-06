@@ -26,7 +26,10 @@ use substrate_network::consensus_gossip::{
 };
 use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
-use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, ParachainHost, CandidateReceipt, CollatorId, ValidatorId, PoVBlock, ValidatorIndex};
+use polkadot_primitives::parachain::{
+	Id as ParaId, Collation, Extrinsic, ParachainHost, CandidateReceipt, CollatorId,
+	ValidatorId, PoVBlock, ValidatorIndex,
+};
 
 use futures::prelude::*;
 use futures::future::{self, Executor as FutureExecutor};
@@ -58,7 +61,7 @@ pub trait Executor {
 pub struct WrappedExecutor<T>(pub T);
 
 impl<T> Executor for WrappedExecutor<T>
-	where T: FutureExecutor<Box<Future<Item=(),Error=()> + Send + 'static>>
+	where T: FutureExecutor<Box<dyn Future<Item=(),Error=()> + Send + 'static>>
 {
 	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
 		if let Err(e) = self.0.execute(Box::new(f)) {
@@ -94,11 +97,11 @@ pub trait NetworkService: Send + Sync + 'static {
 
 	/// Execute a closure with the gossip service.
 	fn with_gossip<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut GossipService, &mut NetContext<Block>);
+		where F: FnOnce(&mut dyn GossipService, &mut dyn NetContext<Block>);
 
 	/// Execute a closure with the polkadot protocol.
 	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>);
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn NetContext<Block>);
 }
 
 impl NetworkService for super::NetworkService {
@@ -126,7 +129,7 @@ impl NetworkService for super::NetworkService {
 	}
 
 	fn with_gossip<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut GossipService, &mut NetContext<Block>)
+		where F: FnOnce(&mut dyn GossipService, &mut dyn NetContext<Block>)
 	{
 		super::NetworkService::with_gossip(self, move |gossip, ctx| with(gossip, ctx))
 	}

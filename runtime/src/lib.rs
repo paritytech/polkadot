@@ -163,10 +163,24 @@ impl staking::Trait for Runtime {
 	type Reward = ();
 }
 
+const MINUTES: BlockNumber = 6;
+const BUCKS: Balance = 1_000_000_000_000;
+
+parameter_types! {
+	pub const LaunchPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
+	pub const VotingPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
+	pub const MinimumDeposit: Balance = 100 * BUCKS;
+	pub const EnactmentPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
+}
+
 impl democracy::Trait for Runtime {
 	type Currency = balances::Module<Self>;
 	type Proposal = Call;
 	type Event = Event;
+	type EnactmentPeriod = EnactmentPeriod;
+	type LaunchPeriod = LaunchPeriod;
+	type VotingPeriod = VotingPeriod;
+	type MinimumDeposit = MinimumDeposit;
 }
 
 impl council::Trait for Runtime {
@@ -275,10 +289,6 @@ impl_runtime_apis! {
 	impl client_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION
-		}
-
-		fn authorities() -> Vec<SessionKey> {
-			Consensus::authorities()
 		}
 
 		fn execute_block(block: Block) {
