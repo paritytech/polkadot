@@ -16,31 +16,10 @@
 
 //! Polkadot service. Specialized wrapper over substrate service.
 
-extern crate polkadot_availability_store as av_store;
-extern crate polkadot_validation as consensus;
-extern crate polkadot_primitives;
-extern crate polkadot_runtime;
-extern crate polkadot_executor;
-extern crate polkadot_network;
-extern crate sr_primitives;
-extern crate substrate_primitives as primitives;
-extern crate substrate_client as client;
-#[macro_use]
-extern crate substrate_service as service;
-extern crate substrate_consensus_aura as aura;
-extern crate substrate_finality_grandpa as grandpa;
-extern crate substrate_transaction_pool as transaction_pool;
-extern crate substrate_telemetry as telemetry;
-extern crate tokio;
-extern crate substrate_inherents as inherents;
-
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate hex_literal;
-
 pub mod chain_spec;
 
+use client::LongestChain;
+use consensus_common::SelectChain;
 use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Block, Hash, BlockId};
@@ -52,9 +31,10 @@ use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor,
 use transaction_pool::txpool::{Pool as TransactionPool};
 use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration, NothingExtra};
 use inherents::InherentDataProviders;
+use log::info;
 pub use service::{
 	Roles, PruningMode, TransactionPoolOptions, ComponentClient,
-	ErrorKind, Error, ComponentBlock, LightComponents, FullComponents,
+	Error, ComponentBlock, LightComponents, FullComponents,
 	FullClient, LightClient, Components, Service, ServiceFactory
 };
 pub use service::config::full_version_from_strs;
@@ -82,6 +62,9 @@ pub struct CustomConfiguration {
 		grandpa::LinkHalfForService<Factory>
 	)>,
 
+	/// Maximal `block_data` size.
+	pub max_block_data_size: Option<u64>,
+
 	inherent_data_providers: InherentDataProviders,
 }
 
@@ -91,6 +74,7 @@ impl Default for CustomConfiguration {
 			collating_for: None,
 			grandpa_import_setup: None,
 			inherent_data_providers: InherentDataProviders::new(),
+			max_block_data_size: None,
 		}
 	}
 }
@@ -111,6 +95,8 @@ pub trait PolkadotService {
 	/// Get a handle to the client.
 	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>>;
 
+	fn select_chain(&self) -> Option<client::LongestChain<Self::Backend, Block>>;
+
 	/// Get a handle to the network.
 	fn network(&self) -> Arc<NetworkService>;
 
@@ -125,6 +111,11 @@ impl PolkadotService for Service<FullComponents<Factory>> {
 	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>> {
 		Service::client(self)
 	}
+
+	fn select_chain(&self) -> Option<client::LongestChain<Self::Backend, Block>> {
+		Service::select_chain(self)
+	}
+
 	fn network(&self) -> Arc<NetworkService> {
 		Service::network(self)
 	}
@@ -142,6 +133,10 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 		Service::client(self)
 	}
 
+	fn select_chain(&self) -> Option<client::LongestChain<Self::Backend, Block>> {
+		None
+	}
+
 	fn network(&self) -> Arc<NetworkService> {
 		Service::network(self)
 	}
@@ -151,7 +146,7 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 	}
 }
 
-construct_service_factory! {
+service::construct_service_factory! {
 	struct Factory {
 		Block = Block,
 		RuntimeApi = RuntimeApi,
@@ -249,22 +244,31 @@ construct_service_factory! {
 
 				let client = service.client();
 				let known_oracle = client.clone();
+				let select_chain = if let Some(select_chain) = service.select_chain() {
+					select_chain
+				} else {
+					info!("The node cannot start as an authority because it can't select chain.");
+					return Ok(service);
+				};
 
+				let gossip_validator_select_chain = select_chain.clone();
 				let gossip_validator = network_gossip::register_validator(
-					&*service.network(),
+					service.network(),
 					move |block_hash: &Hash| {
-						use client::{BlockStatus, ChainHead};
+						use client::BlockStatus;
 
 						match known_oracle.block_status(&BlockId::hash(*block_hash)) {
 							Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
 							Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-							Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => match known_oracle.leaves() {
-								Err(_) => None,
-								Ok(leaves) => if leaves.contains(block_hash) {
-									Some(Known::Leaf)
-								} else {
-									Some(Known::Old)
-								},
+							Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
+								match gossip_validator_select_chain.leaves() {
+									Err(_) => None,
+									Ok(leaves) => if leaves.contains(block_hash) {
+										Some(Known::Leaf)
+									} else {
+										Some(Known::Old)
+									},
+								}
 							}
 						}
 					},
@@ -280,6 +284,7 @@ construct_service_factory! {
 				);
 				let proposer_factory = ::consensus::ProposerFactory::new(
 					client.clone(),
+					select_chain.clone(),
 					validation_network.clone(),
 					validation_network,
 					service.transaction_pool(),
@@ -287,6 +292,7 @@ construct_service_factory! {
 					key.clone(),
 					extrinsic_store,
 					SlotDuration::get_or_compute(&*client)?,
+					service.config.custom.max_block_data_size,
 				);
 
 				info!("Using authority key {}", key.public());
@@ -294,6 +300,7 @@ construct_service_factory! {
 					SlotDuration::get_or_compute(&*client)?,
 					key,
 					client.clone(),
+					select_chain,
 					block_import,
 					Arc::new(proposer_factory),
 					service.network(),
@@ -310,10 +317,13 @@ construct_service_factory! {
 		FullImportQueue = AuraImportQueue<
 			Self::Block,
 		>
-			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
+			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>, select_chain: Self::SelectChain| {
 				let slot_duration = SlotDuration::get_or_compute(&*client)?;
 
-				let (block_import, link_half) = grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>>(client.clone(), client.clone())?;
+				let (block_import, link_half) =
+					grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>, _>(
+						client.clone(), client.clone(), select_chain
+					)?;
 				let block_import = Arc::new(block_import);
 				let justification_import = block_import.clone();
 
@@ -322,6 +332,8 @@ construct_service_factory! {
 					slot_duration,
 					block_import,
 					Some(justification_import),
+					None,
+					None,
 					client,
 					NothingExtra,
 					config.custom.inherent_data_providers.clone(),
@@ -331,16 +343,38 @@ construct_service_factory! {
 			Self::Block,
 		>
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<LightClient<Self>>| {
-				let slot_duration = SlotDuration::get_or_compute(&*client)?;
+				let fetch_checker = client.backend().blockchain().fetcher()
+					.upgrade()
+					.map(|fetcher| fetcher.checker().clone())
+					.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
+				let block_import = grandpa::light_block_import::<_, _, _, RuntimeApi, LightClient<Self>>(
+					client.clone(), Arc::new(fetch_checker), client.clone()
+				)?;
+				let block_import = Arc::new(block_import);
+				let finality_proof_import = block_import.clone();
+				let finality_proof_request_builder = finality_proof_import.create_finality_proof_request_builder();
 
 				import_queue::<_, _, _, ed25519::Pair>(
-					slot_duration,
-					client.clone(),
+					SlotDuration::get_or_compute(&*client)?,
+					block_import,
 					None,
+					Some(finality_proof_import),
+					Some(finality_proof_request_builder),
 					client,
 					NothingExtra,
 					config.custom.inherent_data_providers.clone(),
 				).map_err(Into::into)
 			}},
+		SelectChain = LongestChain<FullBackend<Self>, Self::Block>
+			{ |config: &FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
+				Ok(LongestChain::new(
+					client.backend().clone(),
+					client.import_lock()
+				))
+			}
+		},
+		FinalityProofProvider = { |client: Arc<FullClient<Self>>| {
+			Ok(Some(Arc::new(grandpa::FinalityProofProvider::new(client.clone(), client)) as _))
+		}},
 	}
 }

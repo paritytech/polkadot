@@ -17,9 +17,10 @@
 //! A module for manually curated GRANDPA set.
 
 use {grandpa, system};
-use codec::Decode;
-use sr_primitives::traits::{As, Hash as HashT, BlakeTwo256, Zero};
+use parity_codec::Decode;
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Zero};
 use rstd::prelude::*;
+use srml_support::{decl_storage, decl_module};
 
 pub trait Trait: grandpa::Trait {}
 
@@ -42,11 +43,12 @@ decl_module! {
 		}
 
 		fn on_finalize(block_number: T::BlockNumber) {
-			// every so often shuffle the voters and issue a change.
-			let shuffle_period: u64 = Self::shuffle_period().as_();
-			if shuffle_period == 0 { return }
+			let shuffle_period = Self::shuffle_period();
 
-			if block_number.as_() % shuffle_period == 0 {
+			// every so often shuffle the voters and issue a change.
+			if shuffle_period.is_zero() { return }
+
+			if (block_number % shuffle_period).is_zero() {
 				let mut voters = grandpa::Module::<T>::grandpa_authorities();
 				let voter_count = voters.len();
 

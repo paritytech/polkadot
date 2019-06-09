@@ -16,8 +16,9 @@
 
 //! Tests for polkadot and validation network.
 
+use std::collections::HashMap;
 use super::{PolkadotProtocol, Status, Message, FullStatus};
-use validation::SessionParams;
+use crate::validation::SessionParams;
 
 use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash, SessionKey};
@@ -26,10 +27,10 @@ use polkadot_primitives::parachain::{
 	ConsolidatedIngressRoots,
 };
 use substrate_primitives::crypto::UncheckedInto;
-use codec::Encode;
+use parity_codec::Encode;
 use substrate_network::{
-	PeerId, PeerInfo, ClientHandle, Context, config::Roles,
-	message::{BlockRequest, generic::ConsensusMessage},
+	PeerId, Context, config::Roles,
+	message::generic::ConsensusMessage,
 	specialization::NetworkSpecialization, generic_message::Message as GenericMessage
 };
 
@@ -41,28 +42,20 @@ mod validation;
 struct TestContext {
 	disabled: Vec<PeerId>,
 	disconnected: Vec<PeerId>,
+	reputations: HashMap<PeerId, i32>,
 	messages: Vec<(PeerId, Vec<u8>)>,
 }
 
 impl Context<Block> for TestContext {
-	fn client(&self) -> &ClientHandle<Block> {
-		unimplemented!()
-	}
-
 	fn report_peer(&mut self, peer: PeerId, reputation: i32) {
+        let reputation = self.reputations.get(&peer).map_or(reputation, |v| v + reputation);
+        self.reputations.insert(peer.clone(), reputation);
+
 		match reputation {
 			i if i < -100 => self.disabled.push(peer),
 			i if i < 0 => self.disconnected.push(peer),
 			_ => {}
 		}
-	}
-
-	fn peer_info(&self, _peer: &PeerId) -> Option<PeerInfo<Block>> {
-		unimplemented!()
-	}
-
-	fn send_block_request(&mut self, _who: PeerId, _request: BlockRequest<Block>) {
-		unimplemented!()
 	}
 
 	fn send_consensus(&mut self, _who: PeerId, _consensus: ConsensusMessage) {
@@ -84,7 +77,6 @@ impl TestContext {
 		)
 	}
 }
-
 
 fn make_pov(block_data: Vec<u8>) -> PoVBlock {
 	PoVBlock {
@@ -166,10 +158,10 @@ fn fetches_from_those_with_knowledge() {
 		collator: [255; 32].unchecked_into(),
 		head_data: HeadData(vec![9, 9, 9]),
 		signature: Default::default(),
-		balance_uploads: Vec::new(),
 		egress_queue_roots: Vec::new(),
 		fees: 1_000_000,
 		block_data_hash,
+		upward_messages: Vec::new(),
 	};
 
 	let candidate_hash = candidate_receipt.hash();
@@ -250,10 +242,10 @@ fn fetches_available_block_data() {
 		collator: [255; 32].unchecked_into(),
 		head_data: HeadData(vec![9, 9, 9]),
 		signature: Default::default(),
-		balance_uploads: Vec::new(),
 		egress_queue_roots: Vec::new(),
 		fees: 1_000_000,
 		block_data_hash,
+		upward_messages: Vec::new(),
 	};
 
 	let candidate_hash = candidate_receipt.hash();
@@ -304,6 +296,22 @@ fn remove_bad_collator() {
 		protocol.disconnect_bad_collator(&mut ctx, collator_id);
 		assert!(ctx.disabled.contains(&who));
 	}
+}
+
+#[test]
+fn kick_collator() {
+    let mut protocol = PolkadotProtocol::new(None);
+
+    let who = PeerId::random();
+    let collator_id: CollatorId = [2; 32].unchecked_into();
+
+    let mut ctx = TestContext::default();
+    let status = Status { collating_for: Some((collator_id.clone(), 5.into())) };
+    protocol.on_connect(&mut ctx, who.clone(), make_status(&status, Roles::NONE));
+    assert!(!ctx.disconnected.contains(&who));
+
+    protocol.on_connect(&mut ctx, who.clone(), make_status(&status, Roles::NONE));
+    assert!(ctx.disconnected.contains(&who));
 }
 
 #[test]

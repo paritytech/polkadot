@@ -2,10 +2,11 @@
 name = "adder-wasm"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
 
 [dependencies]
 adder = { path = ".." }
-polkadot-parachain = { path = "../../../parachain", default-features = false, features = ["wasm-api"] }
+parachain = { package = "polkadot-parachain", path = "../../../parachain", default-features = false, features = ["wasm-api"] }
 tiny-keccak = "1.4"
 dlmalloc = { version = "0.1.2", features = ["global"] }
 

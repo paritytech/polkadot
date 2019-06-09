@@ -18,13 +18,17 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
-use super::Hash;
+use parity_codec::{Encode, Decode};
+use super::{Hash, Balance};
+
+#[cfg(feature = "std")]
+use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
 use primitives::ed25519;
 
-pub use polkadot_parachain::Id;
+pub use polkadot_parachain::{Id, AccountIdConversion, ParachainDispatchOrigin};
 
 /// Identity that collators use.
 pub type CollatorId = ed25519::Public;
@@ -104,6 +108,16 @@ pub struct Extrinsic {
 	pub outgoing_messages: Vec<OutgoingMessage>
 }
 
+/// A message from a parachain to its Relay Chain.
+#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct UpwardMessage {
+	/// The origin for the message to be sent from.
+	pub origin: ParachainDispatchOrigin,
+	/// The message data.
+	pub data: Vec<u8>,
+}
+
 /// Candidate receipt type.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
@@ -116,15 +130,15 @@ pub struct CandidateReceipt {
 	pub signature: CollatorSignature,
 	/// The head-data
 	pub head_data: HeadData,
-	/// Balance uploads to the relay chain.
-	pub balance_uploads: Vec<(super::AccountId, u64)>,
 	/// Egress queue roots. Must be sorted lexicographically (ascending)
 	/// by parachain ID.
 	pub egress_queue_roots: Vec<(Id, Hash)>,
 	/// Fees paid from the chain to the relay chain validators
-	pub fees: u64,
+	pub fees: Balance,
 	/// blake2-256 Hash of block data.
 	pub block_data_hash: Hash,
+	/// Messages destined to be interpreted by the Relay chain itself.
+	pub upward_messages: Vec<UpwardMessage>,
 }
 
 impl CandidateReceipt {
@@ -297,7 +311,7 @@ impl AttestedCandidate {
 	}
 }
 
-decl_runtime_apis! {
+substrate_client::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost {
 		/// Get the current validators.

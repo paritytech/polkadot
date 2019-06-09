@@ -58,10 +58,6 @@ extern crate core;
 extern crate wasmi;
 
 #[cfg(feature = "std")]
-#[macro_use]
-extern crate error_chain;
-
-#[cfg(feature = "std")]
 extern crate serde;
 
 #[cfg(feature = "std")]
@@ -76,6 +72,21 @@ pub mod wasm_executor;
 
 #[cfg(feature = "wasm-api")]
 pub mod wasm_api;
+
+use codec::{Encode, Decode};
+
+struct TrailingZeroInput<'a>(&'a [u8]);
+impl<'a> codec::Input for TrailingZeroInput<'a> {
+	fn read(&mut self, into: &mut [u8]) -> usize {
+		let len = into.len().min(self.0.len());
+		into[..len].copy_from_slice(&self.0[..len]);
+		for i in &mut into[len..] {
+			*i = 0;
+		}
+		self.0 = &self.0[len..];
+		len
+	}
+}
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
@@ -100,9 +111,55 @@ pub struct ValidationResult {
 }
 
 /// Unique identifier of a parachain.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Encode, Decode)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Default, Clone, Copy, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct Id(u32);
+
+impl codec::CompactAs for Id {
+	type As = u32;
+	fn encode_as(&self) -> &u32 {
+		&self.0
+	}
+	fn decode_from(x: u32) -> Self {
+		Self(x)
+	}
+}
+impl From<codec::Compact<Id>> for Id {
+	fn from(x: codec::Compact<Id>) -> Id {
+		x.0
+	}
+}
+
+/// This type can be converted into and possibly from an AccountId (which itself is generic).
+pub trait AccountIdConversion<AccountId>: Sized {
+	/// Convert into an account ID. This is infallible.
+	fn into_account(&self) -> AccountId;
+
+	/// Try to convert an account ID into this type. Might not succeed.
+	fn try_from_account(a: &AccountId) -> Option<Self>;
+}
+
+/// Format is b"para" ++ encode(parachain ID) ++ 00.... where 00... is indefinite trailing zeroes to fill AccountId.
+impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
+	fn into_account(&self) -> T {
+		(b"para", self).using_encoded(|b|
+			T::decode(&mut TrailingZeroInput(b))
+		).unwrap_or_default()
+	}
+
+	fn try_from_account(x: &T) -> Option<Self> {
+		x.using_encoded(|d| {
+			if &d[0..4] != b"para" { return None }
+			let mut cursor = &d[4..];
+			let result = Decode::decode(&mut cursor)?;
+			if cursor.iter().all(|x| *x == 0) {
+				Some(result)
+			} else {
+				None
+			}
+		})
+	}
+}
 
 impl From<Id> for u32 {
 	fn from(x: Id) -> Self { x.0 }
@@ -133,6 +190,40 @@ pub struct IncomingMessage {
 pub struct MessageRef<'a> {
 	/// The target parachain.
 	pub target: Id,
+	/// Underlying data of the message.
+	pub data: &'a [u8],
+}
+
+/// Which origin a parachain's message to the relay chain should be dispatched from.
+#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+#[repr(u8)]
+pub enum ParachainDispatchOrigin {
+	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
+	/// interacting with standard modules such as `balances`.
+	Signed,
+	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with parachain-
+	/// aware modules which need to succinctly verify that the origin is a parachain.
+	Parachain,
+}
+
+impl core::convert::TryFrom<u8> for ParachainDispatchOrigin {
+	type Error = ();
+	fn try_from(x: u8) -> core::result::Result<ParachainDispatchOrigin, ()> {
+		const SIGNED: u8 = ParachainDispatchOrigin::Signed as u8;
+		const PARACHAIN: u8 = ParachainDispatchOrigin::Parachain as u8;
+		Ok(match x {
+			SIGNED => ParachainDispatchOrigin::Signed,
+			PARACHAIN => ParachainDispatchOrigin::Parachain,
+			_ => return Err(()),
+		})
+	}
+}
+
+/// A reference to an upward message.
+pub struct UpwardMessageRef<'a> {
+	/// The origin type.
+	pub origin: ParachainDispatchOrigin,
 	/// Underlying data of the message.
 	pub data: &'a [u8],
 }

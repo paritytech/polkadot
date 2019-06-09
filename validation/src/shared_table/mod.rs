@@ -29,6 +29,7 @@ use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, Candida
 
 use parking_lot::Mutex;
 use futures::prelude::*;
+use log::{warn, debug};
 
 use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
@@ -79,7 +80,7 @@ impl TableContext {
 	}
 
 	fn sign_statement(&self, statement: table::Statement) -> table::SignedStatement {
-		let signature = ::sign_table_statement(&statement, &self.key, &self.parent_hash).into();
+		let signature = crate::sign_table_statement(&statement, &self.key, &self.parent_hash).into();
 
 		table::SignedStatement {
 			statement,
@@ -136,6 +137,7 @@ impl SharedTableInner {
 		context: &TableContext,
 		router: &R,
 		statement: table::SignedStatement,
+		max_block_data_size: Option<u64>,
 	) -> Option<ParachainWork<
 		<R::FetchValidationProof as IntoFuture>::Future,
 	>> {
@@ -191,7 +193,8 @@ impl SharedTableInner {
 		work.map(|work| ParachainWork {
 			extrinsic_store: self.extrinsic_store.clone(),
 			relay_parent: context.parent_hash.clone(),
-			work
+			work,
+			max_block_data_size,
 		})
 	}
 
@@ -265,6 +268,7 @@ pub struct ParachainWork<Fetch> {
 	work: Work<Fetch>,
 	relay_parent: Hash,
 	extrinsic_store: ExtrinsicStore,
+	max_block_data_size: Option<u64>,
 }
 
 impl<Fetch: Future> ParachainWork<Fetch> {
@@ -279,11 +283,13 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 			P: Send + Sync + 'static,
 			P::Api: ParachainHost<Block>,
 	{
+		let max_block_data_size = self.max_block_data_size;
 		let validate = move |id: &_, collation: &_| {
-			let res = ::collation::validate_collation(
+			let res = crate::collation::validate_collation(
 				&*api,
 				id,
 				collation,
+				max_block_data_size,
 			);
 
 			match res {
@@ -330,7 +336,7 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 		let work = &mut self.inner.work;
 		let candidate = &work.candidate_receipt;
 
-		let pov_block = try_ready!(work.fetch.poll());
+		let pov_block = futures::try_ready!(work.fetch.poll());
 		let validation_res = (self.validate)(
 			&BlockId::hash(self.inner.relay_parent),
 			&Collation { pov: pov_block.clone(), receipt: candidate.clone() },
@@ -373,13 +379,15 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 pub struct SharedTable {
 	context: Arc<TableContext>,
 	inner: Arc<Mutex<SharedTableInner>>,
+	max_block_data_size: Option<u64>,
 }
 
 impl Clone for SharedTable {
 	fn clone(&self) -> Self {
-		SharedTable {
+		Self {
 			context: self.context.clone(),
 			inner: self.inner.clone(),
+			max_block_data_size: self.max_block_data_size,
 		}
 	}
 }
@@ -395,10 +403,12 @@ impl SharedTable {
 		key: Arc<ed25519::Pair>,
 		parent_hash: Hash,
 		extrinsic_store: ExtrinsicStore,
+		max_block_data_size: Option<u64>,
 	) -> Self {
 		let index_mapping = authorities.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect();
 		Self {
 			context: Arc::new(TableContext { groups, key, parent_hash, index_mapping, }),
+			max_block_data_size,
 			inner: Arc::new(Mutex::new(SharedTableInner {
 				table: Table::default(),
 				validated: HashMap::new(),
@@ -447,7 +457,7 @@ impl SharedTable {
 	) -> Option<ParachainWork<
 		<R::FetchValidationProof as IntoFuture>::Future,
 	>> {
-		self.inner.lock().import_remote_statement(&*self.context, router, statement)
+		self.inner.lock().import_remote_statement(&*self.context, router, statement, self.max_block_data_size)
 	}
 
 	/// Import many statements at once.
@@ -467,7 +477,7 @@ impl SharedTable {
 		let mut inner = self.inner.lock();
 
 		iterable.into_iter().map(move |statement| {
-			inner.import_remote_statement(&*self.context, router, statement)
+			inner.import_remote_statement(&*self.context, router, statement, self.max_block_data_size)
 		}).collect()
 	}
 
@@ -612,6 +622,7 @@ mod tests {
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
+			None,
 		);
 
 		let candidate = CandidateReceipt {
@@ -619,15 +630,15 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
-		let signature = ::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
+		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
@@ -665,6 +676,7 @@ mod tests {
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
+			None,
 		);
 
 		let candidate = CandidateReceipt {
@@ -672,15 +684,15 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
-		let signature = ::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
+		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
@@ -705,10 +717,10 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let hash = candidate.hash();
@@ -720,6 +732,7 @@ mod tests {
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),
+			max_block_data_size: None,
 		};
 
 		let validated = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
@@ -745,10 +758,10 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let hash = candidate.hash();
@@ -760,6 +773,7 @@ mod tests {
 			},
 			relay_parent,
 			extrinsic_store: store.clone(),
+			max_block_data_size: None,
 		};
 
 		let validated = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
@@ -797,6 +811,7 @@ mod tests {
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
+			None,
 		);
 
 		let candidate = CandidateReceipt {
@@ -804,16 +819,16 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let hash = candidate.hash();
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
-		let signature = ::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
+		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
@@ -861,6 +876,7 @@ mod tests {
 			local_key.clone(),
 			parent_hash,
 			ExtrinsicStore::new_in_memory(),
+			None,
 		);
 
 		let candidate = CandidateReceipt {
@@ -868,10 +884,10 @@ mod tests {
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
-			balance_uploads: Vec::new(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
+			upward_messages: Vec::new(),
 		};
 
 		let hash = candidate.hash();
@@ -909,6 +925,7 @@ mod tests {
 				Arc::new(AuthorityKeyring::Alice.pair()),
 				Default::default(),
 				ExtrinsicStore::new_in_memory(),
+				None,
 			);
 			let expected_mapping = authorities.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect();
 			assert_eq!(shared_table.context.index_mapping, expected_mapping);

@@ -16,6 +16,7 @@
 
 //! Bridge between the network and consensus service for getting collations to it.
 
+use parity_codec::{Encode, Decode};
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{CollatorId, Id as ParaId, Collation};
 use futures::sync::oneshot;
@@ -276,10 +277,10 @@ mod tests {
 				collator: primary.into(),
 				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
-				balance_uploads: vec![],
 				egress_queue_roots: vec![],
 				fees: 0,
 				block_data_hash: [3; 32].into(),
+				upward_messages: Vec::new(),
 			},
 			pov: make_pov(vec![4, 5, 6]),
 		});
@@ -303,10 +304,10 @@ mod tests {
 				collator: primary,
 				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
-				balance_uploads: vec![],
 				egress_queue_roots: vec![],
 				fees: 0,
 				block_data_hash: [3; 32].into(),
+				upward_messages: Vec::new(),
 			},
 			pov: make_pov(vec![4, 5, 6]),
 		});

@@ -27,20 +27,22 @@ use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::Arc;
 
-use client::{error::Result as ClientResult, BlockchainEvents, ChainHead, BlockBody};
+use client::{error::Result as ClientResult, BlockchainEvents, BlockBody};
 use client::block_builder::api::BlockBuilder;
 use client::blockchain::HeaderBackend;
-use primitives::ed25519;
+use consensus::SelectChain;
+use consensus_authorities::AuthoritiesApi;
+use extrinsic_store::Store as ExtrinsicStore;
 use futures::prelude::*;
+use primitives::ed25519;
 use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
-use extrinsic_store::Store as ExtrinsicStore;
 use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
-use consensus_authorities::AuthoritiesApi;
 
 use tokio::runtime::TaskExecutor;
 use tokio::runtime::current_thread::Runtime as LocalRuntime;
 use tokio::timer::Interval;
+use log::{warn, debug};
 
 use super::{Network, Collators};
 
@@ -48,7 +50,7 @@ use super::{Network, Collators};
 pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
 	-> ClientResult<Option<impl Iterator<Item=CandidateReceipt>>>
 {
-	use codec::{Encode, Decode};
+	use parity_codec::{Encode, Decode};
 	use polkadot_runtime::{Call, ParachainsCall, UncheckedExtrinsic as RuntimeExtrinsic};
 
 	let extrinsics = client.block_body(block)?;
@@ -102,22 +104,25 @@ pub(crate) struct ServiceHandle {
 }
 
 /// Create and start a new instance of the attestation service.
-pub(crate) fn start<C, N, P>(
+pub(crate) fn start<C, N, P, SC>(
 	client: Arc<P>,
-	parachain_validation: Arc<::ParachainValidation<C, N, P>>,
+	select_chain: SC,
+	parachain_validation: Arc<crate::ParachainValidation<C, N, P>>,
 	thread_pool: TaskExecutor,
 	key: Arc<ed25519::Pair>,
 	extrinsic_store: ExtrinsicStore,
+	max_block_data_size: Option<u64>,
 ) -> ServiceHandle
 	where
 		C: Collators + Send + Sync + 'static,
 		<C::Collation as IntoFuture>::Future: Send + 'static,
-		P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
+		P: BlockchainEvents<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block> + BlockBuilder<Block> + AuthoritiesApi<Block>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
 		<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+		SC: SelectChain<Block> + 'static,
 {
 	const TIMER_DELAY: Duration = Duration::from_secs(5);
 	const TIMER_INTERVAL: Duration = Duration::from_secs(30);
@@ -144,6 +149,7 @@ pub(crate) fn start<C, N, P>(
 									notification.header.parent_hash().clone(),
 									&authorities,
 									key.clone(),
+									max_block_data_size,
 								)
 							});
 
@@ -159,14 +165,14 @@ pub(crate) fn start<C, N, P>(
 		};
 
 		let prune_old_sessions = {
-			let client = client.clone();
+			let select_chain = select_chain.clone();
 			let interval = Interval::new(
 				Instant::now() + TIMER_DELAY,
 				TIMER_INTERVAL,
 			);
 
 			interval
-				.for_each(move |_| match client.leaves() {
+				.for_each(move |_| match select_chain.leaves() {
 					Ok(leaves) => {
 						parachain_validation.retain(|h| leaves.contains(h));
 						Ok(())

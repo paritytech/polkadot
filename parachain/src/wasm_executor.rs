@@ -20,38 +20,44 @@
 //! Assuming the parameters are correct, this module provides a wrapper around
 //! a WASM VM for re-execution of a parachain candidate.
 
+use std::{cell::RefCell, fmt, convert::TryInto};
 use codec::{Decode, Encode};
-
-use wasmi::{self, Module, ModuleInstance, Trap, MemoryInstance, MemoryDescriptor, MemoryRef, ModuleImportResolver};
-use wasmi::{memory_units, RuntimeValue, Externals, Error as WasmError, ValueType};
-use wasmi::memory_units::{Bytes, Pages, RoundUpTo};
-
-use super::{ValidationParams, ValidationResult, MessageRef};
-
-use std::cell::RefCell;
-use std::fmt;
+use wasmi::{
+	self, Module, ModuleInstance, Trap, MemoryInstance, MemoryDescriptor, MemoryRef,
+	ModuleImportResolver, RuntimeValue, Externals, Error as WasmError, ValueType,
+	memory_units::{self, Bytes, Pages, RoundUpTo}
+};
+use super::{ValidationParams, ValidationResult, MessageRef, UpwardMessageRef};
 
 mod ids {
 	/// Post a message to another parachain.
 	pub const POST_MESSAGE: usize = 1;
+
+	/// Post a message to this parachain's relay chain.
+	pub const POST_UPWARDS_MESSAGE: usize = 2;
 }
 
-error_chain! {
-	types { Error, ErrorKind, ResultExt; }
-	foreign_links {
-		Wasm(WasmError);
-		Externalities(ExternalitiesError);
-	}
-	errors {
-		/// Call data too big. WASM32 only has a 32-bit address space.
-		ParamsTooLarge(len: usize) {
-			description("Validation parameters took up too much space to execute in WASM"),
-			display("Validation parameters took up {} bytes, max allowed by WASM is {}", len, i32::max_value()),
-		}
-		/// Bad return data or type.
-		BadReturn {
-			description("Validation function returned invalid data."),
-			display("Validation function returned invalid data."),
+/// Error type for the wasm executor
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum Error {
+	/// Wasm error
+	Wasm(WasmError),
+	/// Externalities error
+	Externalities(ExternalitiesError),
+	/// Call data too big. WASM32 only has a 32-bit address space.
+	#[display(fmt = "Validation parameters took up {} bytes, max allowed by WASM is {}", _0, i32::max_value())]
+	ParamsTooLarge(usize),
+	/// Bad return data or type.
+	#[display(fmt = "Validation function returned invalid data.")]
+	BadReturn,
+}
+
+impl std::error::Error for Error {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		match self {
+			Error::Wasm(ref err) => Some(err),
+			Error::Externalities(ref err) => Some(err),
+			_ => None,
 		}
 	}
 }
@@ -67,6 +73,9 @@ pub enum ExternalitiesError {
 pub trait Externalities {
 	/// Called when a message is to be posted to another parachain.
 	fn post_message(&mut self, message: MessageRef) -> Result<(), ExternalitiesError>;
+
+	/// Called when a message is to be posted to the parachain's relay chain.
+	fn post_upward_message(&mut self, message: UpwardMessageRef) -> Result<(), ExternalitiesError>;
 }
 
 impl fmt::Display for ExternalitiesError {
@@ -96,7 +105,23 @@ impl ModuleImportResolver for Resolver {
 			"ext_post_message" => {
 				let index = ids::POST_MESSAGE;
 				let (params, ret_ty): (&[ValueType], Option<ValueType>) =
-				(&[ValueType::I32, ValueType::I32, ValueType::I32], None);
+					(&[ValueType::I32, ValueType::I32, ValueType::I32], None);
+
+				if signature.params() != params && signature.return_type() != ret_ty {
+					Err(WasmError::Instantiation(
+						format!("Export {} has a bad signature", field_name)
+					))
+				} else {
+					Ok(wasmi::FuncInstance::alloc_host(
+						wasmi::Signature::new(&params[..], ret_ty),
+						index,
+					))
+				}
+			}
+			"ext_upwards_post_message" => {
+				let index = ids::POST_UPWARDS_MESSAGE;
+				let (params, ret_ty): (&[ValueType], Option<ValueType>) =
+					(&[ValueType::I32, ValueType::I32], None);
 
 				if signature.params() != params && signature.return_type() != ret_ty {
 					Err(WasmError::Instantiation(
@@ -172,6 +197,31 @@ impl<'a, E: 'a + Externalities> ValidationExternals<'a, E> {
 			}
 		})
 	}
+	/// Signature: post_upward_message(u32, *const u8, u32) -> None
+	/// usage: post_upward_message(origin, data ptr, data len).
+	/// Origin is the integer representation of the dispatch origin.
+	/// Data is the raw data of the message.
+	fn ext_post_upward_message(&mut self, args: ::wasmi::RuntimeArgs) -> Result<(), Trap> {
+		let origin: u32 = args.nth_checked(0)?;
+		let data_ptr: u32 = args.nth_checked(1)?;
+		let data_len: u32 = args.nth_checked(2)?;
+
+		let (data_ptr, data_len) = (data_ptr as usize, data_len as usize);
+
+		self.memory.with_direct_access(|mem| {
+			if mem.len() < (data_ptr + data_len) {
+				Err(Trap::new(wasmi::TrapKind::MemoryAccessOutOfBounds))
+			} else {
+				let origin = (origin as u8).try_into()
+					.map_err(|_| Trap::new(wasmi::TrapKind::UnexpectedSignature))?;
+				let message = UpwardMessageRef { origin, data: &mem[data_ptr..][..data_len] };
+				let res = self.externalities.post_upward_message(message);
+				res.map_err(|e| Trap::new(wasmi::TrapKind::Host(
+					Box::new(e) as Box<_>
+				)))
+			}
+		})
+	}
 }
 
 impl<'a, E: 'a + Externalities> Externals for ValidationExternals<'a, E> {
@@ -182,6 +232,7 @@ impl<'a, E: 'a + Externalities> Externals for ValidationExternals<'a, E> {
 	) -> Result<Option<RuntimeValue>, Trap> {
 		match index {
 			ids::POST_MESSAGE => self.ext_post_message(args).map(|_| None),
+			ids::POST_UPWARDS_MESSAGE => self.ext_post_upward_message(args).map(|_| None),
 			_ => panic!("no externality at given index"),
 		}
 	}
@@ -238,7 +289,7 @@ pub fn validate_candidate<E: Externalities>(
 
 		// hard limit from WASM.
 		if encoded_call_data.len() > i32::max_value() as usize {
-			bail!(ErrorKind::ParamsTooLarge(encoded_call_data.len()));
+			return Err(Error::ParamsTooLarge(encoded_call_data.len()));
 		}
 
 		// allocate sufficient amount of wasm pages to fit encoded call data.
@@ -262,7 +313,7 @@ pub fn validate_candidate<E: Externalities>(
 		.map_err(|e| -> Error {
 			e.as_host_error()
 				.and_then(|he| he.downcast_ref::<ExternalitiesError>())
-				.map(|ee| ErrorKind::Externalities(ee.clone()).into())
+				.map(|ee| Error::Externalities(ee.clone()))
 				.unwrap_or_else(move || e.into())
 		})?;
 
@@ -275,24 +326,24 @@ pub fn validate_candidate<E: Externalities>(
 			let len_offset = len_offset as usize;
 
 			let len = u32::decode(&mut &len_bytes[..])
-				.ok_or_else(|| ErrorKind::BadReturn)? as usize;
+				.ok_or_else(|| Error::BadReturn)? as usize;
 
 			let return_offset = if len > len_offset {
-				bail!(ErrorKind::BadReturn);
+				return Err(Error::BadReturn);
 			} else {
 				len_offset - len
 			};
 
 			memory.with_direct_access(|mem| {
 				if mem.len() < return_offset + len {
-					return Err(ErrorKind::BadReturn.into());
+					return Err(Error::BadReturn);
 				}
 
 				ValidationResult::decode(&mut &mem[return_offset..][..len])
-					.ok_or_else(|| ErrorKind::BadReturn)
+					.ok_or_else(|| Error::BadReturn)
 					.map_err(Into::into)
 			})
 		}
-		_ => bail!(ErrorKind::BadReturn),
+		_ => return Err(Error::BadReturn),
 	}
 }

@@ -28,6 +28,8 @@ use std::collections::hash_map::{HashMap, Entry};
 use std::hash::Hash;
 use std::fmt::Debug;
 
+use parity_codec::{Encode, Decode};
+
 /// Context for the statement table.
 pub trait Context {
 	/// A authority ID
@@ -58,7 +60,7 @@ pub trait Context {
 /// Statements circulated among peers.
 #[derive(PartialEq, Eq, Debug, Clone, Encode, Decode)]
 pub enum Statement<C, D> {
-	/// Broadcast by a authority to indicate that this is his candidate for
+	/// Broadcast by an authority to indicate that this is his candidate for
 	/// inclusion.
 	///
 	/// Broadcasting two different candidate messages per round is not allowed.

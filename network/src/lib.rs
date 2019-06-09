@@ -19,41 +19,13 @@
 //! This manages routing for parachain statements, parachain block and extrinsic data fetching,
 //! communication between collators and validators, and more.
 
-extern crate parity_codec as codec;
-extern crate substrate_network;
-extern crate substrate_primitives;
-extern crate sr_primitives;
-
-extern crate polkadot_validation;
-extern crate polkadot_availability_store as av_store;
-extern crate polkadot_primitives;
-
-extern crate arrayvec;
-extern crate parking_lot;
-extern crate tokio;
-extern crate slice_group_by;
-extern crate exit_future;
-
-#[macro_use]
-extern crate futures;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate parity_codec_derive;
-
-#[cfg(test)]
-extern crate substrate_client;
-
-#[cfg(test)]
-extern crate substrate_keyring;
-
 mod collator_pool;
 mod local_collations;
 mod router;
 pub mod validation;
 pub mod gossip;
 
-use codec::{Decode, Encode};
+use parity_codec::{Decode, Encode};
 use futures::sync::oneshot;
 use polkadot_primitives::{Block, SessionKey, Hash, Header};
 use polkadot_primitives::parachain::{
@@ -67,6 +39,7 @@ use substrate_network::StatusMessage as GenericFullStatus;
 use self::validation::{LiveValidationSessions, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
+use log::{trace, debug, warn};
 
 use std::collections::{HashMap, HashSet};
 
@@ -80,12 +53,23 @@ mod cost {
 	pub(super) const UNKNOWN_PEER: i32 = -50;
 	pub(super) const COLLATOR_ALREADY_KNOWN: i32 = -100;
 	pub(super) const BAD_COLLATION: i32 = -1000;
+	pub(super) const BAD_POV_BLOCK: i32 = -1000;
+}
+
+mod benefit {
+	pub(super) const EXPECTED_MESSAGE: i32 = 20;
+	pub(super) const VALID_FORMAT: i32 = 20;
+
+	pub(super) const KNOWN_PEER: i32 = 5;
+	pub(super) const NEW_COLLATOR: i32 = 10;
+	pub(super) const GOOD_COLLATION: i32 = 100;
+	pub(super) const GOOD_POV_BLOCK: i32 = 100;
 }
 
 type FullStatus = GenericFullStatus<Block>;
 
 /// Specialization of the network service for the polkadot protocol.
-pub type NetworkService = ::substrate_network::Service<Block, PolkadotProtocol>;
+pub type NetworkService = ::substrate_network::NetworkService<Block, PolkadotProtocol>;
 
 /// Status of a Polkadot node.
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
@@ -382,6 +366,7 @@ impl PolkadotProtocol {
 				ctx.report_peer(who, cost::UNEXPECTED_MESSAGE);
 				return;
 			}
+			ctx.report_peer(who.clone(), benefit::EXPECTED_MESSAGE);
 
 			let local_collations = &mut self.local_collations;
 			let new_collations = match info.validator_keys.insert(key.clone()) {
@@ -418,10 +403,21 @@ impl PolkadotProtocol {
 	) {
 		match self.in_flight.remove(&(req_id, who.clone())) {
 			Some(mut req) => {
-				if let Some(pov_block) = pov_block {
-					match req.process_response(pov_block) {
-						Ok(()) => return,
-						Err(r) => { req = r; }
+				match pov_block {
+					Some(pov_block) => {
+						match req.process_response(pov_block) {
+							Ok(()) => {
+								ctx.report_peer(who, benefit::GOOD_POV_BLOCK);
+								return;
+							}
+							Err(r) => {
+								ctx.report_peer(who, cost::BAD_POV_BLOCK);
+								req = r;
+							}
+						}
+					},
+					None => {
+						ctx.report_peer(who, benefit::EXPECTED_MESSAGE);
 					}
 				}
 
@@ -493,6 +489,7 @@ impl Specialization<Block> for PolkadotProtocol {
 				ctx.report_peer(who, cost::COLLATOR_ALREADY_KNOWN);
 				return
 			}
+			ctx.report_peer(who.clone(), benefit::NEW_COLLATOR);
 
 			let collator_role = self.collators.on_new_collator(acc_id.clone(), para_id.clone());
 
@@ -566,7 +563,10 @@ impl Specialization<Block> for PolkadotProtocol {
 		match message.take() {
 			Some(generic_message::Message::ChainSpecific(raw)) => {
 				match Message::decode(&mut raw.as_slice()) {
-					Some(msg) => self.on_polkadot_message(ctx, who, msg),
+					Some(msg) => {
+						ctx.report_peer(who.clone(), benefit::VALID_FORMAT);
+						self.on_polkadot_message(ctx, who, msg)
+					},
 					None => {
 						trace!(target: "p_net", "Bad message from {}", who);
 						ctx.report_peer(who, cost::INVALID_FORMAT);
@@ -614,16 +614,21 @@ impl PolkadotProtocol {
 
 		match self.peers.get(&from) {
 			None => ctx.report_peer(from, cost::UNKNOWN_PEER),
-			Some(peer_info) => match peer_info.collating_for {
-				None => ctx.report_peer(from, cost::UNEXPECTED_MESSAGE),
-				Some((ref acc_id, ref para_id)) => {
-					let structurally_valid = para_id == &collation_para && acc_id == &collated_acc;
-					if structurally_valid && collation.receipt.check_signature().is_ok() {
-						debug!(target: "p_net", "Received collation for parachain {:?} from peer {}", para_id, from);
-						self.collators.on_collation(acc_id.clone(), relay_parent, collation)
-					} else {
-						ctx.report_peer(from, cost::INVALID_FORMAT)
-					};
+			Some(peer_info) => {
+				ctx.report_peer(from.clone(), benefit::KNOWN_PEER);
+				match peer_info.collating_for {
+					None => ctx.report_peer(from, cost::UNEXPECTED_MESSAGE),
+					Some((ref acc_id, ref para_id)) => {
+						ctx.report_peer(from.clone(), benefit::EXPECTED_MESSAGE);
+						let structurally_valid = para_id == &collation_para && acc_id == &collated_acc;
+						if structurally_valid && collation.receipt.check_signature().is_ok() {
+							debug!(target: "p_net", "Received collation for parachain {:?} from peer {}", para_id, from);
+							ctx.report_peer(from, benefit::GOOD_COLLATION);
+							self.collators.on_collation(acc_id.clone(), relay_parent, collation)
+						} else {
+							ctx.report_peer(from, cost::INVALID_FORMAT)
+						};
+					}
 				}
 			},
 		}

@@ -29,51 +29,16 @@
 //!
 //! Groups themselves may be compromised by malicious authorities.
 
-extern crate parking_lot;
-extern crate polkadot_availability_store as extrinsic_store;
-extern crate polkadot_statement_table as table;
-extern crate polkadot_parachain as parachain;
-extern crate polkadot_runtime;
-extern crate polkadot_primitives;
-
-extern crate parity_codec as codec;
-extern crate substrate_inherents as inherents;
-extern crate substrate_primitives as primitives;
-extern crate srml_aura as runtime_aura;
-extern crate sr_primitives as runtime_primitives;
-extern crate substrate_client as client;
-extern crate substrate_trie as trie;
-
-extern crate exit_future;
-extern crate tokio;
-extern crate substrate_consensus_common as consensus;
-extern crate substrate_consensus_aura as aura;
-extern crate substrate_consensus_aura_primitives as aura_primitives;
-extern crate substrate_finality_grandpa as grandpa;
-extern crate substrate_transaction_pool as transaction_pool;
-extern crate substrate_consensus_authorities as consensus_authorities;
-
-#[macro_use]
-extern crate error_chain;
-
-#[macro_use]
-extern crate futures;
-
-#[macro_use]
-extern crate log;
-
-#[cfg(test)]
-extern crate substrate_keyring;
-
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
 use aura::SlotDuration;
-use client::{BlockchainEvents, ChainHead, BlockBody};
+use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
-use codec::Encode;
+use parity_codec::Encode;
+use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey};
@@ -83,7 +48,7 @@ use polkadot_primitives::parachain::{
 	Collation, PoVBlock,
 };
 use primitives::{Pair, ed25519};
-use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT}, ApplyError};
+use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT, Block as BlockT}, ApplyError};
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
@@ -96,13 +61,14 @@ use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_aura::timestamp::TimestampInherentData;
+use log::{info, debug, warn, trace};
 
 use ed25519::Public as AuthorityId;
 
 pub use self::collation::{
 	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
 };
-pub use self::error::{ErrorKind, Error};
+pub use self::error::Error;
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
@@ -178,7 +144,6 @@ pub trait Network {
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
-		outgoing: Outgoing,
 		authorities: &[SessionKey],
 	) -> Self::BuildTableRouter;
 }
@@ -222,7 +187,10 @@ pub fn make_group_info(
 	local_id: AuthorityId,
 ) -> Result<(HashMap<ParaId, GroupInfo>, LocalDuty), Error> {
 	if roster.validator_duty.len() != authorities.len() {
-		bail!(ErrorKind::InvalidDutyRosterLength(authorities.len(), roster.validator_duty.len()))
+		return Err(Error::InvalidDutyRosterLength {
+			expected: authorities.len(),
+			got: roster.validator_duty.len()
+		});
 	}
 
 	let mut local_validation = None;
@@ -257,7 +225,7 @@ pub fn make_group_info(
 
 			Ok((map, local_duty))
 		}
-		None => bail!(ErrorKind::NotValidator(local_id)),
+		None => return Err(Error::NotValidator(local_id)),
 	}
 }
 
@@ -300,6 +268,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		grandparent_hash: Hash,
 		authorities: &[AuthorityId],
 		sign_with: Arc<ed25519::Pair>,
+		max_block_data_size: Option<u64>,
 	)
 		-> Result<Arc<AttestationTracker>, Error>
 	{
@@ -312,13 +281,17 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		// compute the parent candidates, if we know of them.
 		// this will allow us to circulate outgoing messages to other peers as necessary.
-		let parent_candidates: Vec<_> = ::attestation_service::fetch_candidates(&*self.client, &id)
+		let parent_candidates: Vec<_> = crate::attestation_service::fetch_candidates(&*self.client, &id)
 			.ok()
 			.and_then(|x| x)
 			.map(|x| x.collect())
 			.unwrap_or_default();
 
-		let outgoing: Vec<_> = {
+		// TODO: https://github.com/paritytech/polkadot/issues/253
+		//
+		// We probably don't only want active validators to do this, or messages
+		// will disappear when validators exit the set.
+		let _outgoing: Vec<_> = {
 			// extract all extrinsic data that we have and propagate to peers.
 			live_instances.get(&grandparent_hash).map(|parent_validation| {
 				parent_candidates.iter().filter_map(|c| {
@@ -347,10 +320,16 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
-		let table = Arc::new(SharedTable::new(authorities, group_info, sign_with.clone(), parent_hash, self.extrinsic_store.clone()));
+		let table = Arc::new(SharedTable::new(
+			authorities,
+			group_info,
+			sign_with.clone(),
+			parent_hash,
+			self.extrinsic_store.clone(),
+			max_block_data_size,
+		));
 		let router = self.network.communication_for(
 			table.clone(),
-			outgoing,
 			authorities,
 		);
 
@@ -359,6 +338,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				parent_hash,
 				id,
 				router,
+				max_block_data_size,
 			)),
 			Chain::Relay => None,
 		};
@@ -384,7 +364,8 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		&self,
 		relay_parent: Hash,
 		validation_para: ParaId,
-		build_router: N::BuildTableRouter
+		build_router: N::BuildTableRouter,
+		max_block_data_size: Option<u64>,
 	) -> exit_future::Signal {
 		use extrinsic_store::Data;
 
@@ -399,6 +380,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				relay_parent,
 				collators,
 				client,
+				max_block_data_size,
 			);
 
 			collation_work.then(move |result| match result {
@@ -456,28 +438,32 @@ struct AttestationTracker {
 }
 
 /// Polkadot proposer factory.
-pub struct ProposerFactory<C, N, P, TxApi: PoolChainApi> {
+pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	parachain_validation: Arc<ParachainValidation<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
 	key: Arc<ed25519::Pair>,
 	_service_handle: ServiceHandle,
 	aura_slot_duration: SlotDuration,
+	select_chain: SC,
+	max_block_data_size: Option<u64>,
 }
 
-impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
+impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	C: Collators + Send + Sync + 'static,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
-	P: BlockchainEvents<Block> + ChainHead<Block> + BlockBody<Block>,
+	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuthoritiesApi<Block>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 	TxApi: PoolChainApi,
+	SC: SelectChain<Block> + 'static,
 {
 	/// Create a new proposer factory.
 	pub fn new(
 		client: Arc<P>,
+		select_chain: SC,
 		network: N,
 		collators: C,
 		transaction_pool: Arc<Pool<TxApi>>,
@@ -485,6 +471,7 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 		key: Arc<ed25519::Pair>,
 		extrinsic_store: ExtrinsicStore,
 		aura_slot_duration: SlotDuration,
+		max_block_data_size: Option<u64>,
 	) -> Self {
 		let parachain_validation = Arc::new(ParachainValidation {
 			client: client.clone(),
@@ -495,12 +482,14 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 			live_instances: Mutex::new(HashMap::new()),
 		});
 
-		let service_handle = ::attestation_service::start(
+		let service_handle = crate::attestation_service::start(
 			client,
+			select_chain.clone(),
 			parachain_validation.clone(),
 			thread_pool,
 			key.clone(),
 			extrinsic_store,
+			max_block_data_size,
 		);
 
 		ProposerFactory {
@@ -509,11 +498,13 @@ impl<C, N, P, TxApi> ProposerFactory<C, N, P, TxApi> where
 			key,
 			_service_handle: service_handle,
 			aura_slot_duration,
+			select_chain,
+			max_block_data_size,
 		}
 	}
 }
 
-impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, TxApi> where
+impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxApi> where
 	C: Collators + Send + 'static,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
@@ -522,6 +513,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	SC: SelectChain<Block>,
 {
 	type Proposer = Proposer<P, TxApi>;
 	type Error = Error;
@@ -539,6 +531,7 @@ impl<C, N, P, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, 
 			parent_header.parent_hash().clone(),
 			authorities,
 			sign_with,
+			self.max_block_data_size,
 		)?;
 
 		Ok(Proposer {
@@ -579,7 +572,11 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	type Error = Error;
 	type Create = Either<CreateProposal<C, TxApi>, future::FutureResult<Block, Error>>;
 
-	fn propose(&self, inherent_data: InherentData, max_duration: Duration) -> Self::Create {
+	fn propose(&self,
+		inherent_data: InherentData,
+		_digest: <<Block as BlockT>::Header as HeaderT>::Digest,
+		max_duration: Duration,
+	) -> Self::Create {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
 		const SLOT_DURATION_DENOMINATOR: u64 = 3; // wait up to 1/3 of the slot for candidates.
 
@@ -599,7 +596,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 
 		let believed_timestamp = match inherent_data.timestamp_inherent_data() {
 			Ok(timestamp) => timestamp,
-			Err(e) => return Either::B(future::err(ErrorKind::InherentError(e).into())),
+			Err(e) => return Either::B(future::err(Error::InherentError(e))),
 		};
 
 		// set up delay until next allowed timestamp.
@@ -654,26 +651,26 @@ struct ProposalTiming {
 impl ProposalTiming {
 	// whether it's time to attempt a proposal.
 	// shouldn't be called outside of the context of a task.
-	fn poll(&mut self, included: usize) -> Poll<(), ErrorKind> {
+	fn poll(&mut self, included: usize) -> Poll<(), Error> {
 		// first drain from the interval so when the minimum delay is up
 		// we don't have any notifications built up.
 		//
 		// this interval is just meant to produce periodic task wakeups
 		// that lead to the `dynamic_inclusion` getting updated as necessary.
-		while let Async::Ready(x) = self.attempt_propose.poll().map_err(ErrorKind::Timer)? {
+		while let Async::Ready(x) = self.attempt_propose.poll().map_err(Error::Timer)? {
 			x.expect("timer still alive; intervals never end; qed");
 		}
 
 		// wait until the minimum time has passed.
 		if let Some(mut minimum) = self.minimum.take() {
-			if let Async::NotReady = minimum.poll().map_err(ErrorKind::Timer)? {
+			if let Async::NotReady = minimum.poll().map_err(Error::Timer)? {
 				self.minimum = Some(minimum);
 				return Ok(Async::NotReady);
 			}
 		}
 
 		if included == self.last_included {
-			return self.enough_candidates.poll().map_err(ErrorKind::Timer);
+			return self.enough_candidates.poll().map_err(Error::Timer);
 		}
 
 		// the amount of includable candidates has changed. schedule a wakeup
@@ -682,7 +679,7 @@ impl ProposalTiming {
 			Some(instant) => {
 				self.last_included = included;
 				self.enough_candidates.reset(instant);
-				self.enough_candidates.poll().map_err(ErrorKind::Timer)
+				self.enough_candidates.poll().map_err(Error::Timer)
 			}
 			None => Ok(Async::Ready(())),
 		}
@@ -717,11 +714,11 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let mut inherent_data = self.inherent_data
 			.take()
 			.expect("CreateProposal is not polled after finishing; qed");
-		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(ErrorKind::InherentError)?;
+		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(Error::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
 
-		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false)?;
+		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false, Default::default())?;
 
 		{
 			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
@@ -800,7 +797,7 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 		// 1. try to propose if we have enough includable candidates and other
 		// delays have concluded.
 		let included = self.table.includable_count();
-		try_ready!(self.timing.poll(included));
+		futures::try_ready!(self.timing.poll(included));
 
 		// 2. propose
 		let proposed_candidates = self.table.proposed_set();

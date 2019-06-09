@@ -18,13 +18,6 @@
 
 #![warn(missing_docs)]
 
-extern crate polkadot_cli as cli;
-extern crate ctrlc;
-extern crate futures;
-
-#[macro_use]
-extern crate error_chain;
-
 use cli::{PolkadotService, VersionInfo, TaskExecutor};
 use futures::sync::oneshot;
 use futures::{future, Future};
@@ -58,9 +51,7 @@ impl cli::Worker for Worker {
 	}
 }
 
-quick_main!(run);
-
-fn run() -> cli::error::Result<()> {
+fn main() -> Result<(), cli::error::Error> {
 	let version = VersionInfo {
 		name: "Parity Polkadot",
 		commit: env!("VERGEN_SHA_SHORT"),
@@ -70,5 +61,6 @@ fn run() -> cli::error::Result<()> {
 		description: "Polkadot Relay-chain Client Node",
 		support_url: "https://github.com/paritytech/polkadot/issues/new",
 	};
+
 	cli::run(::std::env::args(), Worker, version)
 }
