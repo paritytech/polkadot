@@ -1389,6 +1389,8 @@ mod tests {
 
 	#[test]
 	fn ingress_works() {
+		use sr_primitives::traits::OnFinalize;
+
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 			(1u32.into(), vec![], vec![]),
@@ -1396,62 +1398,115 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			let from_a = vec![(1.into(), [1; 32].into())];
-			let mut candidate_a = AttestedCandidate {
-				validity_votes: vec![],
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					egress_queue_roots: from_a.clone(),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-				}
-			};
-
-			let from_b = vec![(99.into(), [1; 32].into())];
-			let mut candidate_b = AttestedCandidate {
-				validity_votes: vec![],
-				candidate: CandidateReceipt {
-					parachain_index: 1.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					egress_queue_roots: from_b.clone(),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-				}
-			};
-
-			make_attestations(&mut candidate_a);
-			make_attestations(&mut candidate_b);
-
 			assert_eq!(Parachains::ingress(ParaId::from(1)), Some(Vec::new()));
 			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
 
+			for i in 1..10 {
+				System::set_block_number(i);
+
+				let from_a = vec![(1.into(), [i as u8; 32].into())];
+				let mut candidate_a = AttestedCandidate {
+					validity_votes: vec![],
+					candidate: CandidateReceipt {
+						parachain_index: 0.into(),
+						collator: Default::default(),
+						signature: Default::default(),
+						head_data: HeadData(vec![1, 2, 3]),
+						egress_queue_roots: from_a.clone(),
+						fees: 0,
+						block_data_hash: Default::default(),
+						upward_messages: vec![],
+					}
+				};
+
+				let from_b = vec![(99.into(), [i as u8; 32].into())];
+				let mut candidate_b = AttestedCandidate {
+					validity_votes: vec![],
+					candidate: CandidateReceipt {
+						parachain_index: 1.into(),
+						collator: Default::default(),
+						signature: Default::default(),
+						head_data: HeadData(vec![1, 2, 3]),
+						egress_queue_roots: from_b.clone(),
+						fees: 0,
+						block_data_hash: Default::default(),
+						upward_messages: vec![],
+					}
+				};
+
+				make_attestations(&mut candidate_a);
+				make_attestations(&mut candidate_b);
+
+				assert!(Parachains::dispatch(
+					set_heads(vec![candidate_a, candidate_b]),
+					Origin::NONE,
+				).is_ok());
+
+				Parachains::on_finalize(i);
+			}
+
+			System::set_block_number(10);
 			assert!(Parachains::dispatch(
-				set_heads(vec![candidate_a, candidate_b]),
+				set_heads(vec![]),
 				Origin::NONE,
 			).is_ok());
 
+			// parachain 1 has had a bunch of parachain candidates included,
+			// which raises the watermark.
 			assert_eq!(
 				Parachains::ingress(ParaId::from(1)),
-				Some(vec![(0.into(), [1; 32].into())]),
+				Some(vec![
+					(9, BlockIngressRoots(vec![
+						(0.into(), [9; 32].into())
+					]))
+				]),
 			);
 
+			// parachain 99 hasn't had any candidates included, so the
+			// ingress is piling up.
 			assert_eq!(
 				Parachains::ingress(ParaId::from(99)),
-				Some(vec![(1.into(), [1; 32].into())]),
+				Some((1..10).map(|i| (i, BlockIngressRoots(
+					vec![(1.into(), [i as u8; 32].into())]
+				))).collect::<Vec<_>>()),
 			);
 
 			assert_ok!(Parachains::deregister_parachain(1u32.into()));
 
-			// after deregistering, there is no ingress to 1 and we stop routing
-			// from 1.
+			// after deregistering, there is no ingress to 1, but unrouted messages
+			// from 1 stick around.
 			assert_eq!(Parachains::ingress(ParaId::from(1)), None);
+			assert_eq!(Parachains::ingress(ParaId::from(99)), Some((1..10).map(|i| (i, BlockIngressRoots(
+				vec![(1.into(), [i as u8; 32].into())]
+			))).collect::<Vec<_>>()));
+
+			Parachains::on_finalize(10);
+			System::set_block_number(11);
+
+			let mut candidate_c = AttestedCandidate {
+				validity_votes: vec![],
+				candidate: CandidateReceipt {
+					parachain_index: 99.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					egress_queue_roots: Vec::new(),
+					fees: 0,
+					block_data_hash: Default::default(),
+					upward_messages: vec![],
+				}
+			};
+			make_attestations(&mut candidate_c);
+
+			assert!(Parachains::dispatch(
+				set_heads(vec![candidate_c]),
+				Origin::NONE,
+			).is_ok());
+
+			Parachains::on_finalize(11);
+			System::set_block_number(12);
+
+			// at the next block, ingress to 99 should be empty.
 			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
 		});
 	}
