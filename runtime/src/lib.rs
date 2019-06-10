@@ -356,8 +356,8 @@ impl_runtime_apis! {
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)
 		}
-		fn ingress(to: parachain::Id) -> Option<parachain::ConsolidatedIngressRoots> {
-			Parachains::ingress(to).map(Into::into)
+		fn ingress(to: parachain::Id) -> Option<parachain::StructuredUnroutedIngress> {
+			Parachains::ingress(to).map(parachain::StructuredUnroutedIngress)
 		}
 	}
 
