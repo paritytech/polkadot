@@ -215,18 +215,20 @@ pub struct BlockIngressRoots(pub Vec<(Id, Hash)>);
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
 pub struct StructuredUnroutedIngress(pub Vec<(BlockNumber, BlockIngressRoots)>);
 
-/// Consolidated ingress roots.
-///
-/// This is an ordered vector of other parachains' egress queue roots,
-/// obtained according to the routing rules. The same parachain may appear
-/// more than once.
-#[derive(Default, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
-pub struct ConsolidatedIngressRoots(pub Vec<(Id, Hash)>);
+#[cfg(feature = "std")]
+impl StructuredUnroutedIngress {
+	/// Get the length of all the ingress roots across all blocks.
+	pub fn len(&self) -> usize {
+		self.0.iter().fold(0, |a, (_, roots)| a + roots.0.len())
+	}
 
-impl From<Vec<(Id, Hash)>> for ConsolidatedIngressRoots {
-	fn from(v: Vec<(Id, Hash)>) -> Self {
-		ConsolidatedIngressRoots(v)
+	/// Returns an iterator over all ingress roots. The block number indicates
+	/// the height at which that root was posted to the relay chain. The parachain ID is the
+	/// message sender.
+	pub fn iter(&self) -> impl Iterator<Item=(BlockNumber, &Id, &Hash)> {
+		self.0.iter().flat_map(|&(n, ref roots)|
+			roots.0.iter().map(move |&(ref from, ref root)| (n, from, root))
+		)
 	}
 }
 

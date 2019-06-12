@@ -22,7 +22,7 @@
 use std::sync::Arc;
 
 use polkadot_primitives::{Block, Hash, BlockId, parachain::CollatorId, parachain::{
-	ConsolidatedIngress, ConsolidatedIngressRoots, CandidateReceipt, ParachainHost,
+	ConsolidatedIngress, StructuredUnroutedIngress, CandidateReceipt, ParachainHost,
 	Id as ParaId, Collation, Extrinsic, OutgoingMessage, UpwardMessage
 }};
 use runtime_primitives::traits::ProvideRuntimeApi;
@@ -324,21 +324,21 @@ impl Externalities {
 
 /// Validate incoming messages against expected roots.
 pub fn validate_incoming(
-	roots: &ConsolidatedIngressRoots,
+	roots: &StructuredUnroutedIngress,
 	ingress: &ConsolidatedIngress,
 ) -> Result<(), Error> {
-	if roots.0.len() != ingress.0.len() {
+	if roots.len() != ingress.0.len() {
 		return Err(Error::IngressCanonicalityMismatch {
 			expected: roots.0.len(),
 			got: ingress.0.len()
 		});
 	}
 
-	let all_iter = roots.0.iter().zip(&ingress.0);
-	for ((expected_id, root), (got_id, messages)) in all_iter {
-		if expected_id != got_id {
+	let all_iter = roots.iter().zip(&ingress.0);
+	for ((_, expected_from, root), (got_id, messages)) in all_iter {
+		if expected_from != got_id {
 			return Err(Error::IngressChainMismatch {
-				expected: *expected_id,
+				expected: *expected_from,
 				got: *got_id
 			});
 		}
@@ -346,7 +346,7 @@ pub fn validate_incoming(
 		let got_root = message_queue_root(messages.iter().map(|msg| &msg.0[..]));
 		if &got_root != root {
 			return Err(Error::IngressRootMismatch{
-				id: *expected_id,
+				id: *expected_from,
 				expected: *root,
 				got: got_root
 			});
@@ -429,7 +429,7 @@ mod tests {
 	use super::*;
 	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
 	use parachain::ParachainDispatchOrigin;
-	use polkadot_primitives::parachain::{Statement::Candidate, CandidateReceipt, HeadData};
+	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
 
 	#[test]
 	fn compute_and_check_egress() {
