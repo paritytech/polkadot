@@ -437,7 +437,7 @@ pub(crate) struct ValidationSession {
 
 impl ValidationSession {
 	/// Create a new validation session instance. Needs to be attached to the
-	/// nework.
+	/// network.
 	pub(crate) fn new(params: SessionParams) -> Self {
 		ValidationSession {
 			parent_hash: params.parent_hash,
