@@ -153,7 +153,7 @@ pub fn collate<'a, R, P>(
 			let block_data_hash = block_data.hash();
 			let signature = key.sign(block_data_hash.as_ref()).into();
 			let egress_queue_roots =
-				::polkadot_validation::egress_roots(&mut extrinsic.outgoing_messages);
+				polkadot_validation::egress_roots(&mut extrinsic.outgoing_messages);
 
 			let receipt = parachain::CandidateReceipt {
 				parachain_index: local_id,
