@@ -136,7 +136,7 @@ pub fn collate<'a, R, P>(
 		R::Error: 'a,
 		R::FutureEgress: 'a,
 		P: ParachainContext + 'a,
-		<P::ProduceCandidate as IntoFuture>::Future: Send + 'a,
+		<P::ProduceCandidate as IntoFuture>::Future: Send,
 {
 	let ingress = relay_context.unrouted_egress(local_id).into_future().map_err(Error::Polkadot);
 	ingress
