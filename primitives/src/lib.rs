@@ -53,7 +53,7 @@ pub type AccountId = <Signature as Verify>::Signer;
 /// never know...
 pub type AccountIndex = u32;
 
-/// Indentifier for a chain. 32-bit should be plenty.
+/// Identifier for a chain. 32-bit should be plenty.
 pub type ChainId = u32;
 
 /// A hash of some data used by the relay chain.
