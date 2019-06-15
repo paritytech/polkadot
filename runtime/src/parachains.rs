@@ -131,7 +131,7 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 
 			// iterate over all blocks between watermark and now + 1 (since messages might
 			// have already been sent to `id` in this block.
-			for unrouted_block in number_range(watermark,now).map(|n| n.saturating_add(One::one())) {
+			for unrouted_block in number_range(watermark, now).map(|n| n.saturating_add(One::one())) {
 				<UnroutedIngress<T>>::remove(&(unrouted_block, id));
 			}
 		}
