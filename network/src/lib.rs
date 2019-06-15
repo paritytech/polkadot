@@ -175,7 +175,7 @@ pub enum Message {
 	Collation(Hash, Collation),
 }
 
-fn send_polkadot_message(ctx: &mut Context<Block>, to: PeerId, message: Message) {
+fn send_polkadot_message(ctx: &mut dyn Context<Block>, to: PeerId, message: Message) {
 	trace!(target: "p_net", "Sending polkadot message to {}: {:?}", to, message);
 	let encoded = message.encode();
 	ctx.send_chain_specific(to, encoded)
@@ -215,7 +215,7 @@ impl PolkadotProtocol {
 	/// Fetch block data by candidate receipt.
 	fn fetch_pov_block(
 		&mut self,
-		ctx: &mut Context<Block>,
+		ctx: &mut dyn Context<Block>,
 		candidate: &CandidateReceipt,
 		relay_parent: Hash,
 		canon_roots: ConsolidatedIngressRoots,
@@ -238,7 +238,7 @@ impl PolkadotProtocol {
 	/// Note new validation session.
 	fn new_validation_session(
 		&mut self,
-		ctx: &mut Context<Block>,
+		ctx: &mut dyn Context<Block>,
 		params: validation::SessionParams,
 	) -> validation::ValidationSession {
 
@@ -265,7 +265,7 @@ impl PolkadotProtocol {
 		self.live_validation_sessions.remove(parent_hash)
 	}
 
-	fn dispatch_pending_requests(&mut self, ctx: &mut Context<Block>) {
+	fn dispatch_pending_requests(&mut self, ctx: &mut dyn Context<Block>) {
 		let mut new_pending = Vec::new();
 		let validator_keys = &mut self.validators;
 		let next_req_id = &mut self.next_req_id;
@@ -316,7 +316,7 @@ impl PolkadotProtocol {
 		self.pending = new_pending;
 	}
 
-	fn on_polkadot_message(&mut self, ctx: &mut Context<Block>, who: PeerId, msg: Message) {
+	fn on_polkadot_message(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, msg: Message) {
 		trace!(target: "p_net", "Polkadot message from {}: {:?}", who, msg);
 		match msg {
 			Message::SessionKey(key) => self.on_session_key(ctx, who, key),
@@ -352,7 +352,7 @@ impl PolkadotProtocol {
 		}
 	}
 
-	fn on_session_key(&mut self, ctx: &mut Context<Block>, who: PeerId, key: SessionKey) {
+	fn on_session_key(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, key: SessionKey) {
 		{
 			let info = match self.peers.get_mut(&who) {
 				Some(peer) => peer,
@@ -396,7 +396,7 @@ impl PolkadotProtocol {
 
 	fn on_pov_block(
 		&mut self,
-		ctx: &mut Context<Block>,
+		ctx: &mut dyn Context<Block>,
 		who: PeerId,
 		req_id: RequestId,
 		pov_block: Option<PoVBlock>,
@@ -429,7 +429,7 @@ impl PolkadotProtocol {
 	}
 
 	// when a validator sends us (a collator) a new role.
-	fn on_new_role(&mut self, ctx: &mut Context<Block>, who: PeerId, role: Role) {
+	fn on_new_role(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, role: Role) {
 		let info = match self.peers.get_mut(&who) {
 			Some(peer) => peer,
 			None => {
@@ -467,7 +467,7 @@ impl Specialization<Block> for PolkadotProtocol {
 		Status { collating_for: self.collating_for.clone() }.encode()
 	}
 
-	fn on_connect(&mut self, ctx: &mut Context<Block>, who: PeerId, status: FullStatus) {
+	fn on_connect(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, status: FullStatus) {
 		let local_status = match Status::decode(&mut &status.chain_status[..]) {
 			Some(status) => status,
 			None => {
@@ -515,7 +515,7 @@ impl Specialization<Block> for PolkadotProtocol {
 		self.dispatch_pending_requests(ctx);
 	}
 
-	fn on_disconnect(&mut self, ctx: &mut Context<Block>, who: PeerId) {
+	fn on_disconnect(&mut self, ctx: &mut dyn Context<Block>, who: PeerId) {
 		if let Some(info) = self.peers.remove(&who) {
 			if let Some((acc_id, _)) = info.collating_for {
 				let new_primary = self.collators.on_disconnect(acc_id)
@@ -559,7 +559,12 @@ impl Specialization<Block> for PolkadotProtocol {
 		}
 	}
 
-	fn on_message(&mut self, ctx: &mut Context<Block>, who: PeerId, message: &mut Option<message::Message<Block>>) {
+	fn on_message(
+		&mut self,
+		ctx: &mut dyn Context<Block>,
+		who: PeerId,
+		message: &mut Option<message::Message<Block>>
+	) {
 		match message.take() {
 			Some(generic_message::Message::ChainSpecific(raw)) => {
 				match Message::decode(&mut raw.as_slice()) {
@@ -581,7 +586,7 @@ impl Specialization<Block> for PolkadotProtocol {
 
 	fn on_abort(&mut self) { }
 
-	fn maintain_peers(&mut self, ctx: &mut Context<Block>) {
+	fn maintain_peers(&mut self, ctx: &mut dyn Context<Block>) {
 		self.collators.collect_garbage(None);
 		self.local_collations.collect_garbage(None);
 		self.dispatch_pending_requests(ctx);
@@ -600,7 +605,7 @@ impl Specialization<Block> for PolkadotProtocol {
 		}
 	}
 
-	fn on_block_imported(&mut self, _ctx: &mut Context<Block>, hash: Hash, header: &Header) {
+	fn on_block_imported(&mut self, _ctx: &mut dyn Context<Block>, hash: Hash, header: &Header) {
 		self.collators.collect_garbage(Some(&hash));
 		self.local_collations.collect_garbage(Some(&header.parent_hash));
 	}
@@ -608,7 +613,13 @@ impl Specialization<Block> for PolkadotProtocol {
 
 impl PolkadotProtocol {
 	// we received a collation from a peer
-	fn on_collation(&mut self, ctx: &mut Context<Block>, from: PeerId, relay_parent: Hash, collation: Collation) {
+	fn on_collation(
+		&mut self,
+		ctx: &mut dyn Context<Block>,
+		from: PeerId,
+		relay_parent: Hash,
+		collation: Collation
+	) {
 		let collation_para = collation.receipt.parachain_index;
 		let collated_acc = collation.receipt.collator.clone();
 
@@ -656,7 +667,7 @@ impl PolkadotProtocol {
 	}
 
 	// disconnect a collator by account-id.
-	fn disconnect_bad_collator(&mut self, ctx: &mut Context<Block>, collator_id: CollatorId) {
+	fn disconnect_bad_collator(&mut self, ctx: &mut dyn Context<Block>, collator_id: CollatorId) {
 		if let Some((who, _)) = self.collator_peer(collator_id) {
 			ctx.report_peer(who, cost::BAD_COLLATION)
 		}
@@ -667,7 +678,7 @@ impl PolkadotProtocol {
 	/// Add a local collation and broadcast it to the necessary peers.
 	pub fn add_local_collation(
 		&mut self,
-		ctx: &mut Context<Block>,
+		ctx: &mut dyn Context<Block>,
 		relay_parent: Hash,
 		targets: HashSet<SessionKey>,
 		collation: Collation,

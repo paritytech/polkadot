@@ -388,7 +388,7 @@ impl<T: Trait> Module<T> {
 	pub fn calculate_duty_roster() -> DutyRoster {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
-		let validator_count = <consensus::Module<T>>::authorities().len();
+		let validator_count = crate::Aura::authorities().len();
 		let validators_per_parachain = if parachain_count != 0 { (validator_count - 1) / parachain_count } else { 0 };
 
 		let mut roles_val = (0..validator_count).map(|i| match i {
@@ -538,7 +538,7 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
-		let authorities = super::Consensus::authorities();
+		let authorities = super::Aura::authorities();
 		let duty_roster = Self::calculate_duty_roster();
 
 		// convert a duty roster, which is originally a Vec<Chain>, where each
@@ -671,14 +671,17 @@ mod tests {
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
-	use sr_primitives::{generic, BuildStorage};
-	use sr_primitives::traits::{BlakeTwo256, IdentityLookup};
+	use sr_primitives::{
+		BuildStorage, traits::{BlakeTwo256, IdentityLookup}, testing::UintAuthorityId,
+	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey,
+		BlockNumber, AuraId
 	};
 	use keyring::{AuthorityKeyring, AccountKeyring};
-	use srml_support::{impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err};
-	use {consensus, timestamp};
+	use srml_support::{
+		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
+	};
 	use crate::parachains;
 
 	impl_outer_origin! {
@@ -695,33 +698,67 @@ mod tests {
 
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
-	impl consensus::Trait for Test {
-		type InherentOfflineReport = ();
-		type SessionKey = SessionKey;
-		type Log = crate::Log;
-	}
 	impl system::Trait for Test {
 		type Origin = Origin;
 		type Index = crate::Nonce;
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
-		type Digest = generic::Digest<crate::Log>;
 		type AccountId = crate::AccountId;
 		type Lookup = IdentityLookup<crate::AccountId>;
 		type Header = crate::Header;
 		type Event = ();
-		type Log = crate::Log;
 	}
+
+	parameter_types! {
+		pub const Period: BlockNumber = 1;
+		pub const Offset: BlockNumber = 0;
+	}
+
 	impl session::Trait for Test {
-		type ConvertAccountIdToSessionKey = ();
-		type OnSessionChange = ();
+		type OnSessionEnding = ();
+		type Keys = UintAuthorityId;
+		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+		type SessionHandler = ();
 		type Event = ();
 	}
+
 	impl timestamp::Trait for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
 	}
+
+	impl aura::Trait for Test {
+		type HandleReport = aura::StakingSlasher<Test>;
+		type AuthorityId = AuraId;
+	}
+
+	impl balances::Trait for Test {
+		type Balance = u64;
+		type OnFreeBalanceZero = ();
+		type OnNewAccount = ();
+		type Event = ();
+		type TransactionPayment = ();
+		type DustRemoval = ();
+		type TransferPayment = ();
+	}
+
+	parameter_types! {
+		pub const SessionsPerEra: session::SessionIndex = 6;
+		pub const BondingDuration: staking::EraIndex = 24 * 28;
+	}
+
+	impl staking::Trait for Test {
+		type OnRewardMinted = ();
+		type CurrencyToVote = ();
+		type Event = ();
+		type Currency = balances::Module<Test>;
+		type Slash = ();
+		type Reward = ();
+		type SessionsPerEra = SessionsPerEra;
+		type BondingDuration = BondingDuration;
+	}
+
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
@@ -753,18 +790,16 @@ mod tests {
 			AccountKeyring::Two,
 		];
 
-		t.extend(consensus::GenesisConfig::<Test>{
-			code: vec![],
-			authorities: authority_keys.iter().map(|k| SessionKey::from(*k)).collect(),
-		}.build_storage().unwrap().0);
 		t.extend(session::GenesisConfig::<Test>{
-			session_length: 1000,
 			validators: validator_keys.iter().map(|k| crate::AccountId::from(*k)).collect(),
 			keys: vec![],
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			parachains,
 			_phdata: Default::default(),
+		}.build_storage().unwrap().0);
+		t.extend(aura::GenesisConfig::<Test>{
+			authorities: authority_keys.iter().map(|k| SessionKey::from(*k)).collect(),
 		}.build_storage().unwrap().0);
 		t.into()
 	}
@@ -780,7 +815,7 @@ mod tests {
 		let duty_roster = Parachains::calculate_duty_roster();
 		let candidate_hash = candidate.candidate.hash();
 
-		let authorities = crate::Consensus::authorities();
+		let authorities = crate::Aura::authorities();
 		let extract_key = |public: SessionKey| {
 			AuthorityKeyring::from_raw_public(public.0).unwrap()
 		};

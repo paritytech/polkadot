@@ -429,7 +429,7 @@ mod tests {
 	use super::*;
 	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
 	use parachain::ParachainDispatchOrigin;
-	use polkadot_primitives::parachain::{Statement::Candidate, CandidateReceipt, HeadData};
+	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
 
 	#[test]
 	fn compute_and_check_egress() {

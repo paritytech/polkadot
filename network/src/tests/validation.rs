@@ -154,13 +154,13 @@ impl NetworkService for TestNetwork {
 	}
 
 	fn with_gossip<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut GossipService, &mut NetContext<Block>)
+		where F: FnOnce(&mut dyn GossipService, &mut dyn NetContext<Block>)
 	{
 		unimplemented!()
 	}
 
 	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>)
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn NetContext<Block>)
 	{
 		let mut context = TestContext::default();
 		let res = with(&mut *self.proto.lock(), &mut context);

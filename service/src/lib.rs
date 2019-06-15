@@ -29,7 +29,7 @@ use primitives::{ed25519, Pair};
 use tokio::runtime::TaskExecutor;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
 use transaction_pool::txpool::{Pool as TransactionPool};
-use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration, NothingExtra};
+use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration};
 use inherents::InherentDataProviders;
 use log::info;
 pub use service::{
@@ -304,7 +304,6 @@ service::construct_service_factory! {
 					block_import,
 					Arc::new(proposer_factory),
 					service.network(),
-					service.on_exit(),
 					service.config.custom.inherent_data_providers.clone(),
 					service.config.force_authoring,
 				)?;
@@ -328,14 +327,13 @@ service::construct_service_factory! {
 				let justification_import = block_import.clone();
 
 				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
-				import_queue::<_, _, _, ed25519::Pair>(
+				import_queue::<_, _, ed25519::Pair>(
 					slot_duration,
 					block_import,
 					Some(justification_import),
 					None,
 					None,
 					client,
-					NothingExtra,
 					config.custom.inherent_data_providers.clone(),
 				).map_err(Into::into)
 			}},
@@ -343,6 +341,7 @@ service::construct_service_factory! {
 			Self::Block,
 		>
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<LightClient<Self>>| {
+				#[allow(deprecated)]
 				let fetch_checker = client.backend().blockchain().fetcher()
 					.upgrade()
 					.map(|fetcher| fetcher.checker().clone())
@@ -354,23 +353,20 @@ service::construct_service_factory! {
 				let finality_proof_import = block_import.clone();
 				let finality_proof_request_builder = finality_proof_import.create_finality_proof_request_builder();
 
-				import_queue::<_, _, _, ed25519::Pair>(
+				import_queue::<_, _, ed25519::Pair>(
 					SlotDuration::get_or_compute(&*client)?,
 					block_import,
 					None,
 					Some(finality_proof_import),
 					Some(finality_proof_request_builder),
 					client,
-					NothingExtra,
 					config.custom.inherent_data_providers.clone(),
 				).map_err(Into::into)
 			}},
 		SelectChain = LongestChain<FullBackend<Self>, Self::Block>
 			{ |config: &FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
-				Ok(LongestChain::new(
-					client.backend().clone(),
-					client.import_lock()
-				))
+				#[allow(deprecated)]
+				Ok(LongestChain::new(client.backend().clone()))
 			}
 		},
 		FinalityProofProvider = { |client: Arc<FullClient<Self>>| {

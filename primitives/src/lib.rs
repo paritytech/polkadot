@@ -77,8 +77,11 @@ pub type SessionKey = ed25519::Public;
 /// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
 pub type Balance = u128;
 
+/// The Ed25519 pub key of an session that belongs to an Aura authority of the chain.
+pub type AuraId = ed25519::Public;
+
 /// Header type.
-pub type Header = generic::Header<BlockNumber, BlakeTwo256, generic::DigestItem<Hash, SessionKey, SessionSignature>>;
+pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// Block ID.
