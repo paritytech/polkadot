@@ -191,7 +191,7 @@ mod tests {
 	use substrate_primitives::{H256, Blake2Hasher};
 	use parity_codec::{Decode, Encode};
 	// The testing primitives are very useful for avoiding having to work with signatures
-	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
+	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sr_primitives::{
 		BuildStorage, traits::{BlakeTwo256, IdentityLookup}, testing::{Digest, DigestItem, Header}
 	};

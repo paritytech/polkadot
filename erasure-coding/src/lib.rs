@@ -21,7 +21,7 @@
 //! and constructing a merkle root of the data.
 //!
 //! Each of n validators stores their piece of data. We assume n=3f+k, k < 3.
-//! f is the maximum number of faulty vaildators in the system.
+//! f is the maximum number of faulty validators in the system.
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
 use parity_codec::{Encode, Decode};
@@ -264,7 +264,7 @@ pub fn branches<'a>(chunks: Vec<&'a [u8]>) -> Branches<'a> {
 	}
 }
 
-/// Verify a markle branch, yielding the chunk hash meant to be present at that
+/// Verify a merkle branch, yielding the chunk hash meant to be present at that
 /// index.
 pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Result<H256, Error> {
 	let mut trie_storage: MemoryDB<Blake2Hasher> = MemoryDB::default();
