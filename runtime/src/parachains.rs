@@ -26,7 +26,7 @@ use sr_primitives::traits::{
 	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero,
 };
 use primitives::{Hash, Balance, parachain::{
-	Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
+	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots,
 }};
 use {system, session};
@@ -145,15 +145,21 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 
 // wrapper trait because an associated type of `Currency<Self::AccountId,Balance=Balance>`
 // doesn't work.`
-pub trait ChargeFee<AccountId> {
-	fn charge_fee(para_id: ParaId, amount: Balance) -> Result;
+pub trait ParachainCurrency<AccountId> {
+	fn free_balance(para_id: ParaId) -> Balance;
+	fn deduct(para_id: ParaId, amount: Balance) -> Result;
 }
 
-impl<AccountId, T: Currency<AccountId>> ChargeFee<AccountId> for T where
-	T::Balance: From<Balance>,
+impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
+	T::Balance: From<Balance> + Into<Balance>,
 	ParaId: AccountIdConversion<AccountId>,
 {
-	fn charge_fee(para_id: ParaId, amount: Balance) -> Result {
+	fn free_balance(para_id: ParaId) -> Balance {
+		let para_account = para_id.into_account();
+		T::free_balance(&para_account).into()
+	}
+
+	fn deduct(para_id: ParaId, amount: Balance) -> Result {
 		let para_account = para_id.into_account();
 
 		// burn the fee.
@@ -176,7 +182,7 @@ pub trait Trait: session::Trait {
 	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
 
 	/// Some way of interacting with balances for fees.
-	type ChargeFee: ChargeFee<Self::AccountId>;
+	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
 }
 
 /// Origin for the parachains module.
@@ -578,6 +584,21 @@ impl<T: Trait> Module<T> {
 			.collect())
 	}
 
+	/// Get the parachain status necessary for validation.
+	pub fn parachain_status(id: &parachain::Id) -> Option<parachain::Status> {
+		let balance = T::ParachainCurrency::free_balance(*id);
+		Self::parachain_head(id).map(|head_data| parachain::Status {
+			head_data,
+			balance,
+			// TODO: https://github.com/paritytech/polkadot/issues/92
+			// plug in some real values here. most likely governable.
+			fee_schedule: parachain::FeeSchedule {
+				base: 0,
+				per_byte: 0,
+			}
+		})
+	}
+
 	fn check_egress_queue_roots(head: &AttestedCandidate, active_parachains: &[ParaId]) -> Result {
 		let mut last_egress_id = None;
 		let mut iter = active_parachains.iter();
@@ -700,7 +721,7 @@ impl<T: Trait> Module<T> {
 			);
 
 			let fees = candidate.candidate().fees;
-			T::ChargeFee::charge_fee(para_id, fees)?;
+			T::ParachainCurrency::deduct(para_id, fees)?;
 
 			let mut candidate_hash = None;
 			let mut encoded_implicit = None;
