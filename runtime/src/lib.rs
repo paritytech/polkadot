@@ -217,6 +217,7 @@ impl grandpa::Trait for Runtime {
 impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
+	type ChargeFee = Balances;
 }
 
 parameter_types!{

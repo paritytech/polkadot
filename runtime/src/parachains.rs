@@ -25,13 +25,14 @@ use bitvec::{bitvec, BigEndian};
 use sr_primitives::traits::{
 	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero,
 };
-use primitives::{Hash, parachain::{
+use primitives::{Hash, Balance, parachain::{
 	Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots,
 }};
 use {system, session};
 use srml_support::{
-	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result
+	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
+	traits::{Currency, WithdrawReason, ExistenceRequirement}
 };
 
 #[cfg(feature = "std")]
@@ -142,12 +143,40 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 	}
 }
 
+// wrapper trait because an associated type of `Currency<Self::AccountId,Balance=Balance>`
+// doesn't work.`
+pub trait ChargeFee<AccountId> {
+	fn charge_fee(para_id: ParaId, amount: Balance) -> Result;
+}
+
+impl<AccountId, T: Currency<AccountId>> ChargeFee<AccountId> for T where
+	T::Balance: From<Balance>,
+	ParaId: AccountIdConversion<AccountId>,
+{
+	fn charge_fee(para_id: ParaId, amount: Balance) -> Result {
+		let para_account = para_id.into_account();
+
+		// burn the fee.
+		let _ = T::withdraw(
+			&para_account,
+			amount.into(),
+			WithdrawReason::Fee,
+			ExistenceRequirement::KeepAlive,
+		)?;
+
+		Ok(())
+	}
+}
+
 pub trait Trait: session::Trait {
 	/// The outer origin type.
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
 
 	/// The outer call dispatch type.
 	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
+
+	/// Some way of interacting with balances for fees.
+	type ChargeFee: ChargeFee<Self::AccountId>;
 }
 
 /// Origin for the parachains module.
@@ -269,7 +298,7 @@ decl_module! {
 					}
 				}
 
-				Self::check_attestations(&heads)?;
+				Self::check_candidates(&heads)?;
 
 				let current_number = <system::Module<T>>::block_number();
 
@@ -584,7 +613,7 @@ impl<T: Trait> Module<T> {
 
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
-	fn check_attestations(attested_candidates: &[AttestedCandidate]) -> Result {
+	fn check_candidates(attested_candidates: &[AttestedCandidate]) -> Result{
 		use primitives::parachain::ValidityAttestation;
 		use sr_primitives::traits::Verify;
 
@@ -661,13 +690,17 @@ impl<T: Trait> Module<T> {
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
 
 		for candidate in attested_candidates {
-			let validator_group = validator_groups.group_for(candidate.parachain_index())
+			let para_id = candidate.parachain_index();
+			let validator_group = validator_groups.group_for(para_id)
 				.ok_or("no validator group for parachain")?;
 
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
 				"Not enough validity attestations"
 			);
+
+			let fees = candidate.candidate().fees;
+			T::ChargeFee::charge_fee(para_id, fees)?;
 
 			let mut candidate_hash = None;
 			let mut encoded_implicit = None;
