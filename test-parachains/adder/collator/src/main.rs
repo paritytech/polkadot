@@ -45,6 +45,8 @@ struct AdderContext {
 
 /// The parachain context.
 impl ParachainContext for AdderContext {
+	type ProduceCandidate = Result<(BlockData, HeadData, Extrinsic), InvalidHead>;
+
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 		&self,
 		last_head: HeadData,
