@@ -141,7 +141,6 @@ impl session::Trait for Runtime {
 	type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
 	type Event = Event;
 	type Keys = SessionKeys;
-
 }
 
 /// Converter for currencies to votes.
