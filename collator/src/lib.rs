@@ -98,12 +98,14 @@ impl<R: fmt::Display> fmt::Display for Error<R> {
 /// This can be implemented through an externally attached service or a stub.
 /// This is expected to be a lightweight, shared type like an Arc.
 pub trait ParachainContext: Clone {
+	type ProduceCandidate: IntoFuture<Item=(BlockData, HeadData, Extrinsic), Error=InvalidHead>;
+
 	/// Produce a candidate, given the latest ingress queue information and the last parachain head.
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 		&self,
 		last_head: HeadData,
 		ingress: I,
-	) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead>;
+	) -> Self::ProduceCandidate;
 }
 
 /// Relay chain context needed to collate.
@@ -134,38 +136,44 @@ pub fn collate<'a, R, P>(
 		R::Error: 'a,
 		R::FutureEgress: 'a,
 		P: ParachainContext + 'a,
+		<P::ProduceCandidate as IntoFuture>::Future: Send,
 {
 	let ingress = relay_context.unrouted_egress(local_id).into_future().map_err(Error::Polkadot);
-	ingress.and_then(move |ingress| {
-		let (block_data, head_data, mut extrinsic) = para_context.produce_candidate(
-			last_head,
-			ingress.0.iter().flat_map(|&(id, ref msgs)| msgs.iter().cloned().map(move |msg| (id, msg)))
-		).map_err(Error::Collator)?;
-
-		let block_data_hash = block_data.hash();
-		let signature = key.sign(block_data_hash.as_ref()).into();
-		let egress_queue_roots =
-			::polkadot_validation::egress_roots(&mut extrinsic.outgoing_messages);
-
-		let receipt = parachain::CandidateReceipt {
-			parachain_index: local_id,
-			collator: key.public(),
-			signature,
-			head_data,
-			egress_queue_roots,
-			fees: 0,
-			block_data_hash,
-			upward_messages: Vec::new(),
-		};
-
-		Ok(parachain::Collation {
-			receipt,
-			pov: PoVBlock {
-				block_data,
-				ingress,
-			},
+	ingress
+		.and_then(move |ingress| {
+			para_context.produce_candidate(
+				last_head,
+				ingress.0.iter().flat_map(|&(id, ref msgs)| msgs.iter().cloned().map(move |msg| (id, msg)))
+			)
+				.into_future()
+				.map(move |x| (ingress, x))
+				.map_err(Error::Collator)
 		})
-	})
+		.and_then(move |(ingress, (block_data, head_data, mut extrinsic))| {
+			let block_data_hash = block_data.hash();
+			let signature = key.sign(block_data_hash.as_ref()).into();
+			let egress_queue_roots =
+				polkadot_validation::egress_roots(&mut extrinsic.outgoing_messages);
+
+			let receipt = parachain::CandidateReceipt {
+				parachain_index: local_id,
+				collator: key.public(),
+				signature,
+				head_data,
+				egress_queue_roots,
+				fees: 0,
+				block_data_hash,
+				upward_messages: Vec::new(),
+			};
+
+			Ok(parachain::Collation {
+				receipt,
+				pov: PoVBlock {
+					block_data,
+					ingress,
+				},
+			})
+		})
 }
 
 /// Polkadot-api context.
@@ -216,7 +224,8 @@ impl<P, E> IntoExit for CollationNode<P, E> where
 
 impl<P, E> Worker for CollationNode<P, E> where
 	P: ParachainContext + Send + 'static,
-	E: Future<Item=(),Error=()> + Clone + Send + Sync + 'static
+	E: Future<Item=(),Error=()> + Clone + Send + Sync + 'static,
+	<P::ProduceCandidate as IntoFuture>::Future: Send + 'static,
 {
 	type Work = Box<Future<Item=(),Error=()> + Send>;
 
@@ -376,6 +385,7 @@ pub fn run_collator<P, E, I, ArgT>(
 	version: VersionInfo,
 ) -> polkadot_cli::error::Result<()> where
 	P: ParachainContext + Send + 'static,
+	<P::ProduceCandidate as IntoFuture>::Future: Send + 'static,
 	E: IntoFuture<Item=(),Error=()>,
 	E::Future: Send + Clone + Sync + 'static,
 	I: IntoIterator<Item=ArgT>,
@@ -413,6 +423,8 @@ mod tests {
 	struct DummyParachainContext;
 
 	impl ParachainContext for DummyParachainContext {
+		type ProduceCandidate = Result<(BlockData, HeadData, Extrinsic), InvalidHead>;
+
 		fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 			&self,
 			_last_head: HeadData,
