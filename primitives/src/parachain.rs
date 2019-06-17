@@ -19,7 +19,7 @@
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
 use parity_codec::{Encode, Decode};
-use super::{Hash, Balance};
+use super::{Hash, Balance, BlockNumber};
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -200,18 +200,35 @@ pub struct PoVBlock {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
 pub struct Message(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
-/// Consolidated ingress roots.
+/// All ingress roots at one block.
 ///
-/// This is an ordered vector of other parachains' egress queue roots,
-/// obtained according to the routing rules. The same parachain may appear
-/// twice.
+/// This is an ordered vector of other parachain's egress queue roots from a specific block.
+/// empty roots are omitted. Each parachain may appear once at most.
 #[derive(Default, PartialEq, Eq, Clone, Encode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
-pub struct ConsolidatedIngressRoots(pub Vec<(Id, Hash)>);
+pub struct BlockIngressRoots(pub Vec<(Id, Hash)>);
 
-impl From<Vec<(Id, Hash)>> for ConsolidatedIngressRoots {
-	fn from(v: Vec<(Id, Hash)>) -> Self {
-		ConsolidatedIngressRoots(v)
+/// All ingress roots, grouped by block number (ascending). To properly
+/// interpret this struct, the user must have knowledge of which fork of the relay
+/// chain all block numbers correspond to.
+#[derive(Default, PartialEq, Eq, Clone, Encode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
+pub struct StructuredUnroutedIngress(pub Vec<(BlockNumber, BlockIngressRoots)>);
+
+#[cfg(feature = "std")]
+impl StructuredUnroutedIngress {
+	/// Get the length of all the ingress roots across all blocks.
+	pub fn len(&self) -> usize {
+		self.0.iter().fold(0, |a, (_, roots)| a + roots.0.len())
+	}
+
+	/// Returns an iterator over all ingress roots. The block number indicates
+	/// the height at which that root was posted to the relay chain. The parachain ID is the
+	/// message sender.
+	pub fn iter(&self) -> impl Iterator<Item=(BlockNumber, &Id, &Hash)> {
+		self.0.iter().flat_map(|&(n, ref roots)|
+			roots.0.iter().map(move |&(ref from, ref root)| (n, from, root))
+		)
 	}
 }
 
@@ -219,7 +236,7 @@ impl From<Vec<(Id, Hash)>> for ConsolidatedIngressRoots {
 ///
 /// This is just an ordered vector of other parachains' egress queues,
 /// obtained according to the routing rules. The same parachain may appear
-/// twice.
+/// more than once.
 #[derive(Default, PartialEq, Eq, Clone, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
 pub struct ConsolidatedIngress(pub Vec<(Id, Vec<Message>)>);
@@ -324,9 +341,9 @@ substrate_client::decl_runtime_apis! {
 		fn parachain_head(id: Id) -> Option<Vec<u8>>;
 		/// Get the given parachain's head code blob.
 		fn parachain_code(id: Id) -> Option<Vec<u8>>;
-		/// Get the ingress roots to a specific parachain at a
-		/// block.
-		fn ingress(to: Id) -> Option<ConsolidatedIngressRoots>;
+		/// Get all the unrouted ingress roots at the given block that
+		/// are targeting the given parachain.
+		fn ingress(to: Id) -> Option<StructuredUnroutedIngress>;
 	}
 }
 

@@ -29,7 +29,7 @@ use polkadot_validation::{SharedTable, MessagesFrom, Network};
 use polkadot_primitives::{SessionKey, Block, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
-	ValidatorId, ConsolidatedIngressRoots,
+	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots,
 };
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
@@ -175,7 +175,7 @@ struct ApiData {
 	validators: Vec<ValidatorId>,
 	duties: Vec<Chain>,
 	active_parachains: Vec<ParaId>,
-	ingress: HashMap<ParaId, ConsolidatedIngressRoots>,
+	ingress: HashMap<ParaId, StructuredUnroutedIngress>,
 }
 
 #[derive(Default, Clone)]
@@ -306,7 +306,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: ExecutionContext,
 		id: Option<ParaId>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<ConsolidatedIngressRoots>>> {
+	) -> ClientResult<NativeOrEncoded<Option<StructuredUnroutedIngress>>> {
 		let id = id.unwrap();
 		Ok(NativeOrEncoded::Native(self.data.lock().ingress.get(&id).cloned()))
 	}
@@ -372,7 +372,7 @@ impl IngressBuilder {
 		}
 	}
 
-	fn build(self) -> HashMap<ParaId, ConsolidatedIngressRoots> {
+	fn build(self) -> HashMap<ParaId, BlockIngressRoots> {
 		let mut map = HashMap::new();
 		for ((source, target), messages) in self.egress {
 			map.entry(target).or_insert_with(Vec::new)
@@ -383,7 +383,7 @@ impl IngressBuilder {
 			roots.sort_by_key(|&(para_id, _)| para_id);
 		}
 
-		map.into_iter().map(|(k, v)| (k, ConsolidatedIngressRoots(v))).collect()
+		map.into_iter().map(|(k, v)| (k, BlockIngressRoots(v))).collect()
 	}
 }
 

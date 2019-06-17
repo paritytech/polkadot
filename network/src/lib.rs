@@ -30,7 +30,7 @@ use futures::sync::oneshot;
 use polkadot_primitives::{Block, SessionKey, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
-	ConsolidatedIngressRoots,
+	StructuredUnroutedIngress,
 };
 use substrate_network::{PeerId, RequestId, Context};
 use substrate_network::{message, generic_message};
@@ -83,7 +83,7 @@ struct PoVBlockRequest {
 	candidate_hash: Hash,
 	block_data_hash: Hash,
 	sender: oneshot::Sender<PoVBlock>,
-	canon_roots: ConsolidatedIngressRoots,
+	canon_roots: StructuredUnroutedIngress,
 }
 
 impl PoVBlockRequest {
@@ -218,7 +218,7 @@ impl PolkadotProtocol {
 		ctx: &mut Context<Block>,
 		candidate: &CandidateReceipt,
 		relay_parent: Hash,
-		canon_roots: ConsolidatedIngressRoots,
+		canon_roots: StructuredUnroutedIngress,
 	) -> oneshot::Receiver<PoVBlock> {
 		let (tx, rx) = oneshot::channel();
 
@@ -547,7 +547,7 @@ impl Specialization<Block> for PolkadotProtocol {
 							validation_session_parent: Default::default(),
 							candidate_hash: Default::default(),
 							block_data_hash: Default::default(),
-							canon_roots: ConsolidatedIngressRoots(Vec::new()),
+							canon_roots: StructuredUnroutedIngress(Vec::new()),
 							sender,
 						}));
 					}
