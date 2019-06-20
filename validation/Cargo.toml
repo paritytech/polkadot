@@ -28,7 +28,6 @@ runtime_aura = { package = "srml-aura", git = "https://github.com/paritytech/sub
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_authorities = { package = "substrate-consensus-authorities", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

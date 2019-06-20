@@ -90,7 +90,7 @@ impl ParachainContext for AdderContext {
 }
 
 fn main() {
-	let key = Arc::new(Pair::from_seed([1; 32]));
+	let key = Arc::new(Pair::from_seed(&[1; 32]));
 	let id: ParaId = 100.into();
 
 	println!("Starting adder collator with genesis: ");

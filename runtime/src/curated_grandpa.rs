@@ -37,7 +37,7 @@ decl_module! {
 	/// curated GRANDPA set.
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		/// Changes the GRANDPA voter set.
-		fn set_voters(origin, voters: Vec<(T::SessionKey, u64)>) {
+		fn set_voters(origin, voters: Vec<(grandpa::AuthorityId, u64)>) {
 			system::ensure_root(origin)?;
 			grandpa::Module::<T>::schedule_change(voters, T::BlockNumber::zero(), None)?;
 		}

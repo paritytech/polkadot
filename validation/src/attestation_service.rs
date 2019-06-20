@@ -23,25 +23,21 @@
 /// such as candidate verification while performing event-driven work
 /// on a local event loop.
 
-use std::thread;
-use std::time::{Duration, Instant};
-use std::sync::Arc;
+use std::{thread, time::{Duration, Instant}, sync::Arc};
 
 use client::{error::Result as ClientResult, BlockchainEvents, BlockBody};
 use client::block_builder::api::BlockBuilder;
 use client::blockchain::HeaderBackend;
 use consensus::SelectChain;
-use consensus_authorities::AuthoritiesApi;
 use extrinsic_store::Store as ExtrinsicStore;
 use futures::prelude::*;
 use primitives::ed25519;
-use polkadot_primitives::{Block, BlockId};
+use polkadot_primitives::{Block, BlockId, AuraId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
+use aura::AuraApi;
 
-use tokio::runtime::TaskExecutor;
-use tokio::runtime::current_thread::Runtime as LocalRuntime;
-use tokio::timer::Interval;
+use tokio::{timer::Interval, runtime::{TaskExecutor, current_thread::Runtime as LocalRuntime}};
 use log::{warn, debug};
 
 use super::{Network, Collators};
@@ -118,7 +114,7 @@ pub(crate) fn start<C, N, P, SC>(
 		<C::Collation as IntoFuture>::Future: Send + 'static,
 		P: BlockchainEvents<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> + BlockBuilder<Block> + AuthoritiesApi<Block>,
+		P::Api: ParachainHost<Block> + BlockBuilder<Block> + AuraApi<Block, AuraId>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
 		<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -139,23 +135,18 @@ pub(crate) fn start<C, N, P, SC>(
 				.for_each(move |notification| {
 					let parent_hash = notification.hash;
 					if notification.is_new_best {
-						let res = client
-							.runtime_api()
-							.authorities(&BlockId::hash(parent_hash))
-							.map_err(Into::into)
-							.and_then(|authorities| {
-								validation.get_or_instantiate(
-									parent_hash,
-									notification.header.parent_hash().clone(),
-									&authorities,
-									key.clone(),
-									max_block_data_size,
-								)
-							});
+						let res = validation.get_or_instantiate(
+							parent_hash,
+							notification.header.parent_hash().clone(),
+							key.clone(),
+							max_block_data_size,
+						);
 
 						if let Err(e) = res {
-							warn!("Unable to start parachain validation on top of {:?}: {}",
-								parent_hash, e);
+							warn!(
+								"Unable to start parachain validation on top of {:?}: {}",
+								parent_hash, e
+							);
 						}
 					}
 					Ok(())

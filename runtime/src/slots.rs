@@ -112,7 +112,7 @@ type WinningData<T> = [Option<(Bidder<<T as system::Trait>::AccountId, ParaIdOf<
 // index assigned to them, their winning bid and the range that they won.
 type WinnersData<T> = Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, ParaIdOf<T>, BalanceOf<T>, SlotRange)>;
 
-/// This module's storage items.
+// This module's storage items.
 decl_storage! {
 	trait Store for Module<T: Trait> as Slots {
 
@@ -781,9 +781,8 @@ mod tests {
 	use substrate_primitives::{Blake2Hasher, H256};
 	use sr_io::with_externalities;
 	use sr_primitives::{
-		BuildStorage,
+		BuildStorage, testing::Header,
 		traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
-		testing::{Digest, DigestItem, Header}
 	};
 	use srml_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
 	use balances;
@@ -804,12 +803,10 @@ mod tests {
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
-		type Digest = Digest;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
 		type Event = ();
-		type Log = DigestItem;
 	}
 
 	impl balances::Trait for Test {
