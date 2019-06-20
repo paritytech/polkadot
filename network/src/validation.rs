@@ -78,11 +78,11 @@ impl Executor for TaskExecutor {
 
 /// A gossip network subservice.
 pub trait GossipService {
-	fn send_message(&mut self, ctx: &mut NetContext<Block>, who: &PeerId, message: ConsensusMessage);
+	fn send_message(&mut self, ctx: &mut dyn NetContext<Block>, who: &PeerId, message: ConsensusMessage);
 }
 
 impl GossipService for consensus_gossip::ConsensusGossip<Block> {
-	fn send_message(&mut self, ctx: &mut NetContext<Block>, who: &PeerId, message: ConsensusMessage) {
+	fn send_message(&mut self, ctx: &mut dyn NetContext<Block>, who: &PeerId, message: ConsensusMessage) {
 		consensus_gossip::ConsensusGossip::send_message(self, ctx, who, message)
 	}
 }
@@ -135,7 +135,7 @@ impl NetworkService for super::NetworkService {
 	}
 
 	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>)
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn NetContext<Block>)
 	{
 		super::NetworkService::with_spec(self, with)
 	}
@@ -260,7 +260,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 {
 	type Error = String;
 	type TableRouter = Router<P, E, N, T>;
-	type BuildTableRouter = Box<Future<Item=Self::TableRouter,Error=String> + Send>;
+	type BuildTableRouter = Box<dyn Future<Item=Self::TableRouter, Error=String> + Send>;
 
 	fn communication_for(
 		&self,

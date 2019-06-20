@@ -10,8 +10,8 @@ futures = "0.1.17"
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 parity-codec = "3.0"
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_authorities = { package = "substrate-consensus-authorities", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+aura = { package = "substrate-consensus-aura", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 polkadot-runtime = { path = "../runtime", version = "0.1" }
 polkadot-primitives = { path = "../primitives", version = "0.1" }
 polkadot-cli = { path = "../cli" }

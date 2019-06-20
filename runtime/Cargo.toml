@@ -24,7 +24,6 @@ consensus_aura = { package = "substrate-consensus-aura-primitives", git = "https
 offchain_primitives = { package = "substrate-offchain-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 aura = { package = "srml-aura", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-consensus = { package = "srml-consensus", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 council = { package = "srml-council", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 democracy = { package = "srml-democracy", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 executive = { package = "srml-executive", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -38,7 +37,6 @@ system = { package = "srml-system", git = "https://github.com/paritytech/substra
 timestamp = { package = "srml-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 treasury = { package = "srml-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 version = { package = "sr-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-consensus_authorities = { package = "substrate-consensus-authorities", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 [dev-dependencies]
 hex-literal = "0.2.0"
@@ -63,7 +61,6 @@ std = [
 	"sr-io/std",
 	"srml-support/std",
 	"balances/std",
-	"consensus/std",
 	"council/std",
 	"democracy/std",
 	"executive/std",
@@ -81,7 +78,6 @@ std = [
 	"serde/std",
 	"log",
 	"safe-mix/std",
-	"consensus_authorities/std",
 	"consensus_aura/std",
 	"aura/std",
 ]

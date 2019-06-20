@@ -33,7 +33,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{self, Duration, Instant};
 
-use aura::SlotDuration;
+use aura::{SlotDuration, AuraApi};
 use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
@@ -41,18 +41,19 @@ use parity_codec::Encode;
 use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
-use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey};
+use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey, AuraId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
 	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage, CollatorSignature,
 	Collation, PoVBlock,
 };
 use primitives::{Pair, ed25519};
-use runtime_primitives::{traits::{ProvideRuntimeApi, Header as HeaderT, Block as BlockT}, ApplyError};
+use runtime_primitives::{
+	traits::{ProvideRuntimeApi, Header as HeaderT, DigestFor}, ApplyError
+};
 use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
-use consensus_authorities::AuthoritiesApi;
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
@@ -250,7 +251,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -266,7 +267,6 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		&self,
 		parent_hash: Hash,
 		grandparent_hash: Hash,
-		authorities: &[AuthorityId],
 		sign_with: Arc<ed25519::Pair>,
 		max_block_data_size: Option<u64>,
 	)
@@ -278,6 +278,8 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		}
 
 		let id = BlockId::hash(parent_hash);
+
+		let authorities = self.client.runtime_api().authorities(&id)?;
 
 		// compute the parent candidates, if we know of them.
 		// this will allow us to circulate outgoing messages to other peers as necessary.
@@ -309,7 +311,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let (group_info, local_duty) = make_group_info(
 			duty_roster,
-			authorities,
+			&authorities,
 			sign_with.public().into(),
 		)?;
 
@@ -321,7 +323,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
 		let table = Arc::new(SharedTable::new(
-			authorities,
+			&authorities,
 			group_info,
 			sign_with.clone(),
 			parent_hash,
@@ -330,7 +332,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		));
 		let router = self.network.communication_for(
 			table.clone(),
-			authorities,
+			&authorities,
 		);
 
 		let drop_signal = match local_duty.validation {
@@ -453,7 +455,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuthoritiesApi<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -509,7 +511,7 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -521,7 +523,6 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 	fn init(
 		&self,
 		parent_header: &Header,
-		authorities: &[AuthorityId],
 	) -> Result<Self::Proposer, Error> {
 		let parent_hash = parent_header.hash();
 		let parent_id = BlockId::hash(parent_hash);
@@ -529,7 +530,6 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 		let tracker = self.parachain_validation.get_or_instantiate(
 			parent_hash,
 			parent_header.parent_hash().clone(),
-			authorities,
 			sign_with,
 			self.max_block_data_size,
 		)?;
@@ -574,7 +574,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 
 	fn propose(&self,
 		inherent_data: InherentData,
-		_digest: <<Block as BlockT>::Header as HeaderT>::Digest,
+		_inherent_digests: DigestFor<Block>,
 		max_duration: Duration,
 	) -> Self::Create {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);

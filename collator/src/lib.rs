@@ -63,8 +63,8 @@ use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi, TaskExecutor};
 use polkadot_network::validation::{ValidationNetwork, SessionParams};
 use polkadot_network::NetworkService;
 use tokio::timer::Timeout;
-use consensus_authorities::AuthoritiesApi;
 use consensus_common::SelectChain;
+use aura::AuraApi;
 
 pub use polkadot_cli::VersionInfo;
 pub use polkadot_network::validation::Incoming;
@@ -189,7 +189,7 @@ impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 	E: Future<Item=(),Error=()> + Clone + Send + Sync + 'static,
 {
 	type Error = String;
-	type FutureEgress = Box<Future<Item=ConsolidatedIngress, Error=String> + Send>;
+	type FutureEgress = Box<dyn Future<Item=ConsolidatedIngress, Error=String> + Send>;
 
 	fn unrouted_egress(&self, _id: ParaId) -> Self::FutureEgress {
 		// TODO: https://github.com/paritytech/polkadot/issues/253
@@ -227,7 +227,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 	E: Future<Item=(),Error=()> + Clone + Send + Sync + 'static,
 	<P::ProduceCandidate as IntoFuture>::Future: Send + 'static,
 {
-	type Work = Box<Future<Item=(),Error=()> + Send>;
+	type Work = Box<dyn Future<Item=(),Error=()> + Send>;
 
 	fn configuration(&self) -> CustomConfiguration {
 		let mut config = CustomConfiguration::default();
@@ -409,7 +409,7 @@ mod tests {
 
 	impl RelayChainContext for DummyRelayChainContext {
 		type Error = ();
-		type FutureEgress = Box<Future<Item=ConsolidatedIngress,Error=()>>;
+		type FutureEgress = Box<dyn Future<Item=ConsolidatedIngress,Error=()>>;
 
 		fn unrouted_egress(&self, para_id: ParaId) -> Self::FutureEgress {
 			match self.ingress.get(&para_id) {

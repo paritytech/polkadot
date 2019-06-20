@@ -19,10 +19,9 @@
 use primitives::{ed25519, sr25519, Pair, crypto::UncheckedInto};
 use polkadot_primitives::{AccountId, SessionKey};
 use polkadot_runtime::{
-	GenesisConfig, ConsensusConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig,
-	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill,
-	CouncilVotingConfig, GrandpaConfig, SudoConfig, IndicesConfig, Permill,
-	CuratedGrandpaConfig, StakerStatus,
+	GenesisConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig, SystemConfig, AuraConfig,
+	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill, SessionKeys,
+	GrandpaConfig, SudoConfig, IndicesConfig, Permill, CuratedGrandpaConfig, StakerStatus,
 };
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
@@ -76,12 +75,12 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 	const STASH: u128 = 100 * DOLLARS;
 
 	GenesisConfig {
-		consensus: Some(ConsensusConfig {
+		system: Some(SystemConfig {
 			// TODO: Change after Substrate 1252 is fixed (https://github.com/paritytech/substrate/issues/1252)
 			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/polkadot_runtime.compact.wasm").to_vec(),
-			authorities: initial_authorities.iter().map(|x| x.2.clone()).collect(),
+			_genesis_phantom_data: Default::default(),
+			changes_trie_config: Default::default(),
 		}),
-		system: None,
 		balances: Some(BalancesConfig {
 			transaction_base_fee: 1 * CENTS,
 			transaction_byte_fee: 10 * MILLICENTS,
@@ -101,8 +100,10 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		session: Some(SessionConfig {
 			validators: initial_authorities.iter().map(|x| x.1.clone()).collect(),
-			session_length: 5 * MINUTES,
-			keys: initial_authorities.iter().map(|x| (x.1.clone(), x.2.clone())).collect::<Vec<_>>(),
+			keys: initial_authorities.iter().map(|x| (
+				x.1.clone(),
+				SessionKeys(x.2.clone(), x.2.clone()),
+			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
 			current_era: 0,
@@ -110,8 +111,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			session_reward: Perbill::from_parts(2_065),
 			current_session_reward: 0,
 			validator_count: 7,
-			sessions_per_era: 12,
-			bonding_duration: 12,
 			offline_slash_grace: 4,
 			minimum_validator_count: 4,
 			stakers: initial_authorities.iter().map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator)).collect(),
@@ -122,18 +121,15 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			active_council: vec![],
 			candidacy_bond: 10 * DOLLARS,
 			voter_bond: 1 * DOLLARS,
+			voting_fee: 2 * DOLLARS,
 			present_slash_per_voter: 1 * CENTS,
 			carry_count: 6,
 			presentation_duration: 1 * DAYS,
 			approval_voting_period: 2 * DAYS,
 			term_duration: 28 * DAYS,
 			desired_seats: 0,
+			decay_ratio: 0,
 			inactive_grace_period: 1,    // one additional vote should go by before an inactive voter can be reaped.
-		}),
-		council_voting: Some(CouncilVotingConfig {
-			cooloff_period: 4 * DAYS,
-			voting_period: 1 * DAYS,
-			enact_delay_period: 0,
 		}),
 		timestamp: Some(TimestampConfig {
 			minimum_period: SECS_PER_BLOCK / 2, // due to the nature of aura the slots are 2*period
@@ -149,6 +145,10 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
+			_genesis_phantom_data: Default::default(),
+		}),
+		aura: Some(AuraConfig {
+			authorities: initial_authorities.iter().map(|x| x.2.clone()).collect(),
 		}),
 		parachains: Some(Default::default()),
 		curated_grandpa: Some(CuratedGrandpaConfig {
@@ -220,12 +220,15 @@ pub fn testnet_genesis(
 
 	const STASH: u128 = 1 << 20;
 	const ENDOWMENT: u128 = 1 << 20;
+	let council_desired_seats = (endowed_accounts.len() / 2 - initial_authorities.len()) as u32;
+
 	GenesisConfig {
-		consensus: Some(ConsensusConfig {
+		system: Some(SystemConfig {
+			// TODO: Change after Substrate 1252 is fixed (https://github.com/paritytech/substrate/issues/1252)
 			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/polkadot_runtime.compact.wasm").to_vec(),
-			authorities: initial_authorities.iter().map(|x| x.2.clone()).collect(),
+			_genesis_phantom_data: Default::default(),
+			changes_trie_config: Default::default(),
 		}),
-		system: None,
 		indices: Some(IndicesConfig {
 			ids: endowed_accounts.clone(),
 		}),
@@ -240,15 +243,15 @@ pub fn testnet_genesis(
 		}),
 		session: Some(SessionConfig {
 			validators: initial_authorities.iter().map(|x| x.1.clone()).collect(),
-			session_length: 10,
-			keys: initial_authorities.iter().map(|x| (x.1.clone(), x.2.clone())).collect::<Vec<_>>(),
+			keys: initial_authorities.iter().map(|x| (
+				x.1.clone(),
+				SessionKeys(x.2.clone(), x.2.clone()),
+			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
 			current_era: 0,
 			minimum_validator_count: 1,
 			validator_count: 2,
-			sessions_per_era: 5,
-			bonding_duration: 12,
 			offline_slash: Perbill::zero(),
 			session_reward: Perbill::zero(),
 			current_session_reward: 0,
@@ -263,18 +266,15 @@ pub fn testnet_genesis(
 				.map(|a| (a.clone(), 1000000)).collect(),
 			candidacy_bond: 10,
 			voter_bond: 2,
+			voting_fee: 5,
 			present_slash_per_voter: 1,
 			carry_count: 4,
 			presentation_duration: 10,
 			approval_voting_period: 20,
 			term_duration: 1000000,
 			desired_seats: (endowed_accounts.len() - initial_authorities.len()) as u32,
+			decay_ratio: council_desired_seats / 3,
 			inactive_grace_period: 1,
-		}),
-		council_voting: Some(CouncilVotingConfig {
-			cooloff_period: 75,
-			voting_period: 20,
-			enact_delay_period: 0,
 		}),
 		parachains: Some(Default::default()),
 		timestamp: Some(TimestampConfig {
@@ -291,6 +291,10 @@ pub fn testnet_genesis(
 		}),
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
+			_genesis_phantom_data: Default::default(),
+		}),
+		aura: Some(AuraConfig {
+			authorities: initial_authorities.iter().map(|x| x.2.clone()).collect(),
 		}),
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,

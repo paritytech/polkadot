@@ -193,7 +193,7 @@ mod tests {
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sr_primitives::{
-		BuildStorage, traits::{BlakeTwo256, IdentityLookup}, testing::{Digest, DigestItem, Header}
+		BuildStorage, traits::{BlakeTwo256, IdentityLookup}, testing::Header
 	};
 	use balances;
 	use srml_support::{impl_outer_origin, assert_ok, assert_err, assert_noop};
@@ -213,12 +213,10 @@ mod tests {
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
-		type Digest = Digest;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
 		type Event = ();
-		type Log = DigestItem;
 	}
 	impl balances::Trait for Test {
 		type Balance = u64;
