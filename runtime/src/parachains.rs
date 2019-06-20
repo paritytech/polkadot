@@ -588,7 +588,7 @@ impl<T: Trait> Module<T> {
 	pub fn parachain_status(id: &parachain::Id) -> Option<parachain::Status> {
 		let balance = T::ParachainCurrency::free_balance(*id);
 		Self::parachain_head(id).map(|head_data| parachain::Status {
-			head_data,
+			head_data: parachain::HeadData(head_data),
 			balance,
 			// TODO: https://github.com/paritytech/polkadot/issues/92
 			// plug in some real values here. most likely governable.
@@ -822,7 +822,7 @@ mod tests {
 	};
 	use keyring::{AuthorityKeyring, AccountKeyring};
 	use srml_support::{impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err};
-	use {consensus, timestamp};
+	use {consensus, timestamp, balances};
 	use crate::parachains;
 
 	impl_outer_origin! {
@@ -866,9 +866,20 @@ mod tests {
 		type Moment = u64;
 		type OnTimestampSet = ();
 	}
+	impl balances::Trait for Test {
+		type Balance = Balance;
+		type OnFreeBalanceZero = ();
+		type OnNewAccount = ();
+		type Event = ();
+		type TransactionPayment = ();
+		type DustRemoval = ();
+		type TransferPayment = ();
+	}
+
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
+		type ParachainCurrency = balances::Module<Test>;
 	}
 
 	type Parachains = Module<Test>;

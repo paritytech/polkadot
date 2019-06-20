@@ -413,7 +413,7 @@ pub fn validate_collation<P>(
 	validate_incoming(&roots, &collation.pov.ingress)?;
 
 	let params = ValidationParams {
-		parent_head: chain_status.head_data,
+		parent_head: chain_status.head_data.0,
 		block_data: collation.pov.block_data.0.clone(),
 		ingress: collation.pov.ingress.0.iter()
 			.flat_map(|&(source, ref messages)| {
@@ -611,16 +611,16 @@ mod tests {
 			target: 1.into(),
 			data: &[0u8; 100],
 		}).unwrap();
-		assert_eq!(ext.fees_charged, 3000);
+		assert_eq!(ext.fees_charged, 4000);
 
 		ext.post_upward_message(UpwardMessageRef {
 			origin: ParachainDispatchOrigin::Signed,
 			data: &[0u8; 100],
 		}).unwrap();
-		assert_eq!(ext.fees_charged, 4000);
+		assert_eq!(ext.fees_charged, 6000);
 
 
-		ext.apply_message_fee((1_000_000 - 4000 - 1000) / 100).unwrap();
+		ext.apply_message_fee((1_000_000 - 6000 - 1000) / 10).unwrap();
 		assert_eq!(ext.fees_charged, 1_000_000);
 
 		// cannot pay fee.

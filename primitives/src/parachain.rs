@@ -347,7 +347,7 @@ impl FeeSchedule {
 		debug_assert!(mem::size_of::<Balance>() >= mem::size_of::<usize>());
 
 		let n_bytes = n_bytes as Balance;
-		self.base.saturating_add(n_bytes.saturating_mul(n_bytes))
+		self.base.saturating_add(n_bytes.saturating_mul(self.per_byte))
 	}
 }
 
@@ -356,7 +356,7 @@ impl FeeSchedule {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct Status {
 	/// The head of the parachain.
-	pub head_data: Vec<u8>,
+	pub head_data: HeadData,
 	/// The current balance of the parachain.
 	pub balance: Balance,
 	/// The fee schedule for messages coming from this parachain.
