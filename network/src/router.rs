@@ -31,9 +31,8 @@ use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{Extrinsic, CandidateReceipt, ParachainHost,
 	ValidatorIndex, Collation, PoVBlock,
 };
-use crate::gossip::RegisteredMessageValidator;
+use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement};
 
-use parity_codec::{Encode, Decode};
 use futures::prelude::*;
 use parking_lot::Mutex;
 use log::{debug, trace};
@@ -79,19 +78,18 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 
 	/// Return a future of checked messages. These should be imported into the router
 	/// with `import_statement`.
-	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement,Error=()> {
+	///
+	/// The returned stream will not terminate, so it is required to make sure that the stream is
+	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
+	/// infinitely.
+	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement, Error=()> {
 		// spin up a task in the background that processes all incoming statements
 		// validation has been done already by the gossip validator.
 		// this will block internally until the gossip messages stream is obtained.
 		self.network().gossip_messages_for(self.attestation_topic)
-			.filter_map(|msg| {
-				use crate::gossip::GossipMessage;
-
-				debug!(target: "validation", "Processing statement for live validation session");
-				match GossipMessage::decode(&mut &msg.message[..]) {
-					Some(GossipMessage::Statement(s)) => Some(s.signed_statement),
-					_ => None,
-				}
+			.filter_map(|msg| match msg.0 {
+				GossipMessage::Statement(s) => Some(s.signed_statement),
+				_ => None
 			})
 	}
 
@@ -180,6 +178,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		let network = self.network().clone();
 		let knowledge = self.fetcher.knowledge().clone();
 		let attestation_topic = self.attestation_topic.clone();
+		let parent_hash = self.parent_hash();
 
 		producer.prime(self.fetcher.api().clone())
 			.map(move |validated| {
@@ -193,8 +192,11 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 
 				// propagate the statement.
 				// consider something more targeted than gossip in the future.
-				let signed = table.import_validated(validated);
-				network.gossip_message(attestation_topic, signed.encode());
+				let statement = GossipStatement::new(
+					parent_hash,
+					table.import_validated(validated),
+				);
+				network.gossip_message(attestation_topic, statement.into());
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
 	}
@@ -213,11 +215,14 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 		// produce a signed statement
 		let hash = collation.receipt.hash();
 		let validated = Validated::collated_local(collation.receipt, collation.pov.clone(), extrinsic.clone());
-		let statement = self.table.import_validated(validated);
+		let statement = GossipStatement::new(
+			self.parent_hash(),
+			self.table.import_validated(validated),
+		);
 
 		// give to network to make available.
 		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov), Some(extrinsic));
-		self.network().gossip_message(self.attestation_topic, statement.encode());
+		self.network().gossip_message(self.attestation_topic, statement.into());
 	}
 
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof {
