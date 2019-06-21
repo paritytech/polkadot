@@ -45,23 +45,23 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 }
 
 #[no_mangle]
-pub extern fn validate_block(offset: usize, len: usize) -> usize {
-	let params = unsafe { ::parachain::wasm_api::load_params(offset, len) };
+pub extern fn validate_block(params: *const u8, len: usize) -> usize {
+	let params = unsafe { parachain::wasm_api::load_params(params, len) };
 	let parent_head = HeadData::decode(&mut &params.parent_head[..])
 		.expect("invalid parent head format.");
 
 	let block_data = BlockData::decode(&mut &params.block_data[..])
 		.expect("invalid block data format.");
 
-	let parent_hash = ::tiny_keccak::keccak256(&params.parent_head[..]);
+	let parent_hash = tiny_keccak::keccak256(&params.parent_head[..]);
 
 	// we also add based on incoming data from messages. ignoring unknown message
 	// kinds.
-	let from_messages = ::adder::process_messages(
+	let from_messages = adder::process_messages(
 		params.ingress.iter().map(|incoming| &incoming.data[..])
 	);
 
-	match ::adder::execute(parent_hash, parent_head, &block_data, from_messages) {
+	match adder::execute(parent_hash, parent_head, &block_data, from_messages) {
 		Ok(new_head) => parachain::wasm_api::write_result(
 			ValidationResult { head_data: new_head.encode() }
 		),

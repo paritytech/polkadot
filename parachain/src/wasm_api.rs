@@ -30,8 +30,8 @@ mod ll {
 ///
 /// Offset and length must have been provided by the validation
 /// function's entry point.
-pub unsafe fn load_params(offset: usize, len: usize) -> ValidationParams {
-	let mut slice = rstd::slice::from_raw_parts(offset as *const u8, len);
+pub unsafe fn load_params(params: *const u8, len: usize) -> ValidationParams {
+	let mut slice = rstd::slice::from_raw_parts(params, len);
 
 	ValidationParams::decode(&mut slice).expect("Invalid input data")
 }
