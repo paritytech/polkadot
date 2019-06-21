@@ -18,9 +18,7 @@
 
 #![no_std]
 
-#![feature(
-	alloc, core_intrinsics, lang_items, core_panic_info, alloc_error_handler
-)]
+#![feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler)]
 
 #[global_allocator]
 static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
@@ -40,14 +38,14 @@ pub fn panic(_info: &panic::PanicInfo) -> ! {
 
 #[alloc_error_handler]
 #[no_mangle]
-pub fn oom(_: ::core::alloc::Layout) -> ! {
+pub fn oom(_: core::alloc::Layout) -> ! {
 	unsafe {
 		intrinsics::abort();
 	}
 }
 
 #[no_mangle]
-pub extern fn validate(offset: usize, len: usize) -> usize {
+pub extern fn validate_block(offset: usize, len: usize) -> usize {
 	let params = unsafe { ::parachain::wasm_api::load_params(offset, len) };
 	let parent_head = HeadData::decode(&mut &params.parent_head[..])
 		.expect("invalid parent head format.");

@@ -3,14 +3,15 @@ name = "polkadot-parachain"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Types and utilities for creating and working with parachains"
+edition = "2018"
 
 [dependencies]
-parity-codec = { version = "3.5", default-features = false }
-parity-codec-derive = { version = "3.3", default-features = false }
+codec = { package = "parity-codec", version = "3.5", default-features = false, features = [ "derive" ] }
 wasmi = { version = "0.4.3", optional = true }
 derive_more = { version = "0.14", optional = true }
-serde = { version = "1.0", default-features = false }
-serde_derive = { version = "1.0", optional = true }
+serde = { version = "1.0", default-features = false, features = [ "derive" ] }
+
+rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 
 [dev-dependencies]
 tiny-keccak = "1.4"
@@ -18,4 +19,4 @@ tiny-keccak = "1.4"
 [features]
 default = ["std"]
 wasm-api = []
-std = ["parity-codec/std", "wasmi", "derive_more", "serde_derive", "serde/std"]
+std = [ "codec/std", "wasmi", "derive_more", "serde/std", "rstd/std" ]

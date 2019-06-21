@@ -17,9 +17,7 @@
 //! Utilities for writing parachain WASM.
 
 use codec::{Encode, Decode};
-use super::{
-	ValidationParams, ValidationResult, MessageRef, UpwardMessageRef, ParachainDispatchOrigin
-};
+use super::{ValidationParams, ValidationResult, MessageRef, UpwardMessageRef};
 
 mod ll {
 	extern "C" {
@@ -67,8 +65,8 @@ pub fn post_message(message: MessageRef) {
 
 /// Post a message to this parachain's relay chain.
 pub fn post_upward_message(message: UpwardMessageRef) {
-	let data_ptr = message.as_ptr();
-	let data_len = message.len();
+	let data_ptr = message.data.as_ptr();
+	let data_len = message.data.len();
 
-	unsafe { ll::ext_post_upward_message(message.origin as u8 as u32, data_ptr, data_len as u32) }
+	unsafe { ll::ext_post_upward_message(u32::from(message.origin as u8), data_ptr, data_len as u32) }
 }
