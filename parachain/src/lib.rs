@@ -187,7 +187,7 @@ pub enum ParachainDispatchOrigin {
 	Parachain,
 }
 
-impl core::convert::TryFrom<u8> for ParachainDispatchOrigin {
+impl rstd::convert::TryFrom<u8> for ParachainDispatchOrigin {
 	type Error = ();
 	fn try_from(x: u8) -> core::result::Result<ParachainDispatchOrigin, ()> {
 		const SIGNED: u8 = ParachainDispatchOrigin::Signed as u8;

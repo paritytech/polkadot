@@ -31,7 +31,7 @@ mod ll {
 /// Offset and length must have been provided by the validation
 /// function's entry point.
 pub unsafe fn load_params(offset: usize, len: usize) -> ValidationParams {
-	let mut slice = ::core::slice::from_raw_parts(offset as *const u8, len);
+	let mut slice = rstd::slice::from_raw_parts(offset as *const u8, len);
 
 	ValidationParams::decode(&mut slice).expect("Invalid input data")
 }
@@ -51,7 +51,7 @@ pub fn write_result(result: ValidationResult) -> usize {
 	let end_ptr = &encoded[len] as *const u8 as usize;
 
 	// leak so it doesn't get zeroed.
-	::core::mem::forget(encoded);
+	rstd::mem::forget(encoded);
 	end_ptr
 }
 
