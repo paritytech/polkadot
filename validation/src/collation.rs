@@ -310,11 +310,11 @@ impl Externalities {
 		let fee = self.fee_schedule.compute_fee(message_len);
 		let new_fees_charged = self.fees_charged.saturating_add(fee);
 		if new_fees_charged > self.free_balance {
-			return Err(ExternalitiesError::CannotPostMessage("could not cover fee."));
+			Err(ExternalitiesError::CannotPostMessage("could not cover fee."))
+		} else {
+			self.fees_charged = new_fees_charged;
+			Ok(())
 		}
-
-		self.fees_charged = new_fees_charged;
-		Ok(())
 	}
 
 	// Performs final checks of validity, producing the extrinsic data.
