@@ -64,7 +64,7 @@ mod cost {
 
 /// A gossip message.
 #[derive(Encode, Decode, Clone)]
-pub(crate) enum GossipMessage {
+pub enum GossipMessage {
 	/// A packet sent to a neighbor but not relayed.
 	#[codec(index = "1")]
 	Neighbor(VersionedNeighborPacket),
@@ -76,13 +76,29 @@ pub(crate) enum GossipMessage {
 	// erasure-coded chunks.
 }
 
+impl From<GossipStatement> for GossipMessage {
+	fn from(stmt: GossipStatement) -> Self {
+		GossipMessage::Statement(stmt)
+	}
+}
+
 /// A gossip message containing a statement.
 #[derive(Encode, Decode, Clone)]
-pub(crate) struct GossipStatement {
+pub struct GossipStatement {
 	/// The relay chain parent hash.
-	pub(crate) relay_parent: Hash,
+	pub relay_parent: Hash,
 	/// The signed statement being gossipped.
-	pub(crate) signed_statement: SignedStatement,
+	pub signed_statement: SignedStatement,
+}
+
+impl GossipStatement {
+	/// Create a new instance.
+	pub fn new(relay_parent: Hash, signed_statement: SignedStatement) -> Self {
+		Self {
+			relay_parent,
+			signed_statement,
+		}
+	}
 }
 
 /// A versioned neighbor message.

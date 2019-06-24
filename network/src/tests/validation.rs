@@ -18,7 +18,8 @@
 
 #![allow(unused)]
 
-use crate::validation::{NetworkService, GossipService};
+use crate::validation::{NetworkService, GossipService, GossipMessageStream};
+use crate::gossip::GossipMessage;
 use substrate_network::Context as NetContext;
 use substrate_network::consensus_gossip::TopicNotification;
 use substrate_primitives::{NativeOrEncoded, ExecutionContext};
@@ -40,6 +41,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use futures::{prelude::*, sync::mpsc};
 use tokio::runtime::{Runtime, TaskExecutor};
+use parity_codec::Encode;
 
 use super::TestContext;
 
@@ -142,14 +144,14 @@ struct TestNetwork {
 }
 
 impl NetworkService for TestNetwork {
-	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<TopicNotification> {
+	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
-		rx
+		GossipMessageStream::new(rx)
 	}
 
-	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
-		let notification = TopicNotification { message, sender: None };
+	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
+		let notification = TopicNotification { message: message.encode(), sender: None };
 		let _ = self.gossip.send_message.unbounded_send((topic, notification));
 	}
 
