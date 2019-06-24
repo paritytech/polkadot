@@ -49,6 +49,7 @@ impl ParachainContext for AdderContext {
 
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 		&self,
+		relay_parent: Hash,
 		last_head: HeadData,
 		ingress: I,
 	) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead>
