@@ -574,7 +574,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 
 	fn propose(&self,
 		inherent_data: InherentData,
-		_inherent_digests: DigestFor<Block>,
+		inherent_digests: DigestFor<Block>,
 		max_duration: Duration,
 	) -> Self::Create {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
@@ -627,6 +627,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 			believed_minimum_timestamp: believed_timestamp,
 			timing,
 			inherent_data: Some(inherent_data),
+			inherent_digests: inherent_digests,
 			// leave some time for the proposal finalisation
 			deadline: Instant::now() + max_duration - max_duration / 3,
 		})
@@ -697,6 +698,7 @@ pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 	timing: ProposalTiming,
 	believed_minimum_timestamp: u64,
 	inherent_data: Option<InherentData>,
+	inherent_digests: DigestFor<Block>,
 	deadline: Instant,
 }
 
@@ -718,7 +720,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 
 		let runtime_api = self.client.runtime_api();
 
-		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false, Default::default())?;
+		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false, self.inherent_digests.clone())?;
 
 		{
 			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
