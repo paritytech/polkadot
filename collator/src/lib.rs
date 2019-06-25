@@ -100,9 +100,11 @@ impl<R: fmt::Display> fmt::Display for Error<R> {
 pub trait ParachainContext: Clone {
 	type ProduceCandidate: IntoFuture<Item=(BlockData, HeadData, Extrinsic), Error=InvalidHead>;
 
-	/// Produce a candidate, given the latest ingress queue information and the last parachain head.
+	/// Produce a candidate, given the relay parent hash, the latest ingress queue information
+	/// and the last parachain head.
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 		&self,
+		relay_parent: Hash,
 		last_head: HeadData,
 		ingress: I,
 	) -> Self::ProduceCandidate;
@@ -124,6 +126,7 @@ pub trait RelayChainContext {
 
 /// Produce a candidate for the parachain, with given contexts, parent head, and signing key.
 pub fn collate<'a, R, P>(
+	relay_parent: Hash,
 	local_id: ParaId,
 	last_head: HeadData,
 	relay_context: R,
@@ -142,6 +145,7 @@ pub fn collate<'a, R, P>(
 	ingress
 		.and_then(move |ingress| {
 			para_context.produce_candidate(
+				relay_parent,
 				last_head,
 				ingress.0.iter().flat_map(|&(id, ref msgs)| msgs.iter().cloned().map(move |msg| (id, msg)))
 			)
@@ -327,6 +331,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 					};
 
 					let collation_work = collate(
+						relay_parent,
 						para_id,
 						HeadData(last_head),
 						context,
@@ -427,6 +432,7 @@ mod tests {
 
 		fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 			&self,
+			_relay_parent: Hash,
 			_last_head: HeadData,
 			ingress: I,
 		) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead> {
@@ -476,6 +482,7 @@ mod tests {
 		]));
 
 		let collation = collate(
+			Default::default(),
 			id,
 			HeadData(vec![5]),
 			context.clone(),
