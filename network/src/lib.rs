@@ -69,7 +69,7 @@ mod benefit {
 type FullStatus = GenericFullStatus<Block>;
 
 /// Specialization of the network service for the polkadot protocol.
-pub type NetworkService = ::substrate_network::NetworkService<Block, PolkadotProtocol>;
+pub type NetworkService = substrate_network::NetworkService<Block, PolkadotProtocol>;
 
 /// Status of a Polkadot node.
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
@@ -491,7 +491,11 @@ impl Specialization<Block> for PolkadotProtocol {
 			}
 			ctx.report_peer(who.clone(), benefit::NEW_COLLATOR);
 
-			let collator_role = self.collators.on_new_collator(acc_id.clone(), para_id.clone());
+			let collator_role = self.collators.on_new_collator(
+				acc_id.clone(),
+				para_id.clone(),
+				who.clone(),
+			);
 
 			peer_info.collator_state.set_role(collator_role, |msg| send_polkadot_message(
 				ctx,
