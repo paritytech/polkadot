@@ -53,13 +53,17 @@ use futures::{future, Stream, Future, IntoFuture};
 use log::{info, warn};
 use client::BlockchainEvents;
 use primitives::{ed25519, Pair};
-use polkadot_primitives::{BlockId, SessionKey, Hash, Block};
-use polkadot_primitives::parachain::{
-	self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic,
-	PoVBlock, Status as ParachainStatus,
+use polkadot_primitives::{
+	BlockId, SessionKey, Hash, Block,
+	parachain::{
+		self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic,
+		PoVBlock, Status as ParachainStatus,
+	}
 };
-use polkadot_cli::{PolkadotService, CustomConfiguration, ParachainHost};
-use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi, TaskExecutor};
+use polkadot_cli::{
+	Worker, IntoExit, ProvideRuntimeApi, TaskExecutor, PolkadotService, CustomConfiguration,
+	ParachainHost,
+};
 use polkadot_network::validation::{SessionParams, ValidationNetwork};
 use polkadot_network::NetworkService;
 use tokio::timer::Timeout;
@@ -68,16 +72,39 @@ use aura::AuraApi;
 
 pub use polkadot_cli::VersionInfo;
 pub use polkadot_network::validation::Incoming;
+pub use polkadot_validation::SignedStatement;
+pub use polkadot_primitives::parachain::CollatorId;
+pub use substrate_network::PeerId;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// An abstraction over the `Network` with useful functions for a `Collator`.
 pub trait Network {
+	/// Convert the given `CollatorId` to a `PeerId`.
+	fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
+		Box<dyn Future<Item=Option<PeerId>, Error=()> + Send>;
 
+	/// Create a `Stream` of checked statements for the given `relay_parent`.
+	///
+	/// The returned stream will not terminate, so it is required to make sure that the stream is
+	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
+	/// infinitely.
+	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement, Error=()>>;
 }
 
-impl<P, E> Network for ValidationNetwork<P, E, NetworkService, TaskExecutor> {
+impl<P, E> Network for ValidationNetwork<P, E, NetworkService, TaskExecutor> where
+	P: 'static,
+	E: 'static,
+{
+	fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
+		Box<dyn Future<Item=Option<PeerId>, Error=()> + Send>
+	{
+		Box::new(Self::collator_id_to_peer_id(self, collator_id))
+	}
 
+	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement, Error=()>> {
+		Box::new(Self::checked_statements(self, relay_parent))
+	}
 }
 
 /// Error to return when the head data was invalid.

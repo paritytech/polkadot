@@ -25,7 +25,7 @@ use substrate_primitives::Pair;
 use parachain::codec::{Encode, Decode};
 use primitives::{
 	Hash,
-	parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic, Status as ParachainStatus,
+	parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic, Status as ParachainStatus},
 };
 use collator::{InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext};
 use parking_lot::Mutex;
@@ -33,7 +33,10 @@ use parking_lot::Mutex;
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
 	parent_hash: [0; 32],
-	post_state: [1, 27, 77, 3, 221, 140, 1, 241, 4, 145, 67, 207, 156, 76, 129, 126, 75, 22, 127, 29, 27, 131, 229, 198, 240, 241, 13, 137, 186, 30, 123, 206],
+	post_state: [
+		1, 27, 77, 3, 221, 140, 1, 241, 4, 145, 67, 207, 156, 76, 129, 126, 75,
+		22, 127, 29, 27, 131, 229, 198, 240, 241, 13, 137, 186, 30, 123, 206
+	],
 };
 
 const GENESIS_BODY: AdderBody = AdderBody {

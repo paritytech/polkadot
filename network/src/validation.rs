@@ -288,7 +288,9 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 
 		rx
 	}
+}
 
+impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 	/// Convert the given `CollatorId` to a `PeerId`.
 	pub fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
 		impl Future<Item=Option<PeerId>, Error=()> + Send
