@@ -286,6 +286,16 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 
 		rx
 	}
+
+	/// Convert the given `CollatorId` to a `PeerId`.
+	pub fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
+		impl Future<Item = Option<PeerId>, Error = ()> + Send {
+		let (send, recv) = oneshot::channel();
+		self.network.with_spec(move |spec, _| {
+			let _ = send.send(spec.collator_id_to_peer_id(&collator_id).cloned());
+		});
+		recv.map_err(|_| ())
+	}
 }
 
 /// A long-lived network which can create parachain statement  routing processes on demand.
@@ -305,7 +315,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],
 	) -> Self::BuildTableRouter {
-		let parent_hash = table.consensus_parent_hash().clone();
+		let parent_hash = *table.consensus_parent_hash();
 		let local_session_key = table.session_key();
 
 		let build_fetcher = self.instantiate_session(SessionParams {
@@ -343,7 +353,7 @@ pub struct NetworkDown;
 
 /// A future that resolves when a collation is received.
 pub struct AwaitingCollation {
-	outer: ::futures::sync::oneshot::Receiver<::futures::sync::oneshot::Receiver<Collation>>,
+	outer: futures::sync::oneshot::Receiver<::futures::sync::oneshot::Receiver<Collation>>,
 	inner: Option<::futures::sync::oneshot::Receiver<Collation>>
 }
 
@@ -576,7 +586,7 @@ impl LiveValidationSessions {
 		&mut self,
 		params: SessionParams,
 	) -> (ValidationSession, Option<ValidatorId>) {
-		let parent_hash = params.parent_hash.clone();
+		let parent_hash = params.parent_hash;
 
 		let key = params.local_session_key.clone();
 		let recent = &mut self.recent;
@@ -703,7 +713,7 @@ pub struct SessionDataFetcher<P, E, N: NetworkService, T> {
 impl<P, E, N: NetworkService, T> SessionDataFetcher<P, E, N, T> {
 	/// Get the parent hash.
 	pub(crate) fn parent_hash(&self) -> Hash {
-		self.parent_hash.clone()
+		self.parent_hash
 	}
 
 	/// Get the shared knowledge.
@@ -738,7 +748,7 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for SessionDataFetcher<P, E
 			network: self.network.clone(),
 			api: self.api.clone(),
 			task_executor: self.task_executor.clone(),
-			parent_hash: self.parent_hash.clone(),
+			parent_hash: self.parent_hash,
 			knowledge: self.knowledge.clone(),
 			exit: self.exit.clone(),
 			message_validator: self.message_validator.clone(),
@@ -754,7 +764,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 {
 	/// Fetch PoV block for the given candidate receipt.
 	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> PoVReceiver {
-		let parachain = candidate.parachain_index.clone();
+		let parachain = candidate.parachain_index;
 		let parent_hash = self.parent_hash;
 
 		let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)

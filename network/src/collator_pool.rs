@@ -216,6 +216,11 @@ impl CollatorPool {
 		let now = Instant::now();
 		self.collations.retain(|&(ref h, _), slot| chain_head != Some(h) && slot.stay_alive(now));
 	}
+
+	/// Convert the given `CollatorId` to a `PeerId`.
+	pub fn collator_id_to_peer_id(&self, collator_id: &CollatorId) -> Option<&PeerId> {
+		self.collators.get(collator_id).map(|ids| &ids.1)
+	}
 }
 
 #[cfg(test)]

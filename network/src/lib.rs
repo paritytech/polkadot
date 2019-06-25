@@ -460,6 +460,11 @@ impl PolkadotProtocol {
 			}
 		}
 	}
+
+	/// Convert the given `CollatorId` to a `PeerId`.
+	pub fn collator_id_to_peer_id(&self, collator_id: &CollatorId) -> Option<&PeerId> {
+		self.collators.collator_id_to_peer_id(collator_id)
+	}
 }
 
 impl Specialization<Block> for PolkadotProtocol {
