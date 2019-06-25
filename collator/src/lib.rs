@@ -60,7 +60,7 @@ use polkadot_primitives::parachain::{
 };
 use polkadot_cli::{PolkadotService, CustomConfiguration, ParachainHost};
 use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi, TaskExecutor};
-use polkadot_network::validation::{ValidationNetwork, SessionParams};
+use polkadot_network::validation::{SessionParams, self};
 use polkadot_network::NetworkService;
 use tokio::timer::Timeout;
 use consensus_common::SelectChain;
@@ -70,6 +70,9 @@ pub use polkadot_cli::VersionInfo;
 pub use polkadot_network::validation::Incoming;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// The `ValidationNetwork` used by the collator.
+pub type ValidationNetwork<P, E> = validation::ValidationNetwork<P, E, NetworkService, TaskExecutor>;
 
 /// Error to return when the head data was invalid.
 #[derive(Clone, Copy, Debug)]
@@ -93,6 +96,18 @@ impl<R: fmt::Display> fmt::Display for Error<R> {
 	}
 }
 
+/// Something that can build a `ParachainContext`.
+pub trait BuildParachainContext {
+	/// The parachain context produced by the `build` function.
+	type ParachainContext: self::ParachainContext;
+
+	/// Build the `ParachainContext`.
+	fn build<P, E>(
+		self,
+		validation_network: &ValidationNetwork<P, E>
+	) -> Result<Self::ParachainContext, ()>;
+}
+
 /// Parachain context needed for collation.
 ///
 /// This can be implemented through an externally attached service or a stub.
@@ -112,7 +127,7 @@ pub trait ParachainContext: Clone {
 /// This encapsulates a network and local database which may store
 /// some of the input.
 pub trait RelayChainContext {
-	type Error: ::std::fmt::Debug;
+	type Error: std::fmt::Debug;
 
 	/// Future that resolves to the un-routed egress queues of a parachain.
 	/// The first item is the oldest.
@@ -178,7 +193,7 @@ pub fn collate<'a, R, P>(
 
 /// Polkadot-api context.
 struct ApiContext<P, E> {
-	network: ValidationNetwork<P, E, NetworkService, TaskExecutor>,
+	network: ValidationNetwork<P, E>,
 	parent_hash: Hash,
 	authorities: Vec<SessionKey>,
 }
@@ -206,14 +221,13 @@ impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 }
 
 struct CollationNode<P, E> {
-	parachain_context: P,
+	build_parachain_context: P,
 	exit: E,
 	para_id: ParaId,
 	key: Arc<ed25519::Pair>,
 }
 
 impl<P, E> IntoExit for CollationNode<P, E> where
-	P: ParachainContext + Send + 'static,
 	E: Future<Item=(),Error=()> + Send + 'static
 {
 	type Exit = E;
@@ -223,11 +237,12 @@ impl<P, E> IntoExit for CollationNode<P, E> where
 }
 
 impl<P, E> Worker for CollationNode<P, E> where
-	P: ParachainContext + Send + 'static,
-	E: Future<Item=(),Error=()> + Clone + Send + Sync + 'static,
-	<P::ProduceCandidate as IntoFuture>::Future: Send + 'static,
+	P: BuildParachainContext + Send + 'static,
+	P::ParachainContext: Send + 'static,
+	<<P::ParachainContext as ParachainContext>::ProduceCandidate as IntoFuture>::Future: Send + 'static,
+	E: Future<Item=(), Error=()> + Clone + Send + Sync + 'static,
 {
-	type Work = Box<dyn Future<Item=(),Error=()> + Send>;
+	type Work = Box<dyn Future<Item=(), Error=()> + Send>;
 
 	fn configuration(&self) -> CustomConfiguration {
 		let mut config = CustomConfiguration::default();
@@ -238,10 +253,10 @@ impl<P, E> Worker for CollationNode<P, E> where
 		config
 	}
 
-	fn work<S>(self, service: &S, task_executor: TaskExecutor) -> Self::Work
-		where S: PolkadotService,
+	fn work<S>(self, service: &S, task_executor: TaskExecutor) -> Self::Work where
+		S: PolkadotService,
 	{
-		let CollationNode { parachain_context, exit, para_id, key } = self;
+		let CollationNode { build_parachain_context, exit, para_id, key } = self;
 		let client = service.client();
 		let network = service.network();
 		let known_oracle = client.clone();
@@ -282,6 +297,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 			task_executor,
 		);
 
+		let parachain_context = build_parachain_context.build(&validation_network).unwrap();
 		let inner_exit = exit.clone();
 		let work = client.import_notification_stream()
 			.for_each(move |notification| {
@@ -371,27 +387,28 @@ fn compute_targets(para_id: ParaId, session_keys: &[SessionKey], roster: DutyRos
 		.collect()
 }
 
-/// Run a collator node with the given `RelayChainContext` and `ParachainContext` and
-/// arguments to the underlying polkadot node.
+/// Run a collator node with the given `RelayChainContext` and `ParachainContext`
+/// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
 /// Provide a future which resolves when the node should exit.
 /// This function blocks until done.
 pub fn run_collator<P, E, I, ArgT>(
-	parachain_context: P,
+	build_parachain_context: P,
 	para_id: ParaId,
 	exit: E,
 	key: Arc<ed25519::Pair>,
 	args: I,
 	version: VersionInfo,
 ) -> polkadot_cli::error::Result<()> where
-	P: ParachainContext + Send + 'static,
-	<P::ProduceCandidate as IntoFuture>::Future: Send + 'static,
+	P: BuildParachainContext + Send + 'static,
+	P::ParachainContext: Send + 'static,
+	<<P::ParachainContext as ParachainContext>::ProduceCandidate as IntoFuture>::Future: Send + 'static,
 	E: IntoFuture<Item=(),Error=()>,
 	E::Future: Send + Clone + Sync + 'static,
 	I: IntoIterator<Item=ArgT>,
 	ArgT: Into<std::ffi::OsString> + Clone,
 {
-	let node_logic = CollationNode { parachain_context, exit: exit.into_future(), para_id, key };
+	let node_logic = CollationNode { build_parachain_context, exit: exit.into_future(), para_id, key };
 	polkadot_cli::run(args, node_logic, version)
 }
 
