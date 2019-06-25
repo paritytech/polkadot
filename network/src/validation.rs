@@ -291,7 +291,8 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 
 	/// Convert the given `CollatorId` to a `PeerId`.
 	pub fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
-		impl Future<Item=Option<PeerId>, Error=()> + Send {
+		impl Future<Item=Option<PeerId>, Error=()> + Send
+	{
 		let (send, recv) = oneshot::channel();
 		self.network.with_spec(move |spec, _| {
 			let _ = send.send(spec.collator_id_to_peer_id(&collator_id).cloned());
