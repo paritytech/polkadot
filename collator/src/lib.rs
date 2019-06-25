@@ -60,7 +60,7 @@ use polkadot_primitives::parachain::{
 };
 use polkadot_cli::{PolkadotService, CustomConfiguration, ParachainHost};
 use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi, TaskExecutor};
-use polkadot_network::validation::{SessionParams, self};
+use polkadot_network::validation::{SessionParams, ValidationNetwork};
 use polkadot_network::NetworkService;
 use tokio::timer::Timeout;
 use consensus_common::SelectChain;
@@ -71,8 +71,14 @@ pub use polkadot_network::validation::Incoming;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// The `ValidationNetwork` used by the collator.
-pub type ValidationNetwork<P, E> = validation::ValidationNetwork<P, E, NetworkService, TaskExecutor>;
+/// An abstraction over the `Network` with useful functions for a `Collator`.
+pub trait Network {
+
+}
+
+impl<P, E> Network for ValidationNetwork<P, E, NetworkService, TaskExecutor> {
+
+}
 
 /// Error to return when the head data was invalid.
 #[derive(Clone, Copy, Debug)]
@@ -102,10 +108,7 @@ pub trait BuildParachainContext {
 	type ParachainContext: self::ParachainContext;
 
 	/// Build the `ParachainContext`.
-	fn build<P, E>(
-		self,
-		validation_network: &ValidationNetwork<P, E>
-	) -> Result<Self::ParachainContext, ()>;
+	fn build(self, network: Arc<dyn Network>) -> Result<Self::ParachainContext, ()>;
 }
 
 /// Parachain context needed for collation.
@@ -193,7 +196,7 @@ pub fn collate<'a, R, P>(
 
 /// Polkadot-api context.
 struct ApiContext<P, E> {
-	network: ValidationNetwork<P, E>,
+	network: Arc<ValidationNetwork<P, E, NetworkService, TaskExecutor>>,
 	parent_hash: Hash,
 	authorities: Vec<SessionKey>,
 }
@@ -289,15 +292,15 @@ impl<P, E> Worker for CollationNode<P, E> where
 			},
 		);
 
-		let validation_network = ValidationNetwork::new(
+		let validation_network = Arc::new(ValidationNetwork::new(
 			network.clone(),
 			exit.clone(),
 			message_validator,
 			client.clone(),
 			task_executor,
-		);
+		));
 
-		let parachain_context = build_parachain_context.build(&validation_network).unwrap();
+		let parachain_context = build_parachain_context.build(validation_network.clone()).unwrap();
 		let inner_exit = exit.clone();
 		let work = client.import_notification_stream()
 			.for_each(move |notification| {

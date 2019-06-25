@@ -24,7 +24,7 @@ use adder::{HeadData as AdderHead, BlockData as AdderBody};
 use substrate_primitives::Pair;
 use parachain::codec::{Encode, Decode};
 use primitives::parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic};
-use collator::{InvalidHead, ParachainContext, VersionInfo, ValidationNetwork, BuildParachainContext};
+use collator::{InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext};
 use parking_lot::Mutex;
 
 const GENESIS: AdderHead = AdderHead {
@@ -92,10 +92,7 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build<P, E>(
-		self,
-		_: &ValidationNetwork<P, E>
-	) -> Result<Self::ParachainContext, ()> {
+	fn build(self, _: Arc<dyn Network>) -> Result<Self::ParachainContext, ()> {
 		Ok(self)
 	}
 }
