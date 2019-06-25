@@ -389,3 +389,16 @@ pub mod id {
 	/// Parachain host runtime API id.
 	pub const PARACHAIN_HOST: ApiId = *b"parahost";
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn balance_bigger_than_usize() {
+		let zero_b: Balance = 0;
+		let zero_u: usize = 0;
+
+		assert!(zero_b.leading_zeros() >= zero_u.leading_zeros());
+	}
+}
