@@ -56,7 +56,7 @@ use primitives::{ed25519, Pair};
 use polkadot_primitives::{BlockId, SessionKey, Hash, Block};
 use polkadot_primitives::parachain::{
 	self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic,
-	PoVBlock,
+	PoVBlock, Status as ParachainStatus,
 };
 use polkadot_cli::{PolkadotService, CustomConfiguration, ParachainHost};
 use polkadot_cli::{Worker, IntoExit, ProvideRuntimeApi, TaskExecutor};
@@ -105,7 +105,7 @@ pub trait ParachainContext: Clone {
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 		&self,
 		relay_parent: Hash,
-		last_head: HeadData,
+		status: ParachainStatus,
 		ingress: I,
 	) -> Self::ProduceCandidate;
 }
@@ -128,7 +128,7 @@ pub trait RelayChainContext {
 pub fn collate<'a, R, P>(
 	relay_parent: Hash,
 	local_id: ParaId,
-	last_head: HeadData,
+	parachain_status: ParachainStatus,
 	relay_context: R,
 	para_context: P,
 	key: Arc<ed25519::Pair>,
@@ -146,7 +146,7 @@ pub fn collate<'a, R, P>(
 		.and_then(move |ingress| {
 			para_context.produce_candidate(
 				relay_parent,
-				last_head,
+				parachain_status,
 				ingress.0.iter().flat_map(|&(id, ref msgs)| msgs.iter().cloned().map(move |msg| (id, msg)))
 			)
 				.into_future()
@@ -311,8 +311,8 @@ impl<P, E> Worker for CollationNode<P, E> where
 
 				let work = future::lazy(move || {
 					let api = client.runtime_api();
-					let last_head = match try_fr!(api.parachain_head(&id, para_id)) {
-						Some(last_head) => last_head,
+					let status = match try_fr!(api.parachain_status(&id, para_id)) {
+						Some(status) => status,
 						None => return future::Either::A(future::ok(())),
 					};
 
@@ -333,7 +333,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 					let collation_work = collate(
 						relay_parent,
 						para_id,
-						HeadData(last_head),
+						status,
 						context,
 						parachain_context,
 						key,
@@ -403,7 +403,7 @@ pub fn run_collator<P, E, I, ArgT>(
 #[cfg(test)]
 mod tests {
 	use std::collections::HashMap;
-	use polkadot_primitives::parachain::OutgoingMessage;
+	use polkadot_primitives::parachain::{OutgoingMessage, FeeSchedule};
 	use keyring::AuthorityKeyring;
 	use super::*;
 
@@ -433,7 +433,7 @@ mod tests {
 		fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 			&self,
 			_relay_parent: Hash,
-			_last_head: HeadData,
+			_status: ParachainStatus,
 			ingress: I,
 		) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead> {
 			// send messages right back.
@@ -484,7 +484,14 @@ mod tests {
 		let collation = collate(
 			Default::default(),
 			id,
-			HeadData(vec![5]),
+			ParachainStatus {
+				head_data: HeadData(vec![5]),
+				balance: 10,
+				fee_schedule: FeeSchedule {
+					base: 0,
+					per_byte: 1,
+				},
+			},
 			context.clone(),
 			DummyParachainContext,
 			AuthorityKeyring::Alice.pair().into(),
