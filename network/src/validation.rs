@@ -25,7 +25,9 @@ use substrate_network::{PeerId, Context as NetContext};
 use substrate_network::consensus_gossip::{
 	self, TopicNotification, MessageRecipient as GossipMessageRecipient, ConsensusMessage,
 };
-use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
+use polkadot_validation::{
+	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, SignedStatement,
+};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Collation, Extrinsic, ParachainHost, CandidateReceipt, CollatorId,
@@ -289,12 +291,21 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 
 	/// Convert the given `CollatorId` to a `PeerId`.
 	pub fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
-		impl Future<Item = Option<PeerId>, Error = ()> + Send {
+		impl Future<Item=Option<PeerId>, Error=()> + Send {
 		let (send, recv) = oneshot::channel();
 		self.network.with_spec(move |spec, _| {
 			let _ = send.send(spec.collator_id_to_peer_id(&collator_id).cloned());
 		});
 		recv.map_err(|_| ())
+	}
+
+	/// Create a `Stream` of checked statements for the given `relay_parent`.
+	///
+	/// The returned stream will not terminate, so it is required to make sure that the stream is
+	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
+	/// infinitely.
+	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=SignedStatement, Error=()> {
+		crate::router::checked_statements(&*self.network, crate::router::attestation_topic(relay_parent))
 	}
 }
 

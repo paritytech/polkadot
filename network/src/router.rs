@@ -28,8 +28,8 @@ use polkadot_validation::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Validated
 };
 use polkadot_primitives::{Block, Hash};
-use polkadot_primitives::parachain::{Extrinsic, CandidateReceipt, ParachainHost,
-	ValidatorIndex, Collation, PoVBlock,
+use polkadot_primitives::parachain::{
+	Extrinsic, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock,
 };
 use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement};
 
@@ -49,6 +49,23 @@ pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 	v.extend(b"attestations");
 
 	BlakeTwo256::hash(&v[..])
+}
+
+/// Create a `Stream` of checked statements.
+///
+/// The returned stream will not terminate, so it is required to make sure that the stream is
+/// dropped when it is not required anymore. Otherwise, it will stick around in memory
+/// infinitely.
+pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
+	impl Stream<Item=SignedStatement, Error=()> {
+	// spin up a task in the background that processes all incoming statements
+	// validation has been done already by the gossip validator.
+	// this will block internally until the gossip messages stream is obtained.
+	network.gossip_messages_for(topic)
+		.filter_map(|msg| match msg.0 {
+			GossipMessage::Statement(s) => Some(s.signed_statement),
+			_ => None
+		})
 }
 
 /// Table routing implementation.
@@ -76,21 +93,14 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 		}
 	}
 
-	/// Return a future of checked messages. These should be imported into the router
+	/// Return a `Stream` of checked messages. These should be imported into the router
 	/// with `import_statement`.
 	///
 	/// The returned stream will not terminate, so it is required to make sure that the stream is
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
 	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement, Error=()> {
-		// spin up a task in the background that processes all incoming statements
-		// validation has been done already by the gossip validator.
-		// this will block internally until the gossip messages stream is obtained.
-		self.network().gossip_messages_for(self.attestation_topic)
-			.filter_map(|msg| match msg.0 {
-				GossipMessage::Statement(s) => Some(s.signed_statement),
-				_ => None
-			})
+		checked_statements(&**self.network(), self.attestation_topic)
 	}
 
 	fn parent_hash(&self) -> Hash {
@@ -107,7 +117,7 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 		Router {
 			table: self.table.clone(),
 			fetcher: self.fetcher.clone(),
-			attestation_topic: self.attestation_topic.clone(),
+			attestation_topic: self.attestation_topic,
 			deferred_statements: self.deferred_statements.clone(),
 			message_validator: self.message_validator.clone(),
 		}
@@ -177,7 +187,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		let table = self.table.clone();
 		let network = self.network().clone();
 		let knowledge = self.fetcher.knowledge().clone();
-		let attestation_topic = self.attestation_topic.clone();
+		let attestation_topic = self.attestation_topic;
 		let parent_hash = self.parent_hash();
 
 		producer.prime(self.fetcher.api().clone())
@@ -232,7 +242,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 
 impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 	fn drop(&mut self) {
-		let parent_hash = self.parent_hash().clone();
+		let parent_hash = self.parent_hash();
 		self.network().with_spec(move |spec, _| { spec.remove_validation_session(parent_hash); });
 	}
 }
