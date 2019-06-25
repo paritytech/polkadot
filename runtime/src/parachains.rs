@@ -25,13 +25,14 @@ use bitvec::{bitvec, BigEndian};
 use sr_primitives::traits::{
 	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero,
 };
-use primitives::{Hash, parachain::{
-	Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
+use primitives::{Hash, Balance, parachain::{
+	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots,
 }};
 use {system, session};
 use srml_support::{
-	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result
+	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
+	traits::{Currency, WithdrawReason, ExistenceRequirement}
 };
 
 #[cfg(feature = "std")]
@@ -142,12 +143,46 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 	}
 }
 
+// wrapper trait because an associated type of `Currency<Self::AccountId,Balance=Balance>`
+// doesn't work.`
+pub trait ParachainCurrency<AccountId> {
+	fn free_balance(para_id: ParaId) -> Balance;
+	fn deduct(para_id: ParaId, amount: Balance) -> Result;
+}
+
+impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
+	T::Balance: From<Balance> + Into<Balance>,
+	ParaId: AccountIdConversion<AccountId>,
+{
+	fn free_balance(para_id: ParaId) -> Balance {
+		let para_account = para_id.into_account();
+		T::free_balance(&para_account).into()
+	}
+
+	fn deduct(para_id: ParaId, amount: Balance) -> Result {
+		let para_account = para_id.into_account();
+
+		// burn the fee.
+		let _ = T::withdraw(
+			&para_account,
+			amount.into(),
+			WithdrawReason::Fee,
+			ExistenceRequirement::KeepAlive,
+		)?;
+
+		Ok(())
+	}
+}
+
 pub trait Trait: session::Trait {
 	/// The outer origin type.
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
 
 	/// The outer call dispatch type.
 	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
+
+	/// Some way of interacting with balances for fees.
+	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
 }
 
 /// Origin for the parachains module.
@@ -269,7 +304,7 @@ decl_module! {
 					}
 				}
 
-				Self::check_attestations(&heads)?;
+				Self::check_candidates(&heads)?;
 
 				let current_number = <system::Module<T>>::block_number();
 
@@ -549,6 +584,21 @@ impl<T: Trait> Module<T> {
 			.collect())
 	}
 
+	/// Get the parachain status necessary for validation.
+	pub fn parachain_status(id: &parachain::Id) -> Option<parachain::Status> {
+		let balance = T::ParachainCurrency::free_balance(*id);
+		Self::parachain_head(id).map(|head_data| parachain::Status {
+			head_data: parachain::HeadData(head_data),
+			balance,
+			// TODO: https://github.com/paritytech/polkadot/issues/92
+			// plug in some real values here. most likely governable.
+			fee_schedule: parachain::FeeSchedule {
+				base: 0,
+				per_byte: 0,
+			}
+		})
+	}
+
 	fn check_egress_queue_roots(head: &AttestedCandidate, active_parachains: &[ParaId]) -> Result {
 		let mut last_egress_id = None;
 		let mut iter = active_parachains.iter();
@@ -584,7 +634,7 @@ impl<T: Trait> Module<T> {
 
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
-	fn check_attestations(attested_candidates: &[AttestedCandidate]) -> Result {
+	fn check_candidates(attested_candidates: &[AttestedCandidate]) -> Result{
 		use primitives::parachain::ValidityAttestation;
 		use sr_primitives::traits::Verify;
 
@@ -661,13 +711,17 @@ impl<T: Trait> Module<T> {
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
 
 		for candidate in attested_candidates {
-			let validator_group = validator_groups.group_for(candidate.parachain_index())
+			let para_id = candidate.parachain_index();
+			let validator_group = validator_groups.group_for(para_id)
 				.ok_or("no validator group for parachain")?;
 
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
 				"Not enough validity attestations"
 			);
+
+			let fees = candidate.candidate().fees;
+			T::ParachainCurrency::deduct(para_id, fees)?;
 
 			let mut candidate_hash = None;
 			let mut encoded_implicit = None;
@@ -824,7 +878,7 @@ mod tests {
 	}
 
 	impl balances::Trait for Test {
-		type Balance = u64;
+		type Balance = Balance;
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
 		type Event = ();
@@ -852,6 +906,7 @@ mod tests {
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
+		type ParachainCurrency = balances::Module<Test>;
 	}
 
 	type Parachains = Module<Test>;

@@ -43,29 +43,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 /// Re-export of parity-codec.
-pub extern crate parity_codec as codec;
-
-#[macro_use]
-extern crate parity_codec_derive;
-
-#[cfg(not(feature = "std"))]
-extern crate alloc;
-
-#[cfg(feature = "std")]
-extern crate core;
-
-#[cfg(feature = "std")]
-extern crate wasmi;
-
-#[cfg(feature = "std")]
-extern crate serde;
-
-#[cfg(feature = "std")]
-#[macro_use]
-extern crate serde_derive;
-
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+pub use codec;
 
 #[cfg(feature = "std")]
 pub mod wasm_executor;
@@ -74,6 +52,8 @@ pub mod wasm_executor;
 pub mod wasm_api;
 
 use codec::{Encode, Decode};
+
+use rstd::vec::Vec;
 
 struct TrailingZeroInput<'a>(&'a [u8]);
 impl<'a> codec::Input for TrailingZeroInput<'a> {
@@ -112,7 +92,7 @@ pub struct ValidationResult {
 
 /// Unique identifier of a parachain.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Default, Clone, Copy, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, Debug))]
 pub struct Id(u32);
 
 impl codec::CompactAs for Id {
@@ -207,7 +187,7 @@ pub enum ParachainDispatchOrigin {
 	Parachain,
 }
 
-impl core::convert::TryFrom<u8> for ParachainDispatchOrigin {
+impl rstd::convert::TryFrom<u8> for ParachainDispatchOrigin {
 	type Error = ();
 	fn try_from(x: u8) -> core::result::Result<ParachainDispatchOrigin, ()> {
 		const SIGNED: u8 = ParachainDispatchOrigin::Signed as u8;

@@ -21,7 +21,7 @@
 //! a WASM VM for re-execution of a parachain candidate.
 
 use std::{cell::RefCell, fmt, convert::TryInto};
-use codec::{Decode, Encode};
+use crate::codec::{Decode, Encode};
 use wasmi::{
 	self, Module, ModuleInstance, Trap, MemoryInstance, MemoryDescriptor, MemoryRef,
 	ModuleImportResolver, RuntimeValue, Externals, Error as WasmError, ValueType,
@@ -306,16 +306,15 @@ pub fn validate_candidate<E: Externalities>(
 	};
 
 	let output = module.invoke_export(
-		"validate",
+		"validate_block",
 		&[RuntimeValue::I32(offset as i32), RuntimeValue::I32(len as i32)],
 		&mut externals,
-	)
-		.map_err(|e| -> Error {
-			e.as_host_error()
-				.and_then(|he| he.downcast_ref::<ExternalitiesError>())
-				.map(|ee| Error::Externalities(ee.clone()))
-				.unwrap_or_else(move || e.into())
-		})?;
+	).map_err(|e| -> Error {
+		e.as_host_error()
+			.and_then(|he| he.downcast_ref::<ExternalitiesError>())
+			.map(|ee| Error::Externalities(ee.clone()))
+			.unwrap_or_else(move || e.into())
+	})?;
 
 	match output {
 		Some(RuntimeValue::I32(len_offset)) => {
@@ -344,6 +343,6 @@ pub fn validate_candidate<E: Externalities>(
 					.map_err(Into::into)
 			})
 		}
-		_ => return Err(Error::BadReturn),
+		_ => Err(Error::BadReturn),
 	}
 }

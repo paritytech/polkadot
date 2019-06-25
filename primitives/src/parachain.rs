@@ -28,7 +28,9 @@ use serde::{Serialize, Deserialize};
 use primitives::bytes;
 use primitives::ed25519;
 
-pub use polkadot_parachain::{Id, AccountIdConversion, ParachainDispatchOrigin};
+pub use polkadot_parachain::{
+	Id, AccountIdConversion, ParachainDispatchOrigin,
+};
 
 /// Identity that collators use.
 pub type CollatorId = ed25519::Public;
@@ -328,6 +330,39 @@ impl AttestedCandidate {
 	}
 }
 
+/// A fee schedule for messages. This is a linear function in the number of bytes of a message.
+#[derive(PartialEq, Eq, PartialOrd, Hash, Default, Clone, Copy, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+pub struct FeeSchedule {
+	/// The base fee charged for all messages.
+	pub base: Balance,
+	/// The per-byte fee charged on top of that.
+	pub per_byte: Balance,
+}
+
+impl FeeSchedule {
+	/// Compute the fee for a message of given size.
+	pub fn compute_fee(&self, n_bytes: usize) -> Balance {
+		use rstd::mem;
+		debug_assert!(mem::size_of::<Balance>() >= mem::size_of::<usize>());
+
+		let n_bytes = n_bytes as Balance;
+		self.base.saturating_add(n_bytes.saturating_mul(self.per_byte))
+	}
+}
+
+/// Current Status of a parachain.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+pub struct Status {
+	/// The head of the parachain.
+	pub head_data: HeadData,
+	/// The current balance of the parachain.
+	pub balance: Balance,
+	/// The fee schedule for messages coming from this parachain.
+	pub fee_schedule: FeeSchedule,
+}
+
 substrate_client::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost {
@@ -337,8 +372,8 @@ substrate_client::decl_runtime_apis! {
 		fn duty_roster() -> DutyRoster;
 		/// Get the currently active parachains.
 		fn active_parachains() -> Vec<Id>;
-		/// Get the given parachain's head data blob.
-		fn parachain_head(id: Id) -> Option<Vec<u8>>;
+		/// Get the given parachain's status.
+		fn parachain_status(id: Id) -> Option<Status>;
 		/// Get the given parachain's head code blob.
 		fn parachain_code(id: Id) -> Option<Vec<u8>>;
 		/// Get all the unrouted ingress roots at the given block that
@@ -353,4 +388,17 @@ pub mod id {
 
 	/// Parachain host runtime API id.
 	pub const PARACHAIN_HOST: ApiId = *b"parahost";
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn balance_bigger_than_usize() {
+		let zero_b: Balance = 0;
+		let zero_u: usize = 0;
+
+		assert!(zero_b.leading_zeros() >= zero_u.leading_zeros());
+	}
 }

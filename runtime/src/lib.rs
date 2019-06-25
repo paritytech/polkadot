@@ -234,6 +234,7 @@ impl grandpa::Trait for Runtime {
 impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
+	type ParachainCurrency = Balances;
 }
 
 parameter_types!{
@@ -364,8 +365,8 @@ impl_runtime_apis! {
 		fn active_parachains() -> Vec<parachain::Id> {
 			Parachains::active_parachains()
 		}
-		fn parachain_head(id: parachain::Id) -> Option<Vec<u8>> {
-			Parachains::parachain_head(&id)
+		fn parachain_status(id: parachain::Id) -> Option<parachain::Status> {
+			Parachains::parachain_status(&id)
 		}
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)

@@ -16,14 +16,12 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-#[macro_use]
-extern crate parity_codec_derive;
-extern crate parity_codec as codec;
-extern crate polkadot_parachain as parachain;
-extern crate tiny_keccak;
+use polkadot_parachain as parachain;
 
-use parachain::{MessageRef, UpwardMessageRef, IncomingMessage, ValidationParams};
-use parachain::wasm_executor::{Externalities, ExternalitiesError};
+use crate::parachain::{
+	MessageRef, UpwardMessageRef, IncomingMessage, ValidationParams,
+	wasm_executor::{Externalities, ExternalitiesError},
+};
 use codec::{Decode, Encode};
 
 /// Head data for this parachain.
@@ -65,11 +63,11 @@ impl Externalities for DummyExt {
 const TEST_CODE: &[u8] = include_bytes!("res/adder.wasm");
 
 fn hash_state(state: u64) -> [u8; 32] {
-	::tiny_keccak::keccak256(state.encode().as_slice())
+	tiny_keccak::keccak256(state.encode().as_slice())
 }
 
 fn hash_head(head: &HeadData) -> [u8; 32] {
-	::tiny_keccak::keccak256(head.encode().as_slice())
+	tiny_keccak::keccak256(head.encode().as_slice())
 }
 
 #[test]
