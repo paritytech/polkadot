@@ -23,7 +23,10 @@ use std::sync::Arc;
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
 use substrate_primitives::Pair;
 use parachain::codec::{Encode, Decode};
-use primitives::parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic};
+use primitives::{
+	Hash,
+	parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic, Status as ParachainStatus,
+};
 use collator::{InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext};
 use parking_lot::Mutex;
 
@@ -49,11 +52,12 @@ impl ParachainContext for AdderContext {
 
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 		&self,
-		last_head: HeadData,
+		_relay_parent: Hash,
+		status: ParachainStatus,
 		ingress: I,
 	) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead>
 	{
-		let adder_head = AdderHead::decode(&mut &last_head.0[..])
+		let adder_head = AdderHead::decode(&mut &status.head_data.0[..])
 			.ok_or(InvalidHead)?;
 
 		let mut db = self.db.lock();

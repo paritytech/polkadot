@@ -30,7 +30,8 @@ use polkadot_validation::{SharedTable, MessagesFrom, Network};
 use polkadot_primitives::{SessionKey, Block, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
-	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots,
+	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
+	FeeSchedule, HeadData,
 };
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
@@ -282,14 +283,21 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
 	}
 
-	fn ParachainHost_parachain_head_runtime_api_impl(
+	fn ParachainHost_parachain_status_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
 		_: Option<ParaId>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<Vec<u8>>>> {
-		Ok(NativeOrEncoded::Native(Some(Vec::new())))
+	) -> ClientResult<NativeOrEncoded<Option<Status>>> {
+		Ok(NativeOrEncoded::Native(Some(Status {
+			head_data: HeadData(Vec::new()),
+			balance: 0,
+			fee_schedule: FeeSchedule {
+				base: 0,
+				per_byte: 0,
+			}
+		})))
 	}
 
 	fn ParachainHost_parachain_code_runtime_api_impl(
