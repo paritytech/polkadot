@@ -20,9 +20,8 @@ use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
 use sr_primitives::generic::BlockId;
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::ParachainHost;
-use arrayvec::ArrayVec;
 use std::collections::{HashMap, HashSet};
-use super::MAX_CHAIN_HEADS;
+use super::{MAX_CHAIN_HEADS, LeavesVec};
 
 /// Construct a topic for a message queue root deterministically.
 pub fn queue_topic(queue_root: Hash) -> Hash {
@@ -78,9 +77,6 @@ impl<P: ProvideRuntimeApi> ChainContext for P where P::Api: ParachainHost<Block>
 		Ok(())
 	}
 }
-
-/// Type alias for the leaves vector.
-pub type LeavesVec = ArrayVec<[Hash; MAX_CHAIN_HEADS]>;
 
 /// A view of which queue roots are current for a given set of leaves.
 pub struct View {
