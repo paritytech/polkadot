@@ -38,7 +38,7 @@ use crate::router::attestation_topic;
 pub const POLKADOT_ENGINE_ID: sr_primitives::ConsensusEngineId = [b'd', b'o', b't', b'1'];
 
 // arbitrary; in practice this should not be more than 2.
-const MAX_CHAIN_HEADS: usize = 5;
+pub(crate) const MAX_CHAIN_HEADS: usize = 5;
 
 mod benefit {
 	/// When a peer sends us a previously-unknown candidate statement.
@@ -156,7 +156,7 @@ pub fn register_validator<O: KnownOracle + 'static>(
 		report_handle,
 		inner: RwLock::new(Inner {
 			peers: HashMap::new(),
-			our_view: Default::default(),
+			attestation_view: Default::default(),
 			oracle,
 		})
 	});
@@ -196,14 +196,14 @@ impl RegisteredMessageValidator {
 		validation: MessageValidationData,
 		send_neighbor_packet: F,
 	) {
-		// add an entry in our_view
-		// prune any entries from our_view which are no longer leaves
+		// add an entry in attestation_view
+		// prune any entries from attestation_view which are no longer leaves
 		let mut inner = self.inner.inner.write();
-		inner.our_view.add_session(relay_parent, validation);
+		inner.attestation_view.add_session(relay_parent, validation);
 		{
 
-			let &mut Inner { ref oracle, ref mut our_view, .. } = &mut *inner;
-			our_view.prune_old_sessions(|parent| match oracle.is_known(parent) {
+			let &mut Inner { ref oracle, ref mut attestation_view, .. } = &mut *inner;
+			attestation_view.prune_old_sessions(|parent| match oracle.is_known(parent) {
 				Some(Known::Leaf) => true,
 				_ => false,
 			});
@@ -274,21 +274,21 @@ impl PeerData {
 	}
 }
 
-struct OurView {
+struct AttestationView {
 	live_sessions: Vec<(Hash, SessionView)>,
 	topics: HashMap<Hash, Hash>, // maps topic hashes to block hashes.
 }
 
-impl Default for OurView {
+impl Default for AttestationView {
 	fn default() -> Self {
-		OurView {
+		AttestationView {
 			live_sessions: Vec::with_capacity(MAX_CHAIN_HEADS),
 			topics: Default::default(),
 		}
 	}
 }
 
-impl OurView {
+impl AttestationView {
 	fn session_view(&self, relay_parent: &Hash) -> Option<&SessionView> {
 		self.live_sessions.iter()
 			.find_map(|&(ref h, ref sesh)| if h == relay_parent { Some(sesh) } else { None } )
@@ -316,7 +316,7 @@ impl OurView {
 		self.topics.retain(|_, v| live_sessions.iter().find(|(p, _)| p == v).is_some());
 	}
 
-	fn knows_topic(&self, topic: &Hash) -> bool {
+	fn is_topic_live(&self, topic: &Hash) -> bool {
 		self.topics.contains_key(topic)
 	}
 
@@ -327,29 +327,16 @@ impl OurView {
 	fn neighbor_info(&self) -> Vec<Hash> {
 		self.live_sessions.iter().take(MAX_CHAIN_HEADS).map(|(p, _)| p.clone()).collect()
 	}
-}
 
-struct SessionView {
-	validation_data: MessageValidationData,
-	knowledge: Knowledge,
-}
-
-struct Inner<O: ?Sized> {
-	peers: HashMap<PeerId, PeerData>,
-	our_view: OurView,
-	oracle: O,
-}
-
-impl<O: ?Sized + KnownOracle> Inner<O> {
-	fn validate_statement(&mut self, message: GossipStatement)
+	fn validate_statement<O: KnownOracle + ?Sized>(&mut self, message: GossipStatement, oracle: &O)
 		-> (GossipValidationResult<Hash>, i32)
 	{
 		// message must reference one of our chain heads and one
 		// if message is not a `Candidate` we should have the candidate available
-		// in `our_view`.
-		match self.our_view.session_view(&message.relay_parent) {
+		// in `attestation_view`.
+		match self.session_view(&message.relay_parent) {
 			None => {
-				let cost = match self.oracle.is_known(&message.relay_parent) {
+				let cost = match oracle.is_known(&message.relay_parent) {
 					Some(Known::Leaf) => {
 						warn!(
 							target: "network",
@@ -397,6 +384,51 @@ impl<O: ?Sized + KnownOracle> Inner<O> {
 		}
 	}
 
+	// whether it's allowed to send a statement to a peer with given knowledge
+	// about the relay parent the statement refers to.
+	fn statement_allowed(
+		&mut self,
+		statement: &GossipStatement,
+		relay_parent: &Hash,
+		peer_knowledge: &mut Knowledge,
+	) -> bool {
+		let signed = &statement.signed_statement;
+
+		match signed.statement {
+			GenericStatement::Valid(ref h) | GenericStatement::Invalid(ref h) => {
+				// `valid` and `invalid` statements can only be propagated after
+				// a candidate message is known by that peer.
+				peer_knowledge.is_aware_of(h)
+			}
+			GenericStatement::Candidate(ref c) => {
+				// if we are sending a `Candidate` message we should make sure that
+				// attestation_view and their_view reflects that we know about the candidate.
+				let hash = c.hash();
+				peer_knowledge.note_aware(hash);
+				if let Some(attestation_view) = self.session_view_mut(&relay_parent) {
+					attestation_view.knowledge.note_aware(hash);
+				}
+
+				// at this point, the peer hasn't seen the message or the candidate
+				// and has knowledge of the relevant relay-chain parent.
+				true
+			}
+		}
+	}
+}
+
+struct SessionView {
+	validation_data: MessageValidationData,
+	knowledge: Knowledge,
+}
+
+struct Inner<O: ?Sized> {
+	peers: HashMap<PeerId, PeerData>,
+	attestation_view: AttestationView,
+	oracle: O,
+}
+
+impl<O: ?Sized + KnownOracle> Inner<O> {
 	fn validate_neighbor_packet(&mut self, sender: &PeerId, packet: NeighborPacket)
 		-> (GossipValidationResult<Hash>, i32, Vec<Hash>)
 	{
@@ -423,7 +455,7 @@ impl<O: ?Sized + KnownOracle> Inner<O> {
 		mut send_neighbor_packet: F,
 	) {
 		let neighbor_packet = GossipMessage::Neighbor(VersionedNeighborPacket::V1(NeighborPacket {
-			chain_heads: self.our_view.neighbor_info()
+			chain_heads: self.attestation_view.neighbor_info()
 		}));
 
 		let message = ConsensusMessage {
@@ -453,7 +485,7 @@ impl<O: KnownOracle + ?Sized> MessageValidator<O> {
 			report_handle,
 			inner: RwLock::new(Inner {
 				peers: HashMap::new(),
-				our_view: Default::default(),
+				attestation_view: Default::default(),
 				oracle,
 			})
 		}
@@ -490,7 +522,12 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 				(res, cb)
 			}
 			Some(GossipMessage::Statement(statement)) => {
-				let (res, cb) = self.inner.write().validate_statement(statement);
+				let (res, cb) = {
+					let mut inner = self.inner.write();
+					let inner = &mut *inner;
+					inner.attestation_view.validate_statement(statement, &inner.oracle)
+				};
+
 				if let GossipValidationResult::ProcessAndKeep(ref topic) = res {
 					context.broadcast_message(topic.clone(), data.to_vec(), false);
 				}
@@ -507,60 +544,37 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 
 		Box::new(move |topic, _data| {
 			// check that topic is one of our live sessions. everything else is expired
-			!inner.our_view.knows_topic(&topic)
+			!inner.attestation_view.is_topic_live(&topic)
 		})
 	}
 
 	fn message_allowed<'a>(&'a self) -> Box<dyn FnMut(&PeerId, MessageIntent, &Hash, &[u8]) -> bool + 'a> {
 		let mut inner = self.inner.write();
 		Box::new(move |who, intent, topic, data| {
-			let &mut Inner { ref mut peers, ref mut our_view, .. } = &mut *inner;
+			let &mut Inner { ref mut peers, ref mut attestation_view, .. } = &mut *inner;
 
 			match intent {
 				MessageIntent::PeriodicRebroadcast => return false,
 				_ => {},
 			}
 
-			let relay_parent = match our_view.topic_block(topic) {
-				None => return false,
-				Some(hash) => hash.clone(),
-			};
-
-			// check that topic is one of our peers' live sessions.
-			let peer_knowledge = match peers.get_mut(who)
-				.and_then(|p| p.knowledge_at_mut(&relay_parent))
-			{
-				Some(p) => p,
-				None => return false,
-			};
+			let attestation_head = attestation_view.topic_block(topic).map(|x| x.clone());
+			let peer_knowledge = peers.get_mut(who)
+				.and_then(move |p| attestation_head.map(|r| (p, r)))
+				.and_then(|(p, r)| p.knowledge_at_mut(&r).map(|k| (k, r)));
 
 			match GossipMessage::decode(&mut &data[..]) {
-				Some(GossipMessage::Statement(statement)) => {
-					let signed = statement.signed_statement;
-
-					match signed.statement {
-						GenericStatement::Valid(ref h) | GenericStatement::Invalid(ref h) => {
-							// `valid` and `invalid` statements can only be propagated after
-							// a candidate message is known by that peer.
-							if !peer_knowledge.is_aware_of(h) {
-								return false;
-							}
-						}
-						GenericStatement::Candidate(ref c) => {
-							// if we are sending a `Candidate` message we should make sure that
-							// our_view and their_view reflects that we know about the candidate.
-							let hash = c.hash();
-							peer_knowledge.note_aware(hash);
-							if let Some(our_view) = our_view.session_view_mut(&relay_parent) {
-								our_view.knowledge.note_aware(hash);
-							}
-						}
-					}
-				}
-				_ => return false,
+				Some(GossipMessage::Statement(ref statement)) =>
+					// to allow statements, we need peer knowledge.
+					peer_knowledge.map_or(false, |(knowledge, attestation_head)| {
+						attestation_view.statement_allowed(
+							statement,
+							&attestation_head,
+							knowledge,
+						)
+					}),
+				_ => false,
 			}
-
-			true
 		})
 	}
 }
@@ -680,7 +694,7 @@ mod tests {
 		let topic_c = attestation_topic(hash_c);
 
 		// topic_a is in all 3 views -> succeed
-		validator.inner.write().our_view.add_session(hash_a, MessageValidationData::default());
+		validator.inner.write().attestation_view.add_session(hash_a, MessageValidationData::default());
 		// topic_b is in the neighbor's view but not ours -> fail
 		// topic_c is not in either -> fail
 
@@ -791,7 +805,7 @@ mod tests {
 			}
 		});
 		let encoded = statement.encode();
-		validator.inner.write().our_view.add_session(hash_a, MessageValidationData::default());
+		validator.inner.write().attestation_view.add_session(hash_a, MessageValidationData::default());
 
 		{
 			let mut message_allowed = validator.message_allowed();
