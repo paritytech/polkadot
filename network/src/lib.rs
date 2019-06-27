@@ -22,6 +22,7 @@
 mod collator_pool;
 mod local_collations;
 mod router;
+pub(crate) mod icmp_gossip;
 pub mod validation;
 pub mod gossip;
 
