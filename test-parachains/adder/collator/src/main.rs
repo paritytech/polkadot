@@ -23,17 +23,20 @@ use std::sync::Arc;
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
 use substrate_primitives::Pair;
 use parachain::codec::{Encode, Decode};
-use primitives::Hash;
-use primitives::parachain::{
-	HeadData, BlockData, Id as ParaId, Message, Extrinsic, Status as ParachainStatus,
+use primitives::{
+	Hash,
+	parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic, Status as ParachainStatus},
 };
-use collator::{InvalidHead, ParachainContext, VersionInfo};
+use collator::{InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext};
 use parking_lot::Mutex;
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
 	parent_hash: [0; 32],
-	post_state: [1, 27, 77, 3, 221, 140, 1, 241, 4, 145, 67, 207, 156, 76, 129, 126, 75, 22, 127, 29, 27, 131, 229, 198, 240, 241, 13, 137, 186, 30, 123, 206],
+	post_state: [
+		1, 27, 77, 3, 221, 140, 1, 241, 4, 145, 67, 207, 156, 76, 129, 126, 75,
+		22, 127, 29, 27, 131, 229, 198, 240, 241, 13, 137, 186, 30, 123, 206
+	],
 };
 
 const GENESIS_BODY: AdderBody = AdderBody {
@@ -90,6 +93,14 @@ impl ParachainContext for AdderContext {
 
 		db.insert(next_head.clone(), next_body);
 		Ok((encoded_body, encoded_head, Extrinsic { outgoing_messages: Vec::new() }))
+	}
+}
+
+impl BuildParachainContext for AdderContext {
+	type ParachainContext = Self;
+
+	fn build(self, _: Arc<dyn Network>) -> Result<Self::ParachainContext, ()> {
+		Ok(self)
 	}
 }
 
