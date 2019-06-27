@@ -22,8 +22,7 @@ use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::ParachainHost;
 use arrayvec::ArrayVec;
 use std::collections::{HashMap, HashSet};
-
-const MAX_CHAIN_HEADS: usize = 5;
+use super::MAX_CHAIN_HEADS;
 
 /// Construct a topic for a message queue root deterministically.
 pub fn queue_topic(queue_root: Hash) -> Hash {

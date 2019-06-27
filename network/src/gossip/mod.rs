@@ -34,6 +34,8 @@ use log::warn;
 use super::NetworkService;
 use crate::router::attestation_topic;
 
+mod message_routing;
+
 /// The engine ID of the polkadot attestation system.
 pub const POLKADOT_ENGINE_ID: sr_primitives::ConsensusEngineId = [b'd', b'o', b't', b'1'];
 
