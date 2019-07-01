@@ -91,7 +91,7 @@ decl_storage! {
 
 // Constructs the message that Ethereum RPC's `personal_sign` and `eth_sign` would sign.
 fn ethereum_signable_message(what: &[u8]) -> Vec<u8> {
-	let prefix = b"Pay DOTs to the Polkadot account:";
+	let prefix = b"Pay KSMAs to the Kusama account:";
 	let mut l = prefix.len() + what.len();
 	let mut rev = Vec::new();
 	while l > 0 {
