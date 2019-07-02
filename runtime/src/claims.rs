@@ -19,7 +19,7 @@
 use rstd::prelude::*;
 use sr_io::{keccak_256, secp256k1_ecdsa_recover};
 use srml_support::{StorageValue, StorageMap, decl_event, decl_storage, decl_module};
-use srml_support::traits::Currency;
+use srml_support::traits::{Currency, Get};
 use system::ensure_none;
 use parity_codec::{Encode, Decode};
 #[cfg(feature = "std")]
@@ -35,6 +35,7 @@ pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 	type Currency: Currency<Self::AccountId>;
+	type Prefix: Get<&'static [u8]>;
 }
 
 type EthereumAddress = [u8; 20];
@@ -83,7 +84,6 @@ decl_storage! {
 		Total get(total) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().fold(Zero::zero(), |acc: BalanceOf<T>, &(_, n)| acc + n)
 		}): BalanceOf<T>;
-		Prefix get(prefix) config(): Vec<u8>;
 	}
 	add_extra_genesis {
 		config(claims): Vec<(EthereumAddress, BalanceOf<T>)>;
@@ -123,7 +123,7 @@ decl_module! {
 impl<T: Trait> Module<T> {
 	// Constructs the message that Ethereum RPC's `personal_sign` and `eth_sign` would sign.
 	fn ethereum_signable_message(what: &[u8]) -> Vec<u8> {
-		let prefix = Self::prefix();
+		let prefix = T::Prefix::get();
 		let mut l = prefix.len() + what.len();
 		let mut rev = Vec::new();
 		while l > 0 {
@@ -200,7 +200,7 @@ mod tests {
 		BuildStorage, traits::{BlakeTwo256, IdentityLookup}, testing::Header
 	};
 	use balances;
-	use srml_support::{impl_outer_origin, assert_ok, assert_err, assert_noop};
+	use srml_support::{impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -231,9 +231,15 @@ mod tests {
 		type DustRemoval = ();
 		type TransferPayment = ();
 	}
+
+	parameter_types!{
+		pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
+	}
+
 	impl Trait for Test {
 		type Event = ();
 		type Currency = Balances;
+		type Prefix = Prefix;
 	}
 	type Balances = balances::Module<Test>;
 	type Claims = Module<Test>;
@@ -273,7 +279,6 @@ mod tests {
 		t.extend(balances::GenesisConfig::<Test>::default().build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			claims: vec![(alice_eth(), 100)],
-			prefix: b"Pay DOTs to the Polkadot account:".to_vec(),
 		}.build_storage().unwrap().0);
 		t.into()
 	}
