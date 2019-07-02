@@ -21,7 +21,7 @@ use polkadot_primitives::{AccountId, SessionKey};
 use polkadot_runtime::{
 	GenesisConfig, CouncilSeatsConfig, DemocracyConfig, TreasuryConfig, SystemConfig, AuraConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill, SessionKeys,
-	GrandpaConfig, SudoConfig, IndicesConfig, Permill, CuratedGrandpaConfig, StakerStatus,
+	GrandpaConfig, SudoConfig, IndicesConfig, Permill, CuratedGrandpaConfig, StakerStatus, ClaimsConfig,
 };
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
@@ -153,6 +153,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		parachains: Some(Default::default()),
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,
+		}),
+		claims: Some(ClaimsConfig {
+			prefix: b"Pay DOTs to the Polkadot account:".to_vec(),
 		}),
 	}
 }
@@ -298,6 +301,9 @@ pub fn testnet_genesis(
 		}),
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,
+		}),
+		claims: Some(ClaimsConfig {
+			prefix: b"Pay DOTs to the Polkadot account:".to_vec(),
 		}),
 	}
 }
