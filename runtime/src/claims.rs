@@ -19,7 +19,7 @@
 use rstd::prelude::*;
 use sr_io::{keccak_256, secp256k1_ecdsa_recover};
 use srml_support::{StorageValue, StorageMap, decl_event, decl_storage, decl_module};
-use srml_support::traits::Currency;
+use srml_support::traits::{Currency, Get};
 use system::ensure_none;
 use parity_codec::{Encode, Decode};
 #[cfg(feature = "std")]
@@ -35,6 +35,7 @@ pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 	type Currency: Currency<Self::AccountId>;
+	type Prefix: Get<&'static [u8]>;
 }
 
 type EthereumAddress = [u8; 20];
@@ -86,32 +87,8 @@ decl_storage! {
 	}
 	add_extra_genesis {
 		config(claims): Vec<(EthereumAddress, BalanceOf<T>)>;
-	}
-}
 
-// Constructs the message that Ethereum RPC's `personal_sign` and `eth_sign` would sign.
-fn ethereum_signable_message(what: &[u8]) -> Vec<u8> {
-	let prefix = b"Pay DOTs to the Polkadot account:";
-	let mut l = prefix.len() + what.len();
-	let mut rev = Vec::new();
-	while l > 0 {
-		rev.push(b'0' + (l % 10) as u8);
-		l /= 10;
 	}
-	let mut v = b"\x19Ethereum Signed Message:\n".to_vec();
-	v.extend(rev.into_iter().rev());
-	v.extend_from_slice(&prefix[..]);
-	v.extend_from_slice(what);
-	v
-}
-
-// Attempts to recover the Ethereum address from a message signature signed by using
-// the Ethereum RPC's `personal_sign` and `eth_sign`.
-fn eth_recover(s: &EcdsaSignature, what: &[u8]) -> Option<EthereumAddress> {
-	let msg = keccak_256(&ethereum_signable_message(what));
-	let mut res = EthereumAddress::default();
-	res.copy_from_slice(&keccak_256(&secp256k1_ecdsa_recover(&s.to_blob(), &msg).ok()?[..])[12..]);
-	Some(res)
 }
 
 decl_module! {
@@ -123,7 +100,7 @@ decl_module! {
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
-			let signer = dest.using_encoded(|data| eth_recover(&ethereum_signature, data))
+			let signer = dest.using_encoded(|data| Self::eth_recover(&ethereum_signature, data))
 				.ok_or("Invalid Ethereum signature")?;
 
 			let balance_due = <Claims<T>>::take(&signer)
@@ -143,6 +120,33 @@ decl_module! {
 	}
 }
 
+impl<T: Trait> Module<T> {
+	// Constructs the message that Ethereum RPC's `personal_sign` and `eth_sign` would sign.
+	fn ethereum_signable_message(what: &[u8]) -> Vec<u8> {
+		let prefix = T::Prefix::get();
+		let mut l = prefix.len() + what.len();
+		let mut rev = Vec::new();
+		while l > 0 {
+			rev.push(b'0' + (l % 10) as u8);
+			l /= 10;
+		}
+		let mut v = b"\x19Ethereum Signed Message:\n".to_vec();
+		v.extend(rev.into_iter().rev());
+		v.extend_from_slice(&prefix[..]);
+		v.extend_from_slice(what);
+		v
+	}
+
+	// Attempts to recover the Ethereum address from a message signature signed by using
+	// the Ethereum RPC's `personal_sign` and `eth_sign`.
+	fn eth_recover(s: &EcdsaSignature, what: &[u8]) -> Option<EthereumAddress> {
+		let msg = keccak_256(&Self::ethereum_signable_message(what));
+		let mut res = EthereumAddress::default();
+		res.copy_from_slice(&keccak_256(&secp256k1_ecdsa_recover(&s.to_blob(), &msg).ok()?[..])[12..]);
+		Some(res)
+	}
+}
+
 impl<T: Trait> ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
@@ -156,7 +160,7 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 
 		match call {
 			Call::claim(account, ethereum_signature) => {
-				let signer = account.using_encoded(|data| eth_recover(&ethereum_signature, data));
+				let signer = account.using_encoded(|data| Self::eth_recover(&ethereum_signature, data));
 				let signer = if let Some(signer) = signer {
 					signer
 				} else {
@@ -196,7 +200,7 @@ mod tests {
 		BuildStorage, traits::{BlakeTwo256, IdentityLookup}, testing::Header
 	};
 	use balances;
-	use srml_support::{impl_outer_origin, assert_ok, assert_err, assert_noop};
+	use srml_support::{impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -227,9 +231,15 @@ mod tests {
 		type DustRemoval = ();
 		type TransferPayment = ();
 	}
+
+	parameter_types!{
+		pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
+	}
+
 	impl Trait for Test {
 		type Event = ();
 		type Currency = Balances;
+		type Prefix = Prefix;
 	}
 	type Balances = balances::Module<Test>;
 	type Claims = Module<Test>;
@@ -246,7 +256,7 @@ mod tests {
 		res
 	}
 	fn alice_sig(what: &[u8]) -> EcdsaSignature {
-		let msg = keccak256(&ethereum_signable_message(what));
+		let msg = keccak256(&Claims::ethereum_signable_message(what));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &alice_secret()).unwrap();
 		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
 		EcdsaSignature(sig.0, sig.1, recovery_id.serialize() as i8)
@@ -255,7 +265,7 @@ mod tests {
 		secp256k1::SecretKey::parse(&keccak256(b"Bob")).unwrap()
 	}
 	fn bob_sig(what: &[u8]) -> EcdsaSignature {
-		let msg = keccak256(&ethereum_signable_message(what));
+		let msg = keccak256(&Claims::ethereum_signable_message(what));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &bob_secret()).unwrap();
 		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
 		EcdsaSignature(sig.0, sig.1, recovery_id.serialize() as i8)
@@ -327,11 +337,13 @@ mod tests {
 
 	#[test]
 	fn real_eth_sig_works() {
-		let sig = hex!["7505f2880114da51b3f5d535f8687953c0ab9af4ab81e592eaebebf53b728d2b6dfd9b5bcd70fee412b1f31360e7c2774009305cb84fc50c1d0ff8034dfa5fff1c"];
-		let sig = EcdsaSignature::from_blob(&sig);
-		let who = 42u64.encode();
-		let signer = eth_recover(&sig, &who).unwrap();
-		assert_eq!(signer, hex!["DF67EC7EAe23D2459694685257b6FC59d1BAA1FE"]);
+		with_externalities(&mut new_test_ext(), || {
+			let sig = hex!["7505f2880114da51b3f5d535f8687953c0ab9af4ab81e592eaebebf53b728d2b6dfd9b5bcd70fee412b1f31360e7c2774009305cb84fc50c1d0ff8034dfa5fff1c"];
+			let sig = EcdsaSignature::from_blob(&sig);
+			let who = 42u64.encode();
+			let signer = Claims::eth_recover(&sig, &who).unwrap();
+			assert_eq!(signer, hex!["DF67EC7EAe23D2459694685257b6FC59d1BAA1FE"]);
+		});
 	}
 
 	#[test]
