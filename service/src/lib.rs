@@ -277,7 +277,7 @@ service::construct_service_factory! {
 					service.on_exit(),
 					gossip_validator,
 					service.client(),
-					|| {},
+					polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
 				);
 				let proposer_factory = ::consensus::ProposerFactory::new(
 					client.clone(),

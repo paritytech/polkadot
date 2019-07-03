@@ -64,6 +64,7 @@ pub trait Executor {
 }
 
 /// A wrapped futures::future::Executor.
+#[derive(Clone)]
 pub struct WrappedExecutor<T>(pub T);
 
 impl<T> Executor for WrappedExecutor<T>
