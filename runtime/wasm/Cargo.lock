@@ -1759,10 +1759,12 @@ dependencies = [
  "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sr-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-aura 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "srml-authorship 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-balances 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-council 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-democracy 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-executive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "srml-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-grandpa 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-indices 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
@@ -2411,6 +2413,20 @@ dependencies = [
  "srml-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-consensus-aura-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "srml-authorship"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#f095694270320347a80e40d645207f92a688a2a5"
+dependencies = [
+ "parity-codec 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sr-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "srml-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "srml-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
@@ -3848,6 +3864,7 @@ dependencies = [
 "checksum sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sr-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-aura 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum srml-authorship 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-balances 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-council 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-democracy 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
