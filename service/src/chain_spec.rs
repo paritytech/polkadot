@@ -243,7 +243,7 @@ pub fn testnet_genesis(
 				).map(|a| (a.clone(), 1000000)).collect(),
 			presentation_duration: 10,
 			term_duration: 1000000,
-			desired_seats: (endowed_accounts.len() - initial_authorities.len()) as u32,
+			desired_seats: council_desired_seats,
 		}),
 		parachains: Some(Default::default()),
 		timestamp: Some(TimestampConfig {

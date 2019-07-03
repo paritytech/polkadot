@@ -52,8 +52,6 @@ use crate::gossip::{POLKADOT_ENGINE_ID, RegisteredMessageValidator, MessageValid
 
 use super::PolkadotProtocol;
 
-type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
-
 pub use polkadot_validation::Incoming;
 
 use parity_codec::{Encode, Decode};
@@ -77,7 +75,9 @@ impl<T> Executor for WrappedExecutor<T>
 	}
 }
 
-impl Executor for TaskExecutor {
+impl Executor for Arc<
+	dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync
+> {
 	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
 		let _ = FutureExecutor::execute(&**self, Box::new(f));
 	}

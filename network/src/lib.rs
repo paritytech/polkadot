@@ -594,7 +594,7 @@ impl Specialization<Block> for PolkadotProtocol {
 		}
 	}
 
-	fn on_event(&mut self, event: Event) { unimplemented!() }
+	fn on_event(&mut self, _event: Event) { }
 
 	fn on_abort(&mut self) { }
 
