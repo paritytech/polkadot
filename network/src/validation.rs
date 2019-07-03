@@ -44,7 +44,6 @@ use std::io;
 use std::sync::Arc;
 
 use arrayvec::ArrayVec;
-use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 use log::{debug, warn};
 
@@ -52,6 +51,8 @@ use crate::router::Router;
 use crate::gossip::{POLKADOT_ENGINE_ID, RegisteredMessageValidator, MessageValidationData};
 
 use super::PolkadotProtocol;
+
+type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
 pub use polkadot_validation::Incoming;
 
@@ -77,7 +78,7 @@ impl<T> Executor for WrappedExecutor<T>
 
 impl Executor for TaskExecutor {
 	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
-		TaskExecutor::spawn(self, f)
+		let _ = FutureExecutor::execute(&**self, Box::new(f));
 	}
 }
 

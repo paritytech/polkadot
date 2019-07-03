@@ -35,7 +35,7 @@ pub use service::{
 
 pub use cli::{VersionInfo, IntoExit, NoCustom};
 pub use cli::error;
-pub use tokio::runtime::TaskExecutor;
+pub type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
 fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {

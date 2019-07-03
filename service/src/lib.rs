@@ -272,7 +272,6 @@ service::construct_service_factory! {
 				);
 
 				// collator connections and validation network both fulfilled by this
-				let 
 				let validation_network = ValidationNetwork::new(
 					service.network(),
 					service.on_exit(),
@@ -286,7 +285,7 @@ service::construct_service_factory! {
 					validation_network.clone(),
 					validation_network,
 					service.transaction_pool(),
-					executor.clone(),
+					Arc::new(service.spawn_task_handle()),
 					key.clone(),
 					extrinsic_store,
 					SlotDuration::get_or_compute(&*client)?,

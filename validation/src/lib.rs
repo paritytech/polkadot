@@ -51,7 +51,6 @@ use primitives::{Pair, ed25519};
 use runtime_primitives::{
 	traits::{ProvideRuntimeApi, Header as HeaderT, DigestFor}, ApplyError
 };
-use tokio::runtime::TaskExecutor;
 use tokio::timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
 
@@ -62,9 +61,11 @@ use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_aura::timestamp::TimestampInherentData;
-use log::{info, debug, warn, trace};
+use log::{info, debug, warn, trace, error};
 
 use ed25519::Public as AuthorityId;
+
+type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
 pub use self::collation::{
 	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
@@ -427,7 +428,9 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			.then(|_| Ok(()));
 
 		// spawn onto thread pool.
-		self.handle.spawn(cancellable_work);
+		if let Err(_) = self.handle.execute(Box::new(cancellable_work)) {
+			error!("Failed to spawn cancellable work task");
+		}
 		signal
 	}
 }
