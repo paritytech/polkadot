@@ -93,7 +93,7 @@ pub trait ParachainRegistrar<AccountId> {
 impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 	type ParaId = ParaId;
 	fn new_id() -> ParaId {
-		<NextFreeId<T>>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
+		<NextFreeId>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
 	}
 	fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
 		let mut parachains = Self::active_parachains();
@@ -102,9 +102,9 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 			Err(idx) => parachains.insert(idx, id),
 		}
 
-		<Code<T>>::insert(id, code);
-		<Parachains<T>>::put(parachains);
-		<Heads<T>>::insert(id, initial_head_data);
+		<Code>::insert(id, code);
+		<Parachains>::put(parachains);
+		<Heads>::insert(id, initial_head_data);
 
 		// Because there are no ordering guarantees that inherents
 		// are applied before regular transactions, a parachain candidate could
@@ -121,8 +121,8 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 			Err(_) => return Ok(()),
 		}
 
-		<Code<T>>::remove(id);
-		<Heads<T>>::remove(id);
+		<Code>::remove(id);
+		<Heads>::remove(id);
 
 		let watermark = <Watermarks<T>>::take(id);
 
@@ -137,7 +137,7 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 			}
 		}
 
-		<Parachains<T>>::put(parachains);
+		<Parachains>::put(parachains);
 
 		Ok(())
 	}
@@ -249,12 +249,12 @@ decl_storage! {
 
 			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-			<Parachains<T> as generator::StorageValue<_>>::put(&only_ids, storage);
+			<Parachains as generator::StorageValue<_>>::put(&only_ids, storage);
 
 			for (id, code, genesis) in p {
 				// no ingress -- a chain cannot be routed to until it is live.
-				<Code<T> as generator::StorageMap<_, _>>::insert(&id, &code, storage);
-				<Heads<T> as generator::StorageMap<_, _>>::insert(&id, &genesis, storage);
+				<Code as generator::StorageMap<_, _>>::insert(&id, &code, storage);
+				<Heads as generator::StorageMap<_, _>>::insert(&id, &genesis, storage);
 				<Watermarks<T> as generator::StorageMap<_, _>>::insert(&id, &Zero::zero(), storage);
 			}
 		});
@@ -267,7 +267,7 @@ decl_module! {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
 			ensure_none(origin)?;
-			ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
+			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
 
 			let active_parachains = Self::active_parachains();
 			let parachain_count = active_parachains.len();
@@ -322,7 +322,7 @@ decl_module! {
 				);
 			}
 
-			<DidUpdate<T>>::put(true);
+			<DidUpdate>::put(true);
 
 			Ok(())
 		}
@@ -385,7 +385,7 @@ impl<T: Trait> Module<T> {
 	) -> Result {
 		// Either there are no more messages to add...
 		if !upward_messages.is_empty() {
-			let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
+			let (count, size) = <RelayDispatchQueueSize>::get(id);
 			ensure!(
 				// ...or we are appending one message onto an empty queue...
 				upward_messages.len() + count as usize == 1
@@ -421,7 +421,7 @@ impl<T: Trait> Module<T> {
 
 		for head in heads.iter() {
 			let id = head.parachain_index();
-			<Heads<T>>::insert(id, &head.candidate.head_data.0);
+			<Heads>::insert(id, &head.candidate.head_data.0);
 
 			let last_watermark = <Watermarks<T>>::mutate(id, |mark| {
 				rstd::mem::replace(mark, Some(watermark))
@@ -452,14 +452,14 @@ impl<T: Trait> Module<T> {
 	/// Place any new upward messages into our queue for later dispatch.
 	fn queue_upward_messages(id: ParaId, upward_messages: &[UpwardMessage]) {
 		if !upward_messages.is_empty() {
-			<RelayDispatchQueueSize<T>>::mutate(id, |&mut(ref mut count, ref mut len)| {
+			<RelayDispatchQueueSize>::mutate(id, |&mut(ref mut count, ref mut len)| {
 				*count += upward_messages.len() as u32;
 				*len += upward_messages.iter()
 					.fold(0, |a, x| a + x.data.len()) as u32;
 			});
 			// Should never be able to fail assuming our state is uncorrupted, but best not
 			// to panic, even if it does.
-			let _ = <RelayDispatchQueue<T>>::append(id, upward_messages);
+			let _ = <RelayDispatchQueue>::append(id, upward_messages);
 		}
 	}
 
@@ -480,7 +480,7 @@ impl<T: Trait> Module<T> {
 		let mut dispatched_count = 0usize;
 		let mut dispatched_size = 0usize;
 		for id in active_parachains.iter().cycle().skip(offset).take(para_count) {
-			let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
+			let (count, size) = <RelayDispatchQueueSize>::get(id);
 			let count = count as usize;
 			let size = size as usize;
 			if dispatched_count == 0 || (
@@ -489,8 +489,8 @@ impl<T: Trait> Module<T> {
 			) {
 				if count > 0 {
 					// still dispatching messages...
-					<RelayDispatchQueueSize<T>>::remove(id);
-					let messages = <RelayDispatchQueue<T>>::take(id);
+					<RelayDispatchQueueSize>::remove(id);
+					let messages = <RelayDispatchQueue>::take(id);
 					for UpwardMessage { origin, data } in messages.into_iter() {
 						dispatch_message(*id, origin, &data);
 					}

@@ -250,7 +250,7 @@ decl_module! {
 			ensure!(lease_period_index >= Self::lease_period_index(), "lease period in past");
 
 			// Bump the counter.
-			let n = <AuctionCounter<T>>::mutate(|n| { *n += 1; *n });
+			let n = <AuctionCounter>::mutate(|n| { *n += 1; *n });
 
 			// Set the information.
 			let ending = <system::Module<T>>::block_number() + duration;
@@ -639,7 +639,7 @@ impl<T: Trait> Module<T> {
 		amount: BalanceOf<T>
 	) -> Result<(), &'static str> {
 		// Bidding on latest auction.
-		ensure!(auction_index == <AuctionCounter<T>>::get(), "not current auction");
+		ensure!(auction_index == <AuctionCounter>::get(), "not current auction");
 		// Assume it's actually an auction (this should never fail because of above).
 		let (first_lease_period, _) = <AuctionInfo<T>>::get().ok_or("not an auction")?;
 
