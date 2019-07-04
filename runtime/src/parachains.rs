@@ -816,7 +816,7 @@ mod tests {
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
-		BuildStorage, traits::{BlakeTwo256, IdentityLookup}, testing::UintAuthorityId,
+		traits::{BlakeTwo256, IdentityLookup}, testing::UintAuthorityId,
 	};
 	use primitives::{
 		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey,
@@ -877,6 +877,14 @@ mod tests {
 		type AuthorityId = AuraId;
 	}
 
+	parameter_types! {
+		pub const ExistentialDeposit: Balance = 1;
+		pub const TransferFee: Balance = 0;
+		pub const CreationFee: Balance = 0;
+		pub const TransactionBaseFee: Balance = 0;
+		pub const TransactionByteFee: Balance = 0;
+	}
+
 	impl balances::Trait for Test {
 		type Balance = Balance;
 		type OnFreeBalanceZero = ();
@@ -885,6 +893,11 @@ mod tests {
 		type TransactionPayment = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
+		type ExistentialDeposit = ExistentialDeposit;
+		type TransferFee = TransferFee;
+		type CreationFee = CreationFee;
+		type TransactionBaseFee = TransactionBaseFee;
+		type TransactionByteFee = TransactionByteFee;
 	}
 
 	parameter_types! {
@@ -913,7 +926,7 @@ mod tests {
 	type System = system::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
 		let authority_keys = [
 			AuthorityKeyring::Alice,
 			AuthorityKeyring::Bob,
@@ -1049,8 +1062,8 @@ mod tests {
 			assert_eq!(dispatched, vec![
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 4])
 			]);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
-			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).len(), 1);
+			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
@@ -1070,9 +1083,9 @@ mod tests {
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
 			]);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
-			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).len(), 1);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(2)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
+			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
@@ -1092,9 +1105,9 @@ mod tests {
 				(1.into(), ParachainDispatchOrigin::Parachain, vec![1; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
 			]);
-			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).len(), 1);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).is_empty());
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(2)).is_empty());
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(0)).len(), 1);
+			assert!(<RelayDispatchQueue>::get(ParaId::from(1)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
@@ -1114,9 +1127,9 @@ mod tests {
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2]),
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2])
 			]);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
-			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).len(), 1);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(2)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
+			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
 	}
 
@@ -1140,7 +1153,7 @@ mod tests {
 			];
 			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
 			Parachains::queue_upward_messages(0.into(), &messages);
-			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)), vec![
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(0)), vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1, 2] },
 			]);
@@ -1288,8 +1301,8 @@ mod tests {
 				Origin::NONE,
 			));
 
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(1)).is_empty());
 		});
 	}
 
