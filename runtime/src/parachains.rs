@@ -878,7 +878,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const ExistentialDeposit: Balance = 1;
+		pub const ExistentialDeposit: Balance = 0;
 		pub const TransferFee: Balance = 0;
 		pub const CreationFee: Balance = 0;
 		pub const TransactionBaseFee: Balance = 0;
