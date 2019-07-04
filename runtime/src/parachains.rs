@@ -878,7 +878,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const ExistentialDeposit: Balance = 1;
+		pub const ExistentialDeposit: Balance = 0;
 		pub const TransferFee: Balance = 0;
 		pub const CreationFee: Balance = 0;
 		pub const TransactionBaseFee: Balance = 0;
@@ -1449,10 +1449,10 @@ mod tests {
 				Origin::NONE,
 			).is_err());
 
-			assert!(Parachains::dispatch(
+			assert_ok!(Parachains::dispatch(
 				set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
 				Origin::NONE,
-			).is_ok());
+			));
 		});
 	}
 
@@ -1540,19 +1540,19 @@ mod tests {
 				make_attestations(&mut candidate_a);
 				make_attestations(&mut candidate_b);
 
-				assert!(Parachains::dispatch(
+				assert_ok!(Parachains::dispatch(
 					set_heads(vec![candidate_a, candidate_b]),
 					Origin::NONE,
-				).is_ok());
+				));
 
 				Parachains::on_finalize(i);
 			}
 
 			System::set_block_number(10);
-			assert!(Parachains::dispatch(
+			assert_ok!(Parachains::dispatch(
 				set_heads(vec![]),
 				Origin::NONE,
-			).is_ok());
+			));
 
 			// parachain 1 has had a bunch of parachain candidates included,
 			// which raises the watermark.
@@ -1601,10 +1601,10 @@ mod tests {
 			};
 			make_attestations(&mut candidate_c);
 
-			assert!(Parachains::dispatch(
+			assert_ok!(Parachains::dispatch(
 				set_heads(vec![candidate_c]),
 				Origin::NONE,
-			).is_ok());
+			));
 
 			Parachains::on_finalize(11);
 			System::set_block_number(12);
