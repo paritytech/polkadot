@@ -12,7 +12,7 @@ serde = { version = "1.0", default-features = false }
 serde_derive = { version = "1.0", optional = true }
 safe-mix = { version = "1.0", default-features = false}
 primitives = { package = "polkadot-primitives", path = "../primitives", default-features = false }
-parity-codec = { version = "3.0", default-features = false, features = ["derive"] }
+parity-codec = { version = "4.1", default-features = false, features = ["derive"] }
 substrate-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sr-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -23,10 +23,12 @@ inherents = { package = "substrate-inherents", git = "https://github.com/parityt
 consensus_aura = { package = "substrate-consensus-aura-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 offchain_primitives = { package = "substrate-offchain-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 aura = { package = "srml-aura", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+authorship = { package = "srml-authorship", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 council = { package = "srml-council", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 democracy = { package = "srml-democracy", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 executive = { package = "srml-executive", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+finality-tracker = { package = "srml-finality-tracker", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 indices = { package = "srml-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -60,10 +62,13 @@ std = [
 	"rstd/std",
 	"sr-io/std",
 	"srml-support/std",
+	"aura/std",
+	"authorship/std",
 	"balances/std",
 	"council/std",
 	"democracy/std",
 	"executive/std",
+	"finality-tracker/std",
 	"grandpa/std",
 	"indices/std",
 	"sr-primitives/std",
@@ -79,5 +84,4 @@ std = [
 	"log",
 	"safe-mix/std",
 	"consensus_aura/std",
-	"aura/std",
 ]

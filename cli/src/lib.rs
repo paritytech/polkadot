@@ -26,6 +26,7 @@ use chain_spec::ChainSpec;
 use futures::Future;
 use tokio::runtime::Runtime;
 use service::Service as BareService;
+use std::sync::Arc;
 use log::info;
 
 pub use service::{
@@ -35,7 +36,9 @@ pub use service::{
 
 pub use cli::{VersionInfo, IntoExit, NoCustom};
 pub use cli::error;
-pub use tokio::runtime::TaskExecutor;
+
+/// Abstraction over an executor that lets you spawn tasks in the background.
+pub type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
 fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
@@ -86,17 +89,16 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 			info!("Roles: {:?}", config.roles);
 			config.custom = worker.configuration();
 			let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
-			let executor = runtime.executor();
 			match config.roles {
 				service::Roles::LIGHT =>
 					run_until_exit(
 						runtime,
-						Factory::new_light(config, executor).map_err(|e| format!("{:?}", e))?,
+						Factory::new_light(config).map_err(|e| format!("{:?}", e))?,
 						worker
 					),
 				_ => run_until_exit(
 						runtime,
-						Factory::new_full(config, executor).map_err(|e| format!("{:?}", e))?,
+						Factory::new_full(config).map_err(|e| format!("{:?}", e))?,
 						worker
 					),
 			}.map_err(|e| format!("{:?}", e))
@@ -121,7 +123,7 @@ fn run_until_exit<T, C, W>(
 	let informant = cli::informant::build(&service);
 	executor.spawn(exit.until(informant).map(|_| ()));
 
-	let _ = runtime.block_on(worker.work(&*service, executor.clone()));
+	let _ = runtime.block_on(worker.work(&*service, Arc::new(executor)));
 	exit_send.fire();
 
 	// we eagerly drop the service so that the internal exit future is fired,

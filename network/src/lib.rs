@@ -32,10 +32,11 @@ use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
 	StructuredUnroutedIngress,
 };
-use substrate_network::{PeerId, RequestId, Context};
-use substrate_network::{message, generic_message};
-use substrate_network::specialization::NetworkSpecialization as Specialization;
-use substrate_network::StatusMessage as GenericFullStatus;
+use substrate_network::{
+	PeerId, RequestId, Context, Event, message, generic_message,
+	specialization::NetworkSpecialization as Specialization,
+	StatusMessage as GenericFullStatus
+};
 use self::validation::{LiveValidationSessions, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
@@ -69,7 +70,7 @@ mod benefit {
 type FullStatus = GenericFullStatus<Block>;
 
 /// Specialization of the network service for the polkadot protocol.
-pub type NetworkService = substrate_network::NetworkService<Block, PolkadotProtocol>;
+pub type NetworkService = substrate_network::NetworkService<Block, PolkadotProtocol, Hash>;
 
 /// Status of a Polkadot node.
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
@@ -592,6 +593,8 @@ impl Specialization<Block> for PolkadotProtocol {
 			_ => {}
 		}
 	}
+
+	fn on_event(&mut self, _event: Event) { }
 
 	fn on_abort(&mut self) { }
 

@@ -44,7 +44,6 @@ use std::io;
 use std::sync::Arc;
 
 use arrayvec::ArrayVec;
-use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 use log::{debug, warn};
 
@@ -63,6 +62,7 @@ pub trait Executor {
 }
 
 /// A wrapped futures::future::Executor.
+#[derive(Clone)]
 pub struct WrappedExecutor<T>(pub T);
 
 impl<T> Executor for WrappedExecutor<T>
@@ -75,9 +75,11 @@ impl<T> Executor for WrappedExecutor<T>
 	}
 }
 
-impl Executor for TaskExecutor {
+impl Executor for Arc<
+	dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync
+> {
 	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
-		TaskExecutor::spawn(self, f)
+		let _ = FutureExecutor::execute(&**self, Box::new(f));
 	}
 }
 
