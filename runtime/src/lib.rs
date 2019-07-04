@@ -124,20 +124,23 @@ parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
 }
 
-pub struct Author;
+
+/// Logic for the author to get a portion of fees.
+pub struct ToAuthor;
 
 type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
-impl OnUnbalanced<NegativeImbalance> for Author {
+impl OnUnbalanced<NegativeImbalance> for ToAuthor {
 	fn on_unbalanced(amount: NegativeImbalance) {
 		Balances::resolve_creating(&Authorship::author(), amount);
 	}
 }
 
+/// Splits fees 80/20 between treasury and block author.
 pub type DealWithFees = SplitTwoWays<
 	Balance,
 	NegativeImbalance,
 	_4, Treasury,   // 4 parts (80%) goes to the treasury.
-	_1, Author,     // 1 part (20%) goes to the block author.
+	_1, ToAuthor,     // 1 part (20%) goes to the block author.
 >;
 
 impl balances::Trait for Runtime {
