@@ -22,9 +22,7 @@ use parity_codec::{Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
 use bitvec::{bitvec, BigEndian};
-use sr_primitives::traits::{
-	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero,
-};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots,
