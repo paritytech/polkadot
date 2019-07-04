@@ -147,6 +147,7 @@ pub trait Network {
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[SessionKey],
+		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter;
 }
 
@@ -350,7 +351,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		let tracker = Arc::new(AttestationTracker {
 			table,
 			started: Instant::now(),
-			_drop_signal: drop_signal,
+			_drop_signal,
 		});
 
 		live_instances.insert(parent_hash, tracker.clone());

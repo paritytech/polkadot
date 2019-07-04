@@ -241,9 +241,11 @@ decl_storage! {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
 		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
+			use sr_primitives::traits::Zero;
+
 			let mut p = config.parachains.clone();
-			p.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
-			p.dedup_by_key(|&mut (ref id, _, _)| id.clone());
+			p.sort_unstable_by_key(|&(ref id, _, _)| *id);
+			p.dedup_by_key(|&mut (ref id, _, _)| *id);
 
 			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
