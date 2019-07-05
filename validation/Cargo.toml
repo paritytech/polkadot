@@ -17,17 +17,17 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-aura = { package = "substrate-consensus-aura", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-aura_primitives = { package = "substrate-consensus-aura-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-runtime_aura = { package = "srml-aura", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+aura = { package = "substrate-consensus-aura", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+aura_primitives = { package = "substrate-consensus-aura-primitives", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+consensus = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+runtime_aura = { package = "srml-aura", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }

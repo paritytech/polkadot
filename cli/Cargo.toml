@@ -10,5 +10,5 @@ log = "0.4.6"
 tokio = "0.1.7"
 futures = "0.1.17"
 exit-future = "0.1"
-cli = { package = "substrate-cli", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+cli = { package = "substrate-cli", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 service = { package = "polkadot-service", path = "../service" }

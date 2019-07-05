@@ -9,7 +9,7 @@ adder = { path = ".." }
 parachain = { package = "polkadot-parachain", path = "../../../parachain" }
 collator = { package = "polkadot-collator", path = "../../../collator" }
 primitives = { package = "polkadot-primitives", path = "../../../primitives" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 parking_lot = "0.7.1"
 ctrlc = { version = "3.0", features = ["termination"] }
 futures = "0.1"
