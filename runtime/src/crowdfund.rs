@@ -210,34 +210,19 @@ decl_module! {
 			let balance = balance.saturating_add(&value);
 			child::put(&id, &owner, balance);
 
-			let is_ending = <slots::Module<T>>::is_ending();
-			let (maybe_last, push) = match (is_ending, fund.last_contribution) {
-				// Now in end period; last was at earlier time in end period: reset last and insert
-				(true, Some(c)) if c != now => (Some(Some(now)), true),
-				// Now in end period; last was either same block or before period: reset last (don't
-				// insert because it's already in).
-				(true, _) => (Some(Some(now)), false),
-				// Now outside end period; last was inside period end period: reset last to None and
-				// insert (because it will have been removed at end of last block).
-				(false, Some(_)) => (Some(None), true),
-				// Now outside end period; last was also outside end period. Don't do anything.
-				(false, _) => (None, false),
-			};
-			if push {
-				NewRaise::mutate(|v| v.push(index));
-			}
-			if let Some(last) = maybe_last {
-				fund.last_contribution = last;
-			}
-
 			if <slots::Module<T>>::is_ending() {
+				// Now in end period; record it
+				fund.last_contribution = Some(now);
 				if let Some(c) = fund.last_contribution {
 					if c != now {
+						// last contribution was at earlier time; re-insert into `NewRaise`
+						NewRaise::mutate(|v| v.push(index));
 					}
 				}
-				fund.last_contribution = Some(now);
 			} else {
 				if fund.last_contribution.is_some() {
+					// Now outside end period and last was also inside end period: reset last to
+					// None and insert (because it will have been removed at end of last block).
 					fund.last_contribution = None;
 					NewRaise::mutate(|v| v.push(index));
 				}
