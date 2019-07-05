@@ -330,6 +330,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],
+		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter {
 		let parent_hash = *table.consensus_parent_hash();
 		let local_session_key = table.session_key();
@@ -354,7 +355,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 				let table_router_clone = table_router.clone();
 				let work = table_router.checked_statements()
 					.for_each(move |msg| { table_router_clone.import_statement(msg); Ok(()) });
-				executor.spawn(work);
+				executor.spawn(work.select(exit).map(|_| ()).map_err(|_| ()));
 
 				table_router
 			});
