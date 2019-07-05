@@ -79,7 +79,7 @@ pub use substrate_network::PeerId;
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// An abstraction over the `Network` with useful functions for a `Collator`.
-pub trait Network {
+pub trait Network: Send + Sync {
 	/// Convert the given `CollatorId` to a `PeerId`.
 	fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
 		Box<dyn Future<Item=Option<PeerId>, Error=()> + Send>;
@@ -93,8 +93,8 @@ pub trait Network {
 }
 
 impl<P, E> Network for ValidationNetwork<P, E, NetworkService, TaskExecutor> where
-	P: 'static,
-	E: 'static,
+	P: 'static + Send + Sync,
+	E: 'static + Send + Sync,
 {
 	fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
 		Box<dyn Future<Item=Option<PeerId>, Error=()> + Send>
@@ -438,7 +438,7 @@ pub fn run_collator<P, E, I, ArgT>(
 	P: BuildParachainContext + Send + 'static,
 	P::ParachainContext: Send + 'static,
 	<<P::ParachainContext as ParachainContext>::ProduceCandidate as IntoFuture>::Future: Send + 'static,
-	E: IntoFuture<Item=(),Error=()>,
+	E: IntoFuture<Item=(), Error=()>,
 	E::Future: Send + Clone + Sync + 'static,
 	I: IntoIterator<Item=ArgT>,
 	ArgT: Into<std::ffi::OsString> + Clone,
