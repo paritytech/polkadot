@@ -21,7 +21,7 @@ use rstd::collections::btree_map::BTreeMap;
 use parity_codec::{Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
-use bitvec::{bitvec, BigEndian};
+use bitvec::bitvec;
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
@@ -729,13 +729,16 @@ impl<T: Trait> Module<T> {
 
 			// track which voters have voted already, 1 bit per authority.
 			let mut track_voters = bitvec![0; authorities.len()];
-			for (auth_index, validity_attestation) in &candidate.validity_votes {
-				let auth_index = *auth_index as usize;
+			for ((auth_index, _), validity_attestation) in candidate.validator_indices
+				.iter()
+				.enumerate()
+				.filter(|(_, bit)| *bit)
+				.zip(candidate.validity_votes.iter()) {
 				// protect against double-votes.
 				match validator_group.iter().find(|&(idx, _)| *idx == auth_index) {
 					None => return Err("Attesting validator not on this chain's validation duty."),
 					Some(&(idx, _)) => {
-						if track_voters.get(idx) {
+						if track_voters.get(idx).expect("Invalid validator index") {
 							return Err("Voter already attested validity once")
 						}
 						track_voters.set(idx, true)
