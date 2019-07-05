@@ -22,17 +22,18 @@
 //! Contributing funds is permissionless. Each fund has a child-trie which stores all
 //! contributors account IDs together with the amount they contributed; the root of this can then be
 //! used by the parachain to allow contributors to prove that they made some particular contribution
-//! to the project (e.g. to be rewarded through some token or badge).
+//! to the project (e.g. to be rewarded through some token or badge). The trie is retained for later
+//! (efficient) redistribution back to the contributors.
 //!
-//! Contributions must be of at least `MIN_CONTRIBUTION` (to account for the resouces taken in
+//! Contributions must be of at least `MinContribution` (to account for the resouces taken in
 //! tracking contributions), and may never tally greater than the fund's `cap`, set and fixed at the
-//! time of creation. In order to create a new fund, then a deposit must be paid of the amount
-//! `SUBMISSION_DEPOSIT`. Substantial resources are taken on the main trie in tracking a fund and
-//! this accounts for that.
+//! time of creation. The `create` call may be used to create a new fund. In order to do this, then
+//! a deposit must be paid of the amount `SubmissionDeposit`. Substantial resources are taken on
+//! the main trie in tracking a fund and this accounts for that.
 //!
 //! Funds may be set up at any time; their closing time is fixed at creation (as a block number) and
 //! if the fund is not successful by the closing time, then it will become *retired*. Contributors
-//! may get a refund of their contributions from retired funds. After a period (`RETIREMENT_PERIOD`)
+//! may get a refund of their contributions from retired funds. After a period (`RetirementPeriod`)
 //! the fund may be dissolved entirely. At this point any unrefunded contributions are considered
 //! `orphaned` and are disposed of through the `OrphanedFunds` handler (which may e.g. place them
 //! into the treasury).
@@ -81,15 +82,15 @@ pub trait Trait: slots::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
 	/// The amount to be held on deposit by the owner of a crowdfund.
-	const SUBMISSION_DEPOSIT: BalanceOf<Self>;
+	type SubmissionDeposit: Get<BalanceOf<Self>>;
 
 	/// The minimum amount that may be contributed into a crowdfund. Should almost certainly be at
 	/// least ExistentialDeposit.
-	const MIN_CONTRIBUTION: BalanceOf<Self>;
+	type MinContribution: Get<BalanceOf<Self>>;
 
 	/// The period of time (in blocks) between after an unsuccessful crowdfund ending where
 	/// contributors are able to withdraw their funds. After this period, their funds are lost.
-	const RETIREMENT_PERIOD: Self::BlockNumber;
+	type RetirementPeriod: Get<Self::BlockNumber>;
 
 	/// What to do with funds that were not withdrawn.
 	type OrphanedFunds: OnUnbalanced<NegativeImbalanceOf<T>>;
@@ -163,7 +164,7 @@ decl_module! {
 			#[compact] last_slot: T::BlockNumber,
 		) {
 			let owner = ensure_signed(origin)?;
-			let deposit = T::SUBMISSION_DEPOSIT;
+			let deposit = T::SubmissionDeposit::get();
 
 			let imb = T::Currency::withdraw(
 				&owner,
@@ -194,7 +195,7 @@ decl_module! {
 		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: T::Balance) {
 			let who = ensure_signed(origin)?;
 
-			ensure!(value >= T::MIN_CONTRIBUTION, "contribution too small");
+			ensure!(value >= T::MinContribution::get(), "contribution too small");
 
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
 			fund.raised += value;
@@ -296,7 +297,7 @@ decl_module! {
 			let fund = Self::funds(index).ok_or("invalid fund index")?;
 			ensure!(fund.parachain.is_none(), "cannot disolve fund with active parachain");
 			let now = <system::Module<T>>::block_number();
-			ensure!(now >= fund.end + T::RETIREMENT_PERIOD, "retirement period not over");
+			ensure!(now >= fund.end + T::RetirementPeriod::get(), "retirement period not over");
 
 			let account = Self::fund_account_id(index);
 
