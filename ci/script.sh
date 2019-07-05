@@ -17,12 +17,12 @@ case $TARGET in
 		sudo apt-get -y update
 		sudo apt-get install -y cmake pkg-config libssl-dev
 
-		cargo test --all --locked
+		cargo test --all --locked "$@"
 		;;
 
 	"wasm")
 		# Install prerequisites and build all wasm projects
 		./scripts/init.sh
-		./scripts/build.sh
+		./scripts/build.sh --locked "$@"
 		;;
 esac

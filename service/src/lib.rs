@@ -26,10 +26,9 @@ use polkadot_primitives::{parachain, Block, Hash, BlockId};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
 use polkadot_network::gossip::{self as network_gossip, Known};
 use primitives::{ed25519, Pair};
-use tokio::runtime::TaskExecutor;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
 use transaction_pool::txpool::{Pool as TransactionPool};
-use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration, NothingExtra};
+use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration};
 use inherents::InherentDataProviders;
 use log::info;
 pub use service::{
@@ -161,10 +160,10 @@ service::construct_service_factory! {
 		Genesis = GenesisConfig,
 		Configuration = CustomConfiguration,
 		FullService = FullComponents<Self>
-			{ |config: FactoryFullConfiguration<Self>, executor: TaskExecutor| {
-				FullComponents::<Factory>::new(config, executor)
+			{ |config: FactoryFullConfiguration<Self>| {
+				FullComponents::<Factory>::new(config)
 			} },
-		AuthoritySetup = { |mut service: Self::FullService, executor: TaskExecutor, key: Option<Arc<ed25519::Pair>>| {
+		AuthoritySetup = { |mut service: Self::FullService, key: Option<Arc<ed25519::Pair>>| {
 				use polkadot_network::validation::ValidationNetwork;
 
 				let (block_import, link_half) = service.config.custom.grandpa_import_setup.take()
@@ -188,7 +187,7 @@ service::construct_service_factory! {
 
 					match config.local_key {
 						None => {
-							executor.spawn(grandpa::run_grandpa_observer(
+							service.spawn_task(grandpa::run_grandpa_observer(
 								config,
 								link_half,
 								service.network(),
@@ -199,9 +198,7 @@ service::construct_service_factory! {
 							use service::TelemetryOnConnect;
 
 							let telemetry_on_connect = TelemetryOnConnect {
-								on_exit: Box::new(service.on_exit()),
 								telemetry_connection_sinks: service.telemetry_on_connect_stream(),
-								executor: &executor,
 							};
 
 							let grandpa_config = grandpa::GrandpaParams {
@@ -212,7 +209,7 @@ service::construct_service_factory! {
 								on_exit: service.on_exit(),
 								telemetry_on_connect: Some(telemetry_on_connect),
 							};
-							executor.spawn(grandpa::run_grandpa_voter(grandpa_config)?);
+							service.spawn_task(grandpa::run_grandpa_voter(grandpa_config)?);
 						},
 					}
 				}
@@ -280,7 +277,7 @@ service::construct_service_factory! {
 					service.on_exit(),
 					gossip_validator,
 					service.client(),
-					executor.clone(),
+					polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
 				);
 				let proposer_factory = ::consensus::ProposerFactory::new(
 					client.clone(),
@@ -288,7 +285,7 @@ service::construct_service_factory! {
 					validation_network.clone(),
 					validation_network,
 					service.transaction_pool(),
-					executor.clone(),
+					Arc::new(service.spawn_task_handle()),
 					key.clone(),
 					extrinsic_store,
 					SlotDuration::get_or_compute(&*client)?,
@@ -304,16 +301,15 @@ service::construct_service_factory! {
 					block_import,
 					Arc::new(proposer_factory),
 					service.network(),
-					service.on_exit(),
 					service.config.custom.inherent_data_providers.clone(),
 					service.config.force_authoring,
 				)?;
 
-				executor.spawn(task);
+				service.spawn_task(task);
 				Ok(service)
 			}},
 		LightService = LightComponents<Self>
-			{ |config, executor| <LightComponents<Factory>>::new(config, executor) },
+			{ |config| <LightComponents<Factory>>::new(config) },
 		FullImportQueue = AuraImportQueue<
 			Self::Block,
 		>
@@ -328,14 +324,13 @@ service::construct_service_factory! {
 				let justification_import = block_import.clone();
 
 				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
-				import_queue::<_, _, _, ed25519::Pair>(
+				import_queue::<_, _, ed25519::Pair>(
 					slot_duration,
 					block_import,
 					Some(justification_import),
 					None,
 					None,
 					client,
-					NothingExtra,
 					config.custom.inherent_data_providers.clone(),
 				).map_err(Into::into)
 			}},
@@ -343,6 +338,7 @@ service::construct_service_factory! {
 			Self::Block,
 		>
 			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<LightClient<Self>>| {
+				#[allow(deprecated)]
 				let fetch_checker = client.backend().blockchain().fetcher()
 					.upgrade()
 					.map(|fetcher| fetcher.checker().clone())
@@ -354,23 +350,20 @@ service::construct_service_factory! {
 				let finality_proof_import = block_import.clone();
 				let finality_proof_request_builder = finality_proof_import.create_finality_proof_request_builder();
 
-				import_queue::<_, _, _, ed25519::Pair>(
+				import_queue::<_, _, ed25519::Pair>(
 					SlotDuration::get_or_compute(&*client)?,
 					block_import,
 					None,
 					Some(finality_proof_import),
 					Some(finality_proof_request_builder),
 					client,
-					NothingExtra,
 					config.custom.inherent_data_providers.clone(),
 				).map_err(Into::into)
 			}},
 		SelectChain = LongestChain<FullBackend<Self>, Self::Block>
 			{ |config: &FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
-				Ok(LongestChain::new(
-					client.backend().clone(),
-					client.import_lock()
-				))
+				#[allow(deprecated)]
+				Ok(LongestChain::new(client.backend().clone()))
 			}
 		},
 		FinalityProofProvider = { |client: Arc<FullClient<Self>>| {

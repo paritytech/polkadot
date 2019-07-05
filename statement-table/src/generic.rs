@@ -93,7 +93,7 @@ pub struct SignedStatement<C, D, V, S> {
 /// three possible combinations (unordered)
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum ValidityDoubleVote<C, D, S> {
-	/// Implicit vote by issuing and explicity voting validity.
+	/// Implicit vote by issuing and explicitly voting validity.
 	IssuedAndValidity((C, S), (D, S)),
 	/// Implicit vote by issuing and explicitly voting invalidity
 	IssuedAndInvalidity((C, S), (D, S)),

@@ -112,7 +112,7 @@ type WinningData<T> = [Option<(Bidder<<T as system::Trait>::AccountId, ParaIdOf<
 // index assigned to them, their winning bid and the range that they won.
 type WinnersData<T> = Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, ParaIdOf<T>, BalanceOf<T>, SlotRange)>;
 
-/// This module's storage items.
+// This module's storage items.
 decl_storage! {
 	trait Store for Module<T: Trait> as Slots {
 
@@ -250,7 +250,7 @@ decl_module! {
 			ensure!(lease_period_index >= Self::lease_period_index(), "lease period in past");
 
 			// Bump the counter.
-			let n = <AuctionCounter<T>>::mutate(|n| { *n += 1; *n });
+			let n = <AuctionCounter>::mutate(|n| { *n += 1; *n });
 
 			// Set the information.
 			let ending = <system::Module<T>>::block_number() + duration;
@@ -639,7 +639,7 @@ impl<T: Trait> Module<T> {
 		amount: BalanceOf<T>
 	) -> Result<(), &'static str> {
 		// Bidding on latest auction.
-		ensure!(auction_index == <AuctionCounter<T>>::get(), "not current auction");
+		ensure!(auction_index == <AuctionCounter>::get(), "not current auction");
 		// Assume it's actually an auction (this should never fail because of above).
 		let (first_lease_period, _) = <AuctionInfo<T>>::get().ok_or("not an auction")?;
 
@@ -781,9 +781,7 @@ mod tests {
 	use substrate_primitives::{Blake2Hasher, H256};
 	use sr_io::with_externalities;
 	use sr_primitives::{
-		BuildStorage,
-		traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
-		testing::{Digest, DigestItem, Header}
+		testing::Header, traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
 	};
 	use srml_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
 	use balances;
@@ -804,22 +802,33 @@ mod tests {
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
-		type Digest = Digest;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
 		type Event = ();
-		type Log = DigestItem;
+	}
+
+	parameter_types! {
+		pub const ExistentialDeposit: u64 = 0;
+		pub const TransferFee: u64 = 0;
+		pub const CreationFee: u64 = 0;
+		pub const TransactionBaseFee: u64 = 0;
+		pub const TransactionByteFee: u64 = 0;
 	}
 
 	impl balances::Trait for Test {
 		type Balance = u64;
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
-		type TransactionPayment = ();
-		type TransferPayment = ();
-		type DustRemoval = ();
 		type Event = ();
+		type TransactionPayment = ();
+		type DustRemoval = ();
+		type TransferPayment = ();
+		type ExistentialDeposit = ExistentialDeposit;
+		type TransferFee = TransferFee;
+		type CreationFee = CreationFee;
+		type TransactionBaseFee = TransactionBaseFee;
+		type TransactionByteFee = TransactionByteFee;
 	}
 
 	thread_local! {
@@ -889,14 +898,9 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
 	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
 		t.extend(balances::GenesisConfig::<Test>{
-			transaction_base_fee: 0,
-			transaction_byte_fee: 0,
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
-			existential_deposit: 0,
-			transfer_fee: 0,
-			creation_fee: 0,
 			vesting: vec![],
 		}.build_storage().unwrap().0);
 		t.into()

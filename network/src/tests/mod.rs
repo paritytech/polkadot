@@ -24,7 +24,7 @@ use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{
 	CandidateReceipt, HeadData, PoVBlock, BlockData, CollatorId, ValidatorId,
-	ConsolidatedIngressRoots,
+	StructuredUnroutedIngress,
 };
 use substrate_primitives::crypto::UncheckedInto;
 use parity_codec::Encode;
@@ -175,7 +175,7 @@ fn fetches_from_those_with_knowledge() {
 	let knowledge = session.knowledge();
 
 	knowledge.lock().note_statement(a_key.clone(), &GenericStatement::Valid(candidate_hash));
-	let canon_roots = ConsolidatedIngressRoots(Vec::new());
+	let canon_roots = StructuredUnroutedIngress(Vec::new());
 	let recv = protocol.fetch_pov_block(
 		&mut TestContext::default(),
 		&candidate_receipt,

@@ -21,9 +21,9 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::{Block, Hash, BlockId, parachain::CollatorId, parachain::{
-	ConsolidatedIngress, ConsolidatedIngressRoots, CandidateReceipt, ParachainHost,
-	Id as ParaId, Collation, Extrinsic, OutgoingMessage, UpwardMessage
+use polkadot_primitives::{Block, Hash, BlockId, Balance, parachain::{
+	CollatorId, ConsolidatedIngress, StructuredUnroutedIngress, CandidateReceipt, ParachainHost,
+	Id as ParaId, Collation, Extrinsic, OutgoingMessage, UpwardMessage, FeeSchedule,
 }};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use parachain::{wasm_executor::{self, ExternalitiesError}, MessageRef, UpwardMessageRef};
@@ -167,6 +167,9 @@ pub enum Error {
 	/// Parachain validation produced wrong relay-chain messages
 	#[display(fmt = "Parachain validation produced wrong relay-chain messages (expected: {:?}, got {:?})", expected, got)]
 	UpwardMessagesInvalid { expected: Vec<UpwardMessage>, got: Vec<UpwardMessage> },
+	/// Parachain validation produced wrong fees to charge to parachain.
+	#[display(fmt = "Parachain validation produced wrong relay-chain fees (expected: {:?}, got {:?})", expected, got)]
+	FeesChargedInvalid { expected: Balance, got: Balance },
 }
 
 impl std::error::Error for Error {
@@ -268,17 +271,19 @@ struct Externalities {
 	parachain_index: ParaId,
 	outgoing: Vec<OutgoingMessage>,
 	upward: Vec<UpwardMessage>,
+	fees_charged: Balance,
+	free_balance: Balance,
+	fee_schedule: FeeSchedule,
 }
 
 impl wasm_executor::Externalities for Externalities {
 	fn post_message(&mut self, message: MessageRef) -> Result<(), ExternalitiesError> {
-		// TODO: https://github.com/paritytech/polkadot/issues/92
-		// check per-message and per-byte fees for the parachain.
 		let target: ParaId = message.target.into();
 		if target == self.parachain_index {
 			return Err(ExternalitiesError::CannotPostMessage("posted message to self"));
 		}
 
+		self.apply_message_fee(message.data.len())?;
 		self.outgoing.push(OutgoingMessage {
 			target,
 			data: message.data.to_vec(),
@@ -290,8 +295,8 @@ impl wasm_executor::Externalities for Externalities {
 	fn post_upward_message(&mut self, message: UpwardMessageRef)
 		-> Result<(), ExternalitiesError>
 	{
-		// TODO: https://github.com/paritytech/polkadot/issues/92
-		// check per-message and per-byte fees for the parachain.
+		self.apply_message_fee(message.data.len())?;
+
 		self.upward.push(UpwardMessage {
 			origin: message.origin,
 			data: message.data.to_vec(),
@@ -300,9 +305,18 @@ impl wasm_executor::Externalities for Externalities {
 	}
 }
 
-
-
 impl Externalities {
+	fn apply_message_fee(&mut self, message_len: usize) -> Result<(), ExternalitiesError> {
+		let fee = self.fee_schedule.compute_fee(message_len);
+		let new_fees_charged = self.fees_charged.saturating_add(fee);
+		if new_fees_charged > self.free_balance {
+			Err(ExternalitiesError::CannotPostMessage("could not cover fee."))
+		} else {
+			self.fees_charged = new_fees_charged;
+			Ok(())
+		}
+	}
+
 	// Performs final checks of validity, producing the extrinsic data.
 	fn final_checks(
 		self,
@@ -315,6 +329,13 @@ impl Externalities {
 			});
 		}
 
+		if self.fees_charged != candidate.fees {
+			return Err(Error::FeesChargedInvalid {
+				expected: candidate.fees.clone(),
+				got: self.fees_charged.clone(),
+			});
+		}
+
 		check_extrinsic(
 			self.outgoing,
 			&candidate.egress_queue_roots[..],
@@ -324,21 +345,21 @@ impl Externalities {
 
 /// Validate incoming messages against expected roots.
 pub fn validate_incoming(
-	roots: &ConsolidatedIngressRoots,
+	roots: &StructuredUnroutedIngress,
 	ingress: &ConsolidatedIngress,
 ) -> Result<(), Error> {
-	if roots.0.len() != ingress.0.len() {
+	if roots.len() != ingress.0.len() {
 		return Err(Error::IngressCanonicalityMismatch {
 			expected: roots.0.len(),
 			got: ingress.0.len()
 		});
 	}
 
-	let all_iter = roots.0.iter().zip(&ingress.0);
-	for ((expected_id, root), (got_id, messages)) in all_iter {
-		if expected_id != got_id {
+	let all_iter = roots.iter().zip(&ingress.0);
+	for ((_, expected_from, root), (got_id, messages)) in all_iter {
+		if expected_from != got_id {
 			return Err(Error::IngressChainMismatch {
-				expected: *expected_id,
+				expected: *expected_from,
 				got: *got_id
 			});
 		}
@@ -346,7 +367,7 @@ pub fn validate_incoming(
 		let got_root = message_queue_root(messages.iter().map(|msg| &msg.0[..]));
 		if &got_root != root {
 			return Err(Error::IngressRootMismatch{
-				id: *expected_id,
+				id: *expected_from,
 				expected: *root,
 				got: got_root
 			});
@@ -383,15 +404,16 @@ pub fn validate_collation<P>(
 	let validation_code = api.parachain_code(relay_parent, para_id)?
 		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
-	let chain_head = api.parachain_head(relay_parent, para_id)?
+	let chain_status = api.parachain_status(relay_parent, para_id)?
 		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
 	let roots = api.ingress(relay_parent, para_id)?
 		.ok_or_else(|| Error::InactiveParachain(para_id))?;
+
 	validate_incoming(&roots, &collation.pov.ingress)?;
 
 	let params = ValidationParams {
-		parent_head: chain_head,
+		parent_head: chain_status.head_data.0,
 		block_data: collation.pov.block_data.0.clone(),
 		ingress: collation.pov.ingress.0.iter()
 			.flat_map(|&(source, ref messages)| {
@@ -407,6 +429,9 @@ pub fn validate_collation<P>(
 		parachain_index: collation.receipt.parachain_index.clone(),
 		outgoing: Vec::new(),
 		upward: Vec::new(),
+		free_balance: chain_status.balance,
+		fee_schedule: chain_status.fee_schedule,
+		fees_charged: 0,
 	};
 
 	match wasm_executor::validate_candidate(&validation_code, params, &mut ext) {
@@ -429,7 +454,7 @@ mod tests {
 	use super::*;
 	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
 	use parachain::ParachainDispatchOrigin;
-	use polkadot_primitives::parachain::{Statement::Candidate, CandidateReceipt, HeadData};
+	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
 
 	#[test]
 	fn compute_and_check_egress() {
@@ -481,6 +506,12 @@ mod tests {
 			parachain_index: 5.into(),
 			outgoing: Vec::new(),
 			upward: Vec::new(),
+			fees_charged: 0,
+			free_balance: 1_000_000,
+			fee_schedule: FeeSchedule {
+				base: 1000,
+				per_byte: 10,
+			},
 		};
 
 		assert!(ext.post_message(MessageRef { target: 1.into(), data: &[] }).is_ok());
@@ -495,6 +526,12 @@ mod tests {
 			upward: vec![
 				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
 			],
+			fees_charged: 0,
+			free_balance: 1_000_000,
+			fee_schedule: FeeSchedule {
+				base: 1000,
+				per_byte: 10,
+			},
 		};
 		let receipt = CandidateReceipt {
 			parachain_index: 5.into(),
@@ -549,5 +586,44 @@ mod tests {
 			],
 		};
 		assert!(ext().final_checks(&receipt).is_ok());
+	}
+
+	#[test]
+	fn ext_checks_fees_and_updates_correctly() {
+		let mut ext = Externalities {
+			parachain_index: 5.into(),
+			outgoing: Vec::new(),
+			upward: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
+			],
+			fees_charged: 0,
+			free_balance: 1_000_000,
+			fee_schedule: FeeSchedule {
+				base: 1000,
+				per_byte: 10,
+			},
+		};
+
+		ext.apply_message_fee(100).unwrap();
+		assert_eq!(ext.fees_charged, 2000);
+
+		ext.post_message(MessageRef {
+			target: 1.into(),
+			data: &[0u8; 100],
+		}).unwrap();
+		assert_eq!(ext.fees_charged, 4000);
+
+		ext.post_upward_message(UpwardMessageRef {
+			origin: ParachainDispatchOrigin::Signed,
+			data: &[0u8; 100],
+		}).unwrap();
+		assert_eq!(ext.fees_charged, 6000);
+
+
+		ext.apply_message_fee((1_000_000 - 6000 - 1000) / 10).unwrap();
+		assert_eq!(ext.fees_charged, 1_000_000);
+
+		// cannot pay fee.
+		assert!(ext.apply_message_fee(1).is_err());
 	}
 }

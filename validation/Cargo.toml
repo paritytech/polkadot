@@ -11,7 +11,7 @@ tokio = "0.1.7"
 derive_more = "0.14.0"
 log = "0.4.6"
 exit-future = "0.1"
-parity-codec = "3.1"
+parity-codec = "4.1"
 extrinsic_store = { package = "polkadot-availability-store", path = "../availability-store" }
 parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
@@ -28,7 +28,6 @@ runtime_aura = { package = "srml-aura", git = "https://github.com/paritytech/sub
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_authorities = { package = "substrate-consensus-authorities", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

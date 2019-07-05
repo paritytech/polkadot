@@ -53,7 +53,7 @@ pub type AccountId = <Signature as Verify>::Signer;
 /// never know...
 pub type AccountIndex = u32;
 
-/// Indentifier for a chain. 32-bit should be plenty.
+/// Identifier for a chain. 32-bit should be plenty.
 pub type ChainId = u32;
 
 /// A hash of some data used by the relay chain.
@@ -77,8 +77,11 @@ pub type SessionKey = ed25519::Public;
 /// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
 pub type Balance = u128;
 
+/// The Ed25519 pub key of an session that belongs to an Aura authority of the chain.
+pub type AuraId = ed25519::Public;
+
 /// Header type.
-pub type Header = generic::Header<BlockNumber, BlakeTwo256, generic::DigestItem<Hash, SessionKey, SessionSignature>>;
+pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// Block ID.

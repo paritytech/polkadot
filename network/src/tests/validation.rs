@@ -18,7 +18,8 @@
 
 #![allow(unused)]
 
-use crate::validation::{NetworkService, GossipService};
+use crate::validation::{NetworkService, GossipService, GossipMessageStream};
+use crate::gossip::GossipMessage;
 use substrate_network::Context as NetContext;
 use substrate_network::consensus_gossip::TopicNotification;
 use substrate_primitives::{NativeOrEncoded, ExecutionContext};
@@ -29,7 +30,8 @@ use polkadot_validation::{SharedTable, MessagesFrom, Network};
 use polkadot_primitives::{SessionKey, Block, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
-	ValidatorId, ConsolidatedIngressRoots,
+	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
+	FeeSchedule, HeadData,
 };
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
@@ -39,9 +41,12 @@ use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 use std::collections::HashMap;
 use std::sync::Arc;
 use futures::{prelude::*, sync::mpsc};
-use tokio::runtime::{Runtime, TaskExecutor};
+use tokio::runtime::Runtime;
+use parity_codec::Encode;
 
 use super::TestContext;
+
+type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
 #[derive(Clone, Copy)]
 struct NeverExit;
@@ -142,25 +147,25 @@ struct TestNetwork {
 }
 
 impl NetworkService for TestNetwork {
-	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<TopicNotification> {
+	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
-		rx
+		GossipMessageStream::new(rx)
 	}
 
-	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
-		let notification = TopicNotification { message, sender: None };
+	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
+		let notification = TopicNotification { message: message.encode(), sender: None };
 		let _ = self.gossip.send_message.unbounded_send((topic, notification));
 	}
 
 	fn with_gossip<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut GossipService, &mut NetContext<Block>)
+		where F: FnOnce(&mut dyn GossipService, &mut dyn NetContext<Block>)
 	{
 		unimplemented!()
 	}
 
 	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>)
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn NetContext<Block>)
 	{
 		let mut context = TestContext::default();
 		let res = with(&mut *self.proto.lock(), &mut context);
@@ -175,7 +180,7 @@ struct ApiData {
 	validators: Vec<ValidatorId>,
 	duties: Vec<Chain>,
 	active_parachains: Vec<ParaId>,
-	ingress: HashMap<ParaId, ConsolidatedIngressRoots>,
+	ingress: HashMap<ParaId, StructuredUnroutedIngress>,
 }
 
 #[derive(Default, Clone)]
@@ -280,14 +285,21 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
 	}
 
-	fn ParachainHost_parachain_head_runtime_api_impl(
+	fn ParachainHost_parachain_status_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
 		_: Option<ParaId>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<Vec<u8>>>> {
-		Ok(NativeOrEncoded::Native(Some(Vec::new())))
+	) -> ClientResult<NativeOrEncoded<Option<Status>>> {
+		Ok(NativeOrEncoded::Native(Some(Status {
+			head_data: HeadData(Vec::new()),
+			balance: 0,
+			fee_schedule: FeeSchedule {
+				base: 0,
+				per_byte: 0,
+			}
+		})))
 	}
 
 	fn ParachainHost_parachain_code_runtime_api_impl(
@@ -306,7 +318,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: ExecutionContext,
 		id: Option<ParaId>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<ConsolidatedIngressRoots>>> {
+	) -> ClientResult<NativeOrEncoded<Option<StructuredUnroutedIngress>>> {
 		let id = id.unwrap();
 		Ok(NativeOrEncoded::Native(self.data.lock().ingress.get(&id).cloned()))
 	}
@@ -372,7 +384,7 @@ impl IngressBuilder {
 		}
 	}
 
-	fn build(self) -> HashMap<ParaId, ConsolidatedIngressRoots> {
+	fn build(self) -> HashMap<ParaId, BlockIngressRoots> {
 		let mut map = HashMap::new();
 		for ((source, target), messages) in self.egress {
 			map.entry(target).or_insert_with(Vec::new)
@@ -383,7 +395,7 @@ impl IngressBuilder {
 			roots.sort_by_key(|&(para_id, _)| para_id);
 		}
 
-		map.into_iter().map(|(k, v)| (k, ConsolidatedIngressRoots(v))).collect()
+		map.into_iter().map(|(k, v)| (k, BlockIngressRoots(v))).collect()
 	}
 }
 

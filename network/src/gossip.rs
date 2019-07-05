@@ -64,7 +64,7 @@ mod cost {
 
 /// A gossip message.
 #[derive(Encode, Decode, Clone)]
-pub(crate) enum GossipMessage {
+pub enum GossipMessage {
 	/// A packet sent to a neighbor but not relayed.
 	#[codec(index = "1")]
 	Neighbor(VersionedNeighborPacket),
@@ -76,13 +76,29 @@ pub(crate) enum GossipMessage {
 	// erasure-coded chunks.
 }
 
+impl From<GossipStatement> for GossipMessage {
+	fn from(stmt: GossipStatement) -> Self {
+		GossipMessage::Statement(stmt)
+	}
+}
+
 /// A gossip message containing a statement.
 #[derive(Encode, Decode, Clone)]
-pub(crate) struct GossipStatement {
+pub struct GossipStatement {
 	/// The relay chain parent hash.
-	pub(crate) relay_parent: Hash,
+	pub relay_parent: Hash,
 	/// The signed statement being gossipped.
-	pub(crate) signed_statement: SignedStatement,
+	pub signed_statement: SignedStatement,
+}
+
+impl GossipStatement {
+	/// Create a new instance.
+	pub fn new(relay_parent: Hash, signed_statement: SignedStatement) -> Self {
+		Self {
+			relay_parent,
+			signed_statement,
+		}
+	}
 }
 
 /// A versioned neighbor message.
@@ -158,14 +174,14 @@ pub fn register_validator<O: KnownOracle + 'static>(
 /// Create this using `register_validator`.
 #[derive(Clone)]
 pub struct RegisteredMessageValidator {
-	inner: Arc<MessageValidator<KnownOracle>>,
+	inner: Arc<MessageValidator<dyn KnownOracle>>,
 }
 
 impl RegisteredMessageValidator {
 	#[cfg(test)]
 	pub(crate) fn new_test<O: KnownOracle + 'static>(
 		oracle: O,
-		report_handle: Box<Fn(&PeerId, i32) + Send + Sync>,
+		report_handle: Box<dyn Fn(&PeerId, i32) + Send + Sync>,
 	) -> Self {
 		let validator = Arc::new(MessageValidator::new_test(oracle, report_handle));
 
@@ -423,7 +439,7 @@ impl<O: ?Sized + KnownOracle> Inner<O> {
 
 /// An unregistered message validator. Register this with `register_validator`.
 pub struct MessageValidator<O: ?Sized> {
-	report_handle: Box<Fn(&PeerId, i32) + Send + Sync>,
+	report_handle: Box<dyn Fn(&PeerId, i32) + Send + Sync>,
 	inner: RwLock<Inner<O>>,
 }
 
@@ -431,7 +447,7 @@ impl<O: KnownOracle + ?Sized> MessageValidator<O> {
 	#[cfg(test)]
 	fn new_test(
 		oracle: O,
-		report_handle: Box<Fn(&PeerId, i32) + Send + Sync>,
+		report_handle: Box<dyn Fn(&PeerId, i32) + Send + Sync>,
 	) -> Self where O: Sized{
 		MessageValidator {
 			report_handle,
@@ -449,19 +465,19 @@ impl<O: KnownOracle + ?Sized> MessageValidator<O> {
 }
 
 impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValidator<O> {
-	fn new_peer(&self, _context: &mut ValidatorContext<Block>, who: &PeerId, _roles: Roles) {
+	fn new_peer(&self, _context: &mut dyn ValidatorContext<Block>, who: &PeerId, _roles: Roles) {
 		let mut inner = self.inner.write();
 		inner.peers.insert(who.clone(), PeerData {
 			live: HashMap::new(),
 		});
 	}
 
-	fn peer_disconnected(&self, _context: &mut ValidatorContext<Block>, who: &PeerId) {
+	fn peer_disconnected(&self, _context: &mut dyn ValidatorContext<Block>, who: &PeerId) {
 		let mut inner = self.inner.write();
 		inner.peers.remove(who);
 	}
 
-	fn validate(&self, context: &mut ValidatorContext<Block>, sender: &PeerId, mut data: &[u8])
+	fn validate(&self, context: &mut dyn ValidatorContext<Block>, sender: &PeerId, mut data: &[u8])
 		-> GossipValidationResult<Hash>
 	{
 		let (res, cost_benefit) = match GossipMessage::decode(&mut data) {
@@ -486,7 +502,7 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 		res
 	}
 
-	fn message_expired<'a>(&'a self) -> Box<FnMut(Hash, &[u8]) -> bool + 'a> {
+	fn message_expired<'a>(&'a self) -> Box<dyn FnMut(Hash, &[u8]) -> bool + 'a> {
 		let inner = self.inner.read();
 
 		Box::new(move |topic, _data| {
@@ -495,7 +511,7 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 		})
 	}
 
-	fn message_allowed<'a>(&'a self) -> Box<FnMut(&PeerId, MessageIntent, &Hash, &[u8]) -> bool + 'a> {
+	fn message_allowed<'a>(&'a self) -> Box<dyn FnMut(&PeerId, MessageIntent, &Hash, &[u8]) -> bool + 'a> {
 		let mut inner = self.inner.write();
 		Box::new(move |who, intent, topic, data| {
 			let &mut Inner { ref mut peers, ref mut our_view, .. } = &mut *inner;

@@ -23,14 +23,20 @@ use std::sync::Arc;
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
 use substrate_primitives::Pair;
 use parachain::codec::{Encode, Decode};
-use primitives::parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic};
-use collator::{InvalidHead, ParachainContext, VersionInfo};
+use primitives::{
+	Hash,
+	parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic, Status as ParachainStatus},
+};
+use collator::{InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext};
 use parking_lot::Mutex;
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
 	parent_hash: [0; 32],
-	post_state: [1, 27, 77, 3, 221, 140, 1, 241, 4, 145, 67, 207, 156, 76, 129, 126, 75, 22, 127, 29, 27, 131, 229, 198, 240, 241, 13, 137, 186, 30, 123, 206],
+	post_state: [
+		1, 27, 77, 3, 221, 140, 1, 241, 4, 145, 67, 207, 156, 76, 129, 126, 75,
+		22, 127, 29, 27, 131, 229, 198, 240, 241, 13, 137, 186, 30, 123, 206
+	],
 };
 
 const GENESIS_BODY: AdderBody = AdderBody {
@@ -45,13 +51,16 @@ struct AdderContext {
 
 /// The parachain context.
 impl ParachainContext for AdderContext {
+	type ProduceCandidate = Result<(BlockData, HeadData, Extrinsic), InvalidHead>;
+
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 		&self,
-		last_head: HeadData,
+		_relay_parent: Hash,
+		status: ParachainStatus,
 		ingress: I,
 	) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead>
 	{
-		let adder_head = AdderHead::decode(&mut &last_head.0[..])
+		let adder_head = AdderHead::decode(&mut &status.head_data.0[..])
 			.ok_or(InvalidHead)?;
 
 		let mut db = self.db.lock();
@@ -87,8 +96,16 @@ impl ParachainContext for AdderContext {
 	}
 }
 
+impl BuildParachainContext for AdderContext {
+	type ParachainContext = Self;
+
+	fn build(self, _: Arc<dyn Network>) -> Result<Self::ParachainContext, ()> {
+		Ok(self)
+	}
+}
+
 fn main() {
-	let key = Arc::new(Pair::from_seed([1; 32]));
+	let key = Arc::new(Pair::from_seed(&[1; 32]));
 	let id: ParaId = 100.into();
 
 	println!("Starting adder collator with genesis: ");
@@ -112,7 +129,7 @@ fn main() {
 		if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
 			exit_send.fire();
 		}
-	}).expect("Errror setting up ctrl-c handler");
+	}).expect("Error setting up ctrl-c handler");
 
 	let context = AdderContext {
 		db: Arc::new(Mutex::new(HashMap::new())),
@@ -125,7 +142,7 @@ fn main() {
 		key,
 		::std::env::args(),
 		VersionInfo {
-			name: "<unkown>",
+			name: "<unknown>",
 			version: "<unknown>",
 			commit: "<unknown>",
 			executable_name: "adder-collator",

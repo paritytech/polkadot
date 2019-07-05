@@ -19,12 +19,15 @@
 //! This fulfills the `polkadot_validation::Network` trait, providing a hook to be called
 //! each time a validation session begins on a new chain head.
 
+use crate::gossip::GossipMessage;
 use sr_primitives::traits::ProvideRuntimeApi;
 use substrate_network::{PeerId, Context as NetContext};
 use substrate_network::consensus_gossip::{
 	self, TopicNotification, MessageRecipient as GossipMessageRecipient, ConsensusMessage,
 };
-use polkadot_validation::{Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement};
+use polkadot_validation::{
+	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, SignedStatement,
+};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Collation, Extrinsic, ParachainHost, CandidateReceipt, CollatorId,
@@ -41,9 +44,8 @@ use std::io;
 use std::sync::Arc;
 
 use arrayvec::ArrayVec;
-use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
-use log::warn;
+use log::{debug, warn};
 
 use crate::router::Router;
 use crate::gossip::{POLKADOT_ENGINE_ID, RegisteredMessageValidator, MessageValidationData};
@@ -52,12 +54,15 @@ use super::PolkadotProtocol;
 
 pub use polkadot_validation::Incoming;
 
+use parity_codec::{Encode, Decode};
+
 /// An executor suitable for dispatching async consensus tasks.
 pub trait Executor {
 	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F);
 }
 
 /// A wrapped futures::future::Executor.
+#[derive(Clone)]
 pub struct WrappedExecutor<T>(pub T);
 
 impl<T> Executor for WrappedExecutor<T>
@@ -70,30 +75,65 @@ impl<T> Executor for WrappedExecutor<T>
 	}
 }
 
-impl Executor for TaskExecutor {
+impl Executor for Arc<
+	dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync
+> {
 	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
-		TaskExecutor::spawn(self, f)
+		let _ = FutureExecutor::execute(&**self, Box::new(f));
 	}
 }
 
 /// A gossip network subservice.
 pub trait GossipService {
-	fn send_message(&mut self, ctx: &mut NetContext<Block>, who: &PeerId, message: ConsensusMessage);
+	fn send_message(&mut self, ctx: &mut dyn NetContext<Block>, who: &PeerId, message: ConsensusMessage);
 }
 
 impl GossipService for consensus_gossip::ConsensusGossip<Block> {
-	fn send_message(&mut self, ctx: &mut NetContext<Block>, who: &PeerId, message: ConsensusMessage) {
+	fn send_message(&mut self, ctx: &mut dyn NetContext<Block>, who: &PeerId, message: ConsensusMessage) {
 		consensus_gossip::ConsensusGossip::send_message(self, ctx, who, message)
+	}
+}
+
+/// A stream of gossip messages and an optional sender for a topic.
+pub struct GossipMessageStream {
+	topic_stream: mpsc::UnboundedReceiver<TopicNotification>,
+}
+
+impl GossipMessageStream {
+	/// Create a new instance with the given topic stream.
+	pub fn new(topic_stream: mpsc::UnboundedReceiver<TopicNotification>) -> Self {
+		Self {
+			topic_stream
+		}
+	}
+}
+
+impl Stream for GossipMessageStream {
+	type Item = (GossipMessage, Option<PeerId>);
+	type Error = ();
+
+	fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+		loop {
+			let msg = match futures::try_ready!(self.topic_stream.poll()) {
+				Some(msg) => msg,
+				None => return Ok(Async::Ready(None)),
+			};
+
+			debug!(target: "validation", "Processing statement for live validation session");
+			if let Some(gmsg) = GossipMessage::decode(&mut &msg.message[..]) {
+				return Ok(Async::Ready(Some((gmsg, msg.sender))))
+			}
+		}
 	}
 }
 
 /// Basic functionality that a network has to fulfill.
 pub trait NetworkService: Send + Sync + 'static {
 	/// Get a stream of gossip messages for a given hash.
-	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<TopicNotification>;
+	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream;
 
 	/// Gossip a message on given topic.
-	fn gossip_message(&self, topic: Hash, message: Vec<u8>);
+	fn gossip_message(&self, topic: Hash, message: GossipMessage);
 
 	/// Execute a closure with the gossip service.
 	fn with_gossip<F: Send + 'static>(&self, with: F)
@@ -105,7 +145,7 @@ pub trait NetworkService: Send + Sync + 'static {
 }
 
 impl NetworkService for super::NetworkService {
-	fn gossip_messages_for(&self, topic: Hash) -> mpsc::UnboundedReceiver<TopicNotification> {
+	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let (tx, rx) = std::sync::mpsc::channel();
 
 		super::NetworkService::with_gossip(self, move |gossip, _| {
@@ -113,17 +153,19 @@ impl NetworkService for super::NetworkService {
 			let _ = tx.send(inner_rx);
 		});
 
-		match rx.recv() {
+		let topic_stream = match rx.recv() {
 			Ok(rx) => rx,
 			Err(_) => mpsc::unbounded().1, // return empty channel.
-		}
+		};
+
+		GossipMessageStream::new(topic_stream)
 	}
 
-	fn gossip_message(&self, topic: Hash, message: Vec<u8>) {
+	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
 		self.gossip_consensus_message(
 			topic,
 			POLKADOT_ENGINE_ID,
-			message,
+			message.encode(),
 			GossipMessageRecipient::BroadcastToAll,
 		);
 	}
@@ -135,7 +177,7 @@ impl NetworkService for super::NetworkService {
 	}
 
 	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut NetContext<Block>)
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn NetContext<Block>)
 	{
 		super::NetworkService::with_spec(self, with)
 	}
@@ -250,6 +292,28 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 	}
 }
 
+impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
+	/// Convert the given `CollatorId` to a `PeerId`.
+	pub fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
+		impl Future<Item=Option<PeerId>, Error=()> + Send
+	{
+		let (send, recv) = oneshot::channel();
+		self.network.with_spec(move |spec, _| {
+			let _ = send.send(spec.collator_id_to_peer_id(&collator_id).cloned());
+		});
+		recv.map_err(|_| ())
+	}
+
+	/// Create a `Stream` of checked statements for the given `relay_parent`.
+	///
+	/// The returned stream will not terminate, so it is required to make sure that the stream is
+	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
+	/// infinitely.
+	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=SignedStatement, Error=()> {
+		crate::router::checked_statements(&*self.network, crate::router::attestation_topic(relay_parent))
+	}
+}
+
 /// A long-lived network which can create parachain statement  routing processes on demand.
 impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
@@ -260,14 +324,14 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 {
 	type Error = String;
 	type TableRouter = Router<P, E, N, T>;
-	type BuildTableRouter = Box<Future<Item=Self::TableRouter,Error=String> + Send>;
+	type BuildTableRouter = Box<dyn Future<Item=Self::TableRouter, Error=String> + Send>;
 
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],
 	) -> Self::BuildTableRouter {
-		let parent_hash = table.consensus_parent_hash().clone();
+		let parent_hash = *table.consensus_parent_hash();
 		let local_session_key = table.session_key();
 
 		let build_fetcher = self.instantiate_session(SessionParams {
@@ -305,7 +369,7 @@ pub struct NetworkDown;
 
 /// A future that resolves when a collation is received.
 pub struct AwaitingCollation {
-	outer: ::futures::sync::oneshot::Receiver<::futures::sync::oneshot::Receiver<Collation>>,
+	outer: futures::sync::oneshot::Receiver<::futures::sync::oneshot::Receiver<Collation>>,
 	inner: Option<::futures::sync::oneshot::Receiver<Collation>>
 }
 
@@ -437,7 +501,7 @@ pub(crate) struct ValidationSession {
 
 impl ValidationSession {
 	/// Create a new validation session instance. Needs to be attached to the
-	/// nework.
+	/// network.
 	pub(crate) fn new(params: SessionParams) -> Self {
 		ValidationSession {
 			parent_hash: params.parent_hash,
@@ -538,7 +602,7 @@ impl LiveValidationSessions {
 		&mut self,
 		params: SessionParams,
 	) -> (ValidationSession, Option<ValidatorId>) {
-		let parent_hash = params.parent_hash.clone();
+		let parent_hash = params.parent_hash;
 
 		let key = params.local_session_key.clone();
 		let recent = &mut self.recent;
@@ -665,7 +729,7 @@ pub struct SessionDataFetcher<P, E, N: NetworkService, T> {
 impl<P, E, N: NetworkService, T> SessionDataFetcher<P, E, N, T> {
 	/// Get the parent hash.
 	pub(crate) fn parent_hash(&self) -> Hash {
-		self.parent_hash.clone()
+		self.parent_hash
 	}
 
 	/// Get the shared knowledge.
@@ -700,7 +764,7 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for SessionDataFetcher<P, E
 			network: self.network.clone(),
 			api: self.api.clone(),
 			task_executor: self.task_executor.clone(),
-			parent_hash: self.parent_hash.clone(),
+			parent_hash: self.parent_hash,
 			knowledge: self.knowledge.clone(),
 			exit: self.exit.clone(),
 			message_validator: self.message_validator.clone(),
@@ -716,7 +780,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 {
 	/// Fetch PoV block for the given candidate receipt.
 	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> PoVReceiver {
-		let parachain = candidate.parachain_index.clone();
+		let parachain = candidate.parachain_index;
 		let parent_hash = self.parent_hash;
 
 		let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
