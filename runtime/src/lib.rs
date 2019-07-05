@@ -25,6 +25,7 @@ mod parachains;
 mod claims;
 mod slot_range;
 mod slots;
+mod crowdfund;
 
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_1, _2, _3, _4};

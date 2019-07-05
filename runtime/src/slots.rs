@@ -335,7 +335,7 @@ decl_module! {
 		/// - `para_id` is the parachain ID allotted to the winning bidder.
 		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
-		fn fix_deploy_data(origin,
+		pub fn fix_deploy_data(origin,
 			#[compact] sub: SubId,
 			#[compact] para_id: ParaIdOf<T>,
 			code_hash: T::Hash,
@@ -482,7 +482,7 @@ impl<T: Trait> Module<T> {
 					}
 
 					// Add para IDs of any chains that will be newly deployed to our set of managed
-					// IDs
+					// IDs.
 					<ManagedIds<T>>::mutate(|m| m.push(para_id));
 
 					Self::deposit_event(RawEvent::WonDeploy(bidder.clone(), range, para_id, amount));
@@ -631,7 +631,7 @@ impl<T: Trait> Module<T> {
 	/// - `first_slot`: The first lease period index of the range to be bid on.
 	/// - `last_slot`: The last lease period index of the range to be bid on (inclusive).
 	/// - `amount`: The total amount to be the bid for deposit over the range.
-	fn handle_bid(
+	pub fn handle_bid(
 		bidder: Bidder<T::AccountId, ParaIdOf<T>>,
 		auction_index: u32,
 		first_slot: LeasePeriodOf<T>,
