@@ -865,6 +865,7 @@ mod tests {
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
 		type SessionHandler = ();
 		type Event = ();
+		type SelectInitialValidators = staking::Module<Self>;
 	}
 
 	impl timestamp::Trait for Test {
@@ -949,7 +950,6 @@ mod tests {
 		];
 
 		t.extend(session::GenesisConfig::<Test>{
-			validators: validator_keys.iter().map(|k| crate::AccountId::from(*k)).collect(),
 			keys: vec![],
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{

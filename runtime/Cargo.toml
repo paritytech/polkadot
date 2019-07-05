@@ -46,7 +46,7 @@ libsecp256k1 = "0.2.1"
 tiny-keccak = "1.4.2"
 keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-trie-db = "0.12"
+trie-db = "0.14"
 
 [features]
 default = ["std"]

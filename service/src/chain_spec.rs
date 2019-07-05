@@ -93,7 +93,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 				.collect::<Vec<_>>(),
 		}),
 		session: Some(SessionConfig {
-			validators: initial_authorities.iter().map(|x| x.1.clone()).collect(),
 			keys: initial_authorities.iter().map(|x| (
 				x.1.clone(),
 				SessionKeys(x.2.clone(), x.2.clone()),
@@ -215,7 +214,6 @@ pub fn testnet_genesis(
 			vesting: vec![],
 		}),
 		session: Some(SessionConfig {
-			validators: initial_authorities.iter().map(|x| x.1.clone()).collect(),
 			keys: initial_authorities.iter().map(|x| (
 				x.1.clone(),
 				SessionKeys(x.2.clone(), x.2.clone()),
@@ -277,7 +275,16 @@ fn development_config_genesis() -> GenesisConfig {
 
 /// Development config (single validator Alice)
 pub fn development_config() -> ChainSpec {
-	ChainSpec::from_genesis("Development", "dev", development_config_genesis, vec![], None, Some(DEFAULT_PROTOCOL_ID), None, None)
+	ChainSpec::from_genesis(
+		"Development",
+		"dev",
+		development_config_genesis,
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		None,
+	)
 }
 
 fn local_testnet_genesis() -> GenesisConfig {
@@ -293,5 +300,14 @@ fn local_testnet_genesis() -> GenesisConfig {
 
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn local_testnet_config() -> ChainSpec {
-	ChainSpec::from_genesis("Local Testnet", "local_testnet", local_testnet_genesis, vec![], None, Some(DEFAULT_PROTOCOL_ID), None, None)
+	ChainSpec::from_genesis(
+		"Local Testnet",
+		"local_testnet",
+		local_testnet_genesis,
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		None,
+	)
 }
