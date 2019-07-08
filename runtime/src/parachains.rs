@@ -733,12 +733,13 @@ impl<T: Trait> Module<T> {
 				.iter()
 				.enumerate()
 				.filter(|(_, bit)| *bit)
-				.zip(candidate.validity_votes.iter()) {
+				.zip(candidate.validity_votes.iter())
+			{
 				// protect against double-votes.
 				match validator_group.iter().find(|&(idx, _)| *idx == auth_index) {
 					None => return Err("Attesting validator not on this chain's validation duty."),
 					Some(&(idx, _)) => {
-						if track_voters.get(idx).expect("Invalid validator index") {
+						if track_voters.get(idx).unwrap_or_default() {
 							return Err("Voter already attested validity once")
 						}
 						track_voters.set(idx, true)
