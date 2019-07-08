@@ -30,6 +30,7 @@ use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, Candida
 use parking_lot::Mutex;
 use futures::prelude::*;
 use log::{warn, debug};
+use bitvec::vec::BitVec;
 
 use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
@@ -519,14 +520,27 @@ impl SharedTable {
 		// aggregation in the future.
 		let table_attestations = self.inner.lock().table.proposed_candidates(&*self.context);
 		table_attestations.into_iter()
-			.map(|attested| AttestedCandidate {
-				candidate: attested.candidate,
-				validity_votes: attested.validity_votes.into_iter().map(|(a, v)| match v {
-					GAttestation::Implicit(s) => (a, ValidityAttestation::Implicit(s)),
-					GAttestation::Explicit(s) => (a, ValidityAttestation::Explicit(s)),
-				}).collect(),
-			})
-			.collect()
+			.map(|attested| {
+				let mut validator_indices = BitVec::new();
+				let validity_votes = attested.validity_votes.into_iter().map(|(a, v)| {
+					let a = a as usize;
+					if validator_indices.len() <= a {
+						validator_indices.resize(a + 1, false);
+					}
+					validator_indices.set(a, true);
+
+					match v {
+						GAttestation::Implicit(s) => ValidityAttestation::Implicit(s),
+						GAttestation::Explicit(s) => ValidityAttestation::Explicit(s),
+					}
+				}).collect();
+
+				AttestedCandidate {
+					candidate: attested.candidate,
+					validity_votes,
+					validator_indices,
+				}
+			}).collect()
 	}
 
 	/// Get the number of total parachains.
