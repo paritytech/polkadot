@@ -21,7 +21,7 @@ use polkadot_primitives::{AccountId, SessionKey};
 use polkadot_runtime::{
 	GenesisConfig, CouncilSeatsConfig, DemocracyConfig, SystemConfig, AuraConfig,
 	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill, SessionKeys,
-	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus,
+	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY,
 };
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
@@ -76,8 +76,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 
 	GenesisConfig {
 		system: Some(SystemConfig {
-			// TODO: Change after Substrate 1252 is fixed (https://github.com/paritytech/substrate/issues/1252)
-			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/polkadot_runtime.compact.wasm").to_vec(),
+			code: WASM_BINARY.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		balances: Some(BalancesConfig {
@@ -95,7 +94,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		session: Some(SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.1.clone(),
-				SessionKeys(x.2.clone(), x.2.clone()),
+				SessionKeys { ed25519: x.2.clone() },
 			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
@@ -202,8 +201,7 @@ pub fn testnet_genesis(
 
 	GenesisConfig {
 		system: Some(SystemConfig {
-			// TODO: Change after Substrate 1252 is fixed (https://github.com/paritytech/substrate/issues/1252)
-			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/polkadot_runtime.compact.wasm").to_vec(),
+			code: WASM_BINARY.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		indices: Some(IndicesConfig {
@@ -216,7 +214,7 @@ pub fn testnet_genesis(
 		session: Some(SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.1.clone(),
-				SessionKeys(x.2.clone(), x.2.clone()),
+				SessionKeys { ed25519: x.2.clone() },
 			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {

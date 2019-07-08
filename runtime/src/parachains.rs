@@ -866,6 +866,13 @@ mod tests {
 		type SessionHandler = ();
 		type Event = ();
 		type SelectInitialValidators = staking::Module<Self>;
+		type ValidatorId = crate::AccountId;
+		type ValidatorIdOf = staking::StashOf<Self>;
+	}
+
+	impl session::historical::Trait for Test {
+		type FullIdentification = staking::Exposure<crate::AccountId, Balance>;
+		type FullIdentificationOf = staking::ExposureOf<Self>;
 	}
 
 	impl timestamp::Trait for Test {
@@ -915,6 +922,7 @@ mod tests {
 		type Reward = ();
 		type SessionsPerEra = SessionsPerEra;
 		type BondingDuration = BondingDuration;
+		type SessionInterface = Self;
 	}
 
 	impl Trait for Test {

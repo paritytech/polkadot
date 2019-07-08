@@ -15,6 +15,7 @@ rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", br
 
 [dev-dependencies]
 tiny-keccak = "1.4"
+adder = { path = "../test-parachains/adder" }
 
 [features]
 default = ["std"]

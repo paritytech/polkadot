@@ -33,9 +33,8 @@ use polkadot_primitives::parachain::{
 	StructuredUnroutedIngress,
 };
 use substrate_network::{
-	PeerId, RequestId, Context, Event, message, generic_message,
-	specialization::NetworkSpecialization as Specialization,
-	StatusMessage as GenericFullStatus
+	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
+	specialization::{Event, NetworkSpecialization as Specialization},
 };
 use self::validation::{LiveValidationSessions, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
@@ -573,24 +572,17 @@ impl Specialization<Block> for PolkadotProtocol {
 		&mut self,
 		ctx: &mut dyn Context<Block>,
 		who: PeerId,
-		message: &mut Option<message::Message<Block>>
+		message: Vec<u8>,
 	) {
-		match message.take() {
-			Some(generic_message::Message::ChainSpecific(raw)) => {
-				match Message::decode(&mut raw.as_slice()) {
-					Some(msg) => {
-						ctx.report_peer(who.clone(), benefit::VALID_FORMAT);
-						self.on_polkadot_message(ctx, who, msg)
-					},
-					None => {
-						trace!(target: "p_net", "Bad message from {}", who);
-						ctx.report_peer(who, cost::INVALID_FORMAT);
-						*message = Some(generic_message::Message::ChainSpecific(raw));
-					}
-				}
+		match Message::decode(&mut &message[..]) {
+			Some(msg) => {
+				ctx.report_peer(who.clone(), benefit::VALID_FORMAT);
+				self.on_polkadot_message(ctx, who, msg)
+			},
+			None => {
+				trace!(target: "p_net", "Bad message from {}", who);
+				ctx.report_peer(who, cost::INVALID_FORMAT);
 			}
-			Some(other) => *message = Some(other),
-			_ => {}
 		}
 	}
 
