@@ -12,14 +12,14 @@ av_store = { package = "polkadot-availability-store", path = "../availability-st
 polkadot-validation = { path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
 parity-codec = { version = "4.1", features = ["derive"] }
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 futures = "0.1"
 tokio = "0.1.7"
 log = "0.4"
 exit-future = "0.1.4"
 
 [dev-dependencies]
-substrate-client = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

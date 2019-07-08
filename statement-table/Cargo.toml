@@ -6,5 +6,5 @@ edition = "2018"
 
 [dependencies]
 parity-codec = { version = "4.1", features = ["derive"] }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 primitives = { package = "polkadot-primitives", path = "../primitives" }
