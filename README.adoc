@@ -48,7 +48,6 @@ Build Polkadot PoC-4 by cloning this repository and running the following comman
 ```bash
 git checkout v0.4
 ./scripts/init.sh
-./scripts/build.sh
 cargo build --release
 ```
 
@@ -142,7 +141,6 @@ Then build the code:
 [source, shell]
 ----
 ./scripts/init.sh   # Install WebAssembly. Update Rust
-./scripts/build.sh  # Builds the WebAssembly binaries
 cargo build # Builds all native code
 ----
 
