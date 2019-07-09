@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2019 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,17 +16,10 @@
 
 //! WASM validation for adder parachain.
 
-#![no_std]
-
-#![feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler)]
-
-#[global_allocator]
-static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
-
+use crate::{HeadData, BlockData};
 use core::{intrinsics, panic};
 use parachain::ValidationResult;
 use parachain::codec::{Encode, Decode};
-use adder::{HeadData, BlockData};
 
 #[panic_handler]
 #[no_mangle]
@@ -57,11 +50,11 @@ pub extern fn validate_block(params: *const u8, len: usize) -> usize {
 
 	// we also add based on incoming data from messages. ignoring unknown message
 	// kinds.
-	let from_messages = adder::process_messages(
+	let from_messages = crate::process_messages(
 		params.ingress.iter().map(|incoming| &incoming.data[..])
 	);
 
-	match adder::execute(parent_hash, parent_head, &block_data, from_messages) {
+	match crate::execute(parent_hash, parent_head, &block_data, from_messages) {
 		Ok(new_head) => parachain::wasm_api::write_result(
 			ValidationResult { head_data: new_head.encode() }
 		),
