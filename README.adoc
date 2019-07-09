@@ -48,6 +48,7 @@ Build Polkadot PoC-4 by cloning this repository and running the following comman
 ```bash
 git checkout v0.4
 ./scripts/init.sh
+./scripts/build.sh
 cargo build --release
 ```
 
