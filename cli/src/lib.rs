@@ -112,7 +112,7 @@ fn run_until_exit<T, C, W>(
 	worker: W,
 ) -> error::Result<()>
 	where
-	    T: Deref<Target=BareService<C>>,
+		T: Deref<Target=BareService<C>> + Future<Item = (), Error = ()> + Send + 'static,
 		C: service::Components,
 		BareService<C>: PolkadotService,
 		W: Worker,
@@ -123,16 +123,13 @@ fn run_until_exit<T, C, W>(
 	let informant = cli::informant::build(&service);
 	executor.spawn(exit.until(informant).map(|_| ()));
 
-	let _ = runtime.block_on(worker.work(&*service, Arc::new(executor)));
-	exit_send.fire();
-
 	// we eagerly drop the service so that the internal exit future is fired,
 	// but we need to keep holding a reference to the global telemetry guard
 	let _telemetry = service.telemetry();
-	drop(service);
 
-	// TODO [andre]: timeout this future (https://github.com/paritytech/substrate/issues/1318)
-	let _ = runtime.shutdown_on_idle().wait();
+	let work = worker.work(&*service, Arc::new(executor));
+	let _ = runtime.block_on(service.select(work));
+	exit_send.fire();
 
 	Ok(())
 }
