@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2019 Parity Technologies (UK) Ltd.
 // This file is part of Substrate.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -14,14 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A `CodeExecutor` specialisation which uses natively compiled runtime when the wasm to be
-//! executed is equivalent to the natively compiled code.
+use wasm_builder_runner::{build_current_project_with_rustflags, WasmBuilderSource};
 
-use substrate_executor::native_executor_instance;
-
-native_executor_instance!(
-    pub Executor,
-    polkadot_runtime::api::dispatch,
-    polkadot_runtime::native_version,
-    polkadot_runtime::WASM_BINARY
-);
+fn main() {
+	build_current_project_with_rustflags(
+		"wasm_binary.rs",
+		WasmBuilderSource::Crates("1.0.4"),
+		"-C link-arg=--import-memory",
+	);
+}

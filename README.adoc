@@ -142,7 +142,6 @@ Then build the code:
 [source, shell]
 ----
 ./scripts/init.sh   # Install WebAssembly. Update Rust
-./scripts/build.sh  # Builds the WebAssembly binaries
 cargo build # Builds all native code
 ----
 

@@ -37,11 +37,11 @@ use client::{
 	runtime_api as client_api, impl_runtime_apis,
 };
 use sr_primitives::{
-	ApplyResult, generic, transaction_validity::TransactionValidity, create_runtime_str,
+	ApplyResult, generic, transaction_validity::TransactionValidity, create_runtime_str, key_types,
 	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Convert}, impl_opaque_keys
 };
 use version::RuntimeVersion;
-use grandpa::fg_primitives::{self, ScheduledChange};
+use grandpa::{AuthorityId as GrandpaId, fg_primitives::{self, ScheduledChange}};
 use council::motions as council_motions;
 #[cfg(feature = "std")]
 use council::seats as council_seats;
@@ -62,6 +62,10 @@ pub use parachains::{Call as ParachainsCall, INHERENT_IDENTIFIER as PARACHAIN_IN
 pub use sr_primitives::{Permill, Perbill};
 pub use timestamp::BlockPeriod;
 pub use srml_support::StorageValue;
+
+// Make the WASM binary available.
+#[cfg(feature = "std")]
+include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
@@ -182,7 +186,10 @@ parameter_types! {
 
 type SessionHandlers = (Grandpa, Aura);
 impl_opaque_keys! {
-	pub struct SessionKeys(grandpa::AuthorityId, AuraId);
+	pub struct SessionKeys {
+		#[id(key_types::ED25519)]
+		pub ed25519: GrandpaId,
+	}
 }
 
 // NOTE: `SessionHandler` and `SessionKeys` are co-dependent: One key will be used for each handler.
@@ -197,6 +204,14 @@ impl session::Trait for Runtime {
 	type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
 	type Event = Event;
 	type Keys = SessionKeys;
+	type SelectInitialValidators = Staking;
+	type ValidatorId = AccountId;
+	type ValidatorIdOf = staking::StashOf<Self>;
+}
+
+impl session::historical::Trait for Runtime {
+	type FullIdentification = staking::Exposure<AccountId, Balance>;
+	type FullIdentificationOf = staking::ExposureOf<Self>;
 }
 
 /// Converter for currencies to votes.
@@ -228,6 +243,7 @@ impl staking::Trait for Runtime {
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
+	type SessionInterface = Self;
 }
 
 parameter_types! {
@@ -333,7 +349,7 @@ impl parachains::Trait for Runtime {
 }
 
 parameter_types!{
-	pub const LeasePeriod: BlockNumber = 100000;
+	pub const LeasePeriod: BlockNumber = 100_000;
 	pub const EndingPeriod: BlockNumber = 1000;
 }
 

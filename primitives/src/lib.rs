@@ -77,6 +77,10 @@ pub type SessionKey = ed25519::Public;
 /// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
 pub type Balance = u128;
 
+/// The aura crypto scheme defined via the keypair type.
+#[cfg(feature = "std")]
+pub type AuraPair = ed25519::Pair;
+
 /// The Ed25519 pub key of an session that belongs to an Aura authority of the chain.
 pub type AuraId = ed25519::Public;
 
