@@ -48,7 +48,7 @@ const EVENT_CANDIDATE_READY: usize = 0;
 const EVENT_RESULT_READY: usize = 1;
 const EVENT_WORKER_READY: usize = 2;
 
-lazy_static! {
+lazy_static::lazy_static! {
 	static ref HOST: Mutex<ValidationHost> = Mutex::new(ValidationHost::new());
 }
 

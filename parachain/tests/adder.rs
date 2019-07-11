@@ -61,6 +61,7 @@ impl Externalities for DummyExt {
 }
 
 const TEST_CODE: &[u8] = adder::WASM_BINARY;
+// Code that exposes `validate_block` and loops infinitely
 const INFINITE_LOOP_CODE: &[u8] = include_bytes!("res/infinite_loop.wasm");
 
 fn hash_state(state: u64) -> [u8; 32] {
