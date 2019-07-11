@@ -46,6 +46,19 @@
 pub use codec;
 
 #[cfg(feature = "std")]
+extern crate shared_memory;
+
+#[cfg(feature = "std")]
+extern crate parking_lot;
+
+#[cfg(feature = "std")]
+#[macro_use]
+extern crate lazy_static;
+
+#[cfg(feature = "std")]
+extern crate log;
+
+#[cfg(feature = "std")]
 pub mod wasm_executor;
 
 #[cfg(feature = "wasm-api")]
@@ -206,4 +219,13 @@ pub struct UpwardMessageRef<'a> {
 	pub origin: ParachainDispatchOrigin,
 	/// Underlying data of the message.
 	pub data: &'a [u8],
+}
+
+/// A message from the parachain to the relay chain.
+#[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
+pub struct UpwardMessage {
+	/// The origin type.
+	pub origin: ParachainDispatchOrigin,
+	/// Underlying data of the message.
+	pub data: Vec<u8>,
 }

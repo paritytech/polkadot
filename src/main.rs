@@ -52,6 +52,7 @@ impl cli::Worker for Worker {
 }
 
 fn main() -> Result<(), cli::error::Error> {
+
 	let version = VersionInfo {
 		name: "Parity Polkadot",
 		commit: env!("VERGEN_SHA_SHORT"),
@@ -62,5 +63,5 @@ fn main() -> Result<(), cli::error::Error> {
 		support_url: "https://github.com/paritytech/polkadot/issues/new",
 	};
 
-	cli::run(::std::env::args(), Worker, version)
+	cli::run(Worker, version)
 }

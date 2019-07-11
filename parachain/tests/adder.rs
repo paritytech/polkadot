@@ -20,7 +20,7 @@ use polkadot_parachain as parachain;
 
 use crate::parachain::{
 	MessageRef, UpwardMessageRef, IncomingMessage, ValidationParams,
-	wasm_executor::{Externalities, ExternalitiesError},
+	wasm_executor::{Externalities, ExternalitiesError, run_worker},
 };
 use codec::{Decode, Encode};
 
@@ -61,6 +61,7 @@ impl Externalities for DummyExt {
 }
 
 const TEST_CODE: &[u8] = adder::WASM_BINARY;
+const INFINITE_LOOP_CODE: &[u8] = include_bytes!("res/infinite_loop.wasm");
 
 fn hash_state(state: u64) -> [u8; 32] {
 	tiny_keccak::keccak256(state.encode().as_slice())
@@ -91,6 +92,7 @@ fn execute_good_on_parent() {
 			ingress: Vec::new(),
 		},
 		&mut DummyExt,
+		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap();
 
 	let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();
@@ -126,6 +128,7 @@ fn execute_good_chain_on_parent() {
 				ingress: Vec::new(),
 			},
 			&mut DummyExt,
+			parachain::wasm_executor::ExecutionMode::RemoteTest,
 		).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();
@@ -161,6 +164,7 @@ fn execute_bad_on_parent() {
 			ingress: Vec::new(),
 		},
 		&mut DummyExt,
+		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap_err();
 }
 
@@ -192,6 +196,7 @@ fn processes_messages() {
 			],
 		},
 		&mut DummyExt,
+		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap();
 
 	let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();
@@ -199,4 +204,54 @@ fn processes_messages() {
 	assert_eq!(new_head.number, 1);
 	assert_eq!(new_head.parent_hash, hash_head(&parent_head));
 	assert_eq!(new_head.post_state, hash_state(1024));
+}
+
+#[test]
+fn terminates_on_timeout() {
+	let result = parachain::wasm_executor::validate_candidate(
+		INFINITE_LOOP_CODE,
+		ValidationParams {
+			parent_head: Default::default(),
+			block_data: Vec::new(),
+			ingress: Vec::new(),
+		},
+		&mut DummyExt,
+		parachain::wasm_executor::ExecutionMode::RemoteTest,
+	);
+	match result {
+		Err(parachain::wasm_executor::Error::Timeout) => {},
+		_ => panic!(),
+	}
+
+	let parent_head = HeadData {
+		number: 0,
+		parent_hash: [0; 32],
+		post_state: hash_state(0),
+	};
+
+	let block_data = BlockData {
+		state: 0,
+		add: 512,
+	};
+
+	let _ret = parachain::wasm_executor::validate_candidate(
+		TEST_CODE,
+		ValidationParams {
+			parent_head: parent_head.encode(),
+			block_data: block_data.encode(),
+			ingress: Vec::new(),
+		},
+		&mut DummyExt,
+		parachain::wasm_executor::ExecutionMode::RemoteTest,
+	).unwrap();
+}
+
+// This is not an actual test, but rather an entry point for out-of process WASM executor.
+// When executing tests the executor spawns currently executing binary, which happens to be test binary.
+// It then passes "validation_worker" on CLI effectivly making rust test executor to run this single test.
+#[test]
+fn validation_worker() {
+	if let Some(id) = std::env::args().find(|a| a.starts_with("/shmem_rs_")) {
+		run_worker(&id).unwrap()
+	}
 }

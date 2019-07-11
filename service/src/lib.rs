@@ -43,6 +43,7 @@ pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use primitives::Blake2Hasher;
 pub use sr_primitives::traits::ProvideRuntimeApi;
 pub use chain_spec::ChainSpec;
+pub use consensus::run_validation_worker;
 
 /// All configuration for the polkadot node.
 pub type Configuration = FactoryFullConfiguration<Factory>;

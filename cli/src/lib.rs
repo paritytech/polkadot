@@ -73,13 +73,20 @@ pub trait Worker: IntoExit {
 /// 9556-9591		Unassigned
 /// 9803-9874		Unassigned
 /// 9926-9949		Unassigned
-pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Result<()> where
-	I: IntoIterator<Item = T>,
-	T: Into<std::ffi::OsString> + Clone,
+pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	W: Worker,
 {
+	if let Some(pos) = std::env::args().position(|a| a == "--validation-worker") {
+		if let Some(id) = std::env::args().nth(pos + 1) {
+			if let Err(e) = service::run_validation_worker(&id) {
+				eprintln!("{}", e);
+			}
+			return Ok(())
+		}
+	}
+
 	cli::parse_and_execute::<service::Factory, NoCustom, NoCustom, _, _, _, _, _>(
-		load_spec, &version, "parity-polkadot", args, worker,
+		load_spec, &version, "parity-polkadot", std::env::args(), worker,
 		|worker, _cli_args, _custom_args, mut config| {
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
