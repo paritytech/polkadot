@@ -12,10 +12,7 @@ RUN apt-get update && \
 	apt-get install -y cmake pkg-config libssl-dev git clang
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && \
         export PATH=$PATH:$HOME/.cargo/bin && \
-        rustup toolchain install nightly && \
-        rustup target add wasm32-unknown-unknown --toolchain nightly && \
-        cargo install --git https://github.com/alexcrichton/wasm-gc && \
-        scripts/build.sh && \
+        scripts/init.sh && \
         cargo build --$PROFILE
 
 # ===== SECOND STAGE ======
