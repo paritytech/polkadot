@@ -84,7 +84,6 @@ test-linux-stable:                 &test
     variables:
       - $DEPLOY_TAG
   script:
-    - ./scripts/build.sh --locked
     - time cargo test --all --release --verbose --locked
     - sccache -s
 
@@ -107,7 +106,6 @@ build-linux-release:               &build
   tags:
     - linux-docker
   script:
-    - ./scripts/build.sh --locked
     - time cargo build --release --verbose
     - mkdir -p ./artifacts
     - mv ./target/release/polkadot ./artifacts/.

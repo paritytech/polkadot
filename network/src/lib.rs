@@ -32,10 +32,10 @@ use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
 	StructuredUnroutedIngress,
 };
-use substrate_network::{PeerId, RequestId, Context};
-use substrate_network::{message, generic_message};
-use substrate_network::specialization::NetworkSpecialization as Specialization;
-use substrate_network::StatusMessage as GenericFullStatus;
+use substrate_network::{
+	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
+	specialization::{Event, NetworkSpecialization as Specialization},
+};
 use self::validation::{LiveValidationSessions, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
@@ -69,7 +69,7 @@ mod benefit {
 type FullStatus = GenericFullStatus<Block>;
 
 /// Specialization of the network service for the polkadot protocol.
-pub type NetworkService = substrate_network::NetworkService<Block, PolkadotProtocol>;
+pub type NetworkService = substrate_network::NetworkService<Block, PolkadotProtocol, Hash>;
 
 /// Status of a Polkadot node.
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
@@ -572,26 +572,21 @@ impl Specialization<Block> for PolkadotProtocol {
 		&mut self,
 		ctx: &mut dyn Context<Block>,
 		who: PeerId,
-		message: &mut Option<message::Message<Block>>
+		message: Vec<u8>,
 	) {
-		match message.take() {
-			Some(generic_message::Message::ChainSpecific(raw)) => {
-				match Message::decode(&mut raw.as_slice()) {
-					Some(msg) => {
-						ctx.report_peer(who.clone(), benefit::VALID_FORMAT);
-						self.on_polkadot_message(ctx, who, msg)
-					},
-					None => {
-						trace!(target: "p_net", "Bad message from {}", who);
-						ctx.report_peer(who, cost::INVALID_FORMAT);
-						*message = Some(generic_message::Message::ChainSpecific(raw));
-					}
-				}
+		match Message::decode(&mut &message[..]) {
+			Some(msg) => {
+				ctx.report_peer(who.clone(), benefit::VALID_FORMAT);
+				self.on_polkadot_message(ctx, who, msg)
+			},
+			None => {
+				trace!(target: "p_net", "Bad message from {}", who);
+				ctx.report_peer(who, cost::INVALID_FORMAT);
 			}
-			Some(other) => *message = Some(other),
-			_ => {}
 		}
 	}
+
+	fn on_event(&mut self, _event: Event) { }
 
 	fn on_abort(&mut self) { }
 

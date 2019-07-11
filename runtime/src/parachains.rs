@@ -22,9 +22,7 @@ use parity_codec::{Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
 use bitvec::{bitvec, BigEndian};
-use sr_primitives::traits::{
-	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero,
-};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots,
@@ -93,7 +91,7 @@ pub trait ParachainRegistrar<AccountId> {
 impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 	type ParaId = ParaId;
 	fn new_id() -> ParaId {
-		<NextFreeId<T>>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
+		<NextFreeId>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
 	}
 	fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
 		let mut parachains = Self::active_parachains();
@@ -102,9 +100,9 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 			Err(idx) => parachains.insert(idx, id),
 		}
 
-		<Code<T>>::insert(id, code);
-		<Parachains<T>>::put(parachains);
-		<Heads<T>>::insert(id, initial_head_data);
+		<Code>::insert(id, code);
+		<Parachains>::put(parachains);
+		<Heads>::insert(id, initial_head_data);
 
 		// Because there are no ordering guarantees that inherents
 		// are applied before regular transactions, a parachain candidate could
@@ -121,8 +119,8 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 			Err(_) => return Ok(()),
 		}
 
-		<Code<T>>::remove(id);
-		<Heads<T>>::remove(id);
+		<Code>::remove(id);
+		<Heads>::remove(id);
 
 		let watermark = <Watermarks<T>>::take(id);
 
@@ -137,7 +135,7 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 			}
 		}
 
-		<Parachains<T>>::put(parachains);
+		<Parachains>::put(parachains);
 
 		Ok(())
 	}
@@ -243,18 +241,20 @@ decl_storage! {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
 		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
+			use sr_primitives::traits::Zero;
+
 			let mut p = config.parachains.clone();
-			p.sort_unstable_by_key(|&(ref id, _, _)| id.clone());
-			p.dedup_by_key(|&mut (ref id, _, _)| id.clone());
+			p.sort_unstable_by_key(|&(ref id, _, _)| *id);
+			p.dedup_by_key(|&mut (ref id, _, _)| *id);
 
 			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-			<Parachains<T> as generator::StorageValue<_>>::put(&only_ids, storage);
+			<Parachains as generator::StorageValue<_>>::put(&only_ids, storage);
 
 			for (id, code, genesis) in p {
 				// no ingress -- a chain cannot be routed to until it is live.
-				<Code<T> as generator::StorageMap<_, _>>::insert(&id, &code, storage);
-				<Heads<T> as generator::StorageMap<_, _>>::insert(&id, &genesis, storage);
+				<Code as generator::StorageMap<_, _>>::insert(&id, &code, storage);
+				<Heads as generator::StorageMap<_, _>>::insert(&id, &genesis, storage);
 				<Watermarks<T> as generator::StorageMap<_, _>>::insert(&id, &Zero::zero(), storage);
 			}
 		});
@@ -267,7 +267,7 @@ decl_module! {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
 			ensure_none(origin)?;
-			ensure!(!<DidUpdate<T>>::exists(), "Parachain heads must be updated only once in the block");
+			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
 
 			let active_parachains = Self::active_parachains();
 			let parachain_count = active_parachains.len();
@@ -322,7 +322,7 @@ decl_module! {
 				);
 			}
 
-			<DidUpdate<T>>::put(true);
+			<DidUpdate>::put(true);
 
 			Ok(())
 		}
@@ -385,7 +385,7 @@ impl<T: Trait> Module<T> {
 	) -> Result {
 		// Either there are no more messages to add...
 		if !upward_messages.is_empty() {
-			let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
+			let (count, size) = <RelayDispatchQueueSize>::get(id);
 			ensure!(
 				// ...or we are appending one message onto an empty queue...
 				upward_messages.len() + count as usize == 1
@@ -421,7 +421,7 @@ impl<T: Trait> Module<T> {
 
 		for head in heads.iter() {
 			let id = head.parachain_index();
-			<Heads<T>>::insert(id, &head.candidate.head_data.0);
+			<Heads>::insert(id, &head.candidate.head_data.0);
 
 			let last_watermark = <Watermarks<T>>::mutate(id, |mark| {
 				rstd::mem::replace(mark, Some(watermark))
@@ -452,14 +452,14 @@ impl<T: Trait> Module<T> {
 	/// Place any new upward messages into our queue for later dispatch.
 	fn queue_upward_messages(id: ParaId, upward_messages: &[UpwardMessage]) {
 		if !upward_messages.is_empty() {
-			<RelayDispatchQueueSize<T>>::mutate(id, |&mut(ref mut count, ref mut len)| {
+			<RelayDispatchQueueSize>::mutate(id, |&mut(ref mut count, ref mut len)| {
 				*count += upward_messages.len() as u32;
 				*len += upward_messages.iter()
 					.fold(0, |a, x| a + x.data.len()) as u32;
 			});
 			// Should never be able to fail assuming our state is uncorrupted, but best not
 			// to panic, even if it does.
-			let _ = <RelayDispatchQueue<T>>::append(id, upward_messages);
+			let _ = <RelayDispatchQueue>::append(id, upward_messages);
 		}
 	}
 
@@ -480,7 +480,7 @@ impl<T: Trait> Module<T> {
 		let mut dispatched_count = 0usize;
 		let mut dispatched_size = 0usize;
 		for id in active_parachains.iter().cycle().skip(offset).take(para_count) {
-			let (count, size) = <RelayDispatchQueueSize<T>>::get(id);
+			let (count, size) = <RelayDispatchQueueSize>::get(id);
 			let count = count as usize;
 			let size = size as usize;
 			if dispatched_count == 0 || (
@@ -489,8 +489,8 @@ impl<T: Trait> Module<T> {
 			) {
 				if count > 0 {
 					// still dispatching messages...
-					<RelayDispatchQueueSize<T>>::remove(id);
-					let messages = <RelayDispatchQueue<T>>::take(id);
+					<RelayDispatchQueueSize>::remove(id);
+					let messages = <RelayDispatchQueue>::take(id);
 					for UpwardMessage { origin, data } in messages.into_iter() {
 						dispatch_message(*id, origin, &data);
 					}
@@ -816,7 +816,7 @@ mod tests {
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
-		BuildStorage, traits::{BlakeTwo256, IdentityLookup}, testing::UintAuthorityId,
+		traits::{BlakeTwo256, IdentityLookup}, testing::UintAuthorityId,
 	};
 	use primitives::{
 		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey,
@@ -865,6 +865,14 @@ mod tests {
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
 		type SessionHandler = ();
 		type Event = ();
+		type SelectInitialValidators = staking::Module<Self>;
+		type ValidatorId = crate::AccountId;
+		type ValidatorIdOf = staking::StashOf<Self>;
+	}
+
+	impl session::historical::Trait for Test {
+		type FullIdentification = staking::Exposure<crate::AccountId, Balance>;
+		type FullIdentificationOf = staking::ExposureOf<Self>;
 	}
 
 	impl timestamp::Trait for Test {
@@ -877,6 +885,14 @@ mod tests {
 		type AuthorityId = AuraId;
 	}
 
+	parameter_types! {
+		pub const ExistentialDeposit: Balance = 0;
+		pub const TransferFee: Balance = 0;
+		pub const CreationFee: Balance = 0;
+		pub const TransactionBaseFee: Balance = 0;
+		pub const TransactionByteFee: Balance = 0;
+	}
+
 	impl balances::Trait for Test {
 		type Balance = Balance;
 		type OnFreeBalanceZero = ();
@@ -885,6 +901,11 @@ mod tests {
 		type TransactionPayment = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
+		type ExistentialDeposit = ExistentialDeposit;
+		type TransferFee = TransferFee;
+		type CreationFee = CreationFee;
+		type TransactionBaseFee = TransactionBaseFee;
+		type TransactionByteFee = TransactionByteFee;
 	}
 
 	parameter_types! {
@@ -901,6 +922,7 @@ mod tests {
 		type Reward = ();
 		type SessionsPerEra = SessionsPerEra;
 		type BondingDuration = BondingDuration;
+		type SessionInterface = Self;
 	}
 
 	impl Trait for Test {
@@ -913,7 +935,7 @@ mod tests {
 	type System = system::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
 		let authority_keys = [
 			AuthorityKeyring::Alice,
 			AuthorityKeyring::Bob,
@@ -936,7 +958,6 @@ mod tests {
 		];
 
 		t.extend(session::GenesisConfig::<Test>{
-			validators: validator_keys.iter().map(|k| crate::AccountId::from(*k)).collect(),
 			keys: vec![],
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
@@ -1049,8 +1070,8 @@ mod tests {
 			assert_eq!(dispatched, vec![
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 4])
 			]);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
-			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).len(), 1);
+			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
@@ -1070,9 +1091,9 @@ mod tests {
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
 			]);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
-			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).len(), 1);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(2)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
+			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
@@ -1092,9 +1113,9 @@ mod tests {
 				(1.into(), ParachainDispatchOrigin::Parachain, vec![1; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
 			]);
-			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).len(), 1);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).is_empty());
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(2)).is_empty());
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(0)).len(), 1);
+			assert!(<RelayDispatchQueue>::get(ParaId::from(1)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
@@ -1114,9 +1135,9 @@ mod tests {
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2]),
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2])
 			]);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
-			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).len(), 1);
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(2)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
+			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
 	}
 
@@ -1140,7 +1161,7 @@ mod tests {
 			];
 			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
 			Parachains::queue_upward_messages(0.into(), &messages);
-			assert_eq!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)), vec![
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(0)), vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1, 2] },
 			]);
@@ -1288,8 +1309,8 @@ mod tests {
 				Origin::NONE,
 			));
 
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(0)).is_empty());
-			assert!(<RelayDispatchQueue<Test>>::get(ParaId::from(1)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(1)).is_empty());
 		});
 	}
 
@@ -1436,10 +1457,10 @@ mod tests {
 				Origin::NONE,
 			).is_err());
 
-			assert!(Parachains::dispatch(
+			assert_ok!(Parachains::dispatch(
 				set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
 				Origin::NONE,
-			).is_ok());
+			));
 		});
 	}
 
@@ -1527,19 +1548,19 @@ mod tests {
 				make_attestations(&mut candidate_a);
 				make_attestations(&mut candidate_b);
 
-				assert!(Parachains::dispatch(
+				assert_ok!(Parachains::dispatch(
 					set_heads(vec![candidate_a, candidate_b]),
 					Origin::NONE,
-				).is_ok());
+				));
 
 				Parachains::on_finalize(i);
 			}
 
 			System::set_block_number(10);
-			assert!(Parachains::dispatch(
+			assert_ok!(Parachains::dispatch(
 				set_heads(vec![]),
 				Origin::NONE,
-			).is_ok());
+			));
 
 			// parachain 1 has had a bunch of parachain candidates included,
 			// which raises the watermark.
@@ -1588,10 +1609,10 @@ mod tests {
 			};
 			make_attestations(&mut candidate_c);
 
-			assert!(Parachains::dispatch(
+			assert_ok!(Parachains::dispatch(
 				set_heads(vec![candidate_c]),
 				Origin::NONE,
-			).is_ok());
+			));
 
 			Parachains::on_finalize(11);
 			System::set_block_number(12);
