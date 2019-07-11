@@ -93,7 +93,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		session: Some(SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
-				x.1.clone(),
+				x.0.clone(),
 				SessionKeys { ed25519: x.2.clone() },
 			)).collect::<Vec<_>>(),
 		}),
@@ -106,7 +106,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			offline_slash_grace: 4,
 			minimum_validator_count: 4,
 			stakers: initial_authorities.iter().map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator)).collect(),
-			invulnerables: initial_authorities.iter().map(|x| x.1.clone()).collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 		}),
 		democracy: Some(Default::default()),
 		council_seats: Some(CouncilSeatsConfig {
@@ -213,7 +213,7 @@ pub fn testnet_genesis(
 		}),
 		session: Some(SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
-				x.1.clone(),
+				x.0.clone(),
 				SessionKeys { ed25519: x.2.clone() },
 			)).collect::<Vec<_>>(),
 		}),
@@ -228,7 +228,7 @@ pub fn testnet_genesis(
 			stakers: initial_authorities.iter()
 				.map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
 				.collect(),
-			invulnerables: initial_authorities.iter().map(|x| x.1.clone()).collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 		}),
 		democracy: Some(DemocracyConfig::default()),
 		council_seats: Some(CouncilSeatsConfig {
