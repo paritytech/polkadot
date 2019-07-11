@@ -76,7 +76,7 @@ pub trait Worker: IntoExit {
 pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	W: Worker,
 {
-	if let Some(pos) = std::env::args().position(|a| a == "--validation-worker") {
+	if let Some(pos) = std::env::args().position(|a| a == service::VALIDATION_WORKER_ARG) {
 		if let Some(id) = std::env::args().nth(pos + 1) {
 			if let Err(e) = service::run_validation_worker(&id) {
 				eprintln!("{}", e);

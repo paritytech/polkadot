@@ -40,7 +40,9 @@ const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 const MAX_MESSAGE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 
 const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
-const WORKER_ARGS: &[&'static str] = &["--validation-worker"];
+/// CLI Argument to start in validation worker mode.
+pub const WORKER_ARG: &'static str = "--validation-worker";
+const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
 
 const EVENT_CANDIDATE_READY: usize = 0;
 const EVENT_RESULT_READY: usize = 1;
@@ -330,6 +332,8 @@ impl Externalities for WorkerExternalities {
 	}
 }
 
+/// Validation worker process entry point. Runs a loop waiting for canidates to validate
+/// and sends back results via shared memory.
 pub fn run_worker(mem_id: &str) -> Result<(), String> {
 	let mut memory = match SharedMem::open(mem_id) {
 		Ok(memory) => memory,

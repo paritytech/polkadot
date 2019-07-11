@@ -75,6 +75,7 @@ pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
 };
+pub use parachain::wasm_executor::{run_worker as run_validation_worker, WORKER_ARG as VALIDATION_WORKER_ARG};
 
 mod attestation_service;
 mod dynamic_inclusion;
@@ -810,11 +811,6 @@ impl<C, TxApi> Future for CreateProposal<C, TxApi> where
 
 		self.propose_with(proposed_candidates).map(Async::Ready)
 	}
-}
-
-/// Run validation worker process.
-pub fn run_validation_worker(id: &str) -> Result<(), String> {
-	parachain::wasm_executor::run_worker(id)
 }
 
 #[cfg(test)]
