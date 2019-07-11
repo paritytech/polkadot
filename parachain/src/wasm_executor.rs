@@ -613,7 +613,7 @@ pub fn validate_candidate_internal<E: Externalities>(
 		let module = ModuleInstance::new(
 			&module,
 			&wasmi::ImportsBuilder::new().with_resolver("env", &module_resolver),
-			)?;
+		)?;
 
 		memory = module_resolver.memory.borrow()
 			.as_ref()
@@ -646,7 +646,7 @@ pub fn validate_candidate_internal<E: Externalities>(
 			.expect(
 				"enough memory allocated just before this; \
 				copying never fails if memory is large enough; qed"
-				);
+			);
 
 		(allocated_mem_start.0, encoded_call_data.len())
 	};
