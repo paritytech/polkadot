@@ -28,6 +28,7 @@ use tokio::runtime::Runtime;
 use service::Service as BareService;
 use std::sync::Arc;
 use log::info;
+use structopt::StructOpt;
 
 pub use service::{
 	Components as ServiceComponents, PolkadotService, CustomConfiguration, ServiceFactory, Factory,
@@ -65,27 +66,27 @@ pub trait Worker: IntoExit {
 	fn work<S: PolkadotService>(self, service: &S, executor: TaskExecutor) -> Self::Work;
 }
 
-/// Parse command line arguments into service configuration.
-///
-/// IANA unassigned port ranges that we could use:
-/// 6717-6766		Unassigned
-/// 8504-8553		Unassigned
-/// 9556-9591		Unassigned
-/// 9803-9874		Unassigned
-/// 9926-9949		Unassigned
+#[derive(Debug, StructOpt, Clone)]
+enum PolkadotSubCommands {
+	#[structopt(name = "validation-worker", raw(setting = "structopt::clap::AppSettings::Hidden"))]
+	ValidationWorker(ValidationWokerCommand),
+}
+
+impl cli::GetLogFilter for PolkadotSubCommands {
+	fn get_log_filter(&self) -> Option<String> { None }
+}
+
+#[derive(Debug, StructOpt, Clone)]
+struct ValidationWokerCommand {
+	#[structopt()]
+	pub mem_id: String,
+}
+
+/// Parses polkadot specific CLI arguments and run the service.
 pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	W: Worker,
 {
-	if let Some(pos) = std::env::args().position(|a| a == service::VALIDATION_WORKER_ARG) {
-		if let Some(id) = std::env::args().nth(pos + 1) {
-			if let Err(e) = service::run_validation_worker(&id) {
-				eprintln!("{}", e);
-			}
-			return Ok(())
-		}
-	}
-
-	cli::parse_and_execute::<service::Factory, NoCustom, NoCustom, _, _, _, _, _>(
+	let command = cli::parse_and_execute::<service::Factory, PolkadotSubCommands, NoCustom, _, _, _, _, _>(
 		load_spec, &version, "parity-polkadot", std::env::args(), worker,
 		|worker, _cli_args, _custom_args, mut config| {
 			info!("{}", version.name);
@@ -110,7 +111,14 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 					),
 			}.map_err(|e| format!("{:?}", e))
 		}
-	).map_err(Into::into).map(|_| ())
+	);
+
+	match &command {
+		Ok(Some(PolkadotSubCommands::ValidationWorker(args))) => {
+			service::run_validation_worker(&args.mem_id).map_err(Into::into)
+		}
+		_ => command.map_err(Into::into).map(|_| ())
+	}
 }
 
 fn run_until_exit<T, C, W>(

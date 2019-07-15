@@ -41,7 +41,7 @@ const MAX_MESSAGE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 
 const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 /// CLI Argument to start in validation worker mode.
-pub const WORKER_ARG: &'static str = "--validation-worker";
+pub const WORKER_ARG: &'static str = "validation-worker";
 const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
 
 const EVENT_CANDIDATE_READY: usize = 0;
