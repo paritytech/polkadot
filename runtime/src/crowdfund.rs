@@ -62,13 +62,17 @@
 //! funds ultimately end up in module's fund sub-account. If the funds do not arrive, then
 
 use srml_support::{
-	StorageValue, dispatch::Result, decl_module, decl_storage, decl_event, storage::child,
-	traits::{LockableCurrency, ReservableCurrency, Currency}
+	StorageValue, StorageMap, dispatch::Result, decl_module, decl_storage, decl_event, storage::child, ensure,
+	traits::{LockableCurrency, ReservableCurrency, Currency, Get, OnUnbalanced}
 };
 use system::ensure_signed;
-use sr_primitives::weights::TransactionWeight;
+use sr_primitives::{ModuleId, weights::TransactionWeight,
+	traits::{AccountIdConversion, Hash, Saturating}
+};
 use primitives::parachain::Id as ParaId;
 use crate::slots;
+use parity_codec::{Encode, Decode};
+use rstd::vec::Vec;
 
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
 
@@ -76,9 +80,10 @@ type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::Ac
 type NegativeImbalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
 
 pub trait Trait: slots::Trait {
-	type Currency: LockableCurrency + ReservableCurrency;
-
-	/// The overarching event type.
+	type Currency:
+		LockableCurrency<Self::AccountId, Moment=Self::BlockNumber>
+		+ ReservableCurrency<Self::AccountId>;
+	
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
 	/// The amount to be held on deposit by the owner of a crowdfund.
@@ -93,11 +98,13 @@ pub trait Trait: slots::Trait {
 	type RetirementPeriod: Get<Self::BlockNumber>;
 
 	/// What to do with funds that were not withdrawn.
-	type OrphanedFunds: OnUnbalanced<NegativeImbalanceOf<T>>;
+	type OrphanedFunds: OnUnbalanced<NegativeImbalanceOf<Self>>;
 }
 
 pub type FundIndex = u32;
 
+#[derive(Encode, Decode, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// The parachain that this fund has funded, if there is one. As long as this is `Some`, then
 	/// the funds may not be withdrawn and the fund cannot be disolved.
@@ -130,15 +137,15 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 decl_storage! {
 	trait Store for Module<T: Trait> as Example {
 		/// Info on all of the funds.
-		Funds pub(funds):
+		Funds get(funds):
 			map FundIndex => Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
 
-		/// The total number of ffunds that have so far been allocated.
-		FundCount pub(fund_count): FundIndex;
+		/// The total number of funds that have so far been allocated.
+		FundCount get(fund_count): FundIndex;
 
 		/// The funds that have had additional contributions during the last block. This is used
 		/// in order to determine which funds should submit updated bids.
-		NewRaise: Vec<FundId>;
+		NewRaise: Vec<FundIndex>;
 
 		/// True if the fund was ending at the last block.
 		WasEnding: bool;
@@ -146,18 +153,20 @@ decl_storage! {
 }
 
 decl_event!(
-	pub enum Event {
-		Nothing,
+	pub enum Event<T> where <T as system::Trait>::AccountId {
+		TODO(AccountId),
 	}
 );
 
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		fn deposit_event<T>() = default;
-
+		
+		/*
 		/// Create a new crowdfunding campaign for a parachain slot deposit.
 		#[weight = TransactionWeight::Basic(100_000, 10)]
-		fn create(origin,
+		fn create(
+			origin,
 			#[compact] end: T::BlockNumber,
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: T::BlockNumber,
@@ -180,19 +189,27 @@ decl_module! {
 			T::Currency::resolve_creating(Self::fund_account_id(index), imb);
 
 			<Funds<T>>::insert(index, FundInfo {
+				parachain: None,
+				owner: owner,
+				deposit: deposit,
 				raised: Zero::zero(),
+				end: end,
+				cap: cap,
 				// Ensure it's Some, so that the first contribution causes it to be inserted into
 				// `NewRaise`.
 				last_contribution: Some(Zero::zero()),
+				first_slot: first_slot,
+				last_slot: last_slot,
 				deploy_data: None,
-				..
 			});
 		}
+		*/
 
+		
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
 		/// slot is
-		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: T::Balance) {
+		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>) {
 			let who = ensure_signed(origin)?;
 
 			ensure!(value >= T::MinContribution::get(), "contribution too small");
@@ -203,14 +220,14 @@ decl_module! {
 			let now = <system::Module<T>>::block_number();
 			ensure!(fund.end > now, "contribution period ended");
 
-			T::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
+			<T as Trait>::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
 
 			let id = Self::id_from_index(index);
-			let balance = child::get_or_default::<Balance>(&id, &who);
-			let balance = balance.saturating_add(&value);
-			child::put(&id, &owner, balance);
+			let balance = child::get_or_default::<BalanceOf<T>>(id.as_ref(), who);
+			let balance = balance.saturating_add(value);
+			child::put(id.as_ref(), who.as_ref(), &balance);
 
-			if <slots::Module<T>>::is_ending() {
+			if <slots::Module<T>>::is_ending(now).is_some() {
 				// Now in end period; record it
 				fund.last_contribution = Some(now);
 				if let Some(c) = fund.last_contribution {
@@ -231,6 +248,7 @@ decl_module! {
 			<Funds<T>>::insert(index, &fund);
 		}
 
+		/*
 		/// Withdraw full balance of a contributer to an unsuccessful fund.
 		fn withdraw(origin, #[compact] index: FundIndex) {
 			let who = ensure_signed(origin)?;
@@ -396,6 +414,7 @@ decl_module! {
 				}
 			}
 		}
+		*/
 	}
 }
 
@@ -405,14 +424,17 @@ impl<T: Trait> Module<T> {
 	/// This actually does computation. If you need to keep using it, then make sure you cache the
 	/// value and only call this once.
 	pub fn fund_account_id(index: FundIndex) -> T::AccountId {
-		MODULE_ID.into_sub_account(index)
+		// TODO: use `into_sub_account(index)` when `polkadot-master` is updated
+		MODULE_ID.into_account()
 	}
 
 	pub fn id_from_index(index: FundIndex) -> T::Hash {
-		T::Hasher::hash_of((b"crowdfund", index))
+		// TODO: This feels really dumb
+		(b"crowdfun", b"d", index).using_encoded(<T as system::Trait>::Hashing::hash)
 	}
 }
 
+/*
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -458,6 +480,10 @@ mod tests {
 	}
 	impl Trait for Test {
 		type Event = ();
+		type SubmissionDeposit: 1;
+		type MinContribution: 10;
+		type RetirementPeriod: 5;
+		type OrphanedFunds: ();
 	}
 	type Example = Module<Test>;
 
@@ -506,3 +532,4 @@ mod tests {
 		});
 	}
 }
+*/

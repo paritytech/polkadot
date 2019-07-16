@@ -400,7 +400,7 @@ impl<T: Trait> Module<T> {
 
 	/// Returns `Some(n)` if the now block is part of the ending period of an auction, where `n`
 	/// represents how far into the ending period this block is. Otherwise, returns `None`.
-	fn is_ending(now: T::BlockNumber) -> Option<T::BlockNumber> {
+	pub fn is_ending(now: T::BlockNumber) -> Option<T::BlockNumber> {
 		if let Some((_, early_end)) = <AuctionInfo<T>>::get() {
 			if let Some(after_early_end) = now.checked_sub(&early_end) {
 				if after_early_end < T::EndingPeriod::get() {
