@@ -63,7 +63,7 @@
 
 use srml_support::{
 	StorageValue, StorageMap, dispatch::Result, decl_module, decl_storage, decl_event, storage::child, ensure,
-	traits::{LockableCurrency, ReservableCurrency, Currency, Get, OnUnbalanced}
+	traits::{LockableCurrency, ReservableCurrency, Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement}
 };
 use system::ensure_signed;
 use sr_primitives::{ModuleId, weights::TransactionWeight,
@@ -209,7 +209,8 @@ decl_module! {
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
 		/// slot is
-		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>) {
+		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>)
+		{
 			let who = ensure_signed(origin)?;
 
 			ensure!(value >= T::MinContribution::get(), "contribution too small");
@@ -223,9 +224,9 @@ decl_module! {
 			<T as Trait>::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
 
 			let id = Self::id_from_index(index);
-			let balance = child::get_or_default::<BalanceOf<T>>(id.as_ref(), who);
+			let balance = who.using_encoded(|b| child::get_or_default::<BalanceOf<T>>(id.as_ref(), b));
 			let balance = balance.saturating_add(value);
-			child::put(id.as_ref(), who.as_ref(), &balance);
+			who.using_encoded(|b| child::put(id.as_ref(), b, &balance));
 
 			if <slots::Module<T>>::is_ending(now).is_some() {
 				// Now in end period; record it
@@ -248,8 +249,8 @@ decl_module! {
 			<Funds<T>>::insert(index, &fund);
 		}
 
-		/*
-		/// Withdraw full balance of a contributer to an unsuccessful fund.
+		
+		/// Withdraw full balance of a contributor to an unsuccessful fund.
 		fn withdraw(origin, #[compact] index: FundIndex) {
 			let who = ensure_signed(origin)?;
 
@@ -258,11 +259,11 @@ decl_module! {
 			ensure!(now >= fund.end, "contribution period not over");
 
 			let id = Self::id_from_index(index);
-			let balance = child::get::<Balance>(&id, &who)
+			let balance = who.using_encoded(|b| child::get::<BalanceOf<T>>(id.as_ref(), b))
 				.ok_or("not a contributor")?;
 
 			// Avoid using transfer to ensure we don't pay any fees.
-			T::Currency::resolve_into_existing(&who, T::Currency::withdraw(
+			<T as Trait>::Currency::resolve_into_existing(&who, <T as Trait>::Currency::withdraw(
 				&Self::fund_account_id(index),
 				balance,
 				WithdrawReason::Transfer,
@@ -270,19 +271,19 @@ decl_module! {
 			)?);
 
 			let id = Self::id_from_index(index);
-			child::kill(&id, &who);
-			fund.raised = fund.raised.saturating_sub(&balance);
+			who.using_encoded(|b| child::kill(id.as_ref(), b));
+			fund.raised = fund.raised.saturating_sub(balance);
 
 			<Funds<T>>::insert(index, &fund);
 		}
-
+		
 		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
-		fn begin_retirement(_, #[compact] index: FundIndex) {
+		fn begin_retirement(origin, #[compact] index: FundIndex) {
 			// origin unimportant.
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
 			let parachain_id = fund.parachain.take().ok_or("fund has no parachain")?;
-			let account = Self::fund_account_id(fund.index);
-			ensure!(T::Currency::free_balance(&account) >= fund.raised, "funds not yet returned");
+			let account = Self::fund_account_id(index);
+			ensure!(<T as Trait>::Currency::free_balance(&account) >= fund.raised, "funds not yet returned");
 
 			// This fund just ended. Withdrawal period begins.
 			let now = <system::Module<T>>::block_number();
@@ -290,7 +291,7 @@ decl_module! {
 
 			<Funds<T>>::insert(index, &fund);
 		}
-
+		/*
 		/// Remove a fund after either: it was unsuccessful and it timed out; or it was successful
 		/// but it has been retired from its parachain slot. This places any unwithdrawn deposits
 		/// into the treasury.
