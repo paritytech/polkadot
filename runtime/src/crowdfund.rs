@@ -278,7 +278,7 @@ decl_module! {
 		}
 		
 		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
-		fn begin_retirement(origin, #[compact] index: FundIndex) {
+		fn begin_retirement(_origin, #[compact] index: FundIndex) {
 			// origin unimportant.
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
 			let parachain_id = fund.parachain.take().ok_or("fund has no parachain")?;
@@ -291,11 +291,11 @@ decl_module! {
 
 			<Funds<T>>::insert(index, &fund);
 		}
-		/*
+		
 		/// Remove a fund after either: it was unsuccessful and it timed out; or it was successful
 		/// but it has been retired from its parachain slot. This places any unwithdrawn deposits
 		/// into the treasury.
-		fn dissolve(_, #[compact] index: FundIndex) {
+		fn dissolve(_origin, #[compact] index: FundIndex) {
 			// origin unimportant.
 
 			let fund = Self::funds(index).ok_or("invalid fund index")?;
@@ -306,14 +306,14 @@ decl_module! {
 			let account = Self::fund_account_id(index);
 
 			// Avoid using transfer to ensure we don't pay any fees.
-			T::Currency::resolve_into_existing(&fund.owner, T::Currency::withdraw(
+			<T as Trait>::Currency::resolve_into_existing(&fund.owner, <T as Trait>::Currency::withdraw(
 				&account,
 				fund.deposit,
 				WithdrawReason::Transfer,
 				ExistenceRequirement::AllowDeath
 			)?);
 
-			T::OrphanedFunds::on_unbalanced(T::Currency::withdraw(
+			T::OrphanedFunds::on_unbalanced(<T as Trait>::Currency::withdraw(
 				&account,
 				fund.raised,
 				WithdrawReason::Transfer,
@@ -321,10 +321,10 @@ decl_module! {
 			)?);
 
 			let id = Self::id_from_index(index);
-			child::kill_storage(&id);
-			<Funds<T>>::kill(index);
+			child::kill_storage(id.as_ref());
+			<Funds<T>>::remove(index);
 		}
-
+		/*
 		/// Set the deploy information for a successful bid to deploy a new parachain.
 		///
 		/// - `origin` must be the successful bidder account.
