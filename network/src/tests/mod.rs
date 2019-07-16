@@ -29,9 +29,8 @@ use polkadot_primitives::parachain::{
 use substrate_primitives::crypto::UncheckedInto;
 use parity_codec::Encode;
 use substrate_network::{
-	PeerId, Context, config::Roles,
-	message::generic::ConsensusMessage,
-	specialization::NetworkSpecialization, generic_message::Message as GenericMessage
+	PeerId, Context, config::Roles, message::generic::ConsensusMessage,
+	specialization::NetworkSpecialization,
 };
 
 use futures::Future;
@@ -107,7 +106,7 @@ fn make_validation_session(parent_hash: Hash, local_key: SessionKey) -> SessionP
 
 fn on_message(protocol: &mut PolkadotProtocol, ctx: &mut TestContext, from: PeerId, message: Message) {
 	let encoded = message.encode();
-	protocol.on_message(ctx, from, &mut Some(GenericMessage::ChainSpecific(encoded)));
+	protocol.on_message(ctx, from, encoded);
 }
 
 #[test]

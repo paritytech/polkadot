@@ -3,6 +3,7 @@ name = "polkadot-runtime"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
+build = "build.rs"
 
 [dependencies]
 bitvec = { version = "0.8", default-features = false, features = ["alloc"] }
@@ -46,10 +47,14 @@ libsecp256k1 = "0.2.1"
 tiny-keccak = "1.4.2"
 keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-trie-db = "0.12"
+trie-db = "0.14"
+
+[build-dependencies]
+wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.1" }
 
 [features]
 default = ["std"]
+no_std = []
 std = [
 	"bitvec/std",
 	"primitives/std",

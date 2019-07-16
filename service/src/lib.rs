@@ -22,7 +22,7 @@ use client::LongestChain;
 use consensus_common::SelectChain;
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, Block, Hash, BlockId};
+use polkadot_primitives::{parachain, Block, Hash, BlockId, AuraPair};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
 use polkadot_network::gossip::{self as network_gossip, Known};
 use primitives::{ed25519, Pair};
@@ -40,7 +40,7 @@ pub use service::config::full_version_from_strs;
 pub use client::{backend::Backend, runtime_api::Core as CoreApi, ExecutionStrategy};
 pub use polkadot_network::{PolkadotProtocol, NetworkService};
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
-pub use primitives::{Blake2Hasher};
+pub use primitives::Blake2Hasher;
 pub use sr_primitives::traits::ProvideRuntimeApi;
 pub use chain_spec::ChainSpec;
 
@@ -163,7 +163,7 @@ service::construct_service_factory! {
 			{ |config: FactoryFullConfiguration<Self>| {
 				FullComponents::<Factory>::new(config)
 			} },
-		AuthoritySetup = { |mut service: Self::FullService, key: Option<Arc<ed25519::Pair>>| {
+		AuthoritySetup = { |mut service: Self::FullService| {
 				use polkadot_network::validation::ValidationNetwork;
 
 				let (block_import, link_half) = service.config.custom.grandpa_import_setup.take()
@@ -171,14 +171,14 @@ service::construct_service_factory! {
 
 				// always run GRANDPA in order to sync.
 				{
-					let local_key = if service.config.disable_grandpa {
+					let grandpa_key = if service.config.disable_grandpa {
 						None
 					} else {
-						key.clone()
+						service.authority_key::<grandpa_primitives::AuthorityPair>()
 					};
 
 					let config = grandpa::Config {
-						local_key,
+						local_key: grandpa_key.map(Arc::new),
 						// FIXME #1578 make this available through chainspec
 						gossip_duration: Duration::from_millis(333),
 						justification_period: 4096,
@@ -220,22 +220,22 @@ service::construct_service_factory! {
 					let mut path = PathBuf::from(service.config.database_path.clone());
 					path.push("availability");
 
-					::av_store::Store::new(::av_store::Config {
+					av_store::Store::new(::av_store::Config {
 						cache_size: None,
 						path,
 					})?
 				};
 
 				// run authorship only if authority.
-				let key = match key {
-					Some(key) => key,
+				let aura_key = match service.authority_key::<AuraPair>()  {
+					Some(key) => Arc::new(key),
 					None => return Ok(service),
 				};
 
 				if service.config.custom.collating_for.is_some() {
-					info!("The node cannot start as an authority because it is also configured\
-						to run as a collator.");
-
+					info!(
+						"The node cannot start as an authority because it is also configured to run as a collator."
+					);
 					return Ok(service);
 				}
 
@@ -279,23 +279,23 @@ service::construct_service_factory! {
 					service.client(),
 					polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
 				);
-				let proposer_factory = ::consensus::ProposerFactory::new(
+				let proposer_factory = consensus::ProposerFactory::new(
 					client.clone(),
 					select_chain.clone(),
 					validation_network.clone(),
 					validation_network,
 					service.transaction_pool(),
 					Arc::new(service.spawn_task_handle()),
-					key.clone(),
+					aura_key.clone(),
 					extrinsic_store,
 					SlotDuration::get_or_compute(&*client)?,
 					service.config.custom.max_block_data_size,
 				);
 
-				info!("Using authority key {}", key.public());
+				info!("Using authority key {}", aura_key.public());
 				let task = start_aura(
 					SlotDuration::get_or_compute(&*client)?,
-					key,
+					aura_key,
 					client.clone(),
 					select_chain,
 					block_import,
