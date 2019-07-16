@@ -25,7 +25,7 @@
 //! to the project (e.g. to be rewarded through some token or badge). The trie is retained for later
 //! (efficient) redistribution back to the contributors.
 //!
-//! Contributions must be of at least `MinContribution` (to account for the resouces taken in
+//! Contributions must be of at least `MinContribution` (to account for the resources taken in
 //! tracking contributions), and may never tally greater than the fund's `cap`, set and fixed at the
 //! time of creation. The `create` call may be used to create a new fund. In order to do this, then
 //! a deposit must be paid of the amount `SubmissionDeposit`. Substantial resources are taken on
@@ -34,7 +34,7 @@
 //! Funds may be set up at any time; their closing time is fixed at creation (as a block number) and
 //! if the fund is not successful by the closing time, then it will become *retired*. Contributors
 //! may get a refund of their contributions from retired funds. After a period (`RetirementPeriod`)
-//! the fund may be dissolved entirely. At this point any unrefunded contributions are considered
+//! the fund may be dissolved entirely. At this point any non-refunded contributions are considered
 //! `orphaned` and are disposed of through the `OrphanedFunds` handler (which may e.g. place them
 //! into the treasury).
 //!
@@ -104,7 +104,7 @@ pub type FundIndex = u32;
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct FundInfo<AccountId, Balance, Hash, BlockNumber, ParaId> {
 	/// The parachain that this fund has funded, if there is one. As long as this is `Some`, then
-	/// the funds may not be withdrawn and the fund cannot be disolved.
+	/// the funds may not be withdrawn and the fund cannot be dissolved.
 	parachain: Option<ParaId>,
 	/// The owning account who placed the deposit.
 	owner: AccountId,
@@ -259,7 +259,7 @@ decl_module! {
 				.ok_or("not a contributor")?;
 
 			// Avoid using transfer to ensure we don't pay any fees.
-			T::Currency::resolve_into_existing(&who, T::Currency::withdraw(
+			let _ = T::Currency::resolve_into_existing(&who, T::Currency::withdraw(
 				&Self::fund_account_id(index),
 				balance,
 				WithdrawReason::Transfer,
@@ -277,7 +277,7 @@ decl_module! {
 		fn begin_retirement(_origin, #[compact] index: FundIndex) {
 			// origin unimportant.
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
-			let parachain_id = fund.parachain.take().ok_or("fund has no parachain")?;
+			let _parachain_id = fund.parachain.take().ok_or("fund has no parachain")?;
 			let account = Self::fund_account_id(index);
 			ensure!(T::Currency::free_balance(&account) >= fund.raised, "funds not yet returned");
 
@@ -289,20 +289,20 @@ decl_module! {
 		}
 		
 		/// Remove a fund after either: it was unsuccessful and it timed out; or it was successful
-		/// but it has been retired from its parachain slot. This places any unwithdrawn deposits
-		/// into the treasury.
+		/// but it has been retired from its parachain slot. This places any deposits that were not
+		/// withdrawn into the treasury.
 		fn dissolve(_origin, #[compact] index: FundIndex) {
 			// origin unimportant.
 
 			let fund = Self::funds(index).ok_or("invalid fund index")?;
-			ensure!(fund.parachain.is_none(), "cannot disolve fund with active parachain");
+			ensure!(fund.parachain.is_none(), "cannot dissolve fund with active parachain");
 			let now = <system::Module<T>>::block_number();
 			ensure!(now >= fund.end + T::RetirementPeriod::get(), "retirement period not over");
 
 			let account = Self::fund_account_id(index);
 
 			// Avoid using transfer to ensure we don't pay any fees.
-			T::Currency::resolve_into_existing(&fund.owner, T::Currency::withdraw(
+			let _ = T::Currency::resolve_into_existing(&fund.owner, T::Currency::withdraw(
 				&account,
 				fund.deposit,
 				WithdrawReason::Transfer,
@@ -329,7 +329,8 @@ decl_module! {
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
-		fn fix_deploy_data(origin,
+		fn fix_deploy_data(
+			origin,
 			#[compact] index: FundIndex,
 			code_hash: T::Hash,
 			initial_head_data: Vec<u8>
@@ -352,7 +353,7 @@ decl_module! {
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `para_id` is the parachain index that this fund won.
 		fn onboard(
-			origin,
+			_origin,
 			#[compact] index: FundIndex,
 			#[compact] para_id: ParaIdOf<T>
 		) {
@@ -378,7 +379,8 @@ decl_module! {
 							/// ever changes, then some sort of conversion will be needed here.
 							sub: 0,
 						});
-						<slots::Module<T>>::handle_bid(
+						// TODO for review: Can this fail? Anything we can do to handle possible errors?
+						let _ = <slots::Module<T>>::handle_bid(
 							bidder,
 							<slots::Module<T>>::auction_counter(),
 							fund.first_slot,
@@ -403,8 +405,8 @@ impl<T: Trait> Module<T> {
 	}
 
 	pub fn id_from_index(index: FundIndex) -> T::Hash {
-		// TODO: This feels really dumb
-		(b"crowdfun", b"d", index).using_encoded(<T as system::Trait>::Hashing::hash)
+		// TODO: Fix with https://github.com/paritytech/parity-scale-codec/issues/128
+		(&b"crowdfund"[..], index).using_encoded(<T as system::Trait>::Hashing::hash)
 	}
 }
 
