@@ -62,30 +62,25 @@
 //! funds ultimately end up in module's fund sub-account. If the funds do not arrive, then
 
 use srml_support::{
-	StorageValue, StorageMap, dispatch::Result, decl_module, decl_storage, decl_event, storage::child, ensure,
-	traits::{LockableCurrency, ReservableCurrency, Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement}
+	StorageValue, StorageMap, decl_module, decl_storage, decl_event, storage::child, ensure,
+	traits::{Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement}
 };
 use system::ensure_signed;
 use sr_primitives::{ModuleId, weights::TransactionWeight,
-	traits::{AccountIdConversion, Hash, Saturating}
+	traits::{AccountIdConversion, Hash, Saturating, Zero}
 };
-use primitives::parachain::Id as ParaId;
-use crate::slots::{self, IncomingParachain, SubId, Onboarding};
+use crate::slots;
 use parity_codec::{Encode, Decode};
 use rstd::vec::Vec;
 use crate::parachains::ParachainRegistrar;
 
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
 
-type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
-type NegativeImbalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
+type BalanceOf<T> = <<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
+type NegativeImbalanceOf<T> = <<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
 type ParaIdOf<T> = <<T as slots::Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
 
 pub trait Trait: slots::Trait {
-	type Currency:
-		LockableCurrency<Self::AccountId, Moment=Self::BlockNumber>
-		+ ReservableCurrency<Self::AccountId>;
-	
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
 	/// The amount to be held on deposit by the owner of a crowdfund.
@@ -107,7 +102,7 @@ pub type FundIndex = u32;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
+pub struct FundInfo<AccountId, Balance, Hash, BlockNumber, ParaId> {
 	/// The parachain that this fund has funded, if there is one. As long as this is `Some`, then
 	/// the funds may not be withdrawn and the fund cannot be disolved.
 	parachain: Option<ParaId>,
@@ -140,7 +135,7 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Example {
 		/// Info on all of the funds.
 		Funds get(funds):
-			map FundIndex => Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
+			map FundIndex => Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber, ParaIdOf<T>>>;
 
 		/// The total number of funds that have so far been allocated.
 		FundCount get(fund_count): FundIndex;
@@ -164,7 +159,6 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		fn deposit_event<T>() = default;
 		
-		/*
 		/// Create a new crowdfunding campaign for a parachain slot deposit.
 		#[weight = TransactionWeight::Basic(100_000, 10)]
 		fn create(
@@ -172,7 +166,7 @@ decl_module! {
 			#[compact] end: T::BlockNumber,
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: T::BlockNumber,
-			#[compact] last_slot: T::BlockNumber,
+			#[compact] last_slot: T::BlockNumber
 		) {
 			let owner = ensure_signed(origin)?;
 			let deposit = T::SubmissionDeposit::get();
@@ -181,14 +175,14 @@ decl_module! {
 				&owner,
 				deposit,
 				WithdrawReason::Transfer,
-				ExistenceRequirement::AllowDeath
+				ExistenceRequirement::AllowDeath,
 			)?;
 
-			let index = <FundCount<T>>::mutate(|c| { let r = *c; *c += 1; r });
+			let index = FundCount::mutate(|c| { let r = *c; *c += 1; r });
 
 			// No fees are paid here if we need to create this account; that's why we don't just
 			// use the stock `transfer`.
-			T::Currency::resolve_creating(Self::fund_account_id(index), imb);
+			T::Currency::resolve_creating(&Self::fund_account_id(index), imb);
 
 			<Funds<T>>::insert(index, FundInfo {
 				parachain: None,
@@ -205,7 +199,7 @@ decl_module! {
 				deploy_data: None,
 			});
 		}
-		*/
+		
 
 		
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
@@ -223,7 +217,7 @@ decl_module! {
 			let now = <system::Module<T>>::block_number();
 			ensure!(fund.end > now, "contribution period ended");
 
-			<T as Trait>::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
+			T::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
 
 			let id = Self::id_from_index(index);
 			let balance = who.using_encoded(|b| child::get_or_default::<BalanceOf<T>>(id.as_ref(), b));
@@ -265,7 +259,7 @@ decl_module! {
 				.ok_or("not a contributor")?;
 
 			// Avoid using transfer to ensure we don't pay any fees.
-			<T as Trait>::Currency::resolve_into_existing(&who, <T as Trait>::Currency::withdraw(
+			T::Currency::resolve_into_existing(&who, T::Currency::withdraw(
 				&Self::fund_account_id(index),
 				balance,
 				WithdrawReason::Transfer,
@@ -285,7 +279,7 @@ decl_module! {
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
 			let parachain_id = fund.parachain.take().ok_or("fund has no parachain")?;
 			let account = Self::fund_account_id(index);
-			ensure!(<T as Trait>::Currency::free_balance(&account) >= fund.raised, "funds not yet returned");
+			ensure!(T::Currency::free_balance(&account) >= fund.raised, "funds not yet returned");
 
 			// This fund just ended. Withdrawal period begins.
 			let now = <system::Module<T>>::block_number();
@@ -308,14 +302,14 @@ decl_module! {
 			let account = Self::fund_account_id(index);
 
 			// Avoid using transfer to ensure we don't pay any fees.
-			<T as Trait>::Currency::resolve_into_existing(&fund.owner, <T as Trait>::Currency::withdraw(
+			T::Currency::resolve_into_existing(&fund.owner, T::Currency::withdraw(
 				&account,
 				fund.deposit,
 				WithdrawReason::Transfer,
 				ExistenceRequirement::AllowDeath
 			)?);
 
-			T::OrphanedFunds::on_unbalanced(<T as Trait>::Currency::withdraw(
+			T::OrphanedFunds::on_unbalanced(T::Currency::withdraw(
 				&account,
 				fund.raised,
 				WithdrawReason::Transfer,
@@ -327,31 +321,7 @@ decl_module! {
 			<Funds<T>>::remove(index);
 		}
 		
-		/// Set the deploy information for a successful bid to deploy a new parachain.
-		///
-		/// - `origin` must be the successful bidder account.
-		/// - `sub` is the sub-bidder ID of the bidder.
-		/// - `para_id` is the parachain ID allotted to the winning bidder.
-		/// - `code_hash` is the hash of the parachain's Wasm validation function.
-		/// - `initial_head_data` is the parachain's initial head data.
-		fn fix_deploy_data(origin,
-			#[compact] sub: SubId,
-			#[compact] para_id: ParaIdOf<T>,
-			code_hash: T::Hash,
-			initial_head_data: Vec<u8>
-		) {
-			let who = ensure_signed(origin)?;
-			let (starts, details) = <Onboarding<T>>::get(&para_id)
-				.ok_or("parachain id not in onboarding")?;
-			if let IncomingParachain::Unset(ref nb) = details {
-				ensure!(nb.who() == who && nb.sub() == sub, "parachain not registered by origin");
-			} else {
-				return Err("already registered")
-			}
-			let item = (starts, IncomingParachain::Fixed{code_hash, initial_head_data});
-			<Onboarding<T>>::insert(&para_id, item);
-		}
-		/*
+		
 		/// Set the deploy data of the funded parachain if not already set. Once set, this cannot
 		/// be changed again.
 		///
@@ -374,50 +344,51 @@ decl_module! {
 
 			<Funds<T>>::insert(index, &fund);
 		}
-
+		
 		/// Complete onboarding process for a winning parachain fund. This can be called once by
 		/// any origin once a fund wins a slot and the fund has set its deploy data (using
 		/// `fix_deploy_data`).
 		///
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `para_id` is the parachain index that this fund won.
-		fn onboard(_,
+		fn onboard(
+			origin,
 			#[compact] index: FundIndex,
 			#[compact] para_id: ParaIdOf<T>
 		) {
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
-			let (code_hash, initial_head_data) = fund.deploy_data.ok_or("deploy data not fixed")?;
+			let (code_hash, initial_head_data) = fund.clone().deploy_data.ok_or("deploy data not fixed")?;
 			ensure!(fund.parachain.is_none(), "fund already onboarded");
 			fund.parachain = Some(para_id);
 
 			let fund_origin = system::RawOrigin::Signed(Self::fund_account_id(index)).into();
-			slots::fix_deploy_data(fund_origin, index, para_id, code_hash, initial_head_data)?;
+			<slots::Module<T>>::fix_deploy_data(fund_origin, index, para_id, code_hash, initial_head_data)?;
 
 			<Funds<T>>::insert(index, &fund);
 		}
-
+		
 		fn on_finalize(n: T::BlockNumber) {
-			if <slots::Module<T>>::is_ending() {
-				for fund in NewRaise::take().into_iter().filter_map(Self::funds) {
-					if fund.last_contribution == n {
+			if <slots::Module<T>>::is_ending(n).is_some() {
+				for (fund, index) in NewRaise::take().into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i)))
+				{
+					if fund.last_contribution == Some(n) {
 						let bidder = slots::Bidder::New(slots::NewBidder {
-							who: Self::fund_account_id(fund.index),
+							who: Self::fund_account_id(index),
 							/// FundIndex and slots::SubId happen to be the same type (u32). If this
-							/// ever changes, then some sort of coversion will be needed here.
+							/// ever changes, then some sort of conversion will be needed here.
 							sub: 0,
 						});
 						<slots::Module<T>>::handle_bid(
 							bidder,
-							auction_index: <slots::Module<T>>::auction_counter(),
-							first_slot: fund.first_slot,
-							last_slot: fund.last_slot,
-							amount: fund.raised,
-						)
+							<slots::Module<T>>::auction_counter(),
+							fund.first_slot,
+							fund.last_slot,
+							fund.raised,
+						);
 					}
 				}
 			}
 		}
-		*/
 	}
 }
 

@@ -62,22 +62,10 @@ pub type AuctionIndex = u32;
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct NewBidder<AccountId> {
 	/// The bidder's account ID; this is the account that funds the bid.
-	who: AccountId,
+	pub who: AccountId,
 	/// An additional ID to allow the same account ID (and funding source) to have multiple
 	/// logical bidders.
-	sub: SubId,
-}
-
-impl<AccountId: Clone> NewBidder<AccountId> {
-	/// Get the bidder's account ID; this is the account that funds the bid.
-	pub fn who(&self) -> AccountId {
-		self.who.clone()
-	}
-	
-	/// Get the additional ID allowing the same account ID to have multiple bidders.
-	pub fn sub(&self) -> SubId {
-		self.sub
-	}
+	pub sub: SubId,
 }
 
 /// The desired target of a bidder in an auction.
