@@ -68,6 +68,18 @@ pub struct NewBidder<AccountId> {
 	sub: SubId,
 }
 
+impl<AccountId: Clone> NewBidder<AccountId> {
+	/// Get the bidder's account ID; this is the account that funds the bid.
+	pub fn who(&self) -> AccountId {
+		self.who.clone()
+	}
+	
+	/// Get the additional ID allowing the same account ID to have multiple bidders.
+	pub fn sub(&self) -> SubId {
+		self.sub
+	}
+}
+
 /// The desired target of a bidder in an auction.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]

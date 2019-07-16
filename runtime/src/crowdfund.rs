@@ -70,14 +70,16 @@ use sr_primitives::{ModuleId, weights::TransactionWeight,
 	traits::{AccountIdConversion, Hash, Saturating}
 };
 use primitives::parachain::Id as ParaId;
-use crate::slots;
+use crate::slots::{self, IncomingParachain, SubId, Onboarding};
 use parity_codec::{Encode, Decode};
 use rstd::vec::Vec;
+use crate::parachains::ParachainRegistrar;
 
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 type NegativeImbalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
+type ParaIdOf<T> = <<T as slots::Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
 
 pub trait Trait: slots::Trait {
 	type Currency:
@@ -324,7 +326,7 @@ decl_module! {
 			child::kill_storage(id.as_ref());
 			<Funds<T>>::remove(index);
 		}
-		/*
+		
 		/// Set the deploy information for a successful bid to deploy a new parachain.
 		///
 		/// - `origin` must be the successful bidder account.
@@ -342,14 +344,14 @@ decl_module! {
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
 				.ok_or("parachain id not in onboarding")?;
 			if let IncomingParachain::Unset(ref nb) = details {
-				ensure!(nb.who == who && nb.sub == sub, "parachain not registered by origin");
+				ensure!(nb.who() == who && nb.sub() == sub, "parachain not registered by origin");
 			} else {
 				return Err("already registered")
 			}
 			let item = (starts, IncomingParachain::Fixed{code_hash, initial_head_data});
 			<Onboarding<T>>::insert(&para_id, item);
 		}
-
+		/*
 		/// Set the deploy data of the funded parachain if not already set. Once set, this cannot
 		/// be changed again.
 		///
