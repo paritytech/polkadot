@@ -44,7 +44,7 @@ use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
 
-use system::ensure_none;
+use system::{ensure_none, ensure_root};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -329,12 +329,14 @@ decl_module! {
 
 		/// Register a parachain with given code.
 		/// Fails if given ID is already used.
-		pub fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
+		pub fn register_parachain(origin, id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
+			ensure_root(origin)?;
 			<Self as ParachainRegistrar<T::AccountId>>::register_parachain(id, code, initial_head_data)
 		}
 
 		/// Deregister a parachain with given id
-		pub fn deregister_parachain(id: ParaId) -> Result {
+		pub fn deregister_parachain(origin, id: ParaId) -> Result {
+			ensure_root(origin)?;
 			<Self as ParachainRegistrar<T::AccountId>>::deregister_parachain(id)
 		}
 
@@ -1341,12 +1343,12 @@ mod tests {
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
 
-			assert_ok!(Parachains::register_parachain(99u32.into(), vec![7,8,9], vec![1, 1, 1]));
+			assert_ok!(Parachains::register_parachain(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1]));
 
 			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
-			assert_ok!(Parachains::deregister_parachain(5u32.into()));
+			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 5u32.into()));
 
 			assert_eq!(Parachains::active_parachains(), vec![99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
@@ -1582,7 +1584,7 @@ mod tests {
 				))).collect::<Vec<_>>()),
 			);
 
-			assert_ok!(Parachains::deregister_parachain(1u32.into()));
+			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 1u32.into()));
 
 			// after deregistering, there is no ingress to 1, but unrouted messages
 			// from 1 stick around.
