@@ -58,7 +58,6 @@ pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
 pub use parachains::{Call as ParachainsCall, INHERENT_IDENTIFIER as PARACHAIN_INHERENT_IDENTIFIER};
 pub use sr_primitives::{Permill, Perbill};
-pub use timestamp::BlockPeriod;
 pub use srml_support::StorageValue;
 
 // Make the WASM binary available.
@@ -89,10 +88,14 @@ const BUCKS: Balance = DOTS / 100;
 const CENTS: Balance = BUCKS / 100;
 const MILLICENTS: Balance = CENTS / 1_000;
 
-const SECS_PER_BLOCK: BlockNumber = 10;
+const SECS_PER_BLOCK: BlockNumber = 6;
 const MINUTES: BlockNumber = 60 / SECS_PER_BLOCK;
 const HOURS: BlockNumber = MINUTES * 60;
 const DAYS: BlockNumber = HOURS * 24;
+
+parameter_types! {
+	pub const BlockHashCount: BlockNumber = 250;
+}
 
 impl system::Trait for Runtime {
 	type Origin = Origin;
@@ -104,6 +107,7 @@ impl system::Trait for Runtime {
 	type Lookup = Indices;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
+	type BlockHashCount = BlockHashCount;
 }
 
 impl aura::Trait for Runtime {
@@ -160,9 +164,14 @@ impl balances::Trait for Runtime {
 	type TransactionByteFee = TransactionByteFee;
 }
 
+parameter_types! {
+	pub const MinimumPeriod: u64 = SECS_PER_BLOCK / 2;
+}
+
 impl timestamp::Trait for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Aura;
+	type MinimumPeriod = MinimumPeriod;
 }
 
 parameter_types! {
@@ -285,13 +294,14 @@ parameter_types! {
 	pub const PresentSlashPerVoter: Balance = 1 * CENTS;
 	pub const CarryCount: u32 = 6;
 	// one additional vote should go by before an inactive voter can be reaped.
-	pub const InactiveGracePeriod: council::VoteIndex = 1;
+	pub const InactiveGracePeriod: VoteIndex = 1;
 	pub const ElectionsVotingPeriod: BlockNumber = 2 * DAYS;
 	pub const DecayRatio: u32 = 0;
 }
 
 impl elections::Trait for Runtime {
 	type Event = Event;
+	type Currency = Balances;
 	type BadPresentation = ();
 	type BadReaper = ();
 	type BadVoterIndex = ();
@@ -383,15 +393,13 @@ construct_runtime!(
 	{
 		System: system::{Module, Call, Storage, Config, Event},
 		Aura: aura::{Module, Config<T>, Inherent(Timestamp)},
-		Timestamp: timestamp::{Module, Call, Storage, Config<T>, Inherent},
+		Timestamp: timestamp::{Module, Call, Storage, Inherent},
 		Authorship: authorship::{Module, Call, Storage},
 		Indices: indices,
 		Balances: balances,
 		Staking: staking::{default, OfflineWorker},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
-		Council: collective<Instance1>::{Module, Call, Storage, Event<T>},
-		TechnicalCommittee: collective<Instance2>::{Module, Call, Storage, Event<T>},
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		Elections: elections::{Module, Call, Storage, Event<T>, Config<T>},

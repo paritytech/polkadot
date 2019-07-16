@@ -20,9 +20,8 @@ use primitives::{ed25519, sr25519, Pair, crypto::UncheckedInto};
 use polkadot_primitives::{AccountId, SessionKey};
 use polkadot_runtime::{
 	GenesisConfig, CouncilConfig, ElectionConfig, DemocracyConfig, SystemConfig, AuraConfig,
-	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill, SessionKeys,
+	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
 	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY,
-	TechnicalCommitteeConfig,
 };
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
@@ -123,9 +122,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			presentation_duration: 1 * DAYS,
 			term_duration: 28 * DAYS,
 			desired_seats: 0,
-		}),
-		timestamp: Some(TimestampConfig {
-			minimum_period: SECS_PER_BLOCK / 2, // due to the nature of aura the slots are 2*period
 		}),
 		sudo: Some(SudoConfig {
 			key: endowed_accounts[0].clone(),
@@ -259,9 +255,6 @@ pub fn testnet_genesis(
 			desired_seats: desired_seats,
 		}),
 		parachains: Some(Default::default()),
-		timestamp: Some(TimestampConfig {
-			minimum_period: 2,                    // 2*2=4 second block time.
-		}),
 		sudo: Some(SudoConfig {
 			key: root_key,
 		}),
