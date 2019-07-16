@@ -340,7 +340,7 @@ decl_module! {
 		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
 		pub fn fix_deploy_data(
-      origin,
+			origin,
 			#[compact] sub: SubId,
 			#[compact] para_id: ParaIdOf<T>,
 			code_hash: T::Hash,
