@@ -844,6 +844,9 @@ mod tests {
 
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
+	parameter_types! {
+	pub const BlockHashCount: u64 = 250;
+	}
 	impl system::Trait for Test {
 		type Origin = Origin;
 		type Index = crate::Nonce;
@@ -854,6 +857,7 @@ mod tests {
 		type Lookup = IdentityLookup<crate::AccountId>;
 		type Header = crate::Header;
 		type Event = ();
+		type BlockHashCount = BlockHashCount;
 	}
 
 	parameter_types! {
@@ -877,9 +881,13 @@ mod tests {
 		type FullIdentificationOf = staking::ExposureOf<Self>;
 	}
 
+	parameter_types! {
+		pub const MinimumPeriod: u64 = 3;
+	}
 	impl timestamp::Trait for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
+		type MinimumPeriod = MinimumPeriod;
 	}
 
 	impl aura::Trait for Test {

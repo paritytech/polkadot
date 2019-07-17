@@ -94,7 +94,7 @@ const HOURS: BlockNumber = MINUTES * 60;
 const DAYS: BlockNumber = HOURS * 24;
 
 parameter_types! {
-	pub const BlockHashCount: BlockNumber = 250;
+	pub const BlockHashCount: u64 = 250;
 }
 
 impl system::Trait for Runtime {

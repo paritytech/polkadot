@@ -2407,6 +2407,7 @@ name = "polkadot-collator"
 version = "0.1.0"
 dependencies = [
  "futures 0.1.28 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-preview 0.3.0-alpha.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 4.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-cli 0.5.0",
