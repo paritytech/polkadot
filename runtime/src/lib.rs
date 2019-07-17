@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Polkadot runtime. This can be compiled with ``#[no_std]`, ready for Wasm.
+//! The Polkadot runtime. This can be compiled with `#[no_std]`, ready for Wasm.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
@@ -184,6 +184,8 @@ parameter_types! {
 	pub const MinimumDeposit: Balance = 100 * BUCKS;
 	pub const EnactmentPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
 	pub const CooloffPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
+
+	pub const AttestationPeriod: BlockNumber = 60 * MINUTES * 3;
 }
 
 impl democracy::Trait for Runtime {
@@ -235,6 +237,7 @@ impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
+	type AttestationPeriod = AttestationPeriod;
 }
 
 parameter_types!{
@@ -360,7 +363,7 @@ impl_runtime_apis! {
 			Aura::authorities()  // only possible as long as parachain validator crypto === aura crypto
 		}
 		fn duty_roster() -> parachain::DutyRoster {
-			Parachains::calculate_duty_roster()
+			Parachains::calculate_duty_roster().0
 		}
 		fn active_parachains() -> Vec<parachain::Id> {
 			Parachains::active_parachains()
