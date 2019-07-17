@@ -818,11 +818,12 @@ mod tests {
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
-		traits::{BlakeTwo256, IdentityLookup}, testing::UintAuthorityId,
+		traits::{BlakeTwo256, IdentityLookup},
+		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
 		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey,
-		BlockNumber, AuraId
+		BlockNumber, AuraId,
 	};
 	use keyring::{AuthorityKeyring, AccountKeyring};
 	use srml_support::{
@@ -849,13 +850,13 @@ mod tests {
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
-		type Index = crate::Nonce;
+		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
-		type AccountId = crate::AccountId;
-		type Lookup = IdentityLookup<crate::AccountId>;
-		type Header = crate::Header;
+		type AccountId = u64;
+		type Lookup = IdentityLookup<Self::AccountId>;
+		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 	}
@@ -872,12 +873,12 @@ mod tests {
 		type SessionHandler = ();
 		type Event = ();
 		type SelectInitialValidators = staking::Module<Self>;
-		type ValidatorId = crate::AccountId;
+		type ValidatorId = u64;
 		type ValidatorIdOf = staking::StashOf<Self>;
 	}
 
 	impl session::historical::Trait for Test {
-		type FullIdentification = staking::Exposure<crate::AccountId, Balance>;
+		type FullIdentification = staking::Exposure<u64, Balance>;
 		type FullIdentificationOf = staking::ExposureOf<Self>;
 	}
 
@@ -968,7 +969,7 @@ mod tests {
 		];
 
 		t.extend(session::GenesisConfig::<Test>{
-			keys: vec![],
+			keys: vec![(1, UintAuthorityId(1))],
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			parachains,
