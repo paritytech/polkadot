@@ -855,7 +855,7 @@ mod tests {
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
-		type Lookup = IdentityLookup<Self::AccountId>;
+		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
