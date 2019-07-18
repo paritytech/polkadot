@@ -52,7 +52,6 @@ impl cli::Worker for Worker {
 }
 
 fn main() -> Result<(), cli::error::Error> {
-
 	let version = VersionInfo {
 		name: "Parity Polkadot",
 		commit: env!("VERGEN_SHA_SHORT"),
