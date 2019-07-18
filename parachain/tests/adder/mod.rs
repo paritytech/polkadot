@@ -18,10 +18,8 @@
 
 use polkadot_parachain as parachain;
 
-use crate::parachain::{
-	MessageRef, UpwardMessageRef, IncomingMessage, ValidationParams,
-	wasm_executor::{Externalities, ExternalitiesError, run_worker},
-};
+use crate::parachain::{IncomingMessage, ValidationParams};
+use crate::DummyExt;
 use codec::{Decode, Encode};
 
 /// Head data for this parachain.
@@ -50,19 +48,7 @@ struct AddMessage {
 	amount: u64,
 }
 
-struct DummyExt;
-impl Externalities for DummyExt {
-	fn post_message(&mut self, _message: MessageRef) -> Result<(), ExternalitiesError> {
-		Ok(())
-	}
-	fn post_upward_message(&mut self, _message: UpwardMessageRef) -> Result<(), ExternalitiesError> {
-		Ok(())
-	}
-}
-
 const TEST_CODE: &[u8] = adder::WASM_BINARY;
-// Code that exposes `validate_block` and loops infinitely
-const INFINITE_LOOP_CODE: &[u8] = halt::WASM_BINARY;
 
 fn hash_state(state: u64) -> [u8; 32] {
 	tiny_keccak::keccak256(state.encode().as_slice())
@@ -73,7 +59,7 @@ fn hash_head(head: &HeadData) -> [u8; 32] {
 }
 
 #[test]
-fn execute_good_on_parent() {
+pub fn execute_good_on_parent() {
 	let parent_head = HeadData {
 		number: 0,
 		parent_hash: [0; 32],
@@ -205,54 +191,4 @@ fn processes_messages() {
 	assert_eq!(new_head.number, 1);
 	assert_eq!(new_head.parent_hash, hash_head(&parent_head));
 	assert_eq!(new_head.post_state, hash_state(1024));
-}
-
-#[test]
-fn terminates_on_timeout() {
-	let result = parachain::wasm_executor::validate_candidate(
-		INFINITE_LOOP_CODE,
-		ValidationParams {
-			parent_head: Default::default(),
-			block_data: Vec::new(),
-			ingress: Vec::new(),
-		},
-		&mut DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
-	);
-	match result {
-		Err(parachain::wasm_executor::Error::Timeout) => {},
-		_ => panic!(),
-	}
-
-	let parent_head = HeadData {
-		number: 0,
-		parent_hash: [0; 32],
-		post_state: hash_state(0),
-	};
-
-	let block_data = BlockData {
-		state: 0,
-		add: 512,
-	};
-
-	let _ret = parachain::wasm_executor::validate_candidate(
-		TEST_CODE,
-		ValidationParams {
-			parent_head: parent_head.encode(),
-			block_data: block_data.encode(),
-			ingress: Vec::new(),
-		},
-		&mut DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
-	).unwrap();
-}
-
-// This is not an actual test, but rather an entry point for out-of process WASM executor.
-// When executing tests the executor spawns currently executing binary, which happens to be test binary.
-// It then passes "validation_worker" on CLI effectivly making rust test executor to run this single test.
-#[test]
-fn validation_worker() {
-	if let Some(id) = std::env::args().find(|a| a.starts_with("/shmem_rs_")) {
-		run_worker(&id).unwrap()
-	}
 }
