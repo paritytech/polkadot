@@ -39,5 +39,7 @@ fn terminates_on_timeout() {
 		Err(parachain::wasm_executor::Error::Timeout) => {},
 		_ => panic!(),
 	}
+
+	// check that another parachain can validate normaly
 	adder::execute_good_on_parent();
 }
