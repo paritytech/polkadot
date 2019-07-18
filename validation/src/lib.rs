@@ -75,7 +75,7 @@ pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
 };
-pub use parachain::wasm_executor::{run_worker as run_validation_worker, WORKER_ARG as VALIDATION_WORKER_ARG};
+pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
 mod attestation_service;
 mod dynamic_inclusion;

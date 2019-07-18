@@ -41,7 +41,7 @@ const MAX_MESSAGE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 
 const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 /// CLI Argument to start in validation worker mode.
-pub const WORKER_ARG: &'static str = "validation-worker";
+const WORKER_ARG: &'static str = "validation-worker";
 const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
 
 const EVENT_CANDIDATE_READY: usize = 0;
@@ -286,9 +286,9 @@ impl<'a, E: 'a + Externalities> Externals for ValidationExternals<'a, E> {
 
 /// Params header in shared memory. All offsets should be aligned to WASM page size.
 #[derive(Encode, Decode, Debug)]
-pub struct ValidationHeader {
-	pub code_size: u64,
-	pub params_size: u64,
+struct ValidationHeader {
+	code_size: u64,
+	params_size: u64,
 }
 
 #[derive(Encode, Decode, Debug)]
@@ -304,10 +304,10 @@ pub enum ValidationResultHeader {
 
 #[derive(Default)]
 struct WorkerExternalities {
-	pub	egress_data: Vec<u8>,
-	pub egress_message_count: usize,
-	pub	up_data: Vec<u8>,
-	pub up_message_count: usize,
+	egress_data: Vec<u8>,
+	egress_message_count: usize,
+	up_data: Vec<u8>,
+	up_message_count: usize,
 }
 
 impl Externalities for WorkerExternalities {
