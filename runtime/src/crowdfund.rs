@@ -400,8 +400,7 @@ impl<T: Trait> Module<T> {
 	/// This actually does computation. If you need to keep using it, then make sure you cache the
 	/// value and only call this once.
 	pub fn fund_account_id(index: FundIndex) -> T::AccountId {
-		// TODO: use `into_sub_account(index)` when `polkadot-master` is updated
-		MODULE_ID.into_account()
+		MODULE_ID.into_sub_account(index)
 	}
 
 	pub fn id_from_index(index: FundIndex) -> T::Hash {
