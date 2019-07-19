@@ -31,6 +31,7 @@ use client::blockchain::HeaderBackend;
 use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use futures::prelude::*;
+use futures03::{TryStreamExt as _, StreamExt as _};
 use log::error;
 use primitives::ed25519;
 use polkadot_primitives::{Block, BlockId, AuraId};
@@ -73,6 +74,7 @@ fn prune_unneeded_availability<P>(client: Arc<P>, extrinsic_store: ExtrinsicStor
 	where P: Send + Sync + BlockchainEvents<Block> + BlockBody<Block> + 'static
 {
 	client.finality_notification_stream()
+		.map(|v| Ok::<_, ()>(v)).compat()
 		.for_each(move |notification| {
 			let hash = notification.hash;
 			let parent_hash = notification.header.parent_hash;
@@ -135,6 +137,7 @@ pub(crate) fn start<C, N, P, SC>(
 			let key = key.clone();
 
 			client.import_notification_stream()
+				.map(|v| Ok::<_, ()>(v)).compat()
 				.for_each(move |notification| {
 					let parent_hash = notification.hash;
 					if notification.is_new_best {

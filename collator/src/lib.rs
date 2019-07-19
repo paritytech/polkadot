@@ -50,6 +50,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::{future, Stream, Future, IntoFuture};
+use futures03::{TryStreamExt as _, StreamExt as _};
 use log::{info, warn};
 use client::BlockchainEvents;
 use primitives::{ed25519, Pair};
@@ -334,6 +335,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 		let parachain_context = build_parachain_context.build(validation_network.clone()).unwrap();
 		let inner_exit = exit.clone();
 		let work = client.import_notification_stream()
+			.map(|v| Ok::<_, ()>(v)).compat()
 			.for_each(move |notification| {
 				macro_rules! try_fr {
 					($e:expr) => {
