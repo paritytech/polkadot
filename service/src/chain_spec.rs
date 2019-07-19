@@ -19,8 +19,8 @@
 use primitives::{ed25519, sr25519, Pair, crypto::UncheckedInto};
 use polkadot_primitives::{AccountId, SessionKey};
 use polkadot_runtime::{
-	GenesisConfig, CouncilSeatsConfig, DemocracyConfig, SystemConfig, AuraConfig,
-	SessionConfig, StakingConfig, TimestampConfig, BalancesConfig, Perbill, SessionKeys,
+	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, AuraConfig,
+	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
 	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY,
 };
 use telemetry::TelemetryEndpoints;
@@ -109,14 +109,19 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 		}),
 		democracy: Some(Default::default()),
-		council_seats: Some(CouncilSeatsConfig {
-			active_council: vec![],
+		collective_Instance1: Some(CouncilConfig {
+			members: vec![],
+			phantom: Default::default(),
+		}),
+		collective_Instance2: Some(TechnicalCommitteeConfig {
+			members: vec![],
+			phantom: Default::default(),
+		}),
+		elections: Some(ElectionsConfig {
+			members: vec![],
 			presentation_duration: 1 * DAYS,
 			term_duration: 28 * DAYS,
 			desired_seats: 0,
-		}),
-		timestamp: Some(TimestampConfig {
-			minimum_period: SECS_PER_BLOCK / 2, // due to the nature of aura the slots are 2*period
 		}),
 		sudo: Some(SudoConfig {
 			key: endowed_accounts[0].clone(),
@@ -197,7 +202,7 @@ pub fn testnet_genesis(
 
 	const STASH: u128 = 1 << 20;
 	const ENDOWMENT: u128 = 1 << 20;
-	let council_desired_seats = (endowed_accounts.len() / 2 - initial_authorities.len()) as u32;
+	let desired_seats = (endowed_accounts.len() / 2 - initial_authorities.len()) as u32;
 
 	GenesisConfig {
 		system: Some(SystemConfig {
@@ -231,20 +236,25 @@ pub fn testnet_genesis(
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 		}),
 		democracy: Some(DemocracyConfig::default()),
-		council_seats: Some(CouncilSeatsConfig {
-			active_council: endowed_accounts.iter()
+		collective_Instance1: Some(CouncilConfig {
+			members: vec![],
+			phantom: Default::default(),
+		}),
+		collective_Instance2: Some(TechnicalCommitteeConfig {
+			members: vec![],
+			phantom: Default::default(),
+		}),
+		elections: Some(ElectionsConfig {
+			members: endowed_accounts.iter()
 				.filter(|&endowed| initial_authorities.iter()
 					.find(|&(_, controller, _)| controller == endowed)
 					.is_none()
 				).map(|a| (a.clone(), 1000000)).collect(),
 			presentation_duration: 10,
 			term_duration: 1000000,
-			desired_seats: council_desired_seats,
+			desired_seats: desired_seats,
 		}),
 		parachains: Some(Default::default()),
-		timestamp: Some(TimestampConfig {
-			minimum_period: 2,                    // 2*2=4 second block time.
-		}),
 		sudo: Some(SudoConfig {
 			key: root_key,
 		}),

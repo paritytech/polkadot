@@ -26,7 +26,8 @@ offchain_primitives = { package = "substrate-offchain-primitives", git = "https:
 aura = { package = "srml-aura", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 authorship = { package = "srml-authorship", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-council = { package = "srml-council", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+collective = { package = "srml-collective", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+elections = { package = "srml-elections", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 democracy = { package = "srml-democracy", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 executive = { package = "srml-executive", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 finality-tracker = { package = "srml-finality-tracker", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -70,7 +71,8 @@ std = [
 	"aura/std",
 	"authorship/std",
 	"balances/std",
-	"council/std",
+	"collective/std",
+	"elections/std",
 	"democracy/std",
 	"executive/std",
 	"finality-tracker/std",

@@ -57,7 +57,7 @@ pub struct CustomConfiguration {
 	// FIXME: rather than putting this on the config, let's have an actual intermediate setup state
 	// https://github.com/paritytech/substrate/issues/1134
 	pub grandpa_import_setup: Option<(
-		Arc<grandpa::BlockImportForService<Factory>>,
+		grandpa::BlockImportForService<Factory>,
 		grandpa::LinkHalfForService<Factory>
 	)>,
 
@@ -320,15 +320,13 @@ service::construct_service_factory! {
 					grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>, _>(
 						client.clone(), client.clone(), select_chain
 					)?;
-				let block_import = Arc::new(block_import);
 				let justification_import = block_import.clone();
 
 				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
 				import_queue::<_, _, ed25519::Pair>(
 					slot_duration,
-					block_import,
-					Some(justification_import),
-					None,
+					Box::new(block_import),
+					Some(Box::new(justification_import)),
 					None,
 					client,
 					config.custom.inherent_data_providers.clone(),
@@ -346,19 +344,17 @@ service::construct_service_factory! {
 				let block_import = grandpa::light_block_import::<_, _, _, RuntimeApi, LightClient<Self>>(
 					client.clone(), Arc::new(fetch_checker), client.clone()
 				)?;
-				let block_import = Arc::new(block_import);
 				let finality_proof_import = block_import.clone();
 				let finality_proof_request_builder = finality_proof_import.create_finality_proof_request_builder();
 
 				import_queue::<_, _, ed25519::Pair>(
 					SlotDuration::get_or_compute(&*client)?,
-					block_import,
+					Box::new(block_import),
 					None,
-					Some(finality_proof_import),
-					Some(finality_proof_request_builder),
+					Some(Box::new(finality_proof_import)),
 					client,
 					config.custom.inherent_data_providers.clone(),
-				).map_err(Into::into)
+				).map_err(Into::into).map(|q| (q, finality_proof_request_builder))
 			}},
 		SelectChain = LongestChain<FullBackend<Self>, Self::Block>
 			{ |config: &FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
