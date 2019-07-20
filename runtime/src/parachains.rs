@@ -729,24 +729,12 @@ impl<T: Trait> Module<T> {
 			let mut encoded_implicit = None;
 			let mut encoded_explicit = None;
 
-			// track which voters have voted already, 1 bit per authority.
-			let mut track_voters = bitvec![0; authorities.len()];
 			for ((auth_index, _), validity_attestation) in candidate.validator_indices
 				.iter()
 				.enumerate()
 				.filter(|(_, bit)| *bit)
 				.zip(candidate.validity_votes.iter())
 			{
-				// protect against double-votes.
-				match validator_group.iter().find(|&(idx, _)| *idx == auth_index) {
-					None => return Err("Attesting validator not on this chain's validation duty."),
-					Some(&(idx, _)) => {
-						if track_voters.get(idx).unwrap_or_default() {
-							return Err("Voter already attested validity once")
-						}
-						track_voters.set(idx, true)
-					}
-				}
 
 				let (payload, sig) = match validity_attestation {
 					ValidityAttestation::Implicit(sig) => {
