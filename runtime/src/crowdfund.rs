@@ -150,8 +150,19 @@ decl_storage! {
 }
 
 decl_event!(
-	pub enum Event<T> where <T as system::Trait>::AccountId {
-		TODO(AccountId),
+	pub enum Event<T>
+		where
+	<T as system::Trait>::AccountId,
+	Balance = BalanceOf<T>,
+	ParaId = ParaIdOf<T>,
+	{
+		Created(FundIndex),
+		Contributed(AccountId, FundIndex, Balance),
+		Withdrew(AccountId, FundIndex, Balance),
+		Retiring(FundIndex),
+		Dissolved(FundIndex),
+		DeployDataFixed(FundIndex),
+		Onboarded(FundIndex, ParaId),
 	}
 );
 
@@ -198,6 +209,9 @@ decl_module! {
 				last_slot: last_slot,
 				deploy_data: None,
 			});
+
+			Self::deposit_event(RawEvent::Created(index));
+
 		}
 		
 
@@ -243,6 +257,8 @@ decl_module! {
 			}
 
 			<Funds<T>>::insert(index, &fund);
+
+			Self::deposit_event(RawEvent::Contributed(who, index, value));
 		}
 
 		
@@ -271,6 +287,8 @@ decl_module! {
 			fund.raised = fund.raised.saturating_sub(balance);
 
 			<Funds<T>>::insert(index, &fund);
+
+			Self::deposit_event(RawEvent::Withdrew(who, index, balance));
 		}
 		
 		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
@@ -286,6 +304,9 @@ decl_module! {
 			fund.end = now;
 
 			<Funds<T>>::insert(index, &fund);
+
+			Self::deposit_event(RawEvent::Retiring(index));
+
 		}
 		
 		/// Remove a fund after either: it was unsuccessful and it timed out; or it was successful
@@ -319,6 +340,9 @@ decl_module! {
 			let id = Self::id_from_index(index);
 			child::kill_storage(id.as_ref());
 			<Funds<T>>::remove(index);
+
+			Self::deposit_event(RawEvent::Dissolved(index));
+
 		}
 		
 		
@@ -344,6 +368,9 @@ decl_module! {
 			fund.deploy_data = Some((code_hash, initial_head_data));
 
 			<Funds<T>>::insert(index, &fund);
+
+			Self::deposit_event(RawEvent::DeployDataFixed(index));
+
 		}
 		
 		/// Complete onboarding process for a winning parachain fund. This can be called once by
@@ -366,6 +393,8 @@ decl_module! {
 			<slots::Module<T>>::fix_deploy_data(fund_origin, index, para_id, code_hash, initial_head_data)?;
 
 			<Funds<T>>::insert(index, &fund);
+
+			Self::deposit_event(RawEvent::Onboarded(index, para_id));
 		}
 		
 		fn on_finalize(n: T::BlockNumber) {
