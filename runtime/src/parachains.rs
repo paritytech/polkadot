@@ -44,7 +44,7 @@ use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
 
-use system::ensure_none;
+use system::{ensure_none, ensure_root};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -329,12 +329,14 @@ decl_module! {
 
 		/// Register a parachain with given code.
 		/// Fails if given ID is already used.
-		pub fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
+		pub fn register_parachain(origin, id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
+			ensure_root(origin)?;
 			<Self as ParachainRegistrar<T::AccountId>>::register_parachain(id, code, initial_head_data)
 		}
 
 		/// Deregister a parachain with given id
-		pub fn deregister_parachain(id: ParaId) -> Result {
+		pub fn deregister_parachain(origin, id: ParaId) -> Result {
+			ensure_root(origin)?;
 			<Self as ParachainRegistrar<T::AccountId>>::deregister_parachain(id)
 		}
 
@@ -821,11 +823,12 @@ mod tests {
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
-		traits::{BlakeTwo256, IdentityLookup}, testing::UintAuthorityId,
+		traits::{BlakeTwo256, IdentityLookup},
+		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
 		parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey,
-		BlockNumber, AuraId
+		BlockNumber, AuraId,
 	};
 	use keyring::{AuthorityKeyring, AccountKeyring};
 	use srml_support::{
@@ -847,16 +850,20 @@ mod tests {
 
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
+	parameter_types! {
+		pub const BlockHashCount: u64 = 250;
+	}
 	impl system::Trait for Test {
 		type Origin = Origin;
-		type Index = crate::Nonce;
+		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
-		type AccountId = crate::AccountId;
-		type Lookup = IdentityLookup<crate::AccountId>;
-		type Header = crate::Header;
+		type AccountId = u64;
+		type Lookup = IdentityLookup<u64>;
+		type Header = Header;
 		type Event = ();
+		type BlockHashCount = BlockHashCount;
 	}
 
 	parameter_types! {
@@ -871,18 +878,22 @@ mod tests {
 		type SessionHandler = ();
 		type Event = ();
 		type SelectInitialValidators = staking::Module<Self>;
-		type ValidatorId = crate::AccountId;
+		type ValidatorId = u64;
 		type ValidatorIdOf = staking::StashOf<Self>;
 	}
 
 	impl session::historical::Trait for Test {
-		type FullIdentification = staking::Exposure<crate::AccountId, Balance>;
+		type FullIdentification = staking::Exposure<u64, Balance>;
 		type FullIdentificationOf = staking::ExposureOf<Self>;
 	}
 
+	parameter_types! {
+		pub const MinimumPeriod: u64 = 3;
+	}
 	impl timestamp::Trait for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
+		type MinimumPeriod = MinimumPeriod;
 	}
 
 	impl aura::Trait for Test {
@@ -963,7 +974,7 @@ mod tests {
 		];
 
 		t.extend(session::GenesisConfig::<Test>{
-			keys: vec![],
+			keys: vec![(1, UintAuthorityId(1))],
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			parachains,
@@ -1355,12 +1366,12 @@ mod tests {
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
 
-			assert_ok!(Parachains::register_parachain(99u32.into(), vec![7,8,9], vec![1, 1, 1]));
+			assert_ok!(Parachains::register_parachain(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1]));
 
 			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
-			assert_ok!(Parachains::deregister_parachain(5u32.into()));
+			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 5u32.into()));
 
 			assert_eq!(Parachains::active_parachains(), vec![99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
@@ -1603,7 +1614,7 @@ mod tests {
 				))).collect::<Vec<_>>()),
 			);
 
-			assert_ok!(Parachains::deregister_parachain(1u32.into()));
+			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 1u32.into()));
 
 			// after deregistering, there is no ingress to 1, but unrouted messages
 			// from 1 stick around.
