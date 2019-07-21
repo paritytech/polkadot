@@ -399,7 +399,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// True if an auction is in progress.
-	fn is_in_progress() -> bool {
+	pub fn is_in_progress() -> bool {
 		<AuctionInfo<T>>::exists()
 	}
 

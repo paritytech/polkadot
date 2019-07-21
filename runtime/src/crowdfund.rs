@@ -16,8 +16,8 @@
 
 //! # Parachain Crowdfunding module
 //!
-//! The point of this is to allow parachain projects to offer the ability to help fund a deposit for
-//! the parachain. When the parachain is retired, the funds may be returned.
+//! The point of this module is to allow parachain projects to offer the ability to help fund a
+//! deposit for the parachain. When the parachain is retired, the funds may be returned.
 //!
 //! Contributing funds is permissionless. Each fund has a child-trie which stores all
 //! contributors account IDs together with the amount they contributed; the root of this can then be
@@ -31,9 +31,9 @@
 //! a deposit must be paid of the amount `SubmissionDeposit`. Substantial resources are taken on
 //! the main trie in tracking a fund and this accounts for that.
 //!
-//! Funds may be set up at any time; their closing time is fixed at creation (as a block number) and
-//! if the fund is not successful by the closing time, then it will become *retired*. Contributors
-//! may get a refund of their contributions from retired funds. After a period (`RetirementPeriod`)
+//! Funds may be set up during an auction period; their closing time is fixed at creation (as a
+//! block number) and if the fund is not successful by the closing time, then it will become *retired*.
+//! Contributors may get a refund of their contributions from retired funds. After a period (`RetirementPeriod`)
 //! the fund may be dissolved entirely. At this point any non-refunded contributions are considered
 //! `orphaned` and are disposed of through the `OrphanedFunds` handler (which may e.g. place them
 //! into the treasury).
@@ -170,7 +170,7 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		fn deposit_event<T>() = default;
 		
-		/// Create a new crowdfunding campaign for a parachain slot deposit.
+		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
 		#[weight = TransactionWeight::Basic(100_000, 10)]
 		fn create(
 			origin,
@@ -180,6 +180,8 @@ decl_module! {
 			#[compact] last_slot: T::BlockNumber
 		) {
 			let owner = ensure_signed(origin)?;
+
+			ensure!(<slots::Module<T>>::is_in_progress(), "no auction in progress");
 			let now = <system::Module<T>>::block_number();
 			ensure!(end > now, "crowdfunding period must end in the future");
 			ensure!(last_slot > first_slot, "last slot must be greater than first slot");
@@ -413,7 +415,9 @@ decl_module! {
 							/// ever changes, then some sort of conversion will be needed here.
 							sub: 0,
 						});
-						// TODO for review: Can this fail? Anything we can do to handle possible errors?
+
+						// Care needs to be taken by the crowdfund creator that this function will succeed given
+						// the crowdfunding configuration. We do basic checks ahead of time in crowdfund `create`
 						let _ = <slots::Module<T>>::handle_bid(
 							bidder,
 							<slots::Module<T>>::auction_counter(),
