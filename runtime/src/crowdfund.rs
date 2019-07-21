@@ -174,17 +174,18 @@ decl_module! {
 		#[weight = TransactionWeight::Basic(100_000, 10)]
 		fn create(
 			origin,
-			#[compact] end: T::BlockNumber,
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: T::BlockNumber,
 			#[compact] last_slot: T::BlockNumber
 		) {
 			let owner = ensure_signed(origin)?;
 
-			ensure!(<slots::Module<T>>::is_in_progress(), "no auction in progress");
-			let now = <system::Module<T>>::block_number();
-			ensure!(end > now, "crowdfunding period must end in the future");
 			ensure!(last_slot > first_slot, "last slot must be greater than first slot");
+			// Check an auction is in progress, and extract the `early_end` block
+			let (_, early_end) = <slots::Module<T>>::auction_info().ok_or("no auction in progress")?;
+
+			// End of the crowdfund will be the last possible block for the ongoing auction
+			let end = early_end + T::EndingPeriod::get();
 			let deposit = T::SubmissionDeposit::get();
 
 			let imb = T::Currency::withdraw(
@@ -229,10 +230,10 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 
 			ensure!(value >= T::MinContribution::get(), "contribution too small");
-
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
 			fund.raised  = fund.raised.checked_add(&value).ok_or("overflow when adding new funds")?;
 			ensure!(fund.raised <= fund.cap, "contributions exceed cap");
+			ensure!(<slots::Module<T>>::is_in_progress(), "no auction in progress");
 			let now = <system::Module<T>>::block_number();
 			ensure!(fund.end > now, "contribution period ended");
 
@@ -346,7 +347,6 @@ decl_module! {
 			<Funds<T>>::remove(index);
 
 			Self::deposit_event(RawEvent::Dissolved(index));
-
 		}
 		
 		
@@ -374,7 +374,6 @@ decl_module! {
 			<Funds<T>>::insert(index, &fund);
 
 			Self::deposit_event(RawEvent::DeployDataFixed(index));
-
 		}
 		
 		/// Complete onboarding process for a winning parachain fund. This can be called once by
