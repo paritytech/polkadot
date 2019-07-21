@@ -67,7 +67,7 @@ use srml_support::{
 };
 use system::ensure_signed;
 use sr_primitives::{ModuleId, weights::TransactionWeight,
-	traits::{AccountIdConversion, Hash, Saturating, Zero}
+	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd}
 };
 use crate::slots;
 use parity_codec::{Encode, Decode};
@@ -180,6 +180,9 @@ decl_module! {
 			#[compact] last_slot: T::BlockNumber
 		) {
 			let owner = ensure_signed(origin)?;
+			let now = <system::Module<T>>::block_number();
+			ensure!(end > now, "crowdfunding period must end in the future");
+			ensure!(last_slot > first_slot, "last slot must be greater than first slot");
 			let deposit = T::SubmissionDeposit::get();
 
 			let imb = T::Currency::withdraw(
@@ -189,7 +192,9 @@ decl_module! {
 				ExistenceRequirement::AllowDeath,
 			)?;
 
-			let index = FundCount::mutate(|c| { let r = *c; *c += 1; r });
+			let index = FundCount::get();
+			let next_index = index.checked_add(1).ok_or("overflow when adding fund")?;
+			FundCount::put(next_index);
 
 			// No fees are paid here if we need to create this account; that's why we don't just
 			// use the stock `transfer`.
@@ -211,7 +216,6 @@ decl_module! {
 			});
 
 			Self::deposit_event(RawEvent::Created(index));
-
 		}
 		
 
@@ -219,14 +223,13 @@ decl_module! {
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
 		/// slot is
-		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>)
-		{
+		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>) {
 			let who = ensure_signed(origin)?;
 
 			ensure!(value >= T::MinContribution::get(), "contribution too small");
 
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
-			fund.raised += value;
+			fund.raised  = fund.raised.checked_add(&value).ok_or("overflow when adding new funds")?;
 			ensure!(fund.raised <= fund.cap, "contributions exceed cap");
 			let now = <system::Module<T>>::block_number();
 			ensure!(fund.end > now, "contribution period ended");
@@ -282,7 +285,6 @@ decl_module! {
 				ExistenceRequirement::AllowDeath
 			)?);
 
-			let id = Self::id_from_index(index);
 			who.using_encoded(|b| child::kill(id.as_ref(), b));
 			fund.raised = fund.raised.saturating_sub(balance);
 
@@ -292,8 +294,9 @@ decl_module! {
 		}
 		
 		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
-		fn begin_retirement(_origin, #[compact] index: FundIndex) {
-			// origin unimportant.
+		fn begin_retirement(origin, #[compact] index: FundIndex) {
+			let _ = ensure_signed(origin)?;
+
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
 			let _parachain_id = fund.parachain.take().ok_or("fund has no parachain")?;
 			let account = Self::fund_account_id(index);
@@ -306,14 +309,13 @@ decl_module! {
 			<Funds<T>>::insert(index, &fund);
 
 			Self::deposit_event(RawEvent::Retiring(index));
-
 		}
 		
 		/// Remove a fund after either: it was unsuccessful and it timed out; or it was successful
 		/// but it has been retired from its parachain slot. This places any deposits that were not
 		/// withdrawn into the treasury.
-		fn dissolve(_origin, #[compact] index: FundIndex) {
-			// origin unimportant.
+		fn dissolve(origin, #[compact] index: FundIndex) {
+			let _ = ensure_signed(origin)?;
 
 			let fund = Self::funds(index).ok_or("invalid fund index")?;
 			ensure!(fund.parachain.is_none(), "cannot dissolve fund with active parachain");
@@ -380,10 +382,13 @@ decl_module! {
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `para_id` is the parachain index that this fund won.
 		fn onboard(
-			_origin,
+			origin,
 			#[compact] index: FundIndex,
 			#[compact] para_id: ParaIdOf<T>
 		) {
+			// Origin can be anything except none
+			let _ = ensure_signed(origin)?;
+
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
 			let (code_hash, initial_head_data) = fund.clone().deploy_data.ok_or("deploy data not fixed")?;
 			ensure!(fund.parachain.is_none(), "fund already onboarded");
