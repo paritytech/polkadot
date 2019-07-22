@@ -510,12 +510,12 @@ impl ValidationHost {
 			let (code, rest) = rest.split_at_mut(MAX_CODE_MEM);
 			let (code, _) = code.split_at_mut(validation_code.len());
 			let (call_data, _) = rest.split_at_mut(MAX_RUNTIME_MEM);
-			&mut code[0..validation_code.len()].copy_from_slice(validation_code);
+			code[..validation_code.len()].copy_from_slice(validation_code);
 			let encoded_params = params.encode();
 			if encoded_params.len() >= MAX_RUNTIME_MEM {
 				return Err(Error::ParamsTooLarge(MAX_RUNTIME_MEM));
 			}
-			call_data[0..encoded_params.len()].copy_from_slice(&encoded_params);
+			call_data[..encoded_params.len()].copy_from_slice(&encoded_params);
 
 			let header = ValidationHeader {
 				code_size: validation_code.len() as u64,
