@@ -90,7 +90,7 @@ pub trait Trait: slots::Trait {
 	/// least ExistentialDeposit.
 	type MinContribution: Get<BalanceOf<Self>>;
 
-	/// The period of time (in blocks) between after an unsuccessful crowdfund ending where
+	/// The period of time (in blocks) after an unsuccessful crowdfund ending when
 	/// contributors are able to withdraw their funds. After this period, their funds are lost.
 	type RetirementPeriod: Get<Self::BlockNumber>;
 
