@@ -59,7 +59,7 @@
 //! @WARNING: For funds to be returned, it is imperative that this module's account is provided as
 //! the offboarding account for the slot. In the case that a parachain supplemented these funds in
 //! order to win a later auction, then it is the parachain's duty to ensure that the right amount of
-//! funds ultimately end up in module's fund sub-account. If the funds do not arrive, then
+//! funds ultimately end up in module's fund sub-account.
 
 use srml_support::{
 	StorageValue, StorageMap, decl_module, decl_storage, decl_event, storage::child, ensure,
