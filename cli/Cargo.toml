@@ -13,6 +13,3 @@ exit-future = "0.1"
 structopt = "0.2"
 cli = { package = "substrate-cli", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 service = { package = "polkadot-service", path = "../service" }
-
-[build-dependencies]
-structopt = "0.2"

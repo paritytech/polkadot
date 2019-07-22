@@ -44,9 +44,11 @@ const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 const WORKER_ARG: &'static str = "validation-worker";
 const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
 
-const EVENT_CANDIDATE_READY: usize = 0;
-const EVENT_RESULT_READY: usize = 1;
-const EVENT_WORKER_READY: usize = 2;
+enum Event {
+	CandidateReady = 0,
+	ResultReady = 1,
+	WorkerReady = 2,
+}
 
 lazy_static::lazy_static! {
 	static ref HOST: Mutex<ValidationHost> = Mutex::new(ValidationHost::new());
@@ -355,7 +357,7 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 		exit.store(true, atomic::Ordering::Relaxed);
 	});
 
-	memory.set(EVENT_WORKER_READY, EventState::Signaled)
+	memory.set(Event::WorkerReady as usize, EventState::Signaled)
 		.map_err(|e| format!("Error setting shared event: {:?}", e))?;
 
 	loop {
@@ -364,7 +366,7 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 		}
 
 		debug!("Waiting for candidate");
-		match memory.wait(EVENT_CANDIDATE_READY, shared_memory::Timeout::Sec(1)) {
+		match memory.wait(Event::CandidateReady as usize, shared_memory::Timeout::Sec(1)) {
 			Err(e) => {
 				// Timeout
 				trace!("Timeout waiting for candidate: {:?}", e);
@@ -418,7 +420,7 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 			result.encode_to(&mut data);
 		}
 		debug!("Signaling result");
-		memory.set(EVENT_RESULT_READY, EventState::Signaled)
+		memory.set(Event::ResultReady as usize, EventState::Signaled)
 			.map_err(|e| format!("Error setting shared event: {:?}", e))?;
 	}
 	Ok(())
@@ -446,9 +448,9 @@ impl ValidationHost {
 		let mem_config = SharedMemConf::new()
 			.set_size(mem_size)
 			.add_lock(shared_memory::LockType::Mutex, 0, mem_size)?
-			.add_event(shared_memory::EventType::Auto)?  // EVENT_CANDIDATE_READY
-			.add_event(shared_memory::EventType::Auto)?  // EVENT_RESULT_READY
-			.add_event(shared_memory::EventType::Auto)?; // EVENT_WORKER_READY
+			.add_event(shared_memory::EventType::Auto)?  // Event::CandidateReady
+			.add_event(shared_memory::EventType::Auto)?  // Event::ResultReady
+			.add_event(shared_memory::EventType::Auto)?; // Evebt::WorkerReady
 
 		Ok(mem_config.create()?)
 	}
@@ -479,7 +481,7 @@ impl ValidationHost {
 			.spawn()?;
 		self.worker = Some(worker);
 
-		memory.wait(EVENT_WORKER_READY, shared_memory::Timeout::Sec(5))?;
+		memory.wait(Event::WorkerReady as usize, shared_memory::Timeout::Sec(5))?;
 		self.memory = Some(memory);
 		Ok(())
 	}
@@ -507,25 +509,27 @@ impl ValidationHost {
 			let (mut header_buf, rest) = data.split_at_mut(1024);
 			let (code, rest) = rest.split_at_mut(MAX_CODE_MEM);
 			let (code, _) = code.split_at_mut(validation_code.len());
-			let (mut call_data, _) = rest.split_at_mut(MAX_RUNTIME_MEM);
+			let (call_data, _) = rest.split_at_mut(MAX_RUNTIME_MEM);
 			&mut code[0..validation_code.len()].copy_from_slice(validation_code);
-			params.encode_to(&mut call_data);
-			if call_data.len() == 0 {
-				return Err(Error::ParamsTooLarge(MAX_CODE_MEM));
+			let encoded_params = params.encode();
+			if encoded_params.len() >= MAX_RUNTIME_MEM {
+				return Err(Error::ParamsTooLarge(MAX_RUNTIME_MEM));
 			}
+			call_data[0..encoded_params.len()].copy_from_slice(&encoded_params);
+
 			let header = ValidationHeader {
 				code_size: validation_code.len() as u64,
-				params_size: (MAX_RUNTIME_MEM - call_data.len()) as u64,
+				params_size: encoded_params.len() as u64,
 			};
 
 			header.encode_to(&mut header_buf);
 		}
 
 		debug!("Signaling candidate");
-		memory.set(EVENT_CANDIDATE_READY, EventState::Signaled)?;
+		memory.set(Event::CandidateReady as usize, EventState::Signaled)?;
 
 		debug!("Waiting for results");
-		match memory.wait(EVENT_RESULT_READY, shared_memory::Timeout::Sec(5)) {
+		match memory.wait(Event::ResultReady as usize, shared_memory::Timeout::Sec(5)) {
 			Err(e) => {
 				debug!("Worker timeout: {:?}", e);
 				if let Some(mut worker) = self.worker.take() {
