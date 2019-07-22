@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2019 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -37,7 +37,7 @@ fn terminates_on_timeout() {
 	);
 	match result {
 		Err(parachain::wasm_executor::Error::Timeout) => {},
-		_ => panic!(),
+		r => panic!("{:?}", r),
 	}
 
 	// check that another parachain can validate normaly

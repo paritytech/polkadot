@@ -111,13 +111,13 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 					),
 			}.map_err(|e| format!("{:?}", e))
 		}
-	);
+	)?;
 
-	match &command {
-		Ok(Some(PolkadotSubCommands::ValidationWorker(args))) => {
+	match command {
+		Some(PolkadotSubCommands::ValidationWorker(args)) => {
 			service::run_validation_worker(&args.mem_id).map_err(Into::into)
 		}
-		_ => command.map_err(Into::into).map(|_| ())
+		_ => Ok(())
 	}
 }
 
