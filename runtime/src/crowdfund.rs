@@ -141,7 +141,7 @@ decl_storage! {
 		FundCount get(fund_count): FundIndex;
 
 		/// The funds that have had additional contributions during the last block. This is used
-		/// in order to determine which funds should submit updated bids.
+		/// in order to determine which funds should submit new or updated bids.
 		NewRaise: Vec<FundIndex>;
 
 		/// True if the fund was ending at the last block.
@@ -181,7 +181,7 @@ decl_module! {
 			let owner = ensure_signed(origin)?;
 
 			ensure!(first_slot < last_slot, "last slot must be greater than first slot");
-			ensure!(last_slot <= first_slot + 3, "last slot cannot be more then 3 more than first slot");
+			ensure!(last_slot <= first_slot + 3.into(), "last slot cannot be more then 3 more than first slot");
 			// Check an auction is in progress, and extract the `early_end` block
 			let (_, early_end) = <slots::Module<T>>::auction_info().ok_or("no auction in progress")?;
 
@@ -211,9 +211,7 @@ decl_module! {
 				raised: Zero::zero(),
 				end: end,
 				cap: cap,
-				// Ensure it's Some, so that the first contribution causes it to be inserted into
-				// `NewRaise`.
-				last_contribution: Some(Zero::zero()),
+				last_contribution: None,
 				first_slot: first_slot,
 				last_slot: last_slot,
 				deploy_data: None,
@@ -257,11 +255,10 @@ decl_module! {
 					}
 				}
 			} else {
-				if fund.last_contribution.is_some() {
-					// Now outside end period and last was also inside end period: reset last to
-					// None and insert (because it will have been removed at end of last block).
-					fund.last_contribution = None;
+				// First contribution to the fund should add it to `NewRaise`
+				if fund.last_contribution.is_none() {
 					NewRaise::mutate(|v| v.push(index));
+					fund.last_contribution = Some(now);
 				}
 			}
 
@@ -448,6 +445,7 @@ impl<T: Trait> Module<T> {
 	}
 }
 
+/*
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -545,3 +543,4 @@ mod tests {
 		});
 	}
 }
+*/
