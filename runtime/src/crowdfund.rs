@@ -245,23 +245,23 @@ decl_module! {
 			let balance = balance.saturating_add(value);
 			who.using_encoded(|b| child::put(id.as_ref(), b, &balance));
 
-			if <slots::Module<T>>::is_ending(now).is_some() {
-				// Now in end period; record it
-				if let Some(c) = fund.last_contribution {
-					if c != now {
-						// last contribution was at earlier time; re-insert into `NewRaise`
-						NewRaise::mutate(|v| v.push(index));
-						fund.last_contribution = Some(now);
+			// First contribution to a fund should add it to `NewRaise` so initial bid is made
+			if fund.last_contribution.is_none() {
+				NewRaise::mutate(|v| v.push(index));
+			} else {
+				// Any contributions that happen during the ending period should
+				// cause another bid to be placed with updated value
+				if <slots::Module<T>>::is_ending(now).is_some() {
+					// Only add to `NewRaised` if it hasn't already been added this block
+					if let Some(c) = fund.last_contribution {
+						if c != now {
+							NewRaise::mutate(|v| v.push(index));
+						}
 					}
 				}
-			} else {
-				// First contribution to the fund should add it to `NewRaise`
-				if fund.last_contribution.is_none() {
-					NewRaise::mutate(|v| v.push(index));
-					fund.last_contribution = Some(now);
-				}
 			}
-
+			
+			fund.last_contribution = Some(now);
 			<Funds<T>>::insert(index, &fund);
 
 			Self::deposit_event(RawEvent::Contributed(who, index, value));
