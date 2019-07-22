@@ -113,7 +113,7 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber, ParaId> {
 	/// The total amount raised.
 	raised: Balance,
 	/// Block number after which the funding must have succeeded. If not successful at this number
-	/// the everyone may withdraw their funds.
+	/// then everyone may withdraw their funds.
 	end: BlockNumber,
 	/// A hard-cap on the amount that may be contributed.
 	cap: Balance,
