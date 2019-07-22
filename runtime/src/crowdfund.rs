@@ -445,14 +445,15 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-/*
 #[cfg(test)]
 mod tests {
 	use super::*;
 
-	use srml_support::{impl_outer_origin, assert_ok};
+	use std::{collections::HashMap, cell::RefCell};
+	use srml_support::{impl_outer_origin, assert_ok, parameter_types};
 	use sr_io::with_externalities;
 	use substrate_primitives::{H256, Blake2Hasher};
+	use primitives::parachain::Id as ParaId;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sr_primitives::{
@@ -469,6 +470,9 @@ mod tests {
 	// configuration traits of modules we want to use.
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
+	parameter_types! {
+		pub const BlockHashCount: u64 = 250;
+	}
 	impl system::Trait for Test {
 		type Origin = Origin;
 		type Index = u64;
@@ -479,6 +483,14 @@ mod tests {
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
 		type Event = ();
+		type BlockHashCount = BlockHashCount;
+	}
+	parameter_types! {
+		pub const ExistentialDeposit: u64 = 0;
+		pub const TransferFee: u64 = 0;
+		pub const CreationFee: u64 = 0;
+		pub const TransactionBaseFee: u64 = 0;
+		pub const TransactionByteFee: u64 = 0;
 	}
 	impl balances::Trait for Test {
 		type Balance = u64;
@@ -486,61 +498,105 @@ mod tests {
 		type OnNewAccount = ();
 		type Event = ();
 		type TransactionPayment = ();
-		type TransferPayment = ();
 		type DustRemoval = ();
+		type TransferPayment = ();
+		type ExistentialDeposit = ExistentialDeposit;
+		type TransferFee = TransferFee;
+		type CreationFee = CreationFee;
+		type TransactionBaseFee = TransactionBaseFee;
+		type TransactionByteFee = TransactionByteFee;
+	}
+
+	thread_local! {
+		pub static PARACHAIN_COUNT: RefCell<u32> = RefCell::new(0);
+		pub static PARACHAINS:
+			RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
+	}
+
+	pub struct TestParachains;
+	impl ParachainRegistrar<u64> for TestParachains {
+		type ParaId = ParaId;
+		fn new_id() -> Self::ParaId {
+			PARACHAIN_COUNT.with(|p| {
+				*p.borrow_mut() += 1;
+				(*p.borrow() - 1).into()
+			})
+		}
+		fn register_parachain(
+			id: Self::ParaId,
+			code: Vec<u8>,
+			initial_head_data: Vec<u8>
+		) -> Result<(), &'static str> {
+			PARACHAINS.with(|p| {
+				if p.borrow().contains_key(&id.into_inner()) {
+					panic!("ID already exists")
+				}
+				p.borrow_mut().insert(id.into_inner(), (code, initial_head_data));
+				Ok(())
+			})
+		}
+		fn deregister_parachain(id: Self::ParaId) -> Result<(), &'static str> {
+			PARACHAINS.with(|p| {
+				if !p.borrow().contains_key(&id.into_inner()) {
+					panic!("ID doesn't exist")
+				}
+				p.borrow_mut().remove(&id.into_inner());
+				Ok(())
+			})
+		}
+	}
+
+	fn reset_count() {
+		PARACHAIN_COUNT.with(|p| *p.borrow_mut() = 0);
+	}
+
+	fn with_parachains<T>(f: impl FnOnce(&HashMap<u32, (Vec<u8>, Vec<u8>)>) -> T) -> T {
+		PARACHAINS.with(|p| f(&*p.borrow()))
+	}
+
+	parameter_types!{
+		pub const LeasePeriod: u64 = 10;
+		pub const EndingPeriod: u64 = 3;
+	}
+	impl slots::Trait for Test {
+		type Event = ();
+		type Currency = Balances;
+		type Parachains = TestParachains;
+		type LeasePeriod = LeasePeriod;
+		type EndingPeriod = EndingPeriod;
+	}
+	parameter_types! {
+		pub const SubmissionDeposit: u64 = 1;
+		pub const MinContribution: u64 = 10;
+		pub const RetirementPeriod: u64 = 5;
 	}
 	impl Trait for Test {
 		type Event = ();
-		type SubmissionDeposit: 1;
-		type MinContribution: 10;
-		type RetirementPeriod: 5;
-		type OrphanedFunds: ();
+		type SubmissionDeposit = SubmissionDeposit;
+		type MinContribution = MinContribution;
+		type RetirementPeriod = RetirementPeriod;
+		type OrphanedFunds = ();
 	}
-	type Example = Module<Test>;
+
+	type System = system::Module<Test>;
+	type Balances = balances::Module<Test>;
+	type Slots = slots::Module<Test>;
+	type Crowdfund = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
-		// We use default for brevity, but you can configure as desired if needed.
-		t.extend(balances::GenesisConfig::<Test>::default().build_storage().unwrap().0);
-		t.extend(GenesisConfig::<Test>{
-			dummy: 42,
-			// we configure the map with (key, value) pairs.
-			bar: vec![(1, 2), (2, 3)],
-			foo: 24,
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
+		t.extend(balances::GenesisConfig::<Test>{
+			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
+			vesting: vec![],
 		}.build_storage().unwrap().0);
 		t.into()
 	}
 
 	#[test]
-	fn it_works_for_optional_value() {
+	fn it_works() {
 		with_externalities(&mut new_test_ext(), || {
-			// Check that GenesisBuilder works properly.
-			assert_eq!(Example::dummy(), Some(42));
-
-			// Check that accumulate works when we have Some value in Dummy already.
-			assert_ok!(Example::accumulate_dummy(Origin::signed(1), 27));
-			assert_eq!(Example::dummy(), Some(69));
-
-			// Check that finalizing the block removes Dummy from storage.
-			<Example as OnFinalize<u64>>::on_finalize(1);
-			assert_eq!(Example::dummy(), None);
-
-			// Check that accumulate works when we Dummy has None in it.
-			<Example as OnInitialize<u64>>::on_initialize(2);
-			assert_ok!(Example::accumulate_dummy(Origin::signed(1), 42));
-			assert_eq!(Example::dummy(), Some(42));
-		});
-	}
-
-	#[test]
-	fn it_works_for_default_value() {
-		with_externalities(&mut new_test_ext(), || {
-			assert_eq!(Example::foo(), 24);
-			assert_ok!(Example::accumulate_foo(Origin::signed(1), 1));
-			assert_eq!(Example::foo(), 25);
-		});
+		})
 	}
 }
-*/
