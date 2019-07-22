@@ -59,7 +59,7 @@
 //! @WARNING: For funds to be returned, it is imperative that this module's account is provided as
 //! the offboarding account for the slot. In the case that a parachain supplemented these funds in
 //! order to win a later auction, then it is the parachain's duty to ensure that the right amount of
-//! funds ultimately end up in module's fund sub-account. If the funds do not arrive, then
+//! funds ultimately end up in module's fund sub-account.
 
 use srml_support::{
 	StorageValue, StorageMap, decl_module, decl_storage, decl_event, storage::child, ensure,
@@ -90,7 +90,7 @@ pub trait Trait: slots::Trait {
 	/// least ExistentialDeposit.
 	type MinContribution: Get<BalanceOf<Self>>;
 
-	/// The period of time (in blocks) between after an unsuccessful crowdfund ending where
+	/// The period of time (in blocks) after an unsuccessful crowdfund ending when
 	/// contributors are able to withdraw their funds. After this period, their funds are lost.
 	type RetirementPeriod: Get<Self::BlockNumber>;
 
@@ -113,7 +113,7 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber, ParaId> {
 	/// The total amount raised.
 	raised: Balance,
 	/// Block number after which the funding must have succeeded. If not successful at this number
-	/// the everyone may withdraw their funds.
+	/// then everyone may withdraw their funds.
 	end: BlockNumber,
 	/// A hard-cap on the amount that may be contributed.
 	cap: Balance,
@@ -180,14 +180,15 @@ decl_module! {
 		) {
 			let owner = ensure_signed(origin)?;
 
-			ensure!(last_slot > first_slot, "last slot must be greater than first slot");
+			ensure!(first_slot < last_slot, "last slot must be greater than first slot");
+			ensure!(last_slot <= first_slot + 3, "last slot cannot be more then 3 more than first slot");
 			// Check an auction is in progress, and extract the `early_end` block
 			let (_, early_end) = <slots::Module<T>>::auction_info().ok_or("no auction in progress")?;
 
 			// End of the crowdfund will be the last possible block for the ongoing auction
 			let end = early_end + T::EndingPeriod::get();
-			let deposit = T::SubmissionDeposit::get();
 
+			let deposit = T::SubmissionDeposit::get();
 			let imb = T::Currency::withdraw(
 				&owner,
 				deposit,
@@ -233,9 +234,11 @@ decl_module! {
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
 			fund.raised  = fund.raised.checked_add(&value).ok_or("overflow when adding new funds")?;
 			ensure!(fund.raised <= fund.cap, "contributions exceed cap");
-			ensure!(<slots::Module<T>>::is_in_progress(), "no auction in progress");
+
+			// Make sure crowdfund has not ended and auction has not "ended early" (it is still in progress).
 			let now = <system::Module<T>>::block_number();
 			ensure!(fund.end > now, "contribution period ended");
+			ensure!(<slots::Module<T>>::is_in_progress(), "no auction in progress");
 
 			T::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
 
@@ -246,11 +249,11 @@ decl_module! {
 
 			if <slots::Module<T>>::is_ending(now).is_some() {
 				// Now in end period; record it
-				fund.last_contribution = Some(now);
 				if let Some(c) = fund.last_contribution {
 					if c != now {
 						// last contribution was at earlier time; re-insert into `NewRaise`
 						NewRaise::mutate(|v| v.push(index));
+						fund.last_contribution = Some(now);
 					}
 				}
 			} else {
@@ -387,7 +390,6 @@ decl_module! {
 			#[compact] index: FundIndex,
 			#[compact] para_id: ParaIdOf<T>
 		) {
-			// Origin can be anything except none
 			let _ = ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
@@ -446,7 +448,6 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-/*
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -544,4 +545,3 @@ mod tests {
 		});
 	}
 }
-*/
