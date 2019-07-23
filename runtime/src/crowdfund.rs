@@ -239,14 +239,9 @@ decl_module! {
 
 			T::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
 
-			let id = Self::id_from_index(index);
-			sr_io::print("before get");
-			let balance = who.using_encoded(|b| child::get_or_default::<BalanceOf<T>>(id.as_ref(), b));
-			sr_io::print("after get");
-
+			let balance = Self::contribution_get(index, &who);
 			let balance = balance.saturating_add(value);
-			who.using_encoded(|b| child::put(id.as_ref(), b, &balance));
-			sr_io::print("after put");
+			Self::contribution_put(index, &who, &balance);
 
 			// First contribution to a fund should add it to `NewRaise` so initial bid is made
 			if fund.last_contribution.is_none() {
@@ -270,89 +265,6 @@ decl_module! {
 			Self::deposit_event(RawEvent::Contributed(who, index, value));
 		}
 
-		
-		/// Withdraw full balance of a contributor to an unsuccessful fund.
-		fn withdraw(origin, #[compact] index: FundIndex) {
-			let who = ensure_signed(origin)?;
-
-			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
-			let now = <system::Module<T>>::block_number();
-			ensure!(now >= fund.end, "contribution period not over");
-
-			let id = Self::id_from_index(index);
-			let balance = who.using_encoded(|b| child::get::<BalanceOf<T>>(id.as_ref(), b))
-				.ok_or("not a contributor")?;
-
-			// Avoid using transfer to ensure we don't pay any fees.
-			let _ = T::Currency::resolve_into_existing(&who, T::Currency::withdraw(
-				&Self::fund_account_id(index),
-				balance,
-				WithdrawReason::Transfer,
-				ExistenceRequirement::AllowDeath
-			)?);
-
-			who.using_encoded(|b| child::kill(id.as_ref(), b));
-			fund.raised = fund.raised.saturating_sub(balance);
-
-			<Funds<T>>::insert(index, &fund);
-
-			Self::deposit_event(RawEvent::Withdrew(who, index, balance));
-		}
-		
-		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
-		fn begin_retirement(origin, #[compact] index: FundIndex) {
-			let _ = ensure_signed(origin)?;
-
-			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
-			let _parachain_id = fund.parachain.take().ok_or("fund has no parachain")?;
-			let account = Self::fund_account_id(index);
-			ensure!(T::Currency::free_balance(&account) >= fund.raised, "funds not yet returned");
-
-			// This fund just ended. Withdrawal period begins.
-			let now = <system::Module<T>>::block_number();
-			fund.end = now;
-
-			<Funds<T>>::insert(index, &fund);
-
-			Self::deposit_event(RawEvent::Retiring(index));
-		}
-		
-		/// Remove a fund after either: it was unsuccessful and it timed out; or it was successful
-		/// but it has been retired from its parachain slot. This places any deposits that were not
-		/// withdrawn into the treasury.
-		fn dissolve(origin, #[compact] index: FundIndex) {
-			let _ = ensure_signed(origin)?;
-
-			let fund = Self::funds(index).ok_or("invalid fund index")?;
-			ensure!(fund.parachain.is_none(), "cannot dissolve fund with active parachain");
-			let now = <system::Module<T>>::block_number();
-			ensure!(now >= fund.end + T::RetirementPeriod::get(), "retirement period not over");
-
-			let account = Self::fund_account_id(index);
-
-			// Avoid using transfer to ensure we don't pay any fees.
-			let _ = T::Currency::resolve_into_existing(&fund.owner, T::Currency::withdraw(
-				&account,
-				fund.deposit,
-				WithdrawReason::Transfer,
-				ExistenceRequirement::AllowDeath
-			)?);
-
-			T::OrphanedFunds::on_unbalanced(T::Currency::withdraw(
-				&account,
-				fund.raised,
-				WithdrawReason::Transfer,
-				ExistenceRequirement::AllowDeath
-			)?);
-
-			let id = Self::id_from_index(index);
-			child::kill_storage(id.as_ref());
-			<Funds<T>>::remove(index);
-
-			Self::deposit_event(RawEvent::Dissolved(index));
-		}
-		
-		
 		/// Set the deploy data of the funded parachain if not already set. Once set, this cannot
 		/// be changed again.
 		///
@@ -405,6 +317,85 @@ decl_module! {
 			Self::deposit_event(RawEvent::Onboarded(index, para_id));
 		}
 		
+		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
+		fn begin_retirement(origin, #[compact] index: FundIndex) {
+			let _ = ensure_signed(origin)?;
+
+			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
+			let parachain_id = fund.parachain.take().ok_or("fund has no parachain")?;
+			// No deposit information implies the parachain was off-boarded
+			ensure!(<slots::Module<T>>::deposits(parachain_id).len() == 0, "parachain still has deposit");
+			let account = Self::fund_account_id(index);
+			// Funds should be returned at the end of off-boarding
+			ensure!(T::Currency::free_balance(&account) >= fund.raised, "funds not yet returned");
+
+			// Update fund to remove its parachain id
+			<Funds<T>>::insert(index, &fund);
+
+			Self::deposit_event(RawEvent::Retiring(index));
+		}
+
+		/// Withdraw full balance of a contributor to an unsuccessful or off-boarded fund.
+		fn withdraw(origin, #[compact] index: FundIndex) {
+			let who = ensure_signed(origin)?;
+
+			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
+			let now = <system::Module<T>>::block_number();
+			ensure!(now >= fund.end, "contribution period not over");
+
+			let balance = Self::contribution_get(index, &who);
+			ensure!(balance > 0.into(), "no contributions stored");
+
+			// Avoid using transfer to ensure we don't pay any fees.
+			let _ = T::Currency::resolve_into_existing(&who, T::Currency::withdraw(
+				&Self::fund_account_id(index),
+				balance,
+				WithdrawReason::Transfer,
+				ExistenceRequirement::AllowDeath
+			)?);
+
+			Self::contribution_kill(index, &who);
+			fund.raised = fund.raised.saturating_sub(balance);
+
+			<Funds<T>>::insert(index, &fund);
+
+			Self::deposit_event(RawEvent::Withdrew(who, index, balance));
+		}
+		
+		/// Remove a fund after either: it was unsuccessful and it timed out; or it was successful
+		/// but it has been retired from its parachain slot. This places any deposits that were not
+		/// withdrawn into the treasury.
+		fn dissolve(origin, #[compact] index: FundIndex) {
+			let _ = ensure_signed(origin)?;
+
+			let fund = Self::funds(index).ok_or("invalid fund index")?;
+			ensure!(fund.parachain.is_none(), "cannot dissolve fund with active parachain");
+			let now = <system::Module<T>>::block_number();
+			ensure!(now >= fund.end + T::RetirementPeriod::get(), "retirement period not over");
+
+			let account = Self::fund_account_id(index);
+
+			// Avoid using transfer to ensure we don't pay any fees.
+			let _ = T::Currency::resolve_into_existing(&fund.owner, T::Currency::withdraw(
+				&account,
+				fund.deposit,
+				WithdrawReason::Transfer,
+				ExistenceRequirement::AllowDeath
+			)?);
+
+			T::OrphanedFunds::on_unbalanced(T::Currency::withdraw(
+				&account,
+				fund.raised,
+				WithdrawReason::Transfer,
+				ExistenceRequirement::AllowDeath
+			)?);
+
+			Self::crowdfund_kill(index);
+			<Funds<T>>::remove(index);
+
+			Self::deposit_event(RawEvent::Dissolved(index));
+		}
+		
 		fn on_finalize(n: T::BlockNumber) {
 			if <slots::Module<T>>::is_ending(n).is_some() {
 				for (fund, index) in NewRaise::take().into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i)))
@@ -452,6 +443,26 @@ impl<T: Trait> Module<T> {
 			.chain(T::Hashing::hash(&buf[..]).as_ref().iter())
 			.cloned()
 			.collect()
+	}
+
+	pub fn contribution_put(index: FundIndex, who: &T::AccountId, balance: &BalanceOf<T>) {
+		let id = Self::id_from_index(index);
+		who.using_encoded(|b| child::put(id.as_ref(), b, balance));
+	}
+
+	pub fn contribution_get(index: FundIndex, who: &T::AccountId) -> BalanceOf<T> {
+		let id = Self::id_from_index(index);
+		who.using_encoded(|b| child::get_or_default::<BalanceOf<T>>(id.as_ref(), b))
+	}
+
+	pub fn contribution_kill(index: FundIndex, who: &T::AccountId) {
+		let id = Self::id_from_index(index);
+		who.using_encoded(|b| child::kill(id.as_ref(), b));
+	}
+
+	pub fn crowdfund_kill(index: FundIndex) {
+		let id = Self::id_from_index(index);
+		child::kill_storage(id.as_ref());
 	}
 }
 
@@ -606,6 +617,20 @@ mod tests {
 		t.into()
 	}
 
+	fn run_to_block(n: u64) {
+		while System::block_number() < n {
+			Crowdfund::on_finalize(System::block_number());
+			Slots::on_finalize(System::block_number());
+			Balances::on_finalize(System::block_number());
+			System::on_finalize(System::block_number());
+			System::set_block_number(System::block_number() + 1);
+			System::on_initialize(System::block_number());
+			Balances::on_initialize(System::block_number());
+			Slots::on_initialize(System::block_number());
+			Crowdfund::on_initialize(System::block_number());
+		}
+	}
+
 	#[test]
 	fn basic_setup_works() {
 		with_externalities(&mut new_test_ext(), || {
@@ -614,11 +639,12 @@ mod tests {
 			assert_eq!(Crowdfund::funds(0), None);
 			let empty: Vec<FundIndex> = Vec::new();
 			assert_eq!(Crowdfund::new_raise(), empty);
+			assert_eq!(Crowdfund::contribution_get(0, &1), 0);
 		});
 	}
 
 	#[test]
-	fn create_crowdfund_works() {
+	fn create_works() {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up an auction
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
@@ -649,7 +675,7 @@ mod tests {
 	}
 
 	#[test]
-	fn create_crowdfund_handles_basic_errors() {
+	fn create_handles_basic_errors() {
 		with_externalities(&mut new_test_ext(), || {
 			// Cannot create crowdfund without ongoing auction
 			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 1, 4), "no auction in progress");
@@ -666,32 +692,193 @@ mod tests {
 	}
 
 	#[test]
-	fn contribute_crowdfund_works() {
+	fn contribute_works() {
 		with_externalities(&mut new_test_ext(), || {
-			// Set up an crowdfund
+			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
 			assert_eq!(Balances::free_balance(1), 999);
+			// No contributions yet
+			assert_eq!(Crowdfund::contribution_get(0, &1), 0);
 
 			// User 1 contributes to their own crowdfund
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
 			// User 1 has spent some funds to do this, transfer fees **are** taken
 			assert_eq!(Balances::free_balance(1), 940);
+			// Contributions are stored in the trie
+			assert_eq!(Crowdfund::contribution_get(0, &1), 49);
+			// Crowdfund is added to NewRaise
+			assert_eq!(Crowdfund::new_raise(), vec![0]);
 
-			
-			
+			let fund = Crowdfund::funds(0).unwrap();
+
+			// Last contribution time recorded
+			assert_eq!(fund.last_contribution, Some(1));
+			assert_eq!(fund.raised, 49);
 		});
 	}
 
 	#[test]
-	fn contribute_crowdfund_handles_basic_errors() {
+	fn contribute_handles_basic_errors() {
 		with_externalities(&mut new_test_ext(), || {
-			// Set up an crowdfund
+			// Cannot contribute to non-existing fund
+			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 49), "invalid fund index");
+			// Cannot contribute below minimum contribution
+			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 9), "contribution too small");
+
+			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 101));
 
-			
-			
+			// Cannot contribute past the limit
+			assert_noop!(Crowdfund::contribute(Origin::signed(2), 0, 900), "contributions exceed cap");
+
+			// Move past end date
+			run_to_block(10);
+
+			// Cannot contribute to ended fund
+			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 49), "contribution period ended");
+		});
+	}
+
+	#[test]
+	fn fix_deploy_data_works() {
+		with_externalities(&mut new_test_ext(), || {
+			// Set up a crowdfund
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_eq!(Balances::free_balance(1), 999);
+
+			// Add deploy data
+			assert_ok!(Crowdfund::fix_deploy_data(
+				Origin::signed(1),
+				0,
+				<Test as system::Trait>::Hash::default(),
+				vec![0]
+			));
+
+			let fund = Crowdfund::funds(0).unwrap();
+
+			// Confirm deploy data is stored correctly
+			assert_eq!(fund.deploy_data, Some((<Test as system::Trait>::Hash::default(), vec![0])));
+		});
+	}
+
+	#[test]
+	fn fix_deploy_data_handles_basic_errors() {
+		with_externalities(&mut new_test_ext(), || {
+			// Set up a crowdfund
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_eq!(Balances::free_balance(1), 999);
+
+			// Cannot set deploy data by non-owner
+			assert_noop!(Crowdfund::fix_deploy_data(
+				Origin::signed(2),
+				0,
+				<Test as system::Trait>::Hash::default(),
+				vec![0]),
+				"origin must be fund owner"
+			);
+
+			// Cannot set deploy data to an invalid index
+			assert_noop!(Crowdfund::fix_deploy_data(
+				Origin::signed(1),
+				1,
+				<Test as system::Trait>::Hash::default(),
+				vec![0]),
+				"invalid fund index"
+			);
+
+			// Cannot set deploy data after it already has been set
+			assert_ok!(Crowdfund::fix_deploy_data(
+				Origin::signed(1),
+				0,
+				<Test as system::Trait>::Hash::default(),
+				vec![0]
+			));
+
+			assert_noop!(Crowdfund::fix_deploy_data(
+				Origin::signed(1),
+				0,
+				<Test as system::Trait>::Hash::default(),
+				vec![1]),
+				"deploy data already set"
+			);
+		});
+	}
+
+	#[test]
+	fn withdraw_works() {
+		with_externalities(&mut new_test_ext(), || {
+			// Set up a crowdfund
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			// Transfer fee is taken here
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
+			assert_eq!(Balances::free_balance(1), 940);
+
+			run_to_block(10);
+
+			// User can withdraw their full balance without fees
+			assert_ok!(Crowdfund::withdraw(Origin::signed(1), 0));
+			assert_eq!(Balances::free_balance(1), 989);
+		});
+	}
+	
+	#[test]
+	fn withdraw_handles_basic_errors() {
+		with_externalities(&mut new_test_ext(), || {
+			// Set up a crowdfund
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			// Transfer fee is taken here
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
+			assert_eq!(Balances::free_balance(1), 940);
+
+			run_to_block(5);
+
+			// Cannot withdraw before fund ends
+			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 0), "contribution period not over");
+
+			run_to_block(10);
+
+			// Cannot withdraw if they did not contribute
+			assert_noop!(Crowdfund::withdraw(Origin::signed(2), 0), "no contributions stored");
+			// Cannot withdraw from a non-existent fund
+			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 1), "invalid fund index");
+		});
+	}
+
+	#[test]
+	fn retirement_works() {
+		with_externalities(&mut new_test_ext(), || {
+			// Set up a crowdfund
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			// Transfer fee is taken here
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
+			assert_eq!(Balances::free_balance(1), 940);
+
+			run_to_block(5);
+
+			// Cannot withdraw before fund ends
+			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 0), "contribution period not over");
+
+			run_to_block(10);
+
+			// Cannot withdraw if they did not contribute
+			assert_noop!(Crowdfund::withdraw(Origin::signed(2), 0), "no contributions stored");
+			// Cannot withdraw from a non-existent fund
+			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 1), "invalid fund index");
+		});
+	}
+
+	#[test]
+	fn create_multiple_crowdfunds_works() {
+		with_externalities(&mut new_test_ext(), || {
+
 		});
 	}
 }
