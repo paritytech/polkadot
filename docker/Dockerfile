@@ -27,8 +27,8 @@ RUN mv /usr/share/ca* /tmp && \
 	rm -rf /usr/share/*  && \
 	mv /tmp/ca-certificates /usr/share/ && \
 	rm -rf /usr/lib/python* && \
-	mkdir -p /root/.local/share/Polkadot && \
-	ln -s /root/.local/share/Polkadot /data
+	mkdir -p /root/.local/share/polkadot && \
+	ln -s /root/.local/share/polkadot /data
 
 RUN	rm -rf /usr/bin /usr/sbin
 

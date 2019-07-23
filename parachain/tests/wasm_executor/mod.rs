@@ -1,0 +1,45 @@
+// Copyright 2019 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! Basic parachain that adds a number as part of its state.
+
+use polkadot_parachain as parachain;
+use crate::{adder, DummyExt};
+use crate::parachain::ValidationParams;
+
+// Code that exposes `validate_block` and loops infinitely
+const INFINITE_LOOP_CODE: &[u8] = halt::WASM_BINARY;
+
+#[test]
+fn terminates_on_timeout() {
+	let result = parachain::wasm_executor::validate_candidate(
+		INFINITE_LOOP_CODE,
+		ValidationParams {
+			parent_head: Default::default(),
+			block_data: Vec::new(),
+			ingress: Vec::new(),
+		},
+		&mut DummyExt,
+		parachain::wasm_executor::ExecutionMode::RemoteTest,
+	);
+	match result {
+		Err(parachain::wasm_executor::Error::Timeout) => {},
+		r => panic!("{:?}", r),
+	}
+
+	// check that another parachain can validate normaly
+	adder::execute_good_on_parent();
+}

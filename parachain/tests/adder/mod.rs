@@ -18,10 +18,8 @@
 
 use polkadot_parachain as parachain;
 
-use crate::parachain::{
-	MessageRef, UpwardMessageRef, IncomingMessage, ValidationParams,
-	wasm_executor::{Externalities, ExternalitiesError},
-};
+use crate::parachain::{IncomingMessage, ValidationParams};
+use crate::DummyExt;
 use codec::{Decode, Encode};
 
 /// Head data for this parachain.
@@ -50,16 +48,6 @@ struct AddMessage {
 	amount: u64,
 }
 
-struct DummyExt;
-impl Externalities for DummyExt {
-	fn post_message(&mut self, _message: MessageRef) -> Result<(), ExternalitiesError> {
-		Ok(())
-	}
-	fn post_upward_message(&mut self, _message: UpwardMessageRef) -> Result<(), ExternalitiesError> {
-		Ok(())
-	}
-}
-
 const TEST_CODE: &[u8] = adder::WASM_BINARY;
 
 fn hash_state(state: u64) -> [u8; 32] {
@@ -71,7 +59,7 @@ fn hash_head(head: &HeadData) -> [u8; 32] {
 }
 
 #[test]
-fn execute_good_on_parent() {
+pub fn execute_good_on_parent() {
 	let parent_head = HeadData {
 		number: 0,
 		parent_hash: [0; 32],
@@ -91,6 +79,7 @@ fn execute_good_on_parent() {
 			ingress: Vec::new(),
 		},
 		&mut DummyExt,
+		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap();
 
 	let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();
@@ -126,6 +115,7 @@ fn execute_good_chain_on_parent() {
 				ingress: Vec::new(),
 			},
 			&mut DummyExt,
+			parachain::wasm_executor::ExecutionMode::RemoteTest,
 		).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();
@@ -161,6 +151,7 @@ fn execute_bad_on_parent() {
 			ingress: Vec::new(),
 		},
 		&mut DummyExt,
+		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap_err();
 }
 
@@ -192,6 +183,7 @@ fn processes_messages() {
 			],
 		},
 		&mut DummyExt,
+		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap();
 
 	let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();

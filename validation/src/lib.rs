@@ -75,6 +75,7 @@ pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
 };
+pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
 mod attestation_service;
 mod dynamic_inclusion;
@@ -450,7 +451,7 @@ pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	key: Arc<ed25519::Pair>,
 	_service_handle: ServiceHandle,
 	aura_slot_duration: SlotDuration,
-	select_chain: SC,
+	_select_chain: SC,
 	max_block_data_size: Option<u64>,
 }
 
@@ -469,7 +470,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	/// Create a new proposer factory.
 	pub fn new(
 		client: Arc<P>,
-		select_chain: SC,
+		_select_chain: SC,
 		network: N,
 		collators: C,
 		transaction_pool: Arc<Pool<TxApi>>,
@@ -490,7 +491,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 
 		let service_handle = crate::attestation_service::start(
 			client,
-			select_chain.clone(),
+			_select_chain.clone(),
 			parachain_validation.clone(),
 			thread_pool,
 			key.clone(),
@@ -504,7 +505,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			key,
 			_service_handle: service_handle,
 			aura_slot_duration,
-			select_chain,
+			_select_chain,
 			max_block_data_size,
 		}
 	}
