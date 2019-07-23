@@ -21,7 +21,7 @@
 
 use rstd::prelude::*;
 use parity_codec::{Encode, Decode};
-use srml_support::{decl_storage, decl_module, fail, ensure};
+use srml_support::{decl_storage, decl_module, ensure};
 
 use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt}};
 use {system, session::{self, SessionIndex}};
@@ -31,7 +31,7 @@ use srml_support::{
 };
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
-use system::{ensure_none, ensure_root};
+use system::ensure_none;
 
 /// Parachain blocks included in a recent relay-chain block.
 #[derive(Encode, Decode)]
@@ -86,7 +86,10 @@ decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
-		fn more_attestations(origin, more: MoreAttestations) -> Result {
+		fn more_attestations(origin, _more: MoreAttestations) -> Result {
+			ensure_none(origin)?;
+			ensure!(!<DidUpdate>::exists(), "More attestations can be added only once in a block.");
+
 			Ok(())
 		}
 
@@ -140,3 +143,17 @@ impl<T: Trait> Module<T> {
 /// An identifier for inherent data that provides after-the-fact attestations
 /// on already included parachain blocks.
 pub const MORE_ATTESTATIONS_IDENTIFIER: InherentIdentifier = *b"par-atts";
+
+pub type InherentType = MoreAttestations;
+
+impl<T: Trait> ProvideInherent for Module<T> {
+	type Call = Call<T>;
+	type Error = MakeFatalError<RuntimeString>;
+	const INHERENT_IDENTIFIER: InherentIdentifier = MORE_ATTESTATIONS_IDENTIFIER;
+
+	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+		data.get_data::<InherentType>(&MORE_ATTESTATIONS_IDENTIFIER)
+			.ok()
+			.and_then(|x| x.map(Call::more_attestations))
+	}
+}
