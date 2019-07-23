@@ -521,23 +521,22 @@ impl SharedTable {
 		let table_attestations = self.inner.lock().table.proposed_candidates(&*self.context);
 		table_attestations.into_iter()
 			.map(|attested| {
-				let mut validator_indices = BitVec::new();
-				let validity_votes = attested.validity_votes.into_iter().map(|(a, v)| {
-					let a = a as usize;
-					if validator_indices.len() <= a {
-						validator_indices.resize(a + 1, false);
-					}
-					validator_indices.set(a, true);
-
-					match v {
+				let mut validity_votes: Vec<_> = attested.validity_votes.into_iter().map(|(id, a)| {
+					(id, match a {
 						GAttestation::Implicit(s) => ValidityAttestation::Implicit(s),
 						GAttestation::Explicit(s) => ValidityAttestation::Explicit(s),
-					}
+					})
 				}).collect();
+				validity_votes.sort_by(|(id1, _), (id2, _)| id1.cmp(id2));
+
+				let mut validator_indices = bitvec![0; validity_votes.1.last().map(|i| i + 1).unwrap_or_default()];
+				for (id, _) in &validity_votes {
+					validator_indices.set(true, id);
+				}
 
 				AttestedCandidate {
 					candidate: attested.candidate,
-					validity_votes,
+					validity_votes: validity_votes.map(|(_, a)| a).collect(),
 					validator_indices,
 				}
 			}).collect()
