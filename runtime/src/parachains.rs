@@ -21,7 +21,6 @@ use rstd::collections::btree_map::BTreeMap;
 use parity_codec::{Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
-use bitvec::bitvec;
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
@@ -810,7 +809,7 @@ impl<T: Trait> ProvideInherent for Module<T> {
 mod tests {
 	use super::*;
 	use super::Call as ParachainsCall;
-	use bitvec::vec::BitVec;
+	use bitvec::{bitvec, vec::BitVec};
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
@@ -1515,6 +1514,42 @@ mod tests {
 
 			assert!(Parachains::dispatch(
 				set_heads(vec![double_validity]),
+				Origin::NONE,
+			).is_err());
+		});
+	}
+
+	#[test]
+	fn validators_not_from_group_is_rejected() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			let mut candidate = AttestedCandidate {
+				validity_votes: vec![],
+				validator_indices: BitVec::new(),
+				candidate: CandidateReceipt {
+					parachain_index: 0.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					egress_queue_roots: vec![],
+					fees: 0,
+					block_data_hash: Default::default(),
+					upward_messages: vec![],
+				}
+			};
+
+			make_attestations(&mut candidate);
+
+			// Change the last vote index to make it not corresponding to the assigned group.
+			assert!(candidate.validator_indices.pop().is_some());
+			candidate.validator_indices.append(bitvec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, true]);
+
+			assert!(Parachains::dispatch(
+				set_heads(vec![candidate]),
 				Origin::NONE,
 			).is_err());
 		});
