@@ -143,7 +143,6 @@ fn main() {
 		id,
 		exit,
 		key,
-		::std::env::args(),
 		VersionInfo {
 			name: "<unknown>",
 			version: "<unknown>",
