@@ -24,6 +24,7 @@ client = { package = "substrate-client", git = "https://github.com/paritytech/su
 aura = { package = "substrate-consensus-aura", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

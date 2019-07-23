@@ -47,6 +47,8 @@ const GENESIS_BODY: AdderBody = AdderBody {
 #[derive(Clone)]
 struct AdderContext {
 	db: Arc<Mutex<HashMap<AdderHead, AdderBody>>>,
+	/// We store it here to make sure that our interfaces require the correct bounds.
+	_network: Option<Arc<dyn Network>>,
 }
 
 /// The parachain context.
@@ -99,8 +101,8 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build(self, _: Arc<dyn Network>) -> Result<Self::ParachainContext, ()> {
-		Ok(self)
+	fn build(self, network: Arc<dyn Network>) -> Result<Self::ParachainContext, ()> {
+		Ok(Self { _network: Some(network), ..self })
 	}
 }
 
@@ -133,6 +135,7 @@ fn main() {
 
 	let context = AdderContext {
 		db: Arc::new(Mutex::new(HashMap::new())),
+		_network: None,
 	};
 
 	let res = ::collator::run_collator(

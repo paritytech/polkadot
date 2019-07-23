@@ -4,8 +4,26 @@ version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Test parachain which adds to a number as its state transition"
 edition = "2018"
+build = "build.rs"
 
 [dependencies]
 parachain = { package = "polkadot-parachain", path = "../../parachain/", default-features = false }
 parity-codec = { version = "4.1", default-features = false, features = ["derive"] }
-tiny-keccak = "1.4"
+tiny-keccak = "1.5.0"
+dlmalloc = { version = "0.1.3", features = ["global"], optional = true }
+
+# We need to make sure the global allocator is disabled until we have support of full substrate externalities
+rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+
+[build-dependencies]
+wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.2" }
+
+[features]
+default = [ "std" ]
+no_std = [
+	# We need to make sure the global allocator is disabled until we have support of full substrate externalities
+	"rstd/no_global_allocator",
+	"parachain/wasm-api",
+	"dlmalloc",
+]
+std = []

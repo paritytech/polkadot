@@ -31,16 +31,20 @@ use client::blockchain::HeaderBackend;
 use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use futures::prelude::*;
+use futures03::{TryStreamExt as _, StreamExt as _};
+use log::error;
 use primitives::ed25519;
 use polkadot_primitives::{Block, BlockId, AuraId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
 use aura::AuraApi;
 
-use tokio::{timer::Interval, runtime::{TaskExecutor, current_thread::Runtime as LocalRuntime}};
+use tokio::{timer::Interval, runtime::current_thread::Runtime as LocalRuntime};
 use log::{warn, debug};
 
 use super::{Network, Collators};
+
+type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
 /// Gets a list of the candidates in a block.
 pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
@@ -70,6 +74,7 @@ fn prune_unneeded_availability<P>(client: Arc<P>, extrinsic_store: ExtrinsicStor
 	where P: Send + Sync + BlockchainEvents<Block> + BlockBody<Block> + 'static
 {
 	client.finality_notification_stream()
+		.map(|v| Ok::<_, ()>(v)).compat()
 		.for_each(move |notification| {
 			let hash = notification.hash;
 			let parent_hash = notification.header.parent_hash;
@@ -132,6 +137,7 @@ pub(crate) fn start<C, N, P, SC>(
 			let key = key.clone();
 
 			client.import_notification_stream()
+				.map(|v| Ok::<_, ()>(v)).compat()
 				.for_each(move |notification| {
 					let parent_hash = notification.hash;
 					if notification.is_new_best {
@@ -179,14 +185,18 @@ pub(crate) fn start<C, N, P, SC>(
 		};
 
 		runtime.spawn(notifications);
-		thread_pool.spawn(prune_old_sessions);
+		if let Err(_) = thread_pool.execute(Box::new(prune_old_sessions)) {
+			error!("Failed to spawn old sessions pruning task");
+		}
 
 		let prune_available = prune_unneeded_availability(client, extrinsic_store)
 			.select(exit.clone())
 			.then(|_| Ok(()));
 
 		// spawn this on the tokio executor since it's fine on a thread pool.
-		thread_pool.spawn(prune_available);
+		if let Err(_) = thread_pool.execute(Box::new(prune_available)) {
+			error!("Failed to spawn available pruning task");
+		}
 
 		if let Err(e) = runtime.block_on(exit) {
 			debug!("BFT event loop error {:?}", e);

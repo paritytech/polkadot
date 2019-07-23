@@ -18,7 +18,20 @@
 
 #![no_std]
 
+#![cfg_attr(feature = "no_std", feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler))]
+
 use parity_codec::{Encode, Decode};
+
+#[cfg(feature = "no_std")]
+mod wasm_validation;
+
+#[cfg(feature = "no_std")]
+#[global_allocator]
+static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
+
+// Make the WASM binary available.
+#[cfg(feature = "std")]
+include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Head data for this parachain.
 #[derive(Default, Clone, Hash, Eq, PartialEq, Encode, Decode)]

@@ -197,7 +197,7 @@ mod tests {
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sr_primitives::{
-		BuildStorage, traits::{BlakeTwo256, IdentityLookup}, testing::Header
+		traits::{BlakeTwo256, IdentityLookup}, testing::Header
 	};
 	use balances;
 	use srml_support::{impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types};
@@ -211,6 +211,9 @@ mod tests {
 	// configuration traits of modules we want to use.
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
+	parameter_types! {
+		pub const BlockHashCount: u64 = 250;
+	}
 	impl system::Trait for Test {
 		type Origin = Origin;
 		type Index = u64;
@@ -221,7 +224,17 @@ mod tests {
 		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
 		type Event = ();
+		type BlockHashCount = BlockHashCount;
 	}
+
+	parameter_types! {
+		pub const ExistentialDeposit: u64 = 0;
+		pub const TransferFee: u64 = 0;
+		pub const CreationFee: u64 = 0;
+		pub const TransactionBaseFee: u64 = 0;
+		pub const TransactionByteFee: u64 = 0;
+	}
+
 	impl balances::Trait for Test {
 		type Balance = u64;
 		type OnFreeBalanceZero = ();
@@ -230,6 +243,11 @@ mod tests {
 		type TransactionPayment = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
+		type ExistentialDeposit = ExistentialDeposit;
+		type TransferFee = TransferFee;
+		type CreationFee = CreationFee;
+		type TransactionBaseFee = TransactionBaseFee;
+		type TransactionByteFee = TransactionByteFee;
 	}
 
 	parameter_types!{
@@ -274,7 +292,7 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap().0;
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
 		// We use default for brevity, but you can configure as desired if needed.
 		t.extend(balances::GenesisConfig::<Test>::default().build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
