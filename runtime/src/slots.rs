@@ -497,6 +497,8 @@ impl<T: Trait> Module<T> {
 					let begin_offset = <LeasePeriodOf<T>>::from(range.as_pair().0 as u32);
 					let begin_lease_period = auction_lease_period_index + begin_offset;
 					<OnboardQueue<T>>::mutate(begin_lease_period, |starts| starts.push(para_id));
+					// Add a default off-boarding account which matches the original bidder
+					<Offboarding<T>>::insert(&para_id, &bidder.who);
 					let entry = (begin_lease_period, IncomingParachain::Unset(bidder));
 					<Onboarding<T>>::insert(&para_id, entry);
 				}
@@ -1025,6 +1027,24 @@ mod tests {
 
 	#[test]
 	fn offboarding_works() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
+			assert_eq!(Balances::free_balance(&1), 9);
+
+			run_to_block(9);
+			assert_eq!(Slots::deposit_held(&0.into()), 1);
+			assert_eq!(Slots::deposits(&0.into())[0], 0);
+
+			run_to_block(50);
+			assert_eq!(Slots::deposit_held(&0.into()), 0);
+			assert_eq!(Balances::free_balance(&1), 10);
+		});
+	}
+
+	#[test]
+	fn set_offboarding_works() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));

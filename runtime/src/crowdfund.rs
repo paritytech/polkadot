@@ -75,12 +75,11 @@ use rstd::vec::Vec;
 use crate::parachains::ParachainRegistrar;
 use substrate_primitives::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
 
-
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
 
-type BalanceOf<T> = <<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
-type NegativeImbalanceOf<T> = <<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
-type ParaIdOf<T> = <<T as slots::Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
+pub type BalanceOf<T> = <<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
+pub type NegativeImbalanceOf<T> = <<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
+pub type ParaIdOf<T> = <<T as slots::Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
 
 pub trait Trait: slots::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
@@ -327,7 +326,10 @@ decl_module! {
 			// Funds should be returned at the end of off-boarding
 			ensure!(T::Currency::free_balance(&account) >= fund.raised, "funds not yet returned");
 
-			// Update fund to remove its parachain id
+			// This fund just ended. Withdrawal period begins.
+			let now = <system::Module<T>>::block_number();
+			fund.end = now;
+
 			<Funds<T>>::insert(index, &fund);
 
 			Self::deposit_event(RawEvent::Retiring(index));
@@ -338,11 +340,14 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
+			ensure!(fund.parachain.is_none(), "fund has not retired");
 			let now = <system::Module<T>>::block_number();
-			ensure!(now >= fund.end, "contribution period not over");
+
+			// `fund.end` can represent the end of a failed crowdsale or the beginning of retirement
+			ensure!(now >= fund.end, "fund has not ended");
 
 			let balance = Self::contribution_get(index, &who);
-			ensure!(balance > 0.into(), "no contributions stored");
+			ensure!(balance > Zero::zero(), "no contributions stored");
 
 			// Avoid using transfer to ensure we don't pay any fees.
 			let _ = T::Currency::resolve_into_existing(&who, T::Currency::withdraw(
@@ -474,8 +479,8 @@ mod tests {
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sr_primitives::{
-		BuildStorage, traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup},
-		testing::Header
+		Permill, testing::Header,
+		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup},
 	};
 
 	impl_outer_origin! {
@@ -526,6 +531,25 @@ mod tests {
 		type TransactionByteFee = TransactionByteFee;
 	}
 
+	parameter_types! {
+		pub const ProposalBond: Permill = Permill::from_percent(5);
+		pub const ProposalBondMinimum: u64 = 1;
+		pub const SpendPeriod: u64 = 2;
+		pub const Burn: Permill = Permill::from_percent(50);
+	}
+	impl treasury::Trait for Test {
+		type Currency = balances::Module<Test>;
+		type ApproveOrigin = system::EnsureRoot<u64>;
+		type RejectOrigin = system::EnsureRoot<u64>;
+		type Event = ();
+		type MintedForSpending = ();
+		type ProposalRejection = ();
+		type ProposalBond = ProposalBond;
+		type ProposalBondMinimum = ProposalBondMinimum;
+		type SpendPeriod = SpendPeriod;
+		type Burn = Burn;
+	}
+
 	thread_local! {
 		pub static PARACHAIN_COUNT: RefCell<u32> = RefCell::new(0);
 		pub static PARACHAINS:
@@ -565,14 +589,6 @@ mod tests {
 		}
 	}
 
-	fn reset_count() {
-		PARACHAIN_COUNT.with(|p| *p.borrow_mut() = 0);
-	}
-
-	fn with_parachains<T>(f: impl FnOnce(&HashMap<u32, (Vec<u8>, Vec<u8>)>) -> T) -> T {
-		PARACHAINS.with(|p| f(&*p.borrow()))
-	}
-
 	parameter_types!{
 		pub const LeasePeriod: u64 = 10;
 		pub const EndingPeriod: u64 = 3;
@@ -594,12 +610,13 @@ mod tests {
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
 		type RetirementPeriod = RetirementPeriod;
-		type OrphanedFunds = ();
+		type OrphanedFunds = Treasury;
 	}
 
 	type System = system::Module<Test>;
 	type Balances = balances::Module<Test>;
 	type Slots = slots::Module<Test>;
+	type Treasury = treasury::Module<Test>;
 	type Crowdfund = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
@@ -616,6 +633,7 @@ mod tests {
 	fn run_to_block(n: u64) {
 		while System::block_number() < n {
 			Crowdfund::on_finalize(System::block_number());
+			Treasury::on_finalize(System::block_number());
 			Slots::on_finalize(System::block_number());
 			Balances::on_finalize(System::block_number());
 			System::on_finalize(System::block_number());
@@ -623,6 +641,7 @@ mod tests {
 			System::on_initialize(System::block_number());
 			Balances::on_initialize(System::block_number());
 			Slots::on_initialize(System::block_number());
+			Treasury::on_finalize(System::block_number());
 			Crowdfund::on_initialize(System::block_number());
 		}
 	}
@@ -880,21 +899,115 @@ mod tests {
 		});
 	}
 
-	//#[test]
+	#[test]
+	fn begin_retirement_works() {
+		with_externalities(&mut new_test_ext(), || {
+			// Set up a crowdfund
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_eq!(Balances::free_balance(1), 999);
+
+			// Add deploy data
+			assert_ok!(Crowdfund::fix_deploy_data(
+				Origin::signed(1),
+				0,
+				<Test as system::Trait>::Hash::default(),
+				vec![0]
+			));
+
+			// Fund crowdfund
+			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 1000));
+
+			run_to_block(10);
+
+			// Onboard crowdfund
+			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
+			// Fund is assigned a parachain id
+			let fund = Crowdfund::funds(0).unwrap();
+			assert_eq!(fund.parachain, Some(0.into()));
+
+			// Off-boarding is set to the crowdfund account
+			assert_eq!(Slots::offboarding(ParaId::from(0)), Crowdfund::fund_account_id(0));
+
+			run_to_block(50);
+
+			// Retire crowdfund to remove parachain id
+			assert_ok!(Crowdfund::begin_retirement(Origin::signed(1), 0));
+
+			// Fund should no longer have parachain id
+			let fund = Crowdfund::funds(0).unwrap();
+			assert_eq!(fund.parachain, None);
+
+		});
+	}
+
+	#[test]
+	fn begin_retirement_handles_basic_errors() {
+		with_externalities(&mut new_test_ext(), || {
+			// Set up a crowdfund
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_eq!(Balances::free_balance(1), 999);
+
+			// Add deploy data
+			assert_ok!(Crowdfund::fix_deploy_data(
+				Origin::signed(1),
+				0,
+				<Test as system::Trait>::Hash::default(),
+				vec![0]
+			));
+
+			// Fund crowdfund
+			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 1000));
+
+			run_to_block(10);
+
+			// Cannot retire fund that is not onboarded
+			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), "fund has no parachain");
+
+			// Onboard crowdfund
+			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
+			// Fund is assigned a parachain id
+			let fund = Crowdfund::funds(0).unwrap();
+			assert_eq!(fund.parachain, Some(0.into()));
+
+			// Cannot retire fund whose deposit has not been returned
+			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), "parachain still has deposit");
+
+			run_to_block(50);
+
+			// Cannot retire invalid fund index
+			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 1), "invalid fund index");
+
+			// Cannot retire twice
+			assert_ok!(Crowdfund::begin_retirement(Origin::signed(1), 0));
+			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), "fund has no parachain");
+		});
+	}
+
+	#[test]
 	fn withdraw_works() {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
 			// Transfer fee is taken here
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
-			assert_eq!(Balances::free_balance(1), 940);
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
+			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 200));
+			assert_ok!(Crowdfund::contribute(Origin::signed(3), 0, 300));
 
-			run_to_block(10);
+			// Skip all the way to the end
+			run_to_block(50);
 
 			// User can withdraw their full balance without fees
 			assert_ok!(Crowdfund::withdraw(Origin::signed(1), 0));
 			assert_eq!(Balances::free_balance(1), 989);
+
+			assert_ok!(Crowdfund::withdraw(Origin::signed(2), 0));
+			assert_eq!(Balances::free_balance(2), 1990);
+
+			assert_ok!(Crowdfund::withdraw(Origin::signed(3), 0));
+			assert_eq!(Balances::free_balance(3), 2990);
 		});
 	}
 	
@@ -911,7 +1024,7 @@ mod tests {
 			run_to_block(5);
 
 			// Cannot withdraw before fund ends
-			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 0), "contribution period not over");
+			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 0), "fund has not ended");
 
 			run_to_block(10);
 
@@ -923,33 +1036,69 @@ mod tests {
 	}
 
 	#[test]
-	fn retirement_works() {
+	fn dissolve_works() {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
 			// Transfer fee is taken here
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
-			assert_eq!(Balances::free_balance(1), 940);
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
+			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 200));
+			assert_ok!(Crowdfund::contribute(Origin::signed(3), 0, 300));
 
-			run_to_block(5);
+			// Skip all the way to the end
+			run_to_block(50);
+			
+			// Check current funds (contributions + deposit)
+			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 601);
 
-			// Cannot withdraw before fund ends
-			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 0), "contribution period not over");
+			// Dissolve the crowdfund
+			assert_ok!(Crowdfund::dissolve(Origin::signed(1), 0));
 
-			run_to_block(10);
+			// Fund account is emptied
+			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 0);
+			// Deposit is returned
+			assert_eq!(Balances::free_balance(1), 890);
+			// Treasury account is filled
+			assert_eq!(Balances::free_balance(Treasury::account_id()), 600);
 
-			// Cannot withdraw if they did not contribute
-			assert_noop!(Crowdfund::withdraw(Origin::signed(2), 0), "no contributions stored");
-			// Cannot withdraw from a non-existent fund
-			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 1), "invalid fund index");
+			// Storage trie is removed
+			assert_eq!(Crowdfund::contribution_get(0,&0), 0);
+			// Fund storage is removed
+			assert_eq!(Crowdfund::funds(0), None);
+
 		});
 	}
 
 	#[test]
-	fn create_multiple_crowdfunds_works() {
+	fn dissolve_handles_basic_errors() {
 		with_externalities(&mut new_test_ext(), || {
+			// Set up a crowdfund
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			// Transfer fee is taken here
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
+			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 200));
+			assert_ok!(Crowdfund::contribute(Origin::signed(3), 0, 300));
 
+			// Cannot dissolve an invalid fund index
+			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 1), "invalid fund index");
+			// Cannot dissolve a fund in progress
+			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 0), "retirement period not over");
+
+			run_to_block(10);
+
+			// Onboard fund
+			assert_ok!(Crowdfund::fix_deploy_data(
+				Origin::signed(1),
+				0,
+				<Test as system::Trait>::Hash::default(),
+				vec![0]
+			));
+			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
+
+			// Cannot dissolve an active fund
+			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 0), "cannot dissolve fund with active parachain");
 		});
 	}
 }
