@@ -73,6 +73,8 @@ use crate::slots;
 use parity_codec::{Encode, Decode};
 use rstd::vec::Vec;
 use crate::parachains::ParachainRegistrar;
+use substrate_primitives::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
+
 
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
 
@@ -142,10 +144,7 @@ decl_storage! {
 
 		/// The funds that have had additional contributions during the last block. This is used
 		/// in order to determine which funds should submit new or updated bids.
-		NewRaise: Vec<FundIndex>;
-
-		/// True if the fund was ending at the last block.
-		WasEnding: bool;
+		NewRaise get(new_raise): Vec<FundIndex>;
 	}
 }
 
@@ -241,9 +240,13 @@ decl_module! {
 			T::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
 
 			let id = Self::id_from_index(index);
+			sr_io::print("before get");
 			let balance = who.using_encoded(|b| child::get_or_default::<BalanceOf<T>>(id.as_ref(), b));
+			sr_io::print("after get");
+
 			let balance = balance.saturating_add(value);
 			who.using_encoded(|b| child::put(id.as_ref(), b, &balance));
+			sr_io::print("after put");
 
 			// First contribution to a fund should add it to `NewRaise` so initial bid is made
 			if fund.last_contribution.is_none() {
@@ -415,7 +418,7 @@ decl_module! {
 						});
 
 						// Care needs to be taken by the crowdfund creator that this function will succeed given
-						// the crowdfunding configuration. We do basic checks ahead of time in crowdfund `create`
+						// the crowdfunding configuration. We do some checks ahead of time in crowdfund `create`.
 						let _ = <slots::Module<T>>::handle_bid(
 							bidder,
 							<slots::Module<T>>::auction_counter(),
@@ -439,9 +442,16 @@ impl<T: Trait> Module<T> {
 		MODULE_ID.into_sub_account(index)
 	}
 
-	pub fn id_from_index(index: FundIndex) -> T::Hash {
-		// TODO: Fix with https://github.com/paritytech/parity-scale-codec/issues/128
-		(&b"crowdfund"[..], index).using_encoded(<T as system::Trait>::Hashing::hash)
+	pub fn id_from_index(index: FundIndex) -> Vec<u8> {
+		let mut buf = Vec::new();
+		buf.extend_from_slice(b"crowdfund");
+		buf.extend_from_slice(&index.to_le_bytes()[..]);
+
+		CHILD_STORAGE_KEY_PREFIX.iter()
+			.chain(b"default:")
+			.chain(T::Hashing::hash(&buf[..]).as_ref().iter())
+			.cloned()
+			.collect()
 	}
 }
 
@@ -450,7 +460,7 @@ mod tests {
 	use super::*;
 
 	use std::{collections::HashMap, cell::RefCell};
-	use srml_support::{impl_outer_origin, assert_ok, parameter_types};
+	use srml_support::{impl_outer_origin, assert_ok, assert_noop, parameter_types};
 	use sr_io::with_externalities;
 	use substrate_primitives::{H256, Blake2Hasher};
 	use primitives::parachain::Id as ParaId;
@@ -487,8 +497,10 @@ mod tests {
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
-		pub const TransferFee: u64 = 0;
-		pub const CreationFee: u64 = 0;
+		// We want to make sure these fees are non zero, so we can check
+		// that our module correctly avoids these fees :)
+		pub const TransferFee: u64 = 10;
+		pub const CreationFee: u64 = 10;
 		pub const TransactionBaseFee: u64 = 0;
 		pub const TransactionByteFee: u64 = 0;
 	}
@@ -588,15 +600,98 @@ mod tests {
 	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
 		t.extend(balances::GenesisConfig::<Test>{
-			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
+			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],
 			vesting: vec![],
 		}.build_storage().unwrap().0);
 		t.into()
 	}
 
 	#[test]
-	fn it_works() {
+	fn basic_setup_works() {
 		with_externalities(&mut new_test_ext(), || {
-		})
+			assert_eq!(System::block_number(), 1);
+			assert_eq!(Crowdfund::fund_count(), 0);
+			assert_eq!(Crowdfund::funds(0), None);
+			let empty: Vec<FundIndex> = Vec::new();
+			assert_eq!(Crowdfund::new_raise(), empty);
+		});
+	}
+
+	#[test]
+	fn create_crowdfund_works() {
+		with_externalities(&mut new_test_ext(), || {
+			// Set up an auction
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			// Now try to create a crowdfund campaign
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_eq!(Crowdfund::fund_count(), 1);
+			// This is what the initial `fund_info` should look like
+			let fund_info = FundInfo {
+				parachain: None,
+				owner: 1,
+				deposit: 1,
+				raised: 0,
+				// 5 blocks length + 3 block ending period + 1 starting block
+				end: 9,
+				cap: 1000,
+				last_contribution: None,
+				first_slot: 1,
+				last_slot: 4,
+				deploy_data: None,
+			};
+			assert_eq!(Crowdfund::funds(0), Some(fund_info));
+			// User has deposit removed from their free balance
+			assert_eq!(Balances::free_balance(1), 999);
+			// No new raise until first contribution
+			let empty: Vec<FundIndex> = Vec::new();
+			assert_eq!(Crowdfund::new_raise(), empty);
+		});
+	}
+
+	#[test]
+	fn create_crowdfund_handles_basic_errors() {
+		with_externalities(&mut new_test_ext(), || {
+			// Cannot create crowdfund without ongoing auction
+			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 1, 4), "no auction in progress");
+
+			// Set up an auction
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			// Cannot create a crowdfund with bad slots
+			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 4, 1), "last slot must be greater than first slot");
+			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 1, 5), "last slot cannot be more then 3 more than first slot");
+
+			// Cannot create a crowdfund without some deposit funds
+			assert_noop!(Crowdfund::create(Origin::signed(1337), 1000, 1, 3), "too few free funds in account");
+		});
+	}
+
+	#[test]
+	fn contribute_crowdfund_works() {
+		with_externalities(&mut new_test_ext(), || {
+			// Set up an crowdfund
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_eq!(Balances::free_balance(1), 999);
+
+			// User 1 contributes to their own crowdfund
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
+			// User 1 has spent some funds to do this, transfer fees **are** taken
+			assert_eq!(Balances::free_balance(1), 940);
+
+			
+			
+		});
+	}
+
+	#[test]
+	fn contribute_crowdfund_handles_basic_errors() {
+		with_externalities(&mut new_test_ext(), || {
+			// Set up an crowdfund
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+
+			
+			
+		});
 	}
 }
