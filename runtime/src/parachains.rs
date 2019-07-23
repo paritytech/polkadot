@@ -29,6 +29,7 @@ use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, CandidateReceipt,
 }};
+use primitives::ed25519::Public as Ed25519Public;
 use {system, session::{self, SessionIndex}};
 use srml_support::{
 	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
@@ -188,7 +189,16 @@ pub struct IncludedBlocks<T: Trait> {
 pub struct Attestations<T: Trait> {
 	receipt: CandidateReceipt,
 	valid: Vec<T::AccountId>, // stash account ID of voter.
-	invalid: Vec<T::AccountId>,
+	invalid: Vec<T::AccountId>, // stash account ID of voter.
+}
+
+/// Interface to the persistent (stash) identities of the current validators.
+pub struct ValidatorIdentities<T>(rstd::marker::PhantomData<T>);
+
+impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
+	fn get() -> Vec<T::ValidatorId> {
+		<session::Module<T>>::validators()
+	}
 }
 
 pub trait Trait: session::Trait {
@@ -203,6 +213,9 @@ pub trait Trait: session::Trait {
 
 	/// How many blocks ago we're willing to accept attestations for.
 	type AttestationPeriod: Get<Self::BlockNumber>;
+
+	/// Get a list of the validators' underlying identities.
+	type ValidatorIdentities: Get<Vec<Self::AccountId>>;
 }
 
 /// Origin for the parachains module.
@@ -228,6 +241,9 @@ const WATERMARK_QUEUE_SIZE: usize = 20000;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
+		/// All authorities' keys at the moment.
+		pub Authorities get(authorities): Vec<Ed25519Public>;
+
 		// Vector of all parachain IDs.
 		pub Parachains get(active_parachains): Vec<ParaId>;
 		// The parachains registered at present.
@@ -340,7 +356,7 @@ decl_module! {
 
 				Self::update_routing(
 					current_number,
-					&heads
+					&heads,
 				);
 
 				Self::dispatch_upward_messages(
@@ -449,7 +465,7 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
-		let validators = crate::Aura::authorities();
+		let validators = T::ValidatorIdentities::get();
 
 		// make new entry.
 		for (head, hash) in heads.iter().zip(&para_blocks.para_blocks) {
@@ -457,7 +473,11 @@ impl<T: Trait> Module<T> {
 			let invalid = Vec::new();
 
 			for (auth_index, _) in &head.validity_votes {
-				valid.push(unimplemented!());
+				let stash_id = validators.get(auth_index)
+					.expect("auth_index checked to be within bounds in `check_candidates`; qed")
+					.clone();
+
+				valid.push(stash_id);
 			}
 
 			let summary = Attestations {
@@ -576,7 +596,7 @@ impl<T: Trait> Module<T> {
 	pub fn calculate_duty_roster() -> (DutyRoster, [u8; 32]) {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
-		let validator_count = crate::Aura::authorities().len();
+		let validator_count = Self::authorities().len();
 		let validators_per_parachain = if parachain_count != 0 { (validator_count - 1) / parachain_count } else { 0 };
 
 		let mut roles_val = (0..validator_count).map(|i| match i {
@@ -746,7 +766,7 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
-		let authorities = super::Aura::authorities();
+		let authorities = Self::authorities();
 		let (duty_roster, random_seed) = Self::calculate_duty_roster();
 
 		// convert a duty roster, which is originally a Vec<Chain>, where each
@@ -866,6 +886,16 @@ impl<T: Trait> Module<T> {
 		}
 	}
 */
+}
+
+impl<T: Trait> session::OneSessionHandler<T::AccountId, Ed25519Public> for Module<T> {
+	fn on_new_session<'a, I: 'a>(changed: bool, validators: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		if changed {
+			Self::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+		}
+	}
 }
 
 pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"newheads";
@@ -1040,7 +1070,7 @@ mod tests {
 		let (duty_roster, _) = Parachains::calculate_duty_roster();
 		let candidate_hash = candidate.candidate.hash();
 
-		let authorities = crate::Aura::authorities();
+		let authorities = Self::authorities();
 		let extract_key = |public: SessionKey| {
 			AuthorityKeyring::from_raw_public(public.0).unwrap()
 		};
