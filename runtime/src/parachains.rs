@@ -736,6 +736,10 @@ impl<T: Trait> Module<T> {
 				.zip(candidate.validity_votes.iter())
 			{
 
+				if validator_group.iter().find(|&(idx, _)| *idx == auth_index).is_none() {
+					return Err("Attesting validator not on this chain's validation duty.");
+				}
+
 				let (payload, sig) = match validity_attestation {
 					ValidityAttestation::Implicit(sig) => {
 						let payload = encoded_implicit.get_or_insert_with(|| localized_payload(
