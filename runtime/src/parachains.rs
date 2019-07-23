@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2017-2019 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -27,9 +27,9 @@ use sr_primitives::traits::{
 };
 use primitives::{Hash, Balance, ParachainPublic, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, CandidateReceipt,
+	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots,
 }};
-use {system, session::{self, SessionIndex}};
+use {system, session};
 use srml_support::{
 	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement}
@@ -47,6 +47,7 @@ use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 use rstd::marker::PhantomData;
 
 use system::{ensure_none, ensure_root};
+use crate::attestations::{self, IncludedBlocks};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -174,23 +175,6 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 	}
 }
 
-/// Parachain blocks included in a recent relay-chain block.
-#[derive(Encode, Decode)]
-pub struct IncludedBlocks<T: Trait> {
-	actual_number: T::BlockNumber,
-	session: SessionIndex,
-	random_seed: [u8; 32],
-	para_blocks: Vec<Hash>,
-}
-
-/// Attestations kept over time on a parachain block.
-#[derive(Encode, Decode)]
-pub struct Attestations<T: Trait> {
-	receipt: CandidateReceipt,
-	valid: Vec<T::AccountId>, // stash account ID of voter.
-	invalid: Vec<T::AccountId>, // stash account ID of voter.
-}
-
 /// Interface to the persistent (stash) identities of the current validators.
 pub struct ValidatorIdentities<T>(rstd::marker::PhantomData<T>);
 
@@ -200,7 +184,7 @@ impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
 	}
 }
 
-pub trait Trait: session::Trait {
+pub trait Trait: attestations::Trait {
 	/// The outer origin type.
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
 
@@ -209,12 +193,6 @@ pub trait Trait: session::Trait {
 
 	/// Some way of interacting with balances for fees.
 	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
-
-	/// How many blocks ago we're willing to accept attestations for.
-	type AttestationPeriod: Get<Self::BlockNumber>;
-
-	/// Get a list of the validators' underlying identities.
-	type ValidatorIdentities: Get<Vec<Self::AccountId>>;
 }
 
 /// Origin for the parachains module.
@@ -267,14 +245,6 @@ decl_storage! {
 		/// decoding when checking receipt validity. First item in tuple is the count of messages
 		//	second if the total length (in bytes) of the message payloads.
 		pub RelayDispatchQueueSize: map ParaId => (u32, u32);
-
-		/// A mapping from modular block number (n % AttestationPeriod)
-		/// to session index and the list of candidate
-		/// hashes.
-		pub RecentParaBlocks: map T::BlockNumber => Option<IncludedBlocks<T>>;
-
-		/// Attestations on a recent parachain block.
-		pub ParaBlockAttestations: map (T::BlockNumber, Hash) => Option<Attestations<T>>;
 
 		// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
@@ -353,7 +323,7 @@ decl_module! {
 
 				let current_number = <system::Module<T>>::block_number();
 
-				Self::update_para_blocks(&heads, para_blocks);
+				<attestations::Module<T>>::note_included(&heads, para_blocks);
 
 				Self::update_routing(
 					current_number,
@@ -452,45 +422,6 @@ impl<T: Trait> Module<T> {
 			);
 		}
 		Ok(())
-	}
-
-	/// Update recent candidates to contain the already-checked parachain candidates.
-	fn update_para_blocks(heads: &[AttestedCandidate], para_blocks: IncludedBlocks<T>) {
-		let attestation_period = T::AttestationPeriod::get();
-		let mod_num = para_blocks.actual_number % attestation_period;
-
-		// clear old entry that was in this place.
-		if let Some(old_entry) = <RecentParaBlocks<T>>::take(&mod_num) {
-			for old_para_block in old_entry.para_blocks {
-				<ParaBlockAttestations<T>>::remove(&(old_entry.actual_number, old_para_block));
-			}
-		}
-
-		let validators = T::ValidatorIdentities::get();
-
-		// make new entry.
-		for (head, hash) in heads.iter().zip(&para_blocks.para_blocks) {
-			let mut valid = Vec::new();
-			let invalid = Vec::new();
-
-			for (auth_index, _) in &head.validity_votes {
-				let stash_id = validators.get(*auth_index as usize)
-					.expect("auth_index checked to be within bounds in `check_candidates`; qed")
-					.clone();
-
-				valid.push(stash_id);
-			}
-
-			let summary = Attestations {
-				receipt: head.candidate().clone(),
-				valid,
-				invalid,
-			};
-
-			<ParaBlockAttestations<T>>::insert(&(para_blocks.actual_number, *hash), &summary);
-		}
-
-		<RecentParaBlocks<T>>::insert(&mod_num, &para_blocks);
 	}
 
 	/// Update routing information from the parachain heads. This queues upwards
@@ -903,17 +834,19 @@ impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	fn on_disabled(_i: usize) { }
 }
 
-pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"newheads";
+/// An identifier for inherent data that provides new minimally-attested
+/// parachain heads.
+pub const NEW_HEADS_IDENTIFIER: InherentIdentifier = *b"newheads";
 
 pub type InherentType = Vec<AttestedCandidate>;
 
 impl<T: Trait> ProvideInherent for Module<T> {
 	type Call = Call<T>;
 	type Error = MakeFatalError<RuntimeString>;
-	const INHERENT_IDENTIFIER: InherentIdentifier = INHERENT_IDENTIFIER;
+	const INHERENT_IDENTIFIER: InherentIdentifier = NEW_HEADS_IDENTIFIER;
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-		let data = data.get_data::<InherentType>(&INHERENT_IDENTIFIER)
+		let data = data.get_data::<InherentType>(&NEW_HEADS_IDENTIFIER)
 			.expect("Parachain heads could not be decoded.")
 			.expect("No parachain heads found in inherent data.");
 
@@ -934,8 +867,8 @@ mod tests {
 		impl_opaque_keys, key_types, Perbill,
 	};
 	use primitives::{
-		parachain::{HeadData, ValidityAttestation, ValidatorIndex}, SessionKey,
-		BlockNumber, AuraId
+		parachain::{HeadData, ValidityAttestation, ValidatorIndex, CandidateReceipt},
+		SessionKey, BlockNumber, AuraId,
 	};
 	use keyring::{AuthorityKeyring};
 	use srml_support::{
@@ -1056,12 +989,15 @@ mod tests {
 		type SessionInterface = Self;
 	}
 
+	impl attestations::Trait for Test {
+		type AttestationPeriod = AttestationPeriod;
+		type ValidatorIdentities = ValidatorIdentities<Test>;
+	}
+
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
-		type AttestationPeriod = AttestationPeriod;
-		type ValidatorIdentities = ValidatorIdentities<Test>;
 	}
 
 	type Parachains = Module<Test>;
