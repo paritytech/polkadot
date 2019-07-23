@@ -366,6 +366,7 @@ impl parachains::Trait for Runtime {
 	type Call = Call;
 	type ParachainCurrency = Balances;
 	type AttestationPeriod = AttestationPeriod;
+	type ValidatorIdentities = parachains::ValidatorIdentities<Runtime>;
 }
 
 parameter_types!{

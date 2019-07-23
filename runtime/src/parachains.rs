@@ -23,13 +23,12 @@ use srml_support::{decl_storage, decl_module, fail, ensure};
 
 use bitvec::bitvec;
 use sr_primitives::traits::{
-	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero,
+	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One,
 };
-use primitives::{Hash, Balance, parachain::{
+use primitives::{Hash, Balance, ParachainPublic, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, CandidateReceipt,
 }};
-use primitives::ed25519::Public as Ed25519Public;
 use {system, session::{self, SessionIndex}};
 use srml_support::{
 	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
@@ -242,7 +241,7 @@ const WATERMARK_QUEUE_SIZE: usize = 20000;
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		/// All authorities' keys at the moment.
-		pub Authorities get(authorities): Vec<Ed25519Public>;
+		pub Authorities get(authorities) config(authorities): Vec<ParachainPublic>;
 
 		// Vector of all parachain IDs.
 		pub Parachains get(active_parachains): Vec<ParaId>;
@@ -399,8 +398,6 @@ fn majority_of(list_len: usize) -> usize {
 }
 
 fn localized_payload(statement: Statement, parent_hash: ::primitives::Hash) -> Vec<u8> {
-	use parity_codec::Encode;
-
 	let mut encoded = statement.encode();
 	encoded.extend(parent_hash.as_ref());
 	encoded
@@ -477,7 +474,7 @@ impl<T: Trait> Module<T> {
 			let invalid = Vec::new();
 
 			for (auth_index, _) in &head.validity_votes {
-				let stash_id = validators.get(auth_index)
+				let stash_id = validators.get(*auth_index as usize)
 					.expect("auth_index checked to be within bounds in `check_candidates`; qed")
 					.clone();
 
@@ -892,14 +889,18 @@ impl<T: Trait> Module<T> {
 */
 }
 
-impl<T: Trait> session::OneSessionHandler<T::AccountId, Ed25519Public> for Module<T> {
+impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
+	type Key = ParachainPublic;
+
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
 		if changed {
-			Self::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+			<Self as Store>::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
 		}
 	}
+
+	fn on_disabled(_i: usize) { }
 }
 
 pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"newheads";
@@ -929,13 +930,14 @@ mod tests {
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
 		traits::{BlakeTwo256, IdentityLookup},
-		testing::{UintAuthorityId, Header},
+		testing::Header,
+		impl_opaque_keys, key_types, Perbill,
 	};
 	use primitives::{
 		parachain::{HeadData, ValidityAttestation, ValidatorIndex}, SessionKey,
 		BlockNumber, AuraId
 	};
-	use keyring::{AuthorityKeyring, AccountKeyring};
+	use keyring::{AuthorityKeyring};
 	use srml_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
@@ -976,9 +978,16 @@ mod tests {
 		pub const Offset: BlockNumber = 0;
 	}
 
+	impl_opaque_keys! {
+		pub struct Keys {
+			#[id(key_types::ED25519)]
+			pub ed25519: ParachainPublic,
+		}
+	}
+
 	impl session::Trait for Test {
 		type OnSessionEnding = ();
-		type Keys = UintAuthorityId;
+		type Keys = Keys;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
 		type SessionHandler = ();
 		type Event = ();
@@ -1052,13 +1061,16 @@ mod tests {
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
 		type AttestationPeriod = AttestationPeriod;
+		type ValidatorIdentities = ValidatorIdentities<Test>;
 	}
 
 	type Parachains = Module<Test>;
 	type System = system::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
+		use staking::StakerStatus;
+
+		let (mut t, mut c) = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		let authority_keys = [
 			AuthorityKeyring::Alice,
 			AuthorityKeyring::Bob,
@@ -1069,27 +1081,54 @@ mod tests {
 			AuthorityKeyring::One,
 			AuthorityKeyring::Two,
 		];
-		let validator_keys = [
-			AccountKeyring::Alice,
-			AccountKeyring::Bob,
-			AccountKeyring::Charlie,
-			AccountKeyring::Dave,
-			AccountKeyring::Eve,
-			AccountKeyring::Ferdie,
-			AccountKeyring::One,
-			AccountKeyring::Two,
-		];
 
-		t.extend(session::GenesisConfig::<Test>{
-			keys: vec![(1, UintAuthorityId(1))],
-		}.build_storage().unwrap().0);
-		t.extend(GenesisConfig::<Test>{
+		// stashes are the index.
+		let session_keys: Vec<_> = authority_keys.iter().enumerate()
+			.map(|(i, k)| (i as u64, Keys { ed25519: SessionKey::from(*k) }))
+			.collect();
+
+		let authorities: Vec<_> = authority_keys.iter().map(|k| SessionKey::from(*k)).collect();
+
+		// controllers are the index + 1000
+		let stakers: Vec<_> = (0..authority_keys.len()).map(|i| (
+			i as u64,
+			i as u64 + 1000,
+			10_000,
+			StakerStatus::<u64>::Validator,
+		)).collect();
+
+		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
+
+		session::GenesisConfig::<Test> {
+			keys: session_keys,
+		}.assimilate_storage(&mut t, &mut c).unwrap();
+		GenesisConfig::<Test> {
 			parachains,
+			authorities: authorities.clone(),
 			_phdata: Default::default(),
-		}.build_storage().unwrap().0);
-		t.extend(aura::GenesisConfig::<Test>{
-			authorities: authority_keys.iter().map(|k| SessionKey::from(*k)).collect(),
-		}.build_storage().unwrap().0);
+		}.assimilate_storage(&mut t, &mut c).unwrap();
+
+		aura::GenesisConfig::<Test> {
+			authorities,
+		}.assimilate_storage(&mut t, &mut c).unwrap();
+
+		balances::GenesisConfig::<Test> {
+			balances,
+			vesting: vec![],
+		}.assimilate_storage(&mut t, &mut c).unwrap();
+
+		staking::GenesisConfig::<Test> {
+			current_era: 0,
+			stakers,
+			validator_count: 10,
+			minimum_validator_count: 8,
+			session_reward: Perbill::from_millionths(1000),
+			offline_slash: Perbill::from_percent(5),
+			current_session_reward: 100,
+			offline_slash_grace: 0,
+			invulnerables: vec![],
+		}.assimilate_storage(&mut t, &mut c).unwrap();
+
 		t.into()
 	}
 
@@ -1104,7 +1143,7 @@ mod tests {
 		let (duty_roster, _) = Parachains::calculate_duty_roster();
 		let candidate_hash = candidate.candidate.hash();
 
-		let authorities = Self::authorities();
+		let authorities = Parachains::authorities();
 		let extract_key = |public: SessionKey| {
 			AuthorityKeyring::from_raw_public(public.0).unwrap()
 		};
