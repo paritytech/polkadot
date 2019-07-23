@@ -721,6 +721,11 @@ impl<T: Trait> Module<T> {
 				"Not enough validity attestations"
 			);
 
+			ensure!(
+				candidate.validity_votes.len() <= authorities.len(),
+				"The number of attestations exceeds the number of authorities"
+			);
+
 			let fees = candidate.candidate().fees;
 			T::ParachainCurrency::deduct(para_id, fees)?;
 
