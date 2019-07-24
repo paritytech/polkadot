@@ -148,11 +148,10 @@ decl_storage! {
 }
 
 decl_event!(
-	pub enum Event<T>
-		where
-	<T as system::Trait>::AccountId,
-	Balance = BalanceOf<T>,
-	ParaId = ParaIdOf<T>,
+	pub enum Event<T> where
+		<T as system::Trait>::AccountId,
+		Balance = BalanceOf<T>,
+		ParaId = ParaIdOf<T>,
 	{
 		Created(FundIndex),
 		Contributed(AccountId, FundIndex, Balance),
@@ -170,8 +169,7 @@ decl_module! {
 		
 		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
 		#[weight = TransactionWeight::Basic(100_000, 10)]
-		fn create(
-			origin,
+		fn create(origin,
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: T::BlockNumber,
 			#[compact] last_slot: T::BlockNumber
@@ -269,8 +267,7 @@ decl_module! {
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
-		fn fix_deploy_data(
-			origin,
+		fn fix_deploy_data(origin,
 			#[compact] index: FundIndex,
 			code_hash: T::Hash,
 			initial_head_data: Vec<u8>
@@ -294,8 +291,7 @@ decl_module! {
 		///
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `para_id` is the parachain index that this fund won.
-		fn onboard(
-			origin,
+		fn onboard(origin,
 			#[compact] index: FundIndex,
 			#[compact] para_id: ParaIdOf<T>
 		) {
