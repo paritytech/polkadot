@@ -41,10 +41,12 @@ use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 use std::collections::HashMap;
 use std::sync::Arc;
 use futures::{prelude::*, sync::mpsc};
-use tokio::runtime::{Runtime, TaskExecutor};
+use tokio::runtime::Runtime;
 use parity_codec::Encode;
 
 use super::TestContext;
+
+type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
 #[derive(Clone, Copy)]
 struct NeverExit;

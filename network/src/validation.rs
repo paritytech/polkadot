@@ -44,7 +44,6 @@ use std::io;
 use std::sync::Arc;
 
 use arrayvec::ArrayVec;
-use tokio::runtime::TaskExecutor;
 use parking_lot::Mutex;
 use log::{debug, warn};
 
@@ -63,6 +62,7 @@ pub trait Executor {
 }
 
 /// A wrapped futures::future::Executor.
+#[derive(Clone)]
 pub struct WrappedExecutor<T>(pub T);
 
 impl<T> Executor for WrappedExecutor<T>
@@ -75,9 +75,11 @@ impl<T> Executor for WrappedExecutor<T>
 	}
 }
 
-impl Executor for TaskExecutor {
+impl Executor for Arc<
+	dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync
+> {
 	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
-		TaskExecutor::spawn(self, f)
+		let _ = FutureExecutor::execute(&**self, Box::new(f));
 	}
 }
 
@@ -288,7 +290,9 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 
 		rx
 	}
+}
 
+impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 	/// Convert the given `CollatorId` to a `PeerId`.
 	pub fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
 		impl Future<Item=Option<PeerId>, Error=()> + Send
@@ -326,6 +330,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],
+		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter {
 		let parent_hash = *table.consensus_parent_hash();
 		let local_session_key = table.session_key();
@@ -350,7 +355,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 				let table_router_clone = table_router.clone();
 				let work = table_router.checked_statements()
 					.for_each(move |msg| { table_router_clone.import_statement(msg); Ok(()) });
-				executor.spawn(work);
+				executor.spawn(work.select(exit).map(|_| ()).map_err(|_| ()));
 
 				table_router
 			});

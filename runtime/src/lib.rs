@@ -37,18 +37,18 @@ use client::{
 	runtime_api as client_api, impl_runtime_apis,
 };
 use sr_primitives::{
-	ApplyResult, generic, transaction_validity::TransactionValidity, create_runtime_str,
+	ApplyResult, generic, transaction_validity::TransactionValidity, create_runtime_str, key_types,
 	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Convert}, impl_opaque_keys
 };
 use version::RuntimeVersion;
-use grandpa::fg_primitives::{self, ScheduledChange};
-use council::motions as council_motions;
-#[cfg(feature = "std")]
-use council::seats as council_seats;
+use grandpa::{AuthorityId as GrandpaId, fg_primitives::{self, ScheduledChange}};
+use elections::VoteIndex;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
-use srml_support::{parameter_types, construct_runtime};
+use srml_support::{
+	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, OnUnbalanced}
+};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -58,8 +58,11 @@ pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
 pub use parachains::{Call as ParachainsCall, INHERENT_IDENTIFIER as PARACHAIN_INHERENT_IDENTIFIER};
 pub use sr_primitives::{Permill, Perbill};
-pub use timestamp::BlockPeriod;
 pub use srml_support::StorageValue;
+
+// Make the WASM binary available.
+#[cfg(feature = "std")]
+include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
@@ -80,6 +83,20 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
+const DOTS: Balance = 1_000_000_000_000;
+const BUCKS: Balance = DOTS / 100;
+const CENTS: Balance = BUCKS / 100;
+const MILLICENTS: Balance = CENTS / 1_000;
+
+const SECS_PER_BLOCK: BlockNumber = 6;
+const MINUTES: BlockNumber = 60 / SECS_PER_BLOCK;
+const HOURS: BlockNumber = MINUTES * 60;
+const DAYS: BlockNumber = HOURS * 24;
+
+parameter_types! {
+	pub const BlockHashCount: u64 = 250;
+}
+
 impl system::Trait for Runtime {
 	type Origin = Origin;
 	type Index = Nonce;
@@ -90,6 +107,7 @@ impl system::Trait for Runtime {
 	type Lookup = Indices;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
+	type BlockHashCount = BlockHashCount;
 }
 
 impl aura::Trait for Runtime {
@@ -104,19 +122,68 @@ impl indices::Trait for Runtime {
 	type Event = Event;
 }
 
+parameter_types! {
+	pub const ExistentialDeposit: Balance = 1 * BUCKS;
+	pub const TransferFee: Balance = 1 * CENTS;
+	pub const CreationFee: Balance = 1 * CENTS;
+	pub const TransactionBaseFee: Balance = 1 * CENTS;
+	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
+}
+
+
+/// Logic for the author to get a portion of fees.
+pub struct ToAuthor;
+
+type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
+impl OnUnbalanced<NegativeImbalance> for ToAuthor {
+	fn on_unbalanced(amount: NegativeImbalance) {
+		Balances::resolve_creating(&Authorship::author(), amount);
+	}
+}
+
+/// Splits fees 80/20 between treasury and block author.
+pub type DealWithFees = SplitTwoWays<
+	Balance,
+	NegativeImbalance,
+	_4, Treasury,   // 4 parts (80%) goes to the treasury.
+	_1, ToAuthor,     // 1 part (20%) goes to the block author.
+>;
+
 impl balances::Trait for Runtime {
 	type Balance = Balance;
 	type OnFreeBalanceZero = Staking;
 	type OnNewAccount = Indices;
 	type Event = Event;
-	type TransactionPayment = ();
+	type TransactionPayment = DealWithFees;
 	type DustRemoval = ();
 	type TransferPayment = ();
+	type ExistentialDeposit = ExistentialDeposit;
+	type TransferFee = TransferFee;
+	type CreationFee = CreationFee;
+	type TransactionBaseFee = TransactionBaseFee;
+	type TransactionByteFee = TransactionByteFee;
+}
+
+parameter_types! {
+	pub const MinimumPeriod: u64 = SECS_PER_BLOCK / 2;
 }
 
 impl timestamp::Trait for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Aura;
+	type MinimumPeriod = MinimumPeriod;
+}
+
+parameter_types! {
+	pub const UncleGenerations: u64 = 0;
+}
+
+// TODO: substrate#2986 implement this properly
+impl authorship::Trait for Runtime {
+	type FindAuthor = ();
+	type UncleGenerations = UncleGenerations;
+	type FilterUncle = ();
+	type EventHandler = ();
 }
 
 parameter_types! {
@@ -126,7 +193,10 @@ parameter_types! {
 
 type SessionHandlers = (Grandpa, Aura);
 impl_opaque_keys! {
-	pub struct SessionKeys(grandpa::AuthorityId, AuraId);
+	pub struct SessionKeys {
+		#[id(key_types::ED25519)]
+		pub ed25519: GrandpaId,
+	}
 }
 
 // NOTE: `SessionHandler` and `SessionKeys` are co-dependent: One key will be used for each handler.
@@ -141,6 +211,14 @@ impl session::Trait for Runtime {
 	type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
 	type Event = Event;
 	type Keys = SessionKeys;
+	type SelectInitialValidators = Staking;
+	type ValidatorId = AccountId;
+	type ValidatorIdOf = staking::StashOf<Self>;
+}
+
+impl session::historical::Trait for Runtime {
+	type FullIdentification = staking::Exposure<AccountId, Balance>;
+	type FullIdentificationOf = staking::ExposureOf<Self>;
 }
 
 /// Converter for currencies to votes.
@@ -172,10 +250,8 @@ impl staking::Trait for Runtime {
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
+	type SessionInterface = Self;
 }
-
-const MINUTES: BlockNumber = 6;
-const BUCKS: Balance = 1_000_000_000_000;
 
 parameter_types! {
 	pub const LaunchPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
@@ -195,40 +271,92 @@ impl democracy::Trait for Runtime {
 	type VotingPeriod = VotingPeriod;
 	type EmergencyVotingPeriod = EmergencyVotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
-	type ExternalOrigin = council_motions::EnsureProportionAtLeast<_1, _2, AccountId>;
-	type ExternalMajorityOrigin = council_motions::EnsureProportionAtLeast<_2, _3, AccountId>;
-	type EmergencyOrigin = council_motions::EnsureProportionAtLeast<_1, _1, AccountId>;
-	type CancellationOrigin = council_motions::EnsureProportionAtLeast<_2, _3, AccountId>;
-	type VetoOrigin = council_motions::EnsureMember<AccountId>;
+	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilInstance>;
+	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilInstance>;
+	type ExternalPushOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalInstance>;
+	type EmergencyOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilInstance>;
+	type CancellationOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilInstance>;
+	type VetoOrigin = collective::EnsureMember<AccountId, CouncilInstance>;
 	type CooloffPeriod = CooloffPeriod;
 }
 
-impl council::Trait for Runtime {
-	type Event = Event;
-	type BadPresentation = ();
-	type BadReaper = ();
-	type BadVoterIndex = ();
-	type LoserCandidate = ();
-	type OnMembersChanged = CouncilMotions;
-}
-
-impl council::motions::Trait for Runtime {
+type CouncilInstance = collective::Instance1;
+impl collective::Trait<CouncilInstance> for Runtime {
 	type Origin = Origin;
 	type Proposal = Call;
 	type Event = Event;
 }
 
+parameter_types! {
+	pub const CandidacyBond: Balance = 10 * BUCKS;
+	pub const VotingBond: Balance = 1 * BUCKS;
+	pub const VotingFee: Balance = 2 * BUCKS;
+	pub const PresentSlashPerVoter: Balance = 1 * CENTS;
+	pub const CarryCount: u32 = 6;
+	// one additional vote should go by before an inactive voter can be reaped.
+	pub const InactiveGracePeriod: VoteIndex = 1;
+	pub const ElectionsVotingPeriod: BlockNumber = 2 * DAYS;
+	pub const DecayRatio: u32 = 0;
+}
+
+impl elections::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type BadPresentation = ();
+	type BadReaper = ();
+	type BadVoterIndex = ();
+	type LoserCandidate = ();
+	type ChangeMembers = Council;
+	type CandidacyBond = CandidacyBond;
+	type VotingBond = VotingBond;
+	type VotingFee = VotingFee;
+	type PresentSlashPerVoter = PresentSlashPerVoter;
+	type CarryCount = CarryCount;
+	type InactiveGracePeriod = InactiveGracePeriod;
+	type VotingPeriod = ElectionsVotingPeriod;
+	type DecayRatio = DecayRatio;
+}
+
+type TechnicalInstance = collective::Instance2;
+impl collective::Trait<TechnicalInstance> for Runtime {
+	type Origin = Origin;
+	type Proposal = Call;
+	type Event = Event;
+}
+
+parameter_types! {
+	pub const ProposalBond: Permill = Permill::from_percent(5);
+	pub const ProposalBondMinimum: Balance = 1 * BUCKS;
+	pub const SpendPeriod: BlockNumber = 1 * DAYS;
+	pub const Burn: Permill = Permill::from_percent(50);
+}
+
 impl treasury::Trait for Runtime {
-	type Currency = balances::Module<Self>;
-	type ApproveOrigin = council_motions::EnsureMembers<_4, AccountId>;
-	type RejectOrigin = council_motions::EnsureMembers<_2, AccountId>;
+	type Currency = Balances;
+	type ApproveOrigin = collective::EnsureMembers<_4, AccountId, CouncilInstance>;
+	type RejectOrigin = collective::EnsureMembers<_2, AccountId, CouncilInstance>;
 	type Event = Event;
 	type MintedForSpending = ();
 	type ProposalRejection = ();
+	type ProposalBond = ProposalBond;
+	type ProposalBondMinimum = ProposalBondMinimum;
+	type SpendPeriod = SpendPeriod;
+	type Burn = Burn;
 }
 
 impl grandpa::Trait for Runtime {
 	type Event = Event;
+}
+
+parameter_types! {
+	pub const WindowSize: BlockNumber = finality_tracker::DEFAULT_WINDOW_SIZE.into();
+	pub const ReportLatency: BlockNumber = finality_tracker::DEFAULT_REPORT_LATENCY.into();
+}
+
+impl finality_tracker::Trait for Runtime {
+	type OnFinalizationStalled = Grandpa;
+	type WindowSize = WindowSize;
+	type ReportLatency = ReportLatency;
 }
 
 impl parachains::Trait for Runtime {
@@ -238,7 +366,7 @@ impl parachains::Trait for Runtime {
 }
 
 parameter_types!{
-	pub const LeasePeriod: BlockNumber = 100000;
+	pub const LeasePeriod: BlockNumber = 100_000;
 	pub const EndingPeriod: BlockNumber = 1000;
 }
 
@@ -263,20 +391,22 @@ construct_runtime!(
 		NodeBlock = primitives::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
-		System: system,
+		System: system::{Module, Call, Storage, Config, Event},
 		Aura: aura::{Module, Config<T>, Inherent(Timestamp)},
-		Timestamp: timestamp::{Module, Call, Storage, Config<T>, Inherent},
+		Timestamp: timestamp::{Module, Call, Storage, Inherent},
+		Authorship: authorship::{Module, Call, Storage},
 		Indices: indices,
 		Balances: balances,
+		Staking: staking::{default, OfflineWorker},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
-		Staking: staking,
-		Democracy: democracy,
-		Grandpa: grandpa::{Module, Call, Storage, Config<T>, Event},
+		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
+		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
+		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
+		Elections: elections::{Module, Call, Storage, Event<T>, Config<T>},
+		FinalityTracker: finality_tracker::{Module, Call, Inherent},
+		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
 		CuratedGrandpa: curated_grandpa::{Module, Call, Config<T>, Storage},
-		Council: council::{Module, Call, Storage, Event<T>},
-		CouncilMotions: council_motions::{Module, Call, Storage, Event<T>, Origin<T>},
-		CouncilSeats: council_seats::{Config<T>},
-		Treasury: treasury,
+		Treasury: treasury::{Module, Call, Storage, Event<T>},
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Sudo: sudo,

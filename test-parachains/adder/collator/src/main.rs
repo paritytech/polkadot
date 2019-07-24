@@ -23,17 +23,20 @@ use std::sync::Arc;
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
 use substrate_primitives::Pair;
 use parachain::codec::{Encode, Decode};
-use primitives::Hash;
-use primitives::parachain::{
-	HeadData, BlockData, Id as ParaId, Message, Extrinsic, Status as ParachainStatus,
+use primitives::{
+	Hash,
+	parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic, Status as ParachainStatus},
 };
-use collator::{InvalidHead, ParachainContext, VersionInfo};
+use collator::{InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext};
 use parking_lot::Mutex;
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
 	parent_hash: [0; 32],
-	post_state: [1, 27, 77, 3, 221, 140, 1, 241, 4, 145, 67, 207, 156, 76, 129, 126, 75, 22, 127, 29, 27, 131, 229, 198, 240, 241, 13, 137, 186, 30, 123, 206],
+	post_state: [
+		1, 27, 77, 3, 221, 140, 1, 241, 4, 145, 67, 207, 156, 76, 129, 126, 75,
+		22, 127, 29, 27, 131, 229, 198, 240, 241, 13, 137, 186, 30, 123, 206
+	],
 };
 
 const GENESIS_BODY: AdderBody = AdderBody {
@@ -44,6 +47,8 @@ const GENESIS_BODY: AdderBody = AdderBody {
 #[derive(Clone)]
 struct AdderContext {
 	db: Arc<Mutex<HashMap<AdderHead, AdderBody>>>,
+	/// We store it here to make sure that our interfaces require the correct bounds.
+	_network: Option<Arc<dyn Network>>,
 }
 
 /// The parachain context.
@@ -93,6 +98,14 @@ impl ParachainContext for AdderContext {
 	}
 }
 
+impl BuildParachainContext for AdderContext {
+	type ParachainContext = Self;
+
+	fn build(self, network: Arc<dyn Network>) -> Result<Self::ParachainContext, ()> {
+		Ok(Self { _network: Some(network), ..self })
+	}
+}
+
 fn main() {
 	let key = Arc::new(Pair::from_seed(&[1; 32]));
 	let id: ParaId = 100.into();
@@ -118,10 +131,11 @@ fn main() {
 		if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
 			exit_send.fire();
 		}
-	}).expect("Errror setting up ctrl-c handler");
+	}).expect("Error setting up ctrl-c handler");
 
 	let context = AdderContext {
 		db: Arc::new(Mutex::new(HashMap::new())),
+		_network: None,
 	};
 
 	let res = ::collator::run_collator(
@@ -131,7 +145,7 @@ fn main() {
 		key,
 		::std::env::args(),
 		VersionInfo {
-			name: "<unkown>",
+			name: "<unknown>",
 			version: "<unknown>",
 			commit: "<unknown>",
 			executable_name: "adder-collator",

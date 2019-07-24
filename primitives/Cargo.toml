@@ -6,8 +6,7 @@ edition = "2018"
 
 [dependencies]
 serde = { version = "1.0", optional = true, features = ["derive"] }
-parity-codec = { version = "3.0", default-features = false }
-parity-codec-derive = { version = "3.0", default-features = false }
+parity-codec = { version = "4.1", default-features = false }
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sr-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -23,7 +22,6 @@ pretty_assertions = "0.5.1"
 default = ["std"]
 std = [
 	"parity-codec/std",
-	"parity-codec-derive/std",
 	"primitives/std",
 	"substrate-client/std",
 	"rstd/std",

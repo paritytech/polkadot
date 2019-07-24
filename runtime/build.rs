@@ -1,5 +1,5 @@
 // Copyright 2019 Parity Technologies (UK) Ltd.
-// This file is part of Polkadot.
+// This file is part of Substrate.
 
 // Substrate is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Polkadot runtime reexported for WebAssembly compile.
+use wasm_builder_runner::{build_current_project, WasmBuilderSource};
 
-#![cfg_attr(not(feature = "std"), no_std)]
-
-pub use polkadot_runtime::*;
+fn main() {
+	build_current_project("wasm_binary.rs", WasmBuilderSource::Crates("1.0.3"));
+}
