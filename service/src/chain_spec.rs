@@ -21,7 +21,7 @@ use polkadot_primitives::{AccountId, SessionKey};
 use polkadot_runtime::{
 	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, AuraConfig,
 	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
-	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY,
+	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY, DAYS, DOLLARS,
 };
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
@@ -61,15 +61,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		hex!["123b9048ba61265547ad3f336dfa48c16851ba1a96691e5d1ab3be1725db0614"].unchecked_into(), // 5CUcQvAgMzXMpQSz8mgzeiswDFHED88NiEK4byfS5TLaTJow
 		hex!["8abecfa66704176be23df099bf441ea65444992d63b3ced3e76a17a4d38b0b0e"].unchecked_into(), // 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
 	)];
-
-	const MILLICENTS: u128 = 1_000_000_000;
-	const CENTS: u128 = 1_000 * MILLICENTS;    // assume this is worth about a cent.
-	const DOLLARS: u128 = 100 * CENTS;
-
-	const SECS_PER_BLOCK: u64 = 6;
-	const MINUTES: u64 = 60 / SECS_PER_BLOCK;
-	const HOURS: u64 = MINUTES * 60;
-	const DAYS: u64 = HOURS * 24;
 
 	const ENDOWMENT: u128 = 10_000_000 * DOLLARS;
 	const STASH: u128 = 100 * DOLLARS;
@@ -200,8 +191,9 @@ pub fn testnet_genesis(
 		]
 	});
 
-	const STASH: u128 = 1 << 20;
-	const ENDOWMENT: u128 = 1 << 20;
+	const ENDOWMENT: u128 = 10_000_000 * DOLLARS;
+	const STASH: u128 = 100 * DOLLARS;
+
 	let desired_seats = (endowed_accounts.len() / 2 - initial_authorities.len()) as u32;
 
 	GenesisConfig {
