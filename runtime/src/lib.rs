@@ -38,8 +38,9 @@ use client::{
 	runtime_api as client_api, impl_runtime_apis,
 };
 use sr_primitives::{
-	ApplyResult, generic, transaction_validity::TransactionValidity, create_runtime_str,
-	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Convert}, impl_opaque_keys
+	ApplyResult, generic, transaction_validity::TransactionValidity, create_runtime_str, key_types,
+	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Convert, Saturating},
+	impl_opaque_keys, weights::{Weight, WeightMultiplier}, Fixed64,
 };
 use version::RuntimeVersion;
 use grandpa::fg_primitives::{self, ScheduledChange};
@@ -88,10 +89,74 @@ const BUCKS: Balance = DOTS / 100;
 const CENTS: Balance = BUCKS / 100;
 const MILLICENTS: Balance = CENTS / 1_000;
 
-const SECS_PER_BLOCK: BlockNumber = 10;
-const MINUTES: BlockNumber = 60 / SECS_PER_BLOCK;
-const HOURS: BlockNumber = MINUTES * 60;
-const DAYS: BlockNumber = HOURS * 24;
+pub const SECS_PER_BLOCK: BlockNumber = 10;
+pub const MINUTES: BlockNumber = 60 / SECS_PER_BLOCK;
+pub const HOURS: BlockNumber = MINUTES * 60;
+pub const DAYS: BlockNumber = HOURS * 24;
+
+parameter_types! {
+	pub const BlockHashCount: u64 = 250;
+	pub const MaximumBlockWeight: Weight = 4 * 1024 * 1024;
+	pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
+}
+
+/// A struct that updates the weight multiplier based on the saturation level of the previous block.
+/// This should typically be called once per-block.
+///
+/// This assumes that weight is a numeric value in the u32 range.
+///
+/// Formula:
+///   diff = (ideal_weight - current_block_weight)
+///   v = 0.00004
+///   next_weight = weight * (1 + (v . diff) + (v . diff)^2 / 2)
+///
+/// https://research.web3.foundation/en/latest/polkadot/Token%20Economics/#relay-chain-transaction-fees
+pub struct WeightMultiplierUpdateHandler;
+impl Convert<(Weight, WeightMultiplier), WeightMultiplier> for WeightMultiplierUpdateHandler {
+	fn convert(previous_state: (Weight, WeightMultiplier)) -> WeightMultiplier {
+		let (block_weight, multiplier) = previous_state;
+		// CRITICAL NOTE: what the system module interprets as maximum block weight, and a portion
+		// of it (1/4 usually) as ideal weight demonstrate the gap in block weights for operational
+		// transactions. What this weight multiplier interprets as the maximum, is actually the
+		// maximum that is available to normal transactions. Hence,
+		let max_weight = MaximumBlockWeight::get() / 4;
+		let ideal_weight = (max_weight / 4) as u128;
+		let block_weight = block_weight as u128;
+
+		// determines if the first_term is positive
+		let positive = block_weight >= ideal_weight;
+		let diff_abs = block_weight.max(ideal_weight) - block_weight.min(ideal_weight);
+		// diff is within u32, safe.
+		let diff = Fixed64::from_rational(diff_abs as i64, max_weight as u64);
+		let diff_squared = diff.saturating_mul(diff);
+
+		// 0.00004 = 4/100_000 = 40_000/10^9
+		let v = Fixed64::from_rational(4, 100_000);
+		// 0.00004^2 = 16/10^10 ~= 2/10^9. Taking the future /2 into account, then it is just 1 parts
+		// from a billionth.
+		let v_squared_2 = Fixed64::from_rational(1, 1_000_000_000);
+
+		let first_term = v.saturating_mul(diff);
+		// It is very unlikely that this will exist (in our poor perbill estimate) but we are giving
+		// it a shot.
+		let second_term = v_squared_2.saturating_mul(diff_squared);
+
+		if positive {
+			let excess = first_term.saturating_add(second_term);
+			multiplier.saturating_add(WeightMultiplier::from_fixed(excess))
+		} else {
+			// first_term > second_term
+			let negative = first_term - second_term;
+			multiplier.saturating_sub(WeightMultiplier::from_fixed(negative))
+				// despite the fact that apply_to saturates weight (final fee cannot go below 0)
+				// it is crucially important to stop here and don't further reduce the weight fee
+				// multiplier. While at -1, it means that the network is so un-congested that all
+				// transactions are practically free. We stop here and only increase if the network
+				// became more busy.
+				.max(WeightMultiplier::from_rational(-1, 1))
+		}
+	}
+}
 
 impl system::Trait for Runtime {
 	type Origin = Origin;
@@ -102,7 +167,11 @@ impl system::Trait for Runtime {
 	type AccountId = AccountId;
 	type Lookup = Indices;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
+	type WeightMultiplierUpdate = WeightMultiplierUpdateHandler;
 	type Event = Event;
+	type BlockHashCount = BlockHashCount;
+	type MaximumBlockWeight = MaximumBlockWeight;
+	type MaximumBlockLength = MaximumBlockLength;
 }
 
 impl aura::Trait for Runtime {
@@ -229,6 +298,8 @@ impl staking::Trait for Runtime {
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
+	type SessionInterface = Self;
+	type Time = Timestamp;
 }
 
 parameter_types! {
@@ -396,12 +467,19 @@ pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
+/// The SignedExtension to the basic transaction logic.
+pub type SignedExtra = (
+	system::CheckEra<Runtime>,
+	system::CheckNonce<Runtime>,
+	system::CheckWeight<Runtime>,
+	balances::TakeFees<Runtime>
+);
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedMortalCompactExtrinsic<Address, Nonce, Call, Signature>;
+pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Balances, Runtime, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
 
 impl_runtime_apis! {
 	impl client_api::Core<Block> for Runtime {

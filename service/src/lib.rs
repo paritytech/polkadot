@@ -22,7 +22,8 @@ use client::LongestChain;
 use consensus_common::SelectChain;
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, Block, Hash, BlockId};
+use grandpa_primitives::AuthorityPair as GrandpaPair;
+use polkadot_primitives::{parachain, Block, Hash, BlockId, AuraPair};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
 use polkadot_network::gossip::{self as network_gossip, Known};
 use primitives::{ed25519, Pair};
@@ -148,6 +149,8 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 service::construct_service_factory! {
 	struct Factory {
 		Block = Block,
+		ConsensusPair = AuraPair,
+		FinalityPair = GrandpaPair,
 		RuntimeApi = RuntimeApi,
 		NetworkProtocol = PolkadotProtocol {
 			|config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for.clone()))
@@ -174,7 +177,7 @@ service::construct_service_factory! {
 					let local_key = if service.config.disable_grandpa {
 						None
 					} else {
-						key.clone()
+						service.authority_key()
 					};
 
 					let config = grandpa::Config {
@@ -227,8 +230,8 @@ service::construct_service_factory! {
 				};
 
 				// run authorship only if authority.
-				let key = match key {
-					Some(key) => key,
+				let aura_key = match service.authority_key()  {
+					Some(key) => Arc::new(key),
 					None => return Ok(service),
 				};
 

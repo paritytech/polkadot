@@ -44,7 +44,7 @@ pub enum Error {
 	PrematureDestruction,
 	/// Timer failed
 	#[display(fmt = "Timer failed: {}", _0)]
-	Timer(tokio::timer::Error),
+	Timer(std::io::Error),
 	/// Unable to dispatch agreement future
 	#[display(fmt = "Unable to dispatch agreement future: {:?}", _0)]
 	Executor(futures::future::ExecuteErrorKind),

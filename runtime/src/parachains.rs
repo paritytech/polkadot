@@ -842,7 +842,7 @@ mod tests {
 		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey,
 		BlockNumber, AuraId
 	};
-	use keyring::{AuthorityKeyring, AccountKeyring};
+	use keyring::Ed25519Keyring;
 	use srml_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
@@ -862,16 +862,25 @@ mod tests {
 
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
+	parameter_types! {
+		pub const BlockHashCount: u64 = 250;
+		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
+		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
+	}
 	impl system::Trait for Test {
 		type Origin = Origin;
 		type Index = crate::Nonce;
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
-		type AccountId = crate::AccountId;
-		type Lookup = IdentityLookup<crate::AccountId>;
-		type Header = crate::Header;
+		type AccountId = u64;
+		type Lookup = IdentityLookup<u64>;
+		type Header = Header;
+		type WeightMultiplierUpdate = ();
 		type Event = ();
+		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type MaximumBlockLength = MaximumBlockLength;
 	}
 
 	parameter_types! {
@@ -934,6 +943,8 @@ mod tests {
 		type Reward = ();
 		type SessionsPerEra = SessionsPerEra;
 		type BondingDuration = BondingDuration;
+		type SessionInterface = Self;
+		type Time = timestamp::Module<Test>;
 	}
 
 	impl Trait for Test {
@@ -948,24 +959,14 @@ mod tests {
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
 		let authority_keys = [
-			AuthorityKeyring::Alice,
-			AuthorityKeyring::Bob,
-			AuthorityKeyring::Charlie,
-			AuthorityKeyring::Dave,
-			AuthorityKeyring::Eve,
-			AuthorityKeyring::Ferdie,
-			AuthorityKeyring::One,
-			AuthorityKeyring::Two,
-		];
-		let validator_keys = [
-			AccountKeyring::Alice,
-			AccountKeyring::Bob,
-			AccountKeyring::Charlie,
-			AccountKeyring::Dave,
-			AccountKeyring::Eve,
-			AccountKeyring::Ferdie,
-			AccountKeyring::One,
-			AccountKeyring::Two,
+			Ed25519Keyring::Alice,
+			Ed25519Keyring::Bob,
+			Ed25519Keyring::Charlie,
+			Ed25519Keyring::Dave,
+			Ed25519Keyring::Eve,
+			Ed25519Keyring::Ferdie,
+			Ed25519Keyring::One,
+			Ed25519Keyring::Two,
 		];
 
 		t.extend(session::GenesisConfig::<Test>{
@@ -995,7 +996,7 @@ mod tests {
 
 		let authorities = crate::Aura::authorities();
 		let extract_key = |public: SessionKey| {
-			AuthorityKeyring::from_raw_public(public.0).unwrap()
+			Ed25519Keyring::from_raw_public(public.0).unwrap()
 		};
 
 		let validation_entries = duty_roster.validator_duty.iter()
