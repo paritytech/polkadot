@@ -435,9 +435,9 @@ impl<T: Trait> Module<T> {
 		buf.extend_from_slice(b"crowdfund");
 		buf.extend_from_slice(&index.to_le_bytes()[..]);
 
-		CHILD_STORAGE_KEY_PREFIX.iter()
+		CHILD_STORAGE_KEY_PREFIX.into_iter()
 			.chain(b"default:")
-			.chain(T::Hashing::hash(&buf[..]).as_ref().iter())
+			.chain(T::Hashing::hash(&buf[..]).as_ref().into_iter())
 			.cloned()
 			.collect()
 	}
