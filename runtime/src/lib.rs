@@ -83,15 +83,14 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
-const DOTS: Balance = 1_000_000_000_000;
-const BUCKS: Balance = DOTS / 100;
-const CENTS: Balance = BUCKS / 100;
-const MILLICENTS: Balance = CENTS / 1_000;
+pub const MILLICENTS: Balance = 1_000_000_000;
+pub const CENTS: Balance = 1_000 * MILLICENTS;    // assume this is worth about a cent.
+pub const DOLLARS: Balance = 100 * CENTS;
 
-const SECS_PER_BLOCK: BlockNumber = 6;
-const MINUTES: BlockNumber = 60 / SECS_PER_BLOCK;
-const HOURS: BlockNumber = MINUTES * 60;
-const DAYS: BlockNumber = HOURS * 24;
+pub const SECS_PER_BLOCK: BlockNumber = 6;
+pub const MINUTES: BlockNumber = 60 / SECS_PER_BLOCK;
+pub const HOURS: BlockNumber = MINUTES * 60;
+pub const DAYS: BlockNumber = HOURS * 24;
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
@@ -123,7 +122,7 @@ impl indices::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: Balance = 1 * BUCKS;
+	pub const ExistentialDeposit: Balance = 1 * DOLLARS;
 	pub const TransferFee: Balance = 1 * CENTS;
 	pub const CreationFee: Balance = 1 * CENTS;
 	pub const TransactionBaseFee: Balance = 1 * CENTS;
@@ -257,7 +256,7 @@ parameter_types! {
 	pub const LaunchPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
 	pub const VotingPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
 	pub const EmergencyVotingPeriod: BlockNumber = 3 * 24 * 60 * MINUTES;
-	pub const MinimumDeposit: Balance = 100 * BUCKS;
+	pub const MinimumDeposit: Balance = 100 * DOLLARS;
 	pub const EnactmentPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
 	pub const CooloffPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
 }
@@ -288,9 +287,9 @@ impl collective::Trait<CouncilInstance> for Runtime {
 }
 
 parameter_types! {
-	pub const CandidacyBond: Balance = 10 * BUCKS;
-	pub const VotingBond: Balance = 1 * BUCKS;
-	pub const VotingFee: Balance = 2 * BUCKS;
+	pub const CandidacyBond: Balance = 10 * DOLLARS;
+	pub const VotingBond: Balance = 1 * DOLLARS;
+	pub const VotingFee: Balance = 2 * DOLLARS;
 	pub const PresentSlashPerVoter: Balance = 1 * CENTS;
 	pub const CarryCount: u32 = 6;
 	// one additional vote should go by before an inactive voter can be reaped.
@@ -326,7 +325,7 @@ impl collective::Trait<TechnicalInstance> for Runtime {
 
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
-	pub const ProposalBondMinimum: Balance = 1 * BUCKS;
+	pub const ProposalBondMinimum: Balance = 1 * DOLLARS;
 	pub const SpendPeriod: BlockNumber = 1 * DAYS;
 	pub const Burn: Permill = Permill::from_percent(50);
 }
