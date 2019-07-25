@@ -23,6 +23,7 @@ use srml_support::{decl_storage, decl_module, fail, ensure};
 
 use bitvec::{bitvec, BigEndian};
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
+use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ActiveParas, CollatorId,
@@ -198,6 +199,7 @@ decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
+		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
 		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
@@ -269,12 +271,16 @@ decl_module! {
 
 		/// Register a parachain with given code.
 		/// Fails if given ID is already used.
-		pub fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
+		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
+		pub fn register_parachain(origin, id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
+			ensure_root(origin)?;
 			<Self as ParachainRegistrar<T::AccountId>>::register_parachain(id, code, initial_head_data)
 		}
 
 		/// Deregister a parachain with given id
-		pub fn deregister_parachain(id: ParaId) -> Result {
+		#[weight = SimpleDispatchInfo::FixedOperational(10_000)]
+		pub fn deregister_parachain(origin, id: ParaId) -> Result {
+			ensure_root(origin)?;
 			<Self as ParachainRegistrar<T::AccountId>>::deregister_parachain(id)
 		}
 
@@ -836,7 +842,9 @@ mod tests {
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
-		traits::{BlakeTwo256, IdentityLookup}, testing::UintAuthorityId,
+		Perbill,
+		traits::{BlakeTwo256, IdentityLookup, ConvertInto},
+		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
 		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey,
@@ -866,6 +874,7 @@ mod tests {
 		pub const BlockHashCount: u64 = 250;
 		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
+		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
@@ -881,6 +890,7 @@ mod tests {
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
 		type MaximumBlockLength = MaximumBlockLength;
+		type AvailableBlockRatio = AvailableBlockRatio;
 	}
 
 	parameter_types! {
@@ -927,6 +937,7 @@ mod tests {
 		type CreationFee = CreationFee;
 		type TransactionBaseFee = TransactionBaseFee;
 		type TransactionByteFee = TransactionByteFee;
+		type WeightToFee = ConvertInto;
 	}
 
 	parameter_types! {

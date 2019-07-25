@@ -39,8 +39,8 @@ use client::{
 };
 use sr_primitives::{
 	ApplyResult, generic, transaction_validity::TransactionValidity, create_runtime_str, key_types,
-	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Convert, Saturating},
-	impl_opaque_keys, weights::{Weight, WeightMultiplier}, Fixed64,
+	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup},
+	impl_opaque_keys, weights::Weight,
 };
 use version::RuntimeVersion;
 use grandpa::fg_primitives::{self, ScheduledChange};
@@ -51,7 +51,7 @@ use council::seats as council_seats;
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
 use srml_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, OnUnbalanced}
+	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
 };
 
 #[cfg(feature = "std")]
@@ -64,6 +64,18 @@ pub use parachains::{Call as ParachainsCall, INHERENT_IDENTIFIER as PARACHAIN_IN
 pub use sr_primitives::{Permill, Perbill};
 pub use timestamp::BlockPeriod;
 pub use srml_support::StorageValue;
+
+/// Implementations of some helper traits passed into runtime modules as associated types.
+pub mod impls;
+use impls::{CurrencyToVoteHandler, WeightMultiplierUpdateHandler, ToAuthor, WeightToFee};
+
+/// Constant values used within the runtime.
+pub mod constants;
+use constants::{time::*, currency::*};
+
+// Make the WASM binary available.
+#[cfg(feature = "std")]
+include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
@@ -84,78 +96,13 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
-const DOTS: Balance = 1_000_000_000_000;
-const BUCKS: Balance = DOTS / 100;
-const CENTS: Balance = BUCKS / 100;
-const MILLICENTS: Balance = CENTS / 1_000;
-
-pub const SECS_PER_BLOCK: BlockNumber = 10;
-pub const MINUTES: BlockNumber = 60 / SECS_PER_BLOCK;
-pub const HOURS: BlockNumber = MINUTES * 60;
-pub const DAYS: BlockNumber = HOURS * 24;
+type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
-	pub const MaximumBlockWeight: Weight = 4 * 1024 * 1024;
-	pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
-}
-
-/// A struct that updates the weight multiplier based on the saturation level of the previous block.
-/// This should typically be called once per-block.
-///
-/// This assumes that weight is a numeric value in the u32 range.
-///
-/// Formula:
-///   diff = (ideal_weight - current_block_weight)
-///   v = 0.00004
-///   next_weight = weight * (1 + (v . diff) + (v . diff)^2 / 2)
-///
-/// https://research.web3.foundation/en/latest/polkadot/Token%20Economics/#relay-chain-transaction-fees
-pub struct WeightMultiplierUpdateHandler;
-impl Convert<(Weight, WeightMultiplier), WeightMultiplier> for WeightMultiplierUpdateHandler {
-	fn convert(previous_state: (Weight, WeightMultiplier)) -> WeightMultiplier {
-		let (block_weight, multiplier) = previous_state;
-		// CRITICAL NOTE: what the system module interprets as maximum block weight, and a portion
-		// of it (1/4 usually) as ideal weight demonstrate the gap in block weights for operational
-		// transactions. What this weight multiplier interprets as the maximum, is actually the
-		// maximum that is available to normal transactions. Hence,
-		let max_weight = MaximumBlockWeight::get() / 4;
-		let ideal_weight = (max_weight / 4) as u128;
-		let block_weight = block_weight as u128;
-
-		// determines if the first_term is positive
-		let positive = block_weight >= ideal_weight;
-		let diff_abs = block_weight.max(ideal_weight) - block_weight.min(ideal_weight);
-		// diff is within u32, safe.
-		let diff = Fixed64::from_rational(diff_abs as i64, max_weight as u64);
-		let diff_squared = diff.saturating_mul(diff);
-
-		// 0.00004 = 4/100_000 = 40_000/10^9
-		let v = Fixed64::from_rational(4, 100_000);
-		// 0.00004^2 = 16/10^10 ~= 2/10^9. Taking the future /2 into account, then it is just 1 parts
-		// from a billionth.
-		let v_squared_2 = Fixed64::from_rational(1, 1_000_000_000);
-
-		let first_term = v.saturating_mul(diff);
-		// It is very unlikely that this will exist (in our poor perbill estimate) but we are giving
-		// it a shot.
-		let second_term = v_squared_2.saturating_mul(diff_squared);
-
-		if positive {
-			let excess = first_term.saturating_add(second_term);
-			multiplier.saturating_add(WeightMultiplier::from_fixed(excess))
-		} else {
-			// first_term > second_term
-			let negative = first_term - second_term;
-			multiplier.saturating_sub(WeightMultiplier::from_fixed(negative))
-				// despite the fact that apply_to saturates weight (final fee cannot go below 0)
-				// it is crucially important to stop here and don't further reduce the weight fee
-				// multiplier. While at -1, it means that the network is so un-congested that all
-				// transactions are practically free. We stop here and only increase if the network
-				// became more busy.
-				.max(WeightMultiplier::from_rational(-1, 1))
-		}
-	}
+	pub const MaximumBlockWeight: Weight = 1_000_000_000;
+	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
 }
 
 impl system::Trait for Runtime {
@@ -172,6 +119,7 @@ impl system::Trait for Runtime {
 	type BlockHashCount = BlockHashCount;
 	type MaximumBlockWeight = MaximumBlockWeight;
 	type MaximumBlockLength = MaximumBlockLength;
+	type AvailableBlockRatio = AvailableBlockRatio;
 }
 
 impl aura::Trait for Runtime {
@@ -187,22 +135,11 @@ impl indices::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: Balance = 1 * BUCKS;
+	pub const ExistentialDeposit: Balance = 10 * CENTS;
 	pub const TransferFee: Balance = 1 * CENTS;
 	pub const CreationFee: Balance = 1 * CENTS;
 	pub const TransactionBaseFee: Balance = 1 * CENTS;
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-}
-
-
-/// Logic for the author to get a portion of fees.
-pub struct ToAuthor;
-
-type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
-impl OnUnbalanced<NegativeImbalance> for ToAuthor {
-	fn on_unbalanced(amount: NegativeImbalance) {
-		Balances::resolve_creating(&Authorship::author(), amount);
-	}
 }
 
 /// Splits fees 80/20 between treasury and block author.
@@ -226,6 +163,7 @@ impl balances::Trait for Runtime {
 	type CreationFee = CreationFee;
 	type TransactionBaseFee = TransactionBaseFee;
 	type TransactionByteFee = TransactionByteFee;
+	type WeightToFee = WeightToFee;
 }
 
 impl timestamp::Trait for Runtime {
@@ -267,21 +205,6 @@ impl session::Trait for Runtime {
 	type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
 	type Event = Event;
 	type Keys = SessionKeys;
-}
-
-/// Converter for currencies to votes.
-pub struct CurrencyToVoteHandler;
-
-impl CurrencyToVoteHandler {
-	fn factor() -> u128 { (Balances::total_issuance() / u64::max_value() as u128).max(1) }
-}
-
-impl Convert<u128, u64> for CurrencyToVoteHandler {
-	fn convert(x: u128) -> u64 { (x / Self::factor()) as u64 }
-}
-
-impl Convert<u128, u128> for CurrencyToVoteHandler {
-	fn convert(x: u128) -> u128 { x * Self::factor() }
 }
 
 parameter_types! {
