@@ -21,8 +21,9 @@ use polkadot_primitives::{AccountId, SessionKey};
 use polkadot_runtime::{
 	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, AuraConfig,
 	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
-	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY, DAYS, DOLLARS,
+	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY,
 };
+use polkadot_runtime::constants::{currency::DOTS, time::*};
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
 
@@ -62,8 +63,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		hex!["8abecfa66704176be23df099bf441ea65444992d63b3ced3e76a17a4d38b0b0e"].unchecked_into(), // 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
 	)];
 
-	const ENDOWMENT: u128 = 10_000_000 * DOLLARS;
-	const STASH: u128 = 100 * DOLLARS;
+	const ENDOWMENT: u128 = 1_000_000 * DOTS;
+	const STASH: u128 = 100 * DOTS;
 
 	GenesisConfig {
 		system: Some(SystemConfig {
@@ -189,8 +190,8 @@ pub fn testnet_genesis(
 		]
 	});
 
-	const ENDOWMENT: u128 = 10_000_000 * DOLLARS;
-	const STASH: u128 = 100 * DOLLARS;
+	const ENDOWMENT: u128 = 1_000_000 * DOTS;
+	const STASH: u128 = 100 * DOTS;
 
 	let desired_seats = (endowed_accounts.len() / 2 - initial_authorities.len()) as u32;
 
