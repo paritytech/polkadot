@@ -29,9 +29,7 @@
 //!
 //! Groups themselves may be compromised by malicious authorities.
 
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::time::{self, Duration, Instant};
+use std::{collections::{HashMap, HashSet}, pin::Pin, sync::Arc, time::{self, Duration, Instant}};
 
 use aura::{SlotDuration, AuraApi};
 use client::{BlockchainEvents, BlockBody};
@@ -44,19 +42,19 @@ use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey, AuraId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
-	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage, CollatorSignature,
-	Collation, PoVBlock,
+	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage,
+	CollatorSignature, Collation, PoVBlock,
 };
 use primitives::{Pair, ed25519};
 use runtime_primitives::{
 	traits::{ProvideRuntimeApi, Header as HeaderT, DigestFor}, ApplyError
 };
-use tokio::timer::{Delay, Interval};
+use futures_timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
-use futures::future::{self, Either};
+use futures03::{future::{self, Either, FutureExt}, task::Context, stream::StreamExt};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
@@ -575,7 +573,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
 	type Error = Error;
-	type Create = Either<CreateProposal<C, TxApi>, future::FutureResult<Block, Error>>;
+	type Create = Either<CreateProposal<C, TxApi>, future::Ready<Result<Block, Error>>>;
 
 	fn propose(&self,
 		inherent_data: InherentData,
@@ -597,11 +595,11 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		let enough_candidates = dynamic_inclusion.acceptable_in(
 			now,
 			initial_included,
-		).unwrap_or_else(|| now + Duration::from_millis(1));
+		).unwrap_or_else(|| Duration::from_millis(1));
 
 		let believed_timestamp = match inherent_data.timestamp_inherent_data() {
 			Ok(timestamp) => timestamp,
-			Err(e) => return Either::B(future::err(Error::InherentError(e))),
+			Err(e) => return Either::Right(future::err(Error::InherentError(e))),
 		};
 
 		// set up delay until next allowed timestamp.
@@ -609,20 +607,18 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		let delay_future = if current_timestamp >= believed_timestamp {
 			None
 		} else {
-			Some(Delay::new(
-				Instant::now() + Duration::from_secs(current_timestamp - believed_timestamp)
-			))
+			Some(Delay::new(Duration::from_secs(current_timestamp - believed_timestamp)))
 		};
 
 		let timing = ProposalTiming {
 			minimum: delay_future,
-			attempt_propose: Interval::new(now + ATTEMPT_PROPOSE_EVERY, ATTEMPT_PROPOSE_EVERY),
+			attempt_propose: Interval::new(ATTEMPT_PROPOSE_EVERY),
 			enough_candidates: Delay::new(enough_candidates),
 			dynamic_inclusion,
 			last_included: initial_included,
 		};
 
-		Either::A(CreateProposal {
+		Either::Left(CreateProposal {
 			parent_hash: self.parent_hash.clone(),
 			parent_number: self.parent_number.clone(),
 			parent_id: self.parent_id.clone(),
@@ -632,7 +628,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 			believed_minimum_timestamp: believed_timestamp,
 			timing,
 			inherent_data: Some(inherent_data),
-			inherent_digests: inherent_digests,
+			inherent_digests,
 			// leave some time for the proposal finalisation
 			deadline: Instant::now() + max_duration - max_duration / 3,
 		})
@@ -657,26 +653,26 @@ struct ProposalTiming {
 impl ProposalTiming {
 	// whether it's time to attempt a proposal.
 	// shouldn't be called outside of the context of a task.
-	fn poll(&mut self, included: usize) -> Poll<(), Error> {
+	fn poll(&mut self, cx: &mut Context, included: usize) -> futures03::Poll<Result<(), Error>> {
 		// first drain from the interval so when the minimum delay is up
 		// we don't have any notifications built up.
 		//
 		// this interval is just meant to produce periodic task wakeups
 		// that lead to the `dynamic_inclusion` getting updated as necessary.
-		while let Async::Ready(x) = self.attempt_propose.poll().map_err(Error::Timer)? {
+		while let futures03::Poll::Ready(x) = self.attempt_propose.poll_next_unpin(cx) {
 			x.expect("timer still alive; intervals never end; qed");
 		}
 
 		// wait until the minimum time has passed.
 		if let Some(mut minimum) = self.minimum.take() {
-			if let Async::NotReady = minimum.poll().map_err(Error::Timer)? {
+			if let futures03::Poll::Pending = minimum.poll_unpin(cx) {
 				self.minimum = Some(minimum);
-				return Ok(Async::NotReady);
+				return futures03::Poll::Pending;
 			}
 		}
 
 		if included == self.last_included {
-			return self.enough_candidates.poll().map_err(Error::Timer);
+			return self.enough_candidates.poll_unpin(cx).map_err(Error::Timer);
 		}
 
 		// the amount of includable candidates has changed. schedule a wakeup
@@ -685,9 +681,9 @@ impl ProposalTiming {
 			Some(instant) => {
 				self.last_included = included;
 				self.enough_candidates.reset(instant);
-				self.enough_candidates.poll().map_err(Error::Timer)
+				self.enough_candidates.poll_unpin(cx).map_err(Error::Timer)
 			}
-			None => Ok(Async::Ready(())),
+			None => futures03::Poll::Ready(Ok(())),
 		}
 	}
 }
@@ -792,41 +788,40 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 	}
 }
 
-impl<C, TxApi> Future for CreateProposal<C, TxApi> where
+impl<C, TxApi> futures03::Future for CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
-	type Item = Block;
-	type Error = Error;
+	type Output = Result<Block, Error>;
 
-	fn poll(&mut self) -> Poll<Block, Error> {
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> futures03::Poll<Self::Output> {
 		// 1. try to propose if we have enough includable candidates and other
 		// delays have concluded.
 		let included = self.table.includable_count();
-		futures::try_ready!(self.timing.poll(included));
+		futures03::ready!(self.timing.poll(cx, included))?;
 
 		// 2. propose
 		let proposed_candidates = self.table.proposed_set();
 
-		self.propose_with(proposed_candidates).map(Async::Ready)
+		futures03::Poll::Ready(self.propose_with(proposed_candidates))
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::AuthorityKeyring;
+	use substrate_keyring::Ed25519Keyring;
 
 	#[test]
 	fn sign_and_check_statement() {
 		let statement: Statement = GenericStatement::Valid([1; 32].into());
 		let parent_hash = [2; 32].into();
 
-		let sig = sign_table_statement(&statement, &AuthorityKeyring::Alice.pair(), &parent_hash);
+		let sig = sign_table_statement(&statement, &Ed25519Keyring::Alice.pair(), &parent_hash);
 
-		assert!(check_statement(&statement, &sig, AuthorityKeyring::Alice.into(), &parent_hash));
-		assert!(!check_statement(&statement, &sig, AuthorityKeyring::Alice.into(), &[0xff; 32].into()));
-		assert!(!check_statement(&statement, &sig, AuthorityKeyring::Bob.into(), &parent_hash));
+		assert!(check_statement(&statement, &sig, Ed25519Keyring::Alice.into(), &parent_hash));
+		assert!(!check_statement(&statement, &sig, Ed25519Keyring::Alice.into(), &[0xff; 32].into()));
+		assert!(!check_statement(&statement, &sig, Ed25519Keyring::Bob.into(), &parent_hash));
 	}
 }

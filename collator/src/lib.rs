@@ -450,7 +450,7 @@ pub fn run_collator<P, E>(
 mod tests {
 	use std::collections::HashMap;
 	use polkadot_primitives::parachain::{OutgoingMessage, FeeSchedule};
-	use keyring::AuthorityKeyring;
+	use keyring::Ed25519Keyring;
 	use super::*;
 
 	#[derive(Default, Clone)]
@@ -540,7 +540,7 @@ mod tests {
 			},
 			context.clone(),
 			DummyParachainContext,
-			AuthorityKeyring::Alice.pair().into(),
+			Ed25519Keyring::Alice.pair().into(),
 		).wait().unwrap();
 
 		// ascending order by root.

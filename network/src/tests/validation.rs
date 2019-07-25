@@ -23,7 +23,7 @@ use crate::gossip::GossipMessage;
 use substrate_network::Context as NetContext;
 use substrate_network::consensus_gossip::TopicNotification;
 use substrate_primitives::{NativeOrEncoded, ExecutionContext};
-use substrate_keyring::AuthorityKeyring;
+use substrate_keyring::Ed25519Keyring;
 use crate::PolkadotProtocol;
 
 use polkadot_validation::{SharedTable, MessagesFrom, Network};
@@ -399,8 +399,8 @@ impl IngressBuilder {
 	}
 }
 
-fn make_table(data: &ApiData, local_key: &AuthorityKeyring, parent_hash: Hash) -> Arc<SharedTable> {
-	use ::av_store::Store;
+fn make_table(data: &ApiData, local_key: &Ed25519Keyring, parent_hash: Hash) -> Arc<SharedTable> {
+	use av_store::Store;
 
 	let store = Store::new_in_memory();
 	let (group_info, _) = ::polkadot_validation::make_group_info(
