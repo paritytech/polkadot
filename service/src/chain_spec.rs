@@ -21,8 +21,9 @@ use polkadot_primitives::{AccountId, SessionKey};
 use polkadot_runtime::{
 	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, AuraConfig,
 	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
-	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY, DAYS, DOLLARS,
+	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY,
 };
+use polkadot_runtime::constants::{currency::DOTS, time::*};
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
 
@@ -62,8 +63,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		hex!["8abecfa66704176be23df099bf441ea65444992d63b3ced3e76a17a4d38b0b0e"].unchecked_into(), // 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
 	)];
 
-	const ENDOWMENT: u128 = 10_000_000 * DOLLARS;
-	const STASH: u128 = 100 * DOLLARS;
+	const ENDOWMENT: u128 = 1_000_000 * DOTS;
+	const STASH: u128 = 100 * DOTS;
 
 	GenesisConfig {
 		system: Some(SystemConfig {
@@ -91,8 +92,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		staking: Some(StakingConfig {
 			current_era: 0,
 			offline_slash: Perbill::from_parts(1_000_000),
-			session_reward: Perbill::from_parts(2_065),
-			current_session_reward: 0,
 			validator_count: 7,
 			offline_slash_grace: 4,
 			minimum_validator_count: 4,
@@ -191,8 +190,8 @@ pub fn testnet_genesis(
 		]
 	});
 
-	const ENDOWMENT: u128 = 10_000_000 * DOLLARS;
-	const STASH: u128 = 100 * DOLLARS;
+	const ENDOWMENT: u128 = 1_000_000 * DOTS;
+	const STASH: u128 = 100 * DOTS;
 
 	let desired_seats = (endowed_accounts.len() / 2 - initial_authorities.len()) as u32;
 
@@ -219,8 +218,6 @@ pub fn testnet_genesis(
 			minimum_validator_count: 1,
 			validator_count: 2,
 			offline_slash: Perbill::zero(),
-			session_reward: Perbill::zero(),
-			current_session_reward: 0,
 			offline_slash_grace: 0,
 			stakers: initial_authorities.iter()
 				.map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
@@ -244,7 +241,7 @@ pub fn testnet_genesis(
 				).map(|a| (a.clone(), 1000000)).collect(),
 			presentation_duration: 10,
 			term_duration: 1000000,
-			desired_seats: desired_seats,
+			desired_seats,
 		}),
 		parachains: Some(Default::default()),
 		sudo: Some(SudoConfig {
