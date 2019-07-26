@@ -336,11 +336,14 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	type AccountId = T::AccountId;
 	type Call = <T as system::Trait>::Call;
 	type AdditionalSigned = ();
+	fn additional_signed(&self) -> rstd::result::Result<Self::AdditionalSigned, &'static str> {
+		Ok(())
+	}
 
 	fn validate(
 		&self,
-		call: &Self::Call,
 		who: &Self::AccountId,
+		call: &Self::Call,
 		info: DispatchInfo,
 		len: usize,
 	) -> rstd::result::Result<ValidTransaction, DispatchError> {

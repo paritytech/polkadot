@@ -27,7 +27,7 @@ use srml_support::{
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}
 };
 use primitives::parachain::{
-	AccountIdConversion, OnSwap, PARACHAIN_INFO, Id as ParaId, ActiveParas
+	AccountIdConversion, OnSwap, PARACHAIN_INFO, Id as ParaId
 };
 use crate::registrar::Registrar;
 use system::{ensure_signed, ensure_root};

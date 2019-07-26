@@ -47,6 +47,7 @@ use grandpa::{
 	AuthorityId as GrandpaId, fg_primitives::{self, ScheduledChange}
 };
 use elections::VoteIndex;
+use session::PeriodicSessions;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
@@ -106,6 +107,7 @@ parameter_types! {
 
 impl system::Trait for Runtime {
 	type Origin = Origin;
+	type Call = Call;
 	type Index = Nonce;
 	type BlockNumber = BlockNumber;
 	type Hash = Hash;
@@ -165,9 +167,13 @@ impl balances::Trait for Runtime {
 	type WeightToFee = WeightToFee;
 }
 
+parameter_types! {
+	pub const MinimumPeriod: Moment = SLOT_DURATION / 2;
+}
 impl timestamp::Trait for Runtime {
 	type Moment = Moment;
 	type OnTimestampSet = Aura;
+	type MinimumPeriod = MinimumPeriod;
 }
 
 parameter_types! {
@@ -207,10 +213,14 @@ impl_opaque_keys! {
 impl session::Trait for Runtime {
 	type OnSessionEnding = Staking;
 	type SessionHandler = SessionHandlers;
-	type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+	type ShouldEndSession = PeriodicSessions<Period, Offset>;
 	type Event = Event;
 	type Keys = SessionKeys;
+	type ValidatorId = AccountId;
+	type ValidatorIdOf = staking::StashOf<Self>;
+	type SelectInitialValidators = Staking;
 }
+
 impl session::historical::Trait for Runtime {
 	type FullIdentification = staking::Exposure<AccountId, Balance>;
 	type FullIdentificationOf = staking::ExposureOf<Runtime>;
@@ -344,6 +354,8 @@ impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
+	type ActiveParachains = Registrar;
+	type Registrar = Registrar;
 }
 
 parameter_types! {
@@ -493,8 +505,8 @@ impl_runtime_apis! {
 		fn duty_roster() -> parachain::DutyRoster {
 			Parachains::calculate_duty_roster()
 		}
-		fn active_parachains() -> Vec<parachain::Id> {
-			Parachains::active_parachains()
+		fn active_parachains() -> Vec<(parachain::Id, Option<parachain::CollatorId>)> {
+			Registrar::active_parachains()
 		}
 		fn parachain_status(id: parachain::Id) -> Option<parachain::Status> {
 			Parachains::parachain_status(&id)

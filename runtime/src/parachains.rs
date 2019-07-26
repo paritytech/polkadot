@@ -198,7 +198,7 @@ decl_module! {
 						);
 
 						// must be unknown since active parachains are always sorted.
-						let (_, maybe_required_collator, origins) = iter.find(|para| para.0 == id)
+						let (_, maybe_required_collator) = iter.find(|para| para.0 == id)
 							.ok_or("candidate for unregistered parachain {}")?;
 
 						if let Some(required_collator) = maybe_required_collator {
@@ -207,7 +207,6 @@ decl_module! {
 
 						Self::check_upward_messages(
 							id,
-							origins,
 							&head.candidate.upward_messages,
 							MAX_QUEUE_COUNT,
 							WATERMARK_QUEUE_SIZE,

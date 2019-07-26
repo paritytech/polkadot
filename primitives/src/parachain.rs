@@ -421,7 +421,7 @@ substrate_client::decl_runtime_apis! {
 		/// Get the current duty roster.
 		fn duty_roster() -> DutyRoster;
 		/// Get the currently active parachains.
-		fn active_parachains() -> Vec<Id>;
+		fn active_parachains() -> Vec<(Id, Option<CollatorId>)>;
 		/// Get the given parachain's status.
 		fn parachain_status(id: Id) -> Option<Status>;
 		/// Get the given parachain's head code blob.
