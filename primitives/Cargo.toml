@@ -7,15 +7,15 @@ edition = "2018"
 [dependencies]
 serde = { version = "1.0", optional = true, features = ["derive"] }
 parity-codec = { version = "4.1", default-features = false }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sr-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-ext-tx-call" }
+substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-ext-tx-call" }
+sr-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-ext-tx-call" }
+rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-ext-tx-call" }
+runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-ext-tx-call" }
 polkadot-parachain = { path = "../parachain", default-features = false }
 
 [dev-dependencies]
-substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "gav-ext-tx-call" }
 pretty_assertions = "0.5.1"
 
 [features]

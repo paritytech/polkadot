@@ -17,45 +17,36 @@
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
 use rstd::prelude::*;
-use rstd::collections::btree_map::BTreeMap;
-use parity_codec::{Decode, HasCompact};
-use srml_support::{decl_storage, decl_module, fail, ensure};
-
-use bitvec::{bitvec, BigEndian};
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
-use primitives::{Hash, Balance, parachain::{
-	self, Id as ParaId, CollatorId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, Scheduling, DispatchOrigins,
-	Info as ParaInfo, OnSwap,
-}};
-use system;
+#[cfg(any(feature = "std", test))]
+use rstd::marker::PhantomData;
+use parity_codec::{Encode, Decode};
+#[cfg(any(feature = "std", test))]
+use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
+use sr_primitives::{
+	weights::{SimpleDispatchInfo, DispatchInfo}, transaction_validity::ValidTransaction,
+	traits::{Hash as HashT, StaticLookup, DispatchError, SignedExtension}
+};
+#[cfg(feature = "std")]
+use srml_support::storage::hashed::generator;
 use srml_support::{
-	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
-	traits::{WithdrawReason, ExistenceRequirement, Get, OnUnbalanced, Currency}
+	decl_storage, decl_module, ensure,
+	StorageValue, StorageMap, Dispatchable, dispatch::Result,
+	traits::{Get, Currency}
+};
+use system::{self, ensure_root, ensure_signed};
+use primitives::parachain::{
+	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, OnSwap, Info as ParaInfo, ActiveParas
 };
 use crate::parachains;
 
-#[cfg(feature = "std")]
-use srml_support::storage::hashed::generator;
-
-use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
-
-#[cfg(any(feature = "std", test))]
-use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
-
-#[cfg(any(feature = "std", test))]
-use rstd::marker::PhantomData;
-
-use system::ensure_none;
-
 /// Parachain registration API.
-pub trait ParachainRegistrar<AccountId> {
+pub trait Registrar<AccountId> {
 	/// Create a new unique parachain identity for later registration.
 	fn new_id() -> ParaId;
 
 	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
 	/// result in a error.
-	fn register_parachain(
+	fn register_para(
 		id: ParaId,
 		info: ParaInfo,
 		code: Vec<u8>,
@@ -63,15 +54,15 @@ pub trait ParachainRegistrar<AccountId> {
 	) -> Result;
 
 	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
-	fn deregister_parachain(id: ParaId) -> Result;
+	fn deregister_para(id: ParaId) -> Result;
 }
 
-impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
+impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 	fn new_id() -> ParaId {
 		<NextFreeId>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
 	}
 
-	fn register_parachain(
+	fn register_para(
 		id: ParaId,
 		info: ParaInfo,
 		code: Vec<u8>,
@@ -92,7 +83,7 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 		Ok(())
 	}
 
-	fn deregister_parachain(id: ParaId) -> Result {
+	fn deregister_para(id: ParaId) -> Result {
 		let info = Paras::take(id).ok_or("Invalid id")?;
 		if let Scheduling::Always = info.scheduling {
 			Parachains.mutate(|parachains|
@@ -106,12 +97,14 @@ impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
 	}
 }
 
-type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
-type NegativeImbalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
+type BalanceOf<T> =
+	<<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
+type NegativeImbalanceOf<T> =
+	<<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
 
 pub trait Trait: parachains::Trait {
 	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+	type Event: From<Event> + Into<<Self as system::Trait>::Event>;
 
 	/// The system's currency for parathread payment.
 	type Currency: Currency<Self::AccountId>;
@@ -123,15 +116,8 @@ pub trait Trait: parachains::Trait {
 	type OnSwap: OnSwap;
 }
 
-#[derive(Clone, PartialEq, Eq, Encode, Decode, Default)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct BiddingInfo<AccountId, Balance> {
-	lowest: Balance,
-	bids: Vec<(AccountId, ParaId, Balance)>,
-}
-
 decl_storage! {
-	trait Store for Module<T: Trait> as Parachains {
+	trait Store for Module<T: Trait> as Registrar {
 		// Ordered vector of all parachain IDs.
 		Parachains: Vec<ParaId>;
 
@@ -147,16 +133,42 @@ decl_storage! {
 		/// may provide the block.
 		///
 		/// Ordered as Parachains ++ Selected_Parathreads.
-		Active: Vec<(ParaId, Option<CollatorId>, DispatchOrigins)>;
+		Active: Vec<(ParaId, Option<CollatorId>)>;
 
-		/// The next unused ParaId value.
-		NextFreeId: ParaId;
+		/// The next unused ParaId value. Start this high in order to keep low numbers for
+		/// system-level chains.
+		NextFreeId: ParaId = LOWEST_USER_ID;
 
 		/// Pending swap operations.
 		PendingSwap: map ParaId => ParaId;
 
 		// Map of all registered parathreads/chains.
 		Paras get(paras): map ParaId => Option<ParaInfo>;
+	}
+	add_extra_genesis {
+		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
+		config(_phdata): PhantomData<T>;
+		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
+			use sr_primitives::traits::Zero;
+
+			let mut p = config.parachains.clone();
+			p.sort_unstable_by_key(|&(ref id, _, _)| *id);
+			p.dedup_by_key(|&mut (ref id, _, _)| *id);
+
+			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
+
+			<Parachains as generator::StorageValue<_>>::put(&only_ids, storage);
+
+			for (id, code, genesis) in p {
+				// no ingress -- a chain cannot be routed to until it is live.
+				<parachains::Code as generator::StorageMap<_, _>>
+					::insert(&id, &code, storage);
+				<parachains::Heads as generator::StorageMap<_, _>>
+					::insert(&id, &genesis, storage);
+				<parachains::Watermarks<T> as generator::StorageMap<_, _>>
+					::insert(&id, &Zero::zero(), storage);
+			}
+		});
 	}
 }
 
@@ -165,19 +177,23 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		/// Register a parachain with given code.
 		/// Fails if given ID is already used.
-		pub fn register_para(
+		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
+		pub fn register_para(origin,
 			#[compact] id: ParaId,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>,
 			info: ParaInfo
 		) -> Result {
-			<Self as ParachainRegistrar<T::AccountId>>::
+			ensure_root(origin)?;
+			<Self as Registrar<T::AccountId>>::
 				register_para(id, info, code, initial_head_data)
 		}
 
 		/// Deregister a parachain with given id
-		pub fn deregister_para(#[compact] id: ParaId) -> Result {
-			<Self as ParachainRegistrar<T::AccountId>>::deregister_para(id)
+		#[weight = SimpleDispatchInfo::FixedOperational(10_000)]
+		pub fn deregister_para(origin, #[compact] id: ParaId) -> Result {
+			ensure_root(origin)?;
+			<Self as Registrar<T::AccountId>>::deregister_para(id)
 		}
 
 		/// Register a parathread for immediate use.
@@ -194,9 +210,10 @@ decl_module! {
 
 			let info = ParaInfo {
 				scheduling: Scheduling::Dynamic,
-				origins: DispatchOrigins::Normal,
 			};
-			<Self as ParachainRegistrar<T::AccountId>>::
+			let id = <Self as Registrar<T::AccountId>>::new_id();
+
+			<Self as Registrar<T::AccountId>>::
 				register_para(id, info, code, initial_head_data)
 		}
 
@@ -208,7 +225,7 @@ decl_module! {
 		fn select_parathread(origin,
 			#[compact] id: ParaId,
 			collator: CollatorId,
-			head_data_hash: T::Hash,
+			head_data_hash: T::Hash
 		) {
 			ensure_signed(origin)?;
 			// Everything else is checked for in the transaction `SignedExtension`.
@@ -231,8 +248,8 @@ decl_module! {
 			let info = Paras::get(id).ok_or("invalid id")?;
 			if let Scheduling::Dynamic = info.scheduling {} else { Err("invalid parathread id")? }
 
-			let _ = T::Currency::unreserve(&who, T::ParathreadDeposit::get());
-			<Self as ParachainRegistrar<T::AccountId>>::deregister_para(id);
+			let _ = T::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
+			<Self as Registrar<T::AccountId>>::deregister_para(id);
 		}
 
 		/// Swap a parachain with another parachain or parathread. The origin must be a `Parachain`.
@@ -248,7 +265,7 @@ decl_module! {
 
 			let info = Paras::get(id).ok_or("invalid id")?;
 
-			if PendingSwaps::get(other) == Some(id) {
+			if PendingSwap::get(other) == Some(id) {
 				// actually do the swap.
 				T::OnSwap::can_swap(id, other)?;
 				Paras::mutate(id, |i|
@@ -258,7 +275,7 @@ decl_module! {
 				);
 				let _ = T::OnSwap::do_swap(id, other);
 			} else {
-				PendingSwaps::insert(id, other);
+				PendingSwap::insert(id, other);
 			}
 		}
 
@@ -269,14 +286,13 @@ decl_module! {
 				.chain(SelectedThreads::take().into_iter()
 					.map(|(who, id)| (who, Some(id))
 				))
-				.map(|(id, x)| (id, x, ParaInfo::get(x).origins))
 				.collect::<Vec<_>>();
 			Active::put(paras);
 		}
 	}
 }
 
-pub enum Events<T: Trait> {
+pub enum Event {
 	/// A parathread was registered; its new ID is supplied.
 	ParathreadRegistered(ParaId),
 
@@ -293,7 +309,7 @@ impl<T: Trait> Module<T> {
 }
 
 impl<T: Trait> ActiveParas for Module<T> {
-	fn active_paras() -> Vec<(ParaId, Option<CollatorId>, DispatchOrigins)> {
+	fn active_paras() -> Vec<(ParaId, Option<CollatorId>)> {
 		Active::get()
 	}
 }
@@ -302,22 +318,24 @@ use srml_support::dispatch::IsSubType;
 
 /// Ensure that parathread selections happen prioritised by fees.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
-pub struct LimitParathreadCommits<T: Trait>(rstd::marker::PhantomData<T>) where
-	T::Call: IsSubType<Module<T>, T>;
+pub struct LimitParathreadCommits<T: Trait + Send + Sync>(rstd::marker::PhantomData<T>) where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
 
 #[cfg(feature = "std")]
-impl<T: Trait> rstd::fmt::Debug for LimitParathreadCommits<T> {
+impl<T: Trait + Send + Sync> rstd::fmt::Debug for LimitParathreadCommits<T> where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+{
 	fn fmt(&self, f: &mut rstd::fmt::Formatter) -> rstd::fmt::Result {
 		write!(f, "LimitParathreadCommits<T>")
 	}
 }
 
-impl<T: Trait> SignedExtension for LimitParathreadCommits<T> {
+impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+{
 	type AccountId = T::AccountId;
-	type Call = T::Call;
+	type Call = <T as system::Trait>::Call;
 	type AdditionalSigned = ();
-	fn additional_signed(&self) -> rstd::result::Result<(), &'static str> { Ok(()) }
-	type Accumulator = Vec<ParaId>;
 
 	fn validate(
 		&self,
@@ -343,13 +361,13 @@ impl<T: Trait> SignedExtension for LimitParathreadCommits<T> {
 
 				// ensure that this is a live bid (i.e. that the thread's chain head matches)
 				let actual = T::Hashing::hash(&<parachains::Module<T>>::parachain_head(id));
-				ensure!(actual == head_data_hash, DispatchError::Stale);
+				ensure!(actual == hash, DispatchError::Stale);
 
 				// updated the selected threads.
 				selected_threads.insert(pos, (id, collator));
 				<SelectedThreads<T>>::put(selected_threads);
 			}
 		}
-		Ok(r)
+		Ok(Default::default())
 	}
 }

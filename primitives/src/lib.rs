@@ -69,6 +69,9 @@ pub type SessionKey = ed25519::Public;
 /// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
 pub type Balance = u128;
 
+/// Type used for expressing timestamp.
+pub type Moment = u64;
+
 /// The Ed25519 pub key of an session that belongs to an Aura authority of the chain.
 pub type AuraId = ed25519::Public;
 

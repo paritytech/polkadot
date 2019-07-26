@@ -18,16 +18,15 @@
 
 use rstd::prelude::*;
 use rstd::{result, collections::btree_map::BTreeMap};
-use parity_codec::{Decode, HasCompact};
-use srml_support::{decl_storage, decl_module, fail, ensure};
+use parity_codec::Decode;
+use srml_support::{decl_storage, decl_module, ensure};
 
 use bitvec::{bitvec, BigEndian};
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Saturating, One};
 use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ActiveParas, CollatorId,
-	DispatchOrigins
+	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ActiveParas, CollatorId
 }};
 use {system, session};
 use srml_support::{
@@ -35,18 +34,10 @@ use srml_support::{
 	traits::{Currency, WithdrawReason, ExistenceRequirement}
 };
 
-#[cfg(feature = "std")]
-use srml_support::storage::hashed::generator;
-
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
-#[cfg(any(feature = "std", test))]
-use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
-
-#[cfg(any(feature = "std", test))]
-use rstd::marker::PhantomData;
-
 use system::ensure_none;
+use crate::registrar::Registrar;
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -117,6 +108,9 @@ pub trait Trait: session::Trait {
 
 	/// Means to determine what the current set of active parachains are.
 	type ActiveParachains: ActiveParas;
+
+	/// The way that we are able to register parachains.
+	type Registrar: Registrar<Self::AccountId>;
 }
 
 /// Origin for the parachains module.
@@ -170,28 +164,6 @@ decl_storage! {
 
 		// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
-	}
-	add_extra_genesis {
-		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
-		config(_phdata): PhantomData<T>;
-		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
-			use sr_primitives::traits::Zero;
-
-			let mut p = config.parachains.clone();
-			p.sort_unstable_by_key(|&(ref id, _, _)| *id);
-			p.dedup_by_key(|&mut (ref id, _, _)| *id);
-
-			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
-
-			<Parachains as generator::StorageValue<_>>::put(&only_ids, storage);
-
-			for (id, code, genesis) in p {
-				// no ingress -- a chain cannot be routed to until it is live.
-				<Code as generator::StorageMap<_, _>>::insert(&id, &code, storage);
-				<Heads as generator::StorageMap<_, _>>::insert(&id, &genesis, storage);
-				<Watermarks<T> as generator::StorageMap<_, _>>::insert(&id, &Zero::zero(), storage);
-			}
-		});
 	}
 }
 
@@ -267,21 +239,6 @@ decl_module! {
 			<DidUpdate>::put(true);
 
 			Ok(())
-		}
-
-		/// Register a parachain with given code.
-		/// Fails if given ID is already used.
-		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
-		pub fn register_parachain(origin, id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
-			ensure_root(origin)?;
-			<Self as ParachainRegistrar<T::AccountId>>::register_parachain(id, code, initial_head_data)
-		}
-
-		/// Deregister a parachain with given id
-		#[weight = SimpleDispatchInfo::FixedOperational(10_000)]
-		pub fn deregister_parachain(origin, id: ParaId) -> Result {
-			ensure_root(origin)?;
-			<Self as ParachainRegistrar<T::AccountId>>::deregister_parachain(id)
 		}
 
 		fn on_finalize(_n: T::BlockNumber) {
@@ -364,7 +321,6 @@ impl<T: Trait> Module<T> {
 	fn check_upward_messages(
 		id: ParaId,
 		upward_messages: &[UpwardMessage],
-		origins: DispatchOrigins,
 		max_queue_count: usize,
 		watermark_queue_size: usize,
 	) -> Result {
@@ -388,9 +344,9 @@ impl<T: Trait> Module<T> {
 				),
 				"Messages added when queue full"
 			);
-			if origins != DispatchOrigins::Root {
+			if !id.is_system() {
 				for m in upward_messages.iter() {
-					ensure!(m.origin != Root, "bad message origin");
+					ensure!(m.origin != ParachainDispatchOrigin::Root, "bad message origin");
 				}
 			}
 		}
@@ -507,7 +463,7 @@ impl<T: Trait> Module<T> {
 				}
 			}
 		}
-		HasDisatchQueue::put_ref(&qd[drained_count..]);
+		NeedsDispatch::put_ref(&queueds[drained_count..]);
 	}
 
 	/// Calculate the current block's duty roster using system's random seed.
@@ -610,7 +566,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Get the currently active set of parachains.
-	fn active_parachains() -> Vec<(ParaId, Option<CollatorId>, DispatchOrigins)> {
+	fn active_parachains() -> Vec<(ParaId, Option<CollatorId>)> {
 		T::ActiveParas::active_paras()
 	}
 

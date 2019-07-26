@@ -27,10 +27,9 @@ use srml_support::{
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}
 };
 use primitives::parachain::{
-	AccountIdConversion, OnSwap, PARACHAIN_INFO, Info as ParaInfo, Id as ParaId
+	AccountIdConversion, OnSwap, PARACHAIN_INFO, Id as ParaId, ActiveParas
 };
-use crate::parachains::ParachainRegistrar;
-use crate::registrar::ParachainRegistrar;
+use crate::registrar::Registrar;
 use system::{ensure_signed, ensure_root};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 
@@ -45,7 +44,7 @@ pub trait Trait: system::Trait {
 	type Currency: ReservableCurrency<Self::AccountId>;
 
 	/// The parachain registrar type.
-	type Parachains: ParachainRegistrar<Self::AccountId>;
+	type Parachains: Registrar<Self::AccountId>;
 
 	/// The number of blocks over which an auction may be retroactively ended.
 	type EndingPeriod: Get<Self::BlockNumber>;
@@ -274,10 +273,11 @@ decl_module! {
 		/// called by the root origin. Accepts the `duration` of this auction and the
 		/// `lease_period_index` of the initial lease period of the four that are to be auctioned.
 		#[weight = SimpleDispatchInfo::FixedOperational(100_000)]
-		fn new_auction(
+		fn new_auction(origin,
 			#[compact] duration: T::BlockNumber,
 			#[compact] lease_period_index: LeasePeriodOf<T>
 		) {
+			ensure_root(origin)?;
 			ensure!(!Self::is_in_progress(), "auction already in progress");
 			ensure!(lease_period_index >= Self::lease_period_index(), "lease period in past");
 
@@ -896,7 +896,7 @@ mod tests {
 	}
 
 	pub struct TestParachains;
-	impl ParachainRegistrar<u64> for TestParachains {
+	impl Registrar<u64> for TestParachains {
 		fn new_id() -> ParaId {
 			PARACHAIN_COUNT.with(|p| {
 				*p.borrow_mut() += 1;

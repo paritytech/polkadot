@@ -29,7 +29,7 @@ use primitives::bytes;
 use primitives::ed25519;
 
 pub use polkadot_parachain::{
-	Id, AccountIdConversion, ParachainDispatchOrigin
+	Id, AccountIdConversion, ParachainDispatchOrigin, LOWEST_USER_ID
 };
 
 /// Identity that collators use.
@@ -62,10 +62,12 @@ pub trait ActiveParas {
 	///
 	/// NOTE: The initial implementation simply concatenates the (ordered) set of (permanent)
 	/// parachain IDs with the (unordered) set of parathread IDs selected for this block.
-	fn active_paras() -> Vec<(Id, Option<CollatorId>, ActiveParas)>;
+	fn active_paras() -> Vec<(Id, Option<CollatorId>)>;
 }
 
 /// Description of how often/when this parachain is scheduled for progression.
+#[derive(Encode, Decode, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub enum Scheduling {
 	/// Scheduled every block.
 	Always,
@@ -73,31 +75,17 @@ pub enum Scheduling {
 	Dynamic,
 }
 
-/// Origins from which a parachain's messages may be sent.
-pub enum DispatchOrigins {
-	/// `Parachain` and `Signed` origins.
-	Normal,
-	/// `Parachain`, `Signed` and `Root` origins.
-	Root,
-}
-
-impl Default for DispatchOrigins {
-	fn default() -> Self {
-		DispatchOrigins::Normal
-	}
-}
-
 /// Information regarding a deployed parachain/thread.
+#[derive(Encode, Decode, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct Info {
 	/// Scheduling info.
-	scheduling: Scheduling,
-	/// Origin privileges.
-	origins: DispatchOrigins,
+	pub scheduling: Scheduling,
 }
 
+/// An `Info` value for a standard leased parachain.
 pub const PARACHAIN_INFO: Info = Info {
 	scheduling: Scheduling::Always,
-	origins: DispatchOrigins::Normal,
 };
 
 /// Handler for when two parachains/parathreads get notionally swapped.

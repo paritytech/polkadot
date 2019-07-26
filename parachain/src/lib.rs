@@ -154,11 +154,19 @@ impl From<u32> for Id {
 	fn from(x: u32) -> Self { Id(x) }
 }
 
+const USER_INDEX_START: u32 = 1000;
+
+/// The ID of the first user (non-system) parachain.
+pub const LOWEST_USER_ID: Id = Id(USER_INDEX_START);
+
 impl Id {
 	/// Convert this Id into its inner representation.
 	pub fn into_inner(self) -> u32 {
 		self.0
 	}
+
+	/// Returns `true` if this parachain runs with system-level privileges.
+	pub fn is_system(&self) -> bool { self.0 < USER_INDEX_START }
 }
 
 /// An incoming message.
