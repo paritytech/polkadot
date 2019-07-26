@@ -77,6 +77,28 @@ impl TestContext {
 	}
 }
 
+#[derive(Default)]
+pub struct TestChainContext {
+	pub known_map: HashMap<Hash, crate::gossip::Known>,
+	pub ingress_roots: HashMap<Hash, Vec<Hash>>,
+}
+
+impl crate::gossip::ChainContext for TestChainContext {
+	fn is_known(&self, block_hash: &Hash) -> Option<crate::gossip::Known> {
+		self.known_map.get(block_hash).map(|x| x.clone())
+	}
+
+	fn leaf_unrouted_roots(&self, leaf: &Hash, with_queue_root: &mut dyn FnMut(&Hash))
+		-> Result<(), substrate_client::error::Error>
+	{
+		for root in self.ingress_roots.get(leaf).into_iter().flat_map(|roots| roots) {
+			with_queue_root(root)
+		}
+
+		Ok(())
+	}
+}
+
 fn make_pov(block_data: Vec<u8>) -> PoVBlock {
 	PoVBlock {
 		block_data: BlockData(block_data),

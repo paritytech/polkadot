@@ -16,13 +16,16 @@
 
 //! Gossip messages and the message validator
 
+use sr_primitives::{generic::BlockId, traits::ProvideRuntimeApi};
+use substrate_client::error::Error as ClientError;
 use substrate_network::{config::Roles, PeerId};
 use substrate_network::consensus_gossip::{
 	self as network_gossip, ValidationResult as GossipValidationResult,
 	ValidatorContext, MessageIntent, ConsensusMessage,
 };
 use polkadot_validation::SignedStatement;
-use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorIndex};
+use polkadot_primitives::{Block, Hash, SessionKey, parachain::{ValidatorIndex, Message as ParachainMessage}};
+use polkadot_primitives::parachain::ParachainHost;
 use parity_codec::{Decode, Encode};
 
 use std::collections::HashMap;
@@ -30,11 +33,13 @@ use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use parking_lot::RwLock;
+use log::warn;
 
 use super::NetworkService;
 use crate::router::attestation_topic;
 
 use attestation::{View as AttestationView, PeerData as AttestationPeerData};
+use message_routing::{View as MessageRoutingView};
 
 mod attestation;
 mod message_routing;
@@ -53,6 +58,8 @@ mod benefit {
 	pub const NEW_CANDIDATE: i32 = 100;
 	/// When a peer sends us a previously-unknown attestation.
 	pub const NEW_ATTESTATION: i32 = 50;
+	/// When a peer sends us a previously-unknown message packet.
+	pub const NEW_ICMP_MESSAGES: i32 = 50;
 }
 
 mod cost {
@@ -68,6 +75,15 @@ mod cost {
 	pub const BAD_SIGNATURE: i32 = -500;
 	/// A peer sent us a bad neighbor packet.
 	pub const BAD_NEIGHBOR_PACKET: i32 = -300;
+	/// A peer sent us an ICMP queue we haven't advertised a need for.
+	pub const UNNEEDED_ICMP_MESSAGES: i32 = -100;
+
+	/// A peer sent us an ICMP queue with a bad root.
+	pub fn icmp_messages_root_mismatch(n_messages: usize) -> i32 {
+		const PER_MESSAGE: i32 = -150;
+
+		(0..n_messages).map(|_| PER_MESSAGE).sum()
+	}
 }
 
 /// A gossip message.
@@ -80,6 +96,9 @@ pub enum GossipMessage {
 	/// Non-candidate statements should only be sent to peers who are aware of the candidate.
 	#[codec(index = "2")]
 	Statement(GossipStatement),
+	/// A packet of messages from one parachain to another.
+	#[codec(index = "3")]
+	ParachainMessages(GossipParachainMessages),
 	// TODO: https://github.com/paritytech/polkadot/issues/253
 	// erasure-coded chunks.
 }
@@ -109,6 +128,30 @@ impl GossipStatement {
 	}
 }
 
+/// A packet of messages from one parachain to another.
+///
+/// These are all the messages posted from one parachain to another during the
+/// execution of a single parachain block. Since this parachain block may have been
+/// included in many forks of the relay chain, there is no relay-parent parameter.
+#[derive(Encode, Decode, Clone)]
+pub struct GossipParachainMessages {
+	/// The root of the message queue.
+	pub queue_root: Hash,
+	/// The messages themselves.
+	pub messages: Vec<ParachainMessage>,
+}
+
+impl GossipParachainMessages {
+	// confirms that the queue-root in the struct correctly matches
+	// the messages.
+	fn queue_root_is_correct(&self) -> bool {
+		let root = polkadot_validation::message_queue_root(
+			self.messages.iter().map(|m| &m.0)
+		);
+		root == self.queue_root
+	}
+}
+
 /// A versioned neighbor message.
 #[derive(Encode, Decode, Clone)]
 pub enum VersionedNeighborPacket {
@@ -134,15 +177,42 @@ pub enum Known {
 	Bad,
 }
 
-/// An oracle for known blocks.
-pub trait KnownOracle: Send + Sync {
+/// Context to the underlying polkadot chain.
+pub trait ChainContext: Send + Sync {
+	/// Provide a closure which is invoked for every unrouted queue hash at a given leaf.
+	fn leaf_unrouted_roots(&self, leaf: &Hash, with_queue_root: &mut dyn FnMut(&Hash))
+		-> Result<(), ClientError>;
+
 	/// whether a block is known. If it's not, returns `None`.
 	fn is_known(&self, block_hash: &Hash) -> Option<Known>;
 }
 
-impl<F> KnownOracle for F where F: Fn(&Hash) -> Option<Known> + Send + Sync {
+impl<F, P: ProvideRuntimeApi> ChainContext for (F, P) where
+	F: Fn(&Hash) -> Option<Known> + Send + Sync,
+	P: Send + Sync,
+	P::Api: ParachainHost<Block>,
+{
 	fn is_known(&self, block_hash: &Hash) -> Option<Known> {
-		(self)(block_hash)
+		(self.0)(block_hash)
+	}
+
+	fn leaf_unrouted_roots(&self, &leaf: &Hash, with_queue_root: &mut dyn FnMut(&Hash))
+		-> Result<(), ClientError>
+	{
+		let api = self.1.runtime_api();
+
+		let leaf_id = BlockId::Hash(leaf);
+		let active_parachains = api.active_parachains(&leaf_id)?;
+
+		for para_id in active_parachains {
+			if let Some(ingress) = api.ingress(&leaf_id, para_id)? {
+				for (_height, _from, queue_root) in ingress.iter() {
+					with_queue_root(queue_root);
+				}
+			}
+		}
+
+		Ok(())
 	}
 }
 
@@ -152,10 +222,11 @@ impl<F> KnownOracle for F where F: Fn(&Hash) -> Option<Known> + Send + Sync {
 // NOTE: since RegisteredMessageValidator is meant to be a type-safe proof
 // that we've actually done the registration, this should be the only way
 // to construct it outside of tests.
-pub fn register_validator<O: KnownOracle + 'static>(
+pub fn register_validator<C: ChainContext + 'static>(
 	service: Arc<NetworkService>,
-	oracle: O,
-) -> RegisteredMessageValidator {
+	chain: C,
+) -> RegisteredMessageValidator
+{
 	let s = service.clone();
 	let report_handle = Box::new(move |peer: &PeerId, cost_benefit| {
 		s.report_peer(peer.clone(), cost_benefit);
@@ -165,7 +236,8 @@ pub fn register_validator<O: KnownOracle + 'static>(
 		inner: RwLock::new(Inner {
 			peers: HashMap::new(),
 			attestation_view: Default::default(),
-			oracle,
+			message_routing_view: Default::default(),
+			chain,
 		})
 	});
 
@@ -182,16 +254,16 @@ pub fn register_validator<O: KnownOracle + 'static>(
 /// Create this using `register_validator`.
 #[derive(Clone)]
 pub struct RegisteredMessageValidator {
-	inner: Arc<MessageValidator<dyn KnownOracle>>,
+	inner: Arc<MessageValidator<dyn ChainContext>>,
 }
 
 impl RegisteredMessageValidator {
 	#[cfg(test)]
-	pub(crate) fn new_test<O: KnownOracle + 'static>(
-		oracle: O,
+	pub(crate) fn new_test<C: ChainContext + 'static>(
+		chain: C,
 		report_handle: Box<dyn Fn(&PeerId, i32) + Send + Sync>,
 	) -> Self {
-		let validator = Arc::new(MessageValidator::new_test(oracle, report_handle));
+		let validator = Arc::new(MessageValidator::new_test(chain, report_handle));
 
 		RegisteredMessageValidator { inner: validator as _ }
 	}
@@ -209,13 +281,23 @@ impl RegisteredMessageValidator {
 		let mut inner = self.inner.inner.write();
 		inner.attestation_view.add_session(relay_parent, validation);
 		{
+			let &mut Inner {
+				ref chain,
+				ref mut attestation_view,
+				ref mut message_routing_view,
+				..
+			} = &mut *inner;
 
-			let &mut Inner { ref oracle, ref mut attestation_view, .. } = &mut *inner;
-			attestation_view.prune_old_sessions(|parent| match oracle.is_known(parent) {
+			attestation_view.prune_old_sessions(|parent| match chain.is_known(parent) {
 				Some(Known::Leaf) => true,
 				_ => false,
 			});
+
+			if let Err(e) = message_routing_view.update_leaves(chain, attestation_view.neighbor_info()) {
+				warn!("Unable to fully update leaf-state: {:?}", e);
+			}
 		}
+
 
 		// send neighbor packets to peers
 		inner.multicast_neighbor_packet(send_neighbor_packet);
@@ -259,13 +341,20 @@ struct PeerData {
 	attestation: AttestationPeerData,
 }
 
-struct Inner<O: ?Sized> {
-	peers: HashMap<PeerId, PeerData>,
-	attestation_view: AttestationView,
-	oracle: O,
+impl PeerData {
+	fn leaves(&self) -> impl Iterator<Item = &Hash> {
+		self.attestation.leaves()
+	}
 }
 
-impl<O: ?Sized + KnownOracle> Inner<O> {
+struct Inner<C: ?Sized> {
+	peers: HashMap<PeerId, PeerData>,
+	attestation_view: AttestationView,
+	message_routing_view: MessageRoutingView,
+	chain: C,
+}
+
+impl<C: ?Sized + ChainContext> Inner<C> {
 	fn validate_neighbor_packet(&mut self, sender: &PeerId, packet: NeighborPacket)
 		-> (GossipValidationResult<Hash>, i32, Vec<Hash>)
 	{
@@ -290,7 +379,7 @@ impl<O: ?Sized + KnownOracle> Inner<O> {
 		mut send_neighbor_packet: F,
 	) {
 		let neighbor_packet = GossipMessage::Neighbor(VersionedNeighborPacket::V1(NeighborPacket {
-			chain_heads: self.attestation_view.neighbor_info()
+			chain_heads: self.attestation_view.neighbor_info().collect(),
 		}));
 
 		let message = ConsensusMessage {
@@ -305,24 +394,25 @@ impl<O: ?Sized + KnownOracle> Inner<O> {
 }
 
 /// An unregistered message validator. Register this with `register_validator`.
-pub struct MessageValidator<O: ?Sized> {
+pub struct MessageValidator<C: ?Sized> {
 	report_handle: Box<dyn Fn(&PeerId, i32) + Send + Sync>,
-	inner: RwLock<Inner<O>>,
+	inner: RwLock<Inner<C>>,
 }
 
-impl<O: KnownOracle + ?Sized> MessageValidator<O> {
+impl<C: ChainContext + ?Sized> MessageValidator<C> {
 	#[cfg(test)]
 	fn new_test(
-		oracle: O,
+		chain: C,
 		report_handle: Box<dyn Fn(&PeerId, i32) + Send + Sync>,
-	) -> Self where O: Sized{
+	) -> Self where C: Sized {
 		MessageValidator {
 			report_handle,
 			inner: RwLock::new(Inner {
 				peers: HashMap::new(),
 				attestation_view: Default::default(),
-				oracle,
-			})
+				message_routing_view: Default::default(),
+				chain,
+			}),
 		}
 	}
 
@@ -331,7 +421,7 @@ impl<O: KnownOracle + ?Sized> MessageValidator<O> {
 	}
 }
 
-impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValidator<O> {
+impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValidator<C> {
 	fn new_peer(&self, _context: &mut dyn ValidatorContext<Block>, who: &PeerId, _roles: Roles) {
 		let mut inner = self.inner.write();
 		inner.peers.insert(who.clone(), PeerData::default());
@@ -358,7 +448,19 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 				let (res, cb) = {
 					let mut inner = self.inner.write();
 					let inner = &mut *inner;
-					inner.attestation_view.validate_statement(statement, &inner.oracle)
+					inner.attestation_view.validate_statement(statement, &inner.chain)
+				};
+
+				if let GossipValidationResult::ProcessAndKeep(ref topic) = res {
+					context.broadcast_message(topic.clone(), data.to_vec(), false);
+				}
+				(res, cb)
+			}
+			Some(GossipMessage::ParachainMessages(messages)) => {
+				let (res, cb) = {
+					let mut inner = self.inner.write();
+					let inner = &mut *inner;
+					inner.message_routing_view.validate_queue(&messages)
 				};
 
 				if let GossipValidationResult::ProcessAndKeep(ref topic) = res {
@@ -377,14 +479,22 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 
 		Box::new(move |topic, _data| {
 			// check that topic is one of our live sessions. everything else is expired
-			!inner.attestation_view.is_topic_live(&topic)
+			let live = inner.attestation_view.is_topic_live(&topic)
+				|| !inner.message_routing_view.is_topic_live(&topic);
+
+			!live // = expired
 		})
 	}
 
 	fn message_allowed<'a>(&'a self) -> Box<dyn FnMut(&PeerId, MessageIntent, &Hash, &[u8]) -> bool + 'a> {
 		let mut inner = self.inner.write();
 		Box::new(move |who, intent, topic, data| {
-			let &mut Inner { ref mut peers, ref mut attestation_view, .. } = &mut *inner;
+			let &mut Inner {
+				ref mut peers,
+				ref mut attestation_view,
+				ref mut message_routing_view,
+				..
+			} = &mut *inner;
 
 			match intent {
 				MessageIntent::PeriodicRebroadcast => return false,
@@ -392,20 +502,29 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 			}
 
 			let attestation_head = attestation_view.topic_block(topic).map(|x| x.clone());
-			let peer_knowledge = peers.get_mut(who)
-				.and_then(move |p| attestation_head.map(|r| (p, r)))
-				.and_then(|(p, r)| p.attestation.knowledge_at_mut(&r).map(|k| (k, r)));
+			let peer = peers.get_mut(who);
 
 			match GossipMessage::decode(&mut &data[..]) {
-				Some(GossipMessage::Statement(ref statement)) =>
+				Some(GossipMessage::Statement(ref statement)) => {
 					// to allow statements, we need peer knowledge.
+					let peer_knowledge = peer.and_then(move |p| attestation_head.map(|r| (p, r)))
+						.and_then(|(p, r)| p.attestation.knowledge_at_mut(&r).map(|k| (k, r)));
+
 					peer_knowledge.map_or(false, |(knowledge, attestation_head)| {
 						attestation_view.statement_allowed(
 							statement,
 							&attestation_head,
 							knowledge,
 						)
-					}),
+					})
+				}
+				Some(GossipMessage::ParachainMessages(_)) => match peer {
+					None => false,
+					Some(peer) => {
+						let their_leaves: LeavesVec = peer.leaves().cloned().collect();
+						message_routing_view.allowed_intersecting(&their_leaves, topic)
+					}
+				}
 				_ => false,
 			}
 		})
@@ -422,6 +541,8 @@ mod tests {
 	use substrate_primitives::crypto::UncheckedInto;
 	use substrate_primitives::ed25519::Signature as Ed25519Signature;
 	use polkadot_validation::GenericStatement;
+
+	use crate::tests::TestChainContext;
 
 	#[derive(PartialEq, Clone, Debug)]
 	enum ContextEvent {
@@ -461,10 +582,9 @@ mod tests {
 	fn message_allowed() {
 		let (tx, _rx) = mpsc::channel();
 		let tx = Mutex::new(tx);
-		let known_map = HashMap::<Hash, Known>::new();
 		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
 		let validator = MessageValidator::new_test(
-			move |hash: &Hash| known_map.get(hash).map(|x| x.clone()),
+			TestChainContext::default(),
 			report_handle,
 		);
 
@@ -544,10 +664,9 @@ mod tests {
 	fn too_many_chain_heads_is_report() {
 		let (tx, rx) = mpsc::channel();
 		let tx = Mutex::new(tx);
-		let known_map = HashMap::<Hash, Known>::new();
 		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
 		let validator = MessageValidator::new_test(
-			move |hash: &Hash| known_map.get(hash).map(|x| x.clone()),
+			TestChainContext::default(),
 			report_handle,
 		);
 
@@ -587,10 +706,9 @@ mod tests {
 	fn statement_only_sent_when_candidate_known() {
 		let (tx, _rx) = mpsc::channel();
 		let tx = Mutex::new(tx);
-		let known_map = HashMap::<Hash, Known>::new();
 		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
 		let validator = MessageValidator::new_test(
-			move |hash: &Hash| known_map.get(hash).map(|x| x.clone()),
+			TestChainContext::default(),
 			report_handle,
 		);
 

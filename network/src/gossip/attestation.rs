@@ -25,7 +25,7 @@ use std::collections::{HashMap, HashSet};
 use log::warn;
 use crate::router::attestation_topic;
 
-use super::{cost, benefit, MAX_CHAIN_HEADS, LeavesVec, KnownOracle, Known, MessageValidationData, GossipStatement};
+use super::{cost, benefit, MAX_CHAIN_HEADS, LeavesVec, ChainContext, Known, MessageValidationData, GossipStatement};
 
 // knowledge about attestations on a single parent-hash.
 #[derive(Default)]
@@ -67,15 +67,18 @@ impl PeerData {
 
 	#[cfg(test)]
 	pub(super) fn note_aware_in_session(&mut self, relay_parent: &Hash, candidate_hash: Hash) {
-		if let Some(mut knowledge) = self.live.get_mut(relay_parent) {
+		if let Some(knowledge) = self.live.get_mut(relay_parent) {
 			knowledge.note_aware(candidate_hash);
 		}
 	}
-}
 
-impl PeerData {
 	pub(super) fn knowledge_at_mut(&mut self, parent_hash: &Hash) -> Option<&mut Knowledge> {
 		self.live.get_mut(parent_hash)
+	}
+
+	/// Get an iterator over all live leaves of this peer.
+	pub(super) fn leaves(&self) -> impl Iterator<Item = &Hash> {
+		self.live.keys()
 	}
 }
 
@@ -105,9 +108,9 @@ impl View {
 			.find_map(|&mut (ref h, ref mut sesh)| if h == relay_parent { Some(sesh) } else { None } )
 	}
 
-	/// Get our leaves-set.
-	pub(super) fn neighbor_info(&self) -> Vec<Hash> {
-		self.live_sessions.iter().take(MAX_CHAIN_HEADS).map(|(p, _)| p.clone()).collect()
+	/// Get our leaves-set. Guaranteed to have length <= MAX_CHAIN_HEADS.
+	pub(super) fn neighbor_info<'a>(&'a self) -> impl Iterator<Item=Hash> + 'a + Clone {
+		self.live_sessions.iter().take(MAX_CHAIN_HEADS).map(|(p, _)| p.clone())
 	}
 
 	/// Note a new session.
@@ -141,15 +144,15 @@ impl View {
 
 
 	/// Validate an attestation statement of some kind.
-	pub(super) fn validate_statement<O: KnownOracle + ?Sized>(&mut self, message: GossipStatement, oracle: &O)
+	pub(super) fn validate_statement<C: ChainContext + ?Sized>(&mut self, message: GossipStatement, chain: &C)
 		-> (GossipValidationResult<Hash>, i32)
 	{
-		// message must reference one of our chain heads and one
+		// message must reference one of our chain heads and
 		// if message is not a `Candidate` we should have the candidate available
 		// in `attestation_view`.
 		match self.session_view(&message.relay_parent) {
 			None => {
-				let cost = match oracle.is_known(&message.relay_parent) {
+				let cost = match chain.is_known(&message.relay_parent) {
 					Some(Known::Leaf) => {
 						warn!(
 							target: "network",

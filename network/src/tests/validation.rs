@@ -44,7 +44,7 @@ use futures::{prelude::*, sync::mpsc};
 use tokio::runtime::Runtime;
 use parity_codec::Encode;
 
-use super::TestContext;
+use super::{TestContext, TestChainContext};
 
 type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
@@ -349,7 +349,7 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 		});
 
 		let message_val = crate::gossip::RegisteredMessageValidator::new_test(
-			|_hash: &_| Some(crate::gossip::Known::Leaf),
+			TestChainContext::default(),
 			Box::new(|_, _| {}),
 		);
 

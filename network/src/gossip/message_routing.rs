@@ -16,12 +16,11 @@
 
 //! Data structures and synchronous logic for ICMP message gossip.
 
-use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
-use sr_primitives::generic::BlockId;
-use polkadot_primitives::{Block, Hash};
-use polkadot_primitives::parachain::ParachainHost;
+use sr_primitives::traits::{BlakeTwo256, Hash as HashT};
+use polkadot_primitives::Hash;
 use std::collections::{HashMap, HashSet};
-use super::{MAX_CHAIN_HEADS, LeavesVec};
+use substrate_client::error::Error as ClientError;
+use super::{MAX_CHAIN_HEADS, GossipValidationResult, LeavesVec, ChainContext};
 
 /// Construct a topic for a message queue root deterministically.
 pub fn queue_topic(queue_root: Hash) -> Hash {
@@ -31,54 +30,8 @@ pub fn queue_topic(queue_root: Hash) -> Hash {
 	BlakeTwo256::hash(&v[..])
 }
 
-/// A type-safe handle to a leaf.
-pub trait Leaf {
-	fn hash(&self) -> &Hash;
-}
-
-impl Leaf for Hash {
-	fn hash(&self) -> &Hash {
-		self
-	}
-}
-
-/// Context to the underlying polkadot chain.
-pub trait ChainContext {
-	/// The leaf type that this chain context is associated with.
-	type Leaf: Leaf;
-	/// An error that can occur when querying the chain.
-	type Error;
-
-	/// Provide a closure which is invoked for every unrouted queue hash at a given leaf.
-	fn leaf_unrouted_roots<F: FnMut(&Hash)>(&self, leaf: &Self::Leaf, with_queue_root: F)
-		-> Result<(), Self::Error>;
-}
-
-impl<P: ProvideRuntimeApi> ChainContext for P where P::Api: ParachainHost<Block> {
-	type Leaf = Hash;
-	type Error = substrate_client::error::Error;
-
-	fn leaf_unrouted_roots<F: FnMut(&Hash)>(&self, &leaf: &Self::Leaf, mut with_queue_root: F)
-		-> Result<(), Self::Error>
-	{
-		let api = self.runtime_api();
-
-		let leaf_id = BlockId::Hash(leaf);
-		let active_parachains = api.active_parachains(&leaf_id)?;
-
-		for para_id in active_parachains {
-			if let Some(ingress) = api.ingress(&leaf_id, para_id)? {
-				for (_height, _from, queue_root) in ingress.iter() {
-					with_queue_root(queue_root);
-				}
-			}
-		}
-
-		Ok(())
-	}
-}
-
 /// A view of which queue roots are current for a given set of leaves.
+#[derive(Default)]
 pub struct View {
 	leaves: LeavesVec,
 	leaf_topics: HashMap<Hash, HashSet<Hash>>, // leaf_hash -> { topics }
@@ -87,14 +40,15 @@ pub struct View {
 
 impl View {
 	/// Update the set of current leaves.
-	pub fn update_leaves<T: ChainContext>(&mut self, context: &T, new_leaves: &[T::Leaf])
-		-> Result<(), T::Error>
+	pub fn update_leaves<T: ChainContext + ?Sized, I>(&mut self, context: &T, new_leaves: I)
+		-> Result<(), ClientError>
+		where I: Iterator<Item=Hash>
 	{
-		let new_leaves = new_leaves.iter().take(MAX_CHAIN_HEADS);
+		let new_leaves = new_leaves.take(MAX_CHAIN_HEADS);
 		let old_leaves = {
 			let mut new = LeavesVec::new();
-			for leaf in new_leaves.clone() {
-				new.push(leaf.hash().clone());
+			for leaf in new_leaves {
+				new.push(leaf.clone());
 			}
 
 			std::mem::replace(&mut self.leaves, new)
@@ -112,25 +66,51 @@ impl View {
 			false
 		});
 
+		let mut res = Ok(());
+
 		// add in new data about fresh leaves.
-		for new_leaf in new_leaves {
-			let hash = new_leaf.hash();
-			if old_leaves.contains(hash) { continue }
+		for new_leaf in &self.leaves {
+			if old_leaves.contains(new_leaf) { continue }
 
 			let mut this_leaf_topics = HashSet::new();
-			context.leaf_unrouted_roots(new_leaf, |&queue_root| {
+
+			let r = context.leaf_unrouted_roots(new_leaf, &mut |&queue_root| {
 				let topic = queue_topic(queue_root);
 				this_leaf_topics.insert(topic);
 				expected_queues.insert(topic, queue_root);
-			})?;
+			});
 
-			self.leaf_topics.insert(*hash, this_leaf_topics);
+			if r.is_err() {
+				res = r;
+			}
+
+			self.leaf_topics.insert(*new_leaf, this_leaf_topics);
 		}
 
-		Ok(())
+		res
 	}
 
-	/// Whether a message with given topic is expired.
+	/// Validate an incoming message queue against this view.
+	pub fn validate_queue(&self, messages: &super::GossipParachainMessages)
+		-> (GossipValidationResult<Hash>, i32)
+	{
+		let ostensible_topic = queue_topic(messages.queue_root);
+		if !self.is_topic_live(&ostensible_topic) {
+			(GossipValidationResult::Discard, super::cost::UNNEEDED_ICMP_MESSAGES)
+		} else if !messages.queue_root_is_correct() {
+			(
+				GossipValidationResult::Discard,
+				super::cost::icmp_messages_root_mismatch(messages.messages.len()),
+			)
+		} else {
+			(
+				GossipValidationResult::ProcessAndKeep(ostensible_topic),
+				super::benefit::NEW_ICMP_MESSAGES,
+			)
+		}
+	}
+
+	/// Whether a message with given topic is live.
 	pub fn is_topic_live(&self, topic: &Hash) -> bool {
 		self.expected_queues.get(topic).is_some()
 	}
@@ -154,10 +134,5 @@ impl View {
 		}
 
 		false
-	}
-
-	/// Whether a message is allowed based on our leaf-set.
-	pub fn allowed(&self, topic: &Hash) -> bool {
-		self.expected_queues.contains_key(topic)
 	}
 }
