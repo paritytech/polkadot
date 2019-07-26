@@ -51,9 +51,8 @@ pub mod wasm_executor;
 #[cfg(feature = "wasm-api")]
 pub mod wasm_api;
 
-use codec::{Encode, Decode};
-
 use rstd::vec::Vec;
+use codec::{Encode, Decode};
 
 struct TrailingZeroInput<'a>(&'a [u8]);
 impl<'a> codec::Input for TrailingZeroInput<'a> {
@@ -94,6 +93,12 @@ pub struct ValidationResult {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Default, Clone, Copy, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, Debug))]
 pub struct Id(u32);
+
+/// Type for determining the active set of parachains.
+pub trait ActiveThreads {
+	/// Return the current ordered set of `Id`s of active parathreads.
+	fn active_threads() -> Vec<Id>;
+}
 
 impl codec::CompactAs for Id {
 	type As = u32;
@@ -185,6 +190,9 @@ pub enum ParachainDispatchOrigin {
 	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with parachain-
 	/// aware modules which need to succinctly verify that the origin is a parachain.
 	Parachain,
+	/// As the simple, superuser `Origin::Root`. This can only be done on specially permissioned
+	/// parachains.
+	Root,
 }
 
 impl rstd::convert::TryFrom<u8> for ParachainDispatchOrigin {

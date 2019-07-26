@@ -18,18 +18,21 @@
 //! auctioning mechanism, for locking balance as part of the "payment", and to provide the requisite
 //! information for commissioning and decommissioning them.
 
-use rstd::{prelude::*, mem::swap, convert::TryInto};
+use rstd::{prelude::*, mem::swap, convert::TryInto, result::Result};
 use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash};
 use parity_codec::{Encode, Decode};
-use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
-	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}};
-use primitives::parachain::AccountIdConversion;
-use crate::parachains::ParachainRegistrar;
+use srml_support::{
+	decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
+	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}
+};
+use primitives::parachain::{
+	AccountIdConversion, OnSwap, PARACHAIN_INFO, Info as ParaInfo, Id as ParaId
+};
+use crate::registrar::ParachainRegistrar;
 use system::ensure_signed;
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
-type ParaIdOf<T> = <<T as Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
 
 /// The module's configuration trait.
 pub trait Trait: system::Trait {
@@ -71,7 +74,7 @@ pub struct NewBidder<AccountId> {
 /// The desired target of a bidder in an auction.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub enum Bidder<AccountId, ParaId> {
+pub enum Bidder<AccountId> {
 	/// An account ID, funds coming from that account.
 	New(NewBidder<AccountId>),
 
@@ -80,7 +83,7 @@ pub enum Bidder<AccountId, ParaId> {
 	Existing(ParaId),
 }
 
-impl<AccountId: Clone, ParaId: AccountIdConversion<AccountId>> Bidder<AccountId, ParaId> {
+impl<AccountId: Clone> Bidder<AccountId> {
 	/// Get the account that will fund this bid.
 	fn funding_account(&self) -> AccountId {
 		match self {
@@ -107,10 +110,12 @@ pub enum IncomingParachain<AccountId, Hash> {
 
 type LeasePeriodOf<T> = <T as system::Trait>::BlockNumber;
 // Winning data type. This encodes the top bidders of each range together with their bid.
-type WinningData<T> = [Option<(Bidder<<T as system::Trait>::AccountId, ParaIdOf<T>>, BalanceOf<T>)>; SLOT_RANGE_COUNT];
+type WinningData<T> =
+	[Option<(Bidder<<T as system::Trait>::AccountId>, BalanceOf<T>)>; SLOT_RANGE_COUNT];
 // Winners data type. This encodes each of the final winners of a parachain auction, the parachain
 // index assigned to them, their winning bid and the range that they won.
-type WinnersData<T> = Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, ParaIdOf<T>, BalanceOf<T>, SlotRange)>;
+type WinnersData<T> =
+	Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, ParaId, BalanceOf<T>, SlotRange)>;
 
 // This module's storage items.
 decl_storage! {
@@ -119,9 +124,9 @@ decl_storage! {
 		/// The number of auctions that been started so far.
 		pub AuctionCounter get(auction_counter): AuctionIndex;
 
-		/// All `ParaId` values that are managed by this module. This includes chains that are not
-		/// yet deployed (but have won an auction in the future).
-		pub ManagedIds get(managed_ids): Vec<ParaIdOf<T>>;
+		/// Ordered list of all `ParaId` values that are managed by this module. This includes
+		/// chains that are not yet deployed (but have won an auction in the future).
+		pub ManagedIds get(managed_ids): Vec<ParaId>;
 
 		/// Various amounts on deposit for each parachain. An entry in `ManagedIds` implies a non-
 		/// default entry here.
@@ -136,7 +141,7 @@ decl_storage! {
 		/// If a parachain doesn't exist *yet* but is scheduled to exist in the future, then it
 		/// will be left-padded with one or more zeroes to denote the fact that nothing is held on
 		/// deposit for the non-existent chain currently, but is held at some point in the future.
-		pub Deposits get(deposits): map ParaIdOf<T> => Vec<BalanceOf<T>>;
+		pub Deposits get(deposits): map ParaId => Vec<BalanceOf<T>>;
 
 		/// Information relating to the current auction, if there is one.
 		///
@@ -152,22 +157,46 @@ decl_storage! {
 
 		/// Amounts currently reserved in the accounts of the bidders currently winning
 		/// (sub-)ranges.
-		pub ReservedAmounts get(reserved_amounts): map Bidder<T::AccountId, ParaIdOf<T>> => Option<BalanceOf<T>>;
+		pub ReservedAmounts get(reserved_amounts): map Bidder<T::AccountId> => Option<BalanceOf<T>>;
 
 		/// The set of Para IDs that have won and need to be on-boarded at an upcoming lease-period.
 		/// This is cleared out on the first block of the lease period.
-		pub OnboardQueue get(onboard_queue): map LeasePeriodOf<T> => Vec<ParaIdOf<T>>;
+		pub OnboardQueue get(onboard_queue): map LeasePeriodOf<T> => Vec<ParaId>;
 
 		/// The actual on-boarding information. Only exists when one of the following is true:
 		/// - It is before the lease period that the parachain should be on-boarded.
 		/// - The full on-boarding information has not yet been provided and the parachain is not
 		/// yet due to be off-boarded.
-		pub Onboarding get(onboarding): map ParaIdOf<T> =>
+		pub Onboarding get(onboarding): map ParaId =>
 			Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId, T::Hash>)>;
 
 		/// Off-boarding account; currency held on deposit for the parachain gets placed here if the
 		/// parachain gets off-boarded; i.e. its lease period is up and it isn't renewed.
-		pub Offboarding get(offboarding): map ParaIdOf<T> => T::AccountId;
+		pub Offboarding get(offboarding): map ParaId => T::AccountId;
+	}
+}
+
+impl<T: Trait> OnSwap for Module<T> {
+	fn can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
+		if <Onboarding<T>>::exists(one) || <Onboarding<T>>::exists(other) {
+			Err("can't swap an undeployed parachain")?
+		}
+		Ok(())
+	}
+	fn do_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
+		<Offboarding<T>>::swap(one, other);
+		<Deposits<T>>::swap(one, other);
+		ManagedIds::mutate(|ids| {
+			let maybe_one_pos = ids.binary_search(&one);
+			let maybe_other_pos = ids.binary_search(&other);
+			match (maybe_one_pos, maybe_other_pos) {
+				(Ok(one_pos), Err(_)) => ids[one_pos] = other,
+				(Err(_), Ok(other_pos)) => ids[other_pos] = one,
+				_ => return,
+			};
+			ids.sort();
+		});
+		Ok(())
 	}
 }
 
@@ -176,7 +205,7 @@ decl_event!(
 		AccountId = <T as system::Trait>::AccountId,
 		BlockNumber = <T as system::Trait>::BlockNumber,
 		LeasePeriod = LeasePeriodOf<T>,
-		ParaId = ParaIdOf<T>,
+		ParaId = ParaId,
 		Balance = BalanceOf<T>,
 	{
 		/// A new lease period is beginning.
@@ -309,7 +338,7 @@ decl_module! {
 			#[compact] amount: BalanceOf<T>
 		) {
 			let who = ensure_signed(origin)?;
-			let para_id = <ParaIdOf<T>>::try_from_account(&who)
+			let para_id = <ParaId>::try_from_account(&who)
 				.ok_or("account is not a parachain")?;
 			let bidder = Bidder::Existing(para_id);
 			Self::handle_bid(bidder, auction_index, first_slot, last_slot, amount)?;
@@ -323,7 +352,7 @@ decl_module! {
 		fn set_offboarding(origin, dest: <T::Lookup as StaticLookup>::Source) {
 			let who = ensure_signed(origin)?;
 			let dest = T::Lookup::lookup(dest)?;
-			let para_id = <ParaIdOf<T>>::try_from_account(&who)
+			let para_id = <ParaId>::try_from_account(&who)
 				.ok_or("not a parachain origin")?;
 			<Offboarding<T>>::insert(para_id, dest);
 		}
@@ -337,7 +366,7 @@ decl_module! {
 		/// - `initial_head_data` is the parachain's initial head data.
 		fn fix_deploy_data(origin,
 			#[compact] sub: SubId,
-			#[compact] para_id: ParaIdOf<T>,
+			#[compact] para_id: ParaId,
 			code_hash: T::Hash,
 			initial_head_data: Vec<u8>
 		) {
@@ -365,7 +394,7 @@ decl_module! {
 		/// - `_origin` is irrelevant.
 		/// - `para_id` is the parachain ID whose code will be elaborated.
 		/// - `code` is the preimage of the registered `code_hash` of `para_id`.
-		fn elaborate_deploy_data(_origin, #[compact] para_id: ParaIdOf<T>, code: Vec<u8>) {
+		fn elaborate_deploy_data(_origin, #[compact] para_id: ParaId, code: Vec<u8>) {
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
 				.ok_or("parachain id not in onboarding")?;
 			if let IncomingParachain::Fixed{code_hash, initial_head_data} = details {
@@ -378,7 +407,8 @@ decl_module! {
 					// Should have already begun. Remove the on-boarding entry and register the
 					// parachain for its immediate start.
 					<Onboarding<T>>::remove(&para_id);
-					let _ = T::Parachains::register_parachain(para_id, code, initial_head_data);
+					let _ = T::Parachains::
+						register_para(para_id, PARACHAIN_INFO, code, initial_head_data);
 				}
 			} else {
 				return Err("deploy data not yet fixed")
@@ -389,7 +419,7 @@ decl_module! {
 
 impl<T: Trait> Module<T> {
 	/// Deposit currently held for a particular parachain that we administer.
-	fn deposit_held(para_id: &ParaIdOf<T>) -> BalanceOf<T> {
+	fn deposit_held(para_id: &ParaId) -> BalanceOf<T> {
 		<Deposits<T>>::get(para_id).into_iter().max().unwrap_or_else(Zero::zero)
 	}
 
@@ -483,8 +513,14 @@ impl<T: Trait> Module<T> {
 
 					// Add para IDs of any chains that will be newly deployed to our set of managed
 					// IDs
-					<ManagedIds<T>>::mutate(|m| m.push(para_id));
-
+					<ManagedIds<T>>::mutate(|ids|
+						if let Err(pos) = ids.binary_search(para_id) {
+							ids.insert(pos, para_id)
+						} else {
+							// This can't happen as it's a winner being newly
+							// deployed and thus the para_id shouldn't already be being managed.
+						}
+					);
 					Self::deposit_event(RawEvent::WonDeploy(bidder.clone(), range, para_id, amount));
 
 					// Add a deployment record so we know to on-board them at the appropriate
@@ -574,7 +610,7 @@ impl<T: Trait> Module<T> {
 							// Only unregister it if it was actually registered in the first place.
 							// If the on-boarding entry still existed, then it was never actually
 							// commissioned.
-							let _ = T::Parachains::deregister_parachain(id.clone());
+							let _ = T::Parachains::deregister_para(id.clone());
 						}
 						// Return the full deposit to the off-boarding account.
 						T::Currency::deposit_creating(&<Offboarding<T>>::take(id), d[0]);
@@ -616,7 +652,8 @@ impl<T: Trait> Module<T> {
 			{
 				// The chain's deployment data is set; go ahead and register it, and remove the
 				// now-redundant on-boarding entry.
-				let _ = T::Parachains::register_parachain(para_id.clone(), code, initial_head_data);
+				let _ = T::Parachains::
+					register_para(para_id.clone(), PARACHAIN_INFO, code, initial_head_data);
 				// ^^ not much we can do if it fails for some reason.
 				<Onboarding<T>>::remove(para_id)
 			}
@@ -632,7 +669,7 @@ impl<T: Trait> Module<T> {
 	/// - `last_slot`: The last lease period index of the range to be bid on (inclusive).
 	/// - `amount`: The total amount to be the bid for deposit over the range.
 	fn handle_bid(
-		bidder: Bidder<T::AccountId, ParaIdOf<T>>,
+		bidder: Bidder<T::AccountId>,
 		auction_index: u32,
 		first_slot: LeasePeriodOf<T>,
 		last_slot: LeasePeriodOf<T>,
@@ -723,7 +760,7 @@ impl<T: Trait> Module<T> {
 	/// https://github.com/w3f/consensus/blob/master/NPoS/auctiondynamicthing.py
 	fn calculate_winners(
 		mut winning: WinningData<T>,
-		new_id: impl Fn() -> ParaIdOf<T>
+		new_id: impl Fn() -> ParaId
 	) -> WinnersData<T> {
 		let winning_ranges = {
 			let mut best_winners_ending_at:
@@ -770,7 +807,6 @@ impl<T: Trait> Module<T> {
 		}).collect::<Vec<_>>()
 	}
 }
-
 
 /// tests for this module
 #[cfg(test)]
@@ -839,15 +875,15 @@ mod tests {
 
 	pub struct TestParachains;
 	impl ParachainRegistrar<u64> for TestParachains {
-		type ParaId = ParaId;
-		fn new_id() -> Self::ParaId {
+		fn new_id() -> ParaId {
 			PARACHAIN_COUNT.with(|p| {
 				*p.borrow_mut() += 1;
 				(*p.borrow() - 1).into()
 			})
 		}
-		fn register_parachain(
-			id: Self::ParaId,
+		fn register_para(
+			id: ParaId,
+			_info: ParaInfo,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>
 		) -> Result<(), &'static str> {
@@ -859,7 +895,7 @@ mod tests {
 				Ok(())
 			})
 		}
-		fn deregister_parachain(id: Self::ParaId) -> Result<(), &'static str> {
+		fn deregister_para(id: ParaId) -> Result<(), &'static str> {
 			PARACHAINS.with(|p| {
 				if !p.borrow().contains_key(&id.into_inner()) {
 					panic!("ID doesn't exist")

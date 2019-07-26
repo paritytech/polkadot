@@ -17,7 +17,7 @@
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
 use rstd::prelude::*;
-use rstd::collections::btree_map::BTreeMap;
+use rstd::{result, collections::btree_map::BTreeMap};
 use parity_codec::{Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
@@ -25,7 +25,8 @@ use bitvec::{bitvec, BigEndian};
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots,
+	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ActiveParas, CollatorId,
+	DispatchOrigins
 }};
 use {system, session};
 use srml_support::{
@@ -72,75 +73,6 @@ fn number_range<N>(low: N, high: N) -> BlockNumberRange<N> {
 	BlockNumberRange { low, high }
 }
 
-/// Parachain registration API.
-pub trait ParachainRegistrar<AccountId> {
-	/// An identifier for a parachain.
-	type ParaId: Member + Parameter + Default + AccountIdConversion<AccountId> + Copy + HasCompact;
-
-	/// Create a new unique parachain identity for later registration.
-	fn new_id() -> Self::ParaId;
-
-	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
-	/// result in a error.
-	fn register_parachain(id: Self::ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result;
-
-	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
-	fn deregister_parachain(id: Self::ParaId) -> Result;
-}
-
-impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
-	type ParaId = ParaId;
-	fn new_id() -> ParaId {
-		<NextFreeId>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
-	}
-	fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
-		let mut parachains = Self::active_parachains();
-		match parachains.binary_search(&id) {
-			Ok(_) => fail!("Parachain already exists"),
-			Err(idx) => parachains.insert(idx, id),
-		}
-
-		<Code>::insert(id, code);
-		<Parachains>::put(parachains);
-		<Heads>::insert(id, initial_head_data);
-
-		// Because there are no ordering guarantees that inherents
-		// are applied before regular transactions, a parachain candidate could
-		// be registered before the `UpdateHeads` inherent is processed. If so, messages
-		// could be sent to a parachain in the block it is registered.
-		<Watermarks<T>>::insert(id, <system::Module<T>>::block_number().saturating_sub(One::one()));
-
-		Ok(())
-	}
-	fn deregister_parachain(id: ParaId) -> Result {
-		let mut parachains = Self::active_parachains();
-		match parachains.binary_search(&id) {
-			Ok(idx) => { parachains.remove(idx); }
-			Err(_) => return Ok(()),
-		}
-
-		<Code>::remove(id);
-		<Heads>::remove(id);
-
-		let watermark = <Watermarks<T>>::take(id);
-
-		// clear all routing entries _to_. But not those _from_.
-		if let Some(watermark) = watermark {
-			let now = <system::Module<T>>::block_number();
-
-			// iterate over all blocks between watermark and now + 1 (since messages might
-			// have already been sent to `id` in this block.
-			for unrouted_block in number_range(watermark, now).map(|n| n.saturating_add(One::one())) {
-				<UnroutedIngress<T>>::remove(&(unrouted_block, id));
-			}
-		}
-
-		<Parachains>::put(parachains);
-
-		Ok(())
-	}
-}
-
 // wrapper trait because an associated type of `Currency<Self::AccountId,Balance=Balance>`
 // doesn't work.`
 pub trait ParachainCurrency<AccountId> {
@@ -181,6 +113,9 @@ pub trait Trait: session::Trait {
 
 	/// Some way of interacting with balances for fees.
 	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
+
+	/// Means to determine what the current set of active parachains are.
+	type ActiveParachains: ActiveParas;
 }
 
 /// Origin for the parachains module.
@@ -206,8 +141,6 @@ const WATERMARK_QUEUE_SIZE: usize = 20000;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
-		// Vector of all parachain IDs.
-		pub Parachains get(active_parachains): Vec<ParaId>;
 		// The parachains registered at present.
 		pub Code get(parachain_code): map ParaId => Option<Vec<u8>>;
 		// The heads of the parachains registered at present.
@@ -231,11 +164,11 @@ decl_storage! {
 		//	second if the total length (in bytes) of the message payloads.
 		pub RelayDispatchQueueSize: map ParaId => (u32, u32);
 
+		/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
+		NeedsDispatch: Vec<ParaId>;
+
 		// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
-
-		/// The next unused ParaId value.
-		NextFreeId: ParaId;
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
@@ -269,7 +202,10 @@ decl_module! {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
 
-			let active_parachains = Self::active_parachains();
+			let mut active_parachains = Self::active_parachains();
+			active_parachains.sort_by_key(|(id, _)| id);
+
+			// TODO: verify that the heads each come from the right collator, if one is specified.
 			let parachain_count = active_parachains.len();
 			ensure!(heads.len() <= parachain_count, "Too many parachain candidates");
 
@@ -277,23 +213,27 @@ decl_module! {
 				// perform integrity checks before writing to storage.
 				{
 					let mut last_id = None;
+
 					let mut iter = active_parachains.iter();
 					for head in &heads {
 						let id = head.parachain_index();
 						// proposed heads must be ascending order by parachain ID without duplicate.
 						ensure!(
 							last_id.as_ref().map_or(true, |x| x < &id),
-							"Parachain candidates out of order by ID"
+							"candidate out of order"
 						);
 
 						// must be unknown since active parachains are always sorted.
-						ensure!(
-							iter.find(|x| x == &&id).is_some(),
-							"Submitted candidate for unregistered or out-of-order parachain {}"
-						);
+						let (_, maybe_required_collator, origins) = iter.find(|para| para.0 == id)
+							.ok_or("candidate for unregistered parachain {}")?;
+
+						if let Some(required_collator) = maybe_required_collator {
+							ensure!(required_collator == head.candidate.collator, "invalid collator");
+						}
 
 						Self::check_upward_messages(
 							id,
+							origins,
 							&head.candidate.upward_messages,
 							MAX_QUEUE_COUNT,
 							WATERMARK_QUEUE_SIZE,
@@ -357,6 +297,42 @@ fn localized_payload(statement: Statement, parent_hash: ::primitives::Hash) -> V
 }
 
 impl<T: Trait> Module<T> {
+	/// Initialize the state of a new parachain/parathread.
+	fn initialize_para(
+		id: ParaId,
+		code: Vec<u8>,
+		initial_head_data: Vec<u8>,
+	) {
+		<Code>::insert(id, code);
+		<Heads>::insert(id, initial_head_data);
+
+		// Because there are no ordering guarantees that inherents
+		// are applied before regular transactions, a parachain candidate could
+		// be registered before the `UpdateHeads` inherent is processed. If so, messages
+		// could be sent to a parachain in the block it is registered.
+		<Watermarks<T>>::insert(id, <system::Module<T>>::block_number().saturating_sub(One::one()));
+	}
+
+	fn cleanup_para(
+		id: ParaId,
+	) {
+		<Code>::remove(id);
+		<Heads>::remove(id);
+
+		let watermark = <Watermarks<T>>::take(id);
+
+		// clear all routing entries _to_. But not those _from_.
+		if let Some(watermark) = watermark {
+			let now = <system::Module<T>>::block_number();
+
+			// iterate over all blocks between watermark and now + 1 (since messages might
+			// have already been sent to `id` in this block.
+			for unrouted_block in number_range(watermark, now).map(|n| n.saturating_add(One::one())) {
+				<UnroutedIngress<T>>::remove(&(unrouted_block, id));
+			}
+		}
+	}
+
 	/// Dispatch some messages from a parachain.
 	fn dispatch_message(
 		id: ParaId,
@@ -369,6 +345,8 @@ impl<T: Trait> Module<T> {
 					system::RawOrigin::Signed(id.into_account()).into(),
 				ParachainDispatchOrigin::Parachain =>
 					Origin::Parachain(id).into(),
+				ParachainDispatchOrigin::Root =>
+					system::RawOrigin::Root.into(),
 			};
 			let _ok = message_call.dispatch(origin).is_ok();
 			// Not much to do with the result as it is. It's up to the parachain to ensure that the
@@ -380,6 +358,7 @@ impl<T: Trait> Module<T> {
 	fn check_upward_messages(
 		id: ParaId,
 		upward_messages: &[UpwardMessage],
+		origins: DispatchOrigins,
 		max_queue_count: usize,
 		watermark_queue_size: usize,
 	) -> Result {
@@ -403,6 +382,11 @@ impl<T: Trait> Module<T> {
 				),
 				"Messages added when queue full"
 			);
+			if origins != DispatchOrigins::Root {
+				for m in upward_messages.iter() {
+					ensure!(m.origin != Root, "bad message origin");
+				}
+			}
 		}
 		Ok(())
 	}
@@ -418,6 +402,11 @@ impl<T: Trait> Module<T> {
 		let watermark = now.saturating_sub(One::one());
 
 		let mut ingress_update = BTreeMap::new();
+
+		// we sort them in order to provide a fast lookup to ensure we can avoid duplicates in the
+		// needs_dispatch queue.
+		let mut ordered_needs_dispatch = NeedsDispatch::get();
+		ordered_needs_dispatch.sort_unstable();
 
 		for head in heads.iter() {
 			let id = head.parachain_index();
@@ -440,7 +429,11 @@ impl<T: Trait> Module<T> {
 			}
 
 			// Queue up upwards messages (from parachains to relay chain).
-			Self::queue_upward_messages(id, &head.candidate.upward_messages);
+			Self::queue_upward_messages(
+				id,
+				&head.candidate.upward_messages,
+				&ordered_needs_dispatch[..]
+			);
 		}
 
 		// apply the ingress update.
@@ -450,7 +443,11 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Place any new upward messages into our queue for later dispatch.
-	fn queue_upward_messages(id: ParaId, upward_messages: &[UpwardMessage]) {
+	fn queue_upward_messages(
+		id: ParaId,
+		upward_messages: &[UpwardMessage],
+		ordered_needs_dispatch: &[ParaId],
+	) {
 		if !upward_messages.is_empty() {
 			<RelayDispatchQueueSize>::mutate(id, |&mut(ref mut count, ref mut len)| {
 				*count += upward_messages.len() as u32;
@@ -459,27 +456,27 @@ impl<T: Trait> Module<T> {
 			});
 			// Should never be able to fail assuming our state is uncorrupted, but best not
 			// to panic, even if it does.
-			let _ = <RelayDispatchQueue>::append(id, upward_messages);
+			let _ = RelayDispatchQueue::append(id, upward_messages);
+			if ordered_needs_dispatch.binary_search(&id).is_err() {
+				NeedsDispatch::append(id);
+			}
 		}
 	}
 
-	/// Simple round-robin dispatcher, using block number modulo parachain count
-	/// to decide which takes precedence and proceeding from there.
+	/// Simple FIFO dispatcher.
 	fn dispatch_upward_messages(
 		now: T::BlockNumber,
-		active_parachains: &[ParaId],
 		max_queue_count: usize,
 		watermark_queue_size: usize,
 		mut dispatch_message: impl FnMut(ParaId, ParachainDispatchOrigin, &[u8]),
 	) {
-		let para_count = active_parachains.len();
-		let offset = (now % T::BlockNumber::from(para_count as u32))
-			.checked_into::<usize>()
-			.expect("value is modulo a usize value; qed");
-
+		let queueds = NeedsDispatch::get();
+		let mut drained_count = 0usize;
 		let mut dispatched_count = 0usize;
 		let mut dispatched_size = 0usize;
-		for id in active_parachains.iter().cycle().skip(offset).take(para_count) {
+		for id in queueds.iter() {
+			drained_count += 1;
+
 			let (count, size) = <RelayDispatchQueueSize>::get(id);
 			let count = count as usize;
 			let size = size as usize;
@@ -489,8 +486,8 @@ impl<T: Trait> Module<T> {
 			) {
 				if count > 0 {
 					// still dispatching messages...
-					<RelayDispatchQueueSize>::remove(id);
-					let messages = <RelayDispatchQueue>::take(id);
+					RelayDispatchQueueSize::remove(id);
+					let messages = RelayDispatchQueue::take(id);
 					for UpwardMessage { origin, data } in messages.into_iter() {
 						dispatch_message(*id, origin, &data);
 					}
@@ -504,23 +501,30 @@ impl<T: Trait> Module<T> {
 				}
 			}
 		}
+		HasDisatchQueue::put_ref(&qd[drained_count..]);
 	}
 
 	/// Calculate the current block's duty roster using system's random seed.
 	pub fn calculate_duty_roster() -> DutyRoster {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
+
+		// TODO: should be maintaining its own PV "authority" set rather than getting them from Aura
 		let validator_count = crate::Aura::authorities().len();
-		let validators_per_parachain = if parachain_count != 0 { (validator_count - 1) / parachain_count } else { 0 };
+		let validators_per_parachain =
+			if parachain_count == 0 {
+				0
+			} else {
+				(validator_count - 1) / parachain_count
+			};
 
 		let mut roles_val = (0..validator_count).map(|i| match i {
 			i if i < parachain_count * validators_per_parachain => {
 				let idx = i / validators_per_parachain;
-				Chain::Parachain(parachains[idx].clone())
+				Chain::Parachain(parachains[idx].0.clone())
 			}
 			_ => Chain::Relay,
 		}).collect::<Vec<_>>();
-
 
 		let mut seed = {
 			let phrase = b"validator_role_pairs";
@@ -597,6 +601,11 @@ impl<T: Trait> Module<T> {
 				per_byte: 0,
 			}
 		})
+	}
+
+	/// Get the currently active set of parachains.
+	fn active_parachains() -> Vec<(ParaId, Option<CollatorId>, DispatchOrigins)> {
+		T::ActiveParas::active_paras()
 	}
 
 	fn check_egress_queue_roots(head: &AttestedCandidate, active_parachains: &[ParaId]) -> Result {
@@ -805,6 +814,17 @@ impl<T: Trait> ProvideInherent for Module<T> {
 			.expect("No parachain heads found in inherent data.");
 
 		Some(Call::set_heads(data))
+	}
+}
+
+/// Ensure that the origin `o` represents a parachain.
+/// Returns `Ok` with the parachain ID that effected the extrinsic or an `Err` otherwise.
+pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, &'static str>
+	where OuterOrigin: Into<result::Result<Origin, OuterOrigin>>
+{
+	match o.into() {
+		Ok(Origin::Parachain(id)) => Ok(id),
+		_ => Err("bad origin: expected to be a parachain origin"),
 	}
 }
 

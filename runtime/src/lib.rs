@@ -24,6 +24,7 @@ mod curated_grandpa;
 mod parachains;
 mod claims;
 mod slot_range;
+mod registrar;
 mod slots;
 
 use rstd::prelude::*;
@@ -332,6 +333,11 @@ impl parachains::Trait for Runtime {
 	type ParachainCurrency = Balances;
 }
 
+impl registrar::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+}
+
 parameter_types!{
 	pub const LeasePeriod: BlockNumber = 100000;
 	pub const EndingPeriod: BlockNumber = 1000;
@@ -339,8 +345,8 @@ parameter_types!{
 
 impl slots::Trait for Runtime {
 	type Event = Event;
-	type Currency = balances::Module<Self>;
-	type Parachains = parachains::Module<Self>;
+	type Currency = Balances;
+	type Parachains = Parachains;
 	type LeasePeriod = LeasePeriod;
 	type EndingPeriod = EndingPeriod;
 }

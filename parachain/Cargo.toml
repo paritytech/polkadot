@@ -10,8 +10,8 @@ codec = { package = "parity-codec", version = "4.1", default-features = false, f
 wasmi = { version = "0.4.3", optional = true }
 derive_more = { version = "0.14", optional = true }
 serde = { version = "1.0", default-features = false, features = [ "derive" ] }
-
 rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+
 
 [dev-dependencies]
 tiny-keccak = "1.4"

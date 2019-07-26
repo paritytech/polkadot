@@ -29,7 +29,7 @@ use primitives::bytes;
 use primitives::ed25519;
 
 pub use polkadot_parachain::{
-	Id, AccountIdConversion, ParachainDispatchOrigin,
+	Id, AccountIdConversion, ParachainDispatchOrigin
 };
 
 /// Identity that collators use.
@@ -52,6 +52,68 @@ pub type ValidatorIndex = u32;
 /// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorSignature = super::SessionSignature;
+
+/// Type determining the active set of parachains in current block.
+pub trait ActiveParas {
+	/// Return the active set of parachains in current block. This attempts to keep any IDs in the
+	/// same place between sequential blocks. It is therefore unordered. The second item in the
+	/// tuple is the required collator ID, if any. If `Some`, then it is invalid to include any
+	/// other collator's block.
+	///
+	/// NOTE: The initial implementation simply concatenates the (ordered) set of (permanent)
+	/// parachain IDs with the (unordered) set of parathread IDs selected for this block.
+	fn active_paras() -> Vec<(Id, Option<CollatorId>, ActiveParas)>;
+}
+
+/// Description of how often/when this parachain is scheduled for progression.
+pub enum Scheduling {
+	/// Scheduled every block.
+	Always,
+	/// Scheduled dynamically (i.e. a parathread).
+	Dynamic,
+}
+
+/// Origins from which a parachain's messages may be sent.
+pub enum DispatchOrigins {
+	/// `Parachain` and `Signed` origins.
+	Normal,
+	/// `Parachain`, `Signed` and `Root` origins.
+	Root,
+}
+
+impl Default for DispatchOrigins {
+	fn default() -> Self {
+		DispatchOrigins::Normal
+	}
+}
+
+/// Information regarding a deployed parachain/thread.
+pub struct Info {
+	/// Scheduling info.
+	scheduling: Scheduling,
+	/// Origin privileges.
+	origins: DispatchOrigins,
+}
+
+pub const PARACHAIN_INFO: Info = Info {
+	scheduling: Scheduling::Always,
+	origins: DispatchOrigins::Normal,
+};
+
+/// Handler for when two parachains/parathreads get notionally swapped.
+pub trait OnSwap {
+	/// Result describing whether it is possible to swap two parachains. Doesn't mutate state.
+	fn can_swap(one: Id, other: Id) -> Result<(), &'static str>;
+
+	/// Updates any needed state/references to enact a logical swap of two parachains. Identity,
+	/// code and head_data remain equivalent for all parachains/threads, however other properties
+	/// such as leases, deposits held and thread/chain nature are swapped.
+	///
+	/// May only be called on a state that `can_swap` has previously returned `Ok` for: if this is
+	/// not the case, the result is undefined. May only return an error if `can_swap` also returns
+	/// an error.
+	fn do_swap(one: Id, other: Id) -> Result<(), &'static str>;
+}
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
 #[derive(Copy, Clone, PartialEq, Encode, Decode)]
