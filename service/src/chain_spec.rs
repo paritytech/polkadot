@@ -22,6 +22,7 @@ use polkadot_runtime::{
 	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, AuraConfig,
 	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
 	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY,
+	ImOnlineConfig,
 };
 use polkadot_runtime::constants::{currency::DOTS, time::*};
 use telemetry::TelemetryEndpoints;
@@ -125,6 +126,10 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		parachains: Some(Default::default()),
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,
+		}),
+		im_online: Some(ImOnlineConfig{
+			gossip_at: 0,
+			last_new_era_start: 0,
 		}),
 	}
 }
@@ -255,6 +260,10 @@ pub fn testnet_genesis(
 		}),
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,
+		}),
+		im_online: Some(ImOnlineConfig{
+			gossip_at: 0,
+			last_new_era_start: 0,
 		}),
 	}
 }
