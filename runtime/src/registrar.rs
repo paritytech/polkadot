@@ -69,7 +69,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		initial_head_data: Vec<u8>
 	) -> Result {
 		if let Scheduling::Always = info.scheduling {
-			Parachains.mutate(|parachains|
+			Parachains::mutate(|parachains|
 				match parachains.binary_search(&id) {
 					Ok(_) => Err("Parachain already exists"),
 					Err(idx) => {
@@ -86,7 +86,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 	fn deregister_para(id: ParaId) -> Result {
 		let info = Paras::take(id).ok_or("Invalid id")?;
 		if let Scheduling::Always = info.scheduling {
-			Parachains.mutate(|parachains|
+			Parachains::mutate(|parachains|
 				parachains.binary_search(&id)
 					.map(|index| parachains.remove(index))
 					.map_err(|_| "Invalid id")
@@ -347,6 +347,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 		info: DispatchInfo,
 		len: usize,
 	) -> rstd::result::Result<ValidTransaction, DispatchError> {
+		let mut r = ValidTransaction::default();
 		if let Some(local_call) = call.is_aux_sub_type() {
 			if let Call::select_parathread(id, collator, hash) = local_call {
 				// ensure that the para ID is actually a parathread.
@@ -354,7 +355,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 
 				// ensure that we haven't already had a full complement of selected parathreads.
 				let mut selected_threads = <SelectedThreads<T>>::get();
-				ensure!(selected_threads.len() < ThreadCount::get(), DispatchError::Overflow);
+				ensure!(selected_threads.len() < ThreadCount::get(), DispatchError::Exhausted);
 
 				// ensure that this is not selecting a duplicate parathread ID
 				let pos = selected_threads
@@ -369,8 +370,12 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 				// updated the selected threads.
 				selected_threads.insert(pos, (id, collator));
 				<SelectedThreads<T>>::put(selected_threads);
+
+				// provides the state-transition for this head-data-hash; this should cue the pool
+				// to throw out competing transactions with lesser fees.
+				r.provides = hash.encode();
 			}
 		}
-		Ok(Default::default())
+		Ok(r)
 	}
 }

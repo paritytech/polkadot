@@ -177,7 +177,7 @@ decl_module! {
 			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
 
 			let mut active_parachains = Self::active_parachains();
-			active_parachains.sort_by_key(|(id, _)| id);
+			active_parachains.sort_by_key(|&(ref id, _)| *id);
 
 			// TODO: verify that the heads each come from the right collator, if one is specified.
 			let parachain_count = active_parachains.len();
@@ -202,7 +202,7 @@ decl_module! {
 							.ok_or("candidate for unregistered parachain {}")?;
 
 						if let Some(required_collator) = maybe_required_collator {
-							ensure!(required_collator == head.candidate.collator, "invalid collator");
+							ensure!(required_collator == &head.candidate.collator, "invalid collator");
 						}
 
 						Self::check_upward_messages(
@@ -228,7 +228,6 @@ decl_module! {
 
 				Self::dispatch_upward_messages(
 					current_number,
-					&active_parachains,
 					MAX_QUEUE_COUNT,
 					WATERMARK_QUEUE_SIZE,
 					Self::dispatch_message,
@@ -260,7 +259,7 @@ fn localized_payload(statement: Statement, parent_hash: ::primitives::Hash) -> V
 
 impl<T: Trait> Module<T> {
 	/// Initialize the state of a new parachain/parathread.
-	fn initialize_para(
+	pub fn initialize_para(
 		id: ParaId,
 		code: Vec<u8>,
 		initial_head_data: Vec<u8>,
@@ -275,7 +274,7 @@ impl<T: Trait> Module<T> {
 		<Watermarks<T>>::insert(id, <system::Module<T>>::block_number().saturating_sub(One::one()));
 	}
 
-	fn cleanup_para(
+	pub fn cleanup_para(
 		id: ParaId,
 	) {
 		<Code>::remove(id);
@@ -301,7 +300,7 @@ impl<T: Trait> Module<T> {
 		origin: ParachainDispatchOrigin,
 		data: &[u8],
 	) {
-		if let Some(message_call) = T::Call::decode(&mut &data[..]) {
+		if let Some(message_call) = <T as Trait>::Call::decode(&mut &data[..]) {
 			let origin: <T as Trait>::Origin = match origin {
 				ParachainDispatchOrigin::Signed =>
 					system::RawOrigin::Signed(id.into_account()).into(),
@@ -419,7 +418,7 @@ impl<T: Trait> Module<T> {
 			// to panic, even if it does.
 			let _ = RelayDispatchQueue::append(id, upward_messages);
 			if ordered_needs_dispatch.binary_search(&id).is_err() {
-				NeedsDispatch::append(id);
+				NeedsDispatch::append(&[id]);
 			}
 		}
 	}
@@ -566,12 +565,15 @@ impl<T: Trait> Module<T> {
 
 	/// Get the currently active set of parachains.
 	fn active_parachains() -> Vec<(ParaId, Option<CollatorId>)> {
-		T::ActiveParas::active_paras()
+		T::ActiveParachains::active_paras()
 	}
 
-	fn check_egress_queue_roots(head: &AttestedCandidate, active_parachains: &[ParaId]) -> Result {
+	fn check_egress_queue_roots(
+		head: &AttestedCandidate,
+		active_parachains: &[(ParaId, Option<CollatorId>)]
+	) -> Result {
 		let mut last_egress_id = None;
-		let mut iter = active_parachains.iter();
+		let mut iter = active_parachains.iter().map(|x| x.0);
 		for (egress_para_id, root) in &head.candidate.egress_queue_roots {
 			// egress routes should be ascending order by parachain ID without duplicate.
 			ensure!(
@@ -593,7 +595,7 @@ impl<T: Trait> Module<T> {
 
 			// can't route to a parachain which doesn't exist
 			ensure!(
-				iter.find(|x| x == &egress_para_id).is_some(),
+				iter.find(|x| x == egress_para_id).is_some(),
 				"Routing to non-existent parachain"
 			);
 

@@ -31,7 +31,7 @@ use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_1, _2, _3, _4, _6, _10};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, SessionKey, Signature,
-	parachain, AuraId, Moment
+	parachain::{self, ActiveParas}, AuraId, Moment
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
@@ -506,7 +506,7 @@ impl_runtime_apis! {
 			Parachains::calculate_duty_roster()
 		}
 		fn active_parachains() -> Vec<(parachain::Id, Option<parachain::CollatorId>)> {
-			Registrar::active_parachains()
+			Registrar::active_paras()
 		}
 		fn parachain_status(id: parachain::Id) -> Option<parachain::Status> {
 			Parachains::parachain_status(&id)
