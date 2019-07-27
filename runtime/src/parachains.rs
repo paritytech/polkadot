@@ -18,12 +18,18 @@
 
 use rstd::prelude::*;
 use rstd::{result, collections::btree_map::BTreeMap};
+#[cfg(any(feature = "std", test))]
+use rstd::marker::PhantomData;
 use parity_codec::Decode;
 use srml_support::{decl_storage, decl_module, ensure};
 
 use bitvec::{bitvec, BigEndian};
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Saturating, One};
-use sr_primitives::weights::SimpleDispatchInfo;
+use sr_primitives::{
+	traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One},
+	weights::SimpleDispatchInfo
+};
+#[cfg(any(feature = "std", test))]
+use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ActiveParas, CollatorId
@@ -36,8 +42,9 @@ use srml_support::{
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
-use system::ensure_none;
 use crate::registrar::Registrar;
+
+use system::{ensure_none, ensure_root};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -805,7 +812,7 @@ mod tests {
 	};
 	use primitives::{
 		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey,
-		BlockNumber, AuraId
+		BlockNumber, AuraId,
 	};
 	use keyring::Ed25519Keyring;
 	use srml_support::{
@@ -835,7 +842,7 @@ mod tests {
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
-		type Index = crate::Nonce;
+		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
@@ -861,11 +868,23 @@ mod tests {
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
 		type SessionHandler = ();
 		type Event = ();
+		type SelectInitialValidators = staking::Module<Self>;
+		type ValidatorId = u64;
+		type ValidatorIdOf = staking::StashOf<Self>;
 	}
 
+	impl session::historical::Trait for Test {
+		type FullIdentification = staking::Exposure<u64, Balance>;
+		type FullIdentificationOf = staking::ExposureOf<Self>;
+	}
+
+	parameter_types! {
+		pub const MinimumPeriod: u64 = 3;
+	}
 	impl timestamp::Trait for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
+		type MinimumPeriod = MinimumPeriod;
 	}
 
 	impl aura::Trait for Test {
@@ -938,8 +957,7 @@ mod tests {
 		];
 
 		t.extend(session::GenesisConfig::<Test>{
-			validators: validator_keys.iter().map(|k| crate::AccountId::from(*k)).collect(),
-			keys: vec![],
+			keys: vec![(1, UintAuthorityId(1))],
 		}.build_storage().unwrap().0);
 		t.extend(GenesisConfig::<Test>{
 			parachains,
@@ -1322,12 +1340,12 @@ mod tests {
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
 
-			assert_ok!(Parachains::register_parachain(99u32.into(), vec![7,8,9], vec![1, 1, 1]));
+			assert_ok!(Parachains::register_parachain(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1]));
 
 			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
-			assert_ok!(Parachains::deregister_parachain(5u32.into()));
+			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 5u32.into()));
 
 			assert_eq!(Parachains::active_parachains(), vec![99u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
@@ -1563,7 +1581,7 @@ mod tests {
 				))).collect::<Vec<_>>()),
 			);
 
-			assert_ok!(Parachains::deregister_parachain(1u32.into()));
+			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 1u32.into()));
 
 			// after deregistering, there is no ingress to 1, but unrouted messages
 			// from 1 stick around.

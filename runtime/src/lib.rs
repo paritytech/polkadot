@@ -67,15 +67,15 @@ pub use srml_support::StorageValue;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
-use impls::{CurrencyToVoteHandler, WeightMultiplierUpdateHandler, Author, WeightToFee};
+use impls::{CurrencyToVoteHandler, WeightMultiplierUpdateHandler, ToAuthor, WeightToFee};
 
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*};
 
 // Make the WASM binary available.
-//#[cfg(feature = "std")]
-//include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+#[cfg(feature = "std")]
+include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
@@ -168,7 +168,7 @@ impl balances::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const MinimumPeriod: Moment = SLOT_DURATION / 2;
+	pub const MinimumPeriod: Moment = SECS_PER_BLOCK / 2;
 }
 impl timestamp::Trait for Runtime {
 	type Moment = Moment;
@@ -370,7 +370,7 @@ impl registrar::Trait for Runtime {
 }
 
 parameter_types!{
-	pub const LeasePeriod: BlockNumber = 100000;
+	pub const LeasePeriod: BlockNumber = 100_000;
 	pub const EndingPeriod: BlockNumber = 1000;
 }
 
@@ -401,8 +401,8 @@ construct_runtime!(
 		Authorship: authorship::{Module, Call, Storage},
 		Indices: indices,
 		Balances: balances,
-		Session: session::{Module, Call, Storage, Event, Config<T>},
 		Staking: staking::{default, OfflineWorker},
+		Session: session::{Module, Call, Storage, Event, Config<T>},
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},

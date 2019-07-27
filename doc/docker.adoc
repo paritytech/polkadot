@@ -23,6 +23,10 @@ Additionally if you want to have custom node name you can add the `--name "YourN
 [source, shell]
 docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.14 polkadot --chain alex --name "PolkaDocker" 
 
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.14 polkadot --rpc-external --chain alex
+
+if you want to connect to rpc port 9933, then must add polkadot startup parameter: --rpc-external.
+
 **Note:** The `--chain alex` argument is important and you need to add it to the command line. If you are running older node versions (pre 0.3) you don't need it.
 
 === Limiting Resources

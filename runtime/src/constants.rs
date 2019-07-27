@@ -14,15 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A set of constant values used in Polkadot runtime.
-
 /// Money matters.
 pub mod currency {
 	use primitives::Balance;
 
-	pub const MILLICENTS: Balance = 1_000_000_000;
-	pub const CENTS: Balance = 1_000 * MILLICENTS;    // assume this is worth about a cent.
-pub const DOLLARS: Balance = 100 * CENTS;
+	pub const DOTS: Balance = 1_000_000_000_000;
+	pub const BUCKS: Balance = DOTS / 100;
+	pub const CENTS: Balance = BUCKS / 100;
+	pub const MILLICENTS: Balance = CENTS / 1_000;
 }
 
 /// Time.
@@ -34,19 +33,11 @@ pub mod time {
 	pub const SLOT_DURATION: Moment = 6000;
 
 	// These time units are defined in number of blocks.
-	pub const MINUTES: Moment = 60 / SECS_PER_BLOCK;
-	pub const HOURS: Moment = MINUTES * 60;
-	pub const DAYS: Moment = HOURS * 24;
+	pub const MINUTES: u64 = 60 / SECS_PER_BLOCK;
+	pub const HOURS: u64 = MINUTES * 60;
+	pub const DAYS: u64 = HOURS * 24;
 }
 
-// CRITICAL NOTE: The system module maintains two constants: a _maximum_ block weight and a
-// _ratio_ of it yielding the portion which is accessible to normal transactions (reserving the rest
-// for operational ones). `TARGET_BLOCK_FULLNESS` is entirely independent and the system module is
-// not aware of if, nor should it care about it. This constant simply denotes on which ratio of the
-// _maximum_ block weight we tweak the fees. It does NOT care about the type of the dispatch.
-//
-// For the system to be configured in a sane way, `TARGET_BLOCK_FULLNESS` should always be less than
-// the ratio that `system` module uses to find normal transaction quota.
 /// Fee-related.
 pub mod fee {
 	pub use sr_primitives::Perbill;

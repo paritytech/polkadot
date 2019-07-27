@@ -50,6 +50,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::{future, Stream, Future, IntoFuture};
+use futures03::{TryStreamExt as _, StreamExt as _};
 use log::{info, warn};
 use client::BlockchainEvents;
 use primitives::{ed25519, Pair};
@@ -79,7 +80,7 @@ pub use substrate_network::PeerId;
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// An abstraction over the `Network` with useful functions for a `Collator`.
-pub trait Network {
+pub trait Network: Send + Sync {
 	/// Convert the given `CollatorId` to a `PeerId`.
 	fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
 		Box<dyn Future<Item=Option<PeerId>, Error=()> + Send>;
@@ -93,8 +94,8 @@ pub trait Network {
 }
 
 impl<P, E> Network for ValidationNetwork<P, E, NetworkService, TaskExecutor> where
-	P: 'static,
-	E: 'static,
+	P: 'static + Send + Sync,
+	E: 'static + Send + Sync,
 {
 	fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
 		Box<dyn Future<Item=Option<PeerId>, Error=()> + Send>
@@ -334,6 +335,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 		let parachain_context = build_parachain_context.build(validation_network.clone()).unwrap();
 		let inner_exit = exit.clone();
 		let work = client.import_notification_stream()
+			.map(|v| Ok::<_, ()>(v)).compat()
 			.for_each(move |notification| {
 				macro_rules! try_fr {
 					($e:expr) => {
@@ -427,24 +429,21 @@ fn compute_targets(para_id: ParaId, session_keys: &[SessionKey], roster: DutyRos
 ///
 /// Provide a future which resolves when the node should exit.
 /// This function blocks until done.
-pub fn run_collator<P, E, I, ArgT>(
+pub fn run_collator<P, E>(
 	build_parachain_context: P,
 	para_id: ParaId,
 	exit: E,
 	key: Arc<ed25519::Pair>,
-	args: I,
 	version: VersionInfo,
 ) -> polkadot_cli::error::Result<()> where
 	P: BuildParachainContext + Send + 'static,
 	P::ParachainContext: Send + 'static,
 	<<P::ParachainContext as ParachainContext>::ProduceCandidate as IntoFuture>::Future: Send + 'static,
-	E: IntoFuture<Item=(),Error=()>,
+	E: IntoFuture<Item=(), Error=()>,
 	E::Future: Send + Clone + Sync + 'static,
-	I: IntoIterator<Item=ArgT>,
-	ArgT: Into<std::ffi::OsString> + Clone,
 {
 	let node_logic = CollationNode { build_parachain_context, exit: exit.into_future(), para_id, key };
-	polkadot_cli::run(args, node_logic, version)
+	polkadot_cli::run(node_logic, version)
 }
 
 #[cfg(test)]

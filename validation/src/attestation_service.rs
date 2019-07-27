@@ -31,6 +31,7 @@ use client::blockchain::HeaderBackend;
 use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use futures::prelude::*;
+use futures03::{TryStreamExt as _, StreamExt as _};
 use log::error;
 use primitives::ed25519;
 use polkadot_primitives::{Block, BlockId, AuraId};
@@ -53,15 +54,19 @@ pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
 	use polkadot_runtime::{Call, ParachainsCall, UncheckedExtrinsic as RuntimeExtrinsic};
 
 	let extrinsics = client.block_body(block)?;
-	Ok(extrinsics
-		.into_iter()
-		.filter_map(|ex| RuntimeExtrinsic::decode(&mut ex.encode().as_slice()))
-		.filter_map(|ex| match ex.function {
-			Call::Parachains(ParachainsCall::set_heads(heads)) =>
-				Some(heads.into_iter().map(|c| c.candidate)),
-			_ => None,
-		})
-		.next())
+	Ok(match extrinsics {
+		Some(extrinsics) => extrinsics
+			.into_iter()
+			.filter_map(|ex| RuntimeExtrinsic::decode(&mut ex.encode().as_slice()))
+			.filter_map(|ex| match ex.function {
+				Call::Parachains(ParachainsCall::set_heads(heads)) => {
+					Some(heads.into_iter().map(|c| c.candidate))
+				}
+				_ => None,
+			})
+		.next(),
+		None => None,
+	})
 }
 
 // creates a task to prune redundant entries in availability store upon block finalization
@@ -73,6 +78,7 @@ fn prune_unneeded_availability<P>(client: Arc<P>, extrinsic_store: ExtrinsicStor
 	where P: Send + Sync + BlockchainEvents<Block> + BlockBody<Block> + 'static
 {
 	client.finality_notification_stream()
+		.map(|v| Ok::<_, ()>(v)).compat()
 		.for_each(move |notification| {
 			let hash = notification.hash;
 			let parent_hash = notification.header.parent_hash;
@@ -135,6 +141,7 @@ pub(crate) fn start<C, N, P, SC>(
 			let key = key.clone();
 
 			client.import_notification_stream()
+				.map(|v| Ok::<_, ()>(v)).compat()
 				.for_each(move |notification| {
 					let parent_hash = notification.hash;
 					if notification.is_new_best {

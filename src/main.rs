@@ -62,5 +62,5 @@ fn main() -> Result<(), cli::error::Error> {
 		support_url: "https://github.com/paritytech/polkadot/issues/new",
 	};
 
-	cli::run(::std::env::args(), Worker, version)
+	cli::run(Worker, version)
 }

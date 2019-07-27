@@ -14,37 +14,38 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Some configurable implementations as associated type for the Polkadot runtime.
+//! Auxillary struct/enums for polkadot runtime.
 
-use sr_primitives::{weights::{Weight, WeightMultiplier}, traits::{Convert, Saturating}, Fixed64};
-use srml_support::traits::{OnUnbalanced, Currency};
 use primitives::Balance;
-use crate::{
-	Balances, Authorship, MaximumBlockWeight, NegativeImbalance,
-	constants::fee::TARGET_BLOCK_FULLNESS
-};
+use sr_primitives::weights::{Weight, WeightMultiplier};
+use sr_primitives::traits::{Convert, Saturating};
+use sr_primitives::Fixed64;
+use srml_support::traits::{OnUnbalanced, Currency};
+use crate::{Balances, Authorship, MaximumBlockWeight, NegativeImbalance};
+use crate::constants::fee::TARGET_BLOCK_FULLNESS;
 
-pub struct Author;
-impl OnUnbalanced<NegativeImbalance> for Author {
+/// Logic for the author to get a portion of fees.
+pub struct ToAuthor;
+
+impl OnUnbalanced<NegativeImbalance> for ToAuthor {
 	fn on_unbalanced(amount: NegativeImbalance) {
 		Balances::resolve_creating(&Authorship::author(), amount);
 	}
 }
 
-/// Struct that handles the conversion of Balance -> `u64`. This is used for staking's election
-/// calculation.
+/// Converter for currencies to votes.
 pub struct CurrencyToVoteHandler;
 
 impl CurrencyToVoteHandler {
-	fn factor() -> Balance { (Balances::total_issuance() / u64::max_value() as Balance).max(1) }
+	fn factor() -> u128 { (Balances::total_issuance() / u64::max_value() as u128).max(1) }
 }
 
-impl Convert<Balance, u64> for CurrencyToVoteHandler {
-	fn convert(x: Balance) -> u64 { (x / Self::factor()) as u64 }
+impl Convert<u128, u64> for CurrencyToVoteHandler {
+	fn convert(x: u128) -> u64 { (x / Self::factor()) as u64 }
 }
 
-impl Convert<u128, Balance> for CurrencyToVoteHandler {
-	fn convert(x: u128) -> Balance { x * Self::factor() }
+impl Convert<u128, u128> for CurrencyToVoteHandler {
+	fn convert(x: u128) -> u128 { x * Self::factor() }
 }
 
 /// Handles converting a weight scalar to a fee value, based on the scale and granularity of the
@@ -57,13 +58,11 @@ impl Convert<u128, Balance> for CurrencyToVoteHandler {
 /// Yet, it can be used for any other sort of change to weight-fee. Some examples being:
 ///   - Setting it to `0` will essentially disable the weight fee.
 ///   - Setting it to `1` will cause the literal `#[weight = x]` values to be charged.
-///
-/// By default, substrate node will have a weight range of [0, 1_000_000_000].
 pub struct WeightToFee;
 impl Convert<Weight, Balance> for WeightToFee {
 	fn convert(x: Weight) -> Balance {
-		// substrate-node a weight of 10_000 (smallest non-zero weight) to be mapped to 10^7 units of
-		// fees, hence:
+		// in Polkadot a weight of 10_000 (smallest non-zero weight) to be mapped to 10^7 units of
+		// fees (1/10 CENT), hence:
 		Balance::from(x).saturating_mul(1_000)
 	}
 }
@@ -125,178 +124,5 @@ impl Convert<(Weight, WeightMultiplier), WeightMultiplier> for WeightMultiplierU
 				// became more busy.
 				.max(WeightMultiplier::from_rational(-1, 1))
 		}
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use runtime_primitives::weights::Weight;
-	use runtime_primitives::Perbill;
-	use crate::{MaximumBlockWeight, AvailableBlockRatio, Runtime};
-	use crate::constants::currency::*;
-
-	fn max() -> Weight {
-		MaximumBlockWeight::get()
-	}
-
-	fn target() -> Weight {
-		TARGET_BLOCK_FULLNESS * max()
-	}
-
-	// poc reference implementation.
-	#[allow(dead_code)]
-	fn weight_multiplier_update(block_weight: Weight) -> Perbill  {
-		let block_weight = block_weight as f32;
-		let v: f32 = 0.00004;
-
-		// maximum tx weight
-		let m = max() as f32;
-		// Ideal saturation in terms of weight
-		let ss = target() as f32;
-		// Current saturation in terms of weight
-		let s = block_weight;
-
-		let fm = 1.0 + (v * (s/m - ss/m)) + (v.powi(2) * (s/m - ss/m).powi(2)) / 2.0;
-		// return a per-bill-like value.
-		let fm = if fm >= 1.0 { fm - 1.0 } else { 1.0 - fm };
-		Perbill::from_parts((fm * 1_000_000_000_f32) as u32)
-	}
-
-	fn wm(parts: i64) -> WeightMultiplier {
-		WeightMultiplier::from_parts(parts)
-	}
-
-	#[test]
-	fn empty_chain_simulation() {
-		// just a few txs per_block.
-		let block_weight = 1000;
-		let mut wm = WeightMultiplier::default();
-		let mut iterations: u64 = 0;
-		loop {
-			let next = WeightMultiplierUpdateHandler::convert((block_weight, wm));
-			wm = next;
-			if wm == WeightMultiplier::from_rational(-1, 1) { break; }
-			iterations += 1;
-		}
-		println!("iteration {}, new wm = {:?}. Weight fee is now zero", iterations, wm);
-	}
-
-	#[test]
-	#[ignore]
-	fn congested_chain_simulation() {
-		// `cargo test congested_chain_simulation -- --nocapture` to get some insight.
-		// almost full. The entire quota of normal transactions is taken.
-		let block_weight = AvailableBlockRatio::get() * max();
-		let tx_weight = 1000;
-		let mut wm = WeightMultiplier::default();
-		let mut iterations: u64 = 0;
-		loop {
-			let next = WeightMultiplierUpdateHandler::convert((block_weight, wm));
-			if wm == next { break; }
-			wm = next;
-			iterations += 1;
-			let fee = <Runtime as balances::Trait>::WeightToFee::convert(wm.apply_to(tx_weight));
-			println!(
-				"iteration {}, new wm = {:?}. Fee at this point is: {} millicents, {} cents, {} dollars",
-				iterations,
-				wm,
-				fee / MILLICENTS,
-				fee / CENTS,
-				fee / DOLLARS
-			);
-		}
-	}
-
-	#[test]
-	fn stateless_weight_mul() {
-		// Light block. Fee is reduced a little.
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert((target() / 4, WeightMultiplier::default())),
-			wm(-7500)
-		);
-		// a bit more. Fee is decreased less, meaning that the fee increases as the block grows.
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert((target() / 2, WeightMultiplier::default())),
-			wm(-5000)
-		);
-		// ideal. Original fee. No changes.
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert((target(), WeightMultiplier::default())),
-			wm(0)
-		);
-		// // More than ideal. Fee is increased.
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert(((target() * 2), WeightMultiplier::default())),
-			wm(10000)
-		);
-	}
-
-	#[test]
-	fn stateful_weight_mul_grow_to_infinity() {
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert((target() * 2, WeightMultiplier::default())),
-			wm(10000)
-		);
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert((target() * 2, wm(10000))),
-			wm(20000)
-		);
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert((target() * 2, wm(20000))),
-			wm(30000)
-		);
-		// ...
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert((target() * 2, wm(1_000_000_000))),
-			wm(1_000_000_000 + 10000)
-		);
-	}
-
-	#[test]
-	fn stateful_weight_mil_collapse_to_minus_one() {
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert((0, WeightMultiplier::default())),
-			wm(-10000)
-		);
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert((0, wm(-10000))),
-			wm(-20000)
-		);
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert((0, wm(-20000))),
-			wm(-30000)
-		);
-		// ...
-		assert_eq!(
-			WeightMultiplierUpdateHandler::convert((0, wm(1_000_000_000 * -1))),
-			wm(-1_000_000_000)
-		);
-	}
-
-	#[test]
-	fn weight_to_fee_should_not_overflow_on_large_weights() {
-		let kb = 1024 as Weight;
-		let mb = kb * kb;
-		let max_fm = WeightMultiplier::from_fixed(Fixed64::from_natural(i64::max_value()));
-
-		vec![0, 1, 10, 1000, kb, 10 * kb, 100 * kb, mb, 10 * mb, Weight::max_value() / 2, Weight::max_value()]
-			.into_iter()
-			.for_each(|i| {
-				WeightMultiplierUpdateHandler::convert((i, WeightMultiplier::default()));
-			});
-
-		// Some values that are all above the target and will cause an increase.
-		let t = target();
-		vec![t + 100, t * 2, t * 4]
-			.into_iter()
-			.for_each(|i| {
-				let fm = WeightMultiplierUpdateHandler::convert((
-					i,
-					max_fm
-				));
-				// won't grow. The convert saturates everything.
-				assert_eq!(fm, max_fm);
-			});
 	}
 }
