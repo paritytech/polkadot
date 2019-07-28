@@ -187,10 +187,11 @@ pub trait ChainContext: Send + Sync {
 	fn is_known(&self, block_hash: &Hash) -> Option<Known>;
 }
 
-impl<F, P: ProvideRuntimeApi> ChainContext for (F, P) where
+impl<F, P> ChainContext for (F, P) where
 	F: Fn(&Hash) -> Option<Known> + Send + Sync,
-	P: Send + Sync,
-	P::Api: ParachainHost<Block>,
+	P: Send + Sync + std::ops::Deref,
+	P::Target: ProvideRuntimeApi,
+	<P::Target as ProvideRuntimeApi>::Api: ParachainHost<Block>,
 {
 	fn is_known(&self, block_hash: &Hash) -> Option<Known> {
 		(self.0)(block_hash)

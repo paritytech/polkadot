@@ -249,26 +249,28 @@ service::construct_service_factory! {
 				};
 
 				let gossip_validator_select_chain = select_chain.clone();
-				let gossip_validator = network_gossip::register_validator(
-					service.network(),
-					move |block_hash: &Hash| {
-						use client::BlockStatus;
+				let is_known = move |block_hash: &Hash| {
+					use client::BlockStatus;
 
-						match known_oracle.block_status(&BlockId::hash(*block_hash)) {
-							Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
-							Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-							Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
-								match gossip_validator_select_chain.leaves() {
-									Err(_) => None,
-									Ok(leaves) => if leaves.contains(block_hash) {
-										Some(Known::Leaf)
-									} else {
-										Some(Known::Old)
-									},
-								}
+					match known_oracle.block_status(&BlockId::hash(*block_hash)) {
+						Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
+						Ok(BlockStatus::KnownBad) => Some(Known::Bad),
+						Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
+							match gossip_validator_select_chain.leaves() {
+								Err(_) => None,
+								Ok(leaves) => if leaves.contains(block_hash) {
+									Some(Known::Leaf)
+								} else {
+									Some(Known::Old)
+								},
 							}
 						}
-					},
+					}
+				};
+
+				let gossip_validator = network_gossip::register_validator(
+					service.network(),
+					(is_known, client.clone()),
 				);
 
 				// collator connections and validation network both fulfilled by this

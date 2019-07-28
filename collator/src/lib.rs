@@ -302,26 +302,28 @@ impl<P, E> Worker for CollationNode<P, E> where
 			return Box::new(future::err(()));
 		};
 
+		let is_known = move |block_hash: &Hash| {
+			use client::BlockStatus;
+			use polkadot_network::gossip::Known;
+
+			match known_oracle.block_status(&BlockId::hash(*block_hash)) {
+				Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
+				Ok(BlockStatus::KnownBad) => Some(Known::Bad),
+				Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) =>
+					match select_chain.leaves() {
+						Err(_) => None,
+						Ok(leaves) => if leaves.contains(block_hash) {
+							Some(Known::Leaf)
+						} else {
+							Some(Known::Old)
+						},
+					}
+			}
+		};
+
 		let message_validator = polkadot_network::gossip::register_validator(
 			network.clone(),
-			move |block_hash: &Hash| {
-				use client::BlockStatus;
-				use polkadot_network::gossip::Known;
-
-				match known_oracle.block_status(&BlockId::hash(*block_hash)) {
-					Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
-					Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-					Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) =>
-						match select_chain.leaves() {
-							Err(_) => None,
-							Ok(leaves) => if leaves.contains(block_hash) {
-								Some(Known::Leaf)
-							} else {
-								Some(Known::Old)
-							},
-						}
-				}
-			},
+			(is_known, client.clone()),
 		);
 
 		let validation_network = Arc::new(ValidationNetwork::new(
