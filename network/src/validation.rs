@@ -26,12 +26,12 @@ use substrate_network::consensus_gossip::{
 	self, TopicNotification, MessageRecipient as GossipMessageRecipient, ConsensusMessage,
 };
 use polkadot_validation::{
-	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, SignedStatement,
+	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement,
 };
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Collation, Extrinsic, ParachainHost, CandidateReceipt, CollatorId,
-	ValidatorId, PoVBlock, ValidatorIndex,
+	ValidatorId, PoVBlock, ValidatorIndex, ErasureChunk,
 };
 
 use futures::prelude::*;
@@ -309,7 +309,7 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 	/// The returned stream will not terminate, so it is required to make sure that the stream is
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
-	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=SignedStatement, Error=()> {
+	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=crate::router::CheckedMsgs, Error=()> {
 		crate::router::checked_statements(&*self.network, crate::router::attestation_topic(relay_parent))
 	}
 }
@@ -354,7 +354,17 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 
 				let table_router_clone = table_router.clone();
 				let work = table_router.checked_statements()
-					.for_each(move |msg| { table_router_clone.import_statement(msg); Ok(()) });
+					.for_each(move |msg| {
+						match msg {
+							crate::router::CheckedMsgs::Statement(s) => {
+								table_router_clone.import_statement(s);
+							},
+							crate::router::CheckedMsgs::ErasureChunk(s) => {
+								table_router_clone.import_erasure_chunk(s);
+							},
+						}
+						Ok(())
+					});
 				executor.spawn(work.select(exit).map(|_| ()).map_err(|_| ()));
 
 				table_router
@@ -716,6 +726,35 @@ impl Future for PoVReceiver {
 	}
 }
 
+pub struct ChunkReceiver {
+	outer: Receiver<Receiver<ErasureChunk>>,
+	inner: Option<Receiver<ErasureChunk>>
+}
+
+impl Future for ChunkReceiver {
+	type Item = ErasureChunk;
+	type Error = io::Error;
+
+	fn poll(&mut self) -> Poll<ErasureChunk, io::Error> {
+		let map_err = |_| io::Error::new(
+			io::ErrorKind::Other,
+			"Sending end of channel hung up",
+		);
+
+		if let Some(ref mut inner) = self.inner {
+			return inner.poll().map_err(map_err);
+		}
+		match self.outer.poll().map_err(map_err)? {
+			Async::Ready(inner) => {
+				self.inner = Some(inner);
+				self.poll()
+			}
+			Async::NotReady => Ok(Async::NotReady),
+		}
+
+	}
+}
+
 /// Can fetch data for a given validation session
 pub struct SessionDataFetcher<P, E, N: NetworkService, T> {
 	network: Arc<N>,
@@ -803,6 +842,15 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 			}
 		});
 		PoVReceiver { outer: rx, inner: None }
+	}
+
+	pub fn fetch_erasure_chunk(&self, relay_parent: Hash, candidate_hash: Hash, chunk_id: u64) -> ChunkReceiver {
+		let (tx, rx) = ::futures::sync::oneshot::channel();
+		self.network.with_spec(move |spec, ctx| {
+			let inner_rx = spec.fetch_erasure_chunk(ctx, relay_parent, candidate_hash, chunk_id);
+			let _ = tx.send(inner_rx);
+		});
+		ChunkReceiver { outer: rx, inner: None }
 	}
 }
 

@@ -39,7 +39,7 @@ mod wrapped_shard;
 const MAX_VALIDATORS: usize = <galois_16::Field as reed_solomon::Field>::ORDER;
 
 /// Errors in erasure coding.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, derive_more::Display)]
 pub enum Error {
 	/// Returned when there are too many validators.
 	TooManyValidators,
@@ -56,6 +56,7 @@ pub enum Error {
 	/// An uneven byte-length of a shard is not valid for GF(2^16) encoding.
 	UnevenLength,
 	/// Chunk index out of bounds.
+	#[display(fmt = "Chunk is out of bounds: {} {}", _0, _1)]
 	ChunkIndexOutOfBounds(usize, usize),
 	/// Bad payload in reconstructed bytes.
 	BadPayload,

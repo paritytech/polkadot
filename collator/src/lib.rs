@@ -73,6 +73,7 @@ use aura::AuraApi;
 
 pub use polkadot_cli::VersionInfo;
 pub use polkadot_network::validation::Incoming;
+pub use polkadot_network::CheckedMsgs;
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
 pub use substrate_network::PeerId;
@@ -90,7 +91,7 @@ pub trait Network: Send + Sync {
 	/// The returned stream will not terminate, so it is required to make sure that the stream is
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
-	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement, Error=()>>;
+	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=CheckedMsgs, Error=()>>;
 }
 
 impl<P, E> Network for ValidationNetwork<P, E, NetworkService, TaskExecutor> where
@@ -103,7 +104,7 @@ impl<P, E> Network for ValidationNetwork<P, E, NetworkService, TaskExecutor> whe
 		Box::new(Self::collator_id_to_peer_id(self, collator_id))
 	}
 
-	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement, Error=()>> {
+	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=CheckedMsgs, Error=()>> {
 		Box::new(Self::checked_statements(self, relay_parent))
 	}
 }
@@ -214,6 +215,7 @@ pub fn collate<'a, R, P>(
 				fees: 0,
 				block_data_hash,
 				upward_messages: Vec::new(),
+				erasure_root: None,
 			};
 
 			Ok(parachain::Collation {

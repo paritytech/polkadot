@@ -43,8 +43,9 @@ use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey,
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
 	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage,
-	CollatorSignature, Collation, PoVBlock,
+	CollatorSignature, Collation, PoVBlock, ErasureChunk, ErasureChunks, ValidatorSignature, ValidatorIndex,
 };
+use polkadot_erasure_coding::{self as erasure};
 use primitives::{Pair, ed25519};
 use runtime_primitives::{
 	traits::{ProvideRuntimeApi, Header as HeaderT, DigestFor}, ApplyError
@@ -118,13 +119,18 @@ pub trait TableRouter: Clone {
 	type Error: std::fmt::Debug;
 	/// Future that resolves when candidate data is fetched.
 	type FetchValidationProof: IntoFuture<Item=PoVBlock,Error=Self::Error>;
+	/// Future that resulves when a block erasure chunk is fetched.
+	type FetchBlockChunk: IntoFuture<Item=ErasureChunk, Error=Self::Error>;
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
-	fn local_collation(&self, collation: Collation, extrinsic: ParachainExtrinsic);
+	fn local_collation(&self, collation: Collation, extrinsic: ParachainExtrinsic, chunks: (ValidatorIndex, &Vec<ErasureChunk>));
 
 	/// Fetch validation proof for a specific candidate.
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
+
+	/// Fetch erasure encoded chunk for a specific candidate.
+	fn fetch_erasure_chunk(&self, relay_parent: Hash, candidate_hash: Hash, chunk_id: u64) -> Self::FetchBlockChunk;
 }
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.
@@ -182,6 +188,24 @@ pub fn check_statement(statement: &Statement, signature: &CollatorSignature, sig
 	signature.verify(&encoded[..], &signer.into())
 }
 
+/// Sign an erasure chunk message.
+pub fn sign_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, key: &ed25519::Pair) -> ValidatorSignature {
+	let mut encoded = chunk.encode();
+	encoded.extend(validator.to_be_bytes().iter());
+
+	key.sign(&encoded).into()
+}
+
+/// Check signature on a chunk message.
+pub fn check_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, signer: SessionKey, signature: &ValidatorSignature) -> bool {
+	use runtime_primitives::traits::Verify;
+
+	let mut encoded = chunk.encode();
+	encoded.extend(validator.to_be_bytes().iter());
+
+	signature.verify(&encoded[..], &signer.into())
+}
+
 /// Compute group info out of a duty roster and a local authority set.
 pub fn make_group_info(
 	roster: DutyRoster,
@@ -196,12 +220,14 @@ pub fn make_group_info(
 	}
 
 	let mut local_validation = None;
+	let mut local_index = 0;
 	let mut map = HashMap::new();
 
 	let duty_iter = authorities.iter().zip(&roster.validator_duty);
-	for (authority, v_duty) in duty_iter {
+	for (i, (authority, v_duty)) in duty_iter.enumerate() {
 		if authority == &local_id {
 			local_validation = Some(v_duty.clone());
+			local_index = i;
 		}
 
 		match *v_duty {
@@ -223,6 +249,7 @@ pub fn make_group_info(
 		Some(local_validation) => {
 			let local_duty = LocalDuty {
 				validation: local_validation,
+				index: local_index as ValidatorIndex,
 			};
 
 			Ok((map, local_duty))
@@ -344,7 +371,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		);
 
 		if let Chain::Parachain(id) = local_duty.validation {
-			self.launch_work(parent_hash, id, router, max_block_data_size, exit);
+			self.launch_work(parent_hash, id, router, max_block_data_size, authorities.len(), local_duty.index, exit);
 		}
 
 		let tracker = Arc::new(AttestationTracker {
@@ -370,6 +397,8 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		validation_para: ParaId,
 		build_router: N::BuildTableRouter,
 		max_block_data_size: Option<u64>,
+		authorities_num: usize,
+		local_id: ValidatorIndex,
 		exit: exit_future::Exit,
 	) {
 		use extrinsic_store::Data;
@@ -383,25 +412,52 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				validation_para,
 				relay_parent,
 				collators,
-				client,
+				client.clone(),
 				max_block_data_size,
 			);
 
 			collation_work.then(move |result| match result {
-				Ok((collation, extrinsic)) => {
+				Ok((mut collation, extrinsic)) => {
+					let chunks = erasure::obtain_chunks(authorities_num,
+														&collation.pov.block_data,
+														&extrinsic.clone()).unwrap();
+
+					let chunks_ref: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
+					let branches = erasure::branches(chunks_ref.clone());
+					let root = branches.root();
+					let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+					collation.receipt.erasure_root = Some(root);
+
+					let candidate_hash = collation.receipt.hash();
+
+					// As a node that has received a valid collation, we store all of the
+					// erasure coded chunks pieces, at least for now.
+					let chunks: Vec<_> = chunks.into_iter().zip(proofs)
+						.enumerate()
+						.map(|(index, (chunk, proof))| ErasureChunk {
+							relay_parent,
+							candidate_hash,
+							chunk,
+							index: index as u32,
+							proof
+						}).collect();
+
+					let chunks_to_save = ErasureChunks {
+						n_validators: authorities_num as u64,
+						root,
+						chunks: chunks.clone(),
+					};
+
 					let res = extrinsic_store.make_available(Data {
 						relay_parent,
 						parachain_id: collation.receipt.parachain_index,
-						candidate_hash: collation.receipt.hash(),
-						block_data: collation.pov.block_data.clone(),
-						extrinsic: Some(extrinsic.clone()),
+						candidate_hash,
+						erasure_chunks: chunks_to_save,
 					});
 
 					match res {
 						Ok(()) => {
-							// TODO: https://github.com/paritytech/polkadot/issues/51
-							// Erasure-code and provide merkle branches.
-							router.local_collation(collation, extrinsic);
+							router.local_collation(collation, extrinsic, (local_id, &chunks));
 						}
 						Err(e) => warn!(
 							target: "validation",
@@ -552,6 +608,7 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 /// The local duty of a validator.
 pub struct LocalDuty {
 	validation: Chain,
+	index: ValidatorIndex,
 }
 
 /// The Polkadot proposer logic.

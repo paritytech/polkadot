@@ -2406,6 +2406,7 @@ dependencies = [
  "log 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "polkadot-erasure-coding 0.1.0",
  "polkadot-primitives 0.1.0",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
@@ -2449,6 +2450,7 @@ dependencies = [
 name = "polkadot-erasure-coding"
 version = "0.1.0"
 dependencies = [
+ "derive_more 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-primitives 0.1.0",
  "reed-solomon-erasure 4.0.0 (git+https://github.com/paritytech/reed-solomon-erasure)",
@@ -2475,6 +2477,7 @@ dependencies = [
  "parity-codec 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-availability-store 0.1.0",
+ "polkadot-erasure-coding 0.1.0",
  "polkadot-primitives 0.1.0",
  "polkadot-validation 0.1.0",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
@@ -2620,6 +2623,7 @@ dependencies = [
  "parity-codec 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-availability-store 0.1.0",
+ "polkadot-erasure-coding 0.1.0",
  "polkadot-parachain 0.1.0",
  "polkadot-primitives 0.1.0",
  "polkadot-runtime 0.1.0",

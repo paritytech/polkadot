@@ -24,8 +24,9 @@ use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash, SessionKey};
 use polkadot_primitives::parachain::{
 	CandidateReceipt, HeadData, PoVBlock, BlockData, CollatorId, ValidatorId,
-	StructuredUnroutedIngress,
+	StructuredUnroutedIngress, ErasureChunk, ErasureChunks, Extrinsic,
 };
+use polkadot_erasure_coding::{self as erasure};
 use substrate_primitives::crypto::UncheckedInto;
 use parity_codec::Encode;
 use substrate_network::{
@@ -161,6 +162,7 @@ fn fetches_from_those_with_knowledge() {
 		fees: 1_000_000,
 		block_data_hash,
 		upward_messages: Vec::new(),
+		erasure_root: Some(Hash::default()),
 	};
 
 	let candidate_hash = candidate_receipt.hash();
@@ -227,7 +229,7 @@ fn fetches_from_those_with_knowledge() {
 }
 
 #[test]
-fn fetches_available_block_data() {
+fn fetches_available_chunk_data() {
 	let mut protocol = PolkadotProtocol::new(None);
 
 	let peer_a = PeerId::random();
@@ -245,6 +247,7 @@ fn fetches_available_block_data() {
 		fees: 1_000_000,
 		block_data_hash,
 		upward_messages: Vec::new(),
+		erasure_root: Some(Hash::default()),
 	};
 
 	let candidate_hash = candidate_receipt.hash();
@@ -254,12 +257,31 @@ fn fetches_available_block_data() {
 
 	protocol.register_availability_store(av_store.clone());
 
+	let extrinsic = Extrinsic {
+		outgoing_messages: vec![],
+	};
+
+	let chunks = erasure::obtain_chunks(3, &block_data, &extrinsic).unwrap();
+	let chunks_ref: Vec<_> = chunks.iter().map(|a| &a[..]).collect();
+	let branches = erasure::branches(chunks_ref.clone());
+	let root = branches.root();
+	let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+
 	av_store.make_available(::av_store::Data {
 		relay_parent: parent_hash,
 		parachain_id: para_id,
 		candidate_hash,
-		block_data: block_data.clone(),
-		extrinsic: None,
+		erasure_chunks: ErasureChunks {
+			n_validators: 3,
+			root,
+			chunks: vec![ErasureChunk {
+				relay_parent: parent_hash,
+				candidate_hash,
+				chunk: chunks[0].clone(),
+				index: 0,
+				proof: proofs[0].clone()
+			}],
+		},
 	}).unwrap();
 
 	// connect peer A
@@ -268,11 +290,20 @@ fn fetches_available_block_data() {
 		protocol.on_connect(&mut ctx, peer_a.clone(), make_status(&status, Roles::FULL));
 	}
 
-	// peer A asks for historic block data and gets response
+	// peer A asks for a historic chunk and gets a response
 	{
 		let mut ctx = TestContext::default();
-		on_message(&mut protocol, &mut ctx, peer_a.clone(), Message::RequestBlockData(1, parent_hash, candidate_hash));
-		assert!(ctx.has_message(peer_a, Message::BlockData(1, Some(block_data))));
+		on_message(&mut protocol, &mut ctx, peer_a.clone(),
+		Message::RequestBlockChunk(1, parent_hash, candidate_hash, 0));
+		assert!(ctx.has_message(peer_a,Message::BlockChunk(1, Some(
+							ErasureChunk {
+								relay_parent: parent_hash,
+								candidate_hash,
+								chunk: chunks[0].clone(),
+								index: 0,
+								proof: proofs[0].clone()
+							},
+		))));
 	}
 }
 

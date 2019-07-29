@@ -17,6 +17,7 @@ parity-codec = "4.1"
 extrinsic_store = { package = "polkadot-availability-store", path = "../availability-store" }
 parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
+polkadot-erasure-coding = { path = "../erasure-coding" }
 polkadot-runtime = { path = "../runtime" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
 aura = { package = "substrate-consensus-aura", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

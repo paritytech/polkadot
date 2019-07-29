@@ -131,6 +131,8 @@ pub struct CandidateReceipt {
 	pub block_data_hash: Hash,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
+	/// The root of blocks erasure encoding Merkle tree (added by validators, so an Option).
+	pub erasure_root: Option<Hash>,
 }
 
 impl CandidateReceipt {
@@ -239,6 +241,36 @@ pub struct ConsolidatedIngress(pub Vec<(Id, Vec<Message>)>);
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+
+/// A chunk of erasure-encoded block data
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+pub struct ErasureChunk{
+	/// The parent of the candidate this chunk belongs to.
+	pub relay_parent: Hash,
+	/// The hash of the candidate this chunk belongs to.
+	pub candidate_hash: Hash,
+	/// The chunk data.
+	pub chunk: Vec<u8>,
+	/// The index of this chunk.
+	pub index: u32,
+	/// Proof for this chunk's branch in the merkle tree.
+	pub proof: Vec<Vec<u8>>,
+}
+
+/// An array of erasure-encoded chunks and a number of validators (N)
+///
+/// It's likely this should not live here.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+pub struct ErasureChunks {
+	/// A number of validators used to break up the data into chunks.
+	pub n_validators: u64,
+    /// A root of the merkle tree of the chunks.
+    pub root: Hash,
+	/// The erasure chunks.
+	pub chunks: Vec<ErasureChunk>,
+}
 
 impl BlockData {
 	/// Compute hash of block data.

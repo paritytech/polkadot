@@ -21,10 +21,11 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::{Block, Hash, BlockId, Balance, parachain::{
+use polkadot_primitives::{BlakeTwo256, Block, Hash, HashT, BlockId, Balance, parachain::{
 	CollatorId, ConsolidatedIngress, StructuredUnroutedIngress, CandidateReceipt, ParachainHost,
-	Id as ParaId, Collation, Extrinsic, OutgoingMessage, UpwardMessage, FeeSchedule,
+	Id as ParaId, Collation, Extrinsic, OutgoingMessage, UpwardMessage, FeeSchedule, ErasureChunk,
 }};
+use polkadot_erasure_coding::{self as erasure};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use parachain::{wasm_executor::{self, ExternalitiesError, ExecutionMode}, MessageRef, UpwardMessageRef};
 
@@ -140,6 +141,8 @@ pub enum Error {
 	Client(client::error::Error),
 	/// Wasm validation error
 	WasmValidation(wasm_executor::Error),
+	/// Erasure encoding error
+	Erasure(erasure::Error),
 	/// Collated for inactive parachain
 	#[display(fmt = "Collated for inactive parachain: {:?}", _0)]
 	InactiveParachain(ParaId),
@@ -170,6 +173,9 @@ pub enum Error {
 	/// Parachain validation produced wrong fees to charge to parachain.
 	#[display(fmt = "Parachain validation produced wrong relay-chain fees (expected: {:?}, got {:?})", expected, got)]
 	FeesChargedInvalid { expected: Balance, got: Balance },
+	/// Candidate has erasure root that mismatches the actual erasure root of block data and extrinsics.
+	#[display(fmt = "Got unexpected erasure root for {:?} candidate. (expected: {:?}, got {:?})", candidate, expected, got)]
+	ErasureRootMismatch { candidate: Hash, expected: Hash, got: Hash },
 }
 
 impl std::error::Error for Error {
@@ -343,6 +349,24 @@ impl Externalities {
 	}
 }
 
+pub fn validate_chunk(
+	root: &Hash,
+	chunk: &ErasureChunk,
+) -> Result<(), Error> {
+	let expected = erasure::branch_hash(root, &chunk.proof, chunk.index as usize)?;
+	let got = BlakeTwo256::hash(&chunk.chunk);
+
+	if expected != got {
+		return Err(Error::ErasureRootMismatch {
+			candidate: chunk.candidate_hash,
+			expected,
+			got
+		})
+	}
+
+	Ok(())
+}
+
 /// Validate incoming messages against expected roots.
 pub fn validate_incoming(
 	roots: &StructuredUnroutedIngress,
@@ -437,7 +461,30 @@ pub fn validate_collation<P>(
 	match wasm_executor::validate_candidate(&validation_code, params, &mut ext, ExecutionMode::Remote) {
 		Ok(result) => {
 			if result.head_data == collation.receipt.head_data.0 {
-				ext.final_checks(&collation.receipt)
+				let extrinsics = ext.final_checks(&collation.receipt)?;
+
+				// We have to check that the specified erasure root matches the actual one.
+				if let Some(candidate_erasure_root) = collation.receipt.erasure_root {
+					let authorities_num = api.validators(relay_parent)?.len();
+
+					let chunks = erasure::obtain_chunks(authorities_num,
+														&collation.pov.block_data,
+														&extrinsics.clone())?;
+
+					let chunks_ref: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
+					let branches = erasure::branches(chunks_ref.clone());
+					let root = branches.root();
+
+					if root != candidate_erasure_root {
+						return Err(Error::ErasureRootMismatch{
+							candidate: collation.receipt.block_data_hash,
+							expected: candidate_erasure_root,
+							got: root
+						});
+					}
+				}
+
+				Ok(extrinsics)
 			} else {
 				Err(Error::WrongHeadData {
 					expected: collation.receipt.head_data.0.clone(),
@@ -545,6 +592,7 @@ mod tests {
 				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Signed },
 				UpwardMessage{ data: vec![69], origin: ParachainDispatchOrigin::Parachain },
 			],
+			erasure_root: Some(Hash::default()),
 		};
 		assert!(ext().final_checks(&receipt).is_err());
 		let receipt = CandidateReceipt {
@@ -558,6 +606,7 @@ mod tests {
 			upward_messages: vec![
 				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Signed },
 			],
+			erasure_root: Some(Hash::default()),
 		};
 		assert!(ext().final_checks(&receipt).is_err());
 		let receipt = CandidateReceipt {
@@ -571,6 +620,7 @@ mod tests {
 			upward_messages: vec![
 				UpwardMessage{ data: vec![69], origin: ParachainDispatchOrigin::Parachain },
 			],
+			erasure_root: Some(Hash::default()),
 		};
 		assert!(ext().final_checks(&receipt).is_err());
 		let receipt = CandidateReceipt {
@@ -584,6 +634,7 @@ mod tests {
 			upward_messages: vec![
 				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
 			],
+			erasure_root: Some(Hash::default()),
 		};
 		assert!(ext().final_checks(&receipt).is_ok());
 	}

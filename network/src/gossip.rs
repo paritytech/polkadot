@@ -22,7 +22,8 @@ use substrate_network::consensus_gossip::{
 	ValidatorContext, MessageIntent, ConsensusMessage,
 };
 use polkadot_validation::{GenericStatement, SignedStatement};
-use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorIndex};
+use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorSignature, parachain::ValidatorIndex};
+use polkadot_primitives::parachain::ErasureChunk as PrimitiveChunk;
 use parity_codec::{Decode, Encode};
 
 use std::collections::{HashMap, HashSet};
@@ -45,6 +46,8 @@ mod benefit {
 	pub const NEW_CANDIDATE: i32 = 100;
 	/// When a peer sends us a previously-unknown attestation.
 	pub const NEW_ATTESTATION: i32 = 50;
+	/// When a peer sends us a previously-unknown erasure chunk.
+	pub const NEW_ERASURE_CHUNK: i32 = 10;
 }
 
 mod cost {
@@ -73,7 +76,9 @@ pub enum GossipMessage {
 	#[codec(index = "2")]
 	Statement(GossipStatement),
 	// TODO: https://github.com/paritytech/polkadot/issues/253
-	// erasure-coded chunks.
+	/// A packet containing one of the erasure-coding chunks of one candidate.
+	#[codec(index = "3")]
+	ErasureChunk(ErasureChunkMessage),
 }
 
 impl From<GossipStatement> for GossipMessage {
@@ -98,6 +103,21 @@ impl GossipStatement {
 			relay_parent,
 			signed_statement,
 		}
+	}
+}
+
+/// A gossip message containing one erasure chunk of a candidate block.
+/// For each chunk of block erasure encoding one of this messages is constructed.
+#[derive(Encode, Decode, Clone, Debug)]
+pub struct ErasureChunkMessage {
+	pub chunk: PrimitiveChunk,
+	pub sender: ValidatorIndex,
+	pub signature: ValidatorSignature,
+}
+
+impl From<ErasureChunkMessage> for GossipMessage {
+	fn from(chk: ErasureChunkMessage) -> Self {
+		GossipMessage::ErasureChunk(chk)
 	}
 }
 
@@ -244,6 +264,27 @@ impl MessageValidationData {
 			Err(())
 		}
 	}
+
+	fn check_chunk(&self, msg: &ErasureChunkMessage) -> Result<(), ()> {
+		let sender = match self.index_mapping.get(&msg.sender) {
+			Some(val) => val,
+			None => return Err(()),
+		};
+
+		let good = self.authorities.contains(&sender) &&
+			::polkadot_validation::check_chunk(
+				&msg.chunk,
+				msg.sender,
+				sender.clone(),
+				&msg.signature,
+			);
+
+		if good {
+			Ok(())
+		} else {
+			Err(())
+		}
+	}
 }
 
 // knowledge about attestations on a single parent-hash.
@@ -341,6 +382,38 @@ struct Inner<O: ?Sized> {
 }
 
 impl<O: ?Sized + KnownOracle> Inner<O> {
+	fn validate_block_chunk(&mut self, chunk: ErasureChunkMessage)
+		-> (GossipValidationResult<Hash>, i32)
+	{
+		// A chunk should reference one of our chain heads.
+		match self.our_view.session_view(&chunk.chunk.relay_parent) {
+			None =>  {
+				let cost = match self.oracle.is_known(&chunk.chunk.relay_parent) {
+					Some(Known::Leaf) => {
+						warn!(
+							target: "network",
+							"Leaf block {} not considered live for attestation",
+							chunk.chunk.relay_parent,
+						);
+
+						0
+					}
+					Some(Known::Old) => cost::PAST_MESSAGE,
+					_ => cost::FUTURE_MESSAGE,
+				};
+
+				(GossipValidationResult::Discard, cost)
+			}
+			Some(view) => {
+				let res = view.validation_data.check_chunk(&chunk);
+				match res {
+					Ok(()) => (GossipValidationResult::ProcessAndKeep(Hash::default()), benefit::NEW_ERASURE_CHUNK),
+					Err(()) => (GossipValidationResult::Discard, cost::BAD_SIGNATURE),
+				}
+			}
+		}
+	}
+
 	fn validate_statement(&mut self, message: GossipStatement)
 		-> (GossipValidationResult<Hash>, i32)
 	{
@@ -494,6 +567,10 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 				if let GossipValidationResult::ProcessAndKeep(ref topic) = res {
 					context.broadcast_message(topic.clone(), data.to_vec(), false);
 				}
+				(res, cb)
+			}
+			Some(GossipMessage::ErasureChunk(chunk)) => {
+				let (res, cb) = self.inner.write().validate_block_chunk(chunk);
 				(res, cb)
 			}
 		};
@@ -663,6 +740,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [20u8; 32].into(),
 			upward_messages: Vec::new(),
+			erasure_root: Some(Hash::default()),
 		};
 
 		let statement = GossipMessage::Statement(GossipStatement {

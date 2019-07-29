@@ -24,8 +24,10 @@ use extrinsic_store::{Data, Store as ExtrinsicStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
 use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, CandidateReceipt,
-	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex,
+	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, ErasureChunk, ErasureChunks,
+	ValidatorSignature,
 };
+use polkadot_erasure_coding::{self as erasure};
 
 use parking_lot::Mutex;
 use futures::prelude::*;
@@ -69,6 +71,10 @@ impl TableContext {
 		self.key.public().into()
 	}
 
+	fn validators_num(&self) -> usize {
+		self.groups.iter().fold(0, |acc, (_, v)| acc + v.validity_guarantors.len())
+	}
+
 	fn local_index(&self) -> ValidatorIndex {
 		let id = self.local_id();
 		self
@@ -87,6 +93,10 @@ impl TableContext {
 			signature,
 			sender: self.local_index(),
 		}
+	}
+
+	fn sign_chunk(&self, chunk: &ErasureChunk, sender: ValidatorIndex) -> ValidatorSignature {
+		crate::sign_chunk(chunk, sender, &self.key)
 	}
 }
 
@@ -152,6 +162,8 @@ impl SharedTableInner {
 
 		let para_member = context.is_member_of(local_index, &summary.group_id);
 
+		let n_validators = context.validators_num();
+
 		let digest = &summary.candidate;
 
 		// TODO: consider a strategy based on the number of candidate votes as well.
@@ -194,6 +206,8 @@ impl SharedTableInner {
 			extrinsic_store: self.extrinsic_store.clone(),
 			relay_parent: context.parent_hash.clone(),
 			work,
+			n_validators,
+			local_index: local_index as usize,
 			max_block_data_size,
 		})
 	}
@@ -267,6 +281,8 @@ impl Validated {
 pub struct ParachainWork<Fetch> {
 	work: Work<Fetch>,
 	relay_parent: Hash,
+	n_validators: usize,
+	local_index: usize,
 	extrinsic_store: ExtrinsicStore,
 	max_block_data_size: Option<u64>,
 }
@@ -353,12 +369,32 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 				Validation::Invalid(pov_block),
 			),
 			Ok(extrinsic) => {
+				let chunks = erasure::obtain_chunks(self.inner.n_validators, &pov_block.block_data, &extrinsic).unwrap();
+				let chunks_ref: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
+				let branches = erasure::branches(chunks_ref);
+				let root = branches.root();
+				let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+				let local_index: usize = self.inner.local_index;
+
+				let chunks = ErasureChunks {
+					n_validators: self.inner.n_validators as u64,
+					root,
+					chunks: vec![ErasureChunk {
+						relay_parent: self.inner.relay_parent,
+						candidate_hash,
+						chunk: chunks[local_index].clone(),
+						index: local_index as u32,
+						proof: proofs[local_index].clone()
+					}],
+				};
+
+				debug!(target: "validation", "Storing {}-th chunk out of {} chunks for {}",
+					   local_index, self.inner.n_validators, candidate_hash);
 				self.inner.extrinsic_store.make_available(Data {
 					relay_parent: self.inner.relay_parent,
 					parachain_id: work.candidate_receipt.parachain_index,
 					candidate_hash,
-					block_data: pov_block.block_data.clone(),
-					extrinsic: Some(extrinsic.clone()),
+					erasure_chunks: chunks,
 				})?;
 
 				(
@@ -499,6 +535,19 @@ impl SharedTable {
 		signed_statement
 	}
 
+	/// Import the erasure chunk
+	///
+	/// Only imports i-th erasure chunk where i == local_index.
+	pub fn import_erasure_chunk(&self, chunk: ErasureChunk) {
+		if chunk.index == self.context.local_index() {
+			let _ = self.inner.lock().extrinsic_store.add_erasure_chunk(chunk);
+		}
+	}
+
+	pub fn sign_chunk(&self, chunk: &ErasureChunk, sender: ValidatorIndex) -> ValidatorSignature {
+		self.context.sign_chunk(chunk, sender)
+	}
+
 	/// Execute a closure using a specific candidate.
 	///
 	/// Deadlocks if called recursively.
@@ -588,12 +637,27 @@ mod tests {
 	impl TableRouter for DummyRouter {
 		type Error = ::std::io::Error;
 		type FetchValidationProof = future::FutureResult<PoVBlock,Self::Error>;
+		type FetchBlockChunk = future::FutureResult<ErasureChunk,Self::Error>;
 
-		fn local_collation(&self, _collation: Collation, _extrinsic: Extrinsic) {
+		fn local_collation(&self, _collation: Collation, _extrinsic: Extrinsic, _chunks: (ValidatorIndex, &Vec<ErasureChunk>)) {
 		}
 
 		fn fetch_pov_block(&self, _candidate: &CandidateReceipt) -> Self::FetchValidationProof {
 			future::ok(pov_block_with_data(vec![1, 2, 3, 4, 5]))
+		}
+
+		fn fetch_erasure_chunk(
+			&self, relay_parent:
+			Hash, candidate_hash:
+			Hash, _chunk_id: u64
+		) -> Self::FetchBlockChunk {
+			future::ok(ErasureChunk {
+						relay_parent,
+						candidate_hash,
+						chunk: vec![1,2,3],
+						index: 0,
+						proof: vec![]
+			})
 		}
 	}
 
@@ -634,6 +698,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
+			erasure_root: Some(Hash::default()),
 		};
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
@@ -688,6 +753,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
+			erasure_root: Some(Hash::default()),
 		};
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
@@ -721,6 +787,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
+			erasure_root: Some(Hash::default()),
 		};
 
 		let hash = candidate.hash();
@@ -730,6 +797,8 @@ mod tests {
 				candidate_receipt: candidate,
 				fetch: future::ok(pov_block.clone()),
 			},
+			local_index: 0,
+			n_validators: 2,
 			relay_parent,
 			extrinsic_store: store.clone(),
 			max_block_data_size: None,
@@ -762,6 +831,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
+			erasure_root: Some(Hash::default()),
 		};
 
 		let hash = candidate.hash();
@@ -771,6 +841,8 @@ mod tests {
 				candidate_receipt: candidate,
 				fetch: future::ok::<_, ::std::io::Error>(pov_block.clone()),
 			},
+			local_index: 0,
+			n_validators: 2,
 			relay_parent,
 			extrinsic_store: store.clone(),
 			max_block_data_size: None,
@@ -782,7 +854,7 @@ mod tests {
 
 		assert_eq!(validated.pov_block(), &pov_block);
 
-		assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
+		assert!(store.block_data(relay_parent, hash).is_some());
 		assert!(store.extrinsic(relay_parent, hash).is_some());
 	}
 
@@ -823,6 +895,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
+			erasure_root: Some(Hash::default()),
 		};
 
 		let hash = candidate.hash();
@@ -888,6 +961,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
+			erasure_root: Some(Hash::default()),
 		};
 
 		let hash = candidate.hash();

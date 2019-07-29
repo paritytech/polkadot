@@ -10,3 +10,4 @@ reed_solomon = { package = "reed-solomon-erasure", git = "https://github.com/par
 parity-codec = "4.1"
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+derive_more = "0.15.0"

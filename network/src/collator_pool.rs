@@ -288,6 +288,7 @@ mod tests {
 				fees: 0,
 				block_data_hash: [3; 32].into(),
 				upward_messages: Vec::new(),
+				erasure_root: Some(Hash::default()),
 			},
 			pov: make_pov(vec![4, 5, 6]),
 		});
@@ -316,6 +317,7 @@ mod tests {
 				fees: 0,
 				block_data_hash: [3; 32].into(),
 				upward_messages: Vec::new(),
+				erasure_root: Some(Hash::default()),
 			},
 			pov: make_pov(vec![4, 5, 6]),
 		});
