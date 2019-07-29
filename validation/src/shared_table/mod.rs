@@ -584,7 +584,7 @@ impl SharedTable {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::AuthorityKeyring;
+	use substrate_keyring::Ed25519Keyring;
 	use primitives::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{BlockData, ConsolidatedIngress};
 	use futures::future;
@@ -617,10 +617,10 @@ mod tests {
 		let para_id = ParaId::from(1);
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
 		let local_id = local_key.public();
 
-		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other_key = Ed25519Keyring::Bob.pair();
 		let validity_other = validity_other_key.public();
 		let validity_other_index = 1;
 
@@ -671,10 +671,10 @@ mod tests {
 		let para_id = ParaId::from(1);
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
 		let local_id = local_key.public();
 
-		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other_key = Ed25519Keyring::Bob.pair();
 		let validity_other = validity_other_key.public();
 		let validity_other_index = 1;
 
@@ -806,10 +806,10 @@ mod tests {
 		let para_id = ParaId::from(1);
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
 		let local_id = local_key.public();
 
-		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other_key = Ed25519Keyring::Bob.pair();
 		let validity_other = validity_other_key.public();
 		let validity_other_index = 1;
 
@@ -872,10 +872,10 @@ mod tests {
 		let extrinsic = Extrinsic { outgoing_messages: Vec::new() };
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
 		let local_id = local_key.public();
 
-		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other_key = Ed25519Keyring::Bob.pair();
 		let validity_other = validity_other_key.public();
 
 		groups.insert(para_id, GroupInfo {
@@ -924,18 +924,18 @@ mod tests {
 	fn index_mapping_from_authorities() {
 		let authorities_set: &[&[_]] = &[
 			&[],
-			&[AuthorityKeyring::Alice.pair().public()],
-			&[AuthorityKeyring::Alice.pair().public(), AuthorityKeyring::Bob.pair().public()],
-			&[AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Alice.pair().public()],
-			&[AuthorityKeyring::Alice.pair().public(), AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Charlie.pair().public()],
-			&[AuthorityKeyring::Charlie.pair().public(), AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Alice.pair().public()],
+			&[Ed25519Keyring::Alice.pair().public()],
+			&[Ed25519Keyring::Alice.pair().public(), Ed25519Keyring::Bob.pair().public()],
+			&[Ed25519Keyring::Bob.pair().public(), Ed25519Keyring::Alice.pair().public()],
+			&[Ed25519Keyring::Alice.pair().public(), Ed25519Keyring::Bob.pair().public(), Ed25519Keyring::Charlie.pair().public()],
+			&[Ed25519Keyring::Charlie.pair().public(), Ed25519Keyring::Bob.pair().public(), Ed25519Keyring::Alice.pair().public()],
 		];
 
 		for authorities in authorities_set {
 			let shared_table = SharedTable::new(
 				authorities,
 				HashMap::new(),
-				Arc::new(AuthorityKeyring::Alice.pair()),
+				Arc::new(Ed25519Keyring::Alice.pair()),
 				Default::default(),
 				ExtrinsicStore::new_in_memory(),
 				None,
