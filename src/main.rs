@@ -1,18 +1,18 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
-// This file is part of Polkadot.
+// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// This file is part of Parity Polkadot.
 
-// Polkadot is free software: you can redistribute it and/or modify
+// Parity Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Polkadot is distributed in the hope that it will be useful,
+// Parity Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+// along with Parity Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Polkadot CLI
 
@@ -53,12 +53,12 @@ impl cli::Worker for Worker {
 
 fn main() -> Result<(), cli::error::Error> {
 	let version = VersionInfo {
-		name: "Parity Polkadot",
+		name: "Parity Polkadot Client.",
 		commit: env!("VERGEN_SHA_SHORT"),
 		version: env!("CARGO_PKG_VERSION"),
 		executable_name: "polkadot",
-		author: "Parity Team <admin@parity.io>",
-		description: "Polkadot Relay-chain Client Node",
+		author: "Wood/Habermeier/Paronyan/Pepyakin/Köcher/Drwięga et al.",
+		description: "Polkadot Relay-chain Client Node.",
 		support_url: "https://github.com/paritytech/polkadot/issues/new",
 	};
 
