@@ -1555,7 +1555,7 @@ mod tests {
 
 			// Change the last vote index to make it not corresponding to the assigned group.
 			assert!(candidate.validator_indices.pop().is_some());
-			candidate.validator_indices.append(bitvec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, true]);
+			candidate.validator_indices.append(&mut bitvec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
 
 			assert!(Parachains::dispatch(
 				set_heads(vec![candidate]),
