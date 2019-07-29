@@ -412,7 +412,6 @@ impl<P, E: Clone, N, T: Clone> Collators for ValidationNetwork<P, E, N, T> where
 		AwaitingCollation{outer: rx, inner: None}
 	}
 
-
 	fn note_bad_collator(&self, collator: CollatorId) {
 		self.network.with_spec(move |spec, ctx| spec.disconnect_bad_collator(ctx, collator));
 	}

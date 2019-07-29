@@ -259,7 +259,6 @@ pub fn testnet_genesis(
 	}
 }
 
-
 fn development_config_genesis() -> GenesisConfig {
 	testnet_genesis(
 		vec![

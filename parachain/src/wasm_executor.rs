@@ -303,7 +303,6 @@ pub enum ValidationResultHeader {
 	Error(String),
 }
 
-
 #[derive(Default)]
 struct WorkerExternalities {
 	egress_data: Vec<u8>,
@@ -432,7 +431,6 @@ struct ValidationHost {
 	worker: Option<process::Child>,
 	memory: Option<SharedMem>,
 }
-
 
 impl Drop for ValidationHost {
 	fn drop(&mut self) {

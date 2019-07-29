@@ -619,7 +619,6 @@ mod tests {
 		}).unwrap();
 		assert_eq!(ext.fees_charged, 6000);
 
-
 		ext.apply_message_fee((1_000_000 - 6000 - 1000) / 10).unwrap();
 		assert_eq!(ext.fees_charged, 1_000_000);
 

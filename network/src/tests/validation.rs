@@ -119,7 +119,6 @@ impl Future for GossipRouter {
 	}
 }
 
-
 #[derive(Clone)]
 struct GossipHandle {
 	send_message: mpsc::UnboundedSender<(Hash, TopicNotification)>,

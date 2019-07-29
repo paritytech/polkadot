@@ -199,7 +199,6 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 					validated.extrinsic().cloned(),
 				);
 
-
 				// propagate the statement.
 				// consider something more targeted than gossip in the future.
 				let statement = GossipStatement::new(

@@ -527,7 +527,6 @@ impl<T: Trait> Module<T> {
 			_ => Chain::Relay,
 		}).collect::<Vec<_>>();
 
-
 		let mut seed = {
 			let phrase = b"validator_role_pairs";
 			let seed = system::Module::<T>::random(&phrase[..]);
@@ -1391,7 +1390,6 @@ mod tests {
 			let duty_roster_1 = Parachains::calculate_duty_roster();
 			check_roster(&duty_roster_1);
 			assert!(duty_roster_0 != duty_roster_1);
-
 
 			System::initialize(&2, &H256::from([2; 32]), &Default::default(), &Default::default());
 			let duty_roster_2 = Parachains::calculate_duty_roster();
