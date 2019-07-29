@@ -14,9 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-// You should have received a copy of the GNU General Public License
-// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
-
 //! The statement table.
 //!
 //! This stores messages other authorities issue about candidates.
