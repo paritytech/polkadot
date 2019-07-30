@@ -162,14 +162,36 @@ mod tests {
 		)
 	}
 
+	fn check_roots(view: &View, i: u8, max: u8) -> bool {
+		for j in 0..max {
+			if let Some(messages) = message_queue(i, j) {
+				let queue_root = message_queue_root(i, j).unwrap();
+				let messages = GossipParachainMessages {
+					queue_root,
+					messages: messages.iter().map(|m| ParachainMessage(m.to_vec())).collect(),
+				};
+
+				match view.validate_queue(&messages).0 {
+					GossipValidationResult::ProcessAndKeep(topic) => if topic != queue_topic(queue_root) {
+						return false
+					},
+					_ => return false,
+				}
+			}
+		}
+
+		true
+	}
+
 	#[test]
 	fn update_leaves_none_in_common() {
 		let mut ctx = TestChainContext::default();
+		let max = 5;
 
-		for i in 0..5 {
+		for i in 0..max {
 			ctx.known_map.insert(hash(i as u8), Known::Leaf);
 
-			let messages_out: Vec<_> = (0..5).filter_map(|j| message_queue_root(i, j)).collect();
+			let messages_out: Vec<_> = (0..max).filter_map(|j| message_queue_root(i, j)).collect();
 
 			if !messages_out.is_empty() {
 				ctx.ingress_roots.insert(hash(i as u8), messages_out);
@@ -182,47 +204,62 @@ mod tests {
 			[hash(0), hash(1)].iter().cloned(),
 		).unwrap();
 
-		let check_roots = |view: &View, i| {
-			for j in 0..5 {
-				if let Some(messages) = message_queue(i, j) {
-					let queue_root = message_queue_root(i, j).unwrap();
-					let messages = GossipParachainMessages {
-						queue_root,
-						messages: messages.iter().map(|m| ParachainMessage(m.to_vec())).collect(),
-					};
+		assert!(check_roots(&view, 0, max));
+		assert!(check_roots(&view, 1, max));
 
-					match view.validate_queue(&messages).0 {
-						GossipValidationResult::ProcessAndKeep(topic) => if topic != queue_topic(queue_root) {
-							return false
-						},
-						_ => return false,
-					}
-				}
-			}
-
-			true
-		};
-
-		assert!(check_roots(&view, 0));
-		assert!(check_roots(&view, 1));
-
-		assert!(!check_roots(&view, 2));
-		assert!(!check_roots(&view, 3));
-		assert!(!check_roots(&view, 4));
-		assert!(!check_roots(&view, 5));
+		assert!(!check_roots(&view, 2, max));
+		assert!(!check_roots(&view, 3, max));
+		assert!(!check_roots(&view, 4, max));
+		assert!(!check_roots(&view, 5, max));
 
 		view.update_leaves(
 			&ctx,
 			[hash(2), hash(3), hash(4)].iter().cloned(),
 		).unwrap();
 
-		assert!(!check_roots(&view, 0));
-		assert!(!check_roots(&view, 1));
+		assert!(!check_roots(&view, 0, max));
+		assert!(!check_roots(&view, 1, max));
 
-		assert!(check_roots(&view, 2));
-		assert!(check_roots(&view, 3));
-		assert!(check_roots(&view, 4));
+		assert!(check_roots(&view, 2, max));
+		assert!(check_roots(&view, 3, max));
+		assert!(check_roots(&view, 4, max));
 
-		assert!(!check_roots(&view, 5));
+		assert!(!check_roots(&view, 5, max));
+	}
+
+	#[test]
+	fn update_leaves_overlapping() {
+		let mut ctx = TestChainContext::default();
+		let max = 5;
+
+		for i in 0..max {
+			ctx.known_map.insert(hash(i as u8), Known::Leaf);
+
+			let messages_out: Vec<_> = (0..max).filter_map(|j| message_queue_root(i, j)).collect();
+
+			if !messages_out.is_empty() {
+				ctx.ingress_roots.insert(hash(i as u8), messages_out);
+			}
+		}
+
+		let mut view = View::default();
+		view.update_leaves(
+			&ctx,
+			[hash(0), hash(1), hash(2)].iter().cloned(),
+		).unwrap();
+
+		view.update_leaves(
+			&ctx,
+			[hash(2), hash(3), hash(4)].iter().cloned(),
+		).unwrap();
+
+		assert!(!check_roots(&view, 0, max));
+		assert!(!check_roots(&view, 1, max));
+
+		assert!(check_roots(&view, 2, max));
+		assert!(check_roots(&view, 3, max));
+		assert!(check_roots(&view, 4, max));
+
+		assert!(!check_roots(&view, 5, max));
 	}
 }
