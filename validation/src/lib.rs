@@ -119,7 +119,7 @@ pub trait TableRouter: Clone {
 	type Error: std::fmt::Debug;
 	/// Future that resolves when candidate data is fetched.
 	type FetchValidationProof: IntoFuture<Item=PoVBlock,Error=Self::Error>;
-	/// Future that resulves when a block erasure chunk is fetched.
+	/// Future that resolves when a block erasure chunk is fetched.
 	type FetchBlockChunk: IntoFuture<Item=ErasureChunk, Error=Self::Error>;
 
 	/// Call with local candidate data. This will make the data available on the network,
@@ -129,7 +129,7 @@ pub trait TableRouter: Clone {
 	/// Fetch validation proof for a specific candidate.
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
 
-	/// Fetch erasure encoded chunk for a specific candidate.
+	/// Fetch the erasure-encoded chunk for a specific candidate block.
 	fn fetch_erasure_chunk(&self, relay_parent: Hash, candidate_hash: Hash, chunk_id: u64) -> Self::FetchBlockChunk;
 }
 
@@ -196,7 +196,7 @@ pub fn sign_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, key: &ed25519
 	key.sign(&encoded).into()
 }
 
-/// Check signature on a chunk message.
+/// Check the signature of a chunk message.
 pub fn check_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, signer: SessionKey, signature: &ValidatorSignature) -> bool {
 	use runtime_primitives::traits::Verify;
 
@@ -419,8 +419,8 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			collation_work.then(move |result| match result {
 				Ok((mut collation, extrinsic)) => {
 					let chunks = erasure::obtain_chunks(authorities_num,
-														&collation.pov.block_data,
-														&extrinsic.clone()).unwrap();
+						&collation.pov.block_data,
+						&extrinsic.clone()).unwrap();
 
 					let chunks_ref: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
 					let branches = erasure::branches(chunks_ref.clone());
@@ -431,7 +431,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 					let candidate_hash = collation.receipt.hash();
 
 					// As a node that has received a valid collation, we store all of the
-					// erasure coded chunks pieces, at least for now.
+					// erasure-coded chunks of data, at least for now.
 					let chunks: Vec<_> = chunks.into_iter().zip(proofs)
 						.enumerate()
 						.map(|(index, (chunk, proof))| ErasureChunk {

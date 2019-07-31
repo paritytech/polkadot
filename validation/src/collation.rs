@@ -139,11 +139,11 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 pub enum Error {
 	/// Client error
 	Client(client::error::Error),
-	/// Wasm validation error
+	/// Wasm validation error.
 	WasmValidation(wasm_executor::Error),
-	/// Erasure encoding error
+	/// Erasure-encoding error.
 	Erasure(erasure::Error),
-	/// Collated for inactive parachain
+	/// Collated for inactive parachain.
 	#[display(fmt = "Collated for inactive parachain: {:?}", _0)]
 	InactiveParachain(ParaId),
 	/// Unexpected egress root
@@ -173,7 +173,7 @@ pub enum Error {
 	/// Parachain validation produced wrong fees to charge to parachain.
 	#[display(fmt = "Parachain validation produced wrong relay-chain fees (expected: {:?}, got {:?})", expected, got)]
 	FeesChargedInvalid { expected: Balance, got: Balance },
-	/// Candidate has erasure root that mismatches the actual erasure root of block data and extrinsics.
+	/// Candidate block has an erasure-encoded root that mismatches the actual erasure-encoded root of block data and extrinsics.
 	#[display(fmt = "Got unexpected erasure root for {:?} candidate. (expected: {:?}, got {:?})", candidate, expected, got)]
 	ErasureRootMismatch { candidate: Hash, expected: Hash, got: Hash },
 }
@@ -463,13 +463,13 @@ pub fn validate_collation<P>(
 			if result.head_data == collation.receipt.head_data.0 {
 				let extrinsics = ext.final_checks(&collation.receipt)?;
 
-				// We have to check that the specified erasure root matches the actual one.
+				// We have to check that the specified erasure-encoded root matches the actual one.
 				if let Some(candidate_erasure_root) = collation.receipt.erasure_root {
 					let authorities_num = api.validators(relay_parent)?.len();
 
 					let chunks = erasure::obtain_chunks(authorities_num,
-														&collation.pov.block_data,
-														&extrinsics.clone())?;
+						&collation.pov.block_data,
+						&extrinsics.clone())?;
 
 					let chunks_ref: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
 					let branches = erasure::branches(chunks_ref.clone());

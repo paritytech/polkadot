@@ -535,15 +535,15 @@ impl SharedTable {
 		signed_statement
 	}
 
-	/// Import the erasure chunk
+	/// Import the erasure-encoded chunk of data.
 	///
-	/// Only imports i-th erasure chunk where i == local_index.
+	/// Only imports `i`-th erasure-encoded chunk of data where `i` is the `local_index`.
 	pub fn import_erasure_chunk(&self, chunk: ErasureChunk) {
 		if chunk.index == self.context.local_index() {
 			let _ = self.inner.lock().extrinsic_store.add_erasure_chunk(chunk);
 		}
 	}
-
+	/// Sign the erasure-encoded chunk of data with a validator's signature.
 	pub fn sign_chunk(&self, chunk: &ErasureChunk, sender: ValidatorIndex) -> ValidatorSignature {
 		self.context.sign_chunk(chunk, sender)
 	}
@@ -637,7 +637,7 @@ mod tests {
 	impl TableRouter for DummyRouter {
 		type Error = ::std::io::Error;
 		type FetchValidationProof = future::FutureResult<PoVBlock,Self::Error>;
-		type FetchBlockChunk = future::FutureResult<ErasureChunk,Self::Error>;
+		type FetchBlockChunk = future::FutureResult<ErasureChunk, Self::Error>;
 
 		fn local_collation(&self, _collation: Collation, _extrinsic: Extrinsic, _chunks: (ValidatorIndex, &Vec<ErasureChunk>)) {
 		}
@@ -652,11 +652,11 @@ mod tests {
 			Hash, _chunk_id: u64
 		) -> Self::FetchBlockChunk {
 			future::ok(ErasureChunk {
-						relay_parent,
-						candidate_hash,
-						chunk: vec![1,2,3],
-						index: 0,
-						proof: vec![]
+				relay_parent,
+				candidate_hash,
+				chunk: vec![1,2,3],
+				index: 0,
+				proof: vec![]
 			})
 		}
 	}

@@ -131,7 +131,7 @@ pub struct CandidateReceipt {
 	pub block_data_hash: Hash,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
-	/// The root of blocks erasure encoding Merkle tree (added by validators, so an Option).
+	/// The root of a block's erasure encoding Merkle tree that may be added by validators.
 	pub erasure_root: Option<Hash>,
 }
 
@@ -242,19 +242,19 @@ pub struct ConsolidatedIngress(pub Vec<(Id, Vec<Message>)>);
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
-/// A chunk of erasure-encoded block data
+/// A chunk of erasure-encoded block data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct ErasureChunk{
-	/// The parent of the candidate this chunk belongs to.
+	/// The relay chain parent block hash of the candidate block hash that this erasure-encoded chunk of data belongs to.
 	pub relay_parent: Hash,
-	/// The hash of the candidate this chunk belongs to.
+	/// The hash of the candidate block that this erasure-encoded chunk of data belongs to.
 	pub candidate_hash: Hash,
-	/// The chunk data.
+	/// The erasure-encoded chunk of data belonging to the candidate block.
 	pub chunk: Vec<u8>,
-	/// The index of this chunk.
+	/// The index of this erasure-encoded chunk of data.
 	pub index: u32,
-	/// Proof for this chunk's branch in the merkle tree.
+	/// Proof for this chunk's branch in the Merkle tree.
 	pub proof: Vec<Vec<u8>>,
 }
 
@@ -264,11 +264,11 @@ pub struct ErasureChunk{
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct ErasureChunks {
-	/// A number of validators used to break up the data into chunks.
+	/// The number of validators used to break up the data into erasure-encoded chunks.
 	pub n_validators: u64,
-    /// A root of the merkle tree of the chunks.
-    pub root: Hash,
-	/// The erasure chunks.
+	/// The root of the Merkle tree containing the erasure-encoded chunks of data.
+	pub root: Hash,
+	/// The erasure-encoded chunks of data.
 	pub chunks: Vec<ErasureChunk>,
 }
 

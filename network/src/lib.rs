@@ -197,7 +197,7 @@ pub enum Message {
 	RequestPovBlock(RequestId, Hash, Hash),
 	/// Provide requested proof-of-validation block data by candidate hash or nothing if unknown.
 	PovBlock(RequestId, Option<PoVBlock>),
-	/// Request block chunk (relay_parent, candidate_hash, chunk id)
+	/// Request block chunk.
 	RequestBlockChunk(RequestId, Hash, Hash, u64),
 	/// Provide requested block data by candidate hash or nothing.
 	BlockChunk(RequestId, Option<ErasureChunk>),

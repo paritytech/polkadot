@@ -51,7 +51,7 @@ pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 	BlakeTwo256::hash(&v[..])
 }
 
-/// A checked message can ethier be a statment or an erasure chunk message.
+/// A checked message can either be a statement or an erasure chunk message.
 pub enum CheckedMsgs {
 	Statement(SignedStatement),
 	ErasureChunk(ErasureChunk),
@@ -64,7 +64,7 @@ pub enum CheckedMsgs {
 /// infinitely.
 pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
 	impl Stream<Item=CheckedMsgs, Error=()> {
-	// spin up a task in the background that processes all incoming statements
+	// spin up a task in the background that processes all incoming statements.
 	// validation has been done already by the gossip validator.
 	// this will block internally until the gossip messages stream is obtained.
 	network.gossip_messages_for(topic)
@@ -188,7 +188,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 			}
 		}
 	}
-
+	/// Import a given erasure chunk.
 	pub(crate) fn import_erasure_chunk(&self, chunk: ErasureChunk) {
 		trace!(target: "p_net", "importing erasure chunk {:?}", chunk);
 
@@ -235,7 +235,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 					table.import_validated(validated),
 				);
 
-				// regardless of the validation result remove all deferred chunks
+				// regardless of the validation result remove all deferred chunks.
 				// if the validation was successful, import the deferred chunks
 				let chunks = deferred_chunks.lock().get_deferred(&candidate_hash);
 				if let GenericStatement::Valid(_) = statement.signed_statement.statement {
@@ -312,11 +312,10 @@ enum StatementTrace {
 	Invalid(ValidatorIndex, Hash),
 }
 
-// helper for deferring erasure chunks whose associated candidate is unknown.
+/// Helper for deferring erasure-encoded chunks whose associated candidate block is unknown.
 struct DeferredChunks {
 	deferred: HashMap<Hash, Vec<ErasureChunk>>,
 }
-
 
 impl DeferredChunks {
 	fn new() -> Self {
