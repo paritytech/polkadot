@@ -42,7 +42,7 @@ impl Leaf for Hash {
 	}
 }
 
-/// Context to the underlying polkadot chain.
+/// Context to the underlying Polkadot chain.
 pub trait ChainContext {
 	/// The leaf type that this chain context is associated with.
 	type Leaf: Leaf;
@@ -130,7 +130,7 @@ impl View {
 		Ok(())
 	}
 
-	/// Whether a message with given topic is expired.
+	/// Whether a message with a given topic has expired.
 	pub fn is_topic_live(&self, topic: &Hash) -> bool {
 		self.expected_queues.get(topic).is_some()
 	}
