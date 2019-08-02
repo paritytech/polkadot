@@ -22,13 +22,13 @@ use parity_codec::Decode;
 use srml_support::{decl_storage, decl_module, ensure};
 
 use bitvec::{bitvec, BigEndian};
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Saturating, One};
+use sr_primitives::traits::{Hash as HashT, EnsureOrigin, BlakeTwo256, Saturating, One};
 use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ActiveParas, CollatorId
 }};
-use {system, session};
+use session;
 use srml_support::{
 	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
 	traits::{Currency, WithdrawReason, ExistenceRequirement}
@@ -36,7 +36,7 @@ use srml_support::{
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
-use system::ensure_none;
+use system::{ensure_none, self};
 use crate::registrar::Registrar;
 
 // ranges for iteration of general block number don't work, so this
@@ -98,7 +98,7 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 
 pub trait Trait: session::Trait {
 	/// The outer origin type.
-	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
+	type Origin: From<RawOrigin> + Into<system::RawOrigin<Self::AccountId>>;
 
 	/// The outer call dispatch type.
 	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
@@ -116,10 +116,13 @@ pub trait Trait: session::Trait {
 /// Origin for the parachains module.
 #[derive(PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub enum Origin {
+pub enum RawOrigin {
 	/// It comes from a parachain.
 	Parachain(ParaId),
 }
+
+/// Origin for the parachain module.
+pub type Origin = RawOrigin;
 
 // result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
 const EMPTY_TRIE_ROOT: [u8; 32] = [
@@ -169,7 +172,7 @@ decl_storage! {
 
 decl_module! {
 	/// Parachains module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as Trait>::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
 		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
@@ -202,7 +205,7 @@ decl_module! {
 							.ok_or("candidate for unregistered parachain {}")?;
 
 						if let Some(required_collator) = maybe_required_collator {
-							ensure!(required_collator == head.candidate.collator, "invalid collator");
+							ensure!(required_collator == &head.candidate.collator, "invalid collator");
 						}
 
 						Self::check_upward_messages(
@@ -211,7 +214,8 @@ decl_module! {
 							MAX_QUEUE_COUNT,
 							WATERMARK_QUEUE_SIZE,
 						)?;
-						Self::check_egress_queue_roots(&head, &active_parachains)?;
+						let id_slice = active_parachains.into_iter().map(|(a, b)| a).collect();
+						Self::check_egress_queue_roots(&head, &id_slice[..])?;
 
 						last_id = Some(head.parachain_index());
 					}
@@ -228,7 +232,6 @@ decl_module! {
 
 				Self::dispatch_upward_messages(
 					current_number,
-					&active_parachains,
 					MAX_QUEUE_COUNT,
 					WATERMARK_QUEUE_SIZE,
 					Self::dispatch_message,
@@ -306,7 +309,7 @@ impl<T: Trait> Module<T> {
 				ParachainDispatchOrigin::Signed =>
 					system::RawOrigin::Signed(id.into_account()).into(),
 				ParachainDispatchOrigin::Parachain =>
-					Origin::Parachain(id).into(),
+					RawOrigin::Parachain(id).into(),
 				ParachainDispatchOrigin::Root =>
 					system::RawOrigin::Root.into(),
 			};
@@ -565,7 +568,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Get the currently active set of parachains.
-	fn active_parachains() -> Vec<(ParaId, Option<CollatorId>)> {
+	pub fn active_parachains() -> Vec<(ParaId, Option<CollatorId>)> {
 		T::ActiveParas::active_paras()
 	}
 
@@ -781,13 +784,28 @@ impl<T: Trait> ProvideInherent for Module<T> {
 /// Ensure that the origin `o` represents a parachain.
 /// Returns `Ok` with the parachain ID that effected the extrinsic or an `Err` otherwise.
 pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, &'static str>
-	where OuterOrigin: Into<result::Result<Origin, OuterOrigin>>
+	where OuterOrigin: Into<result::Result<RawOrigin, OuterOrigin>>
 {
 	match o.into() {
-		Ok(Origin::Parachain(id)) => Ok(id),
+		Ok(RawOrigin::Parachain(id)) => Ok(id),
 		_ => Err("bad origin: expected to be a parachain origin"),
 	}
 }
+pub struct EnsureParachain<ParaId>(ParaId);
+impl<
+	O: Into<result::Result<RawOrigin, O>> + From<RawOrigin>,
+	ParaId,
+> EnsureOrigin<O> for EnsureParachain<ParaId> {
+	type Success = ParaId;
+	fn try_origin(o: O) -> result::Result<Self::Success, O> {
+		o.into().and_then(|o| match o {
+			RawOrigin::Parachain(id) => Ok(id),
+			r => Err(O::from(r)),
+		})
+	}
+}
+
+
 
 #[cfg(test)]
 mod tests {
