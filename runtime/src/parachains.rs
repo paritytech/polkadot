@@ -220,16 +220,15 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		/// All authorities' keys at the moment.
 		pub Authorities get(authorities) config(authorities): Vec<ParachainPublic>;
-
-		// Vector of all parachain IDs.
+		/// Vector of all parachain IDs.
 		pub Parachains get(active_parachains): Vec<ParaId>;
-		// The parachains registered at present.
+		/// The parachains registered at present.
 		pub Code get(parachain_code): map ParaId => Option<Vec<u8>>;
-		// The heads of the parachains registered at present.
+		/// The heads of the parachains registered at present.
 		pub Heads get(parachain_head): map ParaId => Option<Vec<u8>>;
-		// The watermark heights of the parachains registered at present.
-		// For every parachain, this is the block height from which all messages targeting
-		// that parachain have been processed. Can be `None` only if the parachain doesn't exist.
+		/// The watermark heights of the parachains registered at present.
+		/// For every parachain, this is the block height from which all messages targeting
+		/// that parachain have been processed. Can be `None` only if the parachain doesn't exist.
 		pub Watermarks get(watermark): map ParaId => Option<T::BlockNumber>;
 
 		/// Unrouted ingress. Maps (BlockNumber, to_chain) pairs to [(from_chain, egress_root)].
@@ -243,10 +242,10 @@ decl_storage! {
 		pub RelayDispatchQueue: map ParaId => Vec<UpwardMessage>;
 		/// Size of the dispatch queues. Separated from actual data in order to avoid costly
 		/// decoding when checking receipt validity. First item in tuple is the count of messages
-		//	second if the total length (in bytes) of the message payloads.
+		///	second if the total length (in bytes) of the message payloads.
 		pub RelayDispatchQueueSize: map ParaId => (u32, u32);
 
-		// Did the parachain heads get updated in this block?
+		/// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
 
 		/// The next unused ParaId value.
@@ -319,7 +318,7 @@ decl_module! {
 					}
 				}
 
-				let para_blocks = Self::check_candidates(&heads)?;
+				let para_blocks = Self::check_candidates(&heads, &active_parachains)?;
 
 				let current_number = <system::Module<T>>::block_number();
 
@@ -652,7 +651,7 @@ impl<T: Trait> Module<T> {
 
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
-	fn check_candidates(attested_candidates: &[AttestedCandidate])
+	fn check_candidates(attested_candidates: &[AttestedCandidate], active_parachains: &[ParaId])
 		-> rstd::result::Result<IncludedBlocks<T>, &'static str>
 	{
 		use primitives::parachain::ValidityAttestation;
@@ -799,6 +798,7 @@ impl<T: Trait> Module<T> {
 			actual_number: <system::Module<T>>::block_number(),
 			session: <session::Module<T>>::current_index(),
 			random_seed,
+			active_parachains: active_parachains.to_vec(),
 			para_blocks: para_block_hashes,
 		})
 	}

@@ -23,11 +23,10 @@ use rstd::prelude::*;
 use parity_codec::{Encode, Decode};
 use srml_support::{decl_storage, decl_module, ensure};
 
-use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt}};
+use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};
 use {system, session::{self, SessionIndex}};
 use srml_support::{
-	StorageValue, StorageMap, dispatch::Result,
-	traits::Get,
+	StorageValue, StorageMap, StorageDoubleMap, dispatch::Result, traits::Get,
 };
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
@@ -42,6 +41,8 @@ pub struct IncludedBlocks<T: Trait> {
 	pub session: SessionIndex,
 	/// The randomness seed at this block.
 	pub random_seed: [u8; 32],
+	/// All parachain IDs active at this block.
+	pub active_parachains: Vec<ParaId>,
 	/// Hashes of the parachain candidates included at this block.
 	pub para_blocks: Vec<Hash>,
 }
@@ -70,12 +71,11 @@ pub trait Trait: session::Trait {
 decl_storage! {
 	trait Store for Module<T: Trait> as Attestations {
 		/// A mapping from modular block number (n % AttestationPeriod)
-		/// to session index and the list of candidate
-		/// hashes.
+		/// to session index and the list of candidate hashes.
 		pub RecentParaBlocks: map T::BlockNumber => Option<IncludedBlocks<T>>;
 
 		/// Attestations on a recent parachain block.
-		pub ParaBlockAttestations: map (T::BlockNumber, Hash) => Option<BlockAttestations<T>>;
+		pub ParaBlockAttestations: double_map T::BlockNumber, blake2_128(Hash) => Option<BlockAttestations<T>>;
 
 		// Did we already have more attestations included in this block?
 		DidUpdate: bool;
@@ -83,18 +83,19 @@ decl_storage! {
 }
 
 decl_module! {
-	/// Parachains module.
+	/// Parachain-attestations module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn more_attestations(origin, _more: MoreAttestations) -> Result {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), "More attestations can be added only once in a block.");
+			<DidUpdate>::put(true);
 
 			Ok(())
 		}
 
 		fn on_finalize(_n: T::BlockNumber) {
-			<Self as Store>::DidUpdate::kill();
+			<DidUpdate>::kill();
 		}
 	}
 }
@@ -107,9 +108,7 @@ impl<T: Trait> Module<T> {
 
 		// clear old entry that was in this place.
 		if let Some(old_entry) = <RecentParaBlocks<T>>::take(&mod_num) {
-			for old_para_block in old_entry.para_blocks {
-				<ParaBlockAttestations<T>>::remove(&(old_entry.actual_number, old_para_block));
-			}
+			<ParaBlockAttestations<T>>::remove_prefix(old_entry.actual_number);
 		}
 
 		let validators = T::ValidatorIdentities::get();
@@ -133,7 +132,7 @@ impl<T: Trait> Module<T> {
 				invalid,
 			};
 
-			<ParaBlockAttestations<T>>::insert(&(para_blocks.actual_number, *hash), &summary);
+			<ParaBlockAttestations<T>>::insert(para_blocks.actual_number, hash, &summary);
 		}
 
 		<RecentParaBlocks<T>>::insert(&mod_num, &para_blocks);
