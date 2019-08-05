@@ -39,7 +39,8 @@ use client::{
 };
 use sr_primitives::{
 	ApplyResult, generic, transaction_validity::TransactionValidity, create_runtime_str, key_types,
-	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Convert}, impl_opaque_keys
+	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup},
+	impl_opaque_keys, weights::Weight,
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives::{self, ScheduledChange}};
@@ -48,7 +49,7 @@ use elections::VoteIndex;
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
 use srml_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, OnUnbalanced}
+	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
 };
 
 #[cfg(feature = "std")]
@@ -61,6 +62,14 @@ pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
 pub use parachains::{Call as ParachainsCall, NEW_HEADS_IDENTIFIER};
 pub use sr_primitives::{Permill, Perbill};
 pub use srml_support::StorageValue;
+
+/// Implementations of some helper traits passed into runtime modules as associated types.
+pub mod impls;
+use impls::{CurrencyToVoteHandler, WeightMultiplierUpdateHandler, ToAuthor, WeightToFee};
+
+/// Constant values used within the runtime.
+pub mod constants;
+use constants::{time::*, currency::*};
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -85,18 +94,13 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
-const DOTS: Balance = 1_000_000_000_000;
-const BUCKS: Balance = DOTS / 100;
-const CENTS: Balance = BUCKS / 100;
-const MILLICENTS: Balance = CENTS / 1_000;
-
-const SECS_PER_BLOCK: BlockNumber = 6;
-const MINUTES: BlockNumber = 60 / SECS_PER_BLOCK;
-const HOURS: BlockNumber = MINUTES * 60;
-const DAYS: BlockNumber = HOURS * 24;
+type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
+	pub const MaximumBlockWeight: Weight = 1_000_000_000;
+	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
 }
 
 impl system::Trait for Runtime {
@@ -108,8 +112,12 @@ impl system::Trait for Runtime {
 	type AccountId = AccountId;
 	type Lookup = Indices;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
+	type WeightMultiplierUpdate = WeightMultiplierUpdateHandler;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
+	type MaximumBlockWeight = MaximumBlockWeight;
+	type MaximumBlockLength = MaximumBlockLength;
+	type AvailableBlockRatio = AvailableBlockRatio;
 }
 
 impl aura::Trait for Runtime {
@@ -125,22 +133,11 @@ impl indices::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: Balance = 1 * BUCKS;
+	pub const ExistentialDeposit: Balance = 10 * CENTS;
 	pub const TransferFee: Balance = 1 * CENTS;
 	pub const CreationFee: Balance = 1 * CENTS;
 	pub const TransactionBaseFee: Balance = 1 * CENTS;
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-}
-
-
-/// Logic for the author to get a portion of fees.
-pub struct ToAuthor;
-
-type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
-impl OnUnbalanced<NegativeImbalance> for ToAuthor {
-	fn on_unbalanced(amount: NegativeImbalance) {
-		Balances::resolve_creating(&Authorship::author(), amount);
-	}
 }
 
 /// Splits fees 80/20 between treasury and block author.
@@ -164,6 +161,7 @@ impl balances::Trait for Runtime {
 	type CreationFee = CreationFee;
 	type TransactionBaseFee = TransactionBaseFee;
 	type TransactionByteFee = TransactionByteFee;
+	type WeightToFee = WeightToFee;
 }
 
 parameter_types! {
@@ -223,21 +221,6 @@ impl session::historical::Trait for Runtime {
 	type FullIdentificationOf = staking::ExposureOf<Self>;
 }
 
-/// Converter for currencies to votes.
-pub struct CurrencyToVoteHandler;
-
-impl CurrencyToVoteHandler {
-	fn factor() -> u128 { (Balances::total_issuance() / u64::max_value() as u128).max(1) }
-}
-
-impl Convert<u128, u64> for CurrencyToVoteHandler {
-	fn convert(x: u128) -> u64 { (x / Self::factor()) as u64 }
-}
-
-impl Convert<u128, u128> for CurrencyToVoteHandler {
-	fn convert(x: u128) -> u128 { x * Self::factor() }
-}
-
 parameter_types! {
 	pub const SessionsPerEra: session::SessionIndex = 6;
 	pub const BondingDuration: staking::EraIndex = 24 * 28;
@@ -253,6 +236,7 @@ impl staking::Trait for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SessionInterface = Self;
+	type Time = Timestamp;
 }
 
 parameter_types! {
@@ -433,12 +417,19 @@ pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
+/// The SignedExtension to the basic transaction logic.
+pub type SignedExtra = (
+	system::CheckEra<Runtime>,
+	system::CheckNonce<Runtime>,
+	system::CheckWeight<Runtime>,
+	balances::TakeFees<Runtime>
+);
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedMortalCompactExtrinsic<Address, Nonce, Call, Signature>;
+pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Balances, Runtime, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
 
 impl_runtime_apis! {
 	impl client_api::Core<Block> for Runtime {

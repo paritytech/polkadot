@@ -22,9 +22,8 @@ use parity_codec::{Encode, Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
 use bitvec::bitvec;
-use sr_primitives::traits::{
-	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One,
-};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
+use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, ParachainPublic, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots,
@@ -279,6 +278,7 @@ decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
+		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
 		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
@@ -345,12 +345,14 @@ decl_module! {
 
 		/// Register a parachain with given code.
 		/// Fails if given ID is already used.
+		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
 		pub fn register_parachain(origin, id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
 			ensure_root(origin)?;
 			<Self as ParachainRegistrar<T::AccountId>>::register_parachain(id, code, initial_head_data)
 		}
 
 		/// Deregister a parachain with given id
+		#[weight = SimpleDispatchInfo::FixedOperational(10_000)]
 		pub fn deregister_parachain(origin, id: ParaId) -> Result {
 			ensure_root(origin)?;
 			<Self as ParachainRegistrar<T::AccountId>>::deregister_parachain(id)
@@ -823,7 +825,7 @@ impl<T: Trait> Module<T> {
 impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ParachainPublic;
 
-	fn on_new_session<'a, I: 'a>(changed: bool, validators: I)
+	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, _queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
 		if changed {
@@ -862,15 +864,15 @@ mod tests {
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
-		traits::{BlakeTwo256, IdentityLookup},
-		testing::Header,
-		impl_opaque_keys, key_types, Perbill,
+		Perbill,
+		traits::{BlakeTwo256, IdentityLookup, ConvertInto},
+		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
 		parachain::{HeadData, ValidityAttestation, ValidatorIndex, CandidateReceipt},
 		SessionKey, BlockNumber, AuraId,
 	};
-	use keyring::{AuthorityKeyring};
+	use keyring::Ed25519Keyring;
 	use srml_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
@@ -892,6 +894,9 @@ mod tests {
 	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
+		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
+		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
+		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
@@ -902,8 +907,12 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
+		type WeightMultiplierUpdate = ();
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type MaximumBlockLength = MaximumBlockLength;
+		type AvailableBlockRatio = AvailableBlockRatio;
 	}
 
 	parameter_types! {
@@ -911,16 +920,9 @@ mod tests {
 		pub const Offset: BlockNumber = 0;
 	}
 
-	impl_opaque_keys! {
-		pub struct Keys {
-			#[id(key_types::ED25519)]
-			pub ed25519: ParachainPublic,
-		}
-	}
-
 	impl session::Trait for Test {
 		type OnSessionEnding = ();
-		type Keys = Keys;
+		type Keys = UintAuthorityId;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
 		type SessionHandler = ();
 		type Event = ();
@@ -969,6 +971,7 @@ mod tests {
 		type CreationFee = CreationFee;
 		type TransactionBaseFee = TransactionBaseFee;
 		type TransactionByteFee = TransactionByteFee;
+		type WeightToFee = ConvertInto;
 	}
 
 	parameter_types! {
@@ -987,6 +990,7 @@ mod tests {
 		type SessionsPerEra = SessionsPerEra;
 		type BondingDuration = BondingDuration;
 		type SessionInterface = Self;
+		type Time = timestamp::Module<Test>;
 	}
 
 	impl attestations::Trait for Test {
@@ -1008,19 +1012,19 @@ mod tests {
 
 		let (mut t, mut c) = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		let authority_keys = [
-			AuthorityKeyring::Alice,
-			AuthorityKeyring::Bob,
-			AuthorityKeyring::Charlie,
-			AuthorityKeyring::Dave,
-			AuthorityKeyring::Eve,
-			AuthorityKeyring::Ferdie,
-			AuthorityKeyring::One,
-			AuthorityKeyring::Two,
+			Ed25519Keyring::Alice,
+			Ed25519Keyring::Bob,
+			Ed25519Keyring::Charlie,
+			Ed25519Keyring::Dave,
+			Ed25519Keyring::Eve,
+			Ed25519Keyring::Ferdie,
+			Ed25519Keyring::One,
+			Ed25519Keyring::Two,
 		];
 
 		// stashes are the index.
 		let session_keys: Vec<_> = authority_keys.iter().enumerate()
-			.map(|(i, k)| (i as u64, Keys { ed25519: SessionKey::from(*k) }))
+			.map(|(i, _k)| (i as u64, UintAuthorityId(i as u64)))
 			.collect();
 
 		let authorities: Vec<_> = authority_keys.iter().map(|k| SessionKey::from(*k)).collect();
@@ -1058,9 +1062,7 @@ mod tests {
 			stakers,
 			validator_count: 10,
 			minimum_validator_count: 8,
-			session_reward: Perbill::from_millionths(1000),
 			offline_slash: Perbill::from_percent(5),
-			current_session_reward: 100,
 			offline_slash_grace: 0,
 			invulnerables: vec![],
 		}.assimilate_storage(&mut t, &mut c).unwrap();
@@ -1081,7 +1083,7 @@ mod tests {
 
 		let authorities = Parachains::authorities();
 		let extract_key = |public: SessionKey| {
-			AuthorityKeyring::from_raw_public(public.0).unwrap()
+			Ed25519Keyring::from_raw_public(public.0).unwrap()
 		};
 
 		let validation_entries = duty_roster.validator_duty.iter()

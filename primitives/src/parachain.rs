@@ -29,7 +29,7 @@ use primitives::bytes;
 use primitives::ed25519;
 
 pub use polkadot_parachain::{
-	Id, AccountIdConversion, ParachainDispatchOrigin,
+	Id, AccountIdConversion, ParachainDispatchOrigin, UpwardMessage,
 };
 
 /// Identity that collators use.
@@ -108,16 +108,6 @@ pub struct Extrinsic {
 	///
 	/// This must be sorted in ascending order by parachain ID.
 	pub outgoing_messages: Vec<OutgoingMessage>
-}
-
-/// A message from a parachain to its Relay Chain.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct UpwardMessage {
-	/// The origin for the message to be sent from.
-	pub origin: ParachainDispatchOrigin,
-	/// The message data.
-	pub data: Vec<u8>,
 }
 
 /// Candidate receipt type.

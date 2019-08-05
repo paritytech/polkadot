@@ -24,8 +24,11 @@ use system::ensure_none;
 use parity_codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
-use sr_primitives::traits::ValidateUnsigned;
-use sr_primitives::transaction_validity::{TransactionLongevity, TransactionValidity};
+use sr_primitives::{
+	weights::SimpleDispatchInfo,
+	traits::ValidateUnsigned,
+	transaction_validity::{TransactionLongevity, TransactionValidity, ValidTransaction},
+};
 use system;
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -97,6 +100,7 @@ decl_module! {
 		fn deposit_event<T>() = default;
 
 		/// Make a claim.
+		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
@@ -171,13 +175,13 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 					return TransactionValidity::Invalid(SIGNER_HAS_NO_CLAIM);
 				}
 
-				TransactionValidity::Valid {
+				TransactionValidity::Valid(ValidTransaction {
 					priority: PRIORITY,
 					requires: vec![],
 					provides: vec![],
 					longevity: TransactionLongevity::max_value(),
 					propagate: true,
-				}
+				})
 			}
 			_ => TransactionValidity::Invalid(INVALID_CALL)
 		}
@@ -196,9 +200,7 @@ mod tests {
 	use parity_codec::{Decode, Encode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
-	use sr_primitives::{
-		traits::{BlakeTwo256, IdentityLookup}, testing::Header
-	};
+	use sr_primitives::{Perbill, traits::{BlakeTwo256, IdentityLookup, ConvertInto}, testing::Header};
 	use balances;
 	use srml_support::{impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types};
 
@@ -213,6 +215,9 @@ mod tests {
 	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
+		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
+		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
+		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
@@ -222,9 +227,13 @@ mod tests {
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
+		type WeightMultiplierUpdate = ();
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type AvailableBlockRatio = AvailableBlockRatio;
+		type MaximumBlockLength = MaximumBlockLength;
 	}
 
 	parameter_types! {
@@ -248,6 +257,7 @@ mod tests {
 		type CreationFee = CreationFee;
 		type TransactionBaseFee = TransactionBaseFee;
 		type TransactionByteFee = TransactionByteFee;
+		type WeightToFee = ConvertInto;
 	}
 
 	parameter_types!{
@@ -369,13 +379,13 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(1, alice_sig(&1u64.encode()))),
-				TransactionValidity::Valid {
+				TransactionValidity::Valid(ValidTransaction {
 					priority: 100,
 					requires: vec![],
 					provides: vec![],
 					longevity: TransactionLongevity::max_value(),
 					propagate: true,
-				}
+				})
 			);
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(0, EcdsaSignature::from_blob(&[0; 65]))),
