@@ -200,7 +200,7 @@ decl_module! {
 		///
 		/// Must be sent from a Signed origin that is able to have ParathreadDeposit reserved.
 		/// `code` and `initial_head_data` are used to initialize the parathread's state.
-		fn register_parathead(origin,
+		fn register_parathread(origin,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>
 		) {
