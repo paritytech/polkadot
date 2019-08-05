@@ -108,7 +108,7 @@ impl<T: Trait> Module<T> {
 
 		// clear old entry that was in this place.
 		if let Some(old_entry) = <RecentParaBlocks<T>>::take(&mod_num) {
-			<ParaBlockAttestations<T>>::remove_prefix(old_entry.actual_number);
+			<ParaBlockAttestations<T>>::remove_prefix(&old_entry.actual_number);
 		}
 
 		let validators = T::ValidatorIdentities::get();
@@ -132,7 +132,7 @@ impl<T: Trait> Module<T> {
 				invalid,
 			};
 
-			<ParaBlockAttestations<T>>::insert(para_blocks.actual_number, hash, &summary);
+			<ParaBlockAttestations<T>>::insert(&para_blocks.actual_number, hash, &summary);
 		}
 
 		<RecentParaBlocks<T>>::insert(&mod_num, &para_blocks);
