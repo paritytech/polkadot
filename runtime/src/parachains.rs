@@ -21,7 +21,6 @@ use rstd::collections::btree_map::BTreeMap;
 use parity_codec::{Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
-use bitvec::{bitvec, BigEndian};
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
 use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
@@ -726,6 +725,11 @@ impl<T: Trait> Module<T> {
 				"Not enough validity attestations"
 			);
 
+			ensure!(
+				candidate.validity_votes.len() <= authorities.len(),
+				"The number of attestations exceeds the number of authorities"
+			);
+
 			let fees = candidate.candidate().fees;
 			T::ParachainCurrency::deduct(para_id, fees)?;
 
@@ -733,19 +737,15 @@ impl<T: Trait> Module<T> {
 			let mut encoded_implicit = None;
 			let mut encoded_explicit = None;
 
-			// track which voters have voted already, 1 bit per authority.
-			let mut track_voters = bitvec![0; authorities.len()];
-			for (auth_index, validity_attestation) in &candidate.validity_votes {
-				let auth_index = *auth_index as usize;
-				// protect against double-votes.
-				match validator_group.iter().find(|&(idx, _)| *idx == auth_index) {
-					None => return Err("Attesting validator not on this chain's validation duty."),
-					Some(&(idx, _)) => {
-						if track_voters.get(idx) {
-							return Err("Voter already attested validity once")
-						}
-						track_voters.set(idx, true)
-					}
+			for ((auth_index, _), validity_attestation) in candidate.validator_indices
+				.iter()
+				.enumerate()
+				.filter(|(_, bit)| *bit)
+				.zip(candidate.validity_votes.iter())
+			{
+
+				if validator_group.iter().find(|&(idx, _)| *idx == auth_index).is_none() {
+					return Err("Attesting validator not on this chain's validation duty.");
 				}
 
 				let (payload, sig) = match validity_attestation {
@@ -818,6 +818,7 @@ impl<T: Trait> ProvideInherent for Module<T> {
 mod tests {
 	use super::*;
 	use super::Call as ParachainsCall;
+	use bitvec::{bitvec, vec::BitVec};
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
@@ -827,7 +828,7 @@ mod tests {
 		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey,
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey,
 		BlockNumber, AuraId,
 	};
 	use keyring::Ed25519Keyring;
@@ -1004,6 +1005,7 @@ mod tests {
 		let validation_entries = duty_roster.validator_duty.iter()
 			.enumerate();
 
+		let mut validator_indices = BitVec::new();
 		for (idx, &duty) in validation_entries {
 			if duty != Chain::Parachain(candidate.parachain_index()) { continue }
 			vote_implicit = !vote_implicit;
@@ -1019,17 +1021,24 @@ mod tests {
 			let payload = localized_payload(statement, parent_hash);
 			let signature = key.sign(&payload[..]).into();
 
-			candidate.validity_votes.push((idx as ValidatorIndex, if vote_implicit {
+			candidate.validity_votes.push(if vote_implicit {
 				ValidityAttestation::Implicit(signature)
 			} else {
 				ValidityAttestation::Explicit(signature)
-			}));
+			});
+
+			if validator_indices.len() <= idx {
+				validator_indices.resize(idx + 1, false);
+			}
+			validator_indices.set(idx, true);
 		}
+		candidate.validator_indices = validator_indices;
 	}
 
 	fn new_candidate_with_egress_roots(egress_queue_roots: Vec<(ParaId, H256)>) -> AttestedCandidate {
 		AttestedCandidate {
 			validity_votes: vec![],
+			validator_indices: BitVec::new(),
 			candidate: CandidateReceipt {
 				parachain_index: 0.into(),
 				collator: Default::default(),
@@ -1049,6 +1058,7 @@ mod tests {
 	) -> AttestedCandidate {
 		AttestedCandidate {
 			validity_votes: vec![],
+			validator_indices: BitVec::new(),
 			candidate: CandidateReceipt {
 				parachain_index: id.into(),
 				collator: Default::default(),
@@ -1411,6 +1421,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			let candidate = AttestedCandidate {
 				validity_votes: vec![],
+				validator_indices: BitVec::new(),
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
@@ -1438,6 +1449,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
+				validator_indices: BitVec::new(),
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
@@ -1452,6 +1464,7 @@ mod tests {
 
 			let mut candidate_b = AttestedCandidate {
 				validity_votes: vec![],
+				validator_indices: BitVec::new(),
 				candidate: CandidateReceipt {
 					parachain_index: 1.into(),
 					collator: Default::default(),
@@ -1489,6 +1502,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
+				validator_indices: BitVec::new(),
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
@@ -1505,9 +1519,46 @@ mod tests {
 
 			let mut double_validity = candidate.clone();
 			double_validity.validity_votes.push(candidate.validity_votes[0].clone());
+			double_validity.validator_indices.push(true);
 
 			assert!(Parachains::dispatch(
 				set_heads(vec![double_validity]),
+				Origin::NONE,
+			).is_err());
+		});
+	}
+
+	#[test]
+	fn validators_not_from_group_is_rejected() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			let mut candidate = AttestedCandidate {
+				validity_votes: vec![],
+				validator_indices: BitVec::new(),
+				candidate: CandidateReceipt {
+					parachain_index: 0.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					egress_queue_roots: vec![],
+					fees: 0,
+					block_data_hash: Default::default(),
+					upward_messages: vec![],
+				}
+			};
+
+			make_attestations(&mut candidate);
+
+			// Change the last vote index to make it not corresponding to the assigned group.
+			assert!(candidate.validator_indices.pop().is_some());
+			candidate.validator_indices.append(&mut bitvec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+
+			assert!(Parachains::dispatch(
+				set_heads(vec![candidate]),
 				Origin::NONE,
 			).is_err());
 		});
@@ -1533,6 +1584,7 @@ mod tests {
 				let from_a = vec![(1.into(), [i as u8; 32].into())];
 				let mut candidate_a = AttestedCandidate {
 					validity_votes: vec![],
+					validator_indices: BitVec::new(),
 					candidate: CandidateReceipt {
 						parachain_index: 0.into(),
 						collator: Default::default(),
@@ -1548,6 +1600,7 @@ mod tests {
 				let from_b = vec![(99.into(), [i as u8; 32].into())];
 				let mut candidate_b = AttestedCandidate {
 					validity_votes: vec![],
+					validator_indices: BitVec::new(),
 					candidate: CandidateReceipt {
 						parachain_index: 1.into(),
 						collator: Default::default(),
@@ -1611,6 +1664,7 @@ mod tests {
 
 			let mut candidate_c = AttestedCandidate {
 				validity_votes: vec![],
+				validator_indices: BitVec::new(),
 				candidate: CandidateReceipt {
 					parachain_index: 99.into(),
 					collator: Default::default(),
