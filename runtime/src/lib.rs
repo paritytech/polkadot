@@ -308,16 +308,6 @@ impl collective::Trait<TechnicalInstance> for Runtime {
 	type Event = Event;
 }
 
-impl membership::Trait<membership::Instance1> for Runtime {
-	type Event = Event;
-	type AddOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilInstance>;
-	type RemoveOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilInstance>;
-	type SwapOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilInstance>;
-	type ResetOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilInstance>;
-	type MembershipInitialized = TechnicalCommittee;
-	type MembershipChanged = TechnicalCommittee;
-}
-
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
 	pub const ProposalBondMinimum: Balance = 1 * BUCKS;
