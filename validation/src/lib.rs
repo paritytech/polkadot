@@ -524,7 +524,7 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 	type Error = Error;
 
 	fn init(
-		&self,
+		&mut self,
 		parent_header: &Header,
 	) -> Result<Self::Proposer, Error> {
 		let parent_hash = parent_header.hash();
@@ -575,7 +575,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	type Error = Error;
 	type Create = Either<CreateProposal<C, TxApi>, future::Ready<Result<Block, Error>>>;
 
-	fn propose(&self,
+	fn propose(&mut self,
 		inherent_data: InherentData,
 		inherent_digests: DigestFor<Block>,
 		max_duration: Duration,

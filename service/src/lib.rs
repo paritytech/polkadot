@@ -303,7 +303,7 @@ service::construct_service_factory! {
 					client.clone(),
 					select_chain,
 					block_import,
-					Arc::new(proposer_factory),
+					proposer_factory,
 					service.network(),
 					service.config.custom.inherent_data_providers.clone(),
 					service.config.force_authoring,

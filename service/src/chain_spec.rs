@@ -34,7 +34,7 @@ const DEFAULT_PROTOCOL_ID: &str = "dot";
 pub type ChainSpec = ::service::ChainSpec<GenesisConfig>;
 
 pub fn poc_3_testnet_config() -> Result<ChainSpec, String> {
-	ChainSpec::from_embedded(include_bytes!("../res/alexander.json"))
+	ChainSpec::from_json_bytes(&include_bytes!("../res/alexander.json")[..])
 }
 
 fn staging_testnet_config_genesis() -> GenesisConfig {
