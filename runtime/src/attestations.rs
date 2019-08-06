@@ -118,8 +118,12 @@ impl<T: Trait> Module<T> {
 			let mut valid = Vec::new();
 			let invalid = Vec::new();
 
-			for (auth_index, _) in &head.validity_votes {
-				let stash_id = validators.get(*auth_index as usize)
+			for (auth_index, _) in head.validator_indices
+				.iter()
+				.enumerate()
+				.filter(|(_, bit)| *bit)
+			{
+				let stash_id = validators.get(auth_index)
 					.expect("auth_index checked to be within bounds in `check_candidates`; qed")
 					.clone();
 
