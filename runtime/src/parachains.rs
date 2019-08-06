@@ -48,7 +48,7 @@ use rstd::marker::PhantomData;
 use system::{ensure_none, ensure_root};
 
 /// The number of point to reward for a validity statement.
-const VALIDITY_STATEMENT_REWARD_POINT: u32 = 20;
+const VALIDITY_STATEMENT_REWARD_POINTS: u32 = 20;
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -312,7 +312,7 @@ decl_module! {
 				Self::check_candidates(&heads)?;
 
 				let rewards = heads.validity_votes.iter()
-					.map(|(validator_index, _)| (validator, VALIDITY_STATEMENT_REWARD_POINT))
+					.map(|(validator_index, _)| (validator, VALIDITY_STATEMENT_REWARD_POINTS))
 					.collect::<Vec<_>>();
 
 				<staking::Module<T>>::add_reward_points_using_index(rewards);
