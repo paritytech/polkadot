@@ -19,6 +19,7 @@
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
 use parity_codec::{Encode, Decode};
+use bitvec::vec::BitVec;
 use super::{Hash, Balance, BlockNumber};
 
 #[cfg(feature = "std")]
@@ -305,7 +306,9 @@ pub struct AttestedCandidate {
 	/// The candidate data.
 	pub candidate: CandidateReceipt,
 	/// Validity attestations.
-	pub validity_votes: Vec<(ValidatorIndex, ValidityAttestation)>,
+	pub validity_votes: Vec<ValidityAttestation>,
+	/// Indices of the corresponding validity votes.
+	pub validator_indices: BitVec,
 }
 
 impl AttestedCandidate {
