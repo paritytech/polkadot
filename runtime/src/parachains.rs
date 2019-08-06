@@ -753,12 +753,20 @@ impl<T: Trait> Module<T> {
 			let mut encoded_implicit = None;
 			let mut encoded_explicit = None;
 
-			for ((auth_index, _), validity_attestation) in candidate.validator_indices
+			let mut expected_votes_len = 0;
+			for (vote_index, (auth_index, _)) in candidate.validator_indices
 				.iter()
 				.enumerate()
 				.filter(|(_, bit)| *bit)
-				.zip(candidate.validity_votes.iter())
+				.enumerate()
 			{
+				let validity_attestation = match candidate.validity_votes.get(vote_index) {
+					None => return Err("Not enough validity votes"),
+					Some(v) => {
+						expected_votes_len = vote_index + 1;
+						v
+					}
+				};
 
 				if validator_group.iter().find(|&(idx, _)| *idx == auth_index).is_none() {
 					return Err("Attesting validator not on this chain's validation duty.");
@@ -792,6 +800,11 @@ impl<T: Trait> Module<T> {
 			}
 
 			para_block_hashes.push(candidate_hash.unwrap_or_else(|| candidate.candidate().hash()));
+
+      ensure!(
+				candidate.validity_votes.len() == expected_votes_len,
+				"Extra untagged validity votes along with candidate"
+			);
 		}
 
 		Ok(IncludedBlocks {
