@@ -16,7 +16,7 @@
 
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
-use rstd::prelude::*;
+use rstd::{prelude::*, result};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
 use parity_codec::{Encode, Decode};
@@ -29,9 +29,9 @@ use sr_primitives::{
 #[cfg(feature = "std")]
 use srml_support::storage::hashed::generator;
 use srml_support::{
-	decl_storage, decl_module, ensure,
-	StorageValue, StorageMap, Dispatchable, dispatch::Result,
-	traits::{Get, Currency}
+	decl_storage, decl_module, decl_event, ensure,
+	StorageValue, StorageMap, dispatch::Result,
+	traits::{Get, Currency, ReservableCurrency}
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
@@ -99,15 +99,20 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 
 type BalanceOf<T> =
 	<<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
-type NegativeImbalanceOf<T> =
-	<<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
 
 pub trait Trait: parachains::Trait {
 	/// The overarching event type.
 	type Event: From<Event> + Into<<Self as system::Trait>::Event>;
 
+	/// The aggregated origin type must support the parachains origin. We require that we can
+	/// infallibly convert between this origin and the system origin, but in reality, they're the
+	/// same type, we just can't express that to the Rust type system without writing a `where`
+	/// clause everywhere.
+	type Origin: From<<Self as system::Trait>::Origin>
+		+ Into<result::Result<parachains::Origin, <Self as Trait>::Origin>>;
+
 	/// The system's currency for parathread payment.
-	type Currency: Currency<Self::AccountId>;
+	type Currency: ReservableCurrency<Self::AccountId>;
 
 	/// The deposit to be paid to run a parathread.
 	type ParathreadDeposit: Get<BalanceOf<Self>>;
@@ -140,7 +145,7 @@ decl_storage! {
 		NextFreeId: ParaId = LOWEST_USER_ID;
 
 		/// Pending swap operations.
-		PendingSwap: map ParaId => ParaId;
+		PendingSwap: map ParaId => Option<ParaId>;
 
 		// Map of all registered parathreads/chains.
 		Paras get(paras): map ParaId => Option<ParaInfo>;
@@ -213,8 +218,8 @@ decl_module! {
 			};
 			let id = <Self as Registrar<T::AccountId>>::new_id();
 
-			<Self as Registrar<T::AccountId>>::
-				register_para(id, info, code, initial_head_data)
+			let _ = <Self as Registrar<T::AccountId>>::
+				register_para(id, info, code, initial_head_data);
 		}
 
 		/// Place a bid for a parathread to be progressed in the next block.
@@ -223,9 +228,9 @@ decl_module! {
 		/// transaction pool according to the `value`; only `ThreadCount` of them may be presented
 		/// in any single block.
 		fn select_parathread(origin,
-			#[compact] id: ParaId,
-			collator: CollatorId,
-			head_data_hash: T::Hash
+			#[compact] _id: ParaId,
+			_collator: CollatorId,
+			_head_data_hash: T::Hash
 		) {
 			ensure_signed(origin)?;
 			// Everything else is checked for in the transaction `SignedExtension`.
@@ -239,31 +244,29 @@ decl_module! {
 		/// account is moved out; after this it will be impossible to retrieve them (without
 		/// governance intervention).
 		fn deregister_parathread(origin,
-			debtor: <T::Lookup as StaticLookup>::Source,
-			#[compact] required_transfer: BalanceOf<T>
+			debtor: <T::Lookup as StaticLookup>::Source
 		) {
-			let id = crate::parachains::ensure_parachain(origin)?;
+			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 			let debtor = T::Lookup::lookup(debtor)?;
 
 			let info = Paras::get(id).ok_or("invalid id")?;
 			if let Scheduling::Dynamic = info.scheduling {} else { Err("invalid parathread id")? }
 
+			<Self as Registrar<T::AccountId>>::deregister_para(id)?;
+
 			let _ = T::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
-			<Self as Registrar<T::AccountId>>::deregister_para(id);
 		}
 
 		/// Swap a parachain with another parachain or parathread. The origin must be a `Parachain`.
-		/// The swap will happen only if there is already an opposite swap. If there is not, the
-		/// swap will be stored in the pending swaps map, ready for a later confirmatory swap.
+		/// The swap will happen only if there is already an opposite swap pending. If there is not,
+		/// the swap will be stored in the pending swaps map, ready for a later confirmatory swap.
 		///
 		/// The `ParaId`s remain mapped to the same head data and code so external code can rely on
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
 		fn swap(origin, #[compact] other: ParaId) {
-			let id = crate::parachains::ensure_parachain(origin)?;
-
-			let info = Paras::get(id).ok_or("invalid id")?;
+			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
 			if PendingSwap::get(other) == Some(id) {
 				// actually do the swap.
@@ -292,19 +295,23 @@ decl_module! {
 	}
 }
 
-pub enum Event {
-	/// A parathread was registered; its new ID is supplied.
-	ParathreadRegistered(ParaId),
+decl_event!{
+	pub enum Event {
+		/// A parathread was registered; its new ID is supplied.
+		ParathreadRegistered(ParaId),
 
-	/// The parathread of the supplied ID was de-registered.
-	ParathreadDeregistered(ParaId),
+		/// The parathread of the supplied ID was de-registered.
+		ParathreadDeregistered(ParaId),
+	}
 }
 
 impl<T: Trait> Module<T> {
-	pub fn ensure_thread_id(id: ParaId) -> rstd::result::Result<ParaInfo, &'static str> {
-		let info = Paras::get(id).ok_or("invalid id")?;
-		if let Scheduling::Dynamic = info.scheduling {} else { Err("invalid parathread id")? }
-		Ok(info)
+	pub fn ensure_thread_id(id: ParaId) -> Option<ParaInfo> {
+		Paras::get(id).and_then(|info| if let Scheduling::Dynamic = info.scheduling {
+			Some(info)
+		} else {
+			None
+		})
 	}
 }
 
@@ -342,38 +349,41 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 
 	fn validate(
 		&self,
-		who: &Self::AccountId,
+		_who: &Self::AccountId,
 		call: &Self::Call,
-		info: DispatchInfo,
-		len: usize,
+		_info: DispatchInfo,
+		_len: usize,
 	) -> rstd::result::Result<ValidTransaction, DispatchError> {
 		let mut r = ValidTransaction::default();
 		if let Some(local_call) = call.is_aux_sub_type() {
 			if let Call::select_parathread(id, collator, hash) = local_call {
 				// ensure that the para ID is actually a parathread.
-				Self::ensure_thread_id(id)?;
+				<Module<T>>::ensure_thread_id(*id).ok_or(DispatchError::BadState)?;
 
 				// ensure that we haven't already had a full complement of selected parathreads.
-				let mut selected_threads = <SelectedThreads<T>>::get();
-				ensure!(selected_threads.len() < ThreadCount::get(), DispatchError::Exhausted);
+				let mut selected_threads = SelectedThreads::get();
+				let thread_count = ThreadCount::get() as usize;
+				ensure!(selected_threads.len() < thread_count, DispatchError::BlockExhausted);
 
 				// ensure that this is not selecting a duplicate parathread ID
 				let pos = selected_threads
-					.binary_search_by(|&(ref other_id, _)| other_id == id)
+					.binary_search_by(|&(ref other_id, _)| other_id.cmp(id))
 					.err()
 					.ok_or(DispatchError::BadState)?;
 
 				// ensure that this is a live bid (i.e. that the thread's chain head matches)
-				let actual = T::Hashing::hash(&<parachains::Module<T>>::parachain_head(id));
-				ensure!(actual == hash, DispatchError::Stale);
+				let head = <parachains::Module<T>>::parachain_head(id)
+					.ok_or(DispatchError::BadState)?;
+				let actual = T::Hashing::hash(&head);
+				ensure!(&actual == hash, DispatchError::Stale);
 
 				// updated the selected threads.
-				selected_threads.insert(pos, (id, collator));
-				<SelectedThreads<T>>::put(selected_threads);
+				selected_threads.insert(pos, (*id, collator.clone()));
+				SelectedThreads::put(selected_threads);
 
 				// provides the state-transition for this head-data-hash; this should cue the pool
 				// to throw out competing transactions with lesser fees.
-				r.provides = hash.encode();
+				r.provides = vec![hash.encode()];
 			}
 		}
 		Ok(r)

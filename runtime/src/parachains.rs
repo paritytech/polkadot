@@ -18,14 +18,12 @@
 
 use rstd::prelude::*;
 use rstd::{result, collections::btree_map::BTreeMap};
-#[cfg(any(feature = "std", test))]
-use rstd::marker::PhantomData;
 use parity_codec::Decode;
 use srml_support::{decl_storage, decl_module, ensure};
 
 use bitvec::{bitvec, BigEndian};
 use sr_primitives::{
-	traits::{Hash as HashT, EnsureOrigin, BlakeTwo256, Member, CheckedConversion, Saturating, One},
+	traits::{Hash as HashT, EnsureOrigin, BlakeTwo256, Saturating, One, AccountIdConversion},
 	weights::SimpleDispatchInfo
 };
 #[cfg(any(feature = "std", test))]
@@ -39,13 +37,14 @@ use srml_support::{
 	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
 	traits::{Currency, WithdrawReason, ExistenceRequirement}
 };
-
+use primitives::{Hash, Balance, parachain::{
+	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
+	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ActiveParas, CollatorId
+}};
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
 use system::ensure_none;
 use crate::registrar::Registrar;
-
-use system::{ensure_none, ensure_root};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -235,8 +234,6 @@ decl_module! {
 				);
 
 				Self::dispatch_upward_messages(
-					current_number,
-					&active_parachains,
 					MAX_QUEUE_COUNT,
 					WATERMARK_QUEUE_SIZE,
 					Self::dispatch_message,
@@ -427,14 +424,14 @@ impl<T: Trait> Module<T> {
 			// to panic, even if it does.
 			let _ = RelayDispatchQueue::append(id, upward_messages);
 			if ordered_needs_dispatch.binary_search(&id).is_err() {
-				NeedsDispatch::append(&[id]);
+				// same.
+				let _ = NeedsDispatch::append(&[id]);
 			}
 		}
 	}
 
 	/// Simple FIFO dispatcher.
 	fn dispatch_upward_messages(
-		now: T::BlockNumber,
 		max_queue_count: usize,
 		watermark_queue_size: usize,
 		mut dispatch_message: impl FnMut(ParaId, ParachainDispatchOrigin, &[u8]),
@@ -1067,7 +1064,7 @@ mod tests {
 			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(0, &parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(&parachains, 2, 3, dummy);
 			assert_eq!(dispatched, vec![
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 4])
 			]);
@@ -1087,7 +1084,7 @@ mod tests {
 			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(0, &parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(&parachains, 2, 3, dummy);
 			assert_eq!(dispatched, vec![
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
@@ -1109,7 +1106,7 @@ mod tests {
 			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(1, &parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(&parachains, 2, 3, dummy);
 			assert_eq!(dispatched, vec![
 				(1.into(), ParachainDispatchOrigin::Parachain, vec![1; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
@@ -1131,7 +1128,7 @@ mod tests {
 			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(2, &parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(&parachains, 2, 3, dummy);
 			assert_eq!(dispatched, vec![
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2]),
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2])

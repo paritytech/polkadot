@@ -19,15 +19,16 @@
 //! information for commissioning and decommissioning them.
 
 use rstd::{prelude::*, mem::swap, convert::TryInto, result::Result};
-use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash};
-use sr_primitives::weights::SimpleDispatchInfo;
-use parity_codec::{Encode, Decode};
+use sr_primitives::{weights::SimpleDispatchInfo, traits::{
+	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion
+}};
+use parity_codec::{Encode, Decode, Codec};
 use srml_support::{
 	decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}
 };
 use primitives::parachain::{
-	AccountIdConversion, OnSwap, PARACHAIN_INFO, Id as ParaId
+	OnSwap, PARACHAIN_INFO, Id as ParaId
 };
 use system::{ensure_signed, ensure_root};
 use crate::registrar::Registrar;
@@ -84,7 +85,7 @@ pub enum Bidder<AccountId> {
 	Existing(ParaId),
 }
 
-impl<AccountId: Clone> Bidder<AccountId> {
+impl<AccountId: Clone + Default + Codec> Bidder<AccountId> {
 	/// Get the account that will fund this bid.
 	fn funding_account(&self) -> AccountId {
 		match self {
@@ -521,8 +522,8 @@ impl<T: Trait> Module<T> {
 
 					// Add para IDs of any chains that will be newly deployed to our set of managed
 					// IDs
-					<ManagedIds<T>>::mutate(|ids|
-						if let Err(pos) = ids.binary_search(para_id) {
+					ManagedIds::mutate(|ids|
+						if let Err(pos) = ids.binary_search(&para_id) {
 							ids.insert(pos, para_id)
 						} else {
 							// This can't happen as it's a winner being newly
@@ -605,7 +606,7 @@ impl<T: Trait> Module<T> {
 		Self::deposit_event(RawEvent::NewLeasePeriod(lease_period_index));
 		// First, bump off old deposits and decommission any managed chains that are coming
 		// to a close.
-		<ManagedIds<T>>::mutate(|ids| {
+		ManagedIds::mutate(|ids| {
 			let new = ids.drain(..).filter(|id| {
 				let mut d = <Deposits<T>>::get(id);
 				if !d.is_empty() {

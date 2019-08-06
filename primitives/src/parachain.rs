@@ -29,8 +29,7 @@ use primitives::bytes;
 use primitives::ed25519;
 
 pub use polkadot_parachain::{
-	Id, AccountIdConversion, ParachainDispatchOrigin, LOWEST_USER_ID,
-	UpwardMessage,
+	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage,
 };
 
 /// Identity that collators use.

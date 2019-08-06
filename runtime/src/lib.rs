@@ -148,7 +148,7 @@ pub type DealWithFees = SplitTwoWays<
 	Balance,
 	NegativeImbalance,
 	_4, Treasury,   // 4 parts (80%) goes to the treasury.
-	_1, Author,     // 1 part (20%) goes to the block author.
+	_1, ToAuthor,     // 1 part (20%) goes to the block author.
 >;
 
 impl balances::Trait for Runtime {
@@ -197,10 +197,10 @@ parameter_types! {
 type SessionHandlers = (Grandpa, Aura);
 impl_opaque_keys! {
 	pub struct SessionKeys {
-		#[id(key_types::ED25519)]
-		pub ed25519: GrandpaId,
-		#[id(key_types::SR25519)]
-		pub sr25519: AuraId,
+		#[id(key_types::GRANDPA)]
+		pub grandpa: GrandpaId,
+		#[id(key_types::AURA)]
+		pub aura: AuraId,
 	}
 }
 
@@ -248,7 +248,7 @@ parameter_types! {
 	pub const LaunchPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
 	pub const VotingPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
 	pub const EmergencyVotingPeriod: BlockNumber = 3 * 24 * 60 * MINUTES;
-	pub const MinimumDeposit: Balance = 100 * DOLLARS;
+	pub const MinimumDeposit: Balance = 100 * BUCKS;
 	pub const EnactmentPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
 	pub const CooloffPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
 }
@@ -264,7 +264,7 @@ impl democracy::Trait for Runtime {
 	type MinimumDeposit = MinimumDeposit;
 	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilInstance>;
 	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilInstance>;
-	type ExternalPushOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalInstance>;
+	type FastTrackOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalInstance>;
 	type EmergencyOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilInstance>;
 	type CancellationOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilInstance>;
 	type VetoOrigin = collective::EnsureMember<AccountId, CouncilInstance>;
@@ -279,9 +279,9 @@ impl collective::Trait<CouncilInstance> for Runtime {
 }
 
 parameter_types! {
-	pub const CandidacyBond: Balance = 10 * DOLLARS;
-	pub const VotingBond: Balance = 1 * DOLLARS;
-	pub const VotingFee: Balance = 2 * DOLLARS;
+	pub const CandidacyBond: Balance = 10 * BUCKS;
+	pub const VotingBond: Balance = 1 * BUCKS;
+	pub const VotingFee: Balance = 2 * BUCKS;
 	pub const PresentSlashPerVoter: Balance = 1 * CENTS;
 	pub const CarryCount: u32 = 6;
 	// one additional vote should go by before an inactive voter can be reaped.
@@ -317,7 +317,7 @@ impl collective::Trait<TechnicalInstance> for Runtime {
 
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
-	pub const ProposalBondMinimum: Balance = 1 * DOLLARS;
+	pub const ProposalBondMinimum: Balance = 1 * BUCKS;
 	pub const SpendPeriod: BlockNumber = 1 * DAYS;
 	pub const Burn: Permill = Permill::from_percent(50);
 }
@@ -359,11 +359,12 @@ impl parachains::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const ParathreadDeposit: Balance = 500 * DOLLARS;
+	pub const ParathreadDeposit: Balance = 500 * BUCKS;
 }
 
 impl registrar::Trait for Runtime {
 	type Event = Event;
+	type Origin = Origin;
 	type Currency = Balances;
 	type ParathreadDeposit = ParathreadDeposit;
 	type OnSwap = Slots;
@@ -383,6 +384,16 @@ impl slots::Trait for Runtime {
 }
 
 impl curated_grandpa::Trait for Runtime { }
+
+parameter_types!{
+	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
+}
+
+impl claims::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type Prefix = Prefix;
+}
 
 impl sudo::Trait for Runtime {
 	type Event = Event;
@@ -414,6 +425,7 @@ construct_runtime!(
 		Parachains: parachains::{Module, Call, Storage, Inherent, Origin},
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
 		Slots: slots::{Module, Call, Storage, Event<T>},
+		Claims: claims::{Module, Call, Storage, Event<T>},
 		Sudo: sudo,
 	}
 );

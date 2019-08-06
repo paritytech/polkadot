@@ -7,7 +7,7 @@ dependencies = [
  "dlmalloc 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-parachain 0.1.0",
- "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-ext-tx-call)",
  "substrate-wasm-builder-runner 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -2518,6 +2518,7 @@ dependencies = [
  "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.97 (registry+https://github.com/rust-lang/crates.io-index)",
  "shared_memory 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-ext-tx-call)",
  "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-ext-tx-call)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmi 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3323,14 +3324,6 @@ dependencies = [
 name = "sr-std"
 version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=gav-ext-tx-call#aadeb9ca35ae324641fe711db33775533905134e"
-dependencies = [
- "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "sr-std"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#9ede42b1d21e16265172d647eab5146e308e6436"
 dependencies = [
  "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -5422,7 +5415,6 @@ dependencies = [
 "checksum sr-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-ext-tx-call)" = "<none>"
 "checksum sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-ext-tx-call)" = "<none>"
 "checksum sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-ext-tx-call)" = "<none>"
-"checksum sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sr-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-ext-tx-call)" = "<none>"
 "checksum srml-aura 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-ext-tx-call)" = "<none>"
 "checksum srml-authorship 0.1.0 (git+https://github.com/paritytech/substrate?branch=gav-ext-tx-call)" = "<none>"

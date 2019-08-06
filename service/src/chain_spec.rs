@@ -86,7 +86,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		session: Some(SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
-				SessionKeys { ed25519: x.2.clone() },
+				SessionKeys { ed25519: x.2.clone(), sr25519: x.2.clone() },
 			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
