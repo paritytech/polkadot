@@ -68,11 +68,11 @@ impl EcdsaSignature {
 
 decl_event!(
 	pub enum Event<T> where
-		B = BalanceOf<T>,
-		A = <T as system::Trait>::AccountId
+		Balance = BalanceOf<T>,
+		AccountId = <T as system::Trait>::AccountId
 	{
 		/// Someone claimed some DOTs.
-		Claimed(A, EthereumAddress, B),
+		Claimed(AccountId, EthereumAddress, Balance),
 	}
 );
 
