@@ -882,8 +882,8 @@ mod tests {
 		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey,
-		BlockNumber, BabeId,
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation},
+		SessionKey, BlockNumber
 	};
 	use crate::constants::time::*;
 	use keyring::{Ed25519Keyring, Sr25519Keyring};

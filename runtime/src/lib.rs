@@ -340,12 +340,12 @@ impl treasury::Trait for Runtime {
 }
 
 impl im_online::Trait for Runtime {
-	type AuthorityId = AuraId;
+	type AuthorityId = BabeId;
 	type Call = Call;
 	type Event = Event;
 	type SessionsPerEra = SessionsPerEra;
 	type UncheckedExtrinsic = UncheckedExtrinsic;
-	type IsValidAuthorityId = Aura;
+	type IsValidAuthorityId = Babe;
 }
 
 impl grandpa::Trait for Runtime {
