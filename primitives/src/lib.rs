@@ -78,6 +78,7 @@ pub type Balance = u128;
 #[cfg(feature = "std")]
 pub type BabePair = sr25519::Pair;
 
+/// The Sr25519 pub key of an session that belongs to a Babe authority of the chain.
 pub type BabeId = babe::AuthorityId;
 
 /// The Parachain crypto scheme defined via the keypair type.

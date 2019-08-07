@@ -27,7 +27,7 @@ use grandpa_primitives::AuthorityPair as GrandpaPair;
 use polkadot_primitives::{parachain, Block, Hash, BlockId, BabePair};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
 use polkadot_network::gossip::{self as network_gossip, Known};
-use primitives::{ed25519, Pair};
+use primitives::Pair;
 use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
 use transaction_pool::txpool::{Pool as TransactionPool};
 use babe::{import_queue, start_babe, BabeImportQueue, Config};
