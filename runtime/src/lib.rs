@@ -150,7 +150,7 @@ pub type DealWithFees = SplitTwoWays<
 	Balance,
 	NegativeImbalance,
 	_4, Treasury,   // 4 parts (80%) goes to the treasury.
-	_1, ToAuthor,     // 1 part (20%) goes to the block author.
+	_1, ToAuthor,   // 1 part (20%) goes to the block author.
 >;
 
 impl balances::Trait for Runtime {
@@ -170,7 +170,7 @@ impl balances::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const MinimumPeriod: u64 = SECS_PER_BLOCK / 2;
+	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
 }
 
 impl timestamp::Trait for Runtime {

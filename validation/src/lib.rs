@@ -591,7 +591,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		let dynamic_inclusion = DynamicInclusion::new(
 			self.tracker.table.num_parachains(),
 			self.tracker.started,
-			Duration::from_secs(self.slot_duration / SLOT_DURATION_DENOMINATOR),
+			Duration::from_millis(self.slot_duration / SLOT_DURATION_DENOMINATOR),
 		);
 
 		let enough_candidates = dynamic_inclusion.acceptable_in(
@@ -609,7 +609,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		let delay_future = if current_timestamp >= believed_timestamp {
 			None
 		} else {
-			Some(Delay::new(Duration::from_secs(current_timestamp - believed_timestamp)))
+			Some(Delay::new(Duration::from_millis (current_timestamp - believed_timestamp)))
 		};
 
 		let timing = ProposalTiming {
@@ -640,8 +640,9 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 fn current_timestamp() -> u64 {
 	time::SystemTime::now().duration_since(time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
-		.as_secs()
-		.into()
+		// TODO: use substrate's proper saturated_into here. Saturating is okay -- with ms accuracy
+		// we still support a shit ton of years.
+		.as_millis() as u64
 }
 
 struct ProposalTiming {

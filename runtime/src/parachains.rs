@@ -528,6 +528,7 @@ impl<T: Trait> Module<T> {
 	pub fn calculate_duty_roster() -> (DutyRoster, [u8; 32]) {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
+		// TODO: use decode length.
 		let validator_count = Self::authorities().len();
 		let validators_per_parachain = if parachain_count != 0 { (validator_count - 1) / parachain_count } else { 0 };
 
