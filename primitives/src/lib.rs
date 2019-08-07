@@ -76,6 +76,13 @@ pub type AuraPair = ed25519::Pair;
 /// The Ed25519 pub key of an session that belongs to an Aura authority of the chain.
 pub type AuraId = ed25519::Public;
 
+/// The Parachain crypto scheme defined via the keypair type.
+#[cfg(feature = "std")]
+pub type ParachainPair = ed25519::Pair;
+
+/// The Ed25519 public key used to authenticate signatures on parachain data.
+pub type ParachainPublic = ed25519::Public;
+
 /// Header type.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type.

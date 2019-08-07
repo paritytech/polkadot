@@ -717,7 +717,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let mut inherent_data = self.inherent_data
 			.take()
 			.expect("CreateProposal is not polled after finishing; qed");
-		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(Error::InherentError)?;
+		inherent_data.put_data(polkadot_runtime::NEW_HEADS_IDENTIFIER, &candidates).map_err(Error::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
 

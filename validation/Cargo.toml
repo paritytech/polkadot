@@ -30,6 +30,7 @@ runtime_aura = { package = "srml-aura", git = "https://github.com/paritytech/sub
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+bitvec = { version = "0.11", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

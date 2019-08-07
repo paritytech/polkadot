@@ -9,7 +9,6 @@ parking_lot = "0.7.1"
 lazy_static = "1.0"
 log = "0.4.6"
 slog = "^2"
-tokio = "0.1.7"
 hex-literal = "0.2"
 av_store = { package = "polkadot-availability-store", path = "../availability-store" }
 consensus = { package = "polkadot-validation", path = "../validation" }
