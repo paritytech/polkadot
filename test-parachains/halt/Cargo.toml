@@ -1,0 +1,17 @@
+[package]
+name = "halt"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+description = "Test parachain which executes forever"
+edition = "2018"
+build = "build.rs"
+
+[dependencies]
+
+[build-dependencies]
+wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.2" }
+
+[features]
+default = [ "std" ]
+no_std = []
+std = []

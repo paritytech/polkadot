@@ -20,12 +20,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature = "std")]
-use serde::{Serialize, Deserialize};
-
-use rstd::prelude::*;
-use runtime_primitives::{generic, traits::Extrinsic, AnySignature};
-use parity_codec::{Encode, Decode};
+use runtime_primitives::{generic, AnySignature};
 use primitives::ed25519;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify};
@@ -33,9 +28,6 @@ pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify};
 pub mod parachain;
 
 pub use parity_codec::Compact;
-
-#[cfg(feature = "std")]
-use primitives::bytes;
 
 /// An index to a block.
 /// 32-bits will allow for 136 years of blocks assuming 1 block per second.
@@ -84,6 +76,13 @@ pub type AuraPair = ed25519::Pair;
 /// The Ed25519 pub key of an session that belongs to an Aura authority of the chain.
 pub type AuraId = ed25519::Public;
 
+/// The Parachain crypto scheme defined via the keypair type.
+#[cfg(feature = "std")]
+pub type ParachainPair = ed25519::Pair;
+
+/// The Ed25519 public key used to authenticate signatures on parachain data.
+pub type ParachainPublic = ed25519::Public;
+
 /// Header type.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type.
@@ -92,8 +91,4 @@ pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 pub type BlockId = generic::BlockId<Block>;
 
 /// Opaque, encoded, unchecked extrinsic.
-#[derive(PartialEq, Eq, Clone, Default, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct UncheckedExtrinsic(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-impl Extrinsic for UncheckedExtrinsic {}
+pub use runtime_primitives::OpaqueExtrinsic as UncheckedExtrinsic;

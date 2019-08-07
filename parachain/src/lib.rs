@@ -207,3 +207,13 @@ pub struct UpwardMessageRef<'a> {
 	/// Underlying data of the message.
 	pub data: &'a [u8],
 }
+
+/// A message from a parachain to its Relay Chain.
+#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct UpwardMessage {
+	/// The origin for the message to be sent from.
+	pub origin: ParachainDispatchOrigin,
+	/// The message data.
+	pub data: Vec<u8>,
+}

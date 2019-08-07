@@ -6,7 +6,7 @@ edition = "2018"
 build = "build.rs"
 
 [dependencies]
-bitvec = { version = "0.8", default-features = false, features = ["alloc"] }
+bitvec = { version = "0.11", default-features = false, features = ["alloc"] }
 rustc-hex = { version = "2.0.1", default-features = false }
 log = { version = "0.3", optional = true }
 serde = { version = "1.0", default-features = false }

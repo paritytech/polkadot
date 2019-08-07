@@ -429,12 +429,11 @@ fn compute_targets(para_id: ParaId, session_keys: &[SessionKey], roster: DutyRos
 ///
 /// Provide a future which resolves when the node should exit.
 /// This function blocks until done.
-pub fn run_collator<P, E, I, ArgT>(
+pub fn run_collator<P, E>(
 	build_parachain_context: P,
 	para_id: ParaId,
 	exit: E,
 	key: Arc<ed25519::Pair>,
-	args: I,
 	version: VersionInfo,
 ) -> polkadot_cli::error::Result<()> where
 	P: BuildParachainContext + Send + 'static,
@@ -442,18 +441,16 @@ pub fn run_collator<P, E, I, ArgT>(
 	<<P::ParachainContext as ParachainContext>::ProduceCandidate as IntoFuture>::Future: Send + 'static,
 	E: IntoFuture<Item=(), Error=()>,
 	E::Future: Send + Clone + Sync + 'static,
-	I: IntoIterator<Item=ArgT>,
-	ArgT: Into<std::ffi::OsString> + Clone,
 {
 	let node_logic = CollationNode { build_parachain_context, exit: exit.into_future(), para_id, key };
-	polkadot_cli::run(args, node_logic, version)
+	polkadot_cli::run(node_logic, version)
 }
 
 #[cfg(test)]
 mod tests {
 	use std::collections::HashMap;
 	use polkadot_primitives::parachain::{OutgoingMessage, FeeSchedule};
-	use keyring::AuthorityKeyring;
+	use keyring::Ed25519Keyring;
 	use super::*;
 
 	#[derive(Default, Clone)]
@@ -543,7 +540,7 @@ mod tests {
 			},
 			context.clone(),
 			DummyParachainContext,
-			AuthorityKeyring::Alice.pair().into(),
+			Ed25519Keyring::Alice.pair().into(),
 		).wait().unwrap();
 
 		// ascending order by root.

@@ -19,6 +19,7 @@
 use {grandpa, system};
 use parity_codec::Decode;
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Zero};
+use sr_primitives::weights::SimpleDispatchInfo;
 use rstd::prelude::*;
 use srml_support::{decl_storage, decl_module};
 
@@ -37,6 +38,7 @@ decl_module! {
 	/// curated GRANDPA set.
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		/// Changes the GRANDPA voter set.
+		#[weight = SimpleDispatchInfo::FixedOperational(10_000)]
 		fn set_voters(origin, voters: Vec<(grandpa::AuthorityId, u64)>) {
 			system::ensure_root(origin)?;
 			grandpa::Module::<T>::schedule_change(voters, T::BlockNumber::zero(), None)?;

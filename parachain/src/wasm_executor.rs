@@ -27,7 +27,16 @@ use wasmi::{
 	ModuleImportResolver, RuntimeValue, Externals, Error as WasmError, ValueType,
 	memory_units::{self, Bytes, Pages, RoundUpTo}
 };
-use super::{ValidationParams, ValidationResult, MessageRef, UpwardMessageRef};
+use super::{ValidationParams, ValidationResult, MessageRef, UpwardMessageRef, UpwardMessage, IncomingMessage};
+
+#[cfg(not(target_os = "unknown"))]
+pub use validation_host::run_worker;
+
+mod validation_host;
+
+// maximum memory in bytes
+const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
+const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 
 mod ids {
 	/// Post a message to another parachain.
@@ -37,6 +46,18 @@ mod ids {
 	pub const POST_UPWARDS_MESSAGE: usize = 2;
 }
 
+/// WASM code execution mode.
+///
+/// > Note: When compiling for WASM, the `Remote` variants are not available.
+pub enum ExecutionMode {
+	/// Execute in-process. The execution can not be interrupted or aborted.
+	Local,
+	/// Remote execution in a spawned process.
+	Remote,
+	/// Remote execution in a spawned test runner.
+	RemoteTest,
+}
+
 /// Error type for the wasm executor
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
@@ -44,12 +65,23 @@ pub enum Error {
 	Wasm(WasmError),
 	/// Externalities error
 	Externalities(ExternalitiesError),
-	/// Call data too big. WASM32 only has a 32-bit address space.
-	#[display(fmt = "Validation parameters took up {} bytes, max allowed by WASM is {}", _0, i32::max_value())]
+	/// Code size it too large.
+	#[display(fmt = "WASM code is {} bytes, max allowed is {}", _0, MAX_CODE_MEM)]
+	CodeTooLarge(usize),
+	/// Call data is too large.
+	#[display(fmt = "Validation parameters are {} bytes, max allowed is {}", _0, MAX_RUNTIME_MEM)]
 	ParamsTooLarge(usize),
 	/// Bad return data or type.
 	#[display(fmt = "Validation function returned invalid data.")]
 	BadReturn,
+	#[display(fmt = "Validation function timeout.")]
+	Timeout,
+	#[display(fmt = "IO error: {}", _0)]
+	Io(std::io::Error),
+	#[display(fmt = "System error: {}", _0)]
+	System(Box<dyn std::error::Error>),
+	#[display(fmt = "WASM worker error: {}", _0)]
+	External(String),
 }
 
 impl std::error::Error for Error {
@@ -57,6 +89,8 @@ impl std::error::Error for Error {
 		match self {
 			Error::Wasm(ref err) => Some(err),
 			Error::Externalities(ref err) => Some(err),
+			Error::Io(ref err) => Some(err),
+			Error::System(ref err) => Some(&**err),
 			_ => None,
 		}
 	}
@@ -238,6 +272,54 @@ impl<'a, E: 'a + Externalities> Externals for ValidationExternals<'a, E> {
 	}
 }
 
+/// Params header in shared memory. All offsets should be aligned to WASM page size.
+#[derive(Encode, Decode, Debug)]
+struct ValidationHeader {
+	code_size: u64,
+	params_size: u64,
+}
+
+#[derive(Encode, Decode, Debug)]
+pub enum ValidationResultHeader {
+	Ok {
+		result: ValidationResult,
+		egress_message_count: u64,
+		up_message_count: u64,
+	},
+	Error(String),
+}
+
+
+#[derive(Default)]
+struct WorkerExternalities {
+	egress_data: Vec<u8>,
+	egress_message_count: usize,
+	up_data: Vec<u8>,
+	up_message_count: usize,
+}
+
+impl Externalities for WorkerExternalities {
+	fn post_message(&mut self, message: MessageRef) -> Result<(), ExternalitiesError> {
+		IncomingMessage {
+			source: message.target,
+			data: message.data.to_vec(),
+		}
+		.encode_to(&mut self.egress_data);
+		self.egress_message_count += 1;
+		Ok(())
+	}
+
+	fn post_upward_message(&mut self, message: UpwardMessageRef) -> Result<(), ExternalitiesError> {
+		UpwardMessage {
+			origin: message.origin,
+			data: message.data.to_vec(),
+		}
+		.encode_to(&mut self.up_data);
+		self.up_message_count += 1;
+		Ok(())
+	}
+}
+
 /// Validate a candidate under the given validation code.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
@@ -245,11 +327,37 @@ pub fn validate_candidate<E: Externalities>(
 	validation_code: &[u8],
 	params: ValidationParams,
 	externalities: &mut E,
-) -> Result<ValidationResult, Error> {
-	use wasmi::LINEAR_MEMORY_PAGE_SIZE;
+	options: ExecutionMode,
+	) -> Result<ValidationResult, Error>
+{
+	match options {
+		ExecutionMode::Local => {
+			validate_candidate_internal(validation_code, &params.encode(), externalities)
+		},
+		#[cfg(not(target_os = "unknown"))]
+		ExecutionMode::Remote =>
+			validation_host::HOST.lock().validate_candidate(validation_code, params, externalities, false),
+		#[cfg(not(target_os = "unknown"))]
+		ExecutionMode::RemoteTest =>
+			validation_host::HOST.lock().validate_candidate(validation_code, params, externalities, true),
+		#[cfg(target_os = "unknown")]
+		ExecutionMode::Remote =>
+			Err(Error::System("Remote validator not available".to_string().into())),
+		#[cfg(target_os = "unknown")]
+		ExecutionMode::RemoteTest =>
+			Err(Error::System("Remote validator not available".to_string().into())),
+	}
+}
 
-	// maximum memory in bytes
-	const MAX_MEM: u32 = 1024 * 1024 * 1024; // 1 GiB
+/// Validate a candidate under the given validation code.
+///
+/// This will fail if the validation code is not a proper parachain validation module.
+pub fn validate_candidate_internal<E: Externalities>(
+	validation_code: &[u8],
+	encoded_call_data: &[u8],
+	externalities: &mut E,
+	) -> Result<ValidationResult, Error> {
+	use wasmi::LINEAR_MEMORY_PAGE_SIZE;
 
 	// instantiate the module.
 	let memory;
@@ -258,7 +366,7 @@ pub fn validate_candidate<E: Externalities>(
 		let module = Module::from_buffer(validation_code)?;
 
 		let module_resolver = Resolver {
-			max_memory: MAX_MEM / LINEAR_MEMORY_PAGE_SIZE.0 as u32,
+			max_memory: (MAX_RUNTIME_MEM / LINEAR_MEMORY_PAGE_SIZE.0) as u32,
 			memory: RefCell::new(None),
 		};
 
@@ -285,8 +393,6 @@ pub fn validate_candidate<E: Externalities>(
 	// - `offset` has alignment at least of 8,
 	// - `len` is not zero.
 	let (offset, len) = {
-		let encoded_call_data = params.encode();
-
 		// hard limit from WASM.
 		if encoded_call_data.len() > i32::max_value() as usize {
 			return Err(Error::ParamsTooLarge(encoded_call_data.len()));
