@@ -14,15 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Polkadot runtime. This can be compiled with ``#[no_std]`, ready for Wasm.
+//! The Polkadot runtime. This can be compiled with `#[no_std]`, ready for Wasm.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit="256"]
 
+mod attestations;
+mod claims;
 mod curated_grandpa;
 mod parachains;
-mod claims;
 mod slot_range;
 mod slots;
 
@@ -57,7 +58,8 @@ pub use staking::StakerStatus;
 pub use sr_primitives::BuildStorage;
 pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
-pub use parachains::{Call as ParachainsCall, INHERENT_IDENTIFIER as PARACHAIN_INHERENT_IDENTIFIER};
+pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
+pub use parachains::{Call as ParachainsCall, NEW_HEADS_IDENTIFIER};
 pub use sr_primitives::{Permill, Perbill};
 pub use srml_support::StorageValue;
 
@@ -244,6 +246,8 @@ parameter_types! {
 	pub const MinimumDeposit: Balance = 100 * BUCKS;
 	pub const EnactmentPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
 	pub const CooloffPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
+
+	pub const AttestationPeriod: BlockNumber = 60 * MINUTES * 3;
 }
 
 impl democracy::Trait for Runtime {
@@ -343,6 +347,11 @@ impl finality_tracker::Trait for Runtime {
 	type ReportLatency = ReportLatency;
 }
 
+impl attestations::Trait for Runtime {
+	type AttestationPeriod = AttestationPeriod;
+	type ValidatorIdentities = parachains::ValidatorIdentities<Runtime>;
+}
+
 impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
@@ -392,6 +401,7 @@ construct_runtime!(
 		CuratedGrandpa: curated_grandpa::{Module, Call, Config<T>, Storage},
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
+		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Sudo: sudo,
 	}
@@ -481,7 +491,7 @@ impl_runtime_apis! {
 			Aura::authorities()  // only possible as long as parachain validator crypto === aura crypto
 		}
 		fn duty_roster() -> parachain::DutyRoster {
-			Parachains::calculate_duty_roster()
+			Parachains::calculate_duty_roster().0
 		}
 		fn active_parachains() -> Vec<parachain::Id> {
 			Parachains::active_parachains()
