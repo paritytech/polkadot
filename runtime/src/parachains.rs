@@ -1650,6 +1650,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: None,
 				}
 			};
 
