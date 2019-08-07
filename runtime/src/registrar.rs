@@ -276,7 +276,7 @@ decl_module! {
 						rstd::mem::swap(i, j)
 					)
 				);
-				let _ = T::OnSwap::do_swap(id, other);
+				let _ = T::OnSwap::on_swap(id, other);
 			} else {
 				PendingSwap::insert(id, other);
 			}

@@ -29,7 +29,7 @@ use sr_primitives::{
 #[cfg(any(feature = "std", test))]
 use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 use primitives::{Hash, Balance, parachain::{
-	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
+	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
 	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ActiveParas, CollatorId
 }};
 use {system, session};
@@ -37,10 +37,6 @@ use srml_support::{
 	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
 	traits::{Currency, WithdrawReason, ExistenceRequirement}
 };
-use primitives::{Hash, Balance, parachain::{
-	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ActiveParas, CollatorId
-}};
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
 use system::ensure_none;

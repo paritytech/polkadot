@@ -185,7 +185,7 @@ impl<T: Trait> OnSwap for Module<T> {
 		}
 		Ok(())
 	}
-	fn do_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
+	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
 		<Offboarding<T>>::swap(one, other);
 		<Deposits<T>>::swap(one, other);
 		ManagedIds::mutate(|ids| {

@@ -100,7 +100,7 @@ pub trait OnSwap {
 	/// May only be called on a state that `can_swap` has previously returned `Ok` for: if this is
 	/// not the case, the result is undefined. May only return an error if `can_swap` also returns
 	/// an error.
-	fn do_swap(one: Id, other: Id) -> Result<(), &'static str>;
+	fn on_swap(one: Id, other: Id) -> Result<(), &'static str>;
 }
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
