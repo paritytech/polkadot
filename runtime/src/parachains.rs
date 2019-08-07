@@ -47,9 +47,6 @@ use rstd::marker::PhantomData;
 use system::{ensure_none, ensure_root};
 use crate::attestations::{self, IncludedBlocks};
 
-/// The number of point to reward for a validity statement.
-const VALIDITY_STATEMENT_REWARD_POINTS: u32 = 20;
-
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
 struct BlockNumberRange<N> {
@@ -321,13 +318,6 @@ decl_module! {
 				}
 
 				let para_blocks = Self::check_candidates(&heads, &active_parachains)?;
-
-				let rewards = heads.validity_votes.iter()
-					.map(|(validator_index, _)| (validator, VALIDITY_STATEMENT_REWARD_POINTS))
-					.collect::<Vec<_>>();
-
-				<staking::Module<T>>::add_reward_points_using_index(rewards);
-
 				let current_number = <system::Module<T>>::block_number();
 
 				<attestations::Module<T>>::note_included(&heads, para_blocks);
@@ -1017,6 +1007,7 @@ mod tests {
 	impl attestations::Trait for Test {
 		type AttestationPeriod = AttestationPeriod;
 		type ValidatorIdentities = ValidatorIdentities<Test>;
+		type RewardAttestation = ();
 	}
 
 	impl Trait for Test {
