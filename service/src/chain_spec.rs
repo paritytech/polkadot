@@ -127,7 +127,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,
 		}),
-		im_online: Some(ImOnlineConfig{
+		im_online: Some(ImOnlineConfig {
 			gossip_at: 0,
 			last_new_era_start: 0,
 		}),
@@ -261,7 +261,7 @@ pub fn testnet_genesis(
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,
 		}),
-		im_online: Some(ImOnlineConfig{
+		im_online: Some(ImOnlineConfig {
 			gossip_at: 0,
 			last_new_era_start: 0,
 		}),
