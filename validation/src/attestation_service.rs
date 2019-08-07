@@ -34,10 +34,10 @@ use futures::prelude::*;
 use futures03::{TryStreamExt as _, StreamExt as _};
 use log::error;
 use primitives::ed25519;
-use polkadot_primitives::{Block, BlockId, AuraId};
+use polkadot_primitives::{Block, BlockId, BabeId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
-use aura::AuraApi;
+use babe_primitives::BabeApi;
 
 use tokio::{timer::Interval, runtime::current_thread::Runtime as LocalRuntime};
 use log::{warn, debug};
@@ -123,7 +123,7 @@ pub(crate) fn start<C, N, P, SC>(
 		<C::Collation as IntoFuture>::Future: Send + 'static,
 		P: BlockchainEvents<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> + BlockBuilder<Block> + AuraApi<Block, AuraId>,
+		P::Api: ParachainHost<Block> + BlockBuilder<Block> + BabeApi<Block>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
 		<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,

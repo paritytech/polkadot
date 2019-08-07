@@ -21,7 +21,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use runtime_primitives::{generic, AnySignature};
-use primitives::ed25519;
+use primitives::{ed25519, sr25519};
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify};
 
@@ -33,6 +33,9 @@ pub use parity_codec::Compact;
 /// 32-bits will allow for 136 years of blocks assuming 1 block per second.
 /// TODO: switch to u32 (https://github.com/paritytech/polkadot/issues/221)
 pub type BlockNumber = u64;
+
+/// representation of time.
+pub type Moment = u64;
 
 /// Alias to 512-bit hash when used in the context of a signature on the relay chain.
 /// Equipped with logic for possibly "unsigned" messages.
@@ -69,12 +72,13 @@ pub type SessionKey = ed25519::Public;
 /// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
 pub type Balance = u128;
 
+// TODO: I don't get why this was defined here. It was aura so I change it to babe but regardless of that
+// I don't get why it was here.
 /// The aura crypto scheme defined via the keypair type.
 #[cfg(feature = "std")]
-pub type AuraPair = ed25519::Pair;
+pub type BabePair = sr25519::Pair;
 
-/// The Ed25519 pub key of an session that belongs to an Aura authority of the chain.
-pub type AuraId = ed25519::Public;
+pub type BabeId = babe::AuthorityId;
 
 /// Header type.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;

@@ -69,7 +69,6 @@ use polkadot_network::validation::{SessionParams, ValidationNetwork};
 use polkadot_network::NetworkService;
 use tokio::timer::Timeout;
 use consensus_common::SelectChain;
-use aura::AuraApi;
 
 pub use polkadot_cli::VersionInfo;
 pub use polkadot_network::validation::Incoming;

@@ -29,8 +29,8 @@ mod slots;
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_1, _2, _3, _4};
 use primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, SessionKey, Signature,
-	parachain, AuraId
+	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, SessionKey, Signature, Moment,
+	parachain, BabeId,
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
@@ -92,6 +92,11 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
+// just to shut the compiler's mouth.
+pub fn sr_to_ed(sr: &substrate_primitives::sr25519::Public) -> substrate_primitives::ed25519::Public {
+	substrate_primitives::ed25519::Public(sr.0.clone())
+}
+
 type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
 
 parameter_types! {
@@ -118,9 +123,14 @@ impl system::Trait for Runtime {
 	type AvailableBlockRatio = AvailableBlockRatio;
 }
 
-impl aura::Trait for Runtime {
-	type HandleReport = aura::StakingSlasher<Runtime>;
-	type AuthorityId = AuraId;
+parameter_types! {
+	pub const EpochDuration: Moment = EPOCH_DURATION_IN_SLOTS;
+	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
+}
+
+impl babe::Trait for Runtime {
+	type EpochDuration = EpochDuration;
+	type ExpectedBlockTime = ExpectedBlockTime;
 }
 
 impl indices::Trait for Runtime {
@@ -168,7 +178,7 @@ parameter_types! {
 
 impl timestamp::Trait for Runtime {
 	type Moment = u64;
-	type OnTimestampSet = Aura;
+	type OnTimestampSet = Babe;
 	type MinimumPeriod = MinimumPeriod;
 }
 
@@ -189,11 +199,13 @@ parameter_types! {
 	pub const Offset: BlockNumber = 0;
 }
 
-type SessionHandlers = (Grandpa, Aura);
+type SessionHandlers = (Grandpa, Babe);
 impl_opaque_keys! {
 	pub struct SessionKeys {
 		#[id(key_types::ED25519)]
 		pub ed25519: GrandpaId,
+		#[id(key_types::SR25519)]
+		pub sr25519: BabeId,
 	}
 }
 
@@ -206,7 +218,7 @@ impl_opaque_keys! {
 impl session::Trait for Runtime {
 	type OnSessionEnding = Staking;
 	type SessionHandler = SessionHandlers;
-	type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+	type ShouldEndSession = Babe;
 	type Event = Event;
 	type Keys = SessionKeys;
 	type SelectInitialValidators = Staking;
@@ -376,8 +388,8 @@ construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		System: system::{Module, Call, Storage, Config, Event},
-		Aura: aura::{Module, Config<T>, Inherent(Timestamp)},
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
+		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
 		Authorship: authorship::{Module, Call, Storage},
 		Indices: indices,
 		Balances: balances,
@@ -409,6 +421,7 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
+	system::CheckGenesis<Runtime>,
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
@@ -478,7 +491,9 @@ impl_runtime_apis! {
 
 	impl parachain::ParachainHost<Block> for Runtime {
 		fn validators() -> Vec<parachain::ValidatorId> {
-			Aura::authorities()  // only possible as long as parachain validator crypto === aura crypto
+			// TODO: well, now we have to check this eh?
+			// only possible as long as parachain validator crypto === aura crypto
+			Babe::authorities().iter().map(|k| sr_to_ed(&k.0)).collect::<_>()
 		}
 		fn duty_roster() -> parachain::DutyRoster {
 			Parachains::calculate_duty_roster()
@@ -515,14 +530,28 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl consensus_aura::AuraApi<Block, AuraId> for Runtime {
-		fn slot_duration() -> u64 {
-			Aura::slot_duration()
+	impl babe_primitives::BabeApi<Block> for Runtime {
+		fn startup_data() -> babe_primitives::BabeConfiguration {
+			// The choice of `c` parameter (where `1 - c` represents the
+			// probability of a slot being empty), is done in accordance to the
+			// slot duration and expected target block time, for safely
+			// resisting network delays of maximum two seconds.
+			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
+			babe_primitives::BabeConfiguration {
+				median_required_blocks: 1000,
+				slot_duration: Babe::slot_duration(),
+				c: (278, 1000),
+			}
 		}
 
-		fn authorities() -> Vec<AuraId> {
-			Aura::authorities()
+		fn epoch() -> babe_primitives::Epoch {
+			babe_primitives::Epoch {
+				start_slot: Babe::epoch_start_slot(),
+				authorities: Babe::authorities(),
+				epoch_index: Babe::epoch_index(),
+				randomness: Babe::randomness(),
+				duration: EpochDuration::get(),
+			}
 		}
 	}
-
 }

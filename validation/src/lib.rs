@@ -31,7 +31,7 @@
 
 use std::{collections::{HashMap, HashSet}, pin::Pin, sync::Arc, time::{self, Duration, Instant}};
 
-use aura::{SlotDuration, AuraApi};
+use babe_primitives::BabeApi;
 use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
@@ -39,7 +39,7 @@ use parity_codec::Encode;
 use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
-use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey, AuraId};
+use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey, BabeId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
 	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage,
@@ -58,7 +58,7 @@ use futures03::{future::{self, Either, FutureExt}, task::Context, stream::Stream
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
-use runtime_aura::timestamp::TimestampInherentData;
+use runtime_babe::timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace, error};
 
 use ed25519::Public as AuthorityId;
@@ -252,7 +252,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -280,7 +280,8 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let id = BlockId::hash(parent_hash);
 
-		let authorities = self.client.runtime_api().authorities(&id)?;
+		// TODO: this maybe can be a separate new api.
+		let authorities = (self.client.runtime_api().epoch(&id)?).authorities.iter().map(|k| polkadot_runtime::sr_to_ed(&k.0)).collect::<Vec<_>>();
 
 		// compute the parent candidates, if we know of them.
 		// this will allow us to circulate outgoing messages to other peers as necessary.
@@ -448,7 +449,7 @@ pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	transaction_pool: Arc<Pool<TxApi>>,
 	key: Arc<ed25519::Pair>,
 	_service_handle: ServiceHandle,
-	aura_slot_duration: SlotDuration,
+	babe_slot_duration: u64,
 	_select_chain: SC,
 	max_block_data_size: Option<u64>,
 }
@@ -458,7 +459,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -475,7 +476,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 		thread_pool: TaskExecutor,
 		key: Arc<ed25519::Pair>,
 		extrinsic_store: ExtrinsicStore,
-		aura_slot_duration: SlotDuration,
+		babe_slot_duration: u64,
 		max_block_data_size: Option<u64>,
 	) -> Self {
 		let parachain_validation = Arc::new(ParachainValidation {
@@ -502,7 +503,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			transaction_pool,
 			key,
 			_service_handle: service_handle,
-			aura_slot_duration,
+			babe_slot_duration,
 			_select_chain,
 			max_block_data_size,
 		}
@@ -514,7 +515,7 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -544,7 +545,7 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 			parent_id,
 			parent_number: parent_header.number,
 			transaction_pool: self.transaction_pool.clone(),
-			slot_duration: self.aura_slot_duration,
+			slot_duration: self.babe_slot_duration,
 		})
 	}
 }
@@ -564,7 +565,7 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 	parent_number: BlockNumber,
 	tracker: Arc<AttestationTracker>,
 	transaction_pool: Arc<Pool<TxApi>>,
-	slot_duration: SlotDuration,
+	slot_duration: u64,
 }
 
 impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
@@ -589,7 +590,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		let dynamic_inclusion = DynamicInclusion::new(
 			self.tracker.table.num_parachains(),
 			self.tracker.started,
-			Duration::from_secs(self.slot_duration.get() / SLOT_DURATION_DENOMINATOR),
+			Duration::from_secs(self.slot_duration / SLOT_DURATION_DENOMINATOR),
 		);
 
 		let enough_candidates = dynamic_inclusion.acceptable_in(

@@ -19,13 +19,15 @@
 use primitives::{ed25519, sr25519, Pair, crypto::UncheckedInto};
 use polkadot_primitives::{AccountId, SessionKey};
 use polkadot_runtime::{
-	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, AuraConfig,
+	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, BabeConfig,
 	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
 	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY,
 };
 use polkadot_runtime::constants::{currency::DOTS, time::*};
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
+use babe_primitives::AuthorityId as BabeId;
+use grandpa::AuthorityId as GrandpaId;
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";
@@ -37,29 +39,42 @@ pub fn poc_3_testnet_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_json_bytes(&include_bytes!("../res/alexander.json")[..])
 }
 
+fn session_keys(ed_key: ed25519::Public, sr_key: sr25519::Public) -> SessionKeys {
+	SessionKeys {
+		ed25519: ed_key,
+		sr25519: sr_key,
+	}
+}
+
 fn staging_testnet_config_genesis() -> GenesisConfig {
 	// subkey inspect "$SECRET"
 	let endowed_accounts = vec![
-		hex!["42d69e4222c08885a4d6ff65f01852ba4a1599b683ad66286e4603d825e26b49"].unchecked_into(), // 5DaLmkrGTFvSTHBpShqqqRYaydw1sT4u3NCogYiE8Q1LqUUp
+		hex!["46ebddef8cd9bb167dc30878d7113b7e168e6f0646beffd77d69d39bad76b47a"].unchecked_into(), // 5DaLmkrGTFvSTHBpShqqqRYaydw1sT4u3NCogYiE8Q1LqUUp
 	];
 
 	// for i in 1 2 3 4; do for j in stash controller; do subkey inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in session; do subkey -e inspect "$SECRET//$i//$j"; done; done
-	let initial_authorities: Vec<(AccountId, AccountId, SessionKey)> = vec![(
+	// for i in 1 2 3 4; do for j in session; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
+	// for i in 1 2 3 4; do for j in session; do subkey --ed25519 inspect "$SECRET//$i//$j"; done; done
+	// TODO: update these.
+	let initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId)> = vec![(
 		hex!["543cf15f6a0289e48eb4f30d451d1731c5fb0e1b2c5a4b99439c11808af3432d"].unchecked_into(), // 5Dy9yz2mjwDmTgjkDFxjPBpovKmKAgTndiRiTp4DfrTEdUvi
 		hex!["8a6ea654337e4a28ce7be124f73ad84702619942722d01cc271e5b421653c56d"].unchecked_into(), // 5FCDLPUMZpZPRfouRfQDZp74typV9SjSxPgG6ymwe5Z3Sbko
+		hex!["03644a181bc4e4197914aa109f3c97b6fe8c4787a82a1ddfab54e4ebedd8ab20"].unchecked_into(), // 5C99nwu8Ucq1yUJfajviwbqMAejpmaERHpmkPVWiFdxiF6yg
 		hex!["03644a181bc4e4197914aa109f3c97b6fe8c4787a82a1ddfab54e4ebedd8ab20"].unchecked_into(), // 5C99nwu8Ucq1yUJfajviwbqMAejpmaERHpmkPVWiFdxiF6yg
 	),(
 		hex!["c4957aa922910004f3b006d638b034070407dcb21e0905cb5cca9b58aec7fa3e"].unchecked_into(), // 5GWTeVF49JR9dAMVe4rRAAMXuhEjRAhSiYqQV4LbwpHTDLei
 		hex!["1adea46f5c3d272cd6426b338dd77d5bca3aff615338c82a0f02f4c62d89280f"].unchecked_into(), // 5CfwEv8TQKnszHNhYPuij6EtLZHCcaN3DgzfPCozcS9oxZzB
 		hex!["d739e1bb4c2b13ea1fff9be72e72d3bb1b364eb3b26176ab9a9512d386b7510b"].unchecked_into(), // 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
+		hex!["d739e1bb4c2b13ea1fff9be72e72d3bb1b364eb3b26176ab9a9512d386b7510b"].unchecked_into(), // 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
 	),(
 		hex!["6c3d14686e97d393814a09bea4246b9f273dcdbdef6731dcab3430b36820f135"].unchecked_into(), // 5EWdAzp9aJseLKVNeWJwE2K8PD47qzMbKVysCXr67xnEohYL
 		hex!["7a73b9fcb97cee5c2240d88ca9baea06758fac450efe6f90a72014c939d41857"].unchecked_into(), // 5EqG5RSujgrtSBB5DQvR1Z2EMxAe92sAdWNTNHtX4nL2MkPi
 		hex!["145791f7187d91398d8b445598f62be39b766d6e33e9d57b69c4d23fca218d7f"].unchecked_into(), // 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
+		hex!["145791f7187d91398d8b445598f62be39b766d6e33e9d57b69c4d23fca218d7f"].unchecked_into(), // 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
 	),(
 		hex!["be6726c17ad7b5844c9e0ab6a1698d00d88bf183f0f82d8ec9627531c9ddc934"].unchecked_into(), // 5GNMbce1P2FfjvcPcoUxzjj6bYSRdQ2RpsbCyF9ozwMxx3NS
 		hex!["123b9048ba61265547ad3f336dfa48c16851ba1a96691e5d1ab3be1725db0614"].unchecked_into(), // 5CUcQvAgMzXMpQSz8mgzeiswDFHED88NiEK4byfS5TLaTJow
+		hex!["8abecfa66704176be23df099bf441ea65444992d63b3ced3e76a17a4d38b0b0e"].unchecked_into(), // 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
 		hex!["8abecfa66704176be23df099bf441ea65444992d63b3ced3e76a17a4d38b0b0e"].unchecked_into(), // 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
 	)];
 
@@ -86,7 +101,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		session: Some(SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
-				SessionKeys { ed25519: x.2.clone() },
+				session_keys(x.3.clone(), x.2.clone()),
 			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
@@ -117,10 +132,10 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			key: endowed_accounts[0].clone(),
 		}),
 		grandpa: Some(GrandpaConfig {
-			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
+			authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
 		}),
-		aura: Some(AuraConfig {
-			authorities: initial_authorities.iter().map(|x| x.2.clone()).collect(),
+		babe: Some(BabeConfig {
+			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
 		}),
 		parachains: Some(Default::default()),
 		curated_grandpa: Some(CuratedGrandpaConfig {
@@ -151,25 +166,33 @@ pub fn get_account_id_from_seed(seed: &str) -> AccountId {
 		.public()
 }
 
+/// Helper function to generate BabeId from seed
+pub fn get_babe_id_from_seed(seed: &str) -> BabeId {
+	sr25519::Pair::from_string(&format!("//{}", seed), None)
+		.expect("static values are valid; qed")
+		.public()
+}
+
 /// Helper function to generate SessionKey from seed
-pub fn get_session_key_from_seed(seed: &str) -> SessionKey {
+pub fn get_grandpa_id_from_seed(seed: &str) -> SessionKey {
 	ed25519::Pair::from_string(&format!("//{}", seed), None)
 		.expect("static values are valid; qed")
 		.public()
 }
 
 /// Helper function to generate stash, controller and session key from seed
-pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, SessionKey) {
+pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, BabeId, GrandpaId) {
 	(
 		get_account_id_from_seed(&format!("{}//stash", seed)),
 		get_account_id_from_seed(seed),
-		get_session_key_from_seed(seed),
+		get_babe_id_from_seed(seed),
+		get_grandpa_id_from_seed(seed)
 	)
 }
 
 /// Helper function to create GenesisConfig for testing
 pub fn testnet_genesis(
-	initial_authorities: Vec<(AccountId, AccountId, SessionKey)>,
+	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> GenesisConfig {
@@ -210,7 +233,7 @@ pub fn testnet_genesis(
 		session: Some(SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
-				SessionKeys { ed25519: x.2.clone() },
+				session_keys(x.3.clone(), x.2.clone()),
 			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
@@ -236,7 +259,7 @@ pub fn testnet_genesis(
 		elections: Some(ElectionsConfig {
 			members: endowed_accounts.iter()
 				.filter(|&endowed| initial_authorities.iter()
-					.find(|&(_, controller, _)| controller == endowed)
+					.find(|&(_, controller, _, _)| controller == endowed)
 					.is_none()
 				).map(|a| (a.clone(), 1000000)).collect(),
 			presentation_duration: 10,
@@ -248,10 +271,10 @@ pub fn testnet_genesis(
 			key: root_key,
 		}),
 		grandpa: Some(GrandpaConfig {
-			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
+			authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
 		}),
-		aura: Some(AuraConfig {
-			authorities: initial_authorities.iter().map(|x| x.2.clone()).collect(),
+		babe: Some(BabeConfig {
+			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
 		}),
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,

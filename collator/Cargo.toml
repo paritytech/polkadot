@@ -13,7 +13,6 @@ parity-codec = "4.1"
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-aura = { package = "substrate-consensus-aura", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 polkadot-runtime = { path = "../runtime", version = "0.1" }
 polkadot-primitives = { path = "../primitives", version = "0.1" }
 polkadot-cli = { path = "../cli" }

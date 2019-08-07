@@ -515,7 +515,7 @@ impl<T: Trait> Module<T> {
 	pub fn calculate_duty_roster() -> DutyRoster {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
-		let validator_count = crate::Aura::authorities().len();
+		let validator_count = crate::Babe::authorities().len();
 		let validators_per_parachain = if parachain_count != 0 { (validator_count - 1) / parachain_count } else { 0 };
 
 		let mut roles_val = (0..validator_count).map(|i| match i {
@@ -683,7 +683,7 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
-		let authorities = super::Aura::authorities();
+		let authorities = super::Babe::authorities();
 		let duty_roster = Self::calculate_duty_roster();
 
 		// convert a duty roster, which is originally a Vec<Chain>, where each
@@ -743,7 +743,6 @@ impl<T: Trait> Module<T> {
 				.filter(|(_, bit)| *bit)
 				.zip(candidate.validity_votes.iter())
 			{
-
 				if validator_group.iter().find(|&(idx, _)| *idx == auth_index).is_none() {
 					return Err("Attesting validator not on this chain's validation duty.");
 				}
@@ -770,7 +769,7 @@ impl<T: Trait> Module<T> {
 				};
 
 				ensure!(
-					sig.verify(&payload[..], &authorities[auth_index]),
+					sig.verify(&payload[..], &crate::sr_to_ed(&authorities[auth_index].0)),
 					"Candidate validity attestation signature is bad."
 				);
 			}
@@ -829,7 +828,7 @@ mod tests {
 	};
 	use primitives::{
 		parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey,
-		BlockNumber, AuraId,
+		BlockNumber, BabeId, time::*,
 	};
 	use keyring::Ed25519Keyring;
 	use srml_support::{
@@ -904,9 +903,15 @@ mod tests {
 		type MinimumPeriod = MinimumPeriod;
 	}
 
-	impl aura::Trait for Test {
-		type HandleReport = aura::StakingSlasher<Test>;
-		type AuthorityId = AuraId;
+	// TODO
+	parameter_types! {
+		pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
+		pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
+	}
+
+	impl babe::Trait for Test {
+		type EpochDuration = EpochDuration;
+		type ExpectedBlockTime = ExpectedBlockTime;
 	}
 
 	parameter_types! {
@@ -980,7 +985,7 @@ mod tests {
 			parachains,
 			_phdata: Default::default(),
 		}.build_storage().unwrap().0);
-		t.extend(aura::GenesisConfig::<Test>{
+		t.extend(babe::GenesisConfig::<Test>{
 			authorities: authority_keys.iter().map(|k| SessionKey::from(*k)).collect(),
 		}.build_storage().unwrap().0);
 		t.into()
@@ -997,7 +1002,7 @@ mod tests {
 		let duty_roster = Parachains::calculate_duty_roster();
 		let candidate_hash = candidate.candidate.hash();
 
-		let authorities = crate::Aura::authorities();
+		let authorities = crate::Babe::authorities().len();;
 		let extract_key = |public: SessionKey| {
 			Ed25519Keyring::from_raw_public(public.0).unwrap()
 		};
