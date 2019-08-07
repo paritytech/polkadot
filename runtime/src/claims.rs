@@ -96,6 +96,9 @@ decl_storage! {
 
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+		/// The Prefix that is used in signed Ethereum messages for this network
+		const Prefix: &[u8] = T::Prefix::get();
+
 		/// Deposit one of this module's events by using the default implementation.
 		fn deposit_event<T>() = default;
 
