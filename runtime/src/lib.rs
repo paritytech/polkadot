@@ -403,7 +403,7 @@ construct_runtime!(
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
 		Slots: slots::{Module, Call, Storage, Event<T>},
-		Claims: claims::{Module, Call, Storage, Event<T>, ValidateUnsigned},
+		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 		Sudo: sudo,
 	}
 );
