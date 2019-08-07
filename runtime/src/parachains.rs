@@ -561,12 +561,12 @@ impl<T: Trait> Module<T> {
 		let orig_seed = seed.clone().to_fixed_bytes();
 
 		// shuffle
-		for i in 0..(validator_count - 1) {
+		for i in 0..(validator_count.saturating_sub(1)) {
 			// 4 bytes of entropy used per cycle, 32 bytes entropy per hash
 			let offset = (i * 4 % 32) as usize;
 
 			// number of roles remaining to select from.
-			let remaining = (validator_count - i) as usize;
+			let remaining = rstd::cmp::max(1, (validator_count - i) as usize);
 
 			// 8 32-bit ints per 256-bit seed.
 			let val_index = u32::decode(&mut &seed[offset..offset + 4])
