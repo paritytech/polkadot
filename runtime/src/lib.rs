@@ -339,6 +339,15 @@ impl treasury::Trait for Runtime {
 	type Burn = Burn;
 }
 
+impl im_online::Trait for Runtime {
+	type AuthorityId = AuraId;
+	type Call = Call;
+	type Event = Event;
+	type SessionsPerEra = SessionsPerEra;
+	type UncheckedExtrinsic = UncheckedExtrinsic;
+	type IsValidAuthorityId = Aura;
+}
+
 impl grandpa::Trait for Runtime {
 	type Event = Event;
 }
@@ -411,6 +420,7 @@ construct_runtime!(
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Sudo: sudo,
+		ImOnline: im_online::{default, ValidateUnsigned},
 	}
 );
 

@@ -30,6 +30,7 @@ democracy = { package = "srml-democracy", git = "https://github.com/paritytech/s
 executive = { package = "srml-executive", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 finality-tracker = { package = "srml-finality-tracker", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 indices = { package = "srml-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 session = { package = "srml-session", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -76,6 +77,7 @@ std = [
 	"executive/std",
 	"finality-tracker/std",
 	"grandpa/std",
+	"im-online/std",
 	"indices/std",
 	"sr-primitives/std",
 	"session/std",
