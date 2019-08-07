@@ -45,7 +45,7 @@ use polkadot_primitives::parachain::{
 	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage,
 	CollatorSignature, Collation, PoVBlock,
 };
-use primitives::{Pair, ed25519};
+use primitives::{Pair, sr25519, ed25519};
 use runtime_primitives::{
 	traits::{ProvideRuntimeApi, Header as HeaderT, DigestFor}, ApplyError
 };
@@ -252,7 +252,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -280,8 +280,9 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let id = BlockId::hash(parent_hash);
 
-		// TODO: this maybe can be a separate new api.
-		let authorities = (self.client.runtime_api().epoch(&id)?).authorities.iter().map(|k| polkadot_runtime::sr_to_ed(&k.0)).collect::<Vec<_>>();
+		// TODO: This used to use AuraApi and now it uses validators from parachainHost, as
+		// recommended by Rob. Please double and triple check.
+		let authorities = self.client.runtime_api().validators(&id)?;
 
 		// compute the parent candidates, if we know of them.
 		// this will allow us to circulate outgoing messages to other peers as necessary.
@@ -718,7 +719,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let mut inherent_data = self.inherent_data
 			.take()
 			.expect("CreateProposal is not polled after finishing; qed");
-		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(Error::InherentError)?;
+		inherent_data.put_data(polkadot_runtime::NEW_HEADS_IDENTIFIER, &candidates).map_err(Error::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
 

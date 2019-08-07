@@ -322,7 +322,8 @@ service::construct_service_factory! {
 					validation_network,
 					service.transaction_pool(),
 					Arc::new(service.spawn_task_handle()),
-					Arc::new(babe_key.clone()),
+					// TODO: use parachains-specific key rather than repurpose GRANDPA's
+					Arc::new(service.fg_authority_key().unwrap()),
 					extrinsic_store,
 					polkadot_runtime::constants::time::SLOT_DURATION,
 					service.config.custom.max_block_data_size,

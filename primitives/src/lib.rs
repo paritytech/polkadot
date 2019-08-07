@@ -80,6 +80,13 @@ pub type BabePair = sr25519::Pair;
 
 pub type BabeId = babe::AuthorityId;
 
+/// The Parachain crypto scheme defined via the keypair type.
+#[cfg(feature = "std")]
+pub type ParachainPair = ed25519::Pair;
+
+/// The Ed25519 public key used to authenticate signatures on parachain data.
+pub type ParachainPublic = ed25519::Public;
+
 /// Header type.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type.
