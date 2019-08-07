@@ -882,9 +882,10 @@ mod tests {
 	};
 	use primitives::{
 		parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey,
-		BlockNumber, BabeId, time::*,
+		BlockNumber, BabeId,
 	};
-	use keyring::Ed25519Keyring;
+	use crate::constants::time::*;
+	use keyring::{Ed25519Keyring, Sr25519Keyring};
 	use srml_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
@@ -960,7 +961,7 @@ mod tests {
 	// TODO
 	parameter_types! {
 		pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
-		pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
+		pub const ExpectedBlockTime: u64 = MILLISECS_PER_BLOCK;
 	}
 
 	impl babe::Trait for Test {
@@ -1039,6 +1040,18 @@ mod tests {
 			Ed25519Keyring::One,
 			Ed25519Keyring::Two,
 		];
+		let babe_keys = [
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+			Sr25519Keyring::Ferdie,
+			Sr25519Keyring::One,
+			Sr25519Keyring::Two,
+		].iter()
+			.map(|k| (substrate_primitives::sr25519::Public::from(*k), 1))
+			.collect::<Vec<(substrate_primitives::sr25519::Public, u64)>>();
 
 		// stashes are the index.
 		let session_keys: Vec<_> = authority_keys.iter().enumerate()
@@ -1057,17 +1070,18 @@ mod tests {
 
 		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
 
-		session::GenesisConfig::<Test> {
-			keys: session_keys,
-		}.assimilate_storage(&mut t, &mut c).unwrap();
 		GenesisConfig::<Test> {
 			parachains,
 			authorities: authorities.clone(),
 			_phdata: Default::default(),
 		}.assimilate_storage(&mut t, &mut c).unwrap();
 
-		babe::GenesisConfig::<Test> {
-			authorities,
+		session::GenesisConfig::<Test> {
+			keys: session_keys,
+		}.assimilate_storage(&mut t, &mut c).unwrap();
+
+		babe::GenesisConfig {
+			authorities: babe_keys,
 		}.assimilate_storage(&mut t, &mut c).unwrap();
 
 		balances::GenesisConfig::<Test> {

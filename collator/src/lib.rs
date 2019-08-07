@@ -363,7 +363,9 @@ impl<P, E> Worker for CollationNode<P, E> where
 						None => return future::Either::A(future::ok(())),
 					};
 
-					let authorities = try_fr!(api.authorities(&id));
+					// TODO: double check this. It makes sense bc other occurances of `authorities`
+					// has been refactored to this.
+					let authorities = try_fr!(api.validators(&id));
 
 					let targets = compute_targets(
 						para_id,
