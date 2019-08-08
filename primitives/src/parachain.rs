@@ -27,32 +27,55 @@ use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
-use primitives::ed25519;
+use primitives::sr25519;
+use application_crypto::app_crypto;
 
 pub use polkadot_parachain::{
 	Id, AccountIdConversion, ParachainDispatchOrigin, UpwardMessage,
 };
 
+pub const COLLATOR_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"coll");
+
+mod collator_app {
+	use app_crypto::{app_crypto, key_types::BABE, sr25519};
+	app_crypto!(sr25519, COLLATOR_KEY_TYPE_ID);
+}
+
 /// Identity that collators use.
-pub type CollatorId = ed25519::Public;
+pub type CollatorId = collator_app::Public;
+
+/// A Parachain collator keypair.
+#[cfg(feature = "std")]
+pub type CollatorPair = collator_app::Pair;
 
 /// Signature on candidate's block data by a collator.
-pub type CollatorSignature = ed25519::Signature;
+pub type CollatorSignature = collator_app::Signature;
+
+pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
+
+mod validator_app {
+	use app_crypto::{app_crypto, key_types::BABE, sr25519};
+	app_crypto!(sr25519, PARACHAIN_KEY_TYPE_ID);
+}
 
 /// Identity that parachain validators use when signing validation messages.
 ///
 /// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
-pub type ValidatorId = super::SessionKey;
+pub type ValidatorId = validator_app::Public;
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
 pub type ValidatorIndex = u32;
+
+/// A Parachain validator keypair.
+#[cfg(feature = "std")]
+pub type ValidatorPair = validator_app::Pair;
 
  /// Signature with which parachain validators sign blocks.
 ///
 /// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
-pub type ValidatorSignature = super::SessionSignature;
+pub type ValidatorSignature = validator_app::Signature;
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
 #[derive(Copy, Clone, PartialEq, Encode, Decode)]

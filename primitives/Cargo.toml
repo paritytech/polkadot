@@ -8,6 +8,7 @@ edition = "2018"
 serde = { version = "1.0", optional = true, features = ["derive"] }
 parity-codec = { version = "4.1", default-features = false, features = ["bit-vec"] }
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+#application-crypto = { package = "substrate-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sr-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
