@@ -32,6 +32,7 @@ use application_crypto::KeyTypeId;
 pub use polkadot_parachain::{
 	Id, AccountIdConversion, ParachainDispatchOrigin, UpwardMessage,
 };
+pub const COLLATOR_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"coll");
 
 mod collator_app {
 	use application_crypto::{app_crypto, sr25519};
@@ -47,6 +48,8 @@ pub type CollatorPair = collator_app::Pair;
 
 /// Signature on candidate's block data by a collator.
 pub type CollatorSignature = collator_app::Signature;
+
+pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
 
 mod validator_app {
 	use application_crypto::{app_crypto, sr25519};

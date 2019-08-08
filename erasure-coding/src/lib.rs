@@ -187,13 +187,14 @@ pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
 
 	// lazily decode from the data shards.
 	Decode::decode(&mut ShardInput {
+		remaining_len: shard_len.map(|s| s * params.data_shards).unwrap_or(0),
 		cur_shard: None,
 		shards: shards.iter()
 			.map(|x| x.as_ref())
 			.take(params.data_shards)
 			.map(|x| x.expect("all data shards have been recovered; qed"))
 			.map(|x| x.as_ref()),
-	}).ok_or_else(|| Error::BadPayload)
+	}).or_else(|_| Err(Error::BadPayload))
 }
 
 /// An iterator that yields merkle branches and chunk data for all chunks to
@@ -278,8 +279,8 @@ pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Resul
 	);
 
 	match res {
-		Ok(Some(Some(hash))) => Ok(hash),
-		Ok(Some(None)) => Err(Error::InvalidBranchProof), // hash failed to decode
+		Ok(Some(Ok(hash))) => Ok(hash),
+		Ok(Some(Err(_))) => Err(Error::InvalidBranchProof), // hash failed to decode
 		Ok(None) => Err(Error::BranchOutOfBounds),
 		Err(_) => Err(Error::InvalidBranchProof),
 	}
@@ -287,12 +288,17 @@ pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Resul
 
 // input for `codec` which draws data from the data shards
 struct ShardInput<'a, I> {
+	remaining_len: usize,
 	shards: I,
 	cur_shard: Option<(&'a [u8], usize)>,
 }
 
 impl<'a, I: Iterator<Item=&'a [u8]>> codec::Input for ShardInput<'a, I> {
-	fn read(&mut self, into: &mut [u8]) -> usize {
+	fn remaining_len(&mut self) -> Result<Option<usize>, codec::Error> {
+		Ok(Some(self.remaining_len))
+	}
+
+	fn read(&mut self, into: &mut [u8]) -> Result<(), codec::Error> {
 		let mut read_bytes = 0;
 
 		loop {
@@ -320,7 +326,12 @@ impl<'a, I: Iterator<Item=&'a [u8]>> codec::Input for ShardInput<'a, I> {
 			self.cur_shard = Some((active_shard, in_shard))
 		}
 
-		read_bytes
+		self.remaining_len -= read_bytes;
+		if read_bytes == into.len() {
+			Ok(())
+		} else {
+			Err("slice provided too big for input".into())
+		}
 	}
 }
 
