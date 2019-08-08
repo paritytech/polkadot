@@ -95,7 +95,7 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 				let (header_buf, rest) = data.split_at_mut(1024);
 				let mut header_buf: &[u8] = header_buf;
 				let header = ValidationHeader::decode(&mut header_buf)
-					.ok_or_else(|| format!("Error decoding validation request."))?;
+					.map_err(|_| format!("Error decoding validation request."))?;
 				debug!("Candidate header: {:?}", header);
 				let (code, rest) = rest.split_at_mut(MAX_CODE_MEM);
 				let (code, _) = code.split_at_mut(header.code_size as usize);

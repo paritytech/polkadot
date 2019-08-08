@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
-use parity_codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 use super::{Hash, Balance, BlockNumber};
 
@@ -28,7 +28,7 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use primitives::bytes;
 use primitives::sr25519;
-use application_crypto::app_crypto;
+use application_crypto::KeyTypeId;
 
 pub use polkadot_parachain::{
 	Id, AccountIdConversion, ParachainDispatchOrigin, UpwardMessage,
@@ -37,8 +37,8 @@ pub use polkadot_parachain::{
 pub const COLLATOR_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"coll");
 
 mod collator_app {
-	use application_crypto::{app_crypto, key_types::BABE, sr25519};
-	app_crypto!(sr25519, COLLATOR_KEY_TYPE_ID);
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::COLLATOR_KEY_TYPE_ID);
 }
 
 /// Identity that collators use.
@@ -54,8 +54,8 @@ pub type CollatorSignature = collator_app::Signature;
 pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
 
 mod validator_app {
-	use app_crypto::{app_crypto, key_types::BABE, sr25519};
-	app_crypto!(sr25519, PARACHAIN_KEY_TYPE_ID);
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::PARACHAIN_KEY_TYPE_ID);
 }
 
 /// Identity that parachain validators use when signing validation messages.
