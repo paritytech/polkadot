@@ -61,7 +61,7 @@ impl DynamicInclusion {
 	/// would be enough, or `None` if it is sufficient now.
 	///
 	/// Panics if `now` is earlier than the `start`.
-	pub fn acceptable_in(&self, now: Instant, included: usize) -> Option<Instant> {
+	pub fn acceptable_in(&self, now: Instant, included: usize) -> Option<Duration> {
 		let elapsed = now.duration_since(self.start);
 		let elapsed = duration_to_micros(&elapsed);
 
@@ -70,8 +70,7 @@ impl DynamicInclusion {
 		if elapsed >= valid_after {
 			None
 		} else {
-			let until = Duration::from_millis((valid_after - elapsed) as u64 / 1000);
-			Some(now + until)
+			Some(Duration::from_millis((valid_after - elapsed) as u64 / 1000))
 		}
 	}
 }
@@ -105,7 +104,7 @@ mod tests {
 			Duration::from_millis(4000),
 		);
 
-		assert_eq!(dynamic.acceptable_in(now, 5), Some(now + Duration::from_millis(2000)));
+		assert_eq!(dynamic.acceptable_in(now, 5), Some(Duration::from_millis(2000)));
 		assert!(dynamic.acceptable_in(now + Duration::from_millis(2000), 5).is_none());
 		assert!(dynamic.acceptable_in(now + Duration::from_millis(3000), 5).is_none());
 		assert!(dynamic.acceptable_in(now + Duration::from_millis(4000), 5).is_none());

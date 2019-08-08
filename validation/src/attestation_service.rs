@@ -54,15 +54,19 @@ pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
 	use polkadot_runtime::{Call, ParachainsCall, UncheckedExtrinsic as RuntimeExtrinsic};
 
 	let extrinsics = client.block_body(block)?;
-	Ok(extrinsics
-		.into_iter()
-		.filter_map(|ex| RuntimeExtrinsic::decode(&mut ex.encode().as_slice()))
-		.filter_map(|ex| match ex.function {
-			Call::Parachains(ParachainsCall::set_heads(heads)) =>
-				Some(heads.into_iter().map(|c| c.candidate)),
-			_ => None,
-		})
-		.next())
+	Ok(match extrinsics {
+		Some(extrinsics) => extrinsics
+			.into_iter()
+			.filter_map(|ex| RuntimeExtrinsic::decode(&mut ex.encode().as_slice()))
+			.filter_map(|ex| match ex.function {
+				Call::Parachains(ParachainsCall::set_heads(heads)) => {
+					Some(heads.into_iter().map(|c| c.candidate))
+				}
+				_ => None,
+			})
+		.next(),
+		None => None,
+	})
 }
 
 // creates a task to prune redundant entries in availability store upon block finalization

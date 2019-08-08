@@ -30,6 +30,7 @@ use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, Candida
 use parking_lot::Mutex;
 use futures::prelude::*;
 use log::{warn, debug};
+use bitvec::bitvec;
 
 use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
@@ -519,14 +520,26 @@ impl SharedTable {
 		// aggregation in the future.
 		let table_attestations = self.inner.lock().table.proposed_candidates(&*self.context);
 		table_attestations.into_iter()
-			.map(|attested| AttestedCandidate {
-				candidate: attested.candidate,
-				validity_votes: attested.validity_votes.into_iter().map(|(a, v)| match v {
-					GAttestation::Implicit(s) => (a, ValidityAttestation::Implicit(s)),
-					GAttestation::Explicit(s) => (a, ValidityAttestation::Explicit(s)),
-				}).collect(),
-			})
-			.collect()
+			.map(|attested| {
+				let mut validity_votes: Vec<_> = attested.validity_votes.into_iter().map(|(id, a)| {
+					(id as usize, match a {
+						GAttestation::Implicit(s) => ValidityAttestation::Implicit(s),
+						GAttestation::Explicit(s) => ValidityAttestation::Explicit(s),
+					})
+				}).collect();
+				validity_votes.sort_by(|(id1, _), (id2, _)| id1.cmp(id2));
+
+				let mut validator_indices = bitvec![0; validity_votes.last().map(|(i, _)| i + 1).unwrap_or_default()];
+				for (id, _) in &validity_votes {
+					validator_indices.set(*id, true);
+				}
+
+				AttestedCandidate {
+					candidate: attested.candidate,
+					validity_votes: validity_votes.into_iter().map(|(_, a)| a).collect(),
+					validator_indices,
+				}
+			}).collect()
 	}
 
 	/// Get the number of total parachains.
@@ -571,7 +584,7 @@ impl SharedTable {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::AuthorityKeyring;
+	use substrate_keyring::Ed25519Keyring;
 	use primitives::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{BlockData, ConsolidatedIngress};
 	use futures::future;
@@ -604,10 +617,10 @@ mod tests {
 		let para_id = ParaId::from(1);
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
 		let local_id = local_key.public();
 
-		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other_key = Ed25519Keyring::Bob.pair();
 		let validity_other = validity_other_key.public();
 		let validity_other_index = 1;
 
@@ -658,10 +671,10 @@ mod tests {
 		let para_id = ParaId::from(1);
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
 		let local_id = local_key.public();
 
-		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other_key = Ed25519Keyring::Bob.pair();
 		let validity_other = validity_other_key.public();
 		let validity_other_index = 1;
 
@@ -793,10 +806,10 @@ mod tests {
 		let para_id = ParaId::from(1);
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
 		let local_id = local_key.public();
 
-		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other_key = Ed25519Keyring::Bob.pair();
 		let validity_other = validity_other_key.public();
 		let validity_other_index = 1;
 
@@ -859,10 +872,10 @@ mod tests {
 		let extrinsic = Extrinsic { outgoing_messages: Vec::new() };
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(AuthorityKeyring::Alice.pair());
+		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
 		let local_id = local_key.public();
 
-		let validity_other_key = AuthorityKeyring::Bob.pair();
+		let validity_other_key = Ed25519Keyring::Bob.pair();
 		let validity_other = validity_other_key.public();
 
 		groups.insert(para_id, GroupInfo {
@@ -911,18 +924,18 @@ mod tests {
 	fn index_mapping_from_authorities() {
 		let authorities_set: &[&[_]] = &[
 			&[],
-			&[AuthorityKeyring::Alice.pair().public()],
-			&[AuthorityKeyring::Alice.pair().public(), AuthorityKeyring::Bob.pair().public()],
-			&[AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Alice.pair().public()],
-			&[AuthorityKeyring::Alice.pair().public(), AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Charlie.pair().public()],
-			&[AuthorityKeyring::Charlie.pair().public(), AuthorityKeyring::Bob.pair().public(), AuthorityKeyring::Alice.pair().public()],
+			&[Ed25519Keyring::Alice.pair().public()],
+			&[Ed25519Keyring::Alice.pair().public(), Ed25519Keyring::Bob.pair().public()],
+			&[Ed25519Keyring::Bob.pair().public(), Ed25519Keyring::Alice.pair().public()],
+			&[Ed25519Keyring::Alice.pair().public(), Ed25519Keyring::Bob.pair().public(), Ed25519Keyring::Charlie.pair().public()],
+			&[Ed25519Keyring::Charlie.pair().public(), Ed25519Keyring::Bob.pair().public(), Ed25519Keyring::Alice.pair().public()],
 		];
 
 		for authorities in authorities_set {
 			let shared_table = SharedTable::new(
 				authorities,
 				HashMap::new(),
-				Arc::new(AuthorityKeyring::Alice.pair()),
+				Arc::new(Ed25519Keyring::Alice.pair()),
 				Default::default(),
 				ExtrinsicStore::new_in_memory(),
 				None,

@@ -20,9 +20,12 @@
 
 use rstd::{prelude::*, mem::swap, convert::TryInto};
 use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash};
+use sr_primitives::weights::SimpleDispatchInfo;
 use parity_codec::{Encode, Decode};
-use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
-	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}};
+use srml_support::{
+	decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
+	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}
+};
 use primitives::parachain::AccountIdConversion;
 use crate::parachains::ParachainRegistrar;
 use system::{ensure_signed, ensure_root};
@@ -242,6 +245,7 @@ decl_module! {
 		/// This can only happen when there isn't already an auction in progress and may only be
 		/// called by the root origin. Accepts the `duration` of this auction and the
 		/// `lease_period_index` of the initial lease period of the four that are to be auctioned.
+		#[weight = SimpleDispatchInfo::FixedOperational(100_000)]
 		fn new_auction(
 			origin,
 			#[compact] duration: T::BlockNumber,
@@ -277,6 +281,7 @@ decl_module! {
 		/// absolute lease period index value, not an auction-specific offset.
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
+		#[weight = SimpleDispatchInfo::FixedNormal(500_000)]
 		fn bid(
 			origin,
 			#[compact] sub: SubId,
@@ -305,6 +310,7 @@ decl_module! {
 		/// absolute lease period index value, not an auction-specific offset.
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
+		#[weight = SimpleDispatchInfo::FixedNormal(500_000)]
 		fn bid_renew(
 			origin,
 			#[compact] auction_index: AuctionIndex,
@@ -324,6 +330,7 @@ decl_module! {
 		/// The origin *must* be a parachain account.
 		///
 		/// - `dest` is the destination account to receive the parachain's deposit.
+		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
 		fn set_offboarding(origin, dest: <T::Lookup as StaticLookup>::Source) {
 			let who = ensure_signed(origin)?;
 			let dest = T::Lookup::lookup(dest)?;
@@ -339,6 +346,7 @@ decl_module! {
 		/// - `para_id` is the parachain ID allotted to the winning bidder.
 		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
+		#[weight = SimpleDispatchInfo::FixedNormal(500_000)]
 		fn fix_deploy_data(
 			origin,
 			#[compact] sub: SubId,
@@ -370,6 +378,7 @@ decl_module! {
 		/// - `_origin` is irrelevant.
 		/// - `para_id` is the parachain ID whose code will be elaborated.
 		/// - `code` is the preimage of the registered `code_hash` of `para_id`.
+		#[weight = SimpleDispatchInfo::FixedNormal(5_000_000)]
 		fn elaborate_deploy_data(_origin, #[compact] para_id: ParaIdOf<T>, code: Vec<u8>) {
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
 				.ok_or("parachain id not in onboarding")?;
@@ -786,7 +795,9 @@ mod tests {
 	use substrate_primitives::{Blake2Hasher, H256};
 	use sr_io::with_externalities;
 	use sr_primitives::{
-		testing::Header, traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
+		Perbill,
+		testing::Header,
+		traits::{ConvertInto, BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
 	};
 	use srml_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
 	use balances;
@@ -803,6 +814,9 @@ mod tests {
 	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
+		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
+		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
+		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
@@ -812,9 +826,13 @@ mod tests {
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
+		type WeightMultiplierUpdate = ();
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type MaximumBlockLength = MaximumBlockLength;
+		type AvailableBlockRatio = AvailableBlockRatio;
 	}
 
 	parameter_types! {
@@ -838,6 +856,7 @@ mod tests {
 		type CreationFee = CreationFee;
 		type TransactionBaseFee = TransactionBaseFee;
 		type TransactionByteFee = TransactionByteFee;
+		type WeightToFee = ConvertInto;
 	}
 
 	thread_local! {
