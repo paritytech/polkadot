@@ -137,7 +137,7 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
 	pub(crate) fn erasure_chunks(&self) -> impl Stream<Item=ErasureChunk, Error=()> {
-		erasure_chunks(&**self.network(), self.attestation_topic)
+		erasure_chunks(&**self.network(), self.erasure_chunks_topic)
 	}
 
 	fn parent_hash(&self) -> Hash {
