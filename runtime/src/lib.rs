@@ -144,7 +144,7 @@ parameter_types! {
 pub type DealWithFees = SplitTwoWays<
 	Balance,
 	NegativeImbalance,
-	_4, Treasury,   // 4 parts (80%) goes to the treasury.
+	_4, Treasury,     // 4 parts (80%) goes to the treasury.
 	_1, ToAuthor,     // 1 part (20%) goes to the block author.
 >;
 
@@ -373,6 +373,16 @@ impl slots::Trait for Runtime {
 
 impl curated_grandpa::Trait for Runtime { }
 
+parameter_types!{
+	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
+}
+
+impl claims::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type Prefix = Prefix;
+}
+
 impl sudo::Trait for Runtime {
 	type Event = Event;
 	type Proposal = Call;
@@ -403,6 +413,7 @@ construct_runtime!(
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
+		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 		Sudo: sudo,
 	}
 );
