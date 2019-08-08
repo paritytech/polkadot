@@ -21,7 +21,7 @@ use sr_io::{keccak_256, secp256k1_ecdsa_recover};
 use srml_support::{StorageValue, StorageMap, decl_event, decl_storage, decl_module};
 use srml_support::traits::{Currency, Get};
 use system::ensure_none;
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
 use sr_primitives::{
@@ -197,7 +197,7 @@ mod tests {
 
 	use sr_io::with_externalities;
 	use substrate_primitives::{H256, Blake2Hasher};
-	use parity_codec::{Decode, Encode};
+	use codec::{Decode, Encode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sr_primitives::{Perbill, traits::{BlakeTwo256, IdentityLookup, ConvertInto}, testing::Header};

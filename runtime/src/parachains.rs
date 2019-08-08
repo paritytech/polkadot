@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use rstd::collections::btree_map::BTreeMap;
-use parity_codec::{Encode, Decode, HasCompact};
+use codec::{Encode, Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};

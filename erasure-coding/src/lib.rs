@@ -24,7 +24,7 @@
 //! f is the maximum number of faulty validators in the system.
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::{Hash as H256, BlakeTwo256, HashT};
 use primitives::parachain::{BlockData, Extrinsic};
@@ -285,13 +285,13 @@ pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Resul
 	}
 }
 
-// input for `parity_codec` which draws data from the data shards
+// input for `codec` which draws data from the data shards
 struct ShardInput<'a, I> {
 	shards: I,
 	cur_shard: Option<(&'a [u8], usize)>,
 }
 
-impl<'a, I: Iterator<Item=&'a [u8]>> parity_codec::Input for ShardInput<'a, I> {
+impl<'a, I: Iterator<Item=&'a [u8]>> codec::Input for ShardInput<'a, I> {
 	fn read(&mut self, into: &mut [u8]) -> usize {
 		let mut read_bytes = 0;
 

@@ -25,7 +25,7 @@ mod router;
 pub mod validation;
 pub mod gossip;
 
-use parity_codec::{Decode, Encode};
+use codec::{Decode, Encode};
 use futures::sync::oneshot;
 use polkadot_primitives::{Block, SessionKey, Hash, Header};
 use polkadot_primitives::parachain::{

@@ -27,7 +27,7 @@ use polkadot_primitives::parachain::{
 	StructuredUnroutedIngress,
 };
 use substrate_primitives::crypto::UncheckedInto;
-use parity_codec::Encode;
+use codec::Encode;
 use substrate_network::{
 	PeerId, Context, config::Roles, message::generic::ConsensusMessage,
 	specialization::NetworkSpecialization,

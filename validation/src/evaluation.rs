@@ -18,7 +18,7 @@
 
 use super::MAX_TRANSACTIONS_SIZE;
 
-use parity_codec::Encode;
+use codec::Encode;
 use polkadot_primitives::{Block, Hash, BlockNumber};
 use polkadot_primitives::parachain::Id as ParaId;
 

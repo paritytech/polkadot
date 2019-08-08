@@ -17,7 +17,7 @@
 //! A module for manually curated GRANDPA set.
 
 use {grandpa, system};
-use parity_codec::Decode;
+use codec::Decode;
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Zero};
 use sr_primitives::weights::SimpleDispatchInfo;
 use rstd::prelude::*;
