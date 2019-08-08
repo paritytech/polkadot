@@ -37,7 +37,7 @@ pub use polkadot_parachain::{
 pub const COLLATOR_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"coll");
 
 mod collator_app {
-	use app_crypto::{app_crypto, key_types::BABE, sr25519};
+	use application_crypto::{app_crypto, key_types::BABE, sr25519};
 	app_crypto!(sr25519, COLLATOR_KEY_TYPE_ID);
 }
 
