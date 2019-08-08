@@ -51,10 +51,12 @@ pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 	BlakeTwo256::hash(&v[..])
 }
 
-/// A checked message can either be a statement or an erasure chunk message.
-pub enum CheckedMsgs {
-	Statement(SignedStatement),
-	ErasureChunk(ErasureChunk),
+/// Compute the gossip topic for erasure chunks of the given block hash.
+pub(crate) fn erasure_chunks_topic(parent_hash: Hash) -> Hash {
+	let mut v = parent_hash.as_ref().to_vec();
+	v.extend(b"erasure_encoding");
+
+	BlakeTwo256::hash(&v[..])
 }
 
 /// Create a `Stream` of checked messages.
@@ -63,14 +65,28 @@ pub enum CheckedMsgs {
 /// dropped when it is not required anymore. Otherwise, it will stick around in memory
 /// infinitely.
 pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
-	impl Stream<Item=CheckedMsgs, Error=()> {
+	impl Stream<Item=SignedStatement, Error=()> {
 	// spin up a task in the background that processes all incoming statements.
 	// validation has been done already by the gossip validator.
 	// this will block internally until the gossip messages stream is obtained.
 	network.gossip_messages_for(topic)
 		.filter_map(|msg| match msg.0 {
-			GossipMessage::Statement(s) => Some(CheckedMsgs::Statement(s.signed_statement)),
-			GossipMessage::ErasureChunk(m) => Some(CheckedMsgs::ErasureChunk(m.chunk)),
+			GossipMessage::Statement(s) => Some(s.signed_statement),
+			_ => None
+		})
+}
+
+/// Create a `Stream` of erasure chunk messages.
+///
+/// The returned stream will not terminate, so it is required to make sure that the stream is
+/// dropped when it is not required anymore. Otherwise, it will stick around in memory
+/// infinitely.
+pub(crate) fn erasure_chunks<N: NetworkService>(network: &N, topic: Hash) ->
+	impl Stream<Item=ErasureChunk, Error=()> {
+
+	network.gossip_messages_for(topic)
+		.filter_map(|msg| match msg.0 {
+			GossipMessage::ErasureChunk(msg) => Some(msg.chunk),
 			_ => None
 		})
 }
@@ -79,6 +95,7 @@ pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
 pub struct Router<P, E, N: NetworkService, T> {
 	table: Arc<SharedTable>,
 	attestation_topic: Hash,
+	erasure_chunks_topic: Hash,
 	fetcher: SessionDataFetcher<P, E, N, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 	deferred_chunks: Arc<Mutex<DeferredChunks>>,
@@ -96,6 +113,7 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 			table,
 			fetcher,
 			attestation_topic: attestation_topic(parent_hash),
+			erasure_chunks_topic: erasure_chunks_topic(parent_hash),
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
 			deferred_chunks: Arc::new(Mutex::new(DeferredChunks::new())),
 			message_validator,
@@ -108,8 +126,18 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	/// The returned stream will not terminate, so it is required to make sure that the stream is
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
-	pub(crate) fn checked_statements(&self) -> impl Stream<Item=CheckedMsgs, Error=()> {
+	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement, Error=()> {
 		checked_statements(&**self.network(), self.attestation_topic)
+	}
+
+	/// Return a `Stream` of erasure chunk messages. These should be imported into the router
+	/// with `import_erasure_chunk`.
+	///
+	/// The returned stream will not terminate, so it is required to make sure that the stream is
+	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
+	/// infinitely.
+	pub(crate) fn erasure_chunks(&self) -> impl Stream<Item=ErasureChunk, Error=()> {
+		erasure_chunks(&**self.network(), self.attestation_topic)
 	}
 
 	fn parent_hash(&self) -> Hash {
@@ -127,6 +155,7 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 			table: self.table.clone(),
 			fetcher: self.fetcher.clone(),
 			attestation_topic: self.attestation_topic,
+			erasure_chunks_topic: self.erasure_chunks_topic,
 			deferred_statements: self.deferred_statements.clone(),
 			deferred_chunks: self.deferred_chunks.clone(),
 			message_validator: self.message_validator.clone(),
@@ -280,7 +309,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 				signature
 			};
 
-			self.network().gossip_message(self.attestation_topic, message.into());
+			self.network().gossip_message(self.erasure_chunks_topic, message.into());
 		}
 	}
 

@@ -25,8 +25,6 @@ mod router;
 pub mod validation;
 pub mod gossip;
 
-pub use router::CheckedMsgs;
-
 use parity_codec::{Decode, Encode};
 use futures::sync::oneshot;
 use polkadot_primitives::{Block, SessionKey, Hash, Header};
