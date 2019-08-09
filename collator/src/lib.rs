@@ -66,7 +66,7 @@ use polkadot_cli::{
 	ParachainHost,
 };
 use polkadot_network::validation::{SessionParams, ValidationNetwork};
-use polkadot_network::NetworkService;
+use polkadot_network::PolkadotNetworkService;
 use tokio::timer::Timeout;
 use consensus_common::SelectChain;
 use aura::AuraApi;
@@ -93,7 +93,7 @@ pub trait Network: Send + Sync {
 	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement, Error=()>>;
 }
 
-impl<P, E> Network for ValidationNetwork<P, E, NetworkService, TaskExecutor> where
+impl<P, E> Network for ValidationNetwork<P, E, PolkadotNetworkService, TaskExecutor> where
 	P: 'static + Send + Sync,
 	E: 'static + Send + Sync,
 {
@@ -228,7 +228,7 @@ pub fn collate<'a, R, P>(
 
 /// Polkadot-api context.
 struct ApiContext<P, E> {
-	network: Arc<ValidationNetwork<P, E, NetworkService, TaskExecutor>>,
+	network: Arc<ValidationNetwork<P, E, PolkadotNetworkService, TaskExecutor>>,
 	parent_hash: Hash,
 	authorities: Vec<SessionKey>,
 }

@@ -39,7 +39,7 @@ pub use service::{
 };
 pub use service::config::full_version_from_strs;
 pub use client::{backend::Backend, runtime_api::Core as CoreApi, ExecutionStrategy};
-pub use polkadot_network::{PolkadotProtocol, NetworkService};
+pub use polkadot_network::{PolkadotProtocol, PolkadotNetworkService};
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use primitives::Blake2Hasher;
 pub use sr_primitives::traits::ProvideRuntimeApi;
@@ -99,7 +99,7 @@ pub trait PolkadotService {
 	fn select_chain(&self) -> Option<client::LongestChain<Self::Backend, Block>>;
 
 	/// Get a handle to the network.
-	fn network(&self) -> Arc<NetworkService>;
+	fn network(&self) -> Arc<PolkadotNetworkService>;
 
 	/// Get a handle to the transaction pool.
 	fn transaction_pool(&self) -> Arc<TransactionPool<TxChainApi<Self::Backend, Self::Executor>>>;
@@ -117,7 +117,7 @@ impl PolkadotService for Service<FullComponents<Factory>> {
 		Service::select_chain(self)
 	}
 
-	fn network(&self) -> Arc<NetworkService> {
+	fn network(&self) -> Arc<PolkadotNetworkService> {
 		Service::network(self)
 	}
 
@@ -138,7 +138,7 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 		None
 	}
 
-	fn network(&self) -> Arc<NetworkService> {
+	fn network(&self) -> Arc<PolkadotNetworkService> {
 		Service::network(self)
 	}
 
