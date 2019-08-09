@@ -19,10 +19,10 @@
 use primitives::{Pair, Public, crypto::UncheckedInto};
 use polkadot_primitives::{AccountId, parachain::ValidatorId};
 use polkadot_runtime::{
-GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, BabeConfig,
+	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, BabeConfig,
 	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
-	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig,  ParachainsConfig,
-	ImOnlineConfig, StakerStatus, WASM_BINARY,
+	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY,
+	ClaimsConfig, ImOnlineConfig, ParachainsConfig
 };
 use polkadot_runtime::constants::{currency::DOTS, time::*};
 use telemetry::TelemetryEndpoints;
@@ -162,6 +162,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,
 		}),
+		claims: Some(ClaimsConfig {
+			claims: vec![],
+		})
 	}
 }
 
@@ -305,6 +308,9 @@ pub fn testnet_genesis(
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,
 		}),
+		claims: Some(ClaimsConfig {
+			claims: vec![],
+		})
 	}
 }
 

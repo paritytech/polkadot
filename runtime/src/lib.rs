@@ -415,6 +415,16 @@ impl slots::Trait for Runtime {
 
 impl curated_grandpa::Trait for Runtime { }
 
+parameter_types!{
+	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
+}
+
+impl claims::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type Prefix = Prefix;
+}
+
 impl sudo::Trait for Runtime {
 	type Event = Event;
 	type Proposal = Call;
@@ -446,6 +456,7 @@ construct_runtime!(
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
+		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 		Sudo: sudo,
 		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config<T>},
 	}
