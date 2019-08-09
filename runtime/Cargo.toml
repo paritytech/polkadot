@@ -43,6 +43,7 @@ treasury = { package = "srml-treasury", git = "https://github.com/paritytech/sub
 version = { package = "sr-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-scale" }
 babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-scale" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-scale" }
+substrate-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-scale" }
 
 [dev-dependencies]
 hex-literal = "0.2.0"

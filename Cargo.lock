@@ -2642,6 +2642,7 @@ dependencies = [
  "substrate-offchain-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-scale)",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-scale)",
  "substrate-serializer 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-scale)",
+ "substrate-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-scale)",
  "substrate-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-scale)",
  "substrate-wasm-builder-runner 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",

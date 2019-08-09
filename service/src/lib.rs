@@ -198,10 +198,72 @@ service::construct_service_factory! {
 					}
 				}
 
-				let proposer = consensus::ProposerFactory {
-					client: service.client(),
-					transaction_pool: service.transaction_pool(),
+				// TODO: run authorship only if authority.
+				// This will need to check for the `--validator` parameter.
+				// It will also need re-working so that the correct key to use is determined
+				// dynamically, rather than statically as it is here.
+/*
+				if service.config.custom.collating_for.is_some() {
+					info!(
+						"The node cannot start as an authority because it is also configured to run as a collator."
+					);
+					return Ok(service);
+				}
+
+				let client = service.client();
+				let known_oracle = client.clone();
+				let select_chain = if let Some(select_chain) = service.select_chain() {
+					select_chain
+				} else {
+					info!("The node cannot start as an authority because it can't select chain.");
+					return Ok(service);
 				};
+
+				let gossip_validator_select_chain = select_chain.clone();
+				let gossip_validator = network_gossip::register_validator(
+					service.network(),
+					move |block_hash: &Hash| {
+						use client::BlockStatus;
+
+						match known_oracle.block_status(&BlockId::hash(*block_hash)) {
+							Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
+							Ok(BlockStatus::KnownBad) => Some(Known::Bad),
+							Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
+								match gossip_validator_select_chain.leaves() {
+									Err(_) => None,
+									Ok(leaves) => if leaves.contains(block_hash) {
+										Some(Known::Leaf)
+									} else {
+										Some(Known::Old)
+									},
+								}
+							}
+						}
+					},
+				);
+
+				// collator connections and validation network both fulfilled by this
+				let validation_network = ValidationNetwork::new(
+					service.network(),
+					service.on_exit(),
+					gossip_validator,
+					service.client(),
+					polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
+				);
+				let proposer = consensus::ProposerFactory::new(
+					client.clone(),
+					select_chain.clone(),
+					validation_network.clone(),
+					validation_network,
+					service.transaction_pool(),
+					Arc::new(service.spawn_task_handle()),
+					// TODO: grab the correct key from keystore dynamically.
+					unimplemented!(),
+					extrinsic_store,
+					polkadot_runtime::constants::time::SLOT_DURATION,
+					service.config.custom.max_block_data_size,
+				);
+
 
 				let client = service.client();
 				let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
@@ -263,10 +325,6 @@ service::construct_service_factory! {
 					&service.config().custom.inherent_data_providers,
 				)?;
 
-				// ^^^ General Substrate stuff.
-				// --------
-				// Polkadot specific stuff...
-
 				use polkadot_network::validation::ValidationNetwork;
 				let extrinsic_store = {
 					use std::path::PathBuf;
@@ -279,75 +337,7 @@ service::construct_service_factory! {
 						path,
 					})?
 				};
-
-				// TODO: run authorship only if authority.
-				// This will need to check for the `--validator` parameter.
-				// It will also need re-working so that the correct key to use is determined
-				// dynamically, rather than statically as it is here.
-
-				return Ok(service);
-
-				if service.config.custom.collating_for.is_some() {
-					info!(
-						"The node cannot start as an authority because it is also configured to run as a collator."
-					);
-					return Ok(service);
-				}
-
-				let client = service.client();
-				let known_oracle = client.clone();
-				let select_chain = if let Some(select_chain) = service.select_chain() {
-					select_chain
-				} else {
-					info!("The node cannot start as an authority because it can't select chain.");
-					return Ok(service);
-				};
-
-				let gossip_validator_select_chain = select_chain.clone();
-				let gossip_validator = network_gossip::register_validator(
-					service.network(),
-					move |block_hash: &Hash| {
-						use client::BlockStatus;
-
-						match known_oracle.block_status(&BlockId::hash(*block_hash)) {
-							Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
-							Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-							Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
-								match gossip_validator_select_chain.leaves() {
-									Err(_) => None,
-									Ok(leaves) => if leaves.contains(block_hash) {
-										Some(Known::Leaf)
-									} else {
-										Some(Known::Old)
-									},
-								}
-							}
-						}
-					},
-				);
-
-				// collator connections and validation network both fulfilled by this
-				let validation_network = ValidationNetwork::new(
-					service.network(),
-					service.on_exit(),
-					gossip_validator,
-					service.client(),
-					polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
-				);
-				let proposer_factory = consensus::ProposerFactory::new(
-					client.clone(),
-					select_chain.clone(),
-					validation_network.clone(),
-					validation_network,
-					service.transaction_pool(),
-					Arc::new(service.spawn_task_handle()),
-					// TODO: grab the correct key from keystore dynamically.
-					unimplemented!(),
-					extrinsic_store,
-					polkadot_runtime::constants::time::SLOT_DURATION,
-					service.config.custom.max_block_data_size,
-				);
-
+*/
 				Ok(service)
 			}
 		},

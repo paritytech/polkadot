@@ -42,12 +42,12 @@ pub fn kusama_config() -> Result<ChainSpec, String> {
 }
 
 fn session_keys(
-	grandpa: GrandpaId,
 	babe: BabeId,
+	grandpa: GrandpaId,
 	im_online: ImOnlineId,
 	parachain_validator: ValidatorId
 ) -> SessionKeys {
-	SessionKeys { grandpa, babe, im_online, parachain_validator }
+	SessionKeys { babe, grandpa, im_online, parachain_validator }
 }
 
 fn staging_testnet_config_genesis() -> GenesisConfig {
@@ -113,7 +113,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		session: Some(SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
-				session_keys(x.3.clone(), x.2.clone()),
+				session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone()),
 			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
@@ -140,27 +140,27 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			term_duration: 28 * DAYS,
 			desired_seats: 0,
 		}),
-		sudo: Some(SudoConfig {
-			key: endowed_accounts[0].clone(),
+		membership_Instance1: Some(Default::default()),
+		babe: Some(BabeConfig {
+			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
 		}),
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
 		}),
-		babe: Some(BabeConfig {
-			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
+		im_online: Some(ImOnlineConfig {
+			gossip_at: 0,
+			keys: initial_authorities.iter().map(|x| x.4.clone()).collect(),
 		}),
 		parachains: Some(ParachainsConfig {
-			// TODO: double check this. x3 is cool?
-			authorities: initial_authorities.iter().map(|x| x.3.clone()).collect(),
+			authorities: initial_authorities.iter().map(|x| x.5.clone()).collect(),
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
+		sudo: Some(SudoConfig {
+			key: endowed_accounts[0].clone(),
+		}),
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,
-		}),
-		im_online: Some(ImOnlineConfig {
-			gossip_at: 0,
-			last_new_era_start: 0,
 		}),
 	}
 }
@@ -192,16 +192,16 @@ pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Pu
 pub fn get_authority_keys_from_seed(seed: &str) -> (
 	AccountId,
 	AccountId,
-	GrandpaId,
 	BabeId,
+	GrandpaId,
 	ImOnlineId,
 	ValidatorId
 ) {
 	(
 		get_from_seed::<AccountId>(&format!("{}//stash", seed)),
 		get_from_seed::<AccountId>(seed),
-		get_from_seed::<GrandpaId>(seed),
 		get_from_seed::<BabeId>(seed),
+		get_from_seed::<GrandpaId>(seed),
 		get_from_seed::<ImOnlineId>(seed),
 		get_from_seed::<ValidatorId>(seed),
 	)
@@ -209,24 +209,24 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (
 
 /// Helper function to create GenesisConfig for testing
 pub fn testnet_genesis(
-	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId)>,
+	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> GenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
 		vec![
-			get_from_seed("Alice"),
-			get_from_seed("Bob"),
-			get_from_seed("Charlie"),
-			get_from_seed("Dave"),
-			get_from_seed("Eve"),
-			get_from_seed("Ferdie"),
-			get_from_seed("Alice//stash"),
-			get_from_seed("Bob//stash"),
-			get_from_seed("Charlie//stash"),
-			get_from_seed("Dave//stash"),
-			get_from_seed("Eve//stash"),
-			get_from_seed("Ferdie//stash"),
+			get_from_seed::<AccountId>("Alice"),
+			get_from_seed::<AccountId>("Bob"),
+			get_from_seed::<AccountId>("Charlie"),
+			get_from_seed::<AccountId>("Dave"),
+			get_from_seed::<AccountId>("Eve"),
+			get_from_seed::<AccountId>("Ferdie"),
+			get_from_seed::<AccountId>("Alice//stash"),
+			get_from_seed::<AccountId>("Bob//stash"),
+			get_from_seed::<AccountId>("Charlie//stash"),
+			get_from_seed::<AccountId>("Dave//stash"),
+			get_from_seed::<AccountId>("Eve//stash"),
+			get_from_seed::<AccountId>("Ferdie//stash"),
 		]
 	});
 
@@ -276,12 +276,23 @@ pub fn testnet_genesis(
 		elections: Some(ElectionsConfig {
 			members: endowed_accounts.iter()
 				.filter(|&endowed| initial_authorities.iter()
-					.find(|&(_, controller, _, _)| controller == endowed)
+					.find(|&(_, controller, _, _, _, _)| controller == endowed)
 					.is_none()
 				).map(|a| (a.clone(), 1000000)).collect(),
 			presentation_duration: 10,
 			term_duration: 1000000,
 			desired_seats,
+		}),
+		membership_Instance1: Some(Default::default()),
+		babe: Some(BabeConfig {
+			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
+		}),
+		grandpa: Some(GrandpaConfig {
+			authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
+		}),
+		im_online: Some(ImOnlineConfig {
+			gossip_at: 0,
+			keys: initial_authorities.iter().map(|x| x.4.clone()).collect(),
 		}),
 		parachains: Some(ParachainsConfig {
 			authorities: initial_authorities.iter().map(|x| x.5.clone()).collect(),
@@ -291,18 +302,8 @@ pub fn testnet_genesis(
 		sudo: Some(SudoConfig {
 			key: root_key,
 		}),
-		grandpa: Some(GrandpaConfig {
-			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
-		}),
-		babe: Some(BabeConfig {
-			authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
-		}),
 		curated_grandpa: Some(CuratedGrandpaConfig {
 			shuffle_period: 1024,
-		}),
-		im_online: Some(ImOnlineConfig {
-			gossip_at: 0,
-			keys: initial_authorities.iter().map(|x| x.4.clone()).collect(),
 		}),
 	}
 }
@@ -313,7 +314,7 @@ fn development_config_genesis() -> GenesisConfig {
 		vec![
 			get_authority_keys_from_seed("Alice"),
 		],
-		get_from_seed("Alice"),
+		get_from_seed::<AccountId>("Alice"),
 		None,
 	)
 }
@@ -338,7 +339,7 @@ fn local_testnet_genesis() -> GenesisConfig {
 			get_authority_keys_from_seed("Alice"),
 			get_authority_keys_from_seed("Bob"),
 		],
-		get_from_seed("Alice"),
+		get_from_seed::<AccountId>("Alice"),
 		None,
 	)
 }
