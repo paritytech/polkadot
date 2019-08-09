@@ -28,7 +28,7 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use primitives::bytes;
 use primitives::sr25519;
-use application_crypto::KeyTypeId;
+use application_crypto::{Wraps, KeyTypeId};
 
 pub use polkadot_parachain::{
 	Id, AccountIdConversion, ParachainDispatchOrigin, UpwardMessage,
@@ -166,8 +166,7 @@ impl CandidateReceipt {
 
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
-		use runtime_primitives::traits::Verify;
-
+		use runtime_primitives::traits::AppVerify;
 		if self.signature.verify(self.block_data_hash.as_ref(), &self.collator) {
 			Ok(())
 		} else {

@@ -174,7 +174,7 @@ pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_h
 
 /// Check signature on table statement.
 pub fn check_statement(statement: &Statement, signature: &CollatorSignature, signer: SessionKey, parent_hash: &Hash) -> bool {
-	use runtime_primitives::traits::Verify;
+	use runtime_primitives::traits::AppVerify;
 
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
 	encoded.extend(parent_hash.as_ref());
