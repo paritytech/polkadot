@@ -26,7 +26,7 @@ pub enum ChainSpec {
 	Development,
 	/// Whatever the current runtime is, with simple Alice/Bob auths.
 	LocalTestnet,
-	/// The PoC-3 era testnet.
+	/// The Kusama network.
 	Kusama,
 	/// Whatever the current runtime is with the "global testnet" defaults.
 	StagingTestnet,
