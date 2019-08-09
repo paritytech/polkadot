@@ -39,13 +39,13 @@ use codec::Encode;
 use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
-use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey};
+use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
 	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage,
-	CollatorSignature, Collation, PoVBlock,
+	Collation, PoVBlock, ValidatorSignature, ValidatorPair, ValidatorId
 };
-use primitives::{Pair, ed25519};
+use primitives::Pair;
 use runtime_primitives::{
 	traits::{ProvideRuntimeApi, Header as HeaderT, DigestFor}, ApplyError
 };
@@ -60,8 +60,6 @@ use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_babe::timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace, error};
-
-use ed25519::Public as AuthorityId;
 
 type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
@@ -145,7 +143,7 @@ pub trait Network {
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
-		authorities: &[SessionKey],
+		authorities: &[ValidatorId],
 		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter;
 }
@@ -154,7 +152,7 @@ pub trait Network {
 #[derive(Debug, Clone, Default)]
 pub struct GroupInfo {
 	/// Authorities meant to check validity of candidates.
-	validity_guarantors: HashSet<SessionKey>,
+	validity_guarantors: HashSet<ValidatorId>,
 	/// Number of votes needed for validity.
 	needed_validity: usize,
 }
@@ -162,31 +160,31 @@ pub struct GroupInfo {
 /// Sign a table statement against a parent hash.
 /// The actual message signed is the encoded statement concatenated with the
 /// parent hash.
-pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_hash: &Hash) -> CollatorSignature {
+pub fn sign_table_statement(statement: &Statement, key: &ValidatorPair, parent_hash: &Hash) -> ValidatorSignature {
 	// we sign using the primitive statement type because that's what the runtime
 	// expects. These types probably encode the same way so this clone could be optimized
 	// out in the future.
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
 	encoded.extend(parent_hash.as_ref());
 
-	key.sign(&encoded).into()
+	key.sign(&encoded)
 }
 
 /// Check signature on table statement.
-pub fn check_statement(statement: &Statement, signature: &CollatorSignature, signer: SessionKey, parent_hash: &Hash) -> bool {
+pub fn check_statement(statement: &Statement, signature: &ValidatorSignature, signer: ValidatorId, parent_hash: &Hash) -> bool {
 	use runtime_primitives::traits::AppVerify;
 
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
 	encoded.extend(parent_hash.as_ref());
 
-	signature.verify(&encoded[..], &signer.into())
+	signature.verify(&encoded[..], &signer)
 }
 
 /// Compute group info out of a duty roster and a local authority set.
 pub fn make_group_info(
 	roster: DutyRoster,
-	authorities: &[AuthorityId],
-	local_id: AuthorityId,
+	authorities: &[ValidatorId],
+	local_id: ValidatorId,
 ) -> Result<(HashMap<ParaId, GroupInfo>, LocalDuty), Error> {
 	if roster.validator_duty.len() != authorities.len() {
 		return Err(Error::InvalidDutyRosterLength {
@@ -268,7 +266,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		&self,
 		parent_hash: Hash,
 		grandparent_hash: Hash,
-		sign_with: Arc<ed25519::Pair>,
+		sign_with: Arc<ValidatorPair>,
 		max_block_data_size: Option<u64>,
 	)
 		-> Result<Arc<AttestationTracker>, Error>
@@ -448,7 +446,7 @@ struct AttestationTracker {
 pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	parachain_validation: Arc<ParachainValidation<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
-	key: Arc<ed25519::Pair>,
+	key: Arc<ValidatorPair>,
 	_service_handle: ServiceHandle,
 	babe_slot_duration: u64,
 	_select_chain: SC,
@@ -475,7 +473,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 		collators: C,
 		transaction_pool: Arc<Pool<TxApi>>,
 		thread_pool: TaskExecutor,
-		key: Arc<ed25519::Pair>,
+		key: Arc<ValidatorPair>,
 		extrinsic_store: ExtrinsicStore,
 		babe_slot_duration: u64,
 		max_block_data_size: Option<u64>,

@@ -176,7 +176,7 @@ pub fn collate<'a, R, P>(
 	parachain_status: ParachainStatus,
 	relay_context: R,
 	para_context: P,
-	key: Arc<ed25519::Pair>,
+	key: Arc<ValidatorPair>,
 )
 	-> impl Future<Item=parachain::Collation, Error=Error<R::Error>> + 'a
 	where
@@ -258,7 +258,7 @@ struct CollationNode<P, E> {
 	build_parachain_context: P,
 	exit: E,
 	para_id: ParaId,
-	key: Arc<ed25519::Pair>,
+	key: Arc<ValidatorPair>,
 }
 
 impl<P, E> IntoExit for CollationNode<P, E> where
@@ -434,7 +434,7 @@ pub fn run_collator<P, E>(
 	build_parachain_context: P,
 	para_id: ParaId,
 	exit: E,
-	key: Arc<ed25519::Pair>,
+	key: Arc<ValidatorPair>,
 	version: VersionInfo,
 ) -> polkadot_cli::error::Result<()> where
 	P: BuildParachainContext + Send + 'static,

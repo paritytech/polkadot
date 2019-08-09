@@ -22,9 +22,10 @@ use std::sync::Arc;
 
 use extrinsic_store::{Data, Store as ExtrinsicStore};
 use table::{self, Table, Context as TableContextTrait};
-use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
-use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, CandidateReceipt,
-	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex,
+use polkadot_primitives::{Block, BlockId, Hash};
+use polkadot_primitives::parachain::{
+	Id as ParaId, Collation, Extrinsic, CandidateReceipt, ValidatorPair, ValidatorId,
+	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex
 };
 
 use parking_lot::Mutex;
@@ -34,7 +35,7 @@ use bitvec::bitvec;
 
 use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
-use primitives::{ed25519, Pair};
+use primitives::Pair;
 use runtime_primitives::traits::ProvideRuntimeApi;
 
 mod includable;
@@ -45,9 +46,9 @@ pub use table::generic::Statement as GenericStatement;
 
 struct TableContext {
 	parent_hash: Hash,
-	key: Arc<ed25519::Pair>,
+	key: Arc<ValidatorPair>,
 	groups: HashMap<ParaId, GroupInfo>,
-	index_mapping: HashMap<ValidatorIndex, SessionKey>,
+	index_mapping: HashMap<ValidatorIndex, ValidatorId>,
 }
 
 impl table::Context for TableContext {
@@ -66,8 +67,8 @@ impl table::Context for TableContext {
 }
 
 impl TableContext {
-	fn local_id(&self) -> SessionKey {
-		self.key.public().into()
+	fn local_id(&self) -> ValidatorId {
+		self.key.public()
 	}
 
 	fn local_index(&self) -> ValidatorIndex {
@@ -399,9 +400,9 @@ impl SharedTable {
 	/// Provide the key to sign with, and the parent hash of the relay chain
 	/// block being built.
 	pub fn new(
-		authorities: &[ed25519::Public],
+		authorities: &[ValidatorId],
 		groups: HashMap<ParaId, GroupInfo>,
-		key: Arc<ed25519::Pair>,
+		key: Arc<ValidatorPair>,
 		parent_hash: Hash,
 		extrinsic_store: ExtrinsicStore,
 		max_block_data_size: Option<u64>,
@@ -425,7 +426,7 @@ impl SharedTable {
 	}
 
 	/// Get the local validator session key.
-	pub fn session_key(&self) -> SessionKey {
+	pub fn session_key(&self) -> ValidatorId {
 		self.context.local_id()
 	}
 
@@ -576,7 +577,7 @@ impl SharedTable {
 	}
 
 	/// Returns id of the validator corresponding to the given index.
-	pub fn index_to_id(&self, index: ValidatorIndex) -> Option<SessionKey> {
+	pub fn index_to_id(&self, index: ValidatorIndex) -> Option<ValidatorId> {
 		self.context.index_mapping.get(&index).cloned()
 	}
 }

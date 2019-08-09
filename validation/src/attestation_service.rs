@@ -33,9 +33,8 @@ use extrinsic_store::Store as ExtrinsicStore;
 use futures::prelude::*;
 use futures03::{TryStreamExt as _, StreamExt as _};
 use log::error;
-use primitives::ed25519;
 use polkadot_primitives::{Block, BlockId};
-use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
+use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost, ValidatorPair};
 use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
 use babe_primitives::BabeApi;
 
@@ -57,7 +56,7 @@ pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
 	Ok(match extrinsics {
 		Some(extrinsics) => extrinsics
 			.into_iter()
-			.filter_map(|ex| RuntimeExtrinsic::decode(&mut ex.encode().as_slice()))
+			.filter_map(|ex| RuntimeExtrinsic::decode(&mut ex.encode().as_slice()).ok())
 			.filter_map(|ex| match ex.function {
 				Call::Parachains(ParachainsCall::set_heads(heads)) => {
 					Some(heads.into_iter().map(|c| c.candidate))
@@ -114,7 +113,7 @@ pub(crate) fn start<C, N, P, SC>(
 	select_chain: SC,
 	parachain_validation: Arc<crate::ParachainValidation<C, N, P>>,
 	thread_pool: TaskExecutor,
-	key: Arc<ed25519::Pair>,
+	key: Arc<ValidatorPair>,
 	extrinsic_store: ExtrinsicStore,
 	max_block_data_size: Option<u64>,
 ) -> ServiceHandle
