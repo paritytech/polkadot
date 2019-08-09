@@ -336,7 +336,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		let local_session_key = table.session_key();
 
 		let build_fetcher = self.instantiate_session(SessionParams {
-			local_session_key: Some(local_session_key),
+			local_session_key,
 			parent_hash,
 			authorities: authorities.to_vec(),
 		});
