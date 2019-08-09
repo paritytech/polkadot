@@ -33,9 +33,6 @@ use srml_support::{
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement}
 };
 
-#[cfg(feature = "std")]
-use srml_support::storage::hashed::generator;
-
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
 #[cfg(any(feature = "std", test))]
@@ -252,25 +249,31 @@ decl_storage! {
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
-		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
-			use sr_primitives::traits::Zero;
-
-			let mut p = config.parachains.clone();
-			p.sort_unstable_by_key(|&(ref id, _, _)| *id);
-			p.dedup_by_key(|&mut (ref id, _, _)| *id);
-
-			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
-
-			<Parachains as generator::StorageValue<_>>::put(&only_ids, storage);
-
-			for (id, code, genesis) in p {
-				// no ingress -- a chain cannot be routed to until it is live.
-				<Code as generator::StorageMap<_, _>>::insert(&id, &code, storage);
-				<Heads as generator::StorageMap<_, _>>::insert(&id, &genesis, storage);
-				<Watermarks<T> as generator::StorageMap<_, _>>::insert(&id, &Zero::zero(), storage);
-			}
-		});
+		build(build::<T>);
 	}
+}
+
+#[cfg(feature = "std")]
+fn build<T: Trait>(
+	storage: &mut (StorageOverlay, ChildrenStorageOverlay),
+	config: &GenesisConfig<T>
+) {
+	let mut p = config.parachains.clone();
+	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
+	p.dedup_by_key(|&mut (ref id, _, _)| *id);
+
+	let only_ids: Vec<ParaId> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
+
+	sr_io::with_storage(storage, || {
+		Parachains::put(&only_ids);
+
+		for (id, code, genesis) in p {
+			// no ingress -- a chain cannot be routed to until it is live.
+			Code::insert(&id, &code);
+			Heads::insert(&id, &genesis);
+			<Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
+		}
+	});
 }
 
 decl_module! {

@@ -80,6 +80,7 @@ std = [
 	"grandpa/std",
 	"im-online/std",
 	"indices/std",
+	"membership/std",
 	"sr-primitives/std",
 	"session/std",
 	"staking/std",

@@ -3638,6 +3638,7 @@ version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=gav-scale#adc04a9ae2ba1cc22d0971790e99d79e6b1bc55b"
 dependencies = [
  "parity-scale-codec 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.98 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-scale)",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-scale)",
  "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=gav-scale)",
