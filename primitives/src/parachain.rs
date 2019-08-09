@@ -316,11 +316,11 @@ pub enum ValidityAttestation {
 	/// implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
 	#[codec(index = "1")]
-	Implicit(CollatorSignature),
+	Implicit(ValidatorSignature),
 	/// An explicit attestation. This corresponds to issuance of a
 	/// `Valid` statement.
 	#[codec(index = "2")]
-	Explicit(CollatorSignature),
+	Explicit(ValidatorSignature),
 }
 
 /// An attested candidate.
