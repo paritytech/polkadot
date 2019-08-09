@@ -54,7 +54,7 @@ use super::PolkadotProtocol;
 
 pub use polkadot_validation::Incoming;
 
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 
 /// An executor suitable for dispatching async consensus tasks.
 pub trait Executor {

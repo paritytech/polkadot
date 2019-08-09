@@ -23,7 +23,7 @@ use substrate_network::consensus_gossip::{
 };
 use polkadot_validation::{GenericStatement, SignedStatement};
 use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorIndex};
-use parity_codec::{Decode, Encode};
+use codec::{Decode, Encode};
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;

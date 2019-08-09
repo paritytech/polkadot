@@ -27,13 +27,13 @@ use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
-use primitives::sr25519;
-use application_crypto::{Wraps, KeyTypeId};
+use application_crypto::KeyTypeId;
 
 pub use polkadot_parachain::{
 	Id, AccountIdConversion, ParachainDispatchOrigin, UpwardMessage,
 };
 
+/// The key type ID for a collator key.
 pub const COLLATOR_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"coll");
 
 mod collator_app {
@@ -51,6 +51,7 @@ pub type CollatorPair = collator_app::Pair;
 /// Signature on candidate's block data by a collator.
 pub type CollatorSignature = collator_app::Signature;
 
+/// The key type ID for a parachain validator key.
 pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
 
 mod validator_app {
@@ -167,6 +168,7 @@ impl CandidateReceipt {
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
 		use runtime_primitives::traits::AppVerify;
+
 		if self.signature.verify(self.block_data_hash.as_ref(), &self.collator) {
 			Ok(())
 		} else {

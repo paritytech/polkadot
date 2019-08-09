@@ -35,7 +35,7 @@ use babe_primitives::BabeApi;
 use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
-use parity_codec::Encode;
+use codec::Encode;
 use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;

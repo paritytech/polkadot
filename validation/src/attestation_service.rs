@@ -50,7 +50,7 @@ type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), 
 pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
 	-> ClientResult<Option<impl Iterator<Item=CandidateReceipt>>>
 {
-	use parity_codec::{Encode, Decode};
+	use codec::{Encode, Decode};
 	use polkadot_runtime::{Call, ParachainsCall, UncheckedExtrinsic as RuntimeExtrinsic};
 
 	let extrinsics = client.block_body(block)?;

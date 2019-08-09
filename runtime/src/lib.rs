@@ -30,8 +30,8 @@ mod slots;
 use rstd::prelude::*;
 use substrate_primitives::u32_trait::{_1, _2, _3, _4};
 use primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, SessionKey, Signature, Moment,
-	parachain, BabeId,
+	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
+	parachain,
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
@@ -44,6 +44,7 @@ use sr_primitives::{
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives::{self, ScheduledChange}};
+use babe_primitives::AuthorityId as BabeId;
 use elections::VoteIndex;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
@@ -51,6 +52,7 @@ use substrate_primitives::OpaqueMetadata;
 use srml_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
 };
+//use im_online::{AuthorityId as ImOnlineId};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -97,7 +99,7 @@ pub fn native_version() -> NativeVersion {
 type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
 
 parameter_types! {
-	pub const BlockHashCount: u64 = 250;
+	pub const BlockHashCount: BlockNumber = 250;
 	pub const MaximumBlockWeight: Weight = 1_000_000_000;
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
@@ -105,6 +107,7 @@ parameter_types! {
 
 impl system::Trait for Runtime {
 	type Origin = Origin;
+	type Call = Call;
 	type Index = Nonce;
 	type BlockNumber = BlockNumber;
 	type Hash = Hash;
@@ -180,7 +183,7 @@ impl timestamp::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const UncleGenerations: u64 = 0;
+	pub const UncleGenerations: u32 = 0;
 }
 
 // TODO: substrate#2986 implement this properly
@@ -250,11 +253,9 @@ parameter_types! {
 	pub const LaunchPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
 	pub const VotingPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
 	pub const EmergencyVotingPeriod: BlockNumber = 3 * 24 * 60 * MINUTES;
-	pub const MinimumDeposit: Balance = 100 * BUCKS;
+	pub const MinimumDeposit: Balance = 100 * DOLLARS;
 	pub const EnactmentPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
-	pub const CooloffPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
-
-	pub const AttestationPeriod: BlockNumber = 60 * MINUTES * 3;
+	pub const CooloffPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
 }
 
 impl democracy::Trait for Runtime {
@@ -266,26 +267,35 @@ impl democracy::Trait for Runtime {
 	type VotingPeriod = VotingPeriod;
 	type EmergencyVotingPeriod = EmergencyVotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
-	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilInstance>;
-	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilInstance>;
-	type ExternalPushOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalInstance>;
-	type EmergencyOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilInstance>;
-	type CancellationOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilInstance>;
-	type VetoOrigin = collective::EnsureMember<AccountId, CouncilInstance>;
+	/// A straight majority of the council can decide what their next motion is.
+	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
+	/// A super-majority can have the next scheduled referendum be a straight majority-carries vote.
+	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	/// A unanimous council can have the next scheduled referendum be a straight default-carries
+	/// (NTB) vote.
+	type ExternalDefaultOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>;
+	/// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
+	/// be tabled immediately and with a shorter voting/enactment period.
+	type FastTrackOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>;
+	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
+	type CancellationOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>;
+	// Any single technical committee member may veto a coming council proposal, however they can
+	// only do it once and it lasts only for the cooloff period.
+	type VetoOrigin = collective::EnsureMember<AccountId, TechnicalCollective>;
 	type CooloffPeriod = CooloffPeriod;
 }
 
-type CouncilInstance = collective::Instance1;
-impl collective::Trait<CouncilInstance> for Runtime {
+type CouncilCollective = collective::Instance1;
+impl collective::Trait<CouncilCollective> for Runtime {
 	type Origin = Origin;
 	type Proposal = Call;
 	type Event = Event;
 }
 
 parameter_types! {
-	pub const CandidacyBond: Balance = 10 * BUCKS;
-	pub const VotingBond: Balance = 1 * BUCKS;
-	pub const VotingFee: Balance = 2 * BUCKS;
+	pub const CandidacyBond: Balance = 10 * DOLLARS;
+	pub const VotingBond: Balance = 1 * DOLLARS;
+	pub const VotingFee: Balance = 2 * DOLLARS;
 	pub const PresentSlashPerVoter: Balance = 1 * CENTS;
 	pub const CarryCount: u32 = 6;
 	// one additional vote should go by before an inactive voter can be reaped.
@@ -312,24 +322,34 @@ impl elections::Trait for Runtime {
 	type DecayRatio = DecayRatio;
 }
 
-type TechnicalInstance = collective::Instance2;
-impl collective::Trait<TechnicalInstance> for Runtime {
+type TechnicalCollective = collective::Instance2;
+impl collective::Trait<TechnicalCollective> for Runtime {
 	type Origin = Origin;
 	type Proposal = Call;
 	type Event = Event;
 }
 
+impl membership::Trait<membership::Instance1> for Runtime {
+	type Event = Event;
+	type AddOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type RemoveOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type SwapOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type ResetOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type MembershipInitialized = TechnicalCommittee;
+	type MembershipChanged = TechnicalCommittee;
+}
+
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
-	pub const ProposalBondMinimum: Balance = 1 * BUCKS;
+	pub const ProposalBondMinimum: Balance = 1 * DOLLARS;
 	pub const SpendPeriod: BlockNumber = 1 * DAYS;
 	pub const Burn: Permill = Permill::from_percent(50);
 }
 
 impl treasury::Trait for Runtime {
 	type Currency = Balances;
-	type ApproveOrigin = collective::EnsureMembers<_4, AccountId, CouncilInstance>;
-	type RejectOrigin = collective::EnsureMembers<_2, AccountId, CouncilInstance>;
+	type ApproveOrigin = collective::EnsureMembers<_4, AccountId, CouncilCollective>;
+	type RejectOrigin = collective::EnsureMembers<_2, AccountId, CouncilCollective>;
 	type Event = Event;
 	type MintedForSpending = ();
 	type ProposalRejection = ();
@@ -340,12 +360,9 @@ impl treasury::Trait for Runtime {
 }
 
 impl im_online::Trait for Runtime {
-	type AuthorityId = BabeId;
 	type Call = Call;
 	type Event = Event;
-	type SessionsPerEra = SessionsPerEra;
 	type UncheckedExtrinsic = UncheckedExtrinsic;
-	type IsValidAuthorityId = Babe;
 }
 
 impl grandpa::Trait for Runtime {
@@ -361,6 +378,10 @@ impl finality_tracker::Trait for Runtime {
 	type OnFinalizationStalled = Grandpa;
 	type WindowSize = WindowSize;
 	type ReportLatency = ReportLatency;
+}
+
+parameter_types! {
+	pub const AttestationPeriod: BlockNumber = 50;
 }
 
 impl attestations::Trait for Runtime {
@@ -412,6 +433,7 @@ construct_runtime!(
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		Elections: elections::{Module, Call, Storage, Event<T>, Config<T>},
+		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
 		CuratedGrandpa: curated_grandpa::{Module, Call, Config<T>, Storage},
@@ -420,7 +442,7 @@ construct_runtime!(
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Sudo: sudo,
-		ImOnline: im_online::{default, ValidateUnsigned},
+		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config<T>},
 	}
 );
 
@@ -540,7 +562,7 @@ impl_runtime_apis! {
 			None // disable forced changes.
 		}
 
-		fn grandpa_authorities() -> Vec<(SessionKey, u64)> {
+		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
 			Grandpa::grandpa_authorities()
 		}
 	}

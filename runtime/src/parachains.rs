@@ -18,14 +18,14 @@
 
 use rstd::prelude::*;
 use rstd::collections::btree_map::BTreeMap;
-use parity_codec::{Encode, Decode, HasCompact};
+use codec::{Encode, Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
 use sr_primitives::weights::SimpleDispatchInfo;
-use primitives::{Hash, Balance, ParachainPublic, parachain::{
+use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots,
+	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId
 }};
 use {system, session};
 use srml_support::{
@@ -217,7 +217,7 @@ const WATERMARK_QUEUE_SIZE: usize = 20000;
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		/// All authorities' keys at the moment.
-		pub Authorities get(authorities) config(authorities): Vec<ParachainPublic>;
+		pub Authorities get(authorities) config(authorities): Vec<ValidatorId>;
 		/// Vector of all parachain IDs.
 		pub Parachains get(active_parachains): Vec<ParaId>;
 		/// The parachains registered at present.
@@ -380,7 +380,7 @@ impl<T: Trait> Module<T> {
 		origin: ParachainDispatchOrigin,
 		data: &[u8],
 	) {
-		if let Some(message_call) = T::Call::decode(&mut &data[..]) {
+		if let Ok(message_call) = <T as Trait>::Call::decode(&mut &data[..]) {
 			let origin: <T as Trait>::Origin = match origin {
 				ParachainDispatchOrigin::Signed =>
 					system::RawOrigin::Signed(id.into_account()).into(),
@@ -657,7 +657,7 @@ impl<T: Trait> Module<T> {
 		-> rstd::result::Result<IncludedBlocks<T>, &'static str>
 	{
 		use primitives::parachain::ValidityAttestation;
-		use sr_primitives::traits::Verify;
+		use sr_primitives::traits::AppVerify;
 
 		// returns groups of slices that have the same chain ID.
 		// assumes the inner slice is sorted by id.
@@ -802,7 +802,7 @@ impl<T: Trait> Module<T> {
 
 			para_block_hashes.push(candidate_hash.unwrap_or_else(|| candidate.candidate().hash()));
 
-      ensure!(
+		ensure!(
 				candidate.validity_votes.len() == expected_votes_len,
 				"Extra untagged validity votes along with candidate"
 			);
@@ -835,7 +835,7 @@ impl<T: Trait> Module<T> {
 }
 
 impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
-	type Key = ParachainPublic;
+	type Key = ValidatorId;
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, _queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
@@ -907,7 +907,7 @@ mod tests {
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
 	parameter_types! {
-		pub const BlockHashCount: u64 = 250;
+		pub const BlockHashCount: u32 = 250;
 		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
@@ -915,7 +915,7 @@ mod tests {
 	impl system::Trait for Test {
 		type Origin = Origin;
 		type Index = u64;
-		type BlockNumber = u64;
+		type BlockNumber = u32;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;

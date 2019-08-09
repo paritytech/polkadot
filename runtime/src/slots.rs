@@ -21,7 +21,7 @@
 use rstd::{prelude::*, mem::swap, convert::TryInto};
 use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash};
 use sr_primitives::weights::SimpleDispatchInfo;
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 use srml_support::{
 	decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}
@@ -813,7 +813,7 @@ mod tests {
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
 	parameter_types! {
-		pub const BlockHashCount: u64 = 250;
+		pub const BlockHashCount: u32 = 250;
 		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
@@ -821,7 +821,7 @@ mod tests {
 	impl system::Trait for Test {
 		type Origin = Origin;
 		type Index = u64;
-		type BlockNumber = u64;
+		type BlockNumber = u32;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;

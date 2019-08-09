@@ -21,7 +21,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use runtime_primitives::{generic, AnySignature};
-use primitives::{ed25519, sr25519};
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify};
 

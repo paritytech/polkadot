@@ -41,7 +41,7 @@ use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 use std::collections::HashMap;
 use std::sync::Arc;
 use futures::{prelude::*, sync::mpsc};
-use parity_codec::Encode;
+use codec::Encode;
 
 use super::TestContext;
 
