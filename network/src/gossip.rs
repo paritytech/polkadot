@@ -22,7 +22,7 @@ use substrate_network::consensus_gossip::{
 	ValidatorContext, MessageIntent, ConsensusMessage,
 };
 use polkadot_validation::{GenericStatement, SignedStatement};
-use polkadot_primitives::{Block, Hash, SessionKey, parachain::ValidatorIndex};
+use polkadot_primitives::{Block, Hash, parachain::{ValidatorIndex, ValidatorId}};
 use codec::{Decode, Encode};
 
 use std::collections::{HashMap, HashSet};
@@ -218,9 +218,9 @@ impl RegisteredMessageValidator {
 #[derive(Default)]
 pub(crate) struct MessageValidationData {
 	/// The authorities at a block.
-	pub(crate) authorities: Vec<SessionKey>,
-	/// Mapping from validator index to `SessionKey`.
-	pub(crate) index_mapping: HashMap<ValidatorIndex, SessionKey>,
+	pub(crate) authorities: Vec<ValidatorId>,
+	/// Mapping from validator index to `ValidatorId`.
+	pub(crate) index_mapping: HashMap<ValidatorIndex, ValidatorId>,
 }
 
 impl MessageValidationData {
@@ -481,15 +481,15 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 		-> GossipValidationResult<Hash>
 	{
 		let (res, cost_benefit) = match GossipMessage::decode(&mut data) {
-			None => (GossipValidationResult::Discard, cost::MALFORMED_MESSAGE),
-			Some(GossipMessage::Neighbor(VersionedNeighborPacket::V1(packet))) => {
+			Err(_) => (GossipValidationResult::Discard, cost::MALFORMED_MESSAGE),
+			Ok(GossipMessage::Neighbor(VersionedNeighborPacket::V1(packet))) => {
 				let (res, cb, topics) = self.inner.write().validate_neighbor_packet(sender, packet);
 				for new_topic in topics {
 					context.send_topic(sender, new_topic, false);
 				}
 				(res, cb)
 			}
-			Some(GossipMessage::Statement(statement)) => {
+			Ok(GossipMessage::Statement(statement)) => {
 				let (res, cb) = self.inner.write().validate_statement(statement);
 				if let GossipValidationResult::ProcessAndKeep(ref topic) = res {
 					context.broadcast_message(topic.clone(), data.to_vec(), false);
@@ -535,7 +535,7 @@ impl<O: KnownOracle + ?Sized> network_gossip::Validator<Block> for MessageValida
 			};
 
 			match GossipMessage::decode(&mut &data[..]) {
-				Some(GossipMessage::Statement(statement)) => {
+				Ok(GossipMessage::Statement(statement)) => {
 					let signed = statement.signed_statement;
 
 					match signed.statement {

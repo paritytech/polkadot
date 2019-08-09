@@ -31,5 +31,6 @@ telemetry = { package = "substrate-telemetry", git = "https://github.com/parityt
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "gav-scale" }
 substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "gav-scale" }
 srml_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-scale" }
+im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-scale" }
 babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "gav-scale" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "gav-scale" }

@@ -27,7 +27,7 @@ transaction_pool = { package = "substrate-transaction-pool", git = "https://gith
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "gav-scale" }
 trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "gav-scale" }
 runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "gav-scale" }
-bitvec = { version = "0.11", default-features = false, features = ["alloc"] }
+bitvec = { version = "0.14.0", default-features = false, features = ["alloc"] }
 runtime_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", branch = "gav-scale" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "gav-scale" }
 

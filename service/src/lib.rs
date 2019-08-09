@@ -171,8 +171,6 @@ impl PolkadotService for Service<LightComponents<Factory>> {
 service::construct_service_factory! {
 	struct Factory {
 		Block = Block,
-		ConsensusPair = BabePair,
-		FinalityPair = GrandpaPair,
 		RuntimeApi = RuntimeApi,
 		NetworkProtocol = PolkadotProtocol {
 			|config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for.clone()))

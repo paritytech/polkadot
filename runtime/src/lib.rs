@@ -52,6 +52,7 @@ use substrate_primitives::OpaqueMetadata;
 use srml_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
 };
+use im_online::AuthorityId as ImOnlineId;
 //use im_online::{AuthorityId as ImOnlineId};
 
 #[cfg(feature = "std")]
@@ -199,13 +200,17 @@ parameter_types! {
 	pub const Offset: BlockNumber = 0;
 }
 
-type SessionHandlers = (Grandpa, Babe);
+type SessionHandlers = (Grandpa, Babe, ImOnline, Parachains);
 impl_opaque_keys! {
 	pub struct SessionKeys {
-		#[id(key_types::ED25519)]
-		pub ed25519: GrandpaId,
-		#[id(key_types::SR25519)]
-		pub sr25519: BabeId,
+		#[id(key_types::GRANDPA)]
+		pub grandpa: GrandpaId,
+		#[id(key_types::BABE)]
+		pub babe: BabeId,
+		#[id(key_types::IM_ONLINE)]
+		pub im_online: ImOnlineId,
+		#[id(parachain::PARACHAIN_KEY_TYPE_ID)]
+		pub parachain_validator: parachain::ValidatorId,
 	}
 }
 
