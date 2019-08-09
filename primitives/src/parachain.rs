@@ -371,7 +371,10 @@ substrate_client::decl_runtime_apis! {
 		fn parachain_code(id: Id) -> Option<Vec<u8>>;
 		/// Get all the unrouted ingress roots at the given block that
 		/// are targeting the given parachain.
-		fn ingress(to: Id) -> Option<StructuredUnroutedIngress>;
+		///
+		/// If `since` is provided, only messages since (including those in) that block
+		/// will be included.
+		fn ingress(to: Id, since: Option<BlockNumber>) -> Option<StructuredUnroutedIngress>;
 	}
 }
 
