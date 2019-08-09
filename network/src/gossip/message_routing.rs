@@ -35,7 +35,7 @@ pub fn queue_topic(queue_root: Hash) -> Hash {
 pub struct View {
 	leaves: LeavesVec,
 	leaf_topics: HashMap<Hash, HashSet<Hash>>, // leaf_hash -> { topics }
-	expected_queues: HashMap<Hash, Hash>, // topic -> queue-root
+	expected_queues: HashMap<Hash, (Hash, bool)>, // topic -> (queue-root, known)
 }
 
 impl View {
@@ -77,7 +77,7 @@ impl View {
 			let r = context.leaf_unrouted_roots(new_leaf, &mut |&queue_root| {
 				let topic = queue_topic(queue_root);
 				this_leaf_topics.insert(topic);
-				expected_queues.insert(topic, queue_root);
+				expected_queues.entry(topic).or_insert((queue_root, false));
 			});
 
 			if r.is_err() {
@@ -91,22 +91,26 @@ impl View {
 	}
 
 	/// Validate an incoming message queue against this view.
-	pub fn validate_queue(&self, messages: &super::GossipParachainMessages)
+	pub fn validate_queue_and_note_known(&mut self, messages: &super::GossipParachainMessages)
 		-> (GossipValidationResult<Hash>, i32)
 	{
 		let ostensible_topic = queue_topic(messages.queue_root);
-		if !self.is_topic_live(&ostensible_topic) {
-			(GossipValidationResult::Discard, super::cost::UNNEEDED_ICMP_MESSAGES)
-		} else if !messages.queue_root_is_correct() {
-			(
-				GossipValidationResult::Discard,
-				super::cost::icmp_messages_root_mismatch(messages.messages.len()),
-			)
-		} else {
-			(
-				GossipValidationResult::ProcessAndKeep(ostensible_topic),
-				super::benefit::NEW_ICMP_MESSAGES,
-			)
+		match self.expected_queues.get_mut(&ostensible_topic) {
+			None => (GossipValidationResult::Discard, super::cost::UNNEEDED_ICMP_MESSAGES),
+			Some(&mut (_, ref mut known)) => {
+				if !messages.queue_root_is_correct() {
+					(
+						GossipValidationResult::Discard,
+						super::cost::icmp_messages_root_mismatch(messages.messages.len()),
+					)
+				} else {
+					*known = true;
+					(
+						GossipValidationResult::ProcessAndKeep(ostensible_topic),
+						super::benefit::NEW_ICMP_MESSAGES,
+					)
+				}
+			}
 		}
 	}
 
@@ -135,6 +139,17 @@ impl View {
 
 		false
 	}
+
+	/// Iterate over all live message queues for which the data is marked as not locally known,
+	/// calling a closure with `(topic, root)`. The closure will return whether the queue data is
+	/// unknown.
+	pub fn sweep_unknown_queues(&mut self, mut check_known: impl FnMut(&Hash, &Hash) -> bool) {
+		for (topic, &mut (ref queue_root, ref mut known)) in self.expected_queues.iter_mut() {
+			if !*known {
+				*known = check_known(topic, queue_root)
+			}
+		}
+	}
 }
 
 #[cfg(test)]
@@ -162,7 +177,7 @@ mod tests {
 		)
 	}
 
-	fn check_roots(view: &View, i: u8, max: u8) -> bool {
+	fn check_roots(view: &mut View, i: u8, max: u8) -> bool {
 		for j in 0..max {
 			if let Some(messages) = message_queue(i, j) {
 				let queue_root = message_queue_root(i, j).unwrap();
@@ -171,7 +186,7 @@ mod tests {
 					messages: messages.iter().map(|m| ParachainMessage(m.to_vec())).collect(),
 				};
 
-				match view.validate_queue(&messages).0 {
+				match view.validate_queue_and_note_known(&messages).0 {
 					GossipValidationResult::ProcessAndKeep(topic) => if topic != queue_topic(queue_root) {
 						return false
 					},
@@ -204,27 +219,27 @@ mod tests {
 			[hash(0), hash(1)].iter().cloned(),
 		).unwrap();
 
-		assert!(check_roots(&view, 0, max));
-		assert!(check_roots(&view, 1, max));
+		assert!(check_roots(&mut view, 0, max));
+		assert!(check_roots(&mut view, 1, max));
 
-		assert!(!check_roots(&view, 2, max));
-		assert!(!check_roots(&view, 3, max));
-		assert!(!check_roots(&view, 4, max));
-		assert!(!check_roots(&view, 5, max));
+		assert!(!check_roots(&mut view, 2, max));
+		assert!(!check_roots(&mut view, 3, max));
+		assert!(!check_roots(&mut view, 4, max));
+		assert!(!check_roots(&mut view, 5, max));
 
 		view.update_leaves(
 			&ctx,
 			[hash(2), hash(3), hash(4)].iter().cloned(),
 		).unwrap();
 
-		assert!(!check_roots(&view, 0, max));
-		assert!(!check_roots(&view, 1, max));
+		assert!(!check_roots(&mut view, 0, max));
+		assert!(!check_roots(&mut view, 1, max));
 
-		assert!(check_roots(&view, 2, max));
-		assert!(check_roots(&view, 3, max));
-		assert!(check_roots(&view, 4, max));
+		assert!(check_roots(&mut view, 2, max));
+		assert!(check_roots(&mut view, 3, max));
+		assert!(check_roots(&mut view, 4, max));
 
-		assert!(!check_roots(&view, 5, max));
+		assert!(!check_roots(&mut view, 5, max));
 	}
 
 	#[test]
@@ -253,13 +268,13 @@ mod tests {
 			[hash(2), hash(3), hash(4)].iter().cloned(),
 		).unwrap();
 
-		assert!(!check_roots(&view, 0, max));
-		assert!(!check_roots(&view, 1, max));
+		assert!(!check_roots(&mut view, 0, max));
+		assert!(!check_roots(&mut view, 1, max));
 
-		assert!(check_roots(&view, 2, max));
-		assert!(check_roots(&view, 3, max));
-		assert!(check_roots(&view, 4, max));
+		assert!(check_roots(&mut view, 2, max));
+		assert!(check_roots(&mut view, 3, max));
+		assert!(check_roots(&mut view, 4, max));
 
-		assert!(!check_roots(&view, 5, max));
+		assert!(!check_roots(&mut view, 5, max));
 	}
 }

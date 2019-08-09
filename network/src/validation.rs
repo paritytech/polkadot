@@ -19,12 +19,8 @@
 //! This fulfills the `polkadot_validation::Network` trait, providing a hook to be called
 //! each time a validation session begins on a new chain head.
 
-use crate::gossip::GossipMessage;
 use sr_primitives::traits::ProvideRuntimeApi;
-use substrate_network::{PeerId, Context as NetContext};
-use substrate_network::consensus_gossip::{
-	self, TopicNotification, MessageRecipient as GossipMessageRecipient, ConsensusMessage,
-};
+use substrate_network::PeerId;
 use polkadot_validation::{
 	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, SignedStatement,
 };
@@ -36,7 +32,6 @@ use polkadot_primitives::parachain::{
 
 use futures::prelude::*;
 use futures::future::{self, Executor as FutureExecutor};
-use futures::sync::mpsc;
 use futures::sync::oneshot::{self, Receiver};
 
 use std::collections::hash_map::{HashMap, Entry};
@@ -45,16 +40,16 @@ use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use parking_lot::Mutex;
-use log::{debug, warn};
+use log::warn;
 
 use crate::router::Router;
-use crate::gossip::{POLKADOT_ENGINE_ID, RegisteredMessageValidator, MessageValidationData};
+use crate::gossip::{RegisteredMessageValidator, MessageValidationData};
 
-use super::PolkadotProtocol;
+use super::NetworkService;
 
 pub use polkadot_validation::Incoming;
 
-use parity_codec::{Encode, Decode};
+use parity_codec::Encode;
 
 /// An executor suitable for dispatching async consensus tasks.
 pub trait Executor {
@@ -80,106 +75,6 @@ impl Executor for Arc<
 > {
 	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
 		let _ = FutureExecutor::execute(&**self, Box::new(f));
-	}
-}
-
-/// A gossip network subservice.
-pub trait GossipService {
-	fn send_message(&mut self, ctx: &mut dyn NetContext<Block>, who: &PeerId, message: ConsensusMessage);
-}
-
-impl GossipService for consensus_gossip::ConsensusGossip<Block> {
-	fn send_message(&mut self, ctx: &mut dyn NetContext<Block>, who: &PeerId, message: ConsensusMessage) {
-		consensus_gossip::ConsensusGossip::send_message(self, ctx, who, message)
-	}
-}
-
-/// A stream of gossip messages and an optional sender for a topic.
-pub struct GossipMessageStream {
-	topic_stream: mpsc::UnboundedReceiver<TopicNotification>,
-}
-
-impl GossipMessageStream {
-	/// Create a new instance with the given topic stream.
-	pub fn new(topic_stream: mpsc::UnboundedReceiver<TopicNotification>) -> Self {
-		Self {
-			topic_stream
-		}
-	}
-}
-
-impl Stream for GossipMessageStream {
-	type Item = (GossipMessage, Option<PeerId>);
-	type Error = ();
-
-	fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-		loop {
-			let msg = match futures::try_ready!(self.topic_stream.poll()) {
-				Some(msg) => msg,
-				None => return Ok(Async::Ready(None)),
-			};
-
-			debug!(target: "validation", "Processing statement for live validation session");
-			if let Some(gmsg) = GossipMessage::decode(&mut &msg.message[..]) {
-				return Ok(Async::Ready(Some((gmsg, msg.sender))))
-			}
-		}
-	}
-}
-
-/// Basic functionality that a network has to fulfill.
-pub trait NetworkService: Send + Sync + 'static {
-	/// Get a stream of gossip messages for a given hash.
-	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream;
-
-	/// Gossip a message on given topic.
-	fn gossip_message(&self, topic: Hash, message: GossipMessage);
-
-	/// Execute a closure with the gossip service.
-	fn with_gossip<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut dyn GossipService, &mut dyn NetContext<Block>);
-
-	/// Execute a closure with the polkadot protocol.
-	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut dyn NetContext<Block>);
-}
-
-impl NetworkService for super::NetworkService {
-	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
-		let (tx, rx) = std::sync::mpsc::channel();
-
-		super::NetworkService::with_gossip(self, move |gossip, _| {
-			let inner_rx = gossip.messages_for(POLKADOT_ENGINE_ID, topic);
-			let _ = tx.send(inner_rx);
-		});
-
-		let topic_stream = match rx.recv() {
-			Ok(rx) => rx,
-			Err(_) => mpsc::unbounded().1, // return empty channel.
-		};
-
-		GossipMessageStream::new(topic_stream)
-	}
-
-	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
-		self.gossip_consensus_message(
-			topic,
-			POLKADOT_ENGINE_ID,
-			message.encode(),
-			GossipMessageRecipient::BroadcastToAll,
-		);
-	}
-
-	fn with_gossip<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut dyn GossipService, &mut dyn NetContext<Block>)
-	{
-		super::NetworkService::with_gossip(self, move |gossip, ctx| with(gossip, ctx))
-	}
-
-	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut dyn NetContext<Block>)
-	{
-		super::NetworkService::with_spec(self, with)
 	}
 }
 
@@ -260,22 +155,26 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 			.enumerate()
 			.map(|(i, k)| (i as ValidatorIndex, k.clone()))
 			.collect();
+		let authorities = params.authorities.clone();
 
 		let (tx, rx) = oneshot::channel();
 
-		{
-			let message_validator = self.message_validator.clone();
-			let authorities = params.authorities.clone();
-			self.network.with_gossip(move |gossip, ctx| {
-				message_validator.note_session(
-					parent_hash,
-					MessageValidationData { authorities, index_mapping },
-					|peer_id, message| gossip.send_message(ctx, peer_id, message),
-				);
-			});
-		}
-
 		self.network.with_spec(move |spec, ctx| {
+			use polkadot_primitives::parachain::Message as ParachainMessage;
+
+			let actions = message_validator.note_session(
+				parent_hash,
+				MessageValidationData { authorities, index_mapping },
+				|queue_root| spec.extrinsic_store.as_ref()
+					.and_then(|store| store.extrinsic_by_queue_root(queue_root))
+					.map(|e| e.outgoing_messages.iter()
+						.map(|m| ParachainMessage(m.encode()))
+						.collect()
+					)
+			);
+
+			network.with_gossip(move |gossip, ctx| actions.perform(gossip, ctx));
+
 			let session = spec.new_validation_session(ctx, params);
 			let _ = tx.send(SessionDataFetcher {
 				network,
@@ -784,7 +683,11 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
 		let parachain = candidate.parachain_index;
 		let parent_hash = self.parent_hash;
 
-		let canon_roots = self.api.runtime_api().ingress(&BlockId::hash(parent_hash), parachain)
+		let canon_roots = self.api.runtime_api().ingress(
+			&BlockId::hash(parent_hash),
+			parachain,
+			None,
+		)
 			.map_err(|e|
 				format!(
 					"Cannot fetch ingress for parachain {:?} at {:?}: {:?}",

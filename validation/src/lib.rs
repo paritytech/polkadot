@@ -389,12 +389,16 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 			collation_work.then(move |result| match result {
 				Ok((collation, extrinsic)) => {
+					let message_queue_root = message_queue_root(extrinsic.outgoing_messages.iter().map(|msg| msg.encode()));
 					let res = extrinsic_store.make_available(Data {
 						relay_parent,
 						parachain_id: collation.receipt.parachain_index,
 						candidate_hash: collation.receipt.hash(),
 						block_data: collation.pov.block_data.clone(),
-						extrinsic: Some(extrinsic.clone()),
+						extrinsic: Some(extrinsic_store::StoredExtrinsic {
+							inner: extrinsic.clone(),
+							message_queue_root,
+						}),
 					});
 
 					match res {

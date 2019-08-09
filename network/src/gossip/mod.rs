@@ -35,7 +35,7 @@ use arrayvec::ArrayVec;
 use parking_lot::RwLock;
 use log::warn;
 
-use super::NetworkService;
+use super::PolkadotNetworkService;
 use crate::router::attestation_topic;
 
 use attestation::{View as AttestationView, PeerData as AttestationPeerData};
@@ -180,8 +180,11 @@ pub enum Known {
 /// Context to the underlying polkadot chain.
 pub trait ChainContext: Send + Sync {
 	/// Provide a closure which is invoked for every unrouted queue hash at a given leaf.
-	fn leaf_unrouted_roots(&self, leaf: &Hash, with_queue_root: &mut dyn FnMut(&Hash))
-		-> Result<(), ClientError>;
+	fn leaf_unrouted_roots(
+		&self,
+		leaf: &Hash,
+		with_queue_root: &mut dyn FnMut(&Hash),
+	) -> Result<(), ClientError>;
 
 	/// whether a block is known. If it's not, returns `None`.
 	fn is_known(&self, block_hash: &Hash) -> Option<Known>;
@@ -197,16 +200,18 @@ impl<F, P> ChainContext for (F, P) where
 		(self.0)(block_hash)
 	}
 
-	fn leaf_unrouted_roots(&self, &leaf: &Hash, with_queue_root: &mut dyn FnMut(&Hash))
-		-> Result<(), ClientError>
-	{
+	fn leaf_unrouted_roots(
+		&self,
+		&leaf: &Hash,
+		with_queue_root: &mut dyn FnMut(&Hash),
+	) -> Result<(), ClientError> {
 		let api = self.1.runtime_api();
 
 		let leaf_id = BlockId::Hash(leaf);
 		let active_parachains = api.active_parachains(&leaf_id)?;
 
 		for para_id in active_parachains {
-			if let Some(ingress) = api.ingress(&leaf_id, para_id)? {
+			if let Some(ingress) = api.ingress(&leaf_id, para_id, None)? {
 				for (_height, _from, queue_root) in ingress.iter() {
 					with_queue_root(queue_root);
 				}
@@ -224,7 +229,7 @@ impl<F, P> ChainContext for (F, P) where
 // that we've actually done the registration, this should be the only way
 // to construct it outside of tests.
 pub fn register_validator<C: ChainContext + 'static>(
-	service: Arc<NetworkService>,
+	service: Arc<PolkadotNetworkService>,
 	chain: C,
 ) -> RegisteredMessageValidator
 {
@@ -250,6 +255,39 @@ pub fn register_validator<C: ChainContext + 'static>(
 	RegisteredMessageValidator { inner: validator as _ }
 }
 
+enum NewSessionAction {
+	// (who, message)
+	TargetedMessage(PeerId, ConsensusMessage),
+	// (topic, message)
+	Multicast(Hash, ConsensusMessage),
+}
+
+/// Actions to take after noting a new live attestation session.
+///
+/// This should be consumed by passing a consensus-gossip handle to `perform`.
+#[must_use = "New session gossip actions must be performed"]
+pub struct NewSessionActions {
+	actions: Vec<NewSessionAction>,
+}
+
+impl NewSessionActions {
+	/// Perform the queued actions, feeding into gossip.
+	pub fn perform(
+		self,
+		gossip: &mut dyn crate::GossipService,
+		ctx: &mut dyn substrate_network::Context<Block>,
+	) {
+		for action in self.actions {
+			match action {
+				NewSessionAction::TargetedMessage(who, message)
+					=> gossip.send_message(ctx, &who, message),
+				NewSessionAction::Multicast(topic, message)
+					=> gossip.multicast(ctx, &topic, message),
+			}
+		}
+	}
+}
+
 /// A registered message validator.
 ///
 /// Create this using `register_validator`.
@@ -271,16 +309,19 @@ impl RegisteredMessageValidator {
 
 	/// Note a live attestation session. This must be removed later with
 	/// `remove_session`.
-	pub(crate) fn note_session<F: FnMut(&PeerId, ConsensusMessage)>(
+	pub(crate) fn note_session(
 		&self,
 		relay_parent: Hash,
 		validation: MessageValidationData,
-		send_neighbor_packet: F,
-	) {
+		lookup_queue_by_root: impl Fn(&Hash) -> Option<Vec<ParachainMessage>>,
+	) -> NewSessionActions {
 		// add an entry in attestation_view
 		// prune any entries from attestation_view which are no longer leaves
 		let mut inner = self.inner.inner.write();
 		inner.attestation_view.add_session(relay_parent, validation);
+
+		let mut actions = Vec::new();
+
 		{
 			let &mut Inner {
 				ref chain,
@@ -301,7 +342,33 @@ impl RegisteredMessageValidator {
 
 
 		// send neighbor packets to peers
-		inner.multicast_neighbor_packet(send_neighbor_packet);
+		inner.multicast_neighbor_packet(
+			|who, message| actions.push(NewSessionAction::TargetedMessage(who.clone(), message))
+		);
+
+		// feed any new unrouted queues into the propagation pool.
+		inner.message_routing_view.sweep_unknown_queues(|topic, queue_root|
+			match lookup_queue_by_root(queue_root) {
+				Some(messages) => {
+					let message = GossipMessage::ParachainMessages(GossipParachainMessages {
+						queue_root: *queue_root,
+						messages,
+					});
+
+					let message = ConsensusMessage {
+						data: message.encode(),
+						engine_id: POLKADOT_ENGINE_ID,
+					};
+
+					actions.push(NewSessionAction::Multicast(*topic, message));
+
+					true
+				}
+				None => false,
+			}
+		);
+
+		NewSessionActions { actions }
 	}
 }
 
@@ -461,7 +528,7 @@ impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValid
 				let (res, cb) = {
 					let mut inner = self.inner.write();
 					let inner = &mut *inner;
-					inner.message_routing_view.validate_queue(&messages)
+					inner.message_routing_view.validate_queue_and_note_known(&messages)
 				};
 
 				if let GossipValidationResult::ProcessAndKeep(ref topic) = res {

@@ -18,16 +18,15 @@
 
 #![allow(unused)]
 
-use crate::validation::{NetworkService, GossipService, GossipMessageStream};
 use crate::gossip::GossipMessage;
 use substrate_network::Context as NetContext;
 use substrate_network::consensus_gossip::TopicNotification;
 use substrate_primitives::{NativeOrEncoded, ExecutionContext};
 use substrate_keyring::Ed25519Keyring;
-use crate::PolkadotProtocol;
+use crate::{GossipService, PolkadotProtocol, NetworkService, GossipMessageStream};
 
 use polkadot_validation::{SharedTable, MessagesFrom, Network};
-use polkadot_primitives::{SessionKey, Block, Hash, Header, BlockId};
+use polkadot_primitives::{SessionKey, Block, BlockNumber, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
 	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
@@ -315,10 +314,10 @@ impl ParachainHost<Block> for RuntimeApi {
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
-		id: Option<ParaId>,
+		id: Option<(ParaId, Option<BlockNumber>)>,
 		_: Vec<u8>,
 	) -> ClientResult<NativeOrEncoded<Option<StructuredUnroutedIngress>>> {
-		let id = id.unwrap();
+		let (id, _) = id.unwrap();
 		Ok(NativeOrEncoded::Native(self.data.lock().ingress.get(&id).cloned()))
 	}
 }

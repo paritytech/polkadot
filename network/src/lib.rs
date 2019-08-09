@@ -26,7 +26,8 @@ pub mod validation;
 pub mod gossip;
 
 use parity_codec::{Decode, Encode};
-use futures::sync::oneshot;
+use futures::sync::{oneshot, mpsc};
+use futures::prelude::*;
 use polkadot_primitives::{Block, SessionKey, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
@@ -36,12 +37,17 @@ use substrate_network::{
 	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
 	specialization::{Event, NetworkSpecialization as Specialization},
 };
+use substrate_network::consensus_gossip::{
+	self, TopicNotification, MessageRecipient as GossipMessageRecipient, ConsensusMessage,
+};
 use self::validation::{LiveValidationSessions, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
 use log::{trace, debug, warn};
 
 use std::collections::{HashMap, HashSet};
+
+use crate::gossip::{POLKADOT_ENGINE_ID, GossipMessage};
 
 #[cfg(test)]
 mod tests;
@@ -69,7 +75,112 @@ mod benefit {
 type FullStatus = GenericFullStatus<Block>;
 
 /// Specialization of the network service for the polkadot protocol.
-pub type NetworkService = substrate_network::NetworkService<Block, PolkadotProtocol, Hash>;
+pub type PolkadotNetworkService = substrate_network::NetworkService<Block, PolkadotProtocol, Hash>;
+
+/// Basic functionality that a network has to fulfill.
+pub trait NetworkService: Send + Sync + 'static {
+	/// Get a stream of gossip messages for a given hash.
+	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream;
+
+	/// Gossip a message on given topic.
+	fn gossip_message(&self, topic: Hash, message: GossipMessage);
+
+	/// Execute a closure with the gossip service.
+	fn with_gossip<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut dyn GossipService, &mut dyn Context<Block>);
+
+	/// Execute a closure with the polkadot protocol.
+	fn with_spec<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>);
+}
+
+impl NetworkService for PolkadotNetworkService {
+	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
+		let (tx, rx) = std::sync::mpsc::channel();
+
+		PolkadotNetworkService::with_gossip(self, move |gossip, _| {
+			let inner_rx = gossip.messages_for(POLKADOT_ENGINE_ID, topic);
+			let _ = tx.send(inner_rx);
+		});
+
+		let topic_stream = match rx.recv() {
+			Ok(rx) => rx,
+			Err(_) => mpsc::unbounded().1, // return empty channel.
+		};
+
+		GossipMessageStream::new(topic_stream)
+	}
+
+	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
+		self.gossip_consensus_message(
+			topic,
+			POLKADOT_ENGINE_ID,
+			message.encode(),
+			GossipMessageRecipient::BroadcastToAll,
+		);
+	}
+
+	fn with_gossip<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut dyn GossipService, &mut dyn Context<Block>)
+	{
+		PolkadotNetworkService::with_gossip(self, move |gossip, ctx| with(gossip, ctx))
+	}
+
+	fn with_spec<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>)
+	{
+		PolkadotNetworkService::with_spec(self, with)
+	}
+}
+
+/// A gossip network subservice.
+pub trait GossipService {
+	fn send_message(&mut self, ctx: &mut dyn Context<Block>, who: &PeerId, message: ConsensusMessage);
+	fn multicast(&mut self, ctx: &mut dyn Context<Block>, topic: &Hash, message: ConsensusMessage);
+}
+
+impl GossipService for consensus_gossip::ConsensusGossip<Block> {
+	fn send_message(&mut self, ctx: &mut dyn Context<Block>, who: &PeerId, message: ConsensusMessage) {
+		consensus_gossip::ConsensusGossip::send_message(self, ctx, who, message)
+	}
+
+	fn multicast(&mut self, ctx: &mut dyn Context<Block>, topic: &Hash, message: ConsensusMessage) {
+		consensus_gossip::ConsensusGossip::multicast(self, ctx, *topic, message, false)
+	}
+}
+
+/// A stream of gossip messages and an optional sender for a topic.
+pub struct GossipMessageStream {
+	topic_stream: mpsc::UnboundedReceiver<TopicNotification>,
+}
+
+impl GossipMessageStream {
+	/// Create a new instance with the given topic stream.
+	pub fn new(topic_stream: mpsc::UnboundedReceiver<TopicNotification>) -> Self {
+		Self {
+			topic_stream
+		}
+	}
+}
+
+impl Stream for GossipMessageStream {
+	type Item = (GossipMessage, Option<PeerId>);
+	type Error = ();
+
+	fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+		loop {
+			let msg = match futures::try_ready!(self.topic_stream.poll()) {
+				Some(msg) => msg,
+				None => return Ok(Async::Ready(None)),
+			};
+
+			debug!(target: "validation", "Processing statement for live validation session");
+			if let Some(gmsg) = GossipMessage::decode(&mut &msg.message[..]) {
+				return Ok(Async::Ready(Some((gmsg, msg.sender))))
+			}
+		}
+	}
+}
 
 /// Status of a Polkadot node.
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]

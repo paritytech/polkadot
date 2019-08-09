@@ -41,7 +41,8 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 
-use crate::validation::{self, SessionDataFetcher, NetworkService, Executor};
+use crate::validation::{self, SessionDataFetcher, Executor};
+use crate::NetworkService;
 
 /// Compute the gossip topic for attestations on the given parent hash.
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {

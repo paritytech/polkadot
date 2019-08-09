@@ -407,7 +407,7 @@ pub fn validate_collation<P>(
 	let chain_status = api.parachain_status(relay_parent, para_id)?
 		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
-	let roots = api.ingress(relay_parent, para_id)?
+	let roots = api.ingress(relay_parent, para_id, None)?
 		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
 	validate_incoming(&roots, &collation.pov.ingress)?;

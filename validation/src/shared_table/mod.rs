@@ -354,12 +354,21 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 				Validation::Invalid(pov_block),
 			),
 			Ok(extrinsic) => {
+				use parity_codec::Encode;
+
+				let message_queue_root = crate::message_queue_root(
+					extrinsic.outgoing_messages.iter().map(|msg| msg.encode()),
+				);
+
 				self.inner.extrinsic_store.make_available(Data {
 					relay_parent: self.inner.relay_parent,
 					parachain_id: work.candidate_receipt.parachain_index,
 					candidate_hash,
 					block_data: pov_block.block_data.clone(),
-					extrinsic: Some(extrinsic.clone()),
+					extrinsic: Some(extrinsic_store::StoredExtrinsic {
+						inner: extrinsic.clone(),
+						message_queue_root,
+					}),
 				})?;
 
 				(
