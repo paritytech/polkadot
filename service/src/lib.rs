@@ -198,12 +198,11 @@ service::construct_service_factory! {
 					}
 				}
 
-				// TODO: run authorship only if authority.
-				// This will need to check for the `--validator` parameter.
-				// It will also need re-working so that the correct key to use is determined
-				// dynamically, rather than statically as it is here.
-/*
-				if service.config.custom.collating_for.is_some() {
+				if service.config().roles != service::Roles::AUTHORITY {
+					return Ok(service);
+				}
+
+				if service.config().custom.collating_for.is_some() {
 					info!(
 						"The node cannot start as an authority because it is also configured to run as a collator."
 					);
@@ -242,6 +241,19 @@ service::construct_service_factory! {
 					},
 				);
 
+				use polkadot_network::validation::ValidationNetwork;
+				let extrinsic_store = {
+					use std::path::PathBuf;
+
+					let mut path = PathBuf::from(service.config().database_path.clone());
+					path.push("availability");
+
+					av_store::Store::new(::av_store::Config {
+						cache_size: None,
+						path,
+					})?
+				};
+
 				// collator connections and validation network both fulfilled by this
 				let validation_network = ValidationNetwork::new(
 					service.network(),
@@ -257,13 +269,11 @@ service::construct_service_factory! {
 					validation_network,
 					service.transaction_pool(),
 					Arc::new(service.spawn_task_handle()),
-					// TODO: grab the correct key from keystore dynamically.
-					unimplemented!(),
+					service.keystore(),
 					extrinsic_store,
 					polkadot_runtime::constants::time::SLOT_DURATION,
-					service.config.custom.max_block_data_size,
+					service.config().custom.max_block_data_size,
 				);
-
 
 				let client = service.client();
 				let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
@@ -325,19 +335,6 @@ service::construct_service_factory! {
 					&service.config().custom.inherent_data_providers,
 				)?;
 
-				use polkadot_network::validation::ValidationNetwork;
-				let extrinsic_store = {
-					use std::path::PathBuf;
-
-					let mut path = PathBuf::from(service.config.database_path.clone());
-					path.push("availability");
-
-					av_store::Store::new(::av_store::Config {
-						cache_size: None,
-						path,
-					})?
-				};
-*/
 				Ok(service)
 			}
 		},
