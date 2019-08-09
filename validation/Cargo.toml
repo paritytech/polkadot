@@ -30,6 +30,7 @@ runtime_primitives = { package = "sr-primitives", git = "https://github.com/pari
 bitvec = { version = "0.14.0", default-features = false, features = ["alloc"] }
 runtime_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", branch = "gav-scale" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "gav-scale" }
+keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "gav-scale" }
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "gav-scale" }

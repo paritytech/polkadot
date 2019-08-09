@@ -34,9 +34,10 @@ use futures::prelude::*;
 use futures03::{TryStreamExt as _, StreamExt as _};
 use log::error;
 use polkadot_primitives::{Block, BlockId};
-use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost, ValidatorPair};
+use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
 use babe_primitives::BabeApi;
+use keystore::KeyStorePtr;
 
 use tokio::{timer::Interval, runtime::current_thread::Runtime as LocalRuntime};
 use log::{warn, debug};
@@ -113,7 +114,7 @@ pub(crate) fn start<C, N, P, SC>(
 	select_chain: SC,
 	parachain_validation: Arc<crate::ParachainValidation<C, N, P>>,
 	thread_pool: TaskExecutor,
-	key: Arc<ValidatorPair>,
+	keystore: KeyStorePtr,
 	extrinsic_store: ExtrinsicStore,
 	max_block_data_size: Option<u64>,
 ) -> ServiceHandle
@@ -137,7 +138,8 @@ pub(crate) fn start<C, N, P, SC>(
 		let notifications = {
 			let client = client.clone();
 			let validation = parachain_validation.clone();
-			let key = key.clone();
+
+			let keystore = keystore.clone();
 
 			client.import_notification_stream()
 				.map(|v| Ok::<_, ()>(v)).compat()
@@ -147,7 +149,7 @@ pub(crate) fn start<C, N, P, SC>(
 						let res = validation.get_or_instantiate(
 							parent_hash,
 							notification.header.parent_hash().clone(),
-							key.clone(),
+							&keystore,
 							max_block_data_size,
 						);
 

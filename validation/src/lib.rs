@@ -60,6 +60,7 @@ use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use runtime_babe::timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace, error};
+use keystore::KeyStorePtr;
 
 type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
@@ -184,8 +185,8 @@ pub fn check_statement(statement: &Statement, signature: &ValidatorSignature, si
 pub fn make_group_info(
 	roster: DutyRoster,
 	authorities: &[ValidatorId],
-	local_id: ValidatorId,
-) -> Result<(HashMap<ParaId, GroupInfo>, LocalDuty), Error> {
+	local_id: Option<ValidatorId>,
+) -> Result<(HashMap<ParaId, GroupInfo>, Option<LocalDuty>), Error> {
 	if roster.validator_duty.len() != authorities.len() {
 		return Err(Error::InvalidDutyRosterLength {
 			expected: authorities.len(),
@@ -198,7 +199,7 @@ pub fn make_group_info(
 
 	let duty_iter = authorities.iter().zip(&roster.validator_duty);
 	for (authority, v_duty) in duty_iter {
-		if authority == &local_id {
+		if Some(authority) == local_id.as_ref() {
 			local_validation = Some(v_duty.clone());
 		}
 
@@ -217,16 +218,24 @@ pub fn make_group_info(
 		live_group.needed_validity = validity_len / 2 + validity_len % 2;
 	}
 
-	match local_validation {
-		Some(local_validation) => {
-			let local_duty = LocalDuty {
-				validation: local_validation,
-			};
 
-			Ok((map, local_duty))
-		}
-		None => return Err(Error::NotValidator(local_id)),
-	}
+	let local_duty = local_validation.map(|v| LocalDuty {
+		validation: v
+	});
+
+	Ok((map, local_duty))
+
+}
+
+// finds the first key we are capable of signing with out of the given set of validators,
+// if any.
+fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc<ValidatorPair>> {
+	let keystore = keystore.read();
+	validators.iter()
+		.find_map(|v| {
+			keystore.key_pair::<ValidatorPair>(&v).ok()
+		})
+		.map(|pair| Arc::new(pair))
 }
 
 /// Constructs parachain-agreement instances.
@@ -266,7 +275,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		&self,
 		parent_hash: Hash,
 		grandparent_hash: Hash,
-		sign_with: Arc<ValidatorPair>,
+		keystore: &KeyStorePtr,
 		max_block_data_size: Option<u64>,
 	)
 		-> Result<Arc<AttestationTracker>, Error>
@@ -278,9 +287,8 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let id = BlockId::hash(parent_hash);
 
-		// TODO: This used to use AuraApi and now it uses validators from parachainHost, as
-		// recommended by Rob. Please double and triple check.
-		let authorities = self.client.runtime_api().validators(&id)?;
+		let validators = self.client.runtime_api().validators(&id)?;
+		let sign_with = signing_key(&validators[..], keystore);
 
 		// compute the parent candidates, if we know of them.
 		// this will allow us to circulate outgoing messages to other peers as necessary.
@@ -312,14 +320,14 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let (group_info, local_duty) = make_group_info(
 			duty_roster,
-			&authorities,
-			sign_with.public(),
+			&validators,
+			sign_with.as_ref().map(|k| k.public()),
 		)?;
 
 		info!(
 			"Starting parachain attestation session on top of parent {:?}. Local parachain duty is {:?}",
 			parent_hash,
-			local_duty.validation,
+			local_duty,
 		);
 
 		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
@@ -327,9 +335,9 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
 		let table = Arc::new(SharedTable::new(
-			&authorities,
+			validators.clone(),
 			group_info,
-			sign_with.clone(),
+			sign_with,
 			parent_hash,
 			self.extrinsic_store.clone(),
 			max_block_data_size,
@@ -339,11 +347,11 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let router = self.network.communication_for(
 			table.clone(),
-			&authorities,
+			&validators,
 			exit.clone(),
 		);
 
-		if let Chain::Parachain(id) = local_duty.validation {
+		if let Some(Chain::Parachain(id)) = local_duty.as_ref().map(|d| d.validation) {
 			self.launch_work(parent_hash, id, router, max_block_data_size, exit);
 		}
 
@@ -446,7 +454,7 @@ struct AttestationTracker {
 pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	parachain_validation: Arc<ParachainValidation<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
-	key: Arc<ValidatorPair>,
+	keystore: KeyStorePtr,
 	_service_handle: ServiceHandle,
 	babe_slot_duration: u64,
 	_select_chain: SC,
@@ -473,7 +481,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 		collators: C,
 		transaction_pool: Arc<Pool<TxApi>>,
 		thread_pool: TaskExecutor,
-		key: Arc<ValidatorPair>,
+		keystore: KeyStorePtr,
 		extrinsic_store: ExtrinsicStore,
 		babe_slot_duration: u64,
 		max_block_data_size: Option<u64>,
@@ -492,7 +500,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			_select_chain.clone(),
 			parachain_validation.clone(),
 			thread_pool,
-			key.clone(),
+			keystore.clone(),
 			extrinsic_store,
 			max_block_data_size,
 		);
@@ -500,7 +508,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 		ProposerFactory {
 			parachain_validation,
 			transaction_pool,
-			key,
+			keystore,
 			_service_handle: service_handle,
 			babe_slot_duration,
 			_select_chain,
@@ -529,11 +537,11 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 	) -> Result<Self::Proposer, Error> {
 		let parent_hash = parent_header.hash();
 		let parent_id = BlockId::hash(parent_hash);
-		let sign_with = self.key.clone();
+
 		let tracker = self.parachain_validation.get_or_instantiate(
 			parent_hash,
 			parent_header.parent_hash().clone(),
-			sign_with,
+			&self.keystore,
 			self.max_block_data_size,
 		)?;
 
@@ -550,6 +558,7 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 }
 
 /// The local duty of a validator.
+#[derive(Debug)]
 pub struct LocalDuty {
 	validation: Chain,
 }
@@ -812,17 +821,17 @@ impl<C, TxApi> futures03::Future for CreateProposal<C, TxApi> where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::Ed25519Keyring;
+	use substrate_keyring::Sr25519Keyring;
 
 	#[test]
 	fn sign_and_check_statement() {
 		let statement: Statement = GenericStatement::Valid([1; 32].into());
 		let parent_hash = [2; 32].into();
 
-		let sig = sign_table_statement(&statement, &Ed25519Keyring::Alice.pair(), &parent_hash);
+		let sig = sign_table_statement(&statement, &Sr25519Keyring::Alice.pair().into(), &parent_hash);
 
-		assert!(check_statement(&statement, &sig, Ed25519Keyring::Alice.into(), &parent_hash));
-		assert!(!check_statement(&statement, &sig, Ed25519Keyring::Alice.into(), &[0xff; 32].into()));
-		assert!(!check_statement(&statement, &sig, Ed25519Keyring::Bob.into(), &parent_hash));
+		assert!(check_statement(&statement, &sig, Sr25519Keyring::Alice.public().into(), &parent_hash));
+		assert!(!check_statement(&statement, &sig, Sr25519Keyring::Alice.public().into(), &[0xff; 32].into()));
+		assert!(!check_statement(&statement, &sig, Sr25519Keyring::Bob.public().into(), &parent_hash));
 	}
 }

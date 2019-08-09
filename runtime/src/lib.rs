@@ -544,8 +544,6 @@ impl_runtime_apis! {
 
 	impl parachain::ParachainHost<Block> for Runtime {
 		fn validators() -> Vec<parachain::ValidatorId> {
-			// TODO: well, now we have to check this eh?
-			// only possible as long as parachain validator crypto === aura crypto
 			Parachains::authorities()
 		}
 		fn duty_roster() -> parachain::DutyRoster {
