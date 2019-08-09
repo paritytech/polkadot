@@ -377,13 +377,11 @@ impl RegisteredMessageValidator {
 pub(crate) struct MessageValidationData {
 	/// The authorities at a block.
 	pub(crate) authorities: Vec<SessionKey>,
-	/// Mapping from validator index to `SessionKey`.
-	pub(crate) index_mapping: HashMap<ValidatorIndex, SessionKey>,
 }
 
 impl MessageValidationData {
 	fn check_statement(&self, relay_parent: &Hash, statement: &SignedStatement) -> Result<(), ()> {
-		let sender = match self.index_mapping.get(&statement.sender) {
+		let sender = match self.authorities.get(&statement.sender) {
 			Some(val) => val,
 			None => return Err(()),
 		};

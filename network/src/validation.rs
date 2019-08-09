@@ -150,11 +150,6 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 		let task_executor = self.executor.clone();
 		let exit = self.exit.clone();
 		let message_validator = self.message_validator.clone();
-		let index_mapping = params.authorities
-			.iter()
-			.enumerate()
-			.map(|(i, k)| (i as ValidatorIndex, k.clone()))
-			.collect();
 		let authorities = params.authorities.clone();
 
 		let (tx, rx) = oneshot::channel();
