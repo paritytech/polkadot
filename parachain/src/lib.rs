@@ -112,6 +112,8 @@ impl Id {
 	}
 }
 
+// TODO: Remove all of this, move sr-primitives::AccountIdConversion to own crate and and use that.
+// #360
 struct TrailingZeroInput<'a>(&'a [u8]);
 impl<'a> codec::Input for TrailingZeroInput<'a> {
 	fn remaining_len(&mut self) -> Result<Option<usize>, codec::Error> {
