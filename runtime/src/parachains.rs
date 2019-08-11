@@ -885,11 +885,11 @@ mod tests {
 		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation},
-		SessionKey, BlockNumber
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId},
+		BlockNumber,
 	};
 	use crate::constants::time::*;
-	use keyring::{Ed25519Keyring, Sr25519Keyring};
+	use keyring::Sr25519Keyring;
 	use srml_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
@@ -917,8 +917,9 @@ mod tests {
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
+		type Call = Call;
 		type Index = u64;
-		type BlockNumber = u32;
+		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
@@ -1000,7 +1001,7 @@ mod tests {
 	parameter_types! {
 		pub const SessionsPerEra: session::SessionIndex = 6;
 		pub const BondingDuration: staking::EraIndex = 24 * 28;
-		pub const AttestationPeriod: u64 = 100;
+		pub const AttestationPeriod: BlockNumber = 100;
 	}
 
 	impl staking::Trait for Test {
@@ -1032,19 +1033,11 @@ mod tests {
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		use staking::StakerStatus;
+		use babe::AuthorityId as BabeAuthorityId;
 
-		let (mut t, mut c) = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+
 		let authority_keys = [
-			Ed25519Keyring::Alice,
-			Ed25519Keyring::Bob,
-			Ed25519Keyring::Charlie,
-			Ed25519Keyring::Dave,
-			Ed25519Keyring::Eve,
-			Ed25519Keyring::Ferdie,
-			Ed25519Keyring::One,
-			Ed25519Keyring::Two,
-		];
-		let babe_keys = [
 			Sr25519Keyring::Alice,
 			Sr25519Keyring::Bob,
 			Sr25519Keyring::Charlie,
@@ -1053,16 +1046,18 @@ mod tests {
 			Sr25519Keyring::Ferdie,
 			Sr25519Keyring::One,
 			Sr25519Keyring::Two,
-		].iter()
-			.map(|k| (substrate_primitives::sr25519::Public::from(*k), 1))
-			.collect::<Vec<(substrate_primitives::sr25519::Public, u64)>>();
+		];
 
 		// stashes are the index.
 		let session_keys: Vec<_> = authority_keys.iter().enumerate()
 			.map(|(i, _k)| (i as u64, UintAuthorityId(i as u64)))
 			.collect();
 
-		let authorities: Vec<_> = authority_keys.iter().map(|k| SessionKey::from(*k)).collect();
+		let authorities: Vec<_> = authority_keys.iter().map(|k| ValidatorId::from(k.public())).collect();
+		let babe_authorities: Vec<_> = authority_keys.iter()
+			.map(|k| BabeAuthorityId::from(k.public()))
+			.map(|k| (k, 1))
+			.collect();
 
 		// controllers are the index + 1000
 		let stakers: Vec<_> = (0..authority_keys.len()).map(|i| (
@@ -1078,20 +1073,20 @@ mod tests {
 			parachains,
 			authorities: authorities.clone(),
 			_phdata: Default::default(),
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+		}.assimilate_storage(&mut t).unwrap();
 
 		session::GenesisConfig::<Test> {
 			keys: session_keys,
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+		}.assimilate_storage(&mut t).unwrap();
 
 		babe::GenesisConfig {
-			authorities: babe_keys,
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+			authorities: babe_authorities,
+		}.assimilate_storage(&mut t).unwrap();
 
 		balances::GenesisConfig::<Test> {
 			balances,
 			vesting: vec![],
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+		}.assimilate_storage(&mut t).unwrap();
 
 		staking::GenesisConfig::<Test> {
 			current_era: 0,
@@ -1101,7 +1096,7 @@ mod tests {
 			offline_slash: Perbill::from_percent(5),
 			offline_slash_grace: 0,
 			invulnerables: vec![],
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+		}.assimilate_storage(&mut t).unwrap();
 
 		t.into()
 	}
@@ -1118,8 +1113,10 @@ mod tests {
 		let candidate_hash = candidate.candidate.hash();
 
 		let authorities = Parachains::authorities();
-		let extract_key = |public: SessionKey| {
-			Ed25519Keyring::from_raw_public(public.0).unwrap()
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
 		};
 
 		let validation_entries = duty_roster.validator_duty.iter()
