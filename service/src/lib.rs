@@ -296,15 +296,25 @@ service::construct_service_factory! {
 				service.spawn_task(Box::new(select));
 
 				let config = grandpa::Config {
-					// FIXME #1578 make this available through chainspec
+					// FIXME substrate#1578 make this available through chainspec
 					gossip_duration: Duration::from_millis(333),
 					justification_period: 4096,
 					name: Some(service.config().name.clone()),
 					keystore: Some(service.keystore()),
 				};
 
-				if !service.config().disable_grandpa {
-					if service.config().roles.is_authority() {
+				match (service.config().roles.is_authority(), service.config().disable_grandpa) {
+					(false, false) => {
+						// start the lightweight GRANDPA observer
+						service.spawn_task(Box::new(grandpa::run_grandpa_observer(
+							config,
+							link_half,
+							service.network(),
+							service.on_exit(),
+						)?));
+					},
+					(true, false) => {
+						// start the full GRANDPA voter
 						let telemetry_on_connect = TelemetryOnConnect {
 							telemetry_connection_sinks: service.telemetry_on_connect_stream(),
 						};
@@ -317,23 +327,54 @@ service::construct_service_factory! {
 							telemetry_on_connect: Some(telemetry_on_connect),
 						};
 						service.spawn_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
-					} else {
-						service.spawn_task(Box::new(grandpa::run_grandpa_observer(
-							config,
-							link_half,
+					},
+					(_, true) => {
+						grandpa::setup_disabled_grandpa(
+							service.client(),
+							&service.config().custom.inherent_data_providers,
 							service.network(),
-							service.on_exit(),
-						)?));
-					}
+						)?;
+					},
 				}
+				// let config = grandpa::Config {
+				// 	// FIXME #1578 make this available through chainspec
+				// 	gossip_duration: Duration::from_millis(333),
+				// 	justification_period: 4096,
+				// 	name: Some(service.config().name.clone()),
+				// 	keystore: Some(service.keystore()),
+				// };
 
-				// regardless of whether grandpa is started or not, when
-				// authoring blocks we expect inherent data regarding what our
-				// last finalized block is, to be available.
-				grandpa::register_finality_tracker_inherent_data_provider(
-					service.client(),
-					&service.config().custom.inherent_data_providers,
-				)?;
+				// if !service.config().disable_grandpa {
+				// 	if service.config().roles.is_authority() {
+				// 		let telemetry_on_connect = TelemetryOnConnect {
+				// 			telemetry_connection_sinks: service.telemetry_on_connect_stream(),
+				// 		};
+				// 		let grandpa_config = grandpa::GrandpaParams {
+				// 			config: config,
+				// 			link: link_half,
+				// 			network: service.network(),
+				// 			inherent_data_providers: service.config().custom.inherent_data_providers.clone(),
+				// 			on_exit: service.on_exit(),
+				// 			telemetry_on_connect: Some(telemetry_on_connect),
+				// 		};
+				// 		service.spawn_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
+				// 	} else {
+				// 		service.spawn_task(Box::new(grandpa::run_grandpa_observer(
+				// 			config,
+				// 			link_half,
+				// 			service.network(),
+				// 			service.on_exit(),
+				// 		)?));
+				// 	}
+				// }
+
+				// // regardless of whether grandpa is started or not, when
+				// // authoring blocks we expect inherent data regarding what our
+				// // last finalized block is, to be available.
+				// grandpa::register_finality_tracker_inherent_data_provider(
+				// 	service.client(),
+				// 	&service.config().custom.inherent_data_providers,
+				// )?;
 
 				Ok(service)
 			}
