@@ -573,7 +573,7 @@ mod tests {
 	use parking_lot::Mutex;
 	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
 	use substrate_primitives::crypto::UncheckedInto;
-	use substrate_primitives::ed25519::Signature as Ed25519Signature;
+	use substrate_primitives::sr25519::Signature as Sr25519Signature;
 
 	#[derive(PartialEq, Clone, Debug)]
 	enum ContextEvent {
@@ -669,7 +669,7 @@ mod tests {
 			relay_parent: hash_a,
 			signed_statement: SignedStatement {
 				statement: GenericStatement::Candidate(candidate_receipt),
-				signature: Ed25519Signature([255u8; 64]),
+				signature: Sr25519Signature([255u8; 64]).into(),
 				sender: 1,
 			}
 		});
@@ -786,7 +786,7 @@ mod tests {
 			relay_parent: hash_a,
 			signed_statement: SignedStatement {
 				statement: GenericStatement::Valid(c_hash),
-				signature: Ed25519Signature([255u8; 64]),
+				signature: Sr25519Signature([255u8; 64]).into(),
 				sender: 1,
 			}
 		});
