@@ -24,9 +24,9 @@ use substrate_network::consensus_gossip::{
 	ValidatorContext, MessageIntent, ConsensusMessage,
 };
 use polkadot_validation::SignedStatement;
-use polkadot_primitives::{Block, Hash, SessionKey, parachain::{ValidatorIndex, Message as ParachainMessage}};
-use polkadot_primitives::parachain::ParachainHost;
-use parity_codec::{Decode, Encode};
+use polkadot_primitives::{Block, Hash};
+use polkadot_primitives::parachain::{ParachainHost, ValidatorId, Message as ParachainMessage};
+use codec::{Decode, Encode};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -375,13 +375,13 @@ impl RegisteredMessageValidator {
 /// The data needed for validating gossip.
 #[derive(Default)]
 pub(crate) struct MessageValidationData {
-	/// The authorities at a block.
-	pub(crate) authorities: Vec<SessionKey>,
+	/// The authorities' parachain validation keys at a block.
+	pub(crate) authorities: Vec<ValidatorId>,
 }
 
 impl MessageValidationData {
 	fn check_statement(&self, relay_parent: &Hash, statement: &SignedStatement) -> Result<(), ()> {
-		let sender = match self.authorities.get(&statement.sender) {
+		let sender = match self.authorities.get(statement.sender as usize) {
 			Some(val) => val,
 			None => return Err(()),
 		};
@@ -502,15 +502,15 @@ impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValid
 		-> GossipValidationResult<Hash>
 	{
 		let (res, cost_benefit) = match GossipMessage::decode(&mut data) {
-			None => (GossipValidationResult::Discard, cost::MALFORMED_MESSAGE),
-			Some(GossipMessage::Neighbor(VersionedNeighborPacket::V1(packet))) => {
+			Err(_) => (GossipValidationResult::Discard, cost::MALFORMED_MESSAGE),
+			Ok(GossipMessage::Neighbor(VersionedNeighborPacket::V1(packet))) => {
 				let (res, cb, topics) = self.inner.write().validate_neighbor_packet(sender, packet);
 				for new_topic in topics {
 					context.send_topic(sender, new_topic, false);
 				}
 				(res, cb)
 			}
-			Some(GossipMessage::Statement(statement)) => {
+			Ok(GossipMessage::Statement(statement)) => {
 				let (res, cb) = {
 					let mut inner = self.inner.write();
 					let inner = &mut *inner;
@@ -522,7 +522,7 @@ impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValid
 				}
 				(res, cb)
 			}
-			Some(GossipMessage::ParachainMessages(messages)) => {
+			Ok(GossipMessage::ParachainMessages(messages)) => {
 				let (res, cb) = {
 					let mut inner = self.inner.write();
 					let inner = &mut *inner;
@@ -571,7 +571,7 @@ impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValid
 			let peer = peers.get_mut(who);
 
 			match GossipMessage::decode(&mut &data[..]) {
-				Some(GossipMessage::Statement(ref statement)) => {
+				Ok(GossipMessage::Statement(ref statement)) => {
 					// to allow statements, we need peer knowledge.
 					let peer_knowledge = peer.and_then(move |p| attestation_head.map(|r| (p, r)))
 						.and_then(|(p, r)| p.attestation.knowledge_at_mut(&r).map(|k| (k, r)));
@@ -584,7 +584,7 @@ impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValid
 						)
 					})
 				}
-				Some(GossipMessage::ParachainMessages(_)) => match peer {
+				Ok(GossipMessage::ParachainMessages(_)) => match peer {
 					None => false,
 					Some(peer) => {
 						let their_leaves: LeavesVec = peer.leaves().cloned().collect();
@@ -605,7 +605,7 @@ mod tests {
 	use parking_lot::Mutex;
 	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
 	use substrate_primitives::crypto::UncheckedInto;
-	use substrate_primitives::ed25519::Signature as Ed25519Signature;
+	use substrate_primitives::sr25519::Signature as Sr25519Signature;
 	use polkadot_validation::GenericStatement;
 
 	use crate::tests::TestChainContext;
@@ -703,7 +703,7 @@ mod tests {
 			relay_parent: hash_a,
 			signed_statement: SignedStatement {
 				statement: GenericStatement::Candidate(candidate_receipt),
-				signature: Ed25519Signature([255u8; 64]),
+				signature: Sr25519Signature([255u8; 64]).into(),
 				sender: 1,
 			}
 		});
@@ -818,7 +818,7 @@ mod tests {
 			relay_parent: hash_a,
 			signed_statement: SignedStatement {
 				statement: GenericStatement::Valid(c_hash),
-				signature: Ed25519Signature([255u8; 64]),
+				signature: Sr25519Signature([255u8; 64]).into(),
 				sender: 1,
 			}
 		});

@@ -20,7 +20,7 @@
 //! as well.
 
 use rstd::prelude::*;
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 use srml_support::{decl_storage, decl_module, ensure};
 
 use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};

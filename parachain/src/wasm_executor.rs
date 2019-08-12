@@ -431,7 +431,7 @@ pub fn validate_candidate_internal<E: Externalities>(
 			let len_offset = len_offset as usize;
 
 			let len = u32::decode(&mut &len_bytes[..])
-				.ok_or_else(|| Error::BadReturn)? as usize;
+				.map_err(|_| Error::BadReturn)? as usize;
 
 			let return_offset = if len > len_offset {
 				return Err(Error::BadReturn);
@@ -445,8 +445,7 @@ pub fn validate_candidate_internal<E: Externalities>(
 				}
 
 				ValidationResult::decode(&mut &mem[return_offset..][..len])
-					.ok_or_else(|| Error::BadReturn)
-					.map_err(Into::into)
+					.map_err(|_| Error::BadReturn.into())
 			})
 		}
 		_ => Err(Error::BadReturn),

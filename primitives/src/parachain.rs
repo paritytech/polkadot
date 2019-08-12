@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
-use parity_codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 use super::{Hash, Balance, BlockNumber};
 
@@ -27,32 +27,56 @@ use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
-use primitives::ed25519;
+use application_crypto::KeyTypeId;
 
 pub use polkadot_parachain::{
 	Id, AccountIdConversion, ParachainDispatchOrigin, UpwardMessage,
 };
 
+/// The key type ID for a collator key.
+pub const COLLATOR_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"coll");
+
+mod collator_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::COLLATOR_KEY_TYPE_ID);
+}
+
 /// Identity that collators use.
-pub type CollatorId = ed25519::Public;
+pub type CollatorId = collator_app::Public;
+
+/// A Parachain collator keypair.
+#[cfg(feature = "std")]
+pub type CollatorPair = collator_app::Pair;
 
 /// Signature on candidate's block data by a collator.
-pub type CollatorSignature = ed25519::Signature;
+pub type CollatorSignature = collator_app::Signature;
+
+/// The key type ID for a parachain validator key.
+pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
+
+mod validator_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::PARACHAIN_KEY_TYPE_ID);
+}
 
 /// Identity that parachain validators use when signing validation messages.
 ///
 /// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
-pub type ValidatorId = super::SessionKey;
+pub type ValidatorId = validator_app::Public;
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
 pub type ValidatorIndex = u32;
+
+/// A Parachain validator keypair.
+#[cfg(feature = "std")]
+pub type ValidatorPair = validator_app::Pair;
 
  /// Signature with which parachain validators sign blocks.
 ///
 /// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
-pub type ValidatorSignature = super::SessionSignature;
+pub type ValidatorSignature = validator_app::Signature;
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
 #[derive(Copy, Clone, PartialEq, Encode, Decode)]
@@ -143,7 +167,7 @@ impl CandidateReceipt {
 
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
-		use runtime_primitives::traits::Verify;
+		use runtime_primitives::traits::AppVerify;
 
 		if self.signature.verify(self.block_data_hash.as_ref(), &self.collator) {
 			Ok(())
@@ -292,11 +316,11 @@ pub enum ValidityAttestation {
 	/// implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
 	#[codec(index = "1")]
-	Implicit(CollatorSignature),
+	Implicit(ValidatorSignature),
 	/// An explicit attestation. This corresponds to issuance of a
 	/// `Valid` statement.
 	#[codec(index = "2")]
-	Explicit(CollatorSignature),
+	Explicit(ValidatorSignature),
 }
 
 /// An attested candidate.

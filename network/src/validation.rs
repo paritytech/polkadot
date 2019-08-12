@@ -24,10 +24,10 @@ use substrate_network::PeerId;
 use polkadot_validation::{
 	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, SignedStatement,
 };
-use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
+use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Collation, Extrinsic, ParachainHost, CandidateReceipt, CollatorId,
-	ValidatorId, PoVBlock, ValidatorIndex,
+	ValidatorId, PoVBlock
 };
 
 use futures::prelude::*;
@@ -49,7 +49,7 @@ use super::NetworkService;
 
 pub use polkadot_validation::Incoming;
 
-use parity_codec::Encode;
+use codec::Encode;
 
 /// An executor suitable for dispatching async consensus tasks.
 pub trait Executor {
@@ -81,11 +81,11 @@ impl Executor for Arc<
 /// Params to a current validation session.
 pub struct SessionParams {
 	/// The local session key.
-	pub local_session_key: Option<SessionKey>,
+	pub local_session_key: Option<ValidatorId>,
 	/// The parent hash.
 	pub parent_hash: Hash,
 	/// The authorities.
-	pub authorities: Vec<SessionKey>,
+	pub authorities: Vec<ValidatorId>,
 }
 
 /// Wrapper around the network service
@@ -159,7 +159,7 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 
 			let actions = message_validator.note_session(
 				parent_hash,
-				MessageValidationData { authorities, index_mapping },
+				MessageValidationData { authorities },
 				|queue_root| spec.extrinsic_store.as_ref()
 					.and_then(|store| store.extrinsic_by_queue_root(queue_root))
 					.map(|e| e.outgoing_messages.iter()
@@ -230,7 +230,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		let local_session_key = table.session_key();
 
 		let build_fetcher = self.instantiate_session(SessionParams {
-			local_session_key: Some(local_session_key),
+			local_session_key,
 			parent_hash,
 			authorities: authorities.to_vec(),
 		});
