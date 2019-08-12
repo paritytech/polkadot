@@ -435,29 +435,43 @@ construct_runtime!(
 		NodeBlock = primitives::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
+		// Basic stuff; balances is uncallable initially.
 		System: system::{Module, Call, Storage, Config, Event},
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
-		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
-		Authorship: authorship::{Module, Call, Storage},
 		Indices: indices,
-		Balances: balances,
-		Staking: staking::{default, OfflineWorker},
+		Balances: balances::{Module, /*Call,*/ Storage, Config<T>, Event<T>},
+
+		// Consensus support.
 		Session: session::{Module, Call, Storage, Event, Config<T>},
-		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
-		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		Elections: elections::{Module, Call, Storage, Event<T>, Config<T>},
-		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
+		Staking: staking::{default, OfflineWorker},
+		Authorship: authorship::{Module, Call, Storage},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
+		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
+		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config<T>},
+
+		// Governance stuff; uncallable initially.
+		Democracy: democracy::{Module, /*Call,*/ Storage, Config, Event<T>},
+		Council: collective::<Instance1>::{Module, /*Call,*/ Storage, Origin<T>, Event<T>, Config<T>},
+		TechnicalCommittee: collective::<Instance2>::{Module, /*Call,*/ Storage, Origin<T>, Event<T>, Config<T>},
+		Elections: elections::{Module, /*Call,*/ Storage, Event<T>, Config<T>},
+		TechnicalMembership: membership::<Instance1>::{Module, /*Call,*/ Storage, Event<T>, Config<T>},
+		Treasury: treasury::{Module, /*Call,*/ Storage, Event<T>},
+		// TODO: @rphmeier - we want to remove this, right?
 		CuratedGrandpa: curated_grandpa::{Module, Call, Config<T>, Storage},
-		Treasury: treasury::{Module, Call, Storage, Event<T>},
+
+		// Claims. Usable initially.
+		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
+
+		// Sudo. Usable initially.
+		// NOTE: to be removed after PoA
+		Sudo: sudo,
+
+		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
+		// have no public dispatchables.
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
-		Slots: slots::{Module, Call, Storage, Event<T>},
-		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
-		Sudo: sudo,
-		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config<T>},
+		Slots: slots::{Module, /*Call, */Storage, Event<T>},
 	}
 );
 
