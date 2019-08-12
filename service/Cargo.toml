@@ -8,6 +8,8 @@ edition = "2018"
 parking_lot = "0.9.0"
 lazy_static = "1.0"
 log = "0.4.6"
+futures = "0.1"
+exit-future = "0.1"
 slog = "^2"
 hex-literal = "0.2"
 av_store = { package = "polkadot-availability-store", path = "../availability-store" }
@@ -20,7 +22,6 @@ sr-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-ma
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-aura = { package = "substrate-consensus-aura", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
@@ -29,3 +30,7 @@ service = { package = "substrate-service", git = "https://github.com/paritytech/
 telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+srml_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }

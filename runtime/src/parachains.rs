@@ -18,23 +18,20 @@
 
 use rstd::prelude::*;
 use rstd::collections::btree_map::BTreeMap;
-use parity_codec::{Encode, Decode, HasCompact};
+use codec::{Encode, Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
 use sr_primitives::weights::SimpleDispatchInfo;
-use primitives::{Hash, Balance, ParachainPublic, parachain::{
+use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots,
+	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId
 }};
 use {system, session};
 use srml_support::{
 	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement}
 };
-
-#[cfg(feature = "std")]
-use srml_support::storage::hashed::generator;
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
@@ -217,7 +214,7 @@ const WATERMARK_QUEUE_SIZE: usize = 20000;
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		/// All authorities' keys at the moment.
-		pub Authorities get(authorities) config(authorities): Vec<ParachainPublic>;
+		pub Authorities get(authorities) config(authorities): Vec<ValidatorId>;
 		/// Vector of all parachain IDs.
 		pub Parachains get(active_parachains): Vec<ParaId>;
 		/// The parachains registered at present.
@@ -252,25 +249,31 @@ decl_storage! {
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
-		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
-			use sr_primitives::traits::Zero;
-
-			let mut p = config.parachains.clone();
-			p.sort_unstable_by_key(|&(ref id, _, _)| *id);
-			p.dedup_by_key(|&mut (ref id, _, _)| *id);
-
-			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
-
-			<Parachains as generator::StorageValue<_>>::put(&only_ids, storage);
-
-			for (id, code, genesis) in p {
-				// no ingress -- a chain cannot be routed to until it is live.
-				<Code as generator::StorageMap<_, _>>::insert(&id, &code, storage);
-				<Heads as generator::StorageMap<_, _>>::insert(&id, &genesis, storage);
-				<Watermarks<T> as generator::StorageMap<_, _>>::insert(&id, &Zero::zero(), storage);
-			}
-		});
+		build(build::<T>);
 	}
+}
+
+#[cfg(feature = "std")]
+fn build<T: Trait>(
+	storage: &mut (StorageOverlay, ChildrenStorageOverlay),
+	config: &GenesisConfig<T>
+) {
+	let mut p = config.parachains.clone();
+	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
+	p.dedup_by_key(|&mut (ref id, _, _)| *id);
+
+	let only_ids: Vec<ParaId> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
+
+	sr_io::with_storage(storage, || {
+		Parachains::put(&only_ids);
+
+		for (id, code, genesis) in p {
+			// no ingress -- a chain cannot be routed to until it is live.
+			Code::insert(&id, &code);
+			Heads::insert(&id, &genesis);
+			<Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
+		}
+	});
 }
 
 decl_module! {
@@ -380,7 +383,7 @@ impl<T: Trait> Module<T> {
 		origin: ParachainDispatchOrigin,
 		data: &[u8],
 	) {
-		if let Some(message_call) = T::Call::decode(&mut &data[..]) {
+		if let Ok(message_call) = <T as Trait>::Call::decode(&mut &data[..]) {
 			let origin: <T as Trait>::Origin = match origin {
 				ParachainDispatchOrigin::Signed =>
 					system::RawOrigin::Signed(id.into_account()).into(),
@@ -528,6 +531,7 @@ impl<T: Trait> Module<T> {
 	pub fn calculate_duty_roster() -> (DutyRoster, [u8; 32]) {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
+		// TODO: use decode length. substrate #2794
 		let validator_count = Self::authorities().len();
 		let validators_per_parachain = if parachain_count != 0 { (validator_count - 1) / parachain_count } else { 0 };
 
@@ -561,12 +565,12 @@ impl<T: Trait> Module<T> {
 		let orig_seed = seed.clone().to_fixed_bytes();
 
 		// shuffle
-		for i in 0..(validator_count - 1) {
+		for i in 0..(validator_count.saturating_sub(1)) {
 			// 4 bytes of entropy used per cycle, 32 bytes entropy per hash
 			let offset = (i * 4 % 32) as usize;
 
 			// number of roles remaining to select from.
-			let remaining = (validator_count - i) as usize;
+			let remaining = rstd::cmp::max(1, (validator_count - i) as usize);
 
 			// 8 32-bit ints per 256-bit seed.
 			let val_index = u32::decode(&mut &seed[offset..offset + 4])
@@ -656,7 +660,7 @@ impl<T: Trait> Module<T> {
 		-> rstd::result::Result<IncludedBlocks<T>, &'static str>
 	{
 		use primitives::parachain::ValidityAttestation;
-		use sr_primitives::traits::Verify;
+		use sr_primitives::traits::AppVerify;
 
 		// returns groups of slices that have the same chain ID.
 		// assumes the inner slice is sorted by id.
@@ -801,7 +805,7 @@ impl<T: Trait> Module<T> {
 
 			para_block_hashes.push(candidate_hash.unwrap_or_else(|| candidate.candidate().hash()));
 
-      ensure!(
+		ensure!(
 				candidate.validity_votes.len() == expected_votes_len,
 				"Extra untagged validity votes along with candidate"
 			);
@@ -834,7 +838,7 @@ impl<T: Trait> Module<T> {
 }
 
 impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
-	type Key = ParachainPublic;
+	type Key = ValidatorId;
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, _queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
@@ -881,10 +885,11 @@ mod tests {
 		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey,
-		BlockNumber, AuraId,
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId},
+		BlockNumber,
 	};
-	use keyring::Ed25519Keyring;
+	use crate::constants::time::*;
+	use keyring::Sr25519Keyring;
 	use srml_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
@@ -905,13 +910,14 @@ mod tests {
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
 	parameter_types! {
-		pub const BlockHashCount: u64 = 250;
+		pub const BlockHashCount: u32 = 250;
 		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
+		type Call = Call;
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -957,9 +963,14 @@ mod tests {
 		type MinimumPeriod = MinimumPeriod;
 	}
 
-	impl aura::Trait for Test {
-		type HandleReport = aura::StakingSlasher<Test>;
-		type AuthorityId = AuraId;
+	parameter_types! {
+		pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
+		pub const ExpectedBlockTime: u64 = MILLISECS_PER_BLOCK;
+	}
+
+	impl babe::Trait for Test {
+		type EpochDuration = EpochDuration;
+		type ExpectedBlockTime = ExpectedBlockTime;
 	}
 
 	parameter_types! {
@@ -989,7 +1000,7 @@ mod tests {
 	parameter_types! {
 		pub const SessionsPerEra: session::SessionIndex = 6;
 		pub const BondingDuration: staking::EraIndex = 24 * 28;
-		pub const AttestationPeriod: u64 = 100;
+		pub const AttestationPeriod: BlockNumber = 100;
 	}
 
 	impl staking::Trait for Test {
@@ -1021,17 +1032,19 @@ mod tests {
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		use staking::StakerStatus;
+		use babe::AuthorityId as BabeAuthorityId;
 
-		let (mut t, mut c) = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+
 		let authority_keys = [
-			Ed25519Keyring::Alice,
-			Ed25519Keyring::Bob,
-			Ed25519Keyring::Charlie,
-			Ed25519Keyring::Dave,
-			Ed25519Keyring::Eve,
-			Ed25519Keyring::Ferdie,
-			Ed25519Keyring::One,
-			Ed25519Keyring::Two,
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+			Sr25519Keyring::Ferdie,
+			Sr25519Keyring::One,
+			Sr25519Keyring::Two,
 		];
 
 		// stashes are the index.
@@ -1039,7 +1052,11 @@ mod tests {
 			.map(|(i, _k)| (i as u64, UintAuthorityId(i as u64)))
 			.collect();
 
-		let authorities: Vec<_> = authority_keys.iter().map(|k| SessionKey::from(*k)).collect();
+		let authorities: Vec<_> = authority_keys.iter().map(|k| ValidatorId::from(k.public())).collect();
+		let babe_authorities: Vec<_> = authority_keys.iter()
+			.map(|k| BabeAuthorityId::from(k.public()))
+			.map(|k| (k, 1))
+			.collect();
 
 		// controllers are the index + 1000
 		let stakers: Vec<_> = (0..authority_keys.len()).map(|i| (
@@ -1051,23 +1068,24 @@ mod tests {
 
 		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
 
-		session::GenesisConfig::<Test> {
-			keys: session_keys,
-		}.assimilate_storage(&mut t, &mut c).unwrap();
 		GenesisConfig::<Test> {
 			parachains,
 			authorities: authorities.clone(),
 			_phdata: Default::default(),
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+		}.assimilate_storage(&mut t).unwrap();
 
-		aura::GenesisConfig::<Test> {
-			authorities,
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+		session::GenesisConfig::<Test> {
+			keys: session_keys,
+		}.assimilate_storage(&mut t).unwrap();
+
+		babe::GenesisConfig {
+			authorities: babe_authorities,
+		}.assimilate_storage(&mut t).unwrap();
 
 		balances::GenesisConfig::<Test> {
 			balances,
 			vesting: vec![],
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+		}.assimilate_storage(&mut t).unwrap();
 
 		staking::GenesisConfig::<Test> {
 			current_era: 0,
@@ -1077,7 +1095,7 @@ mod tests {
 			offline_slash: Perbill::from_percent(5),
 			offline_slash_grace: 0,
 			invulnerables: vec![],
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+		}.assimilate_storage(&mut t).unwrap();
 
 		t.into()
 	}
@@ -1094,8 +1112,10 @@ mod tests {
 		let candidate_hash = candidate.candidate.hash();
 
 		let authorities = Parachains::authorities();
-		let extract_key = |public: SessionKey| {
-			Ed25519Keyring::from_raw_public(public.0).unwrap()
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
 		};
 
 		let validation_entries = duty_roster.validator_duty.iter()

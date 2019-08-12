@@ -63,7 +63,7 @@ impl ParachainContext for AdderContext {
 	) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead>
 	{
 		let adder_head = AdderHead::decode(&mut &status.head_data.0[..])
-			.ok_or(InvalidHead)?;
+			.map_err(|_| InvalidHead)?;
 
 		let mut db = self.db.lock();
 

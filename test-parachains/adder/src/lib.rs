@@ -20,7 +20,7 @@
 
 #![cfg_attr(feature = "no_std", feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler))]
 
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 
 #[cfg(feature = "no_std")]
 mod wasm_validation;
@@ -80,7 +80,7 @@ pub fn process_messages<I, T>(iterable: I) -> u64
 	where I: IntoIterator<Item=T>, T: AsRef<[u8]>
 {
 	iterable.into_iter()
-		.filter_map(|data| AddMessage::decode(&mut data.as_ref()))
+		.filter_map(|data| AddMessage::decode(&mut data.as_ref()).ok())
 		.fold(0u64, |a, c| a.overflowing_add(c.amount).0)
 }
 

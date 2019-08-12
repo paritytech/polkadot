@@ -21,7 +21,7 @@
 use rstd::{prelude::*, mem::swap, convert::TryInto};
 use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash};
 use sr_primitives::weights::SimpleDispatchInfo;
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 use srml_support::{
 	decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}
@@ -813,13 +813,14 @@ mod tests {
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
 	parameter_types! {
-		pub const BlockHashCount: u64 = 250;
+		pub const BlockHashCount: u32 = 250;
 		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
+		type Call = ();
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -926,11 +927,11 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
 	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
-		t.extend(balances::GenesisConfig::<Test>{
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
 			vesting: vec![],
-		}.build_storage().unwrap().0);
+		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
 
