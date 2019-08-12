@@ -647,8 +647,6 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 fn current_timestamp() -> u64 {
 	time::SystemTime::now().duration_since(time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
-		// TODO: use substrate's proper saturated_into here. Saturating is okay -- with ms accuracy
-		// we still support a shit ton of years.
 		.as_millis() as u64
 }
 

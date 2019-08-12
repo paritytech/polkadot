@@ -57,9 +57,10 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 	];
 
 	// for i in 1 2 3 4; do for j in stash controller; do subkey inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in session_babe; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in session_fggp; do subkey --ed25519 inspect "$SECRET//$i//$j"; done; done
-	// TODO: last two are just copies of babe; they should be generated properly.
+	// for i in 1 2 3 4; do for j in babe; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
+	// for i in 1 2 3 4; do for j in grandpa; do subkey --ed25519 inspect "$SECRET//$i//$j"; done; done
+	// for i in 1 2 3 4; do for j in im_online; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
+	// for i in 1 2 3 4; do for j in parachains; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
 	let initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId)> = vec![(
 		hex!["32a5718e87d16071756d4b1370c411bbbb947eb62f0e6e0b937d5cbfc0ea633b"].unchecked_into(), // 5DD7Q4VEfPTLEdn11CnThoHT5f9xKCrnofWJL5SsvpTghaAT
 		hex!["bee39fe862c85c91aaf343e130d30b643c6ea0b4406a980206f1df8331f7093b"].unchecked_into(), // 5GNzaEqhrZAtUQhbMe2gn9jBuNWfamWFZHULryFwBUXyd1cG
