@@ -516,10 +516,11 @@ impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValid
 		inner.peers.remove(who);
 	}
 
-	fn validate(&self, context: &mut dyn ValidatorContext<Block>, sender: &PeerId, mut data: &[u8])
+	fn validate(&self, context: &mut dyn ValidatorContext<Block>, sender: &PeerId, data: &[u8])
 		-> GossipValidationResult<Hash>
 	{
-		let (res, cost_benefit) = match GossipMessage::decode(&mut data) {
+		let mut decode_data = data;
+		let (res, cost_benefit) = match GossipMessage::decode(&mut decode_data) {
 			Err(_) => (GossipValidationResult::Discard, cost::MALFORMED_MESSAGE),
 			Ok(GossipMessage::Neighbor(VersionedNeighborPacket::V1(packet))) => {
 				let (res, cb, topics) = self.inner.write().validate_neighbor_packet(sender, packet);
@@ -1080,6 +1081,128 @@ mod tests {
 			let mut allowed = validator.inner.message_allowed();
 			assert!(allowed(&peer_a, MessageIntent::Broadcast, &root_a_topic, &message[..]));
 			assert!(!allowed(&peer_b, MessageIntent::Broadcast, &root_a_topic, &message[..]));
+		}
+	}
+
+	#[test]
+	fn accepts_needed_unknown_icmp_message_queue() {
+		let (tx, _rx) = mpsc::channel();
+		let tx = Mutex::new(tx);
+		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+
+		let hash_a = [1u8; 32].into();
+		let root_a_messages = vec![
+			ParachainMessage(vec![1, 2, 3]),
+			ParachainMessage(vec![4, 5, 6]),
+		];
+		let not_root_a_messages = vec![
+			ParachainMessage(vec![1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
+			ParachainMessage(vec![4, 5, 6]),
+		];
+
+		let root_a = polkadot_validation::message_queue_root(
+			root_a_messages.iter().map(|m| &m.0)
+		);
+		let not_root_a = [69u8; 32].into();
+		let root_a_topic = queue_topic(root_a);
+
+		let chain = {
+			let mut chain = TestChainContext::default();
+			chain.known_map.insert(hash_a, Known::Leaf);
+			chain.ingress_roots.insert(hash_a, vec![root_a]);
+			chain
+		};
+
+		let validator = RegisteredMessageValidator::new_test(chain, report_handle);
+
+		let authorities: Vec<ValidatorId> = vec![validator_id([0; 32]), validator_id([10; 32])];
+
+		let peer_a = PeerId::random();
+		let mut validator_context = MockValidatorContext::default();
+
+		validator.inner.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		assert!(validator_context.events.is_empty());
+		validator_context.clear();
+
+		let queue_messages = GossipMessage::from(GossipParachainMessages {
+			queue_root: root_a,
+			messages: root_a_messages.clone(),
+		}).to_consensus_message();
+
+		let not_queue_messages = GossipMessage::from(GossipParachainMessages {
+			queue_root: root_a,
+			messages: not_root_a_messages.clone(),
+		}).encode();
+
+		let queue_messages_wrong_root = GossipMessage::from(GossipParachainMessages {
+			queue_root: not_root_a,
+			messages: root_a_messages.clone(),
+		}).encode();
+
+		// ensure that we attempt to multicast all relevant queues after noting a session.
+		{
+			let actions = validator.note_session(
+				hash_a,
+				MessageValidationData { authorities },
+				|_root| None,
+			);
+
+			assert!(actions.has_message(peer_a.clone(), GossipMessage::from(NeighborPacket {
+				chain_heads: vec![hash_a],
+			}).to_consensus_message()));
+
+			// we don't know this queue! no broadcast :(
+			assert!(!actions.has_multicast(root_a_topic, queue_messages.clone()));
+		}
+
+		// rejects right queue with unknown root.
+		{
+			let res = validator.inner.validate(
+				&mut validator_context,
+				&peer_a,
+				&queue_messages_wrong_root[..],
+			);
+
+			match res {
+				GossipValidationResult::Discard => {},
+				_ => panic!("wrong result"),
+			}
+
+			assert_eq!(validator_context.events, Vec::new());
+		}
+
+		// rejects bad queue.
+		{
+			let res = validator.inner.validate(
+				&mut validator_context,
+				&peer_a,
+				&not_queue_messages[..],
+			);
+
+			match res {
+				GossipValidationResult::Discard => {},
+				_ => panic!("wrong result"),
+			}
+
+			assert_eq!(validator_context.events, Vec::new());
+		}
+
+		// accepts the right queue.
+		{
+			let res = validator.inner.validate(
+				&mut validator_context,
+				&peer_a,
+				&queue_messages.data[..],
+			);
+
+			match res {
+				GossipValidationResult::ProcessAndKeep(topic) if topic == root_a_topic => {},
+				_ => panic!("wrong result"),
+			}
+
+			assert_eq!(validator_context.events, vec![
+				ContextEvent::BroadcastMessage(root_a_topic, queue_messages.data.clone(), false),
+			]);
 		}
 	}
 }
