@@ -53,7 +53,6 @@ use srml_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
 };
 use im_online::AuthorityId as ImOnlineId;
-//use im_online::{AuthorityId as ImOnlineId};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
