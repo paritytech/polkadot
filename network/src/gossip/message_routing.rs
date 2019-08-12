@@ -140,6 +140,16 @@ impl View {
 		false
 	}
 
+	/// Get topics of all message queues a peer is interested in.
+	pub fn intersection_topics(&self, other_leaves: &LeavesVec) -> impl Iterator<Item=Hash> {
+		let deduplicated = other_leaves.iter()
+			.filter_map(|l| self.leaf_topics.get(l))
+			.flat_map(|topics| topics.iter().cloned())
+			.collect::<HashSet<_>>();
+
+		deduplicated.into_iter()
+	}
+
 	/// Iterate over all live message queues for which the data is marked as not locally known,
 	/// calling a closure with `(topic, root)`. The closure will return whether the queue data is
 	/// unknown.

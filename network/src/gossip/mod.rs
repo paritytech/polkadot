@@ -103,9 +103,30 @@ pub enum GossipMessage {
 	// erasure-coded chunks.
 }
 
+impl GossipMessage {
+	fn to_consensus_message(&self) -> ConsensusMessage {
+		ConsensusMessage {
+			data: self.encode(),
+			engine_id: POLKADOT_ENGINE_ID,
+		}
+	}
+}
+
+impl From<NeighborPacket> for GossipMessage {
+	fn from(packet: NeighborPacket) -> Self {
+		GossipMessage::Neighbor(VersionedNeighborPacket::V1(packet))
+	}
+}
+
 impl From<GossipStatement> for GossipMessage {
 	fn from(stmt: GossipStatement) -> Self {
 		GossipMessage::Statement(stmt)
+	}
+}
+
+impl From<GossipParachainMessages> for GossipMessage {
+	fn from(messages: GossipParachainMessages) -> Self {
+		GossipMessage::ParachainMessages(messages)
 	}
 }
 
@@ -255,6 +276,7 @@ pub fn register_validator<C: ChainContext + 'static>(
 	RegisteredMessageValidator { inner: validator as _ }
 }
 
+#[derive(PartialEq)]
 enum NewSessionAction {
 	// (who, message)
 	TargetedMessage(PeerId, ConsensusMessage),
@@ -350,15 +372,10 @@ impl RegisteredMessageValidator {
 		inner.message_routing_view.sweep_unknown_queues(|topic, queue_root|
 			match lookup_queue_by_root(queue_root) {
 				Some(messages) => {
-					let message = GossipMessage::ParachainMessages(GossipParachainMessages {
+					let message = GossipMessage::from(GossipParachainMessages {
 						queue_root: *queue_root,
 						messages,
-					});
-
-					let message = ConsensusMessage {
-						data: message.encode(),
-						engine_id: POLKADOT_ENGINE_ID,
-					};
+					}).to_consensus_message();
 
 					actions.push(NewSessionAction::Multicast(*topic, message));
 
@@ -431,7 +448,13 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 			let chain_heads: LeavesVec = chain_heads.into_iter().collect();
 			let new_topics = if let Some(ref mut peer) = self.peers.get_mut(sender) {
 				let new_leaves = peer.attestation.update_leaves(&chain_heads);
-				new_leaves.into_iter().map(attestation_topic).collect()
+				let new_attestation_topics = new_leaves.iter().cloned().map(attestation_topic);
+
+				// find all topics which are from the intersection of our leaves with the peer's
+				// new leaves.
+				let new_message_routing_topics = self.message_routing_view.intersection_topics(&new_leaves);
+
+				new_attestation_topics.chain(new_message_routing_topics).collect()
 			} else {
 				Vec::new()
 			};
@@ -444,17 +467,12 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 		&self,
 		mut send_neighbor_packet: F,
 	) {
-		let neighbor_packet = GossipMessage::Neighbor(VersionedNeighborPacket::V1(NeighborPacket {
+		let neighbor_packet = GossipMessage::from(NeighborPacket {
 			chain_heads: self.attestation_view.neighbor_info().collect(),
-		}));
-
-		let message = ConsensusMessage {
-			data: neighbor_packet.encode(),
-			engine_id: POLKADOT_ENGINE_ID,
-		};
+		}).to_consensus_message();
 
 		for peer in self.peers.keys() {
-			send_neighbor_packet(peer, message.clone())
+			send_neighbor_packet(peer, neighbor_packet.clone())
 		}
 	}
 }
@@ -605,8 +623,9 @@ mod tests {
 	use parking_lot::Mutex;
 	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
 	use substrate_primitives::crypto::UncheckedInto;
-	use substrate_primitives::sr25519::Signature as Sr25519Signature;
+	use substrate_primitives::sr25519::{Public as Sr25519Public, Signature as Sr25519Signature};
 	use polkadot_validation::GenericStatement;
+	use super::message_routing::queue_topic;
 
 	use crate::tests::TestChainContext;
 
@@ -644,6 +663,22 @@ mod tests {
 		}
 	}
 
+	impl NewSessionActions {
+		fn has_message(&self, who: PeerId, message: ConsensusMessage) -> bool {
+			let x = NewSessionAction::TargetedMessage(who, message);
+			self.actions.iter().find(|&m| m == &x).is_some()
+		}
+
+		fn has_multicast(&self, topic: Hash, message: ConsensusMessage) -> bool {
+			let x = NewSessionAction::Multicast(topic, message);
+			self.actions.iter().find(|&m| m == &x).is_some()
+		}
+	}
+
+	fn validator_id(raw: [u8; 32]) -> ValidatorId {
+		Sr25519Public::from_raw(raw).into()
+	}
+
 	#[test]
 	fn message_allowed() {
 		let (tx, _rx) = mpsc::channel();
@@ -665,9 +700,9 @@ mod tests {
 		let hash_b = [2u8; 32].into();
 		let hash_c = [3u8; 32].into();
 
-		let message = GossipMessage::Neighbor(VersionedNeighborPacket::V1(NeighborPacket {
-				chain_heads: vec![hash_a, hash_b],
-			})).encode();
+		let message = GossipMessage::from(NeighborPacket {
+			chain_heads: vec![hash_a, hash_b],
+		}).encode();
 		let res = validator.validate(
 			&mut validator_context,
 			&peer_a,
@@ -745,9 +780,9 @@ mod tests {
 
 		let chain_heads = (0..MAX_CHAIN_HEADS+1).map(|i| [i as u8; 32].into()).collect();
 
-		let message = GossipMessage::Neighbor(VersionedNeighborPacket::V1(NeighborPacket {
-				chain_heads,
-			})).encode();
+		let message = GossipMessage::from(NeighborPacket {
+			chain_heads,
+		}).encode();
 		let res = validator.validate(
 			&mut validator_context,
 			&peer_a,
@@ -788,9 +823,10 @@ mod tests {
 		let hash_a = [1u8; 32].into();
 		let hash_b = [2u8; 32].into();
 
-		let message = GossipMessage::Neighbor(VersionedNeighborPacket::V1(NeighborPacket {
-				chain_heads: vec![hash_a, hash_b],
-			})).encode();
+		let message = GossipMessage::from(NeighborPacket {
+			chain_heads: vec![hash_a, hash_b],
+		}).encode();
+
 		let res = validator.validate(
 			&mut validator_context,
 			&peer_a,
@@ -841,6 +877,209 @@ mod tests {
 		{
 			let mut message_allowed = validator.message_allowed();
 			assert!(message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded[..]));
+		}
+	}
+
+	#[test]
+	fn multicasts_icmp_queues_when_building_on_new_leaf() {
+		let (tx, _rx) = mpsc::channel();
+		let tx = Mutex::new(tx);
+		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+
+		let hash_a = [1u8; 32].into();
+		let root_a = [11u8; 32].into();
+		let root_a_topic = queue_topic(root_a);
+
+		let root_a_messages = vec![
+			ParachainMessage(vec![1, 2, 3]),
+			ParachainMessage(vec![4, 5, 6]),
+		];
+
+		let chain = {
+			let mut chain = TestChainContext::default();
+			chain.known_map.insert(hash_a, Known::Leaf);
+			chain.ingress_roots.insert(hash_a, vec![root_a]);
+			chain
+		};
+
+		let validator = RegisteredMessageValidator::new_test(chain, report_handle);
+
+		let authorities: Vec<ValidatorId> = vec![validator_id([0; 32]), validator_id([10; 32])];
+
+		let peer_a = PeerId::random();
+		let peer_b = PeerId::random();
+
+		let mut validator_context = MockValidatorContext::default();
+		validator.inner.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		validator.inner.new_peer(&mut validator_context, &peer_b, Roles::FULL);
+		assert!(validator_context.events.is_empty());
+		validator_context.clear();
+
+
+		{
+			let message = GossipMessage::from(NeighborPacket {
+				chain_heads: vec![hash_a],
+			}).encode();
+			let res = validator.inner.validate(
+				&mut validator_context,
+				&peer_a,
+				&message[..],
+			);
+
+			match res {
+				GossipValidationResult::Discard => {},
+				_ => panic!("wrong result"),
+			}
+			assert_eq!(
+				validator_context.events,
+				vec![
+					ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_a), false),
+				],
+			);
+		}
+
+		// ensure that we attempt to multicast all relevant queues after noting a session.
+		{
+			let actions = validator.note_session(
+				hash_a,
+				MessageValidationData { authorities },
+				|root| if root == &root_a {
+					Some(root_a_messages.clone())
+				} else {
+					None
+				},
+			);
+
+			assert!(actions.has_message(peer_a.clone(), GossipMessage::from(NeighborPacket {
+				chain_heads: vec![hash_a],
+			}).to_consensus_message()));
+
+			assert!(actions.has_multicast(root_a_topic, GossipMessage::from(GossipParachainMessages {
+				queue_root: root_a,
+				messages: root_a_messages.clone(),
+			}).to_consensus_message()));
+		}
+
+		// ensure that we are allowed to multicast to a peer with same chain head,
+		// but not to one without.
+		{
+			let message = GossipMessage::from(GossipParachainMessages {
+				queue_root: root_a,
+				messages: root_a_messages.clone(),
+			}).encode();
+
+			let mut allowed = validator.inner.message_allowed();
+			assert!(allowed(&peer_a, MessageIntent::Broadcast, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, MessageIntent::Broadcast, &root_a_topic, &message[..]));
+		}
+	}
+
+	#[test]
+	fn multicasts_icmp_queues_on_neighbor_update() {
+		let (tx, _rx) = mpsc::channel();
+		let tx = Mutex::new(tx);
+		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+
+		let hash_a = [1u8; 32].into();
+		let root_a = [11u8; 32].into();
+		let root_a_topic = queue_topic(root_a);
+
+		let root_a_messages = vec![
+			ParachainMessage(vec![1, 2, 3]),
+			ParachainMessage(vec![4, 5, 6]),
+		];
+
+		let chain = {
+			let mut chain = TestChainContext::default();
+			chain.known_map.insert(hash_a, Known::Leaf);
+			chain.ingress_roots.insert(hash_a, vec![root_a]);
+			chain
+		};
+
+		let validator = RegisteredMessageValidator::new_test(chain, report_handle);
+
+		let authorities: Vec<ValidatorId> = vec![validator_id([0; 32]), validator_id([10; 32])];
+
+		let peer_a = PeerId::random();
+		let peer_b = PeerId::random();
+
+		let mut validator_context = MockValidatorContext::default();
+		validator.inner.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		validator.inner.new_peer(&mut validator_context, &peer_b, Roles::FULL);
+		assert!(validator_context.events.is_empty());
+		validator_context.clear();
+
+		// ensure that we attempt to multicast all relevant queues after noting a session.
+		{
+			let actions = validator.note_session(
+				hash_a,
+				MessageValidationData { authorities },
+				|root| if root == &root_a {
+					Some(root_a_messages.clone())
+				} else {
+					None
+				},
+			);
+
+			assert!(actions.has_message(peer_a.clone(), GossipMessage::from(NeighborPacket {
+				chain_heads: vec![hash_a],
+			}).to_consensus_message()));
+
+			assert!(actions.has_multicast(root_a_topic, GossipMessage::from(GossipParachainMessages {
+				queue_root: root_a,
+				messages: root_a_messages.clone(),
+			}).to_consensus_message()));
+		}
+
+		// ensure that we are not allowed to multicast to either peer, as they
+		// don't have the chain head.
+		{
+			let message = GossipMessage::from(GossipParachainMessages {
+				queue_root: root_a,
+				messages: root_a_messages.clone(),
+			}).encode();
+
+			let mut allowed = validator.inner.message_allowed();
+			assert!(!allowed(&peer_a, MessageIntent::Broadcast, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, MessageIntent::Broadcast, &root_a_topic, &message[..]));
+		}
+
+		// peer A gets updated to the chain head. now we'll attempt to broadcast
+		// all queues to it.
+		{
+			let message = GossipMessage::from(NeighborPacket {
+				chain_heads: vec![hash_a],
+			}).encode();
+			let res = validator.inner.validate(
+				&mut validator_context,
+				&peer_a,
+				&message[..],
+			);
+
+			match res {
+				GossipValidationResult::Discard => {},
+				_ => panic!("wrong result"),
+			}
+			assert_eq!(
+				validator_context.events,
+				vec![
+					ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_a), false),
+					ContextEvent::SendTopic(peer_a.clone(), root_a_topic, false),
+				],
+			);
+		}
+
+		// ensure that we are allowed to multicast to a peer with same chain head,
+		// but not to one without.
+		{
+			let message = GossipMessage::from(GossipParachainMessages {
+				queue_root: root_a,
+				messages: root_a_messages.clone(),
+			}).encode();
+
+			let mut allowed = validator.inner.message_allowed();
+			assert!(allowed(&peer_a, MessageIntent::Broadcast, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, MessageIntent::Broadcast, &root_a_topic, &message[..]));
 		}
 	}
 }
