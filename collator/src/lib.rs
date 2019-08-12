@@ -363,8 +363,6 @@ impl<P, E> Worker for CollationNode<P, E> where
 						None => return future::Either::A(future::ok(())),
 					};
 
-					// TODO: double check this. It makes sense bc other occurances of `validators`
-					// has been refactored to this.
 					let validators = try_fr!(api.validators(&id));
 
 					let targets = compute_targets(
