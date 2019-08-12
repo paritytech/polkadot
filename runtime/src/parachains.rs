@@ -531,7 +531,7 @@ impl<T: Trait> Module<T> {
 	pub fn calculate_duty_roster() -> (DutyRoster, [u8; 32]) {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
-		// TODO: use decode length.
+		// TODO: use decode length. substrate #2794
 		let validator_count = Self::authorities().len();
 		let validators_per_parachain = if parachain_count != 0 { (validator_count - 1) / parachain_count } else { 0 };
 
@@ -963,7 +963,6 @@ mod tests {
 		type MinimumPeriod = MinimumPeriod;
 	}
 
-	// TODO
 	parameter_types! {
 		pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
 		pub const ExpectedBlockTime: u64 = MILLISECS_PER_BLOCK;
