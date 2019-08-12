@@ -23,11 +23,11 @@ use crate::gossip::GossipMessage;
 use substrate_network::Context as NetContext;
 use substrate_network::consensus_gossip::TopicNotification;
 use substrate_primitives::{NativeOrEncoded, ExecutionContext};
-use substrate_keyring::Ed25519Keyring;
+use substrate_keyring::Sr25519Keyring;
 use crate::PolkadotProtocol;
 
 use polkadot_validation::{SharedTable, MessagesFrom, Network};
-use polkadot_primitives::{SessionKey, Block, Hash, Header, BlockId};
+use polkadot_primitives::{Block, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
 	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
@@ -41,7 +41,7 @@ use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 use std::collections::HashMap;
 use std::sync::Arc;
 use futures::{prelude::*, sync::mpsc};
-use parity_codec::Encode;
+use codec::Encode;
 
 use super::TestContext;
 
@@ -398,20 +398,23 @@ impl IngressBuilder {
 	}
 }
 
-fn make_table(data: &ApiData, local_key: &Ed25519Keyring, parent_hash: Hash) -> Arc<SharedTable> {
+fn make_table(data: &ApiData, local_key: &Sr25519Keyring, parent_hash: Hash) -> Arc<SharedTable> {
 	use av_store::Store;
+	use substrate_primitives::crypto::Pair;
 
+	let sr_pair = local_key.pair();
+	let local_key = polkadot_primitives::parachain::ValidatorPair::from(local_key.pair());
 	let store = Store::new_in_memory();
 	let (group_info, _) = ::polkadot_validation::make_group_info(
 		DutyRoster { validator_duty: data.duties.clone() },
 		&data.validators, // only possible as long as parachain crypto === aura crypto
-		SessionKey::from(*local_key)
+		Some(sr_pair.public().into()),
 	).unwrap();
 
 	Arc::new(SharedTable::new(
-		data.validators.as_slice(),
+		data.validators.clone(),
 		group_info,
-		Arc::new(local_key.pair()),
+		Some(Arc::new(local_key)),
 		parent_hash,
 		store,
 		None,

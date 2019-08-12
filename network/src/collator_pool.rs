@@ -16,7 +16,7 @@
 
 //! Bridge between the network and consensus service for getting collations to it.
 
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{CollatorId, Id as ParaId, Collation};
 use substrate_network::PeerId;

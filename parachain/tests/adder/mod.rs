@@ -169,7 +169,7 @@ fn processes_messages() {
 	};
 
 	let bad_message_data = vec![1];
-	assert!(AddMessage::decode(&mut &bad_message_data[..]).is_none());
+	assert!(AddMessage::decode(&mut &bad_message_data[..]).is_err());
 
 	let ret = parachain::wasm_executor::validate_candidate(
 		TEST_CODE,

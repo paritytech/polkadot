@@ -19,24 +19,22 @@
 //! Collations are attempted to be repropagated when a new validator connects,
 //! a validator changes his session key, or when they are generated.
 
-use polkadot_primitives::{Hash, SessionKey};
-
+use polkadot_primitives::{Hash, parachain::{ValidatorId}};
 use crate::collator_pool::Role;
-
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 const LIVE_FOR: Duration = Duration::from_secs(60 * 5);
 
 struct LocalCollation<C> {
-	targets: HashSet<SessionKey>,
+	targets: HashSet<ValidatorId>,
 	collation: C,
 	live_since: Instant,
 }
 
 /// Tracker for locally collated values and which validators to send them to.
 pub struct LocalCollations<C> {
-	primary_for: HashSet<SessionKey>,
+	primary_for: HashSet<ValidatorId>,
 	local_collations: HashMap<Hash, LocalCollation<C>>,
 }
 
@@ -51,7 +49,7 @@ impl<C: Clone> LocalCollations<C> {
 
 	/// Validator gave us a new role. If the new role is "primary", this function might return
 	/// a set of collations to send to that validator.
-	pub fn note_validator_role(&mut self, key: SessionKey, role: Role) -> Vec<(Hash, C)> {
+	pub fn note_validator_role(&mut self, key: ValidatorId, role: Role) -> Vec<(Hash, C)> {
 		match role {
 			Role::Backup => {
 				self.primary_for.remove(&key);
@@ -70,7 +68,7 @@ impl<C: Clone> LocalCollations<C> {
 
 	/// Fresh session key from a validator. Returns a vector of collations to send
 	/// to the validator.
-	pub fn fresh_key(&mut self, old_key: &SessionKey, new_key: &SessionKey) -> Vec<(Hash, C)> {
+	pub fn fresh_key(&mut self, old_key: &ValidatorId, new_key: &ValidatorId) -> Vec<(Hash, C)> {
 		if self.primary_for.remove(old_key) {
 			self.primary_for.insert(new_key.clone());
 
@@ -81,7 +79,7 @@ impl<C: Clone> LocalCollations<C> {
 	}
 
 	/// Validator disconnected.
-	pub fn on_disconnect(&mut self, key: &SessionKey) {
+	pub fn on_disconnect(&mut self, key: &ValidatorId) {
 		self.primary_for.remove(key);
 	}
 
@@ -99,10 +97,10 @@ impl<C: Clone> LocalCollations<C> {
 	pub fn add_collation<'a>(
 		&'a mut self,
 		relay_parent: Hash,
-		targets: HashSet<SessionKey>,
+		targets: HashSet<ValidatorId>,
 		collation: C
 	)
-		-> impl Iterator<Item=(SessionKey, C)> + 'a
+		-> impl Iterator<Item=(ValidatorId, C)> + 'a
 	{
 		self.local_collations.insert(relay_parent, LocalCollation {
 			targets,
@@ -119,7 +117,7 @@ impl<C: Clone> LocalCollations<C> {
 			.map(move |k| (k.clone(), borrowed_collation.clone()))
 	}
 
-	fn collations_targeting(&self, key: &SessionKey) -> Vec<(Hash, C)> {
+	fn collations_targeting(&self, key: &ValidatorId) -> Vec<(Hash, C)> {
 		self.local_collations.iter()
 			.filter(|&(_, ref v)| v.targets.contains(key))
 			.map(|(h, v)| (*h, v.collation.clone()))

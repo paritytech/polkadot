@@ -17,7 +17,7 @@
 //! A module for manually curated GRANDPA set.
 
 use {grandpa, system};
-use parity_codec::Decode;
+use codec::Decode;
 use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Zero};
 use sr_primitives::weights::SimpleDispatchInfo;
 use rstd::prelude::*;
@@ -79,7 +79,7 @@ decl_module! {
 					let offset = (i * 4 % 32) as usize;
 
 					// number of roles remaining to select from.
-					let remaining = (voter_count - i) as usize;
+					let remaining = rstd::cmp::max(1, (voter_count - i) as usize);
 
 					// 8 32-bit ints per 256-bit seed.
 					let voter_index = u32::decode(&mut &seed[offset..offset + 4]).expect("using 4 bytes for a 32-bit quantity") as usize % remaining;
