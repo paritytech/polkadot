@@ -80,7 +80,7 @@ impl<T: staking::Trait> RewardAttestation for staking::Module<T> {
 		// https://research.web3.foundation/en/latest/polkadot/Token%20Economics/#payment-details
 		const STAKING_REWARD_POINTS: u32 = 20;
 
-		Self::reward_by_ids(validator_indices.into_iter().map(|i| (i, STAKING_REWARD_POINTS)))
+		Self::reward_by_indices(validator_indices.into_iter().map(|i| (i, STAKING_REWARD_POINTS)))
 	}
 }
 
