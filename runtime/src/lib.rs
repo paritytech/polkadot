@@ -229,7 +229,7 @@ impl authorship::Trait for Runtime {
 	type FindAuthor = session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
-	type EventHandler = ();
+	type EventHandler = Staking;
 }
 
 parameter_types! {
@@ -451,7 +451,10 @@ impl slots::Trait for Runtime {
 }
 
 parameter_types!{
+	// KUSAMA: for mainnet this should be removed.
 	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
+	// KUSAMA: for mainnet this should be uncommented.
+	//pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
 }
 
 impl claims::Trait for Runtime {
@@ -473,16 +476,19 @@ construct_runtime!(
 	{
 		// Basic stuff; balances is uncallable initially.
 		System: system::{Module, Call, Storage, Config, Event},
+
+		// Must be before session.
+		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
+
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
 		Indices: indices,
 		Balances: balances::{Module, Call, Storage, Config<T>, Event<T>},
 
 		// Consensus support.
-		Session: session::{Module, Call, Storage, Event, Config<T>},
-		Staking: staking::{default, OfflineWorker},
 		Authorship: authorship::{Module, Call, Storage},
+		Staking: staking::{default, OfflineWorker},
+		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
-		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
 		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config<T>},
 
