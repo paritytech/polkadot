@@ -1095,6 +1095,7 @@ mod tests {
 			offline_slash: Perbill::from_percent(5),
 			offline_slash_grace: 0,
 			invulnerables: vec![],
+			.. Default::default()
 		}.assimilate_storage(&mut t).unwrap();
 
 		t.into()
