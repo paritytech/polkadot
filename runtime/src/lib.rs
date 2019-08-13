@@ -78,10 +78,24 @@ use constants::{time::*, currency::*};
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-/// Runtime version.
+/*
+// KUSAMA: Polkadot version identifier; may be uncommented for Polkadot mainnet.
+/// Runtime version (Polkadot).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
+	authoring_version: 1,
+	spec_version: 1000,
+	impl_version: 0,
+	apis: RUNTIME_API_VERSIONS,
+};
+*/
+
+// KUSAMA: Kusama version identifier; may be removed for Polkadot mainnet.
+/// Runtime version (Kusama).
+pub const VERSION: RuntimeVersion = RuntimeVersion {
+	spec_name: create_runtime_str!("kusama"),
+	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 1,
 	spec_version: 1000,
 	impl_version: 0,
@@ -99,8 +113,8 @@ pub fn native_version() -> NativeVersion {
 
 /// Avoid processing transactions that are anything except staking and claims.
 ///
-/// NOTE: This is only relevant for the initial PoA consensus-run-in period and should be removed
-/// for the normal chain runtime.
+/// RELEASE: This is only relevant for the initial PoA run-in period and may be removed
+/// from the release runtime.
 #[derive(Default, Encode, Decode, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct OnlyStakingAndClaims;
@@ -110,13 +124,9 @@ impl SignedExtension for OnlyStakingAndClaims {
 	type AdditionalSigned = ();
 	type Pre = ();
 	fn additional_signed(&self) -> rstd::result::Result<(), &'static str> { Ok(()) }
-	fn validate(
-		&self,
-		_who: &Self::AccountId,
-		call: &Self::Call,
-		_info: DispatchInfo,
-		_len: usize,
-	) -> Result<ValidTransaction, DispatchError> {
+	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
+		-> Result<ValidTransaction, DispatchError>
+	{
 		match call {
 			Call::Staking(_) | Call::Claims(_) => Ok(Default::default()),
 			_ => Err(DispatchError::NoPermission),
@@ -488,7 +498,7 @@ construct_runtime!(
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 
 		// Sudo. Usable initially.
-		// NOTE: to be removed after PoA
+		// RELEASE: remove this for release build.
 		Sudo: sudo,
 
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
@@ -498,8 +508,6 @@ construct_runtime!(
 		Slots: slots::{Module, Call, Storage, Event<T>},
 	}
 );
-
-
 
 /// The address format for describing accounts.
 pub type Address = <Indices as StaticLookup>::Source;
@@ -512,17 +520,9 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
-#[cfg(feature = "only-staking")]
 pub type SignedExtra = (
-	system::CheckGenesis<Runtime>,
-	system::CheckEra<Runtime>,
-	system::CheckNonce<Runtime>,
-	system::CheckWeight<Runtime>,
-	balances::TakeFees<Runtime>,
+	// RELEASE: remove this for release build.
 	OnlyStakingAndClaims,
-);
-#[cfg(not(feature = "only-staking"))]
-pub type SignedExtra = (
 	system::CheckGenesis<Runtime>,
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
@@ -619,10 +619,10 @@ impl_runtime_apis! {
 			Grandpa::pending_change(digest)
 		}
 
-		fn grandpa_forced_change(_digest: &DigestFor<Block>)
+		fn grandpa_forced_change(digest: &DigestFor<Block>)
 			-> Option<(BlockNumber, ScheduledChange<BlockNumber>)>
 		{
-			None // disable forced changes.
+			Grandpa::forced_change(digest)
 		}
 
 		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
