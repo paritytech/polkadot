@@ -27,6 +27,7 @@ mod slot_range;
 mod slots;
 
 use rstd::prelude::*;
+use codec::{Encode, Decode};
 use substrate_primitives::u32_trait::{_1, _2, _3, _4};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
@@ -37,9 +38,10 @@ use client::{
 	runtime_api as client_api, impl_runtime_apis,
 };
 use sr_primitives::{
-	ApplyResult, generic, transaction_validity::TransactionValidity, create_runtime_str, key_types,
-	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup},
-	impl_opaque_keys, weights::Weight,
+	ApplyResult, generic, transaction_validity::{ValidTransaction, TransactionValidity},
+	impl_opaque_keys, weights::{Weight, DispatchInfo}, create_runtime_str, key_types, traits::{
+		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, DispatchError, SignedExtension,
+	},
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives::{self, ScheduledChange}};
@@ -92,6 +94,33 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion {
 		runtime_version: VERSION,
 		can_author_with: Default::default(),
+	}
+}
+
+/// Avoid processing transactions that are anything except staking and claims.
+///
+/// NOTE: This is only relevant for the initial PoA consensus-run-in period and should be removed
+/// for the normal chain runtime.
+#[derive(Default, Encode, Decode, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct OnlyStakingAndClaims;
+impl SignedExtension for OnlyStakingAndClaims {
+	type AccountId = AccountId;
+	type Call = Call;
+	type AdditionalSigned = ();
+	type Pre = ();
+	fn additional_signed(&self) -> rstd::result::Result<(), &'static str> { Ok(()) }
+	fn validate(
+		&self,
+		_who: &Self::AccountId,
+		call: &Self::Call,
+		_info: DispatchInfo,
+		_len: usize,
+	) -> Result<ValidTransaction, DispatchError> {
+		match call {
+			Call::Staking(_) | Call::Claims(_) => Ok(Default::default()),
+			_ => Err(DispatchError::NoPermission),
+		}
 	}
 }
 
@@ -436,7 +465,7 @@ construct_runtime!(
 		System: system::{Module, Call, Storage, Config, Event},
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
 		Indices: indices,
-		Balances: balances::{Module, /*Call,*/ Storage, Config<T>, Event<T>},
+		Balances: balances::{Module, Call, Storage, Config<T>, Event<T>},
 
 		// Consensus support.
 		Session: session::{Module, Call, Storage, Event, Config<T>},
@@ -448,12 +477,12 @@ construct_runtime!(
 		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config<T>},
 
 		// Governance stuff; uncallable initially.
-		Democracy: democracy::{Module, /*Call,*/ Storage, Config, Event<T>},
-		Council: collective::<Instance1>::{Module, /*Call,*/ Storage, Origin<T>, Event<T>, Config<T>},
-		TechnicalCommittee: collective::<Instance2>::{Module, /*Call,*/ Storage, Origin<T>, Event<T>, Config<T>},
-		Elections: elections::{Module, /*Call,*/ Storage, Event<T>, Config<T>},
-		TechnicalMembership: membership::<Instance1>::{Module, /*Call,*/ Storage, Event<T>, Config<T>},
-		Treasury: treasury::{Module, /*Call,*/ Storage, Event<T>},
+		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
+		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
+		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
+		Elections: elections::{Module, Call, Storage, Event<T>, Config<T>},
+		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
+		Treasury: treasury::{Module, Call, Storage, Event<T>},
 
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
@@ -466,9 +495,11 @@ construct_runtime!(
 		// have no public dispatchables.
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
-		Slots: slots::{Module, /*Call, */Storage, Event<T>},
+		Slots: slots::{Module, Call, Storage, Event<T>},
 	}
 );
+
+
 
 /// The address format for describing accounts.
 pub type Address = <Indices as StaticLookup>::Source;
@@ -486,7 +517,8 @@ pub type SignedExtra = (
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
-	balances::TakeFees<Runtime>
+	balances::TakeFees<Runtime>,
+	OnlyStakingAndClaims,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
