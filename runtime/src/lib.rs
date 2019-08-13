@@ -512,6 +512,7 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
+#[cfg(feature = "only-staking")]
 pub type SignedExtra = (
 	system::CheckGenesis<Runtime>,
 	system::CheckEra<Runtime>,
@@ -519,6 +520,14 @@ pub type SignedExtra = (
 	system::CheckWeight<Runtime>,
 	balances::TakeFees<Runtime>,
 	OnlyStakingAndClaims,
+);
+#[cfg(not(feature = "only-staking"))]
+pub type SignedExtra = (
+	system::CheckGenesis<Runtime>,
+	system::CheckEra<Runtime>,
+	system::CheckNonce<Runtime>,
+	system::CheckWeight<Runtime>,
+	balances::TakeFees<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
