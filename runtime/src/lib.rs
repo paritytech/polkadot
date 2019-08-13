@@ -22,12 +22,12 @@
 
 mod attestations;
 mod claims;
-mod curated_grandpa;
 mod parachains;
 mod slot_range;
 mod slots;
 
 use rstd::prelude::*;
+use codec::{Encode, Decode};
 use substrate_primitives::u32_trait::{_1, _2, _3, _4};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
@@ -38,9 +38,10 @@ use client::{
 	runtime_api as client_api, impl_runtime_apis,
 };
 use sr_primitives::{
-	ApplyResult, generic, transaction_validity::TransactionValidity, create_runtime_str, key_types,
-	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup},
-	impl_opaque_keys, weights::Weight,
+	ApplyResult, generic, transaction_validity::{ValidTransaction, TransactionValidity},
+	impl_opaque_keys, weights::{Weight, DispatchInfo}, create_runtime_str, key_types, traits::{
+		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, DispatchError, SignedExtension,
+	},
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives::{self, ScheduledChange}};
@@ -77,10 +78,24 @@ use constants::{time::*, currency::*};
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-/// Runtime version.
+/*
+// KUSAMA: Polkadot version identifier; may be uncommented for Polkadot mainnet.
+/// Runtime version (Polkadot).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
+	authoring_version: 1,
+	spec_version: 1000,
+	impl_version: 0,
+	apis: RUNTIME_API_VERSIONS,
+};
+*/
+
+// KUSAMA: Kusama version identifier; may be removed for Polkadot mainnet.
+/// Runtime version (Kusama).
+pub const VERSION: RuntimeVersion = RuntimeVersion {
+	spec_name: create_runtime_str!("kusama"),
+	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 1,
 	spec_version: 1000,
 	impl_version: 0,
@@ -93,6 +108,29 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion {
 		runtime_version: VERSION,
 		can_author_with: Default::default(),
+	}
+}
+
+/// Avoid processing transactions that are anything except staking and claims.
+///
+/// RELEASE: This is only relevant for the initial PoA run-in period and may be removed
+/// from the release runtime.
+#[derive(Default, Encode, Decode, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct OnlyStakingAndClaims;
+impl SignedExtension for OnlyStakingAndClaims {
+	type AccountId = AccountId;
+	type Call = Call;
+	type AdditionalSigned = ();
+	type Pre = ();
+	fn additional_signed(&self) -> rstd::result::Result<(), &'static str> { Ok(()) }
+	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
+		-> Result<ValidTransaction, DispatchError>
+	{
+		match call {
+			Call::Staking(_) | Call::Claims(_) => Ok(Default::default()),
+			_ => Err(DispatchError::NoPermission),
+		}
 	}
 }
 
@@ -191,7 +229,7 @@ impl authorship::Trait for Runtime {
 	type FindAuthor = session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
-	type EventHandler = ();
+	type EventHandler = Staking;
 }
 
 parameter_types! {
@@ -412,10 +450,11 @@ impl slots::Trait for Runtime {
 	type EndingPeriod = EndingPeriod;
 }
 
-impl curated_grandpa::Trait for Runtime { }
-
 parameter_types!{
+	// KUSAMA: for mainnet this should be removed.
 	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
+	// KUSAMA: for mainnet this should be uncommented.
+	//pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
 }
 
 impl claims::Trait for Runtime {
@@ -435,29 +474,44 @@ construct_runtime!(
 		NodeBlock = primitives::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
+		// Basic stuff; balances is uncallable initially.
 		System: system::{Module, Call, Storage, Config, Event},
-		Timestamp: timestamp::{Module, Call, Storage, Inherent},
+
+		// Must be before session.
 		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
-		Authorship: authorship::{Module, Call, Storage},
+
+		Timestamp: timestamp::{Module, Call, Storage, Inherent},
 		Indices: indices,
-		Balances: balances,
+		Balances: balances::{Module, Call, Storage, Config<T>, Event<T>},
+
+		// Consensus support.
+		Authorship: authorship::{Module, Call, Storage},
 		Staking: staking::{default, OfflineWorker},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
+		FinalityTracker: finality_tracker::{Module, Call, Inherent},
+		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
+		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config<T>},
+
+		// Governance stuff; uncallable initially.
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		Elections: elections::{Module, Call, Storage, Event<T>, Config<T>},
 		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
-		FinalityTracker: finality_tracker::{Module, Call, Inherent},
-		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
-		CuratedGrandpa: curated_grandpa::{Module, Call, Config<T>, Storage},
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
+
+		// Claims. Usable initially.
+		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
+
+		// Sudo. Usable initially.
+		// RELEASE: remove this for release build.
+		Sudo: sudo,
+
+		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
+		// have no public dispatchables.
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
-		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
-		Sudo: sudo,
-		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config<T>},
 	}
 );
 
@@ -473,11 +527,13 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
+	// RELEASE: remove this for release build.
+	OnlyStakingAndClaims,
 	system::CheckGenesis<Runtime>,
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
-	balances::TakeFees<Runtime>
+	balances::TakeFees<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
@@ -569,10 +625,10 @@ impl_runtime_apis! {
 			Grandpa::pending_change(digest)
 		}
 
-		fn grandpa_forced_change(_digest: &DigestFor<Block>)
+		fn grandpa_forced_change(digest: &DigestFor<Block>)
 			-> Option<(BlockNumber, ScheduledChange<BlockNumber>)>
 		{
-			None // disable forced changes.
+			Grandpa::forced_change(digest)
 		}
 
 		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {

@@ -30,7 +30,8 @@ service = { package = "substrate-service", git = "https://github.com/paritytech/
 telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-srml_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+srml-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+srml-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
