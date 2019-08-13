@@ -964,12 +964,12 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const EpochSlots: u64 = EPOCH_DURATION_IN_SLOTS;
+		pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
 		pub const ExpectedBlockTime: u64 = MILLISECS_PER_BLOCK;
 	}
 
 	impl babe::Trait for Test {
-		type EpochSlots = EpochSlots;
+		type EpochDuration = EpochDuration;
 		type ExpectedBlockTime = ExpectedBlockTime;
 	}
 
