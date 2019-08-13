@@ -21,7 +21,7 @@ use polkadot_primitives::{AccountId, parachain::ValidatorId};
 use polkadot_runtime::{
 	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, BabeConfig,
 	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
-	GrandpaConfig, SudoConfig, IndicesConfig, CuratedGrandpaConfig, StakerStatus, WASM_BINARY,
+	GrandpaConfig, SudoConfig, IndicesConfig, StakerStatus, WASM_BINARY,
 	ClaimsConfig, ImOnlineConfig, ParachainsConfig
 };
 use polkadot_runtime::constants::{currency::DOTS, time::*};
@@ -161,9 +161,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		sudo: Some(SudoConfig {
 			key: endowed_accounts[0].clone(),
-		}),
-		curated_grandpa: Some(CuratedGrandpaConfig {
-			shuffle_period: 1024,
 		}),
 		claims: Some(ClaimsConfig {
 			claims: vec![],
@@ -308,9 +305,6 @@ pub fn testnet_genesis(
 		}),
 		sudo: Some(SudoConfig {
 			key: root_key,
-		}),
-		curated_grandpa: Some(CuratedGrandpaConfig {
-			shuffle_period: 1024,
 		}),
 		claims: Some(ClaimsConfig {
 			claims: vec![],

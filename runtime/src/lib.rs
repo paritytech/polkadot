@@ -22,7 +22,6 @@
 
 mod attestations;
 mod claims;
-mod curated_grandpa;
 mod parachains;
 mod slot_range;
 mod slots;
@@ -412,8 +411,6 @@ impl slots::Trait for Runtime {
 	type EndingPeriod = EndingPeriod;
 }
 
-impl curated_grandpa::Trait for Runtime { }
-
 parameter_types!{
 	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
 }
@@ -457,8 +454,6 @@ construct_runtime!(
 		Elections: elections::{Module, /*Call,*/ Storage, Event<T>, Config<T>},
 		TechnicalMembership: membership::<Instance1>::{Module, /*Call,*/ Storage, Event<T>, Config<T>},
 		Treasury: treasury::{Module, /*Call,*/ Storage, Event<T>},
-		// TODO: @rphmeier - we want to remove this, right?
-		CuratedGrandpa: curated_grandpa::{Module, Call, Config<T>, Storage},
 
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
