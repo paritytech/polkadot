@@ -127,7 +127,7 @@ fn run_until_exit<T, C, W>(
 	worker: W,
 ) -> error::Result<()>
 	where
-		T: Deref<Target=BareService<C>> + Future<Item = (), Error = ()> + Send + 'static,
+		T: Deref<Target=BareService<C>> + Future<Item = ()> + Send + 'static,
 		C: service::Components,
 		BareService<C>: PolkadotService,
 		W: Worker,
@@ -143,7 +143,7 @@ fn run_until_exit<T, C, W>(
 	let _telemetry = service.telemetry();
 
 	let work = worker.work(&*service, Arc::new(executor));
-	let _ = runtime.block_on(service.select(work));
+	let _ = runtime.block_on(service.map_err(|_| ()).select(work));
 	exit_send.fire();
 
 	Ok(())
