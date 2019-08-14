@@ -429,6 +429,7 @@ parameter_types! {
 impl attestations::Trait for Runtime {
 	type AttestationPeriod = AttestationPeriod;
 	type ValidatorIdentities = parachains::ValidatorIdentities<Runtime>;
+	type RewardAttestation = Staking;
 }
 
 impl parachains::Trait for Runtime {

@@ -60,12 +60,39 @@ pub struct BlockAttestations<T: Trait> {
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct MoreAttestations;
 
+/// Something which processes rewards for received attestations.
+pub trait RewardAttestation {
+	/// Reward immediate attestations on parachain blocks. The argument is an iterable of
+	/// validator indices of the attesting validators.
+	fn reward_immediate(validator_indices: impl IntoIterator<Item=u32>);
+}
+
+impl RewardAttestation for () {
+	fn reward_immediate(validator_indices: impl IntoIterator<Item=u32>) {
+		// ensure side-effecting iterators do work.
+		for _ in validator_indices {}
+	}
+}
+
+impl<T: staking::Trait> RewardAttestation for staking::Module<T> {
+	fn reward_immediate(validator_indices: impl IntoIterator<Item=u32>) {
+		// The number of points to reward for a validity statement.
+		// https://research.web3.foundation/en/latest/polkadot/Token%20Economics/#payment-details
+		const STAKING_REWARD_POINTS: u32 = 20;
+
+		Self::reward_by_indices(validator_indices.into_iter().map(|i| (i, STAKING_REWARD_POINTS)))
+	}
+}
+
 pub trait Trait: session::Trait {
 	/// How many blocks ago we're willing to accept attestations for.
 	type AttestationPeriod: Get<Self::BlockNumber>;
 
 	/// Get a list of the validators' underlying identities.
 	type ValidatorIdentities: Get<Vec<Self::AccountId>>;
+
+	/// Hook for rewarding validators upon attesting.
+	type RewardAttestation: RewardAttestation;
 }
 
 decl_storage! {
@@ -118,16 +145,19 @@ impl<T: Trait> Module<T> {
 			let mut valid = Vec::new();
 			let invalid = Vec::new();
 
-			for (auth_index, _) in head.validator_indices
-				.iter()
-				.enumerate()
-				.filter(|(_, bit)| *bit)
 			{
-				let stash_id = validators.get(auth_index)
-					.expect("auth_index checked to be within bounds in `check_candidates`; qed")
-					.clone();
+				let attesting_indices = head.validator_indices
+					.iter()
+					.enumerate()
+					.filter(|(_, bit)| *bit)
+					.inspect(|&(auth_index, _)| {
+						if let Some(stash_id) = validators.get(auth_index) {
+							valid.push(stash_id.clone());
+						}
+					})
+					.map(|(i, _)| i as u32);
 
-				valid.push(stash_id);
+				T::RewardAttestation::reward_immediate(attesting_indices);
 			}
 
 			let summary = BlockAttestations {

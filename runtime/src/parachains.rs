@@ -321,7 +321,6 @@ decl_module! {
 				}
 
 				let para_blocks = Self::check_candidates(&heads, &active_parachains)?;
-
 				let current_number = <system::Module<T>>::block_number();
 
 				<attestations::Module<T>>::note_included(&heads, para_blocks);
@@ -1019,6 +1018,7 @@ mod tests {
 	impl attestations::Trait for Test {
 		type AttestationPeriod = AttestationPeriod;
 		type ValidatorIdentities = ValidatorIdentities<Test>;
+		type RewardAttestation = ();
 	}
 
 	impl Trait for Test {
