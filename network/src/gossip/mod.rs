@@ -14,7 +14,40 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Gossip messages and the message validator
+//! Gossip messages and the message validator.
+//!
+//! At the moment, this module houses 2 gossip protocols central to Polkadot.
+//!
+//! The first is the attestation-gossip system, which aims to circulate parachain
+//! candidate attestations by validators at leaves of the block-DAG.
+//!
+//! The second is the inter-chain message queue routing gossip, which aims to
+//! circulate message queues between parachains, which remain un-routed as of
+//! recent leaves.
+//!
+//! These gossip systems do not have any form of sybil-resistance in terms
+//! of the nodes which can participate. It could be imposed e.g. by limiting only to
+//! validators, but this would prevent message queues from getting into the hands
+//! of collators and of attestations from getting into the hands of fishermen.
+//! As such, we take certain precautions which allow arbitrary full nodes to
+//! join the gossip graph, as well as validators (who are likely to be well-connected
+//! amongst themselves).
+//!
+//! The first is the notion of a neighbor packet. This is a packet sent between
+//! neighbors of the gossip graph to inform each other of their current protocol
+//! state. As of this writing, for both attestation and message-routing gossip,
+//! the only necessary information here is a (length-limited) set of perceived
+//! leaves of the block-DAG.
+//!
+//! These leaves can be used to derive what information a node is willing to accept
+//! There is typically an unbounded amount of possible "future" information relative to
+//! any protocol state. For example, attestations or unrouted message queues from millions
+//! of blocks after a known protocol state. The neighbor packet is meant to avoid being
+//! spammed by illegitimate future information, while informing neighbors of when
+//! previously-future and now current gossip messages would be accepted.
+//!
+//! Peers who send information which was not allowed under a recent neighbor packet
+//! will be noted as non-beneficial to Substrate's peer-set management utility.
 
 use sr_primitives::{generic::BlockId, traits::ProvideRuntimeApi};
 use substrate_client::error::Error as ClientError;
@@ -133,17 +166,18 @@ impl From<GossipParachainMessages> for GossipMessage {
 /// A gossip message containing a statement.
 #[derive(Encode, Decode, Clone)]
 pub struct GossipStatement {
-	/// The relay chain parent hash.
-	pub relay_parent: Hash,
+	/// The block hash of the relay chain being referred to. In context, this should
+	/// be a leaf.
+	pub relay_chain_leaf: Hash,
 	/// The signed statement being gossipped.
 	pub signed_statement: SignedStatement,
 }
 
 impl GossipStatement {
 	/// Create a new instance.
-	pub fn new(relay_parent: Hash, signed_statement: SignedStatement) -> Self {
+	pub fn new(relay_chain_leaf: Hash, signed_statement: SignedStatement) -> Self {
 		Self {
-			relay_parent,
+			relay_chain_leaf,
 			signed_statement,
 		}
 	}
@@ -153,7 +187,7 @@ impl GossipStatement {
 ///
 /// These are all the messages posted from one parachain to another during the
 /// execution of a single parachain block. Since this parachain block may have been
-/// included in many forks of the relay chain, there is no relay-parent parameter.
+/// included in many forks of the relay chain, there is no relay-chain leaf parameter.
 #[derive(Encode, Decode, Clone)]
 pub struct GossipParachainMessages {
 	/// The root of the message queue.
@@ -327,18 +361,19 @@ impl RegisteredMessageValidator {
 		RegisteredMessageValidator { inner: validator as _ }
 	}
 
-	/// Note a live attestation session. This must be removed later with
-	/// `remove_session`.
-	pub(crate) fn note_session(
+	/// Note that we perceive a new leaf of the block-DAG. We will notify our neighbors that
+	/// we now accept parachain candidate attestations and incoming message queues
+	/// relevant to this leaf.
+	pub(crate) fn note_new_leaf(
 		&self,
-		relay_parent: Hash,
+		relay_chain_leaf: Hash,
 		validation: MessageValidationData,
 		lookup_queue_by_root: impl Fn(&Hash) -> Option<Vec<ParachainMessage>>,
 	) -> NewSessionActions {
 		// add an entry in attestation_view
 		// prune any entries from attestation_view which are no longer leaves
 		let mut inner = self.inner.inner.write();
-		inner.attestation_view.add_session(relay_parent, validation);
+		inner.attestation_view.add_session(relay_chain_leaf, validation);
 
 		let mut actions = Vec::new();
 
@@ -350,7 +385,7 @@ impl RegisteredMessageValidator {
 				..
 			} = &mut *inner;
 
-			attestation_view.prune_old_sessions(|parent| match chain.is_known(parent) {
+			attestation_view.prune_old_sessions(|hash| match chain.is_known(hash) {
 				Some(Known::Leaf) => true,
 				_ => false,
 			});
@@ -395,7 +430,7 @@ pub(crate) struct MessageValidationData {
 }
 
 impl MessageValidationData {
-	fn check_statement(&self, relay_parent: &Hash, statement: &SignedStatement) -> Result<(), ()> {
+	fn check_statement(&self, relay_chain_leaf: &Hash, statement: &SignedStatement) -> Result<(), ()> {
 		let sender = match self.authorities.get(statement.sender as usize) {
 			Some(val) => val,
 			None => return Err(()),
@@ -406,7 +441,7 @@ impl MessageValidationData {
 				&statement.statement,
 				&statement.signature,
 				sender.clone(),
-				relay_parent,
+				relay_chain_leaf,
 			);
 
 		if good {
@@ -734,7 +769,7 @@ mod tests {
 		};
 
 		let statement = GossipMessage::Statement(GossipStatement {
-			relay_parent: hash_a,
+			relay_chain_leaf: hash_a,
 			signed_statement: SignedStatement {
 				statement: GenericStatement::Candidate(candidate_receipt),
 				signature: Sr25519Signature([255u8; 64]).into(),
@@ -850,7 +885,7 @@ mod tests {
 		let c_hash = [99u8; 32].into();
 
 		let statement = GossipMessage::Statement(GossipStatement {
-			relay_parent: hash_a,
+			relay_chain_leaf: hash_a,
 			signed_statement: SignedStatement {
 				statement: GenericStatement::Valid(c_hash),
 				signature: Sr25519Signature([255u8; 64]).into(),
@@ -939,7 +974,7 @@ mod tests {
 
 		// ensure that we attempt to multicast all relevant queues after noting a session.
 		{
-			let actions = validator.note_session(
+			let actions = validator.note_new_leaf(
 				hash_a,
 				MessageValidationData { authorities },
 				|root| if root == &root_a {
@@ -1010,7 +1045,7 @@ mod tests {
 
 		// ensure that we attempt to multicast all relevant queues after noting a session.
 		{
-			let actions = validator.note_session(
+			let actions = validator.note_new_leaf(
 				hash_a,
 				MessageValidationData { authorities },
 				|root| if root == &root_a {
@@ -1139,7 +1174,7 @@ mod tests {
 
 		// ensure that we attempt to multicast all relevant queues after noting a session.
 		{
-			let actions = validator.note_session(
+			let actions = validator.note_new_leaf(
 				hash_a,
 				MessageValidationData { authorities },
 				|_root| None,

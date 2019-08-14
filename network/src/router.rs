@@ -41,7 +41,7 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 
-use crate::validation::{self, SessionDataFetcher, Executor};
+use crate::validation::{self, LeafWorkDataFetcher, Executor};
 use crate::NetworkService;
 
 /// Compute the gossip topic for attestations on the given parent hash.
@@ -73,7 +73,7 @@ pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
 pub struct Router<P, E, N: NetworkService, T> {
 	table: Arc<SharedTable>,
 	attestation_topic: Hash,
-	fetcher: SessionDataFetcher<P, E, N, T>,
+	fetcher: LeafWorkDataFetcher<P, E, N, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 	message_validator: RegisteredMessageValidator,
 }
@@ -81,7 +81,7 @@ pub struct Router<P, E, N: NetworkService, T> {
 impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
-		fetcher: SessionDataFetcher<P, E, N, T>,
+		fetcher: LeafWorkDataFetcher<P, E, N, T>,
 		message_validator: RegisteredMessageValidator,
 	) -> Self {
 		let parent_hash = fetcher.parent_hash();

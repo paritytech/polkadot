@@ -65,7 +65,7 @@ use polkadot_cli::{
 	Worker, IntoExit, ProvideRuntimeApi, TaskExecutor, PolkadotService, CustomConfiguration,
 	ParachainHost,
 };
-use polkadot_network::validation::{SessionParams, ValidationNetwork};
+use polkadot_network::validation::{LeafWorkParams, ValidationNetwork};
 use polkadot_network::PolkadotNetworkService;
 use tokio::timer::Timeout;
 use consensus_common::SelectChain;
@@ -246,7 +246,7 @@ impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 		// TODO: https://github.com/paritytech/polkadot/issues/253
 		//
 		// Fetch ingress and accumulate all unrounted egress
-		let _session = self.network.instantiate_session(SessionParams {
+		let _session = self.network.instantiate_leaf_work(LeafWorkParams {
 			local_session_key: None,
 			parent_hash: self.parent_hash,
 			authorities: self.validators.clone(),

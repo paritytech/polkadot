@@ -40,7 +40,7 @@ use substrate_network::{
 use substrate_network::consensus_gossip::{
 	self, TopicNotification, MessageRecipient as GossipMessageRecipient, ConsensusMessage,
 };
-use self::validation::{LiveValidationSessions, RecentValidatorIds, InsertedRecentKey};
+use self::validation::{LiveValidationLeaves, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
 use log::{trace, debug, warn};
@@ -174,7 +174,7 @@ impl Stream for GossipMessageStream {
 				None => return Ok(Async::Ready(None)),
 			};
 
-			debug!(target: "validation", "Processing statement for live validation session");
+			debug!(target: "validation", "Processing statement for live validation leaf-work");
 			if let Ok(gmsg) = GossipMessage::decode(&mut &msg.message[..]) {
 				return Ok(Async::Ready(Some((gmsg, msg.sender))))
 			}
@@ -190,7 +190,7 @@ pub struct Status {
 
 struct PoVBlockRequest {
 	attempted_peers: HashSet<ValidatorId>,
-	validation_session_parent: Hash,
+	validation_leaf: Hash,
 	candidate_hash: Hash,
 	block_data_hash: Hash,
 	sender: oneshot::Sender<PoVBlock>,
@@ -299,7 +299,7 @@ pub struct PolkadotProtocol {
 	collators: CollatorPool,
 	validators: HashMap<ValidatorId, PeerId>,
 	local_collations: LocalCollations<Collation>,
-	live_validation_sessions: LiveValidationSessions,
+	live_validation_leaves: LiveValidationLeaves,
 	in_flight: HashMap<(RequestId, PeerId), PoVBlockRequest>,
 	pending: Vec<PoVBlockRequest>,
 	extrinsic_store: Option<av_store::Store>,
@@ -315,7 +315,7 @@ impl PolkadotProtocol {
 			collating_for,
 			validators: HashMap::new(),
 			local_collations: LocalCollations::new(),
-			live_validation_sessions: LiveValidationSessions::new(),
+			live_validation_leaves: LiveValidationLeaves::new(),
 			in_flight: HashMap::new(),
 			pending: Vec::new(),
 			extrinsic_store: None,
@@ -335,7 +335,7 @@ impl PolkadotProtocol {
 
 		self.pending.push(PoVBlockRequest {
 			attempted_peers: Default::default(),
-			validation_session_parent: relay_parent,
+			validation_leaf: relay_parent,
 			candidate_hash: candidate.hash(),
 			block_data_hash: candidate.block_data_hash,
 			sender: tx,
@@ -346,15 +346,15 @@ impl PolkadotProtocol {
 		rx
 	}
 
-	/// Note new validation session.
-	fn new_validation_session(
+	/// Note new leaf to do validation work at
+	fn new_validation_leaf_work(
 		&mut self,
 		ctx: &mut dyn Context<Block>,
-		params: validation::SessionParams,
-	) -> validation::ValidationSession {
+		params: validation::LeafWorkParams,
+	) -> validation::LiveValidationLeaf {
 
-		let (session, new_local) = self.live_validation_sessions
-			.new_validation_session(params);
+		let (work, new_local) = self.live_validation_leaves
+			.new_validation_leaf(params);
 
 		if let Some(new_local) = new_local {
 			for (id, peer_data) in self.peers.iter_mut()
@@ -368,12 +368,12 @@ impl PolkadotProtocol {
 			}
 		}
 
-		session
+		work
 	}
 
 	// true indicates that it was removed actually.
 	fn remove_validation_session(&mut self, parent_hash: Hash) -> bool {
-		self.live_validation_sessions.remove(parent_hash)
+		self.live_validation_leaves.remove(parent_hash)
 	}
 
 	fn dispatch_pending_requests(&mut self, ctx: &mut dyn Context<Block>) {
@@ -383,10 +383,10 @@ impl PolkadotProtocol {
 		let in_flight = &mut self.in_flight;
 
 		for mut pending in ::std::mem::replace(&mut self.pending, Vec::new()) {
-			let parent = pending.validation_session_parent;
+			let parent = pending.validation_leaf;
 			let c_hash = pending.candidate_hash;
 
-			let still_pending = self.live_validation_sessions.with_pov_block(&parent, &c_hash, |x| match x {
+			let still_pending = self.live_validation_leaves.with_pov_block(&parent, &c_hash, |x| match x {
 				Ok(data @ &_) => {
 					// answer locally.
 					let _ = pending.sender.send(data.clone());
@@ -416,7 +416,7 @@ impl PolkadotProtocol {
 						Some(pending)
 					}
 				}
-				Err(None) => None, // no such known validation session. prune out.
+				Err(None) => None, // no such known validation leaf-work. prune out.
 			});
 
 			if let Some(pending) = still_pending {
@@ -432,7 +432,7 @@ impl PolkadotProtocol {
 		match msg {
 			Message::ValidatorId(key) => self.on_session_key(ctx, who, key),
 			Message::RequestPovBlock(req_id, relay_parent, candidate_hash) => {
-				let pov_block = self.live_validation_sessions.with_pov_block(
+				let pov_block = self.live_validation_leaves.with_pov_block(
 					&relay_parent,
 					&candidate_hash,
 					|res| res.ok().map(|b| b.clone()),
@@ -441,7 +441,7 @@ impl PolkadotProtocol {
 				send_polkadot_message(ctx, who, Message::PovBlock(req_id, pov_block));
 			}
 			Message::RequestBlockData(req_id, relay_parent, candidate_hash) => {
-				let block_data = self.live_validation_sessions
+				let block_data = self.live_validation_leaves
 					.with_pov_block(
 						&relay_parent,
 						&candidate_hash,
@@ -618,7 +618,7 @@ impl Specialization<Block> for PolkadotProtocol {
 
 		// send session keys.
 		if peer_info.should_send_key() {
-			for local_session_key in self.live_validation_sessions.recent_keys() {
+			for local_session_key in self.live_validation_leaves.recent_keys() {
 				peer_info.collator_state.send_key(local_session_key.clone(), |msg| send_polkadot_message(
 					ctx,
 					who.clone(),
@@ -660,7 +660,7 @@ impl Specialization<Block> for PolkadotProtocol {
 						let (sender, _) = oneshot::channel();
 						pending.push(::std::mem::replace(val, PoVBlockRequest {
 							attempted_peers: Default::default(),
-							validation_session_parent: Default::default(),
+							validation_leaf: Default::default(),
 							candidate_hash: Default::default(),
 							block_data_hash: Default::default(),
 							canon_roots: StructuredUnroutedIngress(Vec::new()),

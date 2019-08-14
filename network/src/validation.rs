@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The "validation session" networking code built on top of the base network service.
+//! The "validation leaf work" networking code built on top of the base network service.
 //!
 //! This fulfills the `polkadot_validation::Network` trait, providing a hook to be called
-//! each time a validation session begins on a new chain head.
+//! each time validation leaf work begins on a new chain head.
 
 use sr_primitives::traits::ProvideRuntimeApi;
 use substrate_network::PeerId;
@@ -78,8 +78,8 @@ impl Executor for Arc<
 	}
 }
 
-/// Params to a current validation session.
-pub struct SessionParams {
+/// Params to instantiate validation work on a block-DAG leaf.
+pub struct LeafWorkParams {
 	/// The local session key.
 	pub local_session_key: Option<ValidatorId>,
 	/// The parent hash.
@@ -129,20 +129,22 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 	N: NetworkService,
 	T: Clone + Executor + Send + Sync + 'static,
 {
-	/// Instantiate session data fetcher at a parent hash.
+	/// Instantiate block-DAG leaf work
+	/// (i.e. the work we want to be done by validators at some chain-head)
+	/// at a parent hash.
 	///
 	/// If the used session key is new, it will be broadcast to peers.
-	/// If a validation session was already instantiated at this parent hash,
+	/// If any validation leaf-work was already instantiated at this parent hash,
 	/// the underlying instance will be shared.
 	///
-	/// If there was already a validation session instantiated and a different
+	/// If there was already validation leaf-work instantiated and a different
 	/// session key was set, then the new key will be ignored.
 	///
 	/// This implies that there can be multiple services intantiating validation
-	/// session instances safely, but they should all be coordinated on which session keys
+	/// leaf-work instances safely, but they should all be coordinated on which session keys
 	/// are being used.
-	pub fn instantiate_session(&self, params: SessionParams)
-		-> oneshot::Receiver<SessionDataFetcher<P, E, N, T>>
+	pub fn instantiate_leaf_work(&self, params: LeafWorkParams)
+		-> oneshot::Receiver<LeafWorkDataFetcher<P, E, N, T>>
 	{
 		let parent_hash = params.parent_hash;
 		let network = self.network.clone();
@@ -157,7 +159,7 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 		self.network.with_spec(move |spec, ctx| {
 			use polkadot_primitives::parachain::Message as ParachainMessage;
 
-			let actions = message_validator.note_session(
+			let actions = message_validator.note_new_leaf(
 				parent_hash,
 				MessageValidationData { authorities },
 				|queue_root| spec.extrinsic_store.as_ref()
@@ -170,13 +172,13 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 
 			network.with_gossip(move |gossip, ctx| actions.perform(gossip, ctx));
 
-			let session = spec.new_validation_session(ctx, params);
-			let _ = tx.send(SessionDataFetcher {
+			let work = spec.new_validation_leaf_work(ctx, params);
+			let _ = tx.send(LeafWorkDataFetcher {
 				network,
 				api,
 				task_executor,
 				parent_hash,
-				knowledge: session.knowledge().clone(),
+				knowledge: work.knowledge().clone(),
 				exit,
 				message_validator,
 			});
@@ -229,7 +231,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		let parent_hash = *table.consensus_parent_hash();
 		let local_session_key = table.session_key();
 
-		let build_fetcher = self.instantiate_session(SessionParams {
+		let build_fetcher = self.instantiate_leaf_work(LeafWorkParams {
 			local_session_key,
 			parent_hash,
 			authorities: authorities.to_vec(),
@@ -386,19 +388,19 @@ impl Future for IncomingReceiver {
 	}
 }
 
-/// A current validation session instance.
+/// A current validation leaf-work instance
 #[derive(Clone)]
-pub(crate) struct ValidationSession {
+pub(crate) struct LiveValidationLeaf {
 	parent_hash: Hash,
 	knowledge: Arc<Mutex<Knowledge>>,
 	local_session_key: Option<ValidatorId>,
 }
 
-impl ValidationSession {
-	/// Create a new validation session instance. Needs to be attached to the
+impl LiveValidationLeaf {
+	/// Create a new validation leaf-work instance. Needs to be attached to the
 	/// network.
-	pub(crate) fn new(params: SessionParams) -> Self {
-		ValidationSession {
+	pub(crate) fn new(params: LeafWorkParams) -> Self {
+		LiveValidationLeaf {
 			parent_hash: params.parent_hash,
 			knowledge: Arc::new(Mutex::new(Knowledge::new())),
 			local_session_key: params.local_session_key,
@@ -471,32 +473,32 @@ impl RecentValidatorIds {
 	}
 }
 
-/// Manages requests and keys for live validation session instances.
-pub(crate) struct LiveValidationSessions {
+/// Manages requests and keys for live validation leaf-work instances.
+pub(crate) struct LiveValidationLeaves {
 	// recent local session keys.
 	recent: RecentValidatorIds,
-	// live validation session instances, on `parent_hash`. refcount retained alongside.
-	live_instances: HashMap<Hash, (usize, ValidationSession)>,
+	// live validation leaf-work instances, on `parent_hash`. refcount retained alongside.
+	live_instances: HashMap<Hash, (usize, LiveValidationLeaf)>,
 }
 
-impl LiveValidationSessions {
-	/// Create a new `LiveValidationSessions`
+impl LiveValidationLeaves {
+	/// Create a new `LiveValidationLeaves`
 	pub(crate) fn new() -> Self {
-		LiveValidationSessions {
+		LiveValidationLeaves {
 			recent: Default::default(),
 			live_instances: HashMap::new(),
 		}
 	}
 
-	/// Note new validation session. If the used session key is new,
+	/// Note new leaf for validation work. If the used session key is new,
 	/// it returns it to be broadcasted to peers.
 	///
-	/// If there was already a validation session instantiated and a different
+	/// If there was already work instantiated at this leaf and a different
 	/// session key was set, then the new key will be ignored.
-	pub(crate) fn new_validation_session(
+	pub(crate) fn new_validation_leaf(
 		&mut self,
-		params: SessionParams,
-	) -> (ValidationSession, Option<ValidatorId>) {
+		params: LeafWorkParams,
+	) -> (LiveValidationLeaf, Option<ValidatorId>) {
 		let parent_hash = params.parent_hash;
 
 		let key = params.local_session_key.clone();
@@ -523,19 +525,19 @@ impl LiveValidationSessions {
 			return (prev.clone(), maybe_new)
 		}
 
-		let session = ValidationSession::new(params);
-		self.live_instances.insert(parent_hash, (1, session.clone()));
+		let leaf_work = LiveValidationLeaf::new(params);
+		self.live_instances.insert(parent_hash, (1, leaf_work.clone()));
 
-		(session, check_new_key())
+		(leaf_work, check_new_key())
 	}
 
-	/// Remove validation session. true indicates that it was actually removed.
+	/// Remove validation leaf-work. true indicates that it was actually removed.
 	pub(crate) fn remove(&mut self, parent_hash: Hash) -> bool {
 		let maybe_removed = if let Entry::Occupied(mut entry) = self.live_instances.entry(parent_hash) {
 			entry.get_mut().0 -= 1;
 			if entry.get().0 == 0 {
-				let (_, session) = entry.remove();
-				Some(session)
+				let (_, leaf_work) = entry.remove();
+				Some(leaf_work)
 			} else {
 				None
 			}
@@ -543,12 +545,12 @@ impl LiveValidationSessions {
 			None
 		};
 
-		let session = match maybe_removed {
+		let leaf_work = match maybe_removed {
 			None => return false,
 			Some(s) => s,
 		};
 
-		if let Some(ref key) = session.local_session_key {
+		if let Some(ref key) = leaf_work.local_session_key {
 			let key_still_used = self.live_instances.values()
 				.any(|c| c.1.local_session_key.as_ref() == Some(key));
 
@@ -565,12 +567,12 @@ impl LiveValidationSessions {
 		self.recent.as_slice()
 	}
 
-	/// Call a closure with pov-data from validation session at parent hash for a given
+	/// Call a closure with pov-data from validation leaf-work at parent hash for a given
 	/// candidate-receipt hash.
 	///
-	/// This calls the closure with `Some(data)` where the session and data are live,
-	/// `Err(Some(keys))` when the session is live but the data unknown, with a list of keys
-	/// who have the data, and `Err(None)` where the session is unknown.
+	/// This calls the closure with `Some(data)` where the leaf-work and data are live,
+	/// `Err(Some(keys))` when the leaf-work is live but the data unknown, with a list of keys
+	/// who have the data, and `Err(None)` where the leaf-work is unknown.
 	pub(crate) fn with_pov_block<F, U>(&self, parent_hash: &Hash, c_hash: &Hash, f: F) -> U
 		where F: FnOnce(Result<&PoVBlock, Option<&[ValidatorId]>>) -> U
 	{
@@ -610,8 +612,8 @@ impl Future for PoVReceiver {
 	}
 }
 
-/// Can fetch data for a given validation session
-pub struct SessionDataFetcher<P, E, N: NetworkService, T> {
+/// Can fetch data for a given validation leaf-work instance.
+pub struct LeafWorkDataFetcher<P, E, N: NetworkService, T> {
 	network: Arc<N>,
 	api: Arc<P>,
 	exit: E,
@@ -621,7 +623,7 @@ pub struct SessionDataFetcher<P, E, N: NetworkService, T> {
 	message_validator: RegisteredMessageValidator,
 }
 
-impl<P, E, N: NetworkService, T> SessionDataFetcher<P, E, N, T> {
+impl<P, E, N: NetworkService, T> LeafWorkDataFetcher<P, E, N, T> {
 	/// Get the parent hash.
 	pub(crate) fn parent_hash(&self) -> Hash {
 		self.parent_hash
@@ -653,9 +655,9 @@ impl<P, E, N: NetworkService, T> SessionDataFetcher<P, E, N, T> {
 	}
 }
 
-impl<P, E: Clone, N: NetworkService, T: Clone> Clone for SessionDataFetcher<P, E, N, T> {
+impl<P, E: Clone, N: NetworkService, T: Clone> Clone for LeafWorkDataFetcher<P, E, N, T> {
 	fn clone(&self) -> Self {
-		SessionDataFetcher {
+		LeafWorkDataFetcher {
 			network: self.network.clone(),
 			api: self.api.clone(),
 			task_executor: self.task_executor.clone(),
@@ -667,7 +669,7 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for SessionDataFetcher<P, E
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send, E, N, T> SessionDataFetcher<P, E, N, T> where
+impl<P: ProvideRuntimeApi + Send, E, N, T> LeafWorkDataFetcher<P, E, N, T> where
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
@@ -760,39 +762,39 @@ mod tests {
 	}
 
 	#[test]
-	fn add_new_sessions_works() {
-		let mut live_sessions = LiveValidationSessions::new();
+	fn add_new_leaf_work_works() {
+		let mut live_leaves = LiveValidationLeaves::new();
 		let key_a: ValidatorId = [0; 32].unchecked_into();
 		let key_b: ValidatorId = [1; 32].unchecked_into();
 		let parent_hash = [0xff; 32].into();
 
-		let (session, new_key) = live_sessions.new_validation_session(SessionParams {
+		let (leaf_work, new_key) = live_leaves.new_validation_leaf(LeafWorkParams {
 			parent_hash,
 			local_session_key: None,
 			authorities: Vec::new(),
 		});
 
-		let knowledge = session.knowledge().clone();
+		let knowledge = leaf_work.knowledge().clone();
 
 		assert!(new_key.is_none());
 
-		let (session, new_key) = live_sessions.new_validation_session(SessionParams {
+		let (leaf_work, new_key) = live_leaves.new_validation_leaf(LeafWorkParams {
 			parent_hash,
 			local_session_key: Some(key_a.clone()),
 			authorities: Vec::new(),
 		});
 
 		// check that knowledge points to the same place.
-		assert_eq!(&**session.knowledge() as *const _, &*knowledge as *const _);
+		assert_eq!(&**leaf_work.knowledge() as *const _, &*knowledge as *const _);
 		assert_eq!(new_key, Some(key_a.clone()));
 
-		let (session, new_key) = live_sessions.new_validation_session(SessionParams {
+		let (leaf_work, new_key) = live_leaves.new_validation_leaf(LeafWorkParams {
 			parent_hash,
 			local_session_key: Some(key_b.clone()),
 			authorities: Vec::new(),
 		});
 
-		assert_eq!(&**session.knowledge() as *const _, &*knowledge as *const _);
+		assert_eq!(&**leaf_work.knowledge() as *const _, &*knowledge as *const _);
 		assert!(new_key.is_none());
 	}
 }

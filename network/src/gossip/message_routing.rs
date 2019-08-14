@@ -15,6 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Data structures and synchronous logic for ICMP message gossip.
+//!
+//! The parent-module documentation describes some rationale of the general
+//! gossip protocol design.
 
 use sr_primitives::traits::{BlakeTwo256, Hash as HashT};
 use polkadot_primitives::Hash;

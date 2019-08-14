@@ -66,8 +66,8 @@ impl PeerData {
 	}
 
 	#[cfg(test)]
-	pub(super) fn note_aware_in_session(&mut self, relay_parent: &Hash, candidate_hash: Hash) {
-		if let Some(knowledge) = self.live.get_mut(relay_parent) {
+	pub(super) fn note_aware_in_session(&mut self, relay_chain_leaf: &Hash, candidate_hash: Hash) {
+		if let Some(knowledge) = self.live.get_mut(relay_chain_leaf) {
 			knowledge.note_aware(candidate_hash);
 		}
 	}
@@ -98,14 +98,14 @@ impl Default for View {
 }
 
 impl View {
-	fn session_view(&self, relay_parent: &Hash) -> Option<&SessionView> {
+	fn session_view(&self, relay_chain_leaf: &Hash) -> Option<&SessionView> {
 		self.live_sessions.iter()
-			.find_map(|&(ref h, ref sesh)| if h == relay_parent { Some(sesh) } else { None } )
+			.find_map(|&(ref h, ref sesh)| if h == relay_chain_leaf { Some(sesh) } else { None } )
 	}
 
-	fn session_view_mut(&mut self, relay_parent: &Hash) -> Option<&mut SessionView> {
+	fn session_view_mut(&mut self, relay_chain_leaf: &Hash) -> Option<&mut SessionView> {
 		self.live_sessions.iter_mut()
-			.find_map(|&mut (ref h, ref mut sesh)| if h == relay_parent { Some(sesh) } else { None } )
+			.find_map(|&mut (ref h, ref mut sesh)| if h == relay_chain_leaf { Some(sesh) } else { None } )
 	}
 
 	/// Get our leaves-set. Guaranteed to have length <= MAX_CHAIN_HEADS.
@@ -114,21 +114,21 @@ impl View {
 	}
 
 	/// Note a new session.
-	pub(super) fn add_session(&mut self, relay_parent: Hash, validation_data: MessageValidationData) {
+	pub(super) fn add_session(&mut self, relay_chain_leaf: Hash, validation_data: MessageValidationData) {
 		self.live_sessions.push((
-			relay_parent,
+			relay_chain_leaf,
 			SessionView {
 				validation_data,
 				knowledge: Default::default(),
 			},
 		));
-		self.topics.insert(attestation_topic(relay_parent), relay_parent);
+		self.topics.insert(attestation_topic(relay_chain_leaf), relay_chain_leaf);
 	}
 
 	/// Prune old sessions that fail the leaf predicate.
 	pub(super) fn prune_old_sessions<F: Fn(&Hash) -> bool>(&mut self, is_leaf: F) {
 		let live_sessions = &mut self.live_sessions;
-		live_sessions.retain(|&(ref relay_parent, _)| is_leaf(relay_parent));
+		live_sessions.retain(|&(ref relay_chain_leaf, _)| is_leaf(relay_chain_leaf));
 		self.topics.retain(|_, v| live_sessions.iter().find(|(p, _)| p == v).is_some());
 	}
 
@@ -150,14 +150,14 @@ impl View {
 		// message must reference one of our chain heads and
 		// if message is not a `Candidate` we should have the candidate available
 		// in `attestation_view`.
-		match self.session_view(&message.relay_parent) {
+		match self.session_view(&message.relay_chain_leaf) {
 			None => {
-				let cost = match chain.is_known(&message.relay_parent) {
+				let cost = match chain.is_known(&message.relay_chain_leaf) {
 					Some(Known::Leaf) => {
 						warn!(
 							target: "network",
 							"Leaf block {} not considered live for attestation",
-							message.relay_parent,
+							message.relay_chain_leaf,
 						);
 
 						0
@@ -185,13 +185,13 @@ impl View {
 
 				// validate signature.
 				let res = view.validation_data.check_statement(
-					&message.relay_parent,
+					&message.relay_chain_leaf,
 					&message.signed_statement,
 				);
 
 				match res {
 					Ok(()) => {
-						let topic = attestation_topic(message.relay_parent);
+						let topic = attestation_topic(message.relay_chain_leaf);
 						(GossipValidationResult::ProcessAndKeep(topic), benefit)
 					}
 					Err(()) => (GossipValidationResult::Discard, cost::BAD_SIGNATURE),
@@ -205,7 +205,7 @@ impl View {
 	pub(super) fn statement_allowed(
 		&mut self,
 		statement: &GossipStatement,
-		relay_parent: &Hash,
+		relay_chain_leaf: &Hash,
 		peer_knowledge: &mut Knowledge,
 	) -> bool {
 		let signed = &statement.signed_statement;
@@ -221,7 +221,7 @@ impl View {
 				// attestation_view and their_view reflects that we know about the candidate.
 				let hash = c.hash();
 				peer_knowledge.note_aware(hash);
-				if let Some(attestation_view) = self.session_view_mut(&relay_parent) {
+				if let Some(attestation_view) = self.session_view_mut(&relay_chain_leaf) {
 					attestation_view.knowledge.note_aware(hash);
 				}
 
