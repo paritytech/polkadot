@@ -32,7 +32,7 @@ use substrate_primitives::u32_trait::{_1, _2, _3, _4, _6, _10};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature,
-	parachain::{self, ActiveParas}, AuraId, Moment
+	parachain::{self, ActiveParas}, Moment
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
@@ -441,7 +441,7 @@ impl parachains::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const ParathreadDeposit: Balance = 500 * BUCKS;
+	pub const ParathreadDeposit: Balance = 500 * DOLLARS;
 }
 
 impl registrar::Trait for Runtime {
@@ -470,16 +470,6 @@ parameter_types!{
 	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
 	// KUSAMA: for mainnet this should be uncommented.
 	//pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
-}
-
-impl claims::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type Prefix = Prefix;
-}
-
-parameter_types!{
-	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
 }
 
 impl claims::Trait for Runtime {
@@ -537,6 +527,7 @@ construct_runtime!(
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
+		Registrar: registrar::{Module, Call, Storage, Event, Config<T>}, 
 	}
 );
 

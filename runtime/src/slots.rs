@@ -21,7 +21,7 @@
 use rstd::{prelude::*, mem::swap, convert::TryInto};
 use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash};
 use sr_primitives::weights::SimpleDispatchInfo;
-use codec::{Encode, Decode};
+use codec::{Encode, Decode, Codec};
 use srml_support::{
 	decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}

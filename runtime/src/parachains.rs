@@ -17,15 +17,16 @@
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
 use rstd::prelude::*;
+use rstd::result;
 use rstd::collections::btree_map::BTreeMap;
-use codec::{Encode, Decode, HasCompact};
-use srml_support::{decl_storage, decl_module, fail, ensure};
+use codec::{Encode, Decode};
+use srml_support::{decl_storage, decl_module, ensure};
 
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, AccountIdConversion};
 use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
-	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId
+	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
+	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId
 }};
 use {system, session};
 use srml_support::{
@@ -153,8 +154,6 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		/// All authorities' keys at the moment.
 		pub Authorities get(authorities) config(authorities): Vec<ValidatorId>;
-		/// Vector of all parachain IDs.
-		pub Parachains get(active_parachains): Vec<ParaId>;
 		/// The parachains registered at present.
 		pub Code get(parachain_code): map ParaId => Option<Vec<u8>>;
 		/// The heads of the parachains registered at present.

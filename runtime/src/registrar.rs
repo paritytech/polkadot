@@ -19,7 +19,7 @@
 use rstd::{prelude::*, result};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 #[cfg(any(feature = "std", test))]
 use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 use sr_primitives::{
