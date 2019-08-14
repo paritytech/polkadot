@@ -28,7 +28,7 @@ mod registrar;
 mod slots;
 
 use rstd::prelude::*;
-use substrate_primitives::u32_trait::{_1, _2, _3, _4, _6, _10};
+use substrate_primitives::u32_trait::{_1, _2, _3, _4};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature,
@@ -48,7 +48,6 @@ use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives::{self, ScheduledChange}};
 use babe_primitives::AuthorityId as BabeId;
 use elections::VoteIndex;
-use session::PeriodicSessions;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
@@ -524,7 +523,7 @@ construct_runtime!(
 
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
 		// have no public dispatchables.
-		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
+		Parachains: parachains::{Module, Call, Storage, Config, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>}, 

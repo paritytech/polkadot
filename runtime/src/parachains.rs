@@ -22,7 +22,7 @@ use rstd::collections::btree_map::BTreeMap;
 use codec::{Encode, Decode};
 use srml_support::{decl_storage, decl_module, ensure};
 
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, AccountIdConversion};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Saturating, One, AccountIdConversion};
 use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
@@ -42,7 +42,7 @@ use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
 
-use system::{ensure_none, ensure_root};
+use system::ensure_none;
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
 
@@ -185,29 +185,6 @@ decl_storage! {
 	}
 }
 
-#[cfg(feature = "std")]
-fn build<T: Trait>(
-	storage: &mut (StorageOverlay, ChildrenStorageOverlay),
-	config: &GenesisConfig<T>
-) {
-	let mut p = config.parachains.clone();
-	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
-	p.dedup_by_key(|&mut (ref id, _, _)| *id);
-
-	let only_ids: Vec<ParaId> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
-
-	sr_io::with_storage(storage, || {
-		Parachains::put(&only_ids);
-
-		for (id, code, genesis) in p {
-			// no ingress -- a chain cannot be routed to until it is live.
-			Code::insert(&id, &code);
-			Heads::insert(&id, &genesis);
-			<Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
-		}
-	});
-}
-
 decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
@@ -243,7 +220,7 @@ decl_module! {
 							.ok_or("candidate for unregistered parachain {}")?;
 
 						if let Some(required_collator) = maybe_required_collator {
-							ensure!(required_collator == head.candidate.collator, "invalid collator");
+							ensure!(required_collator == &head.candidate.collator, "invalid collator");
 						}
 
 						Self::check_upward_messages(
@@ -606,7 +583,7 @@ impl<T: Trait> Module<T> {
 
 	/// Get the currently active set of parachains.
 	fn active_parachains() -> Vec<(ParaId, Option<CollatorId>)> {
-		T::ActiveParas::active_paras()
+		T::ActiveParachains::active_paras()
 	}
 
 	fn check_egress_queue_roots(
@@ -647,8 +624,10 @@ impl<T: Trait> Module<T> {
 
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
-	fn check_candidates(attested_candidates: &[AttestedCandidate], active_parachains: &[ParaId])
-		-> rstd::result::Result<IncludedBlocks<T>, &'static str>
+	fn check_candidates(
+		attested_candidates: &[AttestedCandidate],
+		active_parachains: &[(ParaId, Option<CollatorId>)]
+	) -> rstd::result::Result<IncludedBlocks<T>, &'static str>
 	{
 		use primitives::parachain::ValidityAttestation;
 		use sr_primitives::traits::AppVerify;
@@ -806,7 +785,7 @@ impl<T: Trait> Module<T> {
 			actual_number: <system::Module<T>>::block_number(),
 			session: <session::Module<T>>::current_index(),
 			random_seed,
-			active_parachains: active_parachains.to_vec(),
+			active_parachains: active_parachains.iter().map(|x| x.0).collect(),
 			para_blocks: para_block_hashes,
 		})
 	}

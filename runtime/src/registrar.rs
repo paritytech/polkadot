@@ -30,7 +30,7 @@ use sr_primitives::{
 use srml_support::storage::hashed::generator;
 use srml_support::{
 	decl_storage, decl_module, decl_event, ensure,
-	StorageValue, StorageMap, dispatch::Result,
+	StorageValue, StorageMap, dispatch::{Result, IsSubType},
 	traits::{Get, Currency, ReservableCurrency}
 };
 use system::{self, ensure_root, ensure_signed};
@@ -321,8 +321,6 @@ impl<T: Trait> ActiveParas for Module<T> {
 	}
 }
 
-use srml_support::dispatch::IsSubType;
-
 /// Ensure that parathread selections happen prioritised by fees.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct LimitParathreadCommits<T: Trait + Send + Sync>(rstd::marker::PhantomData<T>) where
@@ -343,6 +341,8 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	type AccountId = T::AccountId;
 	type Call = <T as system::Trait>::Call;
 	type AdditionalSigned = ();
+	type Pre = ();
+
 	fn additional_signed(&self) -> rstd::result::Result<Self::AdditionalSigned, &'static str> {
 		Ok(())
 	}
@@ -355,7 +355,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 		_len: usize,
 	) -> rstd::result::Result<ValidTransaction, DispatchError> {
 		let mut r = ValidTransaction::default();
-		if let Some(local_call) = call.is_aux_sub_type() {
+		if let Some(local_call) = call.is_sub_type() {
 			if let Call::select_parathread(id, collator, hash) = local_call {
 				// ensure that the para ID is actually a parathread.
 				<Module<T>>::ensure_thread_id(*id).ok_or(DispatchError::BadState)?;
@@ -363,7 +363,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 				// ensure that we haven't already had a full complement of selected parathreads.
 				let mut selected_threads = SelectedThreads::get();
 				let thread_count = ThreadCount::get() as usize;
-				ensure!(selected_threads.len() < thread_count, DispatchError::BlockExhausted);
+				ensure!(selected_threads.len() < thread_count, DispatchError::Exhausted);
 
 				// ensure that this is not selecting a duplicate parathread ID
 				let pos = selected_threads

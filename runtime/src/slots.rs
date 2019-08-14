@@ -19,7 +19,7 @@
 //! information for commissioning and decommissioning them.
 
 use rstd::{prelude::*, mem::swap, convert::TryInto};
-use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash};
+use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion};
 use sr_primitives::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode, Codec};
 use srml_support::{
