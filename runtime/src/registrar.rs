@@ -21,7 +21,6 @@ use rstd::{prelude::*, result};
 use rstd::marker::PhantomData;
 use codec::{Encode, Decode};
 #[cfg(any(feature = "std", test))]
-use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 use sr_primitives::{
 	weights::{SimpleDispatchInfo, DispatchInfo}, transaction_validity::ValidTransaction,
 	traits::{Hash as HashT, StaticLookup, DispatchError, SignedExtension}
@@ -153,7 +152,10 @@ decl_storage! {
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
-		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
+		build(|
+			storage: &mut (sr_primitives::StorageOverlay, sr_primitives::ChildrenStorageOverlay),
+			config: &GenesisConfig<T>
+		| {
 			use sr_primitives::traits::Zero;
 
 			let mut p = config.parachains.clone();
