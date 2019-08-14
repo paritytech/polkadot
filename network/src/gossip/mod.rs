@@ -45,7 +45,7 @@ mod attestation;
 mod message_routing;
 
 /// The engine ID of the polkadot attestation system.
-pub const POLKADOT_ENGINE_ID: sr_primitives::ConsensusEngineId = [b'd', b'o', b't', b'1'];
+pub const POLKADOT_ENGINE_ID: sr_primitives::ConsensusEngineId = *b"dot1";
 
 // arbitrary; in practice this should not be more than 2.
 pub(crate) const MAX_CHAIN_HEADS: usize = 5;
