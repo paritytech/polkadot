@@ -151,11 +151,9 @@ impl<T: Trait> Module<T> {
 					.enumerate()
 					.filter(|(_, bit)| *bit)
 					.inspect(|&(auth_index, _)| {
-						let stash_id = validators.get(auth_index)
-							.expect("auth_index checked to be within bounds in `check_candidates`; qed")
-							.clone();
-
-						valid.push(stash_id);
+						if let Some(stash_id) = validators.get(auth_index) {
+							valid.push(stash_id.clone());
+						}
 					})
 					.map(|(i, _)| i as u32);
 
