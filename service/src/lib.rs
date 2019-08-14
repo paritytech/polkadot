@@ -198,17 +198,6 @@ service::construct_service_factory! {
 					}
 				}
 
-				if service.config().roles != service::Roles::AUTHORITY {
-					return Ok(service);
-				}
-
-				if service.config().custom.collating_for.is_some() {
-					info!(
-						"The node cannot start as an authority because it is also configured to run as a collator."
-					);
-					return Ok(service);
-				}
-
 				let client = service.client();
 				let known_oracle = client.clone();
 				let select_chain = if let Some(select_chain) = service.select_chain() {
@@ -255,6 +244,11 @@ service::construct_service_factory! {
 						path,
 					})?
 				};
+
+				{
+					let extrinsic_store = extrinsic_store.clone();
+					service.network().with_spec(|spec, _ctx| spec.register_availability_store(extrinsic_store));
+				}
 
 				// collator connections and validation network both fulfilled by this
 				let validation_network = ValidationNetwork::new(
@@ -338,45 +332,7 @@ service::construct_service_factory! {
 						)?;
 					},
 				}
-				// let config = grandpa::Config {
-				// 	// FIXME #1578 make this available through chainspec
-				// 	gossip_duration: Duration::from_millis(333),
-				// 	justification_period: 4096,
-				// 	name: Some(service.config().name.clone()),
-				// 	keystore: Some(service.keystore()),
-				// };
 
-				// if !service.config().disable_grandpa {
-				// 	if service.config().roles.is_authority() {
-				// 		let telemetry_on_connect = TelemetryOnConnect {
-				// 			telemetry_connection_sinks: service.telemetry_on_connect_stream(),
-				// 		};
-				// 		let grandpa_config = grandpa::GrandpaParams {
-				// 			config: config,
-				// 			link: link_half,
-				// 			network: service.network(),
-				// 			inherent_data_providers: service.config().custom.inherent_data_providers.clone(),
-				// 			on_exit: service.on_exit(),
-				// 			telemetry_on_connect: Some(telemetry_on_connect),
-				// 		};
-				// 		service.spawn_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
-				// 	} else {
-				// 		service.spawn_task(Box::new(grandpa::run_grandpa_observer(
-				// 			config,
-				// 			link_half,
-				// 			service.network(),
-				// 			service.on_exit(),
-				// 		)?));
-				// 	}
-				// }
-
-				// // regardless of whether grandpa is started or not, when
-				// // authoring blocks we expect inherent data regarding what our
-				// // last finalized block is, to be available.
-				// grandpa::register_finality_tracker_inherent_data_provider(
-				// 	service.client(),
-				// 	&service.config().custom.inherent_data_providers,
-				// )?;
 
 				Ok(service)
 			}
