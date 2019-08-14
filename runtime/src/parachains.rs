@@ -856,7 +856,7 @@ mod tests {
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
 		Perbill,
-		traits::{BlakeTwo256, IdentityLookup, ConvertInto},
+		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize},
 		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
@@ -1033,6 +1033,7 @@ mod tests {
 
 	type Parachains = Module<Test>;
 	type System = system::Module<Test>;
+	type Registrar = registrar::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		use staking::StakerStatus;
@@ -1198,6 +1199,16 @@ mod tests {
 		}
 	}
 
+	fn run_to_block(n: u64) {
+		while System::block_number() < n {
+			Registrar::on_finalize(System::block_number());
+			System::on_finalize(System::block_number());
+			System::set_block_number(System::block_number() + 1);
+			System::on_initialize(System::block_number());
+			Registrar::on_initialize(System::block_number());
+		}
+	}
+
 	#[test]
 	fn check_dispatch_upward_works() {
 		let parachains = vec![
@@ -1296,6 +1307,7 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] }
 			];
@@ -1323,6 +1335,7 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// oversize, but ok since it's just one and the queue is empty.
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] },
@@ -1358,6 +1371,7 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// too many messages.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
@@ -1379,6 +1393,7 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// too much data.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0, 1] },
@@ -1399,6 +1414,7 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// bad - already an oversize messages queued.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] },
@@ -1419,6 +1435,7 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// bad - oversized and already a message queued.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
@@ -1442,6 +1459,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// parachain 0 is self
 			let mut candidates = vec![
 				new_candidate_with_upward_messages(0, vec![
@@ -1471,6 +1489,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
@@ -1485,17 +1504,18 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
 
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
 
-			assert_ok!(<registrar::Module<Test>>::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
+			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
 
 			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
-			assert_ok!(<registrar::Module<Test>>::deregister_para(Origin::ROOT, 5u32.into()));
+			assert_ok!(Registrar::deregister_para(Origin::ROOT, 5u32.into()));
 
 			assert_eq!(Parachains::active_parachains(), vec![(99u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
@@ -1510,6 +1530,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			let check_roster = |duty_roster: &DutyRoster| {
 				assert_eq!(duty_roster.validator_duty.len(), 8);
 				for i in (0..2).map(ParaId::from) {
@@ -1543,6 +1564,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			let candidate = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1571,6 +1593,9 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
+			assert_eq!(Parachains::active_parachains().len(), 2);
+			
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1624,6 +1649,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1660,6 +1686,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1699,6 +1726,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			assert_eq!(Parachains::ingress(ParaId::from(1)), Some(Vec::new()));
 			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
 
@@ -1774,7 +1802,7 @@ mod tests {
 				))).collect::<Vec<_>>()),
 			);
 
-			assert_ok!(<registrar::Module<Test>>::deregister_para(Origin::ROOT, 1u32.into()));
+			assert_ok!(Registrar::deregister_para(Origin::ROOT, 1u32.into()));
 
 			// after deregistering, there is no ingress to 1, but unrouted messages
 			// from 1 stick around.
@@ -1824,6 +1852,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// parachain 99 does not exist
 			let non_existent = vec![(99.into(), [1; 32].into())];
 			let mut candidate = new_candidate_with_egress_roots(non_existent);
@@ -1848,6 +1877,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// parachain 0 is self
 			let to_self = vec![(0.into(), [1; 32].into())];
 			let mut candidate = new_candidate_with_egress_roots(to_self);
@@ -1872,6 +1902,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// parachain 0 is self
 			let out_of_order = vec![(1.into(), [1; 32].into()), ((0.into(), [1; 32].into()))];
 			let mut candidate = new_candidate_with_egress_roots(out_of_order);
@@ -1896,6 +1927,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// parachain 0 is self
 			let contains_empty_trie_root = vec![(1.into(), [1; 32].into()), ((2.into(), EMPTY_TRIE_ROOT.into()))];
 			let mut candidate = new_candidate_with_egress_roots(contains_empty_trie_root);
