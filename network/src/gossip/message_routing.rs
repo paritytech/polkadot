@@ -45,14 +45,7 @@ impl View {
 		where I: Iterator<Item=Hash>
 	{
 		let new_leaves = new_leaves.take(MAX_CHAIN_HEADS);
-		let old_leaves = {
-			let mut new = LeavesVec::new();
-			for leaf in new_leaves {
-				new.push(leaf.clone());
-			}
-
-			std::mem::replace(&mut self.leaves, new)
-		};
+		let old_leaves = std::mem::replace(&mut self.leaves, new_leaves.collect());
 
 		let expected_queues = &mut self.expected_queues;
 		let leaves = &self.leaves;
@@ -81,6 +74,9 @@ impl View {
 			});
 
 			if r.is_err() {
+				if let Err(e) = res {
+					log::debug!(target: "message_routing", "Ignored duplicate error {}", e)
+				};
 				res = r;
 			}
 
