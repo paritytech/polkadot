@@ -244,8 +244,6 @@ impl<F, P> ChainContext for (F, P) where
 }
 
 /// Register a gossip validator on the network service.
-///
-/// This returns a `RegisteredMessageValidator`
 // NOTE: since RegisteredMessageValidator is meant to be a type-safe proof
 // that we've actually done the registration, this should be the only way
 // to construct it outside of tests.
