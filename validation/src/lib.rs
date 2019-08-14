@@ -274,7 +274,6 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	fn get_or_instantiate(
 		&self,
 		parent_hash: Hash,
-		grandparent_hash: Hash,
 		keystore: &KeyStorePtr,
 		max_block_data_size: Option<u64>,
 	)
@@ -289,32 +288,6 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let validators = self.client.runtime_api().validators(&id)?;
 		let sign_with = signing_key(&validators[..], keystore);
-
-		// compute the parent candidates, if we know of them.
-		// this will allow us to circulate outgoing messages to other peers as necessary.
-		let parent_candidates: Vec<_> = crate::attestation_service::fetch_candidates(&*self.client, &id)
-			.ok()
-			.and_then(|x| x)
-			.map(|x| x.collect())
-			.unwrap_or_default();
-
-		// TODO: https://github.com/paritytech/polkadot/issues/253
-		//
-		// We probably don't only want active validators to do this, or messages
-		// will disappear when validators exit the set.
-		let _outgoing: Vec<_> = {
-			// extract all extrinsic data that we have and propagate to peers.
-			live_instances.get(&grandparent_hash).map(|parent_validation| {
-				parent_candidates.iter().filter_map(|c| {
-					let para_id = c.parachain_index;
-					let hash = c.hash();
-					parent_validation.table.extrinsic_data(&hash).map(|ex| MessagesFrom {
-						from: para_id,
-						messages: ex,
-					})
-				}).collect()
-			}).unwrap_or_default()
-		};
 
 		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
 
@@ -546,7 +519,6 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 
 		let tracker = self.parachain_validation.get_or_instantiate(
 			parent_hash,
-			parent_header.parent_hash().clone(),
 			&self.keystore,
 			self.max_block_data_size,
 		)?;

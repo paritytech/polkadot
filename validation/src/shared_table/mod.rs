@@ -436,19 +436,6 @@ impl SharedTable {
 		&self.context.groups
 	}
 
-	/// Get extrinsic data for candidate with given hash, if any.
-	///
-	/// This will return `Some` for any candidates that have been validated
-	/// locally.
-	pub(crate) fn extrinsic_data(&self, hash: &Hash) -> Option<Extrinsic> {
-		self.inner.lock().validated.get(hash).and_then(|x| match *x {
-			ValidationWork::Error(_) => None,
-			ValidationWork::InProgress => None,
-			ValidationWork::Done(Validation::Invalid(_)) => None,
-			ValidationWork::Done(Validation::Valid(_, ref ex)) => Some(ex.clone()),
-		})
-	}
-
 	/// Import a single statement with remote source, whose signature has already been checked.
 	///
 	/// The statement producer, if any, will produce only statements concerning the same candidate

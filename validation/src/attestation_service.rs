@@ -148,7 +148,6 @@ pub(crate) fn start<C, N, P, SC>(
 					if notification.is_new_best {
 						let res = validation.get_or_instantiate(
 							parent_hash,
-							notification.header.parent_hash().clone(),
 							&keystore,
 							max_block_data_size,
 						);
