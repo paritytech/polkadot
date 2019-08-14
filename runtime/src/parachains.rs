@@ -1512,6 +1512,8 @@ mod tests {
 
 			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
 
+			run_to_block(3);
+			
 			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
@@ -1726,12 +1728,11 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			run_to_block(2);
 			assert_eq!(Parachains::ingress(ParaId::from(1)), Some(Vec::new()));
 			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
 
 			for i in 1..10 {
-				System::set_block_number(i);
+				run_to_block(i);
 
 				let from_a = vec![(1.into(), [i as u8; 32].into())];
 				let mut candidate_a = AttestedCandidate {
@@ -1776,7 +1777,7 @@ mod tests {
 				Parachains::on_finalize(i);
 			}
 
-			System::set_block_number(10);
+			run_to_block(10);
 			assert_ok!(Parachains::dispatch(
 				set_heads(vec![]),
 				Origin::NONE,
