@@ -302,7 +302,7 @@ pub struct PolkadotProtocol {
 	live_validation_sessions: LiveValidationSessions,
 	in_flight: HashMap<(RequestId, PeerId), PoVBlockRequest>,
 	pending: Vec<PoVBlockRequest>,
-	extrinsic_store: Option<::av_store::Store>,
+	extrinsic_store: Option<av_store::Store>,
 	next_req_id: u64,
 }
 
@@ -787,15 +787,35 @@ impl PolkadotProtocol {
 
 impl PolkadotProtocol {
 	/// Add a local collation and broadcast it to the necessary peers.
+	///
+	/// It also places the extrinsic and block data in the local availability store.
 	pub fn add_local_collation(
 		&mut self,
 		ctx: &mut dyn Context<Block>,
 		relay_parent: Hash,
 		targets: HashSet<ValidatorId>,
 		collation: Collation,
-	) {
+		extrinsic: polkadot_primitives::parachain::Extrinsic,
+	) -> std::io::Result<()> {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",
 			relay_parent, collation.receipt.parachain_index);
+
+		let message_queue_root = polkadot_validation::message_queue_root(
+			extrinsic.outgoing_messages.iter().map(|x| x.encode())
+		);
+
+		if let Some(ref extrinsic_store) = self.extrinsic_store {
+			extrinsic_store.make_available(av_store::Data {
+				relay_parent,
+				parachain_id: collation.receipt.parachain_index,
+				candidate_hash: collation.receipt.hash(),
+				block_data: collation.pov.block_data.clone(),
+				extrinsic: Some(av_store::StoredExtrinsic {
+					inner: extrinsic,
+					message_queue_root,
+				})
+			})?;
+		}
 
 		for (primary, cloned_collation) in self.local_collations.add_collation(relay_parent, targets, collation.clone()) {
 			match self.validators.get(&primary) {
@@ -811,9 +831,12 @@ impl PolkadotProtocol {
 					warn!(target: "polkadot_network", "Encountered tracked but disconnected validator {:?}", primary),
 			}
 		}
+
+		Ok(())
 	}
 
-	/// register availability store.
+	/// Give the network protocol a handle to an availability store, used for
+	/// circulation of parachain data required for validation.
 	pub fn register_availability_store(&mut self, extrinsic_store: ::av_store::Store) {
 		self.extrinsic_store = Some(extrinsic_store);
 	}

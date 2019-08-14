@@ -178,7 +178,7 @@ pub fn collate<'a, R, P>(
 	para_context: P,
 	key: Arc<CollatorPair>,
 )
-	-> impl Future<Item=parachain::Collation, Error=Error<R::Error>> + 'a
+	-> impl Future<Item=(parachain::Collation, parachain::Extrinsic), Error=Error<R::Error>> + 'a
 	where
 		R: RelayChainContext,
 		R::Error: 'a,
@@ -215,13 +215,15 @@ pub fn collate<'a, R, P>(
 				upward_messages: Vec::new(),
 			};
 
-			Ok(parachain::Collation {
+			let collation = parachain::Collation {
 				receipt,
 				pov: PoVBlock {
 					block_data,
 					ingress,
 				},
-			})
+			};
+
+			Ok((collation, extrinsic))
 		})
 }
 
@@ -386,13 +388,20 @@ impl<P, E> Worker for CollationNode<P, E> where
 						context,
 						parachain_context,
 						key,
-					).map(move |collation| {
-						network.with_spec(move |spec, ctx| spec.add_local_collation(
-							ctx,
-							relay_parent,
-							targets,
-							collation,
-						));
+					).map(move |(collation, extrinsic)| {
+						network.with_spec(move |spec, ctx| {
+							let res = spec.add_local_collation(
+								ctx,
+								relay_parent,
+								targets,
+								collation,
+								extrinsic,
+							);
+
+							if let Err(e) = res {
+								warn!("Unable to broadcast local collation: {:?}", e);
+							}
+						})
 					});
 
 					future::Either::B(collation_work)
@@ -542,7 +551,7 @@ mod tests {
 			context.clone(),
 			DummyParachainContext,
 			Arc::new(Sr25519Keyring::Alice.pair().into()),
-		).wait().unwrap();
+		).wait().unwrap().0;
 
 		// ascending order by root.
 		assert_eq!(collation.receipt.egress_queue_roots, vec![(a, root_a), (b, root_b)]);
