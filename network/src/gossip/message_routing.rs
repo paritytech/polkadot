@@ -18,6 +18,47 @@
 //!
 //! The parent-module documentation describes some rationale of the general
 //! gossip protocol design.
+//!
+//! The ICMP message-routing gossip works according to those rationale.
+//!
+//! In this protocol, we perform work under 4 conditions:
+//! ### 1. Upon observation of a new leaf in the block-DAG.
+//!
+//! We first communicate the best leaves to our neighbors in the gossip graph
+//! by the means of a neighbor packet. Then, we query to discover the trie roots
+//! of all un-routed message queues from the perspective of each of those leaves.
+//!
+//! For any trie root in the unrouted set for the new leaf, if we have the corresponding
+//! queue, we send it to any peers with the new leaf in their latest advertised set.
+//!
+//! Which parachain those messages go to and from is unimportant, because this is
+//! an everybody-sees-everything style protocol. The only important property is "liveness":
+//! that the queue root is un-routed at one of the leaves we perceive to be at the head
+//! of the block-DAG.
+//!
+//! In Substrate gossip, every message is associated with a topic. Typically,
+//! many messages are grouped under a single topic. In this gossip system, each queue
+//! gets its own topic, which is based on the root hash of the queue. This is because
+//! many different chain leaves may have the same queue as un-routed, so it's better than
+//! attempting to group message packets by the leaf they appear unrouted at.
+//!
+//! ### 2. Upon a neighbor packet from a peer.
+//!
+//! The neighbor packet from a peer should contain perceived chain heads of that peer.
+//! If there is any overlap between our perceived chain heads and theirs, we send
+//! them any known, un-routed message queue from either set.
+//!
+//! ### 3. Upon receiving a message queue from a peer.
+//!
+//! If the message queue is in the un-routed set of one of the latest leaves we've updated to,
+//! we accept it and relay to any peers who need that queue as well.
+//!
+//! If not, we report the peer to the peer-set manager for sending us bad data.
+//!
+//! ### 4. Periodic Pruning
+//!
+//! We prune messages that are not un-routed from the view of any leaf and cease
+//! to attempt to send them to any peer.
 
 use sr_primitives::traits::{BlakeTwo256, Hash as HashT};
 use polkadot_primitives::Hash;
@@ -42,7 +83,7 @@ pub struct View {
 }
 
 impl View {
-	/// Update the set of current leaves.
+	/// Update the set of current leaves. This is called when we perceive a new bset leaf-set.
 	pub fn update_leaves<T: ChainContext + ?Sized, I>(&mut self, context: &T, new_leaves: I)
 		-> Result<(), ClientError>
 		where I: Iterator<Item=Hash>
@@ -89,7 +130,8 @@ impl View {
 		res
 	}
 
-	/// Validate an incoming message queue against this view.
+	/// Validate an incoming message queue against this view. If it is accepted
+	/// by our view of un-routed message queues, we will keep and re-propagate.
 	pub fn validate_queue_and_note_known(&mut self, messages: &super::GossipParachainMessages)
 		-> (GossipValidationResult<Hash>, i32)
 	{
@@ -139,7 +181,8 @@ impl View {
 		false
 	}
 
-	/// Get topics of all message queues a peer is interested in.
+	/// Get topics of all message queues a peer is interested in - this is useful
+	/// when a peer has informed us of their new best leaves.
 	pub fn intersection_topics(&self, other_leaves: &LeavesVec) -> impl Iterator<Item=Hash> {
 		let deduplicated = other_leaves.iter()
 			.filter_map(|l| self.leaf_topics.get(l))
@@ -152,6 +195,9 @@ impl View {
 	/// Iterate over all live message queues for which the data is marked as not locally known,
 	/// calling a closure with `(topic, root)`. The closure will return whether the queue data is
 	/// unknown.
+	///
+	/// This is called when we should send un-routed message queues that we are
+	/// newly aware of to peers - as in when we update our leaves.
 	pub fn sweep_unknown_queues(&mut self, mut check_known: impl FnMut(&Hash, &Hash) -> bool) {
 		for (topic, &mut (ref queue_root, ref mut known)) in self.expected_queues.iter_mut() {
 			if !*known {
