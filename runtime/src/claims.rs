@@ -21,7 +21,7 @@ use sr_io::{keccak_256, secp256k1_ecdsa_recover};
 use srml_support::{StorageValue, StorageMap, decl_event, decl_storage, decl_module};
 use srml_support::traits::{Currency, Get};
 use system::ensure_none;
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
 use sr_primitives::{
@@ -68,11 +68,11 @@ impl EcdsaSignature {
 
 decl_event!(
 	pub enum Event<T> where
-		B = BalanceOf<T>,
-		A = <T as system::Trait>::AccountId
+		Balance = BalanceOf<T>,
+		AccountId = <T as system::Trait>::AccountId
 	{
 		/// Someone claimed some DOTs.
-		Claimed(A, EthereumAddress, B),
+		Claimed(AccountId, EthereumAddress, Balance),
 	}
 );
 
@@ -95,6 +95,9 @@ decl_storage! {
 
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+		/// The Prefix that is used in signed Ethereum messages for this network
+		const Prefix: &[u8] = T::Prefix::get();
+
 		/// Deposit one of this module's events by using the default implementation.
 		fn deposit_event<T>() = default;
 
@@ -196,7 +199,7 @@ mod tests {
 
 	use sr_io::with_externalities;
 	use substrate_primitives::{H256, Blake2Hasher};
-	use parity_codec::{Decode, Encode};
+	use codec::{Decode, Encode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sr_primitives::{Perbill, traits::{BlakeTwo256, IdentityLookup, ConvertInto}, testing::Header};
@@ -206,20 +209,20 @@ mod tests {
 	impl_outer_origin! {
 		pub enum Origin for Test {}
 	}
-
 	// For testing the module, we construct most of a mock runtime. This means
 	// first constructing a configuration type (`Test`) which `impl`s each of the
 	// configuration traits of modules we want to use.
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
 	parameter_types! {
-		pub const BlockHashCount: u64 = 250;
+		pub const BlockHashCount: u32 = 250;
 		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
+		type Call = ();
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -301,12 +304,12 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		// We use default for brevity, but you can configure as desired if needed.
-		t.extend(balances::GenesisConfig::<Test>::default().build_storage().unwrap().0);
-		t.extend(GenesisConfig::<Test>{
+		balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
+		GenesisConfig::<Test>{
 			claims: vec![(alice_eth(), 100)],
-		}.build_storage().unwrap().0);
+		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
 

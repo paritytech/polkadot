@@ -53,12 +53,12 @@ use futures::{future, Stream, Future, IntoFuture};
 use futures03::{TryStreamExt as _, StreamExt as _};
 use log::{info, warn};
 use client::BlockchainEvents;
-use primitives::{ed25519, Pair};
+use primitives::Pair;
 use polkadot_primitives::{
-	BlockId, SessionKey, Hash, Block,
+	BlockId, Hash, Block,
 	parachain::{
 		self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic,
-		PoVBlock, Status as ParachainStatus,
+		PoVBlock, Status as ParachainStatus, ValidatorId, CollatorPair,
 	}
 };
 use polkadot_cli::{
@@ -69,7 +69,6 @@ use polkadot_network::validation::{SessionParams, ValidationNetwork};
 use polkadot_network::NetworkService;
 use tokio::timer::Timeout;
 use consensus_common::SelectChain;
-use aura::AuraApi;
 
 pub use polkadot_cli::VersionInfo;
 pub use polkadot_network::validation::Incoming;
@@ -177,7 +176,7 @@ pub fn collate<'a, R, P>(
 	parachain_status: ParachainStatus,
 	relay_context: R,
 	para_context: P,
-	key: Arc<ed25519::Pair>,
+	key: Arc<CollatorPair>,
 )
 	-> impl Future<Item=parachain::Collation, Error=Error<R::Error>> + 'a
 	where
@@ -230,7 +229,7 @@ pub fn collate<'a, R, P>(
 struct ApiContext<P, E> {
 	network: Arc<ValidationNetwork<P, E, NetworkService, TaskExecutor>>,
 	parent_hash: Hash,
-	authorities: Vec<SessionKey>,
+	validators: Vec<ValidatorId>,
 }
 
 impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
@@ -248,7 +247,7 @@ impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 		let _session = self.network.instantiate_session(SessionParams {
 			local_session_key: None,
 			parent_hash: self.parent_hash,
-			authorities: self.authorities.clone(),
+			authorities: self.validators.clone(),
 		}).map_err(|e| format!("unable to instantiate validation session: {:?}", e));
 
 		Box::new(future::ok(ConsolidatedIngress(Vec::new())))
@@ -259,7 +258,7 @@ struct CollationNode<P, E> {
 	build_parachain_context: P,
 	exit: E,
 	para_id: ParaId,
-	key: Arc<ed25519::Pair>,
+	key: Arc<CollatorPair>,
 }
 
 impl<P, E> IntoExit for CollationNode<P, E> where
@@ -364,18 +363,18 @@ impl<P, E> Worker for CollationNode<P, E> where
 						None => return future::Either::A(future::ok(())),
 					};
 
-					let authorities = try_fr!(api.authorities(&id));
+					let validators = try_fr!(api.validators(&id));
 
 					let targets = compute_targets(
 						para_id,
-						authorities.as_slice(),
+						validators.as_slice(),
 						try_fr!(api.duty_roster(&id)),
 					);
 
 					let context = ApiContext {
 						network: validation_network,
 						parent_hash: relay_parent,
-						authorities,
+						validators,
 					};
 
 					let collation_work = collate(
@@ -414,7 +413,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 	}
 }
 
-fn compute_targets(para_id: ParaId, session_keys: &[SessionKey], roster: DutyRoster) -> HashSet<SessionKey> {
+fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRoster) -> HashSet<ValidatorId> {
 	use polkadot_primitives::parachain::Chain;
 
 	roster.validator_duty.iter().enumerate()
@@ -433,7 +432,7 @@ pub fn run_collator<P, E>(
 	build_parachain_context: P,
 	para_id: ParaId,
 	exit: E,
-	key: Arc<ed25519::Pair>,
+	key: Arc<CollatorPair>,
 	version: VersionInfo,
 ) -> polkadot_cli::error::Result<()> where
 	P: BuildParachainContext + Send + 'static,
@@ -450,7 +449,7 @@ pub fn run_collator<P, E>(
 mod tests {
 	use std::collections::HashMap;
 	use polkadot_primitives::parachain::{OutgoingMessage, FeeSchedule};
-	use keyring::Ed25519Keyring;
+	use keyring::Sr25519Keyring;
 	use super::*;
 
 	#[derive(Default, Clone)]
@@ -540,7 +539,7 @@ mod tests {
 			},
 			context.clone(),
 			DummyParachainContext,
-			Ed25519Keyring::Alice.pair().into(),
+			Arc::new(Sr25519Keyring::Alice.pair().into()),
 		).wait().unwrap();
 
 		// ascending order by root.

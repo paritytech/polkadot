@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2017-2019 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,29 +17,32 @@
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
 use rstd::prelude::*;
-use rstd::{result, collections::btree_map::BTreeMap};
-use parity_codec::Decode;
-use srml_support::{decl_storage, decl_module, ensure};
+use rstd::collections::btree_map::BTreeMap;
+use codec::{Encode, Decode, HasCompact};
+use srml_support::{decl_storage, decl_module, fail, ensure};
 
-use bitvec::{bitvec, BigEndian};
-use sr_primitives::{
-	traits::{Hash as HashT, EnsureOrigin, BlakeTwo256, Saturating, One, AccountIdConversion},
-	weights::SimpleDispatchInfo
-};
-#[cfg(any(feature = "std", test))]
-use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
+use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
+use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
-	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ActiveParas, CollatorId
+	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
+	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId
 }};
 use {system, session};
 use srml_support::{
 	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
-	traits::{Currency, WithdrawReason, ExistenceRequirement}
+	traits::{Currency, Get, WithdrawReason, ExistenceRequirement}
 };
+
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
-use system::ensure_none;
+#[cfg(any(feature = "std", test))]
+use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
+
+#[cfg(any(feature = "std", test))]
+use rstd::marker::PhantomData;
+
+use system::{ensure_none, ensure_root};
+use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
 
 // ranges for iteration of general block number don't work, so this
@@ -99,7 +102,16 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 	}
 }
 
-pub trait Trait: session::Trait {
+/// Interface to the persistent (stash) identities of the current validators.
+pub struct ValidatorIdentities<T>(rstd::marker::PhantomData<T>);
+
+impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
+	fn get() -> Vec<T::ValidatorId> {
+		<session::Module<T>>::validators()
+	}
+}
+
+pub trait Trait: attestations::Trait {
 	/// The outer origin type.
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
 
@@ -139,13 +151,17 @@ const WATERMARK_QUEUE_SIZE: usize = 20000;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
-		// The parachains registered at present.
+		/// All authorities' keys at the moment.
+		pub Authorities get(authorities) config(authorities): Vec<ValidatorId>;
+		/// Vector of all parachain IDs.
+		pub Parachains get(active_parachains): Vec<ParaId>;
+		/// The parachains registered at present.
 		pub Code get(parachain_code): map ParaId => Option<Vec<u8>>;
-		// The heads of the parachains registered at present.
+		/// The heads of the parachains registered at present.
 		pub Heads get(parachain_head): map ParaId => Option<Vec<u8>>;
-		// The watermark heights of the parachains registered at present.
-		// For every parachain, this is the block height from which all messages targeting
-		// that parachain have been processed. Can be `None` only if the parachain doesn't exist.
+		/// The watermark heights of the parachains registered at present.
+		/// For every parachain, this is the block height from which all messages targeting
+		/// that parachain have been processed. Can be `None` only if the parachain doesn't exist.
 		pub Watermarks get(watermark): map ParaId => Option<T::BlockNumber>;
 
 		/// Unrouted ingress. Maps (BlockNumber, to_chain) pairs to [(from_chain, egress_root)].
@@ -159,7 +175,7 @@ decl_storage! {
 		pub RelayDispatchQueue: map ParaId => Vec<UpwardMessage>;
 		/// Size of the dispatch queues. Separated from actual data in order to avoid costly
 		/// decoding when checking receipt validity. First item in tuple is the count of messages
-		//	second if the total length (in bytes) of the message payloads.
+		///	second if the total length (in bytes) of the message payloads.
 		pub RelayDispatchQueueSize: map ParaId => (u32, u32);
 
 		/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
@@ -168,6 +184,29 @@ decl_storage! {
 		// Did the parachain heads get updated in this block?
 		DidUpdate: bool;
 	}
+}
+
+#[cfg(feature = "std")]
+fn build<T: Trait>(
+	storage: &mut (StorageOverlay, ChildrenStorageOverlay),
+	config: &GenesisConfig<T>
+) {
+	let mut p = config.parachains.clone();
+	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
+	p.dedup_by_key(|&mut (ref id, _, _)| *id);
+
+	let only_ids: Vec<ParaId> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
+
+	sr_io::with_storage(storage, || {
+		Parachains::put(&only_ids);
+
+		for (id, code, genesis) in p {
+			// no ingress -- a chain cannot be routed to until it is live.
+			Code::insert(&id, &code);
+			Heads::insert(&id, &genesis);
+			<Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
+		}
+	});
 }
 
 decl_module! {
@@ -220,13 +259,15 @@ decl_module! {
 					}
 				}
 
-				Self::check_candidates(&heads)?;
+				let para_blocks = Self::check_candidates(&heads, &active_parachains)?;
 
 				let current_number = <system::Module<T>>::block_number();
 
+				<attestations::Module<T>>::note_included(&heads, para_blocks);
+
 				Self::update_routing(
 					current_number,
-					&heads
+					&heads,
 				);
 
 				Self::dispatch_upward_messages(
@@ -252,8 +293,6 @@ fn majority_of(list_len: usize) -> usize {
 }
 
 fn localized_payload(statement: Statement, parent_hash: ::primitives::Hash) -> Vec<u8> {
-	use parity_codec::Encode;
-
 	let mut encoded = statement.encode();
 	encoded.extend(parent_hash.as_ref());
 	encoded
@@ -302,7 +341,7 @@ impl<T: Trait> Module<T> {
 		origin: ParachainDispatchOrigin,
 		data: &[u8],
 	) {
-		if let Some(message_call) = <T as Trait>::Call::decode(&mut &data[..]) {
+		if let Ok(message_call) = <T as Trait>::Call::decode(&mut &data[..]) {
 			let origin: <T as Trait>::Origin = match origin {
 				ParachainDispatchOrigin::Signed =>
 					system::RawOrigin::Signed(id.into_account()).into(),
@@ -467,12 +506,13 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Calculate the current block's duty roster using system's random seed.
-	pub fn calculate_duty_roster() -> DutyRoster {
+	/// Returns the duty roster along with the random seed.
+	pub fn calculate_duty_roster() -> (DutyRoster, [u8; 32]) {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
 
-		// TODO: should be maintaining its own PV "authority" set rather than getting them from Aura
-		let validator_count = crate::Aura::authorities().len();
+		// TODO: use decode length. substrate #2794
+		let validator_count = Self::authorities().len();
 		let validators_per_parachain =
 			if parachain_count == 0 {
 				0
@@ -506,13 +546,15 @@ impl<T: Trait> Module<T> {
 			BlakeTwo256::hash(&seed.as_ref()[seed_off..])
 		};
 
+		let orig_seed = seed.clone().to_fixed_bytes();
+
 		// shuffle
-		for i in 0..(validator_count - 1) {
+		for i in 0..(validator_count.saturating_sub(1)) {
 			// 4 bytes of entropy used per cycle, 32 bytes entropy per hash
 			let offset = (i * 4 % 32) as usize;
 
 			// number of roles remaining to select from.
-			let remaining = (validator_count - i) as usize;
+			let remaining = rstd::cmp::max(1, (validator_count - i) as usize);
 
 			// 8 32-bit ints per 256-bit seed.
 			let val_index = u32::decode(&mut &seed[offset..offset + 4])
@@ -527,9 +569,7 @@ impl<T: Trait> Module<T> {
 			roles_val.swap(remaining - 1, val_index);
 		}
 
-		DutyRoster {
-			validator_duty: roles_val,
-		}
+		(DutyRoster { validator_duty: roles_val, }, orig_seed)
 	}
 
 	/// Calculate the ingress to a specific parachain.
@@ -608,9 +648,11 @@ impl<T: Trait> Module<T> {
 
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
-	fn check_candidates(attested_candidates: &[AttestedCandidate]) -> Result{
+	fn check_candidates(attested_candidates: &[AttestedCandidate], active_parachains: &[ParaId])
+		-> rstd::result::Result<IncludedBlocks<T>, &'static str>
+	{
 		use primitives::parachain::ValidityAttestation;
-		use sr_primitives::traits::Verify;
+		use sr_primitives::traits::AppVerify;
 
 		// returns groups of slices that have the same chain ID.
 		// assumes the inner slice is sorted by id.
@@ -652,8 +694,8 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
-		let authorities = super::Aura::authorities();
-		let duty_roster = Self::calculate_duty_roster();
+		let authorities = Self::authorities();
+		let (duty_roster, random_seed) = Self::calculate_duty_roster();
 
 		// convert a duty roster, which is originally a Vec<Chain>, where each
 		// item corresponds to the same position in the session keys, into
@@ -684,6 +726,7 @@ impl<T: Trait> Module<T> {
 
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
 
+		let mut para_block_hashes = Vec::new();
 		for candidate in attested_candidates {
 			let para_id = candidate.parachain_index();
 			let validator_group = validator_groups.group_for(para_id)
@@ -694,6 +737,11 @@ impl<T: Trait> Module<T> {
 				"Not enough validity attestations"
 			);
 
+			ensure!(
+				candidate.validity_votes.len() <= authorities.len(),
+				"The number of attestations exceeds the number of authorities"
+			);
+
 			let fees = candidate.candidate().fees;
 			T::ParachainCurrency::deduct(para_id, fees)?;
 
@@ -701,19 +749,23 @@ impl<T: Trait> Module<T> {
 			let mut encoded_implicit = None;
 			let mut encoded_explicit = None;
 
-			// track which voters have voted already, 1 bit per authority.
-			let mut track_voters = bitvec![0; authorities.len()];
-			for (auth_index, validity_attestation) in &candidate.validity_votes {
-				let auth_index = *auth_index as usize;
-				// protect against double-votes.
-				match validator_group.iter().find(|&(idx, _)| *idx == auth_index) {
-					None => return Err("Attesting validator not on this chain's validation duty."),
-					Some(&(idx, _)) => {
-						if track_voters.get(idx) {
-							return Err("Voter already attested validity once")
-						}
-						track_voters.set(idx, true)
+			let mut expected_votes_len = 0;
+			for (vote_index, (auth_index, _)) in candidate.validator_indices
+				.iter()
+				.enumerate()
+				.filter(|(_, bit)| *bit)
+				.enumerate()
+			{
+				let validity_attestation = match candidate.validity_votes.get(vote_index) {
+					None => return Err("Not enough validity votes"),
+					Some(v) => {
+						expected_votes_len = vote_index + 1;
+						v
 					}
+				};
+
+				if validator_group.iter().find(|&(idx, _)| *idx == auth_index).is_none() {
+					return Err("Attesting validator not on this chain's validation duty.");
 				}
 
 				let (payload, sig) = match validity_attestation {
@@ -742,9 +794,22 @@ impl<T: Trait> Module<T> {
 					"Candidate validity attestation signature is bad."
 				);
 			}
+
+			para_block_hashes.push(candidate_hash.unwrap_or_else(|| candidate.candidate().hash()));
+
+		ensure!(
+				candidate.validity_votes.len() == expected_votes_len,
+				"Extra untagged validity votes along with candidate"
+			);
 		}
 
-		Ok(())
+		Ok(IncludedBlocks {
+			actual_number: <system::Module<T>>::block_number(),
+			session: <session::Module<T>>::current_index(),
+			random_seed,
+			active_parachains: active_parachains.to_vec(),
+			para_blocks: para_block_hashes,
+		})
 	}
 
 /*
@@ -764,17 +829,33 @@ impl<T: Trait> Module<T> {
 */
 }
 
-pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"newheads";
+impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
+	type Key = ValidatorId;
+
+	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, _queued: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		if changed {
+			<Self as Store>::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+		}
+	}
+
+	fn on_disabled(_i: usize) { }
+}
+
+/// An identifier for inherent data that provides new minimally-attested
+/// parachain heads.
+pub const NEW_HEADS_IDENTIFIER: InherentIdentifier = *b"newheads";
 
 pub type InherentType = Vec<AttestedCandidate>;
 
 impl<T: Trait> ProvideInherent for Module<T> {
 	type Call = Call<T>;
 	type Error = MakeFatalError<RuntimeString>;
-	const INHERENT_IDENTIFIER: InherentIdentifier = INHERENT_IDENTIFIER;
+	const INHERENT_IDENTIFIER: InherentIdentifier = NEW_HEADS_IDENTIFIER;
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-		let data = data.get_data::<InherentType>(&INHERENT_IDENTIFIER)
+		let data = data.get_data::<InherentType>(&NEW_HEADS_IDENTIFIER)
 			.expect("Parachain heads could not be decoded.")
 			.expect("No parachain heads found in inherent data.");
 
@@ -797,6 +878,7 @@ pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, &
 mod tests {
 	use super::*;
 	use super::Call as ParachainsCall;
+	use bitvec::{bitvec, vec::BitVec};
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
@@ -806,10 +888,11 @@ mod tests {
 		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorIndex}, SessionKey,
-		BlockNumber, AuraId,
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId},
+		BlockNumber,
 	};
-	use keyring::Ed25519Keyring;
+	use crate::constants::time::*;
+	use keyring::Sr25519Keyring;
 	use srml_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
@@ -830,13 +913,14 @@ mod tests {
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
 	parameter_types! {
-		pub const BlockHashCount: u64 = 250;
+		pub const BlockHashCount: u32 = 250;
 		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
+		type Call = Call;
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -882,9 +966,14 @@ mod tests {
 		type MinimumPeriod = MinimumPeriod;
 	}
 
-	impl aura::Trait for Test {
-		type HandleReport = aura::StakingSlasher<Test>;
-		type AuthorityId = AuraId;
+	parameter_types! {
+		pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
+		pub const ExpectedBlockTime: u64 = MILLISECS_PER_BLOCK;
+	}
+
+	impl babe::Trait for Test {
+		type EpochDuration = EpochDuration;
+		type ExpectedBlockTime = ExpectedBlockTime;
 	}
 
 	parameter_types! {
@@ -914,6 +1003,7 @@ mod tests {
 	parameter_types! {
 		pub const SessionsPerEra: session::SessionIndex = 6;
 		pub const BondingDuration: staking::EraIndex = 24 * 28;
+		pub const AttestationPeriod: BlockNumber = 100;
 	}
 
 	impl staking::Trait for Test {
@@ -929,6 +1019,11 @@ mod tests {
 		type Time = timestamp::Module<Test>;
 	}
 
+	impl attestations::Trait for Test {
+		type AttestationPeriod = AttestationPeriod;
+		type ValidatorIdentities = ValidatorIdentities<Test>;
+	}
+
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
@@ -939,28 +1034,73 @@ mod tests {
 	type System = system::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
+		use staking::StakerStatus;
+		use babe::AuthorityId as BabeAuthorityId;
+
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+
 		let authority_keys = [
-			Ed25519Keyring::Alice,
-			Ed25519Keyring::Bob,
-			Ed25519Keyring::Charlie,
-			Ed25519Keyring::Dave,
-			Ed25519Keyring::Eve,
-			Ed25519Keyring::Ferdie,
-			Ed25519Keyring::One,
-			Ed25519Keyring::Two,
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+			Sr25519Keyring::Ferdie,
+			Sr25519Keyring::One,
+			Sr25519Keyring::Two,
 		];
 
-		t.extend(session::GenesisConfig::<Test>{
-			keys: vec![(1, UintAuthorityId(1))],
-		}.build_storage().unwrap().0);
-		t.extend(GenesisConfig::<Test>{
+		// stashes are the index.
+		let session_keys: Vec<_> = authority_keys.iter().enumerate()
+			.map(|(i, _k)| (i as u64, UintAuthorityId(i as u64)))
+			.collect();
+
+		let authorities: Vec<_> = authority_keys.iter().map(|k| ValidatorId::from(k.public())).collect();
+		let babe_authorities: Vec<_> = authority_keys.iter()
+			.map(|k| BabeAuthorityId::from(k.public()))
+			.map(|k| (k, 1))
+			.collect();
+
+		// controllers are the index + 1000
+		let stakers: Vec<_> = (0..authority_keys.len()).map(|i| (
+			i as u64,
+			i as u64 + 1000,
+			10_000,
+			StakerStatus::<u64>::Validator,
+		)).collect();
+
+		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
+
+		GenesisConfig::<Test> {
 			parachains,
+			authorities: authorities.clone(),
 			_phdata: Default::default(),
-		}.build_storage().unwrap().0);
-		t.extend(aura::GenesisConfig::<Test>{
-			authorities: authority_keys.iter().map(|k| SessionKey::from(*k)).collect(),
-		}.build_storage().unwrap().0);
+		}.assimilate_storage(&mut t).unwrap();
+
+		session::GenesisConfig::<Test> {
+			keys: session_keys,
+		}.assimilate_storage(&mut t).unwrap();
+
+		babe::GenesisConfig {
+			authorities: babe_authorities,
+		}.assimilate_storage(&mut t).unwrap();
+
+		balances::GenesisConfig::<Test> {
+			balances,
+			vesting: vec![],
+		}.assimilate_storage(&mut t).unwrap();
+
+		staking::GenesisConfig::<Test> {
+			current_era: 0,
+			stakers,
+			validator_count: 10,
+			minimum_validator_count: 8,
+			offline_slash: Perbill::from_percent(5),
+			offline_slash_grace: 0,
+			invulnerables: vec![],
+			.. Default::default()
+		}.assimilate_storage(&mut t).unwrap();
+
 		t.into()
 	}
 
@@ -972,17 +1112,20 @@ mod tests {
 		let mut vote_implicit = false;
 		let parent_hash = crate::System::parent_hash();
 
-		let duty_roster = Parachains::calculate_duty_roster();
+		let (duty_roster, _) = Parachains::calculate_duty_roster();
 		let candidate_hash = candidate.candidate.hash();
 
-		let authorities = crate::Aura::authorities();
-		let extract_key = |public: SessionKey| {
-			Ed25519Keyring::from_raw_public(public.0).unwrap()
+		let authorities = Parachains::authorities();
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
 		};
 
 		let validation_entries = duty_roster.validator_duty.iter()
 			.enumerate();
 
+		let mut validator_indices = BitVec::new();
 		for (idx, &duty) in validation_entries {
 			if duty != Chain::Parachain(candidate.parachain_index()) { continue }
 			vote_implicit = !vote_implicit;
@@ -998,17 +1141,24 @@ mod tests {
 			let payload = localized_payload(statement, parent_hash);
 			let signature = key.sign(&payload[..]).into();
 
-			candidate.validity_votes.push((idx as ValidatorIndex, if vote_implicit {
+			candidate.validity_votes.push(if vote_implicit {
 				ValidityAttestation::Implicit(signature)
 			} else {
 				ValidityAttestation::Explicit(signature)
-			}));
+			});
+
+			if validator_indices.len() <= idx {
+				validator_indices.resize(idx + 1, false);
+			}
+			validator_indices.set(idx, true);
 		}
+		candidate.validator_indices = validator_indices;
 	}
 
 	fn new_candidate_with_egress_roots(egress_queue_roots: Vec<(ParaId, H256)>) -> AttestedCandidate {
 		AttestedCandidate {
 			validity_votes: vec![],
+			validator_indices: BitVec::new(),
 			candidate: CandidateReceipt {
 				parachain_index: 0.into(),
 				collator: Default::default(),
@@ -1028,6 +1178,7 @@ mod tests {
 	) -> AttestedCandidate {
 		AttestedCandidate {
 			validity_votes: vec![],
+			validator_indices: BitVec::new(),
 			candidate: CandidateReceipt {
 				parachain_index: id.into(),
 				collator: Default::default(),
@@ -1363,17 +1514,17 @@ mod tests {
 				assert_eq!(duty_roster.validator_duty.iter().filter(|&&j| j == Chain::Relay).count(), 2);
 			};
 
-			let duty_roster_0 = Parachains::calculate_duty_roster();
+			let duty_roster_0 = Parachains::calculate_duty_roster().0;
 			check_roster(&duty_roster_0);
 
 			System::initialize(&1, &H256::from([1; 32]), &Default::default(), &Default::default());
-			let duty_roster_1 = Parachains::calculate_duty_roster();
+			let duty_roster_1 = Parachains::calculate_duty_roster().0;
 			check_roster(&duty_roster_1);
 			assert!(duty_roster_0 != duty_roster_1);
 
 
 			System::initialize(&2, &H256::from([2; 32]), &Default::default(), &Default::default());
-			let duty_roster_2 = Parachains::calculate_duty_roster();
+			let duty_roster_2 = Parachains::calculate_duty_roster().0;
 			check_roster(&duty_roster_2);
 			assert!(duty_roster_0 != duty_roster_2);
 			assert!(duty_roster_1 != duty_roster_2);
@@ -1390,6 +1541,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			let candidate = AttestedCandidate {
 				validity_votes: vec![],
+				validator_indices: BitVec::new(),
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
@@ -1417,6 +1569,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
+				validator_indices: BitVec::new(),
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
@@ -1431,6 +1584,7 @@ mod tests {
 
 			let mut candidate_b = AttestedCandidate {
 				validity_votes: vec![],
+				validator_indices: BitVec::new(),
 				candidate: CandidateReceipt {
 					parachain_index: 1.into(),
 					collator: Default::default(),
@@ -1468,6 +1622,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
+				validator_indices: BitVec::new(),
 				candidate: CandidateReceipt {
 					parachain_index: 0.into(),
 					collator: Default::default(),
@@ -1484,9 +1639,46 @@ mod tests {
 
 			let mut double_validity = candidate.clone();
 			double_validity.validity_votes.push(candidate.validity_votes[0].clone());
+			double_validity.validator_indices.push(true);
 
 			assert!(Parachains::dispatch(
 				set_heads(vec![double_validity]),
+				Origin::NONE,
+			).is_err());
+		});
+	}
+
+	#[test]
+	fn validators_not_from_group_is_rejected() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			let mut candidate = AttestedCandidate {
+				validity_votes: vec![],
+				validator_indices: BitVec::new(),
+				candidate: CandidateReceipt {
+					parachain_index: 0.into(),
+					collator: Default::default(),
+					signature: Default::default(),
+					head_data: HeadData(vec![1, 2, 3]),
+					egress_queue_roots: vec![],
+					fees: 0,
+					block_data_hash: Default::default(),
+					upward_messages: vec![],
+				}
+			};
+
+			make_attestations(&mut candidate);
+
+			// Change the last vote index to make it not corresponding to the assigned group.
+			assert!(candidate.validator_indices.pop().is_some());
+			candidate.validator_indices.append(&mut bitvec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+
+			assert!(Parachains::dispatch(
+				set_heads(vec![candidate]),
 				Origin::NONE,
 			).is_err());
 		});
@@ -1512,6 +1704,7 @@ mod tests {
 				let from_a = vec![(1.into(), [i as u8; 32].into())];
 				let mut candidate_a = AttestedCandidate {
 					validity_votes: vec![],
+					validator_indices: BitVec::new(),
 					candidate: CandidateReceipt {
 						parachain_index: 0.into(),
 						collator: Default::default(),
@@ -1527,6 +1720,7 @@ mod tests {
 				let from_b = vec![(99.into(), [i as u8; 32].into())];
 				let mut candidate_b = AttestedCandidate {
 					validity_votes: vec![],
+					validator_indices: BitVec::new(),
 					candidate: CandidateReceipt {
 						parachain_index: 1.into(),
 						collator: Default::default(),
@@ -1590,6 +1784,7 @@ mod tests {
 
 			let mut candidate_c = AttestedCandidate {
 				validity_votes: vec![],
+				validator_indices: BitVec::new(),
 				candidate: CandidateReceipt {
 					parachain_index: 99.into(),
 					collator: Default::default(),
