@@ -151,7 +151,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
 		}),
 		im_online: Some(ImOnlineConfig {
-			gossip_at: 0,
 			keys: initial_authorities.iter().map(|x| x.4.clone()).collect(),
 		}),
 		parachains: Some(ParachainsConfig {
@@ -295,7 +294,6 @@ pub fn testnet_genesis(
 			authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
 		}),
 		im_online: Some(ImOnlineConfig {
-			gossip_at: 0,
 			keys: initial_authorities.iter().map(|x| x.4.clone()).collect(),
 		}),
 		parachains: Some(ParachainsConfig {
