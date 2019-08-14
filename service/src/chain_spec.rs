@@ -22,7 +22,7 @@ use polkadot_runtime::{
 	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, BabeConfig,
 	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
 	GrandpaConfig, SudoConfig, IndicesConfig, StakerStatus, WASM_BINARY,
-	ClaimsConfig, ImOnlineConfig, ParachainsConfig
+	ClaimsConfig, ImOnlineConfig, ParachainsConfig, RegistrarConfig
 };
 use polkadot_runtime::constants::{currency::DOTS, time::*};
 use telemetry::TelemetryEndpoints;
@@ -156,6 +156,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		parachains: Some(ParachainsConfig {
 			authorities: initial_authorities.iter().map(|x| x.5.clone()).collect(),
+		}),
+		registrar: Some(RegistrarConfig {
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
@@ -300,6 +302,8 @@ pub fn testnet_genesis(
 		}),
 		parachains: Some(ParachainsConfig {
 			authorities: initial_authorities.iter().map(|x| x.5.clone()).collect(),
+		}),
+		registrar: Some(RegistrarConfig{
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
