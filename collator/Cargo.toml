@@ -8,12 +8,12 @@ edition = "2018"
 [dependencies]
 futures = "0.1.17"
 futures03 = { package = "futures-preview", version = "0.3.0-alpha.17", features = ["compat"] }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "gav-ext-tx-call" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 parity-codec = "4.1"
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "gav-ext-tx-call" }
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "gav-ext-tx-call" }
-consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "gav-ext-tx-call" }
-aura = { package = "substrate-consensus-aura", git = "https://github.com/paritytech/substrate", branch = "gav-ext-tx-call" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+aura = { package = "substrate-consensus-aura", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 polkadot-runtime = { path = "../runtime", version = "0.1" }
 polkadot-primitives = { path = "../primitives", version = "0.1" }
 polkadot-cli = { path = "../cli" }
@@ -23,4 +23,4 @@ log = "0.4"
 tokio = "0.1.7"
 
 [dev-dependencies]
-keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "gav-ext-tx-call" }
+keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
