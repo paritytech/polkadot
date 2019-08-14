@@ -860,7 +860,7 @@ mod tests {
 		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId},
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo, Scheduling},
 		BlockNumber,
 	};
 	use crate::constants::time::*;
@@ -869,6 +869,8 @@ mod tests {
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
 	use crate::parachains;
+	use crate::registrar;
+	use crate::slots;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {
@@ -996,10 +998,37 @@ mod tests {
 		type ValidatorIdentities = ValidatorIdentities<Test>;
 	}
 
+	parameter_types!{
+		pub const LeasePeriod: u64 = 10;
+		pub const EndingPeriod: u64 = 3;
+	}
+
+	impl slots::Trait for Test {
+		type Event = ();
+		type Currency = balances::Module<Test>;
+		type Parachains = registrar::Module<Test>;
+		type EndingPeriod = EndingPeriod;
+		type LeasePeriod = LeasePeriod;
+	}
+
+	parameter_types! {
+		pub const ParathreadDeposit: Balance = 10;
+	}
+
+	impl registrar::Trait for Test {
+		type Event = ();
+		type Origin = Origin;
+		type Currency = balances::Module<Test>;
+		type ParathreadDeposit = ParathreadDeposit;
+		type OnSwap = slots::Module<Test>;
+	}
+
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
+		type ActiveParachains = registrar::Module<Test>;
+		type Registrar = registrar::Module<Test>;
 	}
 
 	type Parachains = Module<Test>;
@@ -1043,9 +1072,12 @@ mod tests {
 
 		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
 
-		GenesisConfig::<Test> {
-			parachains,
+		GenesisConfig {
 			authorities: authorities.clone(),
+		}.assimilate_storage(&mut t).unwrap();
+
+		registrar::GenesisConfig::<Test> {
+			parachains,
 			_phdata: Default::default(),
 		}.assimilate_storage(&mut t).unwrap();
 
@@ -1177,13 +1209,13 @@ mod tests {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 4] }
-			]);
+			], &parachains);
 			Parachains::queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 4] }
-			]);
+			], &parachains);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(&parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 4])
 			]);
@@ -1194,16 +1226,16 @@ mod tests {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			]);
+			], &parachains);
 			Parachains::queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			]);
+			], &parachains);
 			Parachains::queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			]);
+			], &parachains);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(&parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
@@ -1216,16 +1248,16 @@ mod tests {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			]);
+			], &parachains);
 			Parachains::queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			]);
+			], &parachains);
 			Parachains::queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			]);
+			], &parachains);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(&parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
 				(1.into(), ParachainDispatchOrigin::Parachain, vec![1; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
@@ -1238,16 +1270,16 @@ mod tests {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			]);
+			], &parachains);
 			Parachains::queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			]);
+			], &parachains);
 			Parachains::queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			]);
+			], &parachains);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(&parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2]),
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2])
@@ -1272,12 +1304,12 @@ mod tests {
 			// all good.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
-			]);
+			], &[]);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1, 2] }
 			];
 			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
-			Parachains::queue_upward_messages(0.into(), &messages);
+			Parachains::queue_upward_messages(0.into(), &messages, &[]);
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(0)), vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1, 2] },
@@ -1329,7 +1361,7 @@ mod tests {
 			// too many messages.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
-			]);
+			], &[]);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![1] },
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![2] },
@@ -1350,7 +1382,7 @@ mod tests {
 			// too much data.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0, 1] },
-			]);
+			], &[]);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![2, 3] },
 			];
@@ -1370,7 +1402,7 @@ mod tests {
 			// bad - already an oversize messages queued.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] },
-			]);
+			], &[]);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] }
 			];
@@ -1390,7 +1422,7 @@ mod tests {
 			// bad - oversized and already a message queued.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
-			]);
+			], &[]);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] }
 			];
@@ -1439,7 +1471,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 100u32.into()]);
+			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
 		});
@@ -1453,19 +1485,19 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 100u32.into()]);
+			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
 
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
 
-			assert_ok!(Parachains::register_parachain(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1]));
+			assert_ok!(<registrar::Module<Test>>::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
 
-			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 99u32.into(), 100u32.into()]);
+			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
-			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 5u32.into()));
+			assert_ok!(<registrar::Module<Test>>::deregister_para(Origin::ROOT, 5u32.into()));
 
-			assert_eq!(Parachains::active_parachains(), vec![99u32.into(), 100u32.into()]);
+			assert_eq!(Parachains::active_parachains(), vec![(99u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
 		});
 	}
@@ -1742,7 +1774,7 @@ mod tests {
 				))).collect::<Vec<_>>()),
 			);
 
-			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 1u32.into()));
+			assert_ok!(<registrar::Module<Test>>::deregister_para(Origin::ROOT, 1u32.into()));
 
 			// after deregistering, there is no ingress to 1, but unrouted messages
 			// from 1 stick around.

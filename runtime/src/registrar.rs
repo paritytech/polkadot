@@ -25,8 +25,7 @@ use sr_primitives::{
 	weights::{SimpleDispatchInfo, DispatchInfo}, transaction_validity::ValidTransaction,
 	traits::{Hash as HashT, StaticLookup, DispatchError, SignedExtension}
 };
-#[cfg(feature = "std")]
-use srml_support::storage::hashed::generator;
+
 use srml_support::{
 	decl_storage, decl_module, decl_event, ensure,
 	StorageValue, StorageMap, dispatch::{Result, IsSubType},

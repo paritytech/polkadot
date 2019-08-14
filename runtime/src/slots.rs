@@ -831,7 +831,7 @@ mod tests {
 	};
 	use srml_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
 	use balances;
-	use primitives::parachain::Id as ParaId;
+	use primitives::parachain::{Id as ParaId, Info as ParaInfo};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
