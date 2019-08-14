@@ -66,11 +66,11 @@ use srml_support::{
 	traits::{Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement}
 };
 use system::ensure_signed;
-use sr_primitives::{ModuleId, weights::TransactionWeight,
+use sr_primitives::{ModuleId, weights::SimpleDispatchInfo,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd}
 };
 use crate::slots;
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 use rstd::vec::Vec;
 use crate::parachains::ParachainRegistrar;
 use substrate_primitives::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
@@ -168,7 +168,7 @@ decl_module! {
 		fn deposit_event<T>() = default;
 		
 		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
-		#[weight = TransactionWeight::Basic(100_000, 10)]
+		#[weight = SimpleDispatchInfo::FixedNormal(100_000)]
 		fn create(origin,
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: T::BlockNumber,
@@ -475,8 +475,8 @@ mod tests {
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sr_primitives::{
-		Permill, testing::Header,
-		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup},
+		Perbill, Permill, testing::Header,
+		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup, ConvertInto},
 	};
 
 	impl_outer_origin! {
@@ -489,10 +489,14 @@ mod tests {
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
 	parameter_types! {
-		pub const BlockHashCount: u64 = 250;
+		pub const BlockHashCount: u32 = 250;
+		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
+		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
+		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
+		type Call = ();
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -500,8 +504,12 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
+		type WeightMultiplierUpdate = ();
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type MaximumBlockLength = MaximumBlockLength;
+		type AvailableBlockRatio = AvailableBlockRatio;
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
@@ -525,6 +533,8 @@ mod tests {
 		type CreationFee = CreationFee;
 		type TransactionBaseFee = TransactionBaseFee;
 		type TransactionByteFee = TransactionByteFee;
+		type WeightToFee = ConvertInto;
+
 	}
 
 	parameter_types! {
@@ -618,11 +628,11 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
-		t.extend(balances::GenesisConfig::<Test>{
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],
 			vesting: vec![],
-		}.build_storage().unwrap().0);
+		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
 
