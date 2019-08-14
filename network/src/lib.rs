@@ -25,12 +25,12 @@ mod router;
 pub mod validation;
 pub mod gossip;
 
-use parity_codec::{Decode, Encode};
+use codec::{Decode, Encode};
 use futures::sync::oneshot;
-use polkadot_primitives::{Block, SessionKey, Hash, Header};
+use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
-	StructuredUnroutedIngress,
+	StructuredUnroutedIngress, ValidatorId
 };
 use substrate_network::{
 	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
@@ -78,7 +78,7 @@ pub struct Status {
 }
 
 struct PoVBlockRequest {
-	attempted_peers: HashSet<SessionKey>,
+	attempted_peers: HashSet<ValidatorId>,
 	validation_session_parent: Hash,
 	candidate_hash: Hash,
 	block_data_hash: Hash,
@@ -115,8 +115,8 @@ enum CollatorState {
 }
 
 impl CollatorState {
-	fn send_key<F: FnMut(Message)>(&mut self, key: SessionKey, mut f: F) {
-		f(Message::SessionKey(key));
+	fn send_key<F: FnMut(Message)>(&mut self, key: ValidatorId, mut f: F) {
+		f(Message::ValidatorId(key));
 		if let CollatorState::RolePending(role) = *self {
 			f(Message::CollatorRole(role));
 			*self = CollatorState::Primed(Some(role));
@@ -160,7 +160,7 @@ pub enum Message {
 	/// As a validator, tell the peer your current session key.
 	// TODO: do this with a cryptographic proof of some kind
 	// https://github.com/paritytech/polkadot/issues/47
-	SessionKey(SessionKey),
+	ValidatorId(ValidatorId),
 	/// Requesting parachain proof-of-validation block (relay_parent, candidate_hash).
 	RequestPovBlock(RequestId, Hash, Hash),
 	/// Provide requested proof-of-validation block data by candidate hash or nothing if unknown.
@@ -186,7 +186,7 @@ pub struct PolkadotProtocol {
 	peers: HashMap<PeerId, PeerInfo>,
 	collating_for: Option<(CollatorId, ParaId)>,
 	collators: CollatorPool,
-	validators: HashMap<SessionKey, PeerId>,
+	validators: HashMap<ValidatorId, PeerId>,
 	local_collations: LocalCollations<Collation>,
 	live_validation_sessions: LiveValidationSessions,
 	in_flight: HashMap<(RequestId, PeerId), PoVBlockRequest>,
@@ -319,7 +319,7 @@ impl PolkadotProtocol {
 	fn on_polkadot_message(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, msg: Message) {
 		trace!(target: "p_net", "Polkadot message from {}: {:?}", who, msg);
 		match msg {
-			Message::SessionKey(key) => self.on_session_key(ctx, who, key),
+			Message::ValidatorId(key) => self.on_session_key(ctx, who, key),
 			Message::RequestPovBlock(req_id, relay_parent, candidate_hash) => {
 				let pov_block = self.live_validation_sessions.with_pov_block(
 					&relay_parent,
@@ -352,7 +352,7 @@ impl PolkadotProtocol {
 		}
 	}
 
-	fn on_session_key(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, key: SessionKey) {
+	fn on_session_key(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, key: ValidatorId) {
 		{
 			let info = match self.peers.get_mut(&who) {
 				Some(peer) => peer,
@@ -473,12 +473,8 @@ impl Specialization<Block> for PolkadotProtocol {
 	}
 
 	fn on_connect(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, status: FullStatus) {
-		let local_status = match Status::decode(&mut &status.chain_status[..]) {
-			Some(status) => status,
-			None => {
-				Status { collating_for: None }
-			}
-		};
+		let local_status = Status::decode(&mut &status.chain_status[..])
+			.unwrap_or_else(|_| Status { collating_for: None });
 
 		let validator = status.roles.contains(substrate_network::config::Roles::AUTHORITY);
 
@@ -575,11 +571,11 @@ impl Specialization<Block> for PolkadotProtocol {
 		message: Vec<u8>,
 	) {
 		match Message::decode(&mut &message[..]) {
-			Some(msg) => {
+			Ok(msg) => {
 				ctx.report_peer(who.clone(), benefit::VALID_FORMAT);
 				self.on_polkadot_message(ctx, who, msg)
 			},
-			None => {
+			Err(_) => {
 				trace!(target: "p_net", "Bad message from {}", who);
 				ctx.report_peer(who, cost::INVALID_FORMAT);
 			}
@@ -684,7 +680,7 @@ impl PolkadotProtocol {
 		&mut self,
 		ctx: &mut dyn Context<Block>,
 		relay_parent: Hash,
-		targets: HashSet<SessionKey>,
+		targets: HashSet<ValidatorId>,
 		collation: Collation,
 	) {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",

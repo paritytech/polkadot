@@ -17,7 +17,7 @@
 //! Errors that can occur during the validation process.
 
 use runtime_primitives::RuntimeString;
-use primitives::ed25519::Public as AuthorityId;
+use polkadot_primitives::parachain::ValidatorId;
 
 /// Error type for validation
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -35,7 +35,7 @@ pub enum Error {
 	},
 	/// Local account not a validator at this block
 	#[display(fmt = "Local account ID ({:?}) not a validator at this block.", _0)]
-	NotValidator(AuthorityId),
+	NotValidator(ValidatorId),
 	/// Unexpected error checking inherents
 	#[display(fmt = "Unexpected error while checking inherents: {}", _0)]
 	InherentError(RuntimeString),

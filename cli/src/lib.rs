@@ -25,9 +25,9 @@ use std::ops::Deref;
 use chain_spec::ChainSpec;
 use futures::Future;
 use tokio::runtime::Runtime;
-use service::Service as BareService;
+use service::{Service as BareService, Error as ServiceError};
 use std::sync::Arc;
-use log::info;
+use log::{info, error};
 use structopt::StructOpt;
 
 pub use service::{
@@ -127,7 +127,7 @@ fn run_until_exit<T, C, W>(
 	worker: W,
 ) -> error::Result<()>
 	where
-		T: Deref<Target=BareService<C>> + Future<Item = (), Error = ()> + Send + 'static,
+		T: Deref<Target=BareService<C>> + Future<Item = (), Error = ServiceError> + Send + 'static,
 		C: service::Components,
 		BareService<C>: PolkadotService,
 		W: Worker,
@@ -143,6 +143,7 @@ fn run_until_exit<T, C, W>(
 	let _telemetry = service.telemetry();
 
 	let work = worker.work(&*service, Arc::new(executor));
+	let service = service.map_err(|err| error!("Error while running Service: {}", err));
 	let _ = runtime.block_on(service.select(work));
 	exit_send.fire();
 
