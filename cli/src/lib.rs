@@ -86,8 +86,8 @@ struct ValidationWokerCommand {
 pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	W: Worker,
 {
-	let command = cli::parse_and_execute::<service::Factory, PolkadotSubCommands, NoCustom, _, _, _, _, _>(
-		load_spec, &version, "parity-polkadot", std::env::args(), worker,
+	match cli::parse_and_prepare::<PolkadotSubCommands, NoCustom, _>(&version, "parity-polkadot", std::env::args()) {
+		cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, worker,
 		|worker, _cli_args, _custom_args, mut config| {
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
@@ -110,14 +110,18 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 						worker
 					),
 			}.map_err(|e| format!("{:?}", e))
+		}),
+		cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run(load_spec),
+		cli::ParseAndPrepare::ExportBlocks(cmd) =>
+			cmd.run::<service::Factory, _, _>(load_spec, worker),
+		cli::ParseAndPrepare::ImportBlocks(cmd) =>
+			cmd.run::<service::Factory, _, _>(load_spec, worker),
+		cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
+		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run::<service::Factory, _>(load_spec),
+		cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
+			service::run_validation_worker(&args.mem_id)?;
+			Ok(())
 		}
-	)?;
-
-	match command {
-		Some(PolkadotSubCommands::ValidationWorker(args)) => {
-			service::run_validation_worker(&args.mem_id).map_err(Into::into)
-		}
-		_ => Ok(())
 	}
 }
 
