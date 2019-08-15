@@ -251,9 +251,12 @@ mod tests {
 		let message_queue_root_1 = [0x42; 32].into();
 		let message_queue_root_2 = [0x43; 32].into();
 
+		let message_a = Message(vec![1, 2, 3, 4]);
+		let message_b = Message(vec![4, 5, 6, 7]);
+
 		let outgoing_queues = vec![
-			(message_queue_root_1, vec![Message(vec![1, 2, 3, 4])]),
-			(message_queue_root_2, vec![Message(vec![5, 6, 7, 8])]),
+			(message_queue_root_1, vec![message_a.clone()]),
+			(message_queue_root_2, vec![message_b.clone()]),
 		];
 
 		let store = Store::new_in_memory();
@@ -267,12 +270,12 @@ mod tests {
 
 		assert_eq!(
 			store.queue_by_root(&message_queue_root_1),
-			Some(vec![Message(vec![1, 2, 3, 4])]),
+			Some(vec![message_a]),
 		);
 
 		assert_eq!(
 			store.queue_by_root(&message_queue_root_2),
-			Some(vec![Message(vec![5, 6, 7, 8])]),
+			Some(vec![message_b]),
 		);
 	}
 }

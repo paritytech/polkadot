@@ -41,13 +41,13 @@ use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
-	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage,
+	Id as ParaId, Chain, DutyRoster, OutgoingMessages, CandidateReceipt,
+	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message,
 	Collation, PoVBlock, ValidatorSignature, ValidatorPair, ValidatorId
 };
 use primitives::Pair;
 use runtime_primitives::{
-	traits::{ProvideRuntimeApi, Header as HeaderT, DigestFor}, ApplyError
+	traits::{ProvideRuntimeApi, DigestFor}, ApplyError
 };
 use futures_timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
@@ -88,27 +88,6 @@ const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
 /// Incoming messages; a series of sorted (ParaId, Message) pairs.
 pub type Incoming = Vec<(ParaId, Vec<Message>)>;
 
-/// Outgoing messages from various candidates.
-pub type Outgoing = Vec<MessagesFrom>;
-
-/// Some messages from a parachain.
-pub struct MessagesFrom {
-	/// The parachain originating the messages.
-	pub from: ParaId,
-	/// The messages themselves.
-	pub messages: ParachainExtrinsic,
-}
-
-impl MessagesFrom {
-	/// Construct from the raw messages.
-	pub fn from_messages(from: ParaId, messages: Vec<OutgoingMessage>) -> Self {
-		MessagesFrom {
-			from,
-			messages: ParachainExtrinsic { outgoing_messages: messages },
-		}
-	}
-}
-
 /// A handle to a statement table router.
 ///
 /// This is expected to be a lightweight, shared type like an `Arc`.
@@ -120,7 +99,7 @@ pub trait TableRouter: Clone {
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
-	fn local_collation(&self, collation: Collation, extrinsic: ParachainExtrinsic);
+	fn local_collation(&self, collation: Collation, outgoing: OutgoingMessages);
 
 	/// Fetch validation proof for a specific candidate.
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
@@ -369,26 +348,25 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			);
 
 			collation_work.then(move |result| match result {
-				Ok((collation, extrinsic)) => {
-					let message_queue_root = message_queue_root(
-						extrinsic.outgoing_messages.iter().map(|msg| msg.encode())
-					);
+				Ok((collation, outgoing_targeted)) => {
+					let outgoing_queues = outgoing_targeted.message_queues().map(|queue| {
+						let queue_root = message_queue_root(queue);
+						let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
+						(queue_root, queue_data)
+					});
 					let res = extrinsic_store.make_available(Data {
 						relay_parent,
 						parachain_id: collation.receipt.parachain_index,
 						candidate_hash: collation.receipt.hash(),
 						block_data: collation.pov.block_data.clone(),
-						extrinsic: Some(extrinsic_store::StoredExtrinsic {
-							inner: extrinsic.clone(),
-							message_queue_root,
-						}),
+						outgoing_queues: Some(outgoing_queues.collect()),
 					});
 
 					match res {
 						Ok(()) => {
 							// TODO: https://github.com/paritytech/polkadot/issues/51
 							// Erasure-code and provide merkle branches.
-							router.local_collation(collation, extrinsic);
+							router.local_collation(collation, outgoing_targeted);
 						}
 						Err(e) => warn!(
 							target: "validation",

@@ -35,7 +35,7 @@ use futures03::{TryStreamExt as _, StreamExt as _};
 use log::error;
 use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
-use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
+use runtime_primitives::traits::{ProvideRuntimeApi};
 use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
 
