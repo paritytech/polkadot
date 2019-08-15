@@ -232,20 +232,26 @@ mod tests {
 		)
 	}
 
-	fn check_roots(view: &mut View, i: u8, max: u8) -> bool {
-		for j in 0..max {
-			if let Some(messages) = message_queue(i, j) {
-				let queue_root = message_queue_root(i, j).unwrap();
-				let messages = GossipParachainMessages {
-					queue_root,
-					messages: messages.iter().map(|m| ParachainMessage(m.to_vec())).collect(),
-				};
+	// check that our view has all of the roots of the message queues
+	// emitted in the heads identified in `our_heads`, and none of the others.
+	fn check_roots(view: &mut View, our_heads: &[u8], n_heads: u8) -> bool {
+		for i in 0..n_heads {
+			for j in 0..n_heads {
+				if let Some(messages) = message_queue(i, j) {
+					let queue_root = message_queue_root(i, j).unwrap();
+					let messages = GossipParachainMessages {
+						queue_root,
+						messages: messages.iter().map(|m| ParachainMessage(m.to_vec())).collect(),
+					};
 
-				match view.validate_queue_and_note_known(&messages).0 {
-					GossipValidationResult::ProcessAndKeep(topic) => if topic != queue_topic(queue_root) {
+					let had_queue = match view.validate_queue_and_note_known(&messages).0 {
+						GossipValidationResult::ProcessAndKeep(topic) => topic == queue_topic(queue_root),
+						_ => false,
+					};
+
+					if our_heads.contains(&i) != had_queue {
 						return false
-					},
-					_ => return false,
+					}
 				}
 			}
 		}
@@ -256,17 +262,19 @@ mod tests {
 	#[test]
 	fn update_leaves_none_in_common() {
 		let mut ctx = TestChainContext::default();
-		let max = 5;
+		let n_heads = 5;
 
-		for i in 0..max {
+		for i in 0..n_heads {
 			ctx.known_map.insert(hash(i as u8), Known::Leaf);
 
-			let messages_out: Vec<_> = (0..max).filter_map(|j| message_queue_root(i, j)).collect();
+			let messages_out: Vec<_> = (0..n_heads).filter_map(|j| message_queue_root(i, j)).collect();
 
 			if !messages_out.is_empty() {
 				ctx.ingress_roots.insert(hash(i as u8), messages_out);
 			}
 		}
+
+		// initialize the view with 2 leaves.
 
 		let mut view = View::default();
 		view.update_leaves(
@@ -274,38 +282,34 @@ mod tests {
 			[hash(0), hash(1)].iter().cloned(),
 		).unwrap();
 
-		assert!(check_roots(&mut view, 0, max));
-		assert!(check_roots(&mut view, 1, max));
+		// we should have all queue roots that were
+		// un-routed from the perspective of those 2
+		// leaves and no others.
 
-		assert!(!check_roots(&mut view, 2, max));
-		assert!(!check_roots(&mut view, 3, max));
-		assert!(!check_roots(&mut view, 4, max));
-		assert!(!check_roots(&mut view, 5, max));
+		assert!(check_roots(&mut view, &[0, 1], n_heads));
+
+		// after updating to a disjoint set,
+		// the property that we are aware of all un-routed
+		// from the perspective of our known leaves should
+		// remain the same.
 
 		view.update_leaves(
 			&ctx,
 			[hash(2), hash(3), hash(4)].iter().cloned(),
 		).unwrap();
 
-		assert!(!check_roots(&mut view, 0, max));
-		assert!(!check_roots(&mut view, 1, max));
-
-		assert!(check_roots(&mut view, 2, max));
-		assert!(check_roots(&mut view, 3, max));
-		assert!(check_roots(&mut view, 4, max));
-
-		assert!(!check_roots(&mut view, 5, max));
+		assert!(check_roots(&mut view, &[2, 3, 4], n_heads));
 	}
 
 	#[test]
 	fn update_leaves_overlapping() {
 		let mut ctx = TestChainContext::default();
-		let max = 5;
+		let n_heads = 5;
 
-		for i in 0..max {
+		for i in 0..n_heads {
 			ctx.known_map.insert(hash(i as u8), Known::Leaf);
 
-			let messages_out: Vec<_> = (0..max).filter_map(|j| message_queue_root(i, j)).collect();
+			let messages_out: Vec<_> = (0..n_heads).filter_map(|j| message_queue_root(i, j)).collect();
 
 			if !messages_out.is_empty() {
 				ctx.ingress_roots.insert(hash(i as u8), messages_out);
@@ -318,18 +322,18 @@ mod tests {
 			[hash(0), hash(1), hash(2)].iter().cloned(),
 		).unwrap();
 
+		assert!(check_roots(&mut view, &[0, 1, 2], n_heads));
+
 		view.update_leaves(
 			&ctx,
 			[hash(2), hash(3), hash(4)].iter().cloned(),
 		).unwrap();
 
-		assert!(!check_roots(&mut view, 0, max));
-		assert!(!check_roots(&mut view, 1, max));
+		// after updating to a leaf-set overlapping with the prior,
+		// the property that we are aware of all un-routed
+		// from the perspective of our known leaves should
+		// remain the same.
 
-		assert!(check_roots(&mut view, 2, max));
-		assert!(check_roots(&mut view, 3, max));
-		assert!(check_roots(&mut view, 4, max));
-
-		assert!(!check_roots(&mut view, 5, max));
+		assert!(check_roots(&mut view, &[2, 3, 4], n_heads));
 	}
 }

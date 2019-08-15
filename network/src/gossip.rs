@@ -422,7 +422,7 @@ impl RegisteredMessageValidator {
 	}
 }
 
-/// The data needed for validating gossip.
+/// The data needed for validating gossip messages.
 #[derive(Default)]
 pub(crate) struct MessageValidationData {
 	/// The authorities' parachain validation keys at a block.
@@ -430,6 +430,7 @@ pub(crate) struct MessageValidationData {
 }
 
 impl MessageValidationData {
+	// check a statement's signature.
 	fn check_statement(&self, relay_chain_leaf: &Hash, statement: &SignedStatement) -> Result<(), ()> {
 		let sender = match self.authorities.get(statement.sender as usize) {
 			Some(val) => val,
@@ -566,7 +567,7 @@ impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValid
 				let (res, cb) = {
 					let mut inner = self.inner.write();
 					let inner = &mut *inner;
-					inner.attestation_view.validate_statement(statement, &inner.chain)
+					inner.attestation_view.validate_statement_signature(statement, &inner.chain)
 				};
 
 				if let GossipValidationResult::ProcessAndKeep(ref topic) = res {

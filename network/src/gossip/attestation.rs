@@ -128,7 +128,8 @@ impl View {
 		self.leaf_work.iter().take(MAX_CHAIN_HEADS).map(|(p, _)| p.clone())
 	}
 
-	/// Note new leaf in our local view and validation data.
+	/// Note new leaf in our local view and validation data necessary to check signatures
+	/// of statements issued under this leaf.
 	///
 	/// This will be pruned later on a call to `prune_old_leaves`, when this leaf
 	/// is not a leaf anymore.
@@ -162,9 +163,13 @@ impl View {
 	}
 
 
-	/// Validate an attestation statement of some kind. Should be done before
+	/// Validate the signature on an attestation statement of some kind. Should be done before
 	/// any repropagation of that statement.
-	pub(super) fn validate_statement<C: ChainContext + ?Sized>(&mut self, message: GossipStatement, chain: &C)
+	pub(super) fn validate_statement_signature<C: ChainContext + ?Sized>(
+		&mut self,
+		message: GossipStatement,
+		chain: &C,
+	)
 		-> (GossipValidationResult<Hash>, i32)
 	{
 		// message must reference one of our chain heads and
