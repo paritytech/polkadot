@@ -434,7 +434,7 @@ pub fn validate_collation<P>(
 		fees_charged: 0,
 	};
 
-	match wasm_executor::validate_candidate(&validation_code, params, &mut ext, ExecutionMode::Remote) {
+	match wasm_executor::validate_candidate(&validation_code, para_id, params, &mut ext, ExecutionMode::Remote) {
 		Ok(result) => {
 			if result.head_data == collation.receipt.head_data.0 {
 				ext.final_checks(&collation.receipt)

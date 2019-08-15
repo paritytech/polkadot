@@ -27,10 +27,12 @@ use wasmi::{
 	ModuleImportResolver, RuntimeValue, Externals, Error as WasmError, ValueType,
 	memory_units::{self, Bytes, Pages, RoundUpTo}
 };
-use super::{ValidationParams, ValidationResult, MessageRef, UpwardMessageRef, UpwardMessage, IncomingMessage};
+use super::{ValidationParams, ValidationResult, MessageRef, UpwardMessageRef,
+	UpwardMessage, IncomingMessage, Id as ParaId};
 
 #[cfg(not(target_os = "unknown"))]
 pub use validation_host::run_worker;
+pub use validation_host::EXECUTION_TIMEOUT_SEC;
 
 mod validation_host;
 
@@ -325,6 +327,7 @@ impl Externalities for WorkerExternalities {
 /// This will fail if the validation code is not a proper parachain validation module.
 pub fn validate_candidate<E: Externalities>(
 	validation_code: &[u8],
+	id: ParaId,
 	params: ValidationParams,
 	externalities: &mut E,
 	options: ExecutionMode,
@@ -336,10 +339,10 @@ pub fn validate_candidate<E: Externalities>(
 		},
 		#[cfg(not(target_os = "unknown"))]
 		ExecutionMode::Remote =>
-			validation_host::HOST.lock().validate_candidate(validation_code, params, externalities, false),
+			validation_host::validate_candidate(validation_code, id, params, externalities, false),
 		#[cfg(not(target_os = "unknown"))]
 		ExecutionMode::RemoteTest =>
-			validation_host::HOST.lock().validate_candidate(validation_code, params, externalities, true),
+			validation_host::validate_candidate(validation_code, id, params, externalities, true),
 		#[cfg(target_os = "unknown")]
 		ExecutionMode::Remote =>
 			Err(Error::System("Remote validator not available".to_string().into())),
