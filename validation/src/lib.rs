@@ -29,41 +29,38 @@
 //!
 //! Groups themselves may be compromised by malicious authorities.
 
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::time::{self, Duration, Instant};
+use std::{collections::{HashMap, HashSet}, pin::Pin, sync::Arc, time::{self, Duration, Instant}};
 
-use aura::{SlotDuration, AuraApi};
+use babe_primitives::BabeApi;
 use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
-use parity_codec::Encode;
+use codec::Encode;
 use consensus::SelectChain;
 use extrinsic_store::Store as ExtrinsicStore;
 use parking_lot::Mutex;
-use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey, AuraId};
+use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
-	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage, CollatorSignature,
-	Collation, PoVBlock,
+	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage,
+	Collation, PoVBlock, ValidatorSignature, ValidatorPair, ValidatorId
 };
-use primitives::{Pair, ed25519};
+use primitives::Pair;
 use runtime_primitives::{
 	traits::{ProvideRuntimeApi, Header as HeaderT, DigestFor}, ApplyError
 };
-use tokio::timer::{Delay, Interval};
+use futures_timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
-use futures::future::{self, Either};
+use futures03::{future::{self, Either, FutureExt}, task::Context, stream::StreamExt};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
-use runtime_aura::timestamp::TimestampInherentData;
+use runtime_babe::timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace, error};
-
-use ed25519::Public as AuthorityId;
+use keystore::KeyStorePtr;
 
 type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
@@ -75,6 +72,7 @@ pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
 };
+pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
 mod attestation_service;
 mod dynamic_inclusion;
@@ -146,7 +144,7 @@ pub trait Network {
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
-		authorities: &[SessionKey],
+		authorities: &[ValidatorId],
 		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter;
 }
@@ -155,7 +153,7 @@ pub trait Network {
 #[derive(Debug, Clone, Default)]
 pub struct GroupInfo {
 	/// Authorities meant to check validity of candidates.
-	validity_guarantors: HashSet<SessionKey>,
+	validity_guarantors: HashSet<ValidatorId>,
 	/// Number of votes needed for validity.
 	needed_validity: usize,
 }
@@ -163,32 +161,32 @@ pub struct GroupInfo {
 /// Sign a table statement against a parent hash.
 /// The actual message signed is the encoded statement concatenated with the
 /// parent hash.
-pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_hash: &Hash) -> CollatorSignature {
+pub fn sign_table_statement(statement: &Statement, key: &ValidatorPair, parent_hash: &Hash) -> ValidatorSignature {
 	// we sign using the primitive statement type because that's what the runtime
 	// expects. These types probably encode the same way so this clone could be optimized
 	// out in the future.
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
 	encoded.extend(parent_hash.as_ref());
 
-	key.sign(&encoded).into()
+	key.sign(&encoded)
 }
 
 /// Check signature on table statement.
-pub fn check_statement(statement: &Statement, signature: &CollatorSignature, signer: SessionKey, parent_hash: &Hash) -> bool {
-	use runtime_primitives::traits::Verify;
+pub fn check_statement(statement: &Statement, signature: &ValidatorSignature, signer: ValidatorId, parent_hash: &Hash) -> bool {
+	use runtime_primitives::traits::AppVerify;
 
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
 	encoded.extend(parent_hash.as_ref());
 
-	signature.verify(&encoded[..], &signer.into())
+	signature.verify(&encoded[..], &signer)
 }
 
 /// Compute group info out of a duty roster and a local authority set.
 pub fn make_group_info(
 	roster: DutyRoster,
-	authorities: &[AuthorityId],
-	local_id: AuthorityId,
-) -> Result<(HashMap<ParaId, GroupInfo>, LocalDuty), Error> {
+	authorities: &[ValidatorId],
+	local_id: Option<ValidatorId>,
+) -> Result<(HashMap<ParaId, GroupInfo>, Option<LocalDuty>), Error> {
 	if roster.validator_duty.len() != authorities.len() {
 		return Err(Error::InvalidDutyRosterLength {
 			expected: authorities.len(),
@@ -201,7 +199,7 @@ pub fn make_group_info(
 
 	let duty_iter = authorities.iter().zip(&roster.validator_duty);
 	for (authority, v_duty) in duty_iter {
-		if authority == &local_id {
+		if Some(authority) == local_id.as_ref() {
 			local_validation = Some(v_duty.clone());
 		}
 
@@ -220,16 +218,24 @@ pub fn make_group_info(
 		live_group.needed_validity = validity_len / 2 + validity_len % 2;
 	}
 
-	match local_validation {
-		Some(local_validation) => {
-			let local_duty = LocalDuty {
-				validation: local_validation,
-			};
 
-			Ok((map, local_duty))
-		}
-		None => return Err(Error::NotValidator(local_id)),
-	}
+	let local_duty = local_validation.map(|v| LocalDuty {
+		validation: v
+	});
+
+	Ok((map, local_duty))
+
+}
+
+// finds the first key we are capable of signing with out of the given set of validators,
+// if any.
+fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc<ValidatorPair>> {
+	let keystore = keystore.read();
+	validators.iter()
+		.find_map(|v| {
+			keystore.key_pair::<ValidatorPair>(&v).ok()
+		})
+		.map(|pair| Arc::new(pair))
 }
 
 /// Constructs parachain-agreement instances.
@@ -253,7 +259,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -269,7 +275,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		&self,
 		parent_hash: Hash,
 		grandparent_hash: Hash,
-		sign_with: Arc<ed25519::Pair>,
+		keystore: &KeyStorePtr,
 		max_block_data_size: Option<u64>,
 	)
 		-> Result<Arc<AttestationTracker>, Error>
@@ -281,7 +287,8 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let id = BlockId::hash(parent_hash);
 
-		let authorities = self.client.runtime_api().authorities(&id)?;
+		let validators = self.client.runtime_api().validators(&id)?;
+		let sign_with = signing_key(&validators[..], keystore);
 
 		// compute the parent candidates, if we know of them.
 		// this will allow us to circulate outgoing messages to other peers as necessary.
@@ -313,14 +320,14 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let (group_info, local_duty) = make_group_info(
 			duty_roster,
-			&authorities,
-			sign_with.public(),
+			&validators,
+			sign_with.as_ref().map(|k| k.public()),
 		)?;
 
 		info!(
 			"Starting parachain attestation session on top of parent {:?}. Local parachain duty is {:?}",
 			parent_hash,
-			local_duty.validation,
+			local_duty,
 		);
 
 		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
@@ -328,9 +335,9 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
 		let table = Arc::new(SharedTable::new(
-			&authorities,
+			validators.clone(),
 			group_info,
-			sign_with.clone(),
+			sign_with,
 			parent_hash,
 			self.extrinsic_store.clone(),
 			max_block_data_size,
@@ -340,11 +347,11 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let router = self.network.communication_for(
 			table.clone(),
-			&authorities,
+			&validators,
 			exit.clone(),
 		);
 
-		if let Chain::Parachain(id) = local_duty.validation {
+		if let Some(Chain::Parachain(id)) = local_duty.as_ref().map(|d| d.validation) {
 			self.launch_work(parent_hash, id, router, max_block_data_size, exit);
 		}
 
@@ -447,10 +454,10 @@ struct AttestationTracker {
 pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	parachain_validation: Arc<ParachainValidation<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
-	key: Arc<ed25519::Pair>,
+	keystore: KeyStorePtr,
 	_service_handle: ServiceHandle,
-	aura_slot_duration: SlotDuration,
-	select_chain: SC,
+	babe_slot_duration: u64,
+	_select_chain: SC,
 	max_block_data_size: Option<u64>,
 }
 
@@ -459,7 +466,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -469,14 +476,14 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	/// Create a new proposer factory.
 	pub fn new(
 		client: Arc<P>,
-		select_chain: SC,
+		_select_chain: SC,
 		network: N,
 		collators: C,
 		transaction_pool: Arc<Pool<TxApi>>,
 		thread_pool: TaskExecutor,
-		key: Arc<ed25519::Pair>,
+		keystore: KeyStorePtr,
 		extrinsic_store: ExtrinsicStore,
-		aura_slot_duration: SlotDuration,
+		babe_slot_duration: u64,
 		max_block_data_size: Option<u64>,
 	) -> Self {
 		let parachain_validation = Arc::new(ParachainValidation {
@@ -490,10 +497,10 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 
 		let service_handle = crate::attestation_service::start(
 			client,
-			select_chain.clone(),
+			_select_chain.clone(),
 			parachain_validation.clone(),
 			thread_pool,
-			key.clone(),
+			keystore.clone(),
 			extrinsic_store,
 			max_block_data_size,
 		);
@@ -501,10 +508,10 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 		ProposerFactory {
 			parachain_validation,
 			transaction_pool,
-			key,
+			keystore,
 			_service_handle: service_handle,
-			aura_slot_duration,
-			select_chain,
+			babe_slot_duration,
+			_select_chain,
 			max_block_data_size,
 		}
 	}
@@ -515,7 +522,7 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -525,16 +532,16 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 	type Error = Error;
 
 	fn init(
-		&self,
+		&mut self,
 		parent_header: &Header,
 	) -> Result<Self::Proposer, Error> {
 		let parent_hash = parent_header.hash();
 		let parent_id = BlockId::hash(parent_hash);
-		let sign_with = self.key.clone();
+
 		let tracker = self.parachain_validation.get_or_instantiate(
 			parent_hash,
 			parent_header.parent_hash().clone(),
-			sign_with,
+			&self.keystore,
 			self.max_block_data_size,
 		)?;
 
@@ -545,12 +552,13 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 			parent_id,
 			parent_number: parent_header.number,
 			transaction_pool: self.transaction_pool.clone(),
-			slot_duration: self.aura_slot_duration,
+			slot_duration: self.babe_slot_duration,
 		})
 	}
 }
 
 /// The local duty of a validator.
+#[derive(Debug)]
 pub struct LocalDuty {
 	validation: Chain,
 }
@@ -565,7 +573,7 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 	parent_number: BlockNumber,
 	tracker: Arc<AttestationTracker>,
 	transaction_pool: Arc<Pool<TxApi>>,
-	slot_duration: SlotDuration,
+	slot_duration: u64,
 }
 
 impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
@@ -574,9 +582,9 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
 	type Error = Error;
-	type Create = Either<CreateProposal<C, TxApi>, future::FutureResult<Block, Error>>;
+	type Create = Either<CreateProposal<C, TxApi>, future::Ready<Result<Block, Error>>>;
 
-	fn propose(&self,
+	fn propose(&mut self,
 		inherent_data: InherentData,
 		inherent_digests: DigestFor<Block>,
 		max_duration: Duration,
@@ -590,17 +598,17 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		let dynamic_inclusion = DynamicInclusion::new(
 			self.tracker.table.num_parachains(),
 			self.tracker.started,
-			Duration::from_secs(self.slot_duration.get() / SLOT_DURATION_DENOMINATOR),
+			Duration::from_millis(self.slot_duration / SLOT_DURATION_DENOMINATOR),
 		);
 
 		let enough_candidates = dynamic_inclusion.acceptable_in(
 			now,
 			initial_included,
-		).unwrap_or_else(|| now + Duration::from_millis(1));
+		).unwrap_or_else(|| Duration::from_millis(1));
 
 		let believed_timestamp = match inherent_data.timestamp_inherent_data() {
 			Ok(timestamp) => timestamp,
-			Err(e) => return Either::B(future::err(Error::InherentError(e))),
+			Err(e) => return Either::Right(future::err(Error::InherentError(e))),
 		};
 
 		// set up delay until next allowed timestamp.
@@ -608,20 +616,18 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		let delay_future = if current_timestamp >= believed_timestamp {
 			None
 		} else {
-			Some(Delay::new(
-				Instant::now() + Duration::from_secs(current_timestamp - believed_timestamp)
-			))
+			Some(Delay::new(Duration::from_millis (current_timestamp - believed_timestamp)))
 		};
 
 		let timing = ProposalTiming {
 			minimum: delay_future,
-			attempt_propose: Interval::new(now + ATTEMPT_PROPOSE_EVERY, ATTEMPT_PROPOSE_EVERY),
+			attempt_propose: Interval::new(ATTEMPT_PROPOSE_EVERY),
 			enough_candidates: Delay::new(enough_candidates),
 			dynamic_inclusion,
 			last_included: initial_included,
 		};
 
-		Either::A(CreateProposal {
+		Either::Left(CreateProposal {
 			parent_hash: self.parent_hash.clone(),
 			parent_number: self.parent_number.clone(),
 			parent_id: self.parent_id.clone(),
@@ -631,7 +637,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 			believed_minimum_timestamp: believed_timestamp,
 			timing,
 			inherent_data: Some(inherent_data),
-			inherent_digests: inherent_digests,
+			inherent_digests,
 			// leave some time for the proposal finalisation
 			deadline: Instant::now() + max_duration - max_duration / 3,
 		})
@@ -641,8 +647,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 fn current_timestamp() -> u64 {
 	time::SystemTime::now().duration_since(time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
-		.as_secs()
-		.into()
+		.as_millis() as u64
 }
 
 struct ProposalTiming {
@@ -656,26 +661,26 @@ struct ProposalTiming {
 impl ProposalTiming {
 	// whether it's time to attempt a proposal.
 	// shouldn't be called outside of the context of a task.
-	fn poll(&mut self, included: usize) -> Poll<(), Error> {
+	fn poll(&mut self, cx: &mut Context, included: usize) -> futures03::Poll<Result<(), Error>> {
 		// first drain from the interval so when the minimum delay is up
 		// we don't have any notifications built up.
 		//
 		// this interval is just meant to produce periodic task wakeups
 		// that lead to the `dynamic_inclusion` getting updated as necessary.
-		while let Async::Ready(x) = self.attempt_propose.poll().map_err(Error::Timer)? {
+		while let futures03::Poll::Ready(x) = self.attempt_propose.poll_next_unpin(cx) {
 			x.expect("timer still alive; intervals never end; qed");
 		}
 
 		// wait until the minimum time has passed.
 		if let Some(mut minimum) = self.minimum.take() {
-			if let Async::NotReady = minimum.poll().map_err(Error::Timer)? {
+			if let futures03::Poll::Pending = minimum.poll_unpin(cx) {
 				self.minimum = Some(minimum);
-				return Ok(Async::NotReady);
+				return futures03::Poll::Pending;
 			}
 		}
 
 		if included == self.last_included {
-			return self.enough_candidates.poll().map_err(Error::Timer);
+			return self.enough_candidates.poll_unpin(cx).map_err(Error::Timer);
 		}
 
 		// the amount of includable candidates has changed. schedule a wakeup
@@ -684,9 +689,9 @@ impl ProposalTiming {
 			Some(instant) => {
 				self.last_included = included;
 				self.enough_candidates.reset(instant);
-				self.enough_candidates.poll().map_err(Error::Timer)
+				self.enough_candidates.poll_unpin(cx).map_err(Error::Timer)
 			}
-			None => Ok(Async::Ready(())),
+			None => futures03::Poll::Ready(Ok(())),
 		}
 	}
 }
@@ -720,7 +725,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let mut inherent_data = self.inherent_data
 			.take()
 			.expect("CreateProposal is not polled after finishing; qed");
-		inherent_data.put_data(polkadot_runtime::PARACHAIN_INHERENT_IDENTIFIER, &candidates).map_err(Error::InherentError)?;
+		inherent_data.put_data(polkadot_runtime::NEW_HEADS_IDENTIFIER, &candidates).map_err(Error::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
 
@@ -791,41 +796,40 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 	}
 }
 
-impl<C, TxApi> Future for CreateProposal<C, TxApi> where
+impl<C, TxApi> futures03::Future for CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
-	type Item = Block;
-	type Error = Error;
+	type Output = Result<Block, Error>;
 
-	fn poll(&mut self) -> Poll<Block, Error> {
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> futures03::Poll<Self::Output> {
 		// 1. try to propose if we have enough includable candidates and other
 		// delays have concluded.
 		let included = self.table.includable_count();
-		futures::try_ready!(self.timing.poll(included));
+		futures03::ready!(self.timing.poll(cx, included))?;
 
 		// 2. propose
 		let proposed_candidates = self.table.proposed_set();
 
-		self.propose_with(proposed_candidates).map(Async::Ready)
+		futures03::Poll::Ready(self.propose_with(proposed_candidates))
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::AuthorityKeyring;
+	use substrate_keyring::Sr25519Keyring;
 
 	#[test]
 	fn sign_and_check_statement() {
 		let statement: Statement = GenericStatement::Valid([1; 32].into());
 		let parent_hash = [2; 32].into();
 
-		let sig = sign_table_statement(&statement, &AuthorityKeyring::Alice.pair(), &parent_hash);
+		let sig = sign_table_statement(&statement, &Sr25519Keyring::Alice.pair().into(), &parent_hash);
 
-		assert!(check_statement(&statement, &sig, AuthorityKeyring::Alice.into(), &parent_hash));
-		assert!(!check_statement(&statement, &sig, AuthorityKeyring::Alice.into(), &[0xff; 32].into()));
-		assert!(!check_statement(&statement, &sig, AuthorityKeyring::Bob.into(), &parent_hash));
+		assert!(check_statement(&statement, &sig, Sr25519Keyring::Alice.public().into(), &parent_hash));
+		assert!(!check_statement(&statement, &sig, Sr25519Keyring::Alice.public().into(), &[0xff; 32].into()));
+		assert!(!check_statement(&statement, &sig, Sr25519Keyring::Bob.public().into(), &parent_hash));
 	}
 }

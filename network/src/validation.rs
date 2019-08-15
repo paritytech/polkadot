@@ -28,10 +28,10 @@ use substrate_network::consensus_gossip::{
 use polkadot_validation::{
 	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, SignedStatement,
 };
-use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
+use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Collation, Extrinsic, ParachainHost, CandidateReceipt, CollatorId,
-	ValidatorId, PoVBlock, ValidatorIndex,
+	ValidatorId, PoVBlock, ValidatorIndex
 };
 
 use futures::prelude::*;
@@ -54,7 +54,7 @@ use super::PolkadotProtocol;
 
 pub use polkadot_validation::Incoming;
 
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 
 /// An executor suitable for dispatching async consensus tasks.
 pub trait Executor {
@@ -120,7 +120,7 @@ impl Stream for GossipMessageStream {
 			};
 
 			debug!(target: "validation", "Processing statement for live validation session");
-			if let Some(gmsg) = GossipMessage::decode(&mut &msg.message[..]) {
+			if let Ok(gmsg) = GossipMessage::decode(&mut &msg.message[..]) {
 				return Ok(Async::Ready(Some((gmsg, msg.sender))))
 			}
 		}
@@ -186,11 +186,11 @@ impl NetworkService for super::NetworkService {
 /// Params to a current validation session.
 pub struct SessionParams {
 	/// The local session key.
-	pub local_session_key: Option<SessionKey>,
+	pub local_session_key: Option<ValidatorId>,
 	/// The parent hash.
 	pub parent_hash: Hash,
 	/// The authorities.
-	pub authorities: Vec<SessionKey>,
+	pub authorities: Vec<ValidatorId>,
 }
 
 /// Wrapper around the network service
@@ -336,7 +336,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		let local_session_key = table.session_key();
 
 		let build_fetcher = self.instantiate_session(SessionParams {
-			local_session_key: Some(local_session_key),
+			local_session_key,
 			parent_hash,
 			authorities: authorities.to_vec(),
 		});

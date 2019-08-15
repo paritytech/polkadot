@@ -20,12 +20,15 @@
 
 use rstd::{prelude::*, mem::swap, convert::TryInto};
 use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash};
-use parity_codec::{Encode, Decode};
-use srml_support::{decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
-	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}};
+use sr_primitives::weights::SimpleDispatchInfo;
+use codec::{Encode, Decode};
+use srml_support::{
+	decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
+	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}
+};
 use primitives::parachain::AccountIdConversion;
 use crate::parachains::ParachainRegistrar;
-use system::ensure_signed;
+use system::{ensure_signed, ensure_root};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -242,10 +245,13 @@ decl_module! {
 		/// This can only happen when there isn't already an auction in progress and may only be
 		/// called by the root origin. Accepts the `duration` of this auction and the
 		/// `lease_period_index` of the initial lease period of the four that are to be auctioned.
+		#[weight = SimpleDispatchInfo::FixedOperational(100_000)]
 		fn new_auction(
+			origin,
 			#[compact] duration: T::BlockNumber,
 			#[compact] lease_period_index: LeasePeriodOf<T>
 		) {
+			ensure_root(origin)?;
 			ensure!(!Self::is_in_progress(), "auction already in progress");
 			ensure!(lease_period_index >= Self::lease_period_index(), "lease period in past");
 
@@ -275,7 +281,9 @@ decl_module! {
 		/// absolute lease period index value, not an auction-specific offset.
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
-		fn bid(origin,
+		#[weight = SimpleDispatchInfo::FixedNormal(500_000)]
+		fn bid(
+			origin,
 			#[compact] sub: SubId,
 			#[compact] auction_index: AuctionIndex,
 			#[compact] first_slot: LeasePeriodOf<T>,
@@ -302,7 +310,9 @@ decl_module! {
 		/// absolute lease period index value, not an auction-specific offset.
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
-		fn bid_renew(origin,
+		#[weight = SimpleDispatchInfo::FixedNormal(500_000)]
+		fn bid_renew(
+			origin,
 			#[compact] auction_index: AuctionIndex,
 			#[compact] first_slot: LeasePeriodOf<T>,
 			#[compact] last_slot: LeasePeriodOf<T>,
@@ -320,6 +330,7 @@ decl_module! {
 		/// The origin *must* be a parachain account.
 		///
 		/// - `dest` is the destination account to receive the parachain's deposit.
+		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
 		fn set_offboarding(origin, dest: <T::Lookup as StaticLookup>::Source) {
 			let who = ensure_signed(origin)?;
 			let dest = T::Lookup::lookup(dest)?;
@@ -335,7 +346,9 @@ decl_module! {
 		/// - `para_id` is the parachain ID allotted to the winning bidder.
 		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
-		fn fix_deploy_data(origin,
+		#[weight = SimpleDispatchInfo::FixedNormal(500_000)]
+		fn fix_deploy_data(
+			origin,
 			#[compact] sub: SubId,
 			#[compact] para_id: ParaIdOf<T>,
 			code_hash: T::Hash,
@@ -365,6 +378,7 @@ decl_module! {
 		/// - `_origin` is irrelevant.
 		/// - `para_id` is the parachain ID whose code will be elaborated.
 		/// - `code` is the preimage of the registered `code_hash` of `para_id`.
+		#[weight = SimpleDispatchInfo::FixedNormal(5_000_000)]
 		fn elaborate_deploy_data(_origin, #[compact] para_id: ParaIdOf<T>, code: Vec<u8>) {
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
 				.ok_or("parachain id not in onboarding")?;
@@ -781,7 +795,9 @@ mod tests {
 	use substrate_primitives::{Blake2Hasher, H256};
 	use sr_io::with_externalities;
 	use sr_primitives::{
-		testing::Header, traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
+		Perbill,
+		testing::Header,
+		traits::{ConvertInto, BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
 	};
 	use srml_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
 	use balances;
@@ -796,16 +812,28 @@ mod tests {
 	// configuration traits of modules we want to use.
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
+	parameter_types! {
+		pub const BlockHashCount: u32 = 250;
+		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
+		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
+		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+	}
 	impl system::Trait for Test {
 		type Origin = Origin;
+		type Call = ();
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
+		type WeightMultiplierUpdate = ();
 		type Header = Header;
 		type Event = ();
+		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type MaximumBlockLength = MaximumBlockLength;
+		type AvailableBlockRatio = AvailableBlockRatio;
 	}
 
 	parameter_types! {
@@ -829,6 +857,7 @@ mod tests {
 		type CreationFee = CreationFee;
 		type TransactionBaseFee = TransactionBaseFee;
 		type TransactionByteFee = TransactionByteFee;
+		type WeightToFee = ConvertInto;
 	}
 
 	thread_local! {
@@ -898,11 +927,11 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
 	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
-		t.extend(balances::GenesisConfig::<Test>{
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
 			vesting: vec![],
-		}.build_storage().unwrap().0);
+		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
 
@@ -940,7 +969,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 
 			assert_eq!(Slots::auction_counter(), 1);
 			assert_eq!(Slots::is_in_progress(), true);
@@ -953,7 +982,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 
 			assert_eq!(Slots::auction_counter(), 1);
 			assert_eq!(Slots::is_in_progress(), true);
@@ -998,7 +1027,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 			assert_eq!(Balances::reserved_balance(&1), 1);
 			assert_eq!(Balances::free_balance(&1), 9);
@@ -1018,7 +1047,7 @@ mod tests {
 	fn offboarding_works() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 
 			run_to_block(9);
@@ -1039,7 +1068,7 @@ mod tests {
 	fn onboarding_works() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 
 			run_to_block(9);
@@ -1059,7 +1088,7 @@ mod tests {
 	fn late_onboarding_works() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 
 			run_to_block(10);
@@ -1082,7 +1111,7 @@ mod tests {
 	fn under_bidding_works() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 5));
 			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 1, 4, 1));
 			assert_eq!(Balances::reserved_balance(&2), 0);
@@ -1098,7 +1127,7 @@ mod tests {
 	fn should_choose_best_combination() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 2, 3, 1));
 			assert_ok!(Slots::bid(Origin::signed(3), 0, 1, 4, 4, 2));
@@ -1126,7 +1155,7 @@ mod tests {
 	fn independent_bids_should_fail() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(1, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 2, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 4, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 2, 1));
@@ -1141,13 +1170,13 @@ mod tests {
 	fn multiple_onboards_offboards_should_work() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(1, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 2, 3, 1));
 			assert_ok!(Slots::bid(Origin::signed(3), 0, 1, 4, 4, 1));
 
 			run_to_block(5);
-			assert_ok!(Slots::new_auction(1, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(4), 1, 2, 1, 2, 1));
 			assert_ok!(Slots::bid(Origin::signed(5), 1, 2, 3, 4, 1));
 
@@ -1218,7 +1247,7 @@ mod tests {
 	fn extensions_should_work() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
 
 			run_to_block(9);
@@ -1229,7 +1258,7 @@ mod tests {
 			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![1]));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1]));
 
-			assert_ok!(Slots::new_auction(5, 2));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 1));
 
 			with_parachains(|p| {
@@ -1242,7 +1271,7 @@ mod tests {
 				assert_eq!(p.len(), 1);
 				assert_eq!(p[&0], (vec![1], vec![1]));
 			});
-			assert_ok!(Slots::new_auction(5, 2));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Balances::transfer(Origin::signed(1), ParaId::from(0).into_account(), 1));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 2));
 
@@ -1263,7 +1292,7 @@ mod tests {
 	fn renewal_with_lower_value_should_work() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
 
 			run_to_block(9);
@@ -1274,13 +1303,13 @@ mod tests {
 			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![1]));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1]));
 
-			assert_ok!(Slots::new_auction(5, 2));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 3));
 
 			run_to_block(20);
 			assert_eq!(Balances::free_balance(&ParaId::from(0).into_account()), 2);
 
-			assert_ok!(Slots::new_auction(5, 2));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 4));
 
 			run_to_block(30);
@@ -1293,7 +1322,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 4, 4, 5));
 
 			run_to_block(9);
@@ -1314,7 +1343,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 
 			for i in 1..6 {
 				run_to_block(i);
@@ -1342,7 +1371,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(5, 1));
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 
 			for i in 1..6 {
 				run_to_block(i + 3);

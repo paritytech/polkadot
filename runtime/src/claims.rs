@@ -21,11 +21,14 @@ use sr_io::{keccak_256, secp256k1_ecdsa_recover};
 use srml_support::{StorageValue, StorageMap, decl_event, decl_storage, decl_module};
 use srml_support::traits::{Currency, Get};
 use system::ensure_none;
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
-use sr_primitives::traits::ValidateUnsigned;
-use sr_primitives::transaction_validity::{TransactionLongevity, TransactionValidity};
+use sr_primitives::{
+	weights::SimpleDispatchInfo,
+	traits::ValidateUnsigned,
+	transaction_validity::{TransactionLongevity, TransactionValidity, ValidTransaction},
+};
 use system;
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -65,11 +68,11 @@ impl EcdsaSignature {
 
 decl_event!(
 	pub enum Event<T> where
-		B = BalanceOf<T>,
-		A = <T as system::Trait>::AccountId
+		Balance = BalanceOf<T>,
+		AccountId = <T as system::Trait>::AccountId
 	{
 		/// Someone claimed some DOTs.
-		Claimed(A, EthereumAddress, B),
+		Claimed(AccountId, EthereumAddress, Balance),
 	}
 );
 
@@ -93,10 +96,14 @@ decl_storage! {
 
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+		/// The Prefix that is used in signed Ethereum messages for this network
+		const Prefix: &[u8] = T::Prefix::get();
+
 		/// Deposit one of this module's events by using the default implementation.
 		fn deposit_event<T>() = default;
 
 		/// Make a claim.
+		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
@@ -171,13 +178,13 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 					return TransactionValidity::Invalid(SIGNER_HAS_NO_CLAIM);
 				}
 
-				TransactionValidity::Valid {
+				TransactionValidity::Valid(ValidTransaction {
 					priority: PRIORITY,
 					requires: vec![],
 					provides: vec![],
 					longevity: TransactionLongevity::max_value(),
 					propagate: true,
-				}
+				})
 			}
 			_ => TransactionValidity::Invalid(INVALID_CALL)
 		}
@@ -193,34 +200,43 @@ mod tests {
 
 	use sr_io::with_externalities;
 	use substrate_primitives::{H256, Blake2Hasher};
-	use parity_codec::{Decode, Encode};
+	use codec::{Decode, Encode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
-	use sr_primitives::{
-		traits::{BlakeTwo256, IdentityLookup}, testing::Header
-	};
+	use sr_primitives::{Perbill, traits::{BlakeTwo256, IdentityLookup, ConvertInto}, testing::Header};
 	use balances;
 	use srml_support::{impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
 	}
-
 	// For testing the module, we construct most of a mock runtime. This means
 	// first constructing a configuration type (`Test`) which `impl`s each of the
 	// configuration traits of modules we want to use.
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
+	parameter_types! {
+		pub const BlockHashCount: u32 = 250;
+		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
+		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
+		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+	}
 	impl system::Trait for Test {
 		type Origin = Origin;
+		type Call = ();
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
+		type WeightMultiplierUpdate = ();
 		type Header = Header;
 		type Event = ();
+		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type AvailableBlockRatio = AvailableBlockRatio;
+		type MaximumBlockLength = MaximumBlockLength;
 	}
 
 	parameter_types! {
@@ -244,6 +260,7 @@ mod tests {
 		type CreationFee = CreationFee;
 		type TransactionBaseFee = TransactionBaseFee;
 		type TransactionByteFee = TransactionByteFee;
+		type WeightToFee = ConvertInto;
 	}
 
 	parameter_types!{
@@ -288,12 +305,12 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
-		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap().0;
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		// We use default for brevity, but you can configure as desired if needed.
-		t.extend(balances::GenesisConfig::<Test>::default().build_storage().unwrap().0);
-		t.extend(GenesisConfig::<Test>{
+		balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
+		GenesisConfig::<Test>{
 			claims: vec![(alice_eth(), 100)],
-		}.build_storage().unwrap().0);
+		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
 
@@ -365,13 +382,13 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(1, alice_sig(&1u64.encode()))),
-				TransactionValidity::Valid {
+				TransactionValidity::Valid(ValidTransaction {
 					priority: 100,
 					requires: vec![],
 					provides: vec![],
 					longevity: TransactionLongevity::max_value(),
 					propagate: true,
-				}
+				})
 			);
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(0, EcdsaSignature::from_blob(&[0; 65]))),

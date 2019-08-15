@@ -16,7 +16,7 @@
 
 //! Persistent database for parachain data.
 
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 use kvdb::{KeyValueDB, DBTransaction};
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use polkadot_primitives::Hash;
