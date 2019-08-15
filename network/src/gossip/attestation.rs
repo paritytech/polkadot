@@ -150,7 +150,8 @@ impl View {
 		self.topics.retain(|_, v| leaf_work.iter().find(|(p, _)| p == v).is_some());
 	}
 
-	/// Whether a message topic is considered live relative to our view.
+	/// Whether a message topic is considered live relative to our view. non-live
+	/// topics do not pertain to our perceived leaves, and are uninteresting to us.
 	pub(super) fn is_topic_live(&self, topic: &Hash) -> bool {
 		self.topics.contains_key(topic)
 	}

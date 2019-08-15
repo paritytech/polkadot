@@ -14,7 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Persistent database for parachain data.
+//! Persistent database for parachain data: PoV block data and outgoing messages.
+//!
+//! This will be written into during the block validation pipeline, and queried
+//! by networking code in order to circulate required data and maintain availability
+//! of it.
 
 use codec::{Encode, Decode};
 use kvdb::{KeyValueDB, DBTransaction};
@@ -106,6 +110,16 @@ impl Store {
 	}
 
 	/// Make some data available provisionally.
+	///
+	/// Validators with the responsibility of maintaining availability
+	/// for a block or collators collating a block will call this function
+	/// in order to persist that data to disk and so it can be queried and provided
+	/// to other nodes in the network.
+	///
+	/// The message data of `Data` is optional but is expected
+	/// to be present with the exception of the case where there is no message data
+	/// due to the block's invalidity. Determination of invalidity is beyond the
+	/// scope of this function.
 	pub fn make_available(&self, data: Data) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
 
