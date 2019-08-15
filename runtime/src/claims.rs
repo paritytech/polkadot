@@ -277,7 +277,7 @@ mod tests {
 	}
 
 	parameter_types!{
-		pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
+		pub const Prefix: &'static [u8] = b"Pay RUSTs to the TEST account:";
 	}
 
 	impl Trait for Test {
@@ -382,11 +382,12 @@ mod tests {
 	#[test]
 	fn real_eth_sig_works() {
 		with_externalities(&mut new_test_ext(), || {
-			let sig = hex!["7505f2880114da51b3f5d535f8687953c0ab9af4ab81e592eaebebf53b728d2b6dfd9b5bcd70fee412b1f31360e7c2774009305cb84fc50c1d0ff8034dfa5fff1c"];
+			// "Pay RUSTs to the TEST account:2a00000000000000"
+			let sig = hex!["444023e89b67e67c0562ed0305d252a5dd12b2af5ac51d6d3cb69a0b486bc4b3191401802dc29d26d586221f7256cd3329fe82174bdf659baea149a40e1c495d1c"];
 			let sig = EcdsaSignature::from_blob(&sig);
 			let who = 42u64.using_encoded(to_ascii_hex);
 			let signer = Claims::eth_recover(&sig, &who).unwrap();
-			assert_eq!(signer, hex!["DF67EC7EAe23D2459694685257b6FC59d1BAA1FE"]);
+			assert_eq!(signer, hex!["6d31165d5d932d571f3b44695653b46dcc327e84"]);
 		});
 	}
 
