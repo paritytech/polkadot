@@ -788,6 +788,8 @@ impl PolkadotProtocol {
 impl PolkadotProtocol {
 	/// Add a local collation and broadcast it to the necessary peers.
 	///
+	/// This should be called by a collator intending to get the locally-collated
+	/// block into the hands of validators.
 	/// It also places the outgoing message and block data in the local availability store.
 	pub fn add_local_collation(
 		&mut self,

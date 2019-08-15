@@ -57,7 +57,7 @@ use primitives::Pair;
 use polkadot_primitives::{
 	BlockId, Hash, Block,
 	parachain::{
-		self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic,
+		self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, OutgoingMessages,
 		PoVBlock, Status as ParachainStatus, ValidatorId, CollatorPair,
 	}
 };
@@ -143,7 +143,7 @@ pub trait BuildParachainContext {
 /// This can be implemented through an externally attached service or a stub.
 /// This is expected to be a lightweight, shared type like an Arc.
 pub trait ParachainContext: Clone {
-	type ProduceCandidate: IntoFuture<Item=(BlockData, HeadData, Extrinsic), Error=InvalidHead>;
+	type ProduceCandidate: IntoFuture<Item=(BlockData, HeadData, OutgoingMessages), Error=InvalidHead>;
 
 	/// Produce a candidate, given the relay parent hash, the latest ingress queue information
 	/// and the last parachain head.
@@ -178,7 +178,7 @@ pub fn collate<'a, R, P>(
 	para_context: P,
 	key: Arc<CollatorPair>,
 )
-	-> impl Future<Item=(parachain::Collation, parachain::Extrinsic), Error=Error<R::Error>> + 'a
+	-> impl Future<Item=(parachain::Collation, OutgoingMessages), Error=Error<R::Error>> + 'a
 	where
 		R: RelayChainContext,
 		R::Error: 'a,
@@ -198,11 +198,11 @@ pub fn collate<'a, R, P>(
 				.map(move |x| (ingress, x))
 				.map_err(Error::Collator)
 		})
-		.and_then(move |(ingress, (block_data, head_data, mut extrinsic))| {
+		.and_then(move |(ingress, (block_data, head_data, mut outgoing))| {
 			let block_data_hash = block_data.hash();
 			let signature = key.sign(block_data_hash.as_ref()).into();
 			let egress_queue_roots =
-				polkadot_validation::egress_roots(&mut extrinsic.outgoing_messages);
+				polkadot_validation::egress_roots(&mut outgoing.outgoing_messages);
 
 			let receipt = parachain::CandidateReceipt {
 				parachain_index: local_id,
@@ -223,7 +223,7 @@ pub fn collate<'a, R, P>(
 				},
 			};
 
-			Ok((collation, extrinsic))
+			Ok((collation, outgoing))
 		})
 }
 
@@ -388,14 +388,14 @@ impl<P, E> Worker for CollationNode<P, E> where
 						context,
 						parachain_context,
 						key,
-					).map(move |(collation, extrinsic)| {
+					).map(move |(collation, outgoing)| {
 						network.with_spec(move |spec, ctx| {
 							let res = spec.add_local_collation(
 								ctx,
 								relay_parent,
 								targets,
 								collation,
-								extrinsic,
+								outgoing,
 							);
 
 							if let Err(e) = res {
@@ -459,7 +459,7 @@ pub fn run_collator<P, E>(
 #[cfg(test)]
 mod tests {
 	use std::collections::HashMap;
-	use polkadot_primitives::parachain::{OutgoingMessage, FeeSchedule};
+	use polkadot_primitives::parachain::{TargetedMessage, FeeSchedule};
 	use keyring::Sr25519Keyring;
 	use super::*;
 
@@ -484,20 +484,20 @@ mod tests {
 	struct DummyParachainContext;
 
 	impl ParachainContext for DummyParachainContext {
-		type ProduceCandidate = Result<(BlockData, HeadData, Extrinsic), InvalidHead>;
+		type ProduceCandidate = Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>;
 
 		fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 			&self,
 			_relay_parent: Hash,
 			_status: ParachainStatus,
 			ingress: I,
-		) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead> {
+		) -> Result<(BlockData, HeadData, OutgoingMessages), InvalidHead> {
 			// send messages right back.
 			Ok((
 				BlockData(vec![1, 2, 3, 4, 5,]),
 				HeadData(vec![9, 9, 9]),
-				Extrinsic {
-					outgoing_messages: ingress.into_iter().map(|(id, msg)| OutgoingMessage {
+				OutgoingMessages {
+					outgoing_messages: ingress.into_iter().map(|(id, msg)| TargetedMessage {
 						target: id,
 						data: msg.0,
 					}).collect(),
