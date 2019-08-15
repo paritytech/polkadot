@@ -14,7 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Gossip messages and structures for dealing with attestations.
+//! Gossip messages and structures for dealing with attestations (statements of
+//! validity of invalidity on parachain candidates).
+//!
+//! This follows the same principles as other gossip modules (see parent
+//! documentation for more details) by being aware of our current chain
+//! heads and accepting only information relative to them. Attestations are localized to
+//! relay chain head, so this is easily doable.
+//!
+//! This module also provides a filter, so we can only broadcast messages to
+//! peers that are relevant to chain heads they have advertised.
+//!
+//! Furthermore, since attestations are bottlenecked by the `Candidate` statement,
+//! we only accept attestations which are themselves `Candidate` messages, or reference
+//! a `Candidate` we are aware of. Otherwise, it is possible we could be forced to
+//! consider an infinite amount of attestations produced by a misbehaving validator.
 
 use substrate_network::consensus_gossip::{ValidationResult as GossipValidationResult};
 use polkadot_validation::GenericStatement;
@@ -39,7 +53,8 @@ impl Knowledge {
 		self.candidates.contains(candidate_hash)
 	}
 
-	// note that the peer is aware of a candidate with given hash.
+	// note that the peer is aware of a candidate with given hash. this should
+	// be done after observing an incoming candidate message via gossip.
 	fn note_aware(&mut self, candidate_hash: Hash) {
 		self.candidates.insert(candidate_hash);
 	}
@@ -66,7 +81,7 @@ impl PeerData {
 	}
 
 	#[cfg(test)]
-	pub(super) fn note_aware_in_session(&mut self, relay_chain_leaf: &Hash, candidate_hash: Hash) {
+	pub(super) fn note_aware_under_leaf(&mut self, relay_chain_leaf: &Hash, candidate_hash: Hash) {
 		if let Some(knowledge) = self.live.get_mut(relay_chain_leaf) {
 			knowledge.note_aware(candidate_hash);
 		}
@@ -84,40 +99,43 @@ impl PeerData {
 
 /// An impartial view of what topics and data are valid based on attestation session data.
 pub(super) struct View {
-	live_sessions: Vec<(Hash, SessionView)>,
+	leaf_work: Vec<(Hash, LeafView)>, // hashes of the best DAG-leaves paired with validation data.
 	topics: HashMap<Hash, Hash>, // maps topic hashes to block hashes.
 }
 
 impl Default for View {
 	fn default() -> Self {
 		View {
-			live_sessions: Vec::with_capacity(MAX_CHAIN_HEADS),
+			leaf_work: Vec::with_capacity(MAX_CHAIN_HEADS),
 			topics: Default::default(),
 		}
 	}
 }
 
 impl View {
-	fn session_view(&self, relay_chain_leaf: &Hash) -> Option<&SessionView> {
-		self.live_sessions.iter()
-			.find_map(|&(ref h, ref sesh)| if h == relay_chain_leaf { Some(sesh) } else { None } )
+	fn leaf_view(&self, relay_chain_leaf: &Hash) -> Option<&LeafView> {
+		self.leaf_work.iter()
+			.find_map(|&(ref h, ref leaf)| if h == relay_chain_leaf { Some(leaf) } else { None } )
 	}
 
-	fn session_view_mut(&mut self, relay_chain_leaf: &Hash) -> Option<&mut SessionView> {
-		self.live_sessions.iter_mut()
-			.find_map(|&mut (ref h, ref mut sesh)| if h == relay_chain_leaf { Some(sesh) } else { None } )
+	fn leaf_view_mut(&mut self, relay_chain_leaf: &Hash) -> Option<&mut LeafView> {
+		self.leaf_work.iter_mut()
+			.find_map(|&mut (ref h, ref mut leaf)| if h == relay_chain_leaf { Some(leaf) } else { None } )
 	}
 
 	/// Get our leaves-set. Guaranteed to have length <= MAX_CHAIN_HEADS.
 	pub(super) fn neighbor_info<'a>(&'a self) -> impl Iterator<Item=Hash> + 'a + Clone {
-		self.live_sessions.iter().take(MAX_CHAIN_HEADS).map(|(p, _)| p.clone())
+		self.leaf_work.iter().take(MAX_CHAIN_HEADS).map(|(p, _)| p.clone())
 	}
 
-	/// Note a new session.
-	pub(super) fn add_session(&mut self, relay_chain_leaf: Hash, validation_data: MessageValidationData) {
-		self.live_sessions.push((
+	/// Note new leaf in our local view and validation data.
+	///
+	/// This will be pruned later on a call to `prune_old_leaves`, when this leaf
+	/// is not a leaf anymore.
+	pub(super) fn new_local_leaf(&mut self, relay_chain_leaf: Hash, validation_data: MessageValidationData) {
+		self.leaf_work.push((
 			relay_chain_leaf,
-			SessionView {
+			LeafView {
 				validation_data,
 				knowledge: Default::default(),
 			},
@@ -125,14 +143,14 @@ impl View {
 		self.topics.insert(attestation_topic(relay_chain_leaf), relay_chain_leaf);
 	}
 
-	/// Prune old sessions that fail the leaf predicate.
-	pub(super) fn prune_old_sessions<F: Fn(&Hash) -> bool>(&mut self, is_leaf: F) {
-		let live_sessions = &mut self.live_sessions;
-		live_sessions.retain(|&(ref relay_chain_leaf, _)| is_leaf(relay_chain_leaf));
-		self.topics.retain(|_, v| live_sessions.iter().find(|(p, _)| p == v).is_some());
+	/// Prune old leaf-work that fails the leaf predicate.
+	pub(super) fn prune_old_leaves<F: Fn(&Hash) -> bool>(&mut self, is_leaf: F) {
+		let leaf_work = &mut self.leaf_work;
+		leaf_work.retain(|&(ref relay_chain_leaf, _)| is_leaf(relay_chain_leaf));
+		self.topics.retain(|_, v| leaf_work.iter().find(|(p, _)| p == v).is_some());
 	}
 
-	/// Whether a topic is live.
+	/// Whether a message topic is considered live relative to our view.
 	pub(super) fn is_topic_live(&self, topic: &Hash) -> bool {
 		self.topics.contains_key(topic)
 	}
@@ -143,14 +161,15 @@ impl View {
 	}
 
 
-	/// Validate an attestation statement of some kind.
+	/// Validate an attestation statement of some kind. Should be done before
+	/// any repropagation of that statement.
 	pub(super) fn validate_statement<C: ChainContext + ?Sized>(&mut self, message: GossipStatement, chain: &C)
 		-> (GossipValidationResult<Hash>, i32)
 	{
 		// message must reference one of our chain heads and
 		// if message is not a `Candidate` we should have the candidate available
 		// in `attestation_view`.
-		match self.session_view(&message.relay_chain_leaf) {
+		match self.leaf_view(&message.relay_chain_leaf) {
 			None => {
 				let cost = match chain.is_known(&message.relay_chain_leaf) {
 					Some(Known::Leaf) => {
@@ -221,7 +240,7 @@ impl View {
 				// attestation_view and their_view reflects that we know about the candidate.
 				let hash = c.hash();
 				peer_knowledge.note_aware(hash);
-				if let Some(attestation_view) = self.session_view_mut(&relay_chain_leaf) {
+				if let Some(attestation_view) = self.leaf_view_mut(&relay_chain_leaf) {
 					attestation_view.knowledge.note_aware(hash);
 				}
 
@@ -233,7 +252,7 @@ impl View {
 	}
 }
 
-struct SessionView {
+struct LeafView {
 	validation_data: MessageValidationData,
 	knowledge: Knowledge,
 }

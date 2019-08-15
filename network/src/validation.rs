@@ -159,7 +159,7 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 		self.network.with_spec(move |spec, ctx| {
 			use polkadot_primitives::parachain::Message as ParachainMessage;
 
-			let actions = message_validator.note_new_leaf(
+			let actions = message_validator.new_local_leaf(
 				parent_hash,
 				MessageValidationData { authorities },
 				|queue_root| spec.extrinsic_store.as_ref()

@@ -309,22 +309,22 @@ pub fn register_validator<C: ChainContext + 'static>(
 }
 
 #[derive(PartialEq)]
-enum NewSessionAction {
+enum NewLeafAction {
 	// (who, message)
 	TargetedMessage(PeerId, ConsensusMessage),
 	// (topic, message)
 	Multicast(Hash, ConsensusMessage),
 }
 
-/// Actions to take after noting a new live attestation session.
+/// Actions to take after noting a new block-DAG leaf.
 ///
 /// This should be consumed by passing a consensus-gossip handle to `perform`.
-#[must_use = "New session gossip actions must be performed"]
-pub struct NewSessionActions {
-	actions: Vec<NewSessionAction>,
+#[must_use = "New chain-head gossip actions must be performed"]
+pub struct NewLeafActions {
+	actions: Vec<NewLeafAction>,
 }
 
-impl NewSessionActions {
+impl NewLeafActions {
 	/// Perform the queued actions, feeding into gossip.
 	pub fn perform(
 		self,
@@ -333,9 +333,9 @@ impl NewSessionActions {
 	) {
 		for action in self.actions {
 			match action {
-				NewSessionAction::TargetedMessage(who, message)
+				NewLeafAction::TargetedMessage(who, message)
 					=> gossip.send_message(ctx, &who, message),
-				NewSessionAction::Multicast(topic, message)
+				NewLeafAction::Multicast(topic, message)
 					=> gossip.multicast(ctx, &topic, message),
 			}
 		}
@@ -364,16 +364,16 @@ impl RegisteredMessageValidator {
 	/// Note that we perceive a new leaf of the block-DAG. We will notify our neighbors that
 	/// we now accept parachain candidate attestations and incoming message queues
 	/// relevant to this leaf.
-	pub(crate) fn note_new_leaf(
+	pub(crate) fn new_local_leaf(
 		&self,
 		relay_chain_leaf: Hash,
 		validation: MessageValidationData,
 		lookup_queue_by_root: impl Fn(&Hash) -> Option<Vec<ParachainMessage>>,
-	) -> NewSessionActions {
+	) -> NewLeafActions {
 		// add an entry in attestation_view
 		// prune any entries from attestation_view which are no longer leaves
 		let mut inner = self.inner.inner.write();
-		inner.attestation_view.add_session(relay_chain_leaf, validation);
+		inner.attestation_view.new_local_leaf(relay_chain_leaf, validation);
 
 		let mut actions = Vec::new();
 
@@ -385,7 +385,7 @@ impl RegisteredMessageValidator {
 				..
 			} = &mut *inner;
 
-			attestation_view.prune_old_sessions(|hash| match chain.is_known(hash) {
+			attestation_view.prune_old_leaves(|hash| match chain.is_known(hash) {
 				Some(Known::Leaf) => true,
 				_ => false,
 			});
@@ -398,7 +398,7 @@ impl RegisteredMessageValidator {
 
 		// send neighbor packets to peers
 		inner.multicast_neighbor_packet(
-			|who, message| actions.push(NewSessionAction::TargetedMessage(who.clone(), message))
+			|who, message| actions.push(NewLeafAction::TargetedMessage(who.clone(), message))
 		);
 
 		// feed any new unrouted queues into the propagation pool.
@@ -410,7 +410,7 @@ impl RegisteredMessageValidator {
 						messages,
 					}).to_consensus_message();
 
-					actions.push(NewSessionAction::Multicast(*topic, message));
+					actions.push(NewLeafAction::Multicast(*topic, message));
 
 					true
 				}
@@ -418,7 +418,7 @@ impl RegisteredMessageValidator {
 			}
 		);
 
-		NewSessionActions { actions }
+		NewLeafActions { actions }
 	}
 }
 
@@ -596,7 +596,8 @@ impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValid
 		let inner = self.inner.read();
 
 		Box::new(move |topic, _data| {
-			// check that topic is one of our live sessions. everything else is expired
+			// check that messages from this topic are considered live by one of our protocols.
+			// everything else is expired
 			let live = inner.attestation_view.is_topic_live(&topic)
 				|| !inner.message_routing_view.is_topic_live(&topic);
 
@@ -697,14 +698,14 @@ mod tests {
 		}
 	}
 
-	impl NewSessionActions {
+	impl NewLeafActions {
 		fn has_message(&self, who: PeerId, message: ConsensusMessage) -> bool {
-			let x = NewSessionAction::TargetedMessage(who, message);
+			let x = NewLeafAction::TargetedMessage(who, message);
 			self.actions.iter().find(|&m| m == &x).is_some()
 		}
 
 		fn has_multicast(&self, topic: Hash, message: ConsensusMessage) -> bool {
-			let x = NewSessionAction::Multicast(topic, message);
+			let x = NewLeafAction::Multicast(topic, message);
 			self.actions.iter().find(|&m| m == &x).is_some()
 		}
 	}
@@ -783,7 +784,7 @@ mod tests {
 		let topic_c = attestation_topic(hash_c);
 
 		// topic_a is in all 3 views -> succeed
-		validator.inner.write().attestation_view.add_session(hash_a, MessageValidationData::default());
+		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
 		// topic_b is in the neighbor's view but not ours -> fail
 		// topic_c is not in either -> fail
 
@@ -893,7 +894,7 @@ mod tests {
 			}
 		});
 		let encoded = statement.encode();
-		validator.inner.write().attestation_view.add_session(hash_a, MessageValidationData::default());
+		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
 
 		{
 			let mut message_allowed = validator.message_allowed();
@@ -907,7 +908,7 @@ mod tests {
 			.get_mut(&peer_a)
 			.unwrap()
 			.attestation
-			.note_aware_in_session(&hash_a, c_hash);
+			.note_aware_under_leaf(&hash_a, c_hash);
 		{
 			let mut message_allowed = validator.message_allowed();
 			assert!(message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded[..]));
@@ -972,9 +973,9 @@ mod tests {
 			);
 		}
 
-		// ensure that we attempt to multicast all relevant queues after noting a session.
+		// ensure that we attempt to multicast all relevant queues after noting a leaf.
 		{
-			let actions = validator.note_new_leaf(
+			let actions = validator.new_local_leaf(
 				hash_a,
 				MessageValidationData { authorities },
 				|root| if root == &root_a {
@@ -1043,9 +1044,9 @@ mod tests {
 		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
-		// ensure that we attempt to multicast all relevant queues after noting a session.
+		// ensure that we attempt to multicast all relevant queues after noting a leaf.
 		{
-			let actions = validator.note_new_leaf(
+			let actions = validator.new_local_leaf(
 				hash_a,
 				MessageValidationData { authorities },
 				|root| if root == &root_a {
@@ -1172,9 +1173,9 @@ mod tests {
 			messages: root_a_messages.clone(),
 		}).encode();
 
-		// ensure that we attempt to multicast all relevant queues after noting a session.
+		// ensure that we attempt to multicast all relevant queues after noting a leaf.
 		{
-			let actions = validator.note_new_leaf(
+			let actions = validator.new_local_leaf(
 				hash_a,
 				MessageValidationData { authorities },
 				|_root| None,
