@@ -206,6 +206,18 @@ pub fn make_group_info(
 
 }
 
+/// Compute the (target, root, messages) of all outgoing queues.
+pub fn outgoing_queues(outgoing_targeted: &'_ OutgoingMessages)
+	-> impl Iterator<Item=(ParaId, Hash, Vec<Message>)> + '_
+{
+	outgoing_targeted.message_queues().filter_map(|queue| {
+		let target = queue.get(0)?.target;
+		let queue_root = message_queue_root(queue);
+		let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
+		Some((target, queue_root, queue_data))
+	})
+}
+
 // finds the first key we are capable of signing with out of the given set of validators,
 // if any.
 fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc<ValidatorPair>> {
@@ -349,17 +361,16 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 			collation_work.then(move |result| match result {
 				Ok((collation, outgoing_targeted)) => {
-					let outgoing_queues = outgoing_targeted.message_queues().map(|queue| {
-						let queue_root = message_queue_root(queue);
-						let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
-						(queue_root, queue_data)
-					});
+					let outgoing_queues = crate::outgoing_queues(&outgoing_targeted)
+						.map(|(_target, root, data)| (root, data))
+						.collect();
+
 					let res = extrinsic_store.make_available(Data {
 						relay_parent,
 						parachain_id: collation.receipt.parachain_index,
 						candidate_hash: collation.receipt.hash(),
 						block_data: collation.pov.block_data.clone(),
-						outgoing_queues: Some(outgoing_queues.collect()),
+						outgoing_queues: Some(outgoing_queues),
 					});
 
 					match res {

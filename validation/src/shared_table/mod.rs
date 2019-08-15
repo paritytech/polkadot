@@ -348,18 +348,16 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 				Validation::Invalid(pov_block),
 			),
 			Ok(outgoing_targeted) => {
-				let outgoing_queues = outgoing_targeted.message_queues().map(|queue| {
-					let queue_root = crate::collation::message_queue_root(queue);
-					let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
-					(queue_root, queue_data)
-				});
+				let outgoing_queues = crate::outgoing_queues(&outgoing_targeted)
+					.map(|(_target, root, data)| (root, data))
+					.collect();
 
 				self.inner.extrinsic_store.make_available(Data {
 					relay_parent: self.inner.relay_parent,
 					parachain_id: work.candidate_receipt.parachain_index,
 					candidate_hash,
 					block_data: pov_block.block_data.clone(),
-					outgoing_queues: Some(outgoing_queues.collect()),
+					outgoing_queues: Some(outgoing_queues),
 				})?;
 
 				(

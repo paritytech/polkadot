@@ -25,10 +25,10 @@ use substrate_primitives::{NativeOrEncoded, ExecutionContext};
 use substrate_keyring::Sr25519Keyring;
 use crate::{GossipService, PolkadotProtocol, NetworkService, GossipMessageStream};
 
-use polkadot_validation::{SharedTable, MessagesFrom, Network};
+use polkadot_validation::{SharedTable, Network};
 use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
+	Id as ParaId, Chain, DutyRoster, ParachainHost, TargetedMessage,
 	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
 	FeeSchedule, HeadData,
 };
@@ -375,7 +375,7 @@ struct IngressBuilder {
 }
 
 impl IngressBuilder {
-	fn add_messages(&mut self, source: ParaId, messages: &[OutgoingMessage]) {
+	fn add_messages(&mut self, source: ParaId, messages: &[TargetedMessage]) {
 		for message in messages {
 			let target = message.target;
 			self.egress.entry((source, target)).or_insert_with(Vec::new).push(message.data.clone());

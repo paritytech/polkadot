@@ -16,8 +16,8 @@
 
 //! Polkadot-specific network implementation.
 //!
-//! This manages routing for parachain statements, parachain block and extrinsic data fetching,
-//! communication between collators and validators, and more.
+//! This manages routing for parachain statements, parachain block and outgoing message
+//! data fetching, communication between collators and validators, and more.
 
 mod collator_pool;
 mod local_collations;
@@ -31,7 +31,7 @@ use futures::prelude::*;
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
-	StructuredUnroutedIngress, ValidatorId
+	StructuredUnroutedIngress, ValidatorId, OutgoingMessages,
 };
 use substrate_network::{
 	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
@@ -302,7 +302,7 @@ pub struct PolkadotProtocol {
 	live_validation_leaves: LiveValidationLeaves,
 	in_flight: HashMap<(RequestId, PeerId), PoVBlockRequest>,
 	pending: Vec<PoVBlockRequest>,
-	extrinsic_store: Option<av_store::Store>,
+	availability_store: Option<av_store::Store>,
 	next_req_id: u64,
 }
 
@@ -318,7 +318,7 @@ impl PolkadotProtocol {
 			live_validation_leaves: LiveValidationLeaves::new(),
 			in_flight: HashMap::new(),
 			pending: Vec::new(),
-			extrinsic_store: None,
+			availability_store: None,
 			next_req_id: 1,
 		}
 	}
@@ -447,7 +447,7 @@ impl PolkadotProtocol {
 						&candidate_hash,
 						|res| res.ok().map(|b| b.block_data.clone()),
 					)
-					.or_else(|| self.extrinsic_store.as_ref()
+					.or_else(|| self.availability_store.as_ref()
 						.and_then(|s| s.block_data(relay_parent, candidate_hash))
 					);
 
@@ -788,32 +788,29 @@ impl PolkadotProtocol {
 impl PolkadotProtocol {
 	/// Add a local collation and broadcast it to the necessary peers.
 	///
-	/// It also places the extrinsic and block data in the local availability store.
+	/// It also places the outgoing message and block data in the local availability store.
 	pub fn add_local_collation(
 		&mut self,
 		ctx: &mut dyn Context<Block>,
 		relay_parent: Hash,
 		targets: HashSet<ValidatorId>,
 		collation: Collation,
-		extrinsic: polkadot_primitives::parachain::Extrinsic,
+		outgoing_targeted: OutgoingMessages,
 	) -> std::io::Result<()> {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",
 			relay_parent, collation.receipt.parachain_index);
 
-		let message_queue_root = polkadot_validation::message_queue_root(
-			extrinsic.outgoing_messages.iter().map(|x| x.encode())
-		);
+		let outgoing_queues = polkadot_validation::outgoing_queues(&outgoing_targeted)
+			.map(|(_target, root, data)| (root, data))
+			.collect();
 
-		if let Some(ref extrinsic_store) = self.extrinsic_store {
-			extrinsic_store.make_available(av_store::Data {
+		if let Some(ref availability_store) = self.availability_store {
+			availability_store.make_available(av_store::Data {
 				relay_parent,
 				parachain_id: collation.receipt.parachain_index,
 				candidate_hash: collation.receipt.hash(),
 				block_data: collation.pov.block_data.clone(),
-				extrinsic: Some(av_store::StoredExtrinsic {
-					inner: extrinsic,
-					message_queue_root,
-				})
+				outgoing_queues: Some(outgoing_queues),
 			})?;
 		}
 
@@ -837,7 +834,7 @@ impl PolkadotProtocol {
 
 	/// Give the network protocol a handle to an availability store, used for
 	/// circulation of parachain data required for validation.
-	pub fn register_availability_store(&mut self, extrinsic_store: ::av_store::Store) {
-		self.extrinsic_store = Some(extrinsic_store);
+	pub fn register_availability_store(&mut self, availability_store: ::av_store::Store) {
+		self.availability_store = Some(availability_store);
 	}
 }

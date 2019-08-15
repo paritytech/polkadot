@@ -29,7 +29,7 @@ use polkadot_validation::{
 };
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	Extrinsic, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock,
+	OutgoingMessages, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock,
 };
 use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement};
 
@@ -197,7 +197,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 				knowledge.lock().note_candidate(
 					candidate_hash,
 					Some(validated.pov_block().clone()),
-					validated.extrinsic().cloned(),
+					validated.outgoing_messages().cloned(),
 				);
 
 				// propagate the statement.
@@ -225,13 +225,13 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	type Error = io::Error;
 	type FetchValidationProof = validation::PoVReceiver;
 
-	fn local_collation(&self, collation: Collation, extrinsic: Extrinsic) {
+	fn local_collation(&self, collation: Collation, outgoing: OutgoingMessages) {
 		// produce a signed statement
 		let hash = collation.receipt.hash();
 		let validated = Validated::collated_local(
 			collation.receipt,
 			collation.pov.clone(),
-			extrinsic.clone(),
+			outgoing.clone(),
 		);
 
 		let statement = GossipStatement::new(
@@ -243,7 +243,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 		);
 
 		// give to network to make available.
-		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov), Some(extrinsic));
+		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov), Some(outgoing));
 		self.network().gossip_message(self.attestation_topic, statement.into());
 	}
 

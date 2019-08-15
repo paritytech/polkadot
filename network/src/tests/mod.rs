@@ -281,7 +281,7 @@ fn fetches_available_block_data() {
 		parachain_id: para_id,
 		candidate_hash,
 		block_data: block_data.clone(),
-		extrinsic: None,
+		outgoing_queues: None,
 	}).unwrap();
 
 	// connect peer A
