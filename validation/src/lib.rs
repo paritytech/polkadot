@@ -37,7 +37,7 @@ use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
 use codec::Encode;
 use consensus::SelectChain;
-use extrinsic_store::Store as ExtrinsicStore;
+use availability_store::Store as AvailabilityStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
 use polkadot_primitives::parachain::{
@@ -240,7 +240,7 @@ struct ParachainValidation<C, N, P> {
 	/// handle to remote task executor
 	handle: TaskExecutor,
 	/// Store for extrinsic data.
-	extrinsic_store: ExtrinsicStore,
+	availability_store: AvailabilityStore,
 	/// Live agreements. Maps relay chain parent hashes to attestation
 	/// instances.
 	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
@@ -303,7 +303,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			group_info,
 			sign_with,
 			parent_hash,
-			self.extrinsic_store.clone(),
+			self.availability_store.clone(),
 			max_block_data_size,
 		));
 
@@ -344,10 +344,10 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		max_block_data_size: Option<u64>,
 		exit: exit_future::Exit,
 	) {
-		use extrinsic_store::Data;
+		use availability_store::Data;
 
 		let (collators, client) = (self.collators.clone(), self.client.clone());
-		let extrinsic_store = self.extrinsic_store.clone();
+		let availability_store = self.availability_store.clone();
 
 		let with_router = move |router: N::TableRouter| {
 			// fetch a local collation from connected collators.
@@ -365,7 +365,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 						.map(|(_target, root, data)| (root, data))
 						.collect();
 
-					let res = extrinsic_store.make_available(Data {
+					let res = availability_store.make_available(Data {
 						relay_parent,
 						parachain_id: collation.receipt.parachain_index,
 						candidate_hash: collation.receipt.hash(),
@@ -450,7 +450,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 		transaction_pool: Arc<Pool<TxApi>>,
 		thread_pool: TaskExecutor,
 		keystore: KeyStorePtr,
-		extrinsic_store: ExtrinsicStore,
+		availability_store: AvailabilityStore,
 		babe_slot_duration: u64,
 		max_block_data_size: Option<u64>,
 	) -> Self {
@@ -459,7 +459,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			network,
 			collators,
 			handle: thread_pool.clone(),
-			extrinsic_store: extrinsic_store.clone(),
+			availability_store: availability_store.clone(),
 			live_instances: Mutex::new(HashMap::new()),
 		});
 
@@ -469,7 +469,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			parachain_validation.clone(),
 			thread_pool,
 			keystore.clone(),
-			extrinsic_store,
+			availability_store,
 			max_block_data_size,
 		);
 

@@ -233,7 +233,7 @@ service::construct_service_factory! {
 				);
 
 				use polkadot_network::validation::ValidationNetwork;
-				let extrinsic_store = {
+				let availability_store = {
 					use std::path::PathBuf;
 
 					let mut path = PathBuf::from(service.config().database_path.clone());
@@ -246,8 +246,10 @@ service::construct_service_factory! {
 				};
 
 				{
-					let extrinsic_store = extrinsic_store.clone();
-					service.network().with_spec(|spec, _ctx| spec.register_availability_store(extrinsic_store));
+					let availability_store = availability_store.clone();
+					service.network().with_spec(
+						|spec, _ctx| spec.register_availability_store(availability_store)
+					);
 				}
 
 				// collator connections and validation network both fulfilled by this
@@ -266,7 +268,7 @@ service::construct_service_factory! {
 					service.transaction_pool(),
 					Arc::new(service.spawn_task_handle()),
 					service.keystore(),
-					extrinsic_store,
+					availability_store,
 					polkadot_runtime::constants::time::SLOT_DURATION,
 					service.config().custom.max_block_data_size,
 				);

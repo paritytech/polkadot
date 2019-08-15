@@ -20,7 +20,7 @@
 use std::collections::hash_map::{HashMap, Entry};
 use std::sync::Arc;
 
-use extrinsic_store::{Data, Store as ExtrinsicStore};
+use availability_store::{Data, Store as AvailabilityStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
@@ -122,7 +122,7 @@ impl ValidationWork {
 struct SharedTableInner {
 	table: Table<TableContext>,
 	trackers: Vec<IncludabilitySender>,
-	extrinsic_store: ExtrinsicStore,
+	availability_store: AvailabilityStore,
 	validated: HashMap<Hash, ValidationWork>,
 }
 
@@ -186,7 +186,7 @@ impl SharedTableInner {
 		};
 
 		work.map(|work| ParachainWork {
-			extrinsic_store: self.extrinsic_store.clone(),
+			availability_store: self.availability_store.clone(),
 			relay_parent: context.parent_hash.clone(),
 			work,
 			max_block_data_size,
@@ -262,7 +262,7 @@ impl Validated {
 pub struct ParachainWork<Fetch> {
 	work: Work<Fetch>,
 	relay_parent: Hash,
-	extrinsic_store: ExtrinsicStore,
+	availability_store: AvailabilityStore,
 	max_block_data_size: Option<u64>,
 }
 
@@ -352,7 +352,7 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 					.map(|(_target, root, data)| (root, data))
 					.collect();
 
-				self.inner.extrinsic_store.make_available(Data {
+				self.inner.availability_store.make_available(Data {
 					relay_parent: self.inner.relay_parent,
 					parachain_id: work.candidate_receipt.parachain_index,
 					candidate_hash,
@@ -401,7 +401,7 @@ impl SharedTable {
 		groups: HashMap<ParaId, GroupInfo>,
 		key: Option<Arc<ValidatorPair>>,
 		parent_hash: Hash,
-		extrinsic_store: ExtrinsicStore,
+		availability_store: AvailabilityStore,
 		max_block_data_size: Option<u64>,
 	) -> Self {
 		SharedTable {
@@ -411,7 +411,7 @@ impl SharedTable {
 				table: Table::default(),
 				validated: HashMap::new(),
 				trackers: Vec::new(),
-				extrinsic_store,
+				availability_store,
 			}))
 		}
 	}
@@ -622,7 +622,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 
@@ -677,7 +677,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 
@@ -709,7 +709,7 @@ mod tests {
 
 	#[test]
 	fn evaluate_makes_block_data_available() {
-		let store = ExtrinsicStore::new_in_memory();
+		let store = AvailabilityStore::new_in_memory();
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
@@ -733,7 +733,7 @@ mod tests {
 				fetch: future::ok(pov_block.clone()),
 			},
 			relay_parent,
-			extrinsic_store: store.clone(),
+			availability_store: store.clone(),
 			max_block_data_size: None,
 		};
 
@@ -750,7 +750,7 @@ mod tests {
 
 	#[test]
 	fn full_availability() {
-		let store = ExtrinsicStore::new_in_memory();
+		let store = AvailabilityStore::new_in_memory();
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
@@ -774,7 +774,7 @@ mod tests {
 				fetch: future::ok::<_, ::std::io::Error>(pov_block.clone()),
 			},
 			relay_parent,
-			extrinsic_store: store.clone(),
+			availability_store: store.clone(),
 			max_block_data_size: None,
 		};
 
@@ -813,7 +813,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 
@@ -879,7 +879,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 

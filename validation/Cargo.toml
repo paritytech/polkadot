@@ -14,7 +14,7 @@ derive_more = "0.14.0"
 log = "0.4.6"
 exit-future = "0.1"
 codec = { package = "parity-scale-codec", version = "~1.0.0", default-features = false, features = ["derive"] }
-extrinsic_store = { package = "polkadot-availability-store", path = "../availability-store" }
+availability_store = { package = "polkadot-availability-store", path = "../availability-store" }
 parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
