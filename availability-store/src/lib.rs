@@ -24,7 +24,7 @@ use codec::{Encode, Decode};
 use kvdb::{KeyValueDB, DBTransaction};
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use polkadot_primitives::Hash;
-use polkadot_primitives::parachain::{Id as ParaId, BlockData, Extrinsic};
+use polkadot_primitives::parachain::{Id as ParaId, BlockData, Message};
 use log::warn;
 
 use std::collections::HashSet;
@@ -46,17 +46,7 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
-/// A record containing information about parachain extrinsic data to store.
-pub struct StoredExtrinsic {
-	/// The actual extrinsic data.
-	pub inner: Extrinsic,
-	/// The queue root of the `outgoing_messages` member of `inner`.
-	///
-	/// The responsibility is on the creator to set this correctly.
-	pub message_queue_root: Hash,
-}
-
-/// Some data to keep available.
+/// Some data to keep available about a parachain block candidate.
 pub struct Data {
 	/// The relay chain parent hash this should be localized to.
 	pub relay_parent: Hash,
@@ -66,16 +56,14 @@ pub struct Data {
 	pub candidate_hash: Hash,
 	/// Block data.
 	pub block_data: BlockData,
-	/// Extrinsic data.
-	pub extrinsic: Option<StoredExtrinsic>,
+	/// Outgoing message queues from execution of the block, if any.
+	///
+	/// The tuple pairs the message queue root and the queue data.
+	pub outgoing_queues: Option<Vec<(Hash, Vec<Message>)>>,
 }
 
 fn block_data_key(relay_parent: &Hash, candidate_hash: &Hash) -> Vec<u8> {
 	(relay_parent, candidate_hash, 0i8).encode()
-}
-
-fn extrinsic_key(relay_parent: &Hash, candidate_hash: &Hash) -> Vec<u8> {
-	(relay_parent, candidate_hash, 1i8).encode()
 }
 
 /// Handle to the availability store.
@@ -142,19 +130,16 @@ impl Store {
 			data.block_data.encode()
 		);
 
-		if let Some(extrinsic) = data.extrinsic {
-			let encoded = extrinsic.inner.encode();
-			tx.put_vec(
-				columns::DATA,
-				extrinsic_key(&data.relay_parent, &data.candidate_hash).as_slice(),
-				encoded.clone(),
-			);
+		if let Some(outgoing_queues) = data.outgoing_queues {
+			// This is kept forever and not pruned.
+			for (root, messages) in outgoing_queues {
+				tx.put_vec(
+					columns::DATA,
+					root.as_ref(),
+					messages.encode(),
+				);
+			}
 
-			tx.put_vec(
-				columns::DATA,
-				extrinsic.message_queue_root.as_ref(),
-				encoded,
-			);
 		}
 
 		self.inner.write(tx)
@@ -177,7 +162,6 @@ impl Store {
 		for candidate_hash in v {
 			if !finalized_candidates.contains(&candidate_hash) {
 				tx.delete(columns::DATA, block_data_key(&parent, &candidate_hash).as_slice());
-				tx.delete(columns::DATA, extrinsic_key(&parent, &candidate_hash).as_slice());
 			}
 		}
 
@@ -199,10 +183,11 @@ impl Store {
 		}
 	}
 
-	fn extrinsic_with_key(&self, key: &[u8]) -> Option<Extrinsic> {
-		match self.inner.get(columns::DATA, key) {
+	/// Query message queue data by message queue root hash.
+	pub fn queue_by_root(&self, queue_root: &Hash) -> Option<Vec<Message>> {
+		match self.inner.get(columns::DATA, queue_root.as_ref()) {
 			Ok(Some(raw)) => Some(
-				Extrinsic::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")
+				<_>::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")
 			),
 			Ok(None) => None,
 			Err(e) => {
@@ -211,23 +196,11 @@ impl Store {
 			}
 		}
 	}
-
-	/// Query extrinsic data by relay parent and candidate hash.
-	pub fn extrinsic(&self, relay_parent: Hash, candidate_hash: Hash) -> Option<Extrinsic> {
-		let encoded_key = extrinsic_key(&relay_parent, &candidate_hash);
-		self.extrinsic_with_key(&encoded_key[..])
-	}
-
-	/// Query extrinsic data by message queue root hash.
-	pub fn extrinsic_by_queue_root(&self, queue_root: &Hash) -> Option<Extrinsic> {
-		self.extrinsic_with_key(queue_root.as_ref())
-	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::parachain::OutgoingMessage;
 
 	#[test]
 	fn finalization_removes_unneeded() {
@@ -248,10 +221,7 @@ mod tests {
 			parachain_id: para_id_1,
 			candidate_hash: candidate_1,
 			block_data: block_data_1.clone(),
-			extrinsic: Some(StoredExtrinsic {
-				inner: Extrinsic { outgoing_messages: Vec::new() },
-				message_queue_root: Default::default(),
-			}),
+			outgoing_queues: None,
 		}).unwrap();
 
 		store.make_available(Data {
@@ -259,41 +229,32 @@ mod tests {
 			parachain_id: para_id_2,
 			candidate_hash: candidate_2,
 			block_data: block_data_2.clone(),
-			extrinsic: Some(StoredExtrinsic {
-				inner: Extrinsic { outgoing_messages: Vec::new() },
-				message_queue_root: Default::default(),
-			}),
+			outgoing_queues: None,
 		}).unwrap();
 
 		assert_eq!(store.block_data(relay_parent, candidate_1).unwrap(), block_data_1);
 		assert_eq!(store.block_data(relay_parent, candidate_2).unwrap(), block_data_2);
 
-		assert!(store.extrinsic(relay_parent, candidate_1).is_some());
-		assert!(store.extrinsic(relay_parent, candidate_2).is_some());
-
 		store.candidates_finalized(relay_parent, [candidate_1].iter().cloned().collect()).unwrap();
 
 		assert_eq!(store.block_data(relay_parent, candidate_1).unwrap(), block_data_1);
 		assert!(store.block_data(relay_parent, candidate_2).is_none());
-
-		assert!(store.extrinsic(relay_parent, candidate_1).is_some());
-		assert!(store.extrinsic(relay_parent, candidate_2).is_none());
 	}
 
 	#[test]
-	fn extrinsic_available_by_queue_root() {
+	fn queues_available_by_queue_root() {
 		let relay_parent = [1; 32].into();
 		let para_id = 5.into();
 		let candidate = [2; 32].into();
 		let block_data = BlockData(vec![1, 2, 3]);
 
-		let outgoing_messages = vec![
-			OutgoingMessage { target: 1.into(), data: vec![1, 2, 3, 4] },
-			OutgoingMessage { target: 2.into(), data: vec![5, 6, 7, 8] },
-		];
-		let ex = Extrinsic { outgoing_messages };
+		let message_queue_root_1 = [0x42; 32].into();
+		let message_queue_root_2 = [0x43; 32].into();
 
-		let message_queue_root = [0x42; 32].into();
+		let outgoing_queues = vec![
+			(message_queue_root_1, vec![Message(vec![1, 2, 3, 4])]),
+			(message_queue_root_2, vec![Message(vec![5, 6, 7, 8])]),
+		];
 
 		let store = Store::new_in_memory();
 		store.make_available(Data {
@@ -301,12 +262,17 @@ mod tests {
 			parachain_id: para_id,
 			candidate_hash: candidate,
 			block_data: block_data.clone(),
-			extrinsic: Some(StoredExtrinsic {
-				inner: ex.clone(),
-				message_queue_root,
-			}),
+			outgoing_queues: Some(outgoing_queues),
 		}).unwrap();
 
-		assert_eq!(store.extrinsic_by_queue_root(&message_queue_root), Some(ex));
+		assert_eq!(
+			store.queue_by_root(&message_queue_root_1),
+			Some(vec![Message(vec![1, 2, 3, 4])]),
+		);
+
+		assert_eq!(
+			store.queue_by_root(&message_queue_root_2),
+			Some(vec![Message(vec![5, 6, 7, 8])]),
+		);
 	}
 }
