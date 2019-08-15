@@ -107,7 +107,8 @@ decl_module! {
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
-			let signer = dest.using_encoded(|data| Self::eth_recover(&ethereum_signature, data))
+			let data = dest.using_encoded(to_ascii_hex);
+			let signer = Self::eth_recover(&ethereum_signature, &data)
 				.ok_or("Invalid Ethereum signature")?;
 
 			let balance_due = <Claims<T>>::take(&signer)
@@ -125,6 +126,17 @@ decl_module! {
 			Self::deposit_event(RawEvent::Claimed(dest, signer, balance_due));
 		}
 	}
+}
+
+/// Converts the given binary data into ASCII-encoded hex. It will be twice the length.
+fn to_ascii_hex(data: &[u8]) -> Vec<u8> {
+	let mut r = Vec::with_capacity(data.len() * 2);
+	let mut push_nibble = |n| r.push(if n < 10 { b'0' + n } else { b'a' - 10 + n });
+	for &b in data.iter() {
+		push_nibble(b / 16);
+		push_nibble(b % 16);
+	}
+	r
 }
 
 impl<T: Trait> Module<T> {
@@ -167,9 +179,10 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 
 		match call {
 			Call::claim(account, ethereum_signature) => {
-				let signer = account.using_encoded(|data| Self::eth_recover(&ethereum_signature, data));
-				let signer = if let Some(signer) = signer {
-					signer
+				let data = account.using_encoded(to_ascii_hex);
+				let maybe_signer = Self::eth_recover(&ethereum_signature, &data);
+				let signer = if let Some(s) = maybe_signer {
+					s
 				} else {
 					return TransactionValidity::Invalid(INVALID_ETHEREUM_SIGNATURE);
 				};
@@ -287,7 +300,7 @@ mod tests {
 		res
 	}
 	fn alice_sig(what: &[u8]) -> EcdsaSignature {
-		let msg = keccak256(&Claims::ethereum_signable_message(what));
+		let msg = keccak256(&Claims::ethereum_signable_message(&to_ascii_hex(what)[..]));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &alice_secret()).unwrap();
 		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
 		EcdsaSignature(sig.0, sig.1, recovery_id.serialize() as i8)
@@ -296,7 +309,7 @@ mod tests {
 		secp256k1::SecretKey::parse(&keccak256(b"Bob")).unwrap()
 	}
 	fn bob_sig(what: &[u8]) -> EcdsaSignature {
-		let msg = keccak256(&Claims::ethereum_signable_message(what));
+		let msg = keccak256(&Claims::ethereum_signable_message(&to_ascii_hex(what)[..]));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &bob_secret()).unwrap();
 		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
 		EcdsaSignature(sig.0, sig.1, recovery_id.serialize() as i8)
@@ -371,7 +384,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			let sig = hex!["7505f2880114da51b3f5d535f8687953c0ab9af4ab81e592eaebebf53b728d2b6dfd9b5bcd70fee412b1f31360e7c2774009305cb84fc50c1d0ff8034dfa5fff1c"];
 			let sig = EcdsaSignature::from_blob(&sig);
-			let who = 42u64.encode();
+			let who = 42u64.using_encoded(to_ascii_hex);
 			let signer = Claims::eth_recover(&sig, &who).unwrap();
 			assert_eq!(signer, hex!["DF67EC7EAe23D2459694685257b6FC59d1BAA1FE"]);
 		});
