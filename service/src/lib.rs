@@ -25,7 +25,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Block, Hash, BlockId};
 use polkadot_runtime::{GenesisConfig, RuntimeApi};
-use polkadot_network::gossip::{self as network_gossip, Known};
+use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
 use service::{
 	FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor,
 	error::Error as ServiceError, TelemetryOnConnect
@@ -198,10 +198,6 @@ service::construct_service_factory! {
 					}
 				}
 
-				if service.config().roles != service::Roles::AUTHORITY {
-					return Ok(service);
-				}
-
 				if service.config().custom.collating_for.is_some() {
 					info!(
 						"The node cannot start as an authority because it is also configured to run as a collator."
@@ -241,59 +237,62 @@ service::construct_service_factory! {
 					},
 				);
 
-				use polkadot_network::validation::ValidationNetwork;
-				let extrinsic_store = {
-					use std::path::PathBuf;
+				if service.config().roles.is_authority() {
+					let extrinsic_store = {
+						use std::path::PathBuf;
 
-					let mut path = PathBuf::from(service.config().database_path.clone());
-					path.push("availability");
+						let mut path = PathBuf::from(service.config().database_path.clone());
+						path.push("availability");
 
-					av_store::Store::new(::av_store::Config {
-						cache_size: None,
-						path,
-					})?
-				};
+						av_store::Store::new(::av_store::Config {
+							cache_size: None,
+							path,
+						})?
+					};
 
-				// collator connections and validation network both fulfilled by this
-				let validation_network = ValidationNetwork::new(
-					service.network(),
-					service.on_exit(),
-					gossip_validator,
-					service.client(),
-					polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
-				);
-				let proposer = consensus::ProposerFactory::new(
-					client.clone(),
-					select_chain.clone(),
-					validation_network.clone(),
-					validation_network,
-					service.transaction_pool(),
-					Arc::new(service.spawn_task_handle()),
-					service.keystore(),
-					extrinsic_store,
-					polkadot_runtime::constants::time::SLOT_DURATION,
-					service.config().custom.max_block_data_size,
-				);
+					// collator connections and validation network both fulfilled by this
+					let validation_network = ValidationNetwork::new(
+						service.network(),
+						service.on_exit(),
+						gossip_validator,
+						service.client(),
+						polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
+					);
+					let proposer = consensus::ProposerFactory::new(
+						client.clone(),
+						select_chain.clone(),
+						validation_network.clone(),
+						validation_network,
+						service.transaction_pool(),
+						Arc::new(service.spawn_task_handle()),
+						service.keystore(),
+						extrinsic_store,
+						polkadot_runtime::constants::time::SLOT_DURATION,
+						service.config().custom.max_block_data_size,
+					);
 
-				let client = service.client();
-				let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
+					let client = service.client();
+					let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
 
-				let babe_config = babe::BabeParams {
-					config: Config::get_or_compute(&*client)?,
-					keystore: service.keystore(),
-					client,
-					select_chain,
-					block_import,
-					env: proposer,
-					sync_oracle: service.network(),
-					inherent_data_providers: service.config().custom.inherent_data_providers.clone(),
-					force_authoring: service.config().force_authoring,
-					time_source: babe_link,
-				};
+					let babe_config = babe::BabeParams {
+						config: Config::get_or_compute(&*client)?,
+						keystore: service.keystore(),
+						client,
+						select_chain,
+						block_import,
+						env: proposer,
+						sync_oracle: service.network(),
+						inherent_data_providers: service.config().custom.inherent_data_providers.clone(),
+						force_authoring: service.config().force_authoring,
+						time_source: babe_link,
+					};
 
-				let babe = start_babe(babe_config)?;
-				let select = babe.select(service.on_exit()).then(|_| Ok(()));
-				service.spawn_task(Box::new(select));
+					let babe = start_babe(babe_config)?;
+					let select = babe.select(service.on_exit()).then(|_| Ok(()));
+					service.spawn_essential_task(Box::new(select));
+				} else {
+					network_gossip::register_non_authority_validator(service.network());
+				}
 
 				let config = grandpa::Config {
 					// FIXME substrate#1578 make this available through chainspec
@@ -326,7 +325,7 @@ service::construct_service_factory! {
 							on_exit: service.on_exit(),
 							telemetry_on_connect: Some(telemetry_on_connect),
 						};
-						service.spawn_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
+						service.spawn_essential_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
 					},
 					(_, true) => {
 						grandpa::setup_disabled_grandpa(
@@ -336,45 +335,6 @@ service::construct_service_factory! {
 						)?;
 					},
 				}
-				// let config = grandpa::Config {
-				// 	// FIXME #1578 make this available through chainspec
-				// 	gossip_duration: Duration::from_millis(333),
-				// 	justification_period: 4096,
-				// 	name: Some(service.config().name.clone()),
-				// 	keystore: Some(service.keystore()),
-				// };
-
-				// if !service.config().disable_grandpa {
-				// 	if service.config().roles.is_authority() {
-				// 		let telemetry_on_connect = TelemetryOnConnect {
-				// 			telemetry_connection_sinks: service.telemetry_on_connect_stream(),
-				// 		};
-				// 		let grandpa_config = grandpa::GrandpaParams {
-				// 			config: config,
-				// 			link: link_half,
-				// 			network: service.network(),
-				// 			inherent_data_providers: service.config().custom.inherent_data_providers.clone(),
-				// 			on_exit: service.on_exit(),
-				// 			telemetry_on_connect: Some(telemetry_on_connect),
-				// 		};
-				// 		service.spawn_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
-				// 	} else {
-				// 		service.spawn_task(Box::new(grandpa::run_grandpa_observer(
-				// 			config,
-				// 			link_half,
-				// 			service.network(),
-				// 			service.on_exit(),
-				// 		)?));
-				// 	}
-				// }
-
-				// // regardless of whether grandpa is started or not, when
-				// // authoring blocks we expect inherent data regarding what our
-				// // last finalized block is, to be available.
-				// grandpa::register_finality_tracker_inherent_data_provider(
-				// 	service.client(),
-				// 	&service.config().custom.inherent_data_providers,
-				// )?;
 
 				Ok(service)
 			}
