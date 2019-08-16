@@ -19,10 +19,10 @@
 use primitives::{Pair, Public, crypto::UncheckedInto};
 use polkadot_primitives::{AccountId, parachain::ValidatorId};
 use polkadot_runtime::{
-	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, BabeConfig,
+	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig,
 	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
-	GrandpaConfig, SudoConfig, IndicesConfig, StakerStatus, WASM_BINARY,
-	ClaimsConfig, ImOnlineConfig, ParachainsConfig
+	SudoConfig, IndicesConfig, StakerStatus, WASM_BINARY,
+	ClaimsConfig, ParachainsConfig
 };
 use polkadot_runtime::constants::{currency::DOTS, time::*};
 use telemetry::TelemetryEndpoints;
@@ -144,18 +144,11 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			desired_seats: 0,
 		}),
 		membership_Instance1: Some(Default::default()),
-		babe: Some(BabeConfig {
-			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
-		}),
-		grandpa: Some(GrandpaConfig {
-			authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
-		}),
-		im_online: Some(ImOnlineConfig {
-			gossip_at: 0,
-			keys: initial_authorities.iter().map(|x| x.4.clone()).collect(),
-		}),
+		babe: Some(Default::default()),
+		grandpa: Some(Default::default()),
+		im_online: Some(Default::default()),
 		parachains: Some(ParachainsConfig {
-			authorities: initial_authorities.iter().map(|x| x.5.clone()).collect(),
+			authorities: vec![],
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
@@ -288,18 +281,11 @@ pub fn testnet_genesis(
 			desired_seats,
 		}),
 		membership_Instance1: Some(Default::default()),
-		babe: Some(BabeConfig {
-			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
-		}),
-		grandpa: Some(GrandpaConfig {
-			authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
-		}),
-		im_online: Some(ImOnlineConfig {
-			gossip_at: 0,
-			keys: initial_authorities.iter().map(|x| x.4.clone()).collect(),
-		}),
+		babe: Some(Default::default()),
+		grandpa: Some(Default::default()),
+		im_online: Some(Default::default()),
 		parachains: Some(ParachainsConfig {
-			authorities: initial_authorities.iter().map(|x| x.5.clone()).collect(),
+			authorities: vec![],
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
