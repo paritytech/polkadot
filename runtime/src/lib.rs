@@ -128,7 +128,7 @@ impl SignedExtension for OnlyStakingAndClaims {
 		-> Result<ValidTransaction, DispatchError>
 	{
 		match call {
-			Call::Staking(_) | Call::Claims(_) => Ok(Default::default()),
+			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) => Ok(Default::default()),
 			_ => Err(DispatchError::NoPermission),
 		}
 	}
@@ -162,7 +162,7 @@ impl system::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
+	pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 }
 
@@ -491,7 +491,7 @@ construct_runtime!(
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
-		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config<T>},
+		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config},
 
 		// Governance stuff; uncallable initially.
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
@@ -647,7 +647,7 @@ impl_runtime_apis! {
 			babe_primitives::BabeConfiguration {
 				median_required_blocks: 1000,
 				slot_duration: Babe::slot_duration(),
-				c: (278, 1000),
+				c: PRIMARY_PROBABILITY,
 			}
 		}
 
@@ -658,6 +658,7 @@ impl_runtime_apis! {
 				epoch_index: Babe::epoch_index(),
 				randomness: Babe::randomness(),
 				duration: EpochDuration::get(),
+				secondary_slots: Babe::secondary_slots().0,
 			}
 		}
 	}
