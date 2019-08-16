@@ -128,7 +128,7 @@ impl SignedExtension for OnlyStakingAndClaims {
 		-> Result<ValidTransaction, DispatchError>
 	{
 		match call {
-			Call::Staking(_) | Call::Claims(_) | Call::Sudo => Ok(Default::default()),
+			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) => Ok(Default::default()),
 			_ => Err(DispatchError::NoPermission),
 		}
 	}
