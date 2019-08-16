@@ -194,7 +194,7 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 				TransactionValidity::Valid(ValidTransaction {
 					priority: PRIORITY,
 					requires: vec![],
-					provides: vec![],
+					provides: vec![("claims", signer).encode()],
 					longevity: TransactionLongevity::max_value(),
 					propagate: true,
 				})
@@ -399,7 +399,7 @@ mod tests {
 				TransactionValidity::Valid(ValidTransaction {
 					priority: 100,
 					requires: vec![],
-					provides: vec![],
+					provides: vec![("claims", alice_eth()).encode()],
 					longevity: TransactionLongevity::max_value(),
 					propagate: true,
 				})
