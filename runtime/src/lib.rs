@@ -162,7 +162,7 @@ impl system::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
+	pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 }
 
@@ -647,7 +647,7 @@ impl_runtime_apis! {
 			babe_primitives::BabeConfiguration {
 				median_required_blocks: 1000,
 				slot_duration: Babe::slot_duration(),
-				c: (278, 1000),
+				c: PRIMARY_PROBABILITY,
 			}
 		}
 
