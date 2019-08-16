@@ -1086,7 +1086,7 @@ mod tests {
 
 		babe::GenesisConfig {
 			authorities: babe_authorities,
-		}.assimilate_storage(&mut t).unwrap();
+		}.assimilate_storage::<Test>(&mut t).unwrap();
 
 		balances::GenesisConfig::<Test> {
 			balances,
