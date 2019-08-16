@@ -969,7 +969,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
+		pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
 		pub const ExpectedBlockTime: u64 = MILLISECS_PER_BLOCK;
 	}
 
