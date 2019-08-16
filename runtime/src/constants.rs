@@ -24,8 +24,7 @@ pub mod currency {
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 }
 
-
-/// Time.
+/// Time and blocks.
 pub mod time {
 	use primitives::{Moment, BlockNumber};
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
@@ -38,6 +37,9 @@ pub mod time {
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 	pub const HOURS: BlockNumber = MINUTES * 60;
 	pub const DAYS: BlockNumber = HOURS * 24;
+
+	// 1 in 4 blocks (on average, not counting collisions) will be primary babe blocks.
+	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 }
 
 /// Fee-related.
