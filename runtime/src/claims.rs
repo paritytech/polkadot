@@ -43,27 +43,20 @@ pub trait Trait: system::Trait {
 
 type EthereumAddress = [u8; 20];
 
-// This is a bit of a workaround until codec supports [u8; 65] directly.
-#[derive(Encode, Decode, Clone, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct EcdsaSignature([u8; 32], [u8; 32], i8);
+#[derive(Encode, Decode, Clone)]
+pub struct EcdsaSignature(pub [u8; 65]);
 
-impl EcdsaSignature {
-	pub fn to_blob(&self) -> [u8; 65] {
-		let mut r = [0u8; 65];
-		r[0..32].copy_from_slice(&self.0[..]);
-		r[32..64].copy_from_slice(&self.1[..]);
-		r[64] = self.2 as u8;
-		r
+impl PartialEq for EcdsaSignature {
+	fn eq(&self, other: &Self) -> bool {
+		&self.0[..] == &other.0[..]
 	}
-	#[cfg(test)]
-	pub fn from_blob(blob: &[u8; 65]) -> Self {
-		let mut r = Self([0u8; 32], [0u8; 32], 0);
-		r.0[..].copy_from_slice(&blob[0..32]);
-		r.1[..].copy_from_slice(&blob[32..64]);
-		r.2 = blob[64] as i8;
-		r
-	}
+}
+
+#[cfg(feature = "std")]
+impl std::fmt::Debug for EcdsaSignature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", &self.0[..])
+    }
 }
 
 decl_event!(
@@ -161,7 +154,7 @@ impl<T: Trait> Module<T> {
 	fn eth_recover(s: &EcdsaSignature, what: &[u8]) -> Option<EthereumAddress> {
 		let msg = keccak_256(&Self::ethereum_signable_message(what));
 		let mut res = EthereumAddress::default();
-		res.copy_from_slice(&keccak_256(&secp256k1_ecdsa_recover(&s.to_blob(), &msg).ok()?[..])[12..]);
+		res.copy_from_slice(&keccak_256(&secp256k1_ecdsa_recover(&s.0, &msg).ok()?[..])[12..]);
 		Some(res)
 	}
 }
@@ -213,7 +206,7 @@ mod tests {
 
 	use sr_io::with_externalities;
 	use substrate_primitives::{H256, Blake2Hasher};
-	use codec::{Decode, Encode};
+	use codec::Encode;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sr_primitives::{Perbill, traits::{BlakeTwo256, IdentityLookup, ConvertInto}, testing::Header};
@@ -302,8 +295,10 @@ mod tests {
 	fn alice_sig(what: &[u8]) -> EcdsaSignature {
 		let msg = keccak256(&Claims::ethereum_signable_message(&to_ascii_hex(what)[..]));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &alice_secret()).unwrap();
-		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
-		EcdsaSignature(sig.0, sig.1, recovery_id.serialize() as i8)
+		let mut r = [0u8; 65];
+		r[0..64].copy_from_slice(&sig.serialize()[..]);
+		r[64] = recovery_id.serialize();
+		EcdsaSignature(r)
 	}
 	fn bob_secret() -> secp256k1::SecretKey {
 		secp256k1::SecretKey::parse(&keccak256(b"Bob")).unwrap()
@@ -311,8 +306,10 @@ mod tests {
 	fn bob_sig(what: &[u8]) -> EcdsaSignature {
 		let msg = keccak256(&Claims::ethereum_signable_message(&to_ascii_hex(what)[..]));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &bob_secret()).unwrap();
-		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
-		EcdsaSignature(sig.0, sig.1, recovery_id.serialize() as i8)
+		let mut r = [0u8; 65];
+		r[0..64].copy_from_slice(&sig.serialize()[..]);
+		r[64] = recovery_id.serialize();
+		EcdsaSignature(r)
 	}
 
 	// This function basically just builds a genesis storage key/value store according to
@@ -384,7 +381,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// "Pay RUSTs to the TEST account:2a00000000000000"
 			let sig = hex!["444023e89b67e67c0562ed0305d252a5dd12b2af5ac51d6d3cb69a0b486bc4b3191401802dc29d26d586221f7256cd3329fe82174bdf659baea149a40e1c495d1c"];
-			let sig = EcdsaSignature::from_blob(&sig);
+			let sig = EcdsaSignature(sig);
 			let who = 42u64.using_encoded(to_ascii_hex);
 			let signer = Claims::eth_recover(&sig, &who).unwrap();
 			assert_eq!(signer, hex!["6d31165d5d932d571f3b44695653b46dcc327e84"]);
@@ -405,7 +402,7 @@ mod tests {
 				})
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(0, EcdsaSignature::from_blob(&[0; 65]))),
+				<Module<Test>>::validate_unsigned(&Call::claim(0, EcdsaSignature([0; 65]))),
 				TransactionValidity::Invalid(-10)
 			);
 			assert_eq!(
