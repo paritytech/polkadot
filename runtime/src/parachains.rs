@@ -839,11 +839,17 @@ impl<T: Trait> Module<T> {
 impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
+	fn on_genesis_session<'a, I: 'a>(validators: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		<Self as Store>::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+	}
+
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, _queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
 		if changed {
-			<Self as Store>::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+			Self::on_genesis_session(validators)
 		}
 	}
 
@@ -1080,7 +1086,7 @@ mod tests {
 
 		babe::GenesisConfig {
 			authorities: babe_authorities,
-		}.assimilate_storage(&mut t).unwrap();
+		}.assimilate_storage::<Test>(&mut t).unwrap();
 
 		balances::GenesisConfig::<Test> {
 			balances,
