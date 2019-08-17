@@ -51,7 +51,7 @@ fn parallel_execution() {
 	let thread = std::thread::spawn(move ||
 		parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
-		0.into(),
+		101.into(),
 		ValidationParams {
 			parent_head: Default::default(),
 			block_data: Vec::new(),
@@ -62,7 +62,7 @@ fn parallel_execution() {
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
-		1.into(),
+		102.into(),
 		ValidationParams {
 			parent_head: Default::default(),
 			block_data: Vec::new(),
