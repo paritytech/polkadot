@@ -505,15 +505,15 @@ construct_runtime!(
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 
-		// Sudo. Usable initially.
-		// RELEASE: remove this for release build.
-		Sudo: sudo,
-
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
 		// have no public dispatchables.
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
+
+		// Sudo. Usable initially.
+		// RELEASE: remove this for release build.
+		Sudo: sudo,
 	}
 );
 
