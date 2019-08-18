@@ -2599,6 +2599,7 @@ dependencies = [
  "serde_derive 1.0.98 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sr-staking-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sr-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-authorship 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
@@ -2613,6 +2614,7 @@ dependencies = [
  "srml-im-online 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-indices 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-membership 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "srml-offences 1.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-sudo 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
@@ -3652,6 +3654,21 @@ dependencies = [
  "serde 1.0.98 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "srml-offences"
+version = "1.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#5364a422e6b29522c6b723e8b80dbae39d7b1352"
+dependencies = [
+ "parity-scale-codec 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.98 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sr-staking-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "srml-balances 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "srml-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "srml-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -5632,6 +5649,7 @@ dependencies = [
 "checksum srml-indices 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-membership 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-metadata 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum srml-offences 1.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-sudo 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"

@@ -24,7 +24,8 @@ use codec::{Encode, Decode};
 use srml_support::{decl_storage, decl_module, ensure};
 
 use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};
-use {system, session::{self, SessionIndex}};
+use sr_staking_primitives::SessionIndex;
+use {system, session};
 use srml_support::{
 	StorageValue, StorageMap, StorageDoubleMap, dispatch::Result, traits::Get,
 };

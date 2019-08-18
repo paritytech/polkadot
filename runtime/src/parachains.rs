@@ -1004,7 +1004,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const SessionsPerEra: session::SessionIndex = 6;
+		pub const SessionsPerEra: sr_staking_primitives::SessionIndex = 6;
 		pub const BondingDuration: staking::EraIndex = 24 * 28;
 		pub const AttestationPeriod: BlockNumber = 100;
 	}
