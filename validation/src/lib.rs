@@ -627,6 +627,14 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 			last_included: initial_included,
 		};
 
+		let deadline_diff = max_duration - max_duration / 3;
+		let deadline = match Instant::now().checked_add(deadline_diff) {
+			None => return Either::Right(
+				future::err(Error::DeadlineComputeFailure(deadline_diff)),
+			),
+			Some(d) => d,
+		};
+
 		Either::Left(CreateProposal {
 			parent_hash: self.parent_hash.clone(),
 			parent_number: self.parent_number.clone(),
@@ -639,7 +647,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 			inherent_data: Some(inherent_data),
 			inherent_digests,
 			// leave some time for the proposal finalisation
-			deadline: Instant::now() + max_duration - max_duration / 3,
+			deadline,
 		})
 	}
 }
