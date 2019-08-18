@@ -533,6 +533,7 @@ pub type BlockId = generic::BlockId<Block>;
 pub type SignedExtra = (
 	// RELEASE: remove this for release build.
 	OnlyStakingAndClaims,
+	system::CheckVersion<Runtime>,
 	system::CheckGenesis<Runtime>,
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
