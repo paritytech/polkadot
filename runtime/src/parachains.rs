@@ -936,6 +936,7 @@ mod tests {
 		type MaximumBlockWeight = MaximumBlockWeight;
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
+		type Version = ();
 	}
 
 	parameter_types! {
@@ -1003,7 +1004,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const SessionsPerEra: session::SessionIndex = 6;
+		pub const SessionsPerEra: sr_staking_primitives::SessionIndex = 6;
 		pub const BondingDuration: staking::EraIndex = 24 * 28;
 		pub const AttestationPeriod: BlockNumber = 100;
 	}
@@ -1098,8 +1099,6 @@ mod tests {
 			stakers,
 			validator_count: 10,
 			minimum_validator_count: 8,
-			offline_slash: Perbill::from_percent(5),
-			offline_slash_grace: 0,
 			invulnerables: vec![],
 			.. Default::default()
 		}.assimilate_storage(&mut t).unwrap();

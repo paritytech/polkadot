@@ -50,6 +50,7 @@ use elections::VoteIndex;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
+use sr_staking_primitives::SessionIndex;
 use srml_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
 };
@@ -142,6 +143,7 @@ parameter_types! {
 	pub const MaximumBlockWeight: Weight = 1_000_000_000;
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
+	pub const Version: RuntimeVersion = VERSION;
 }
 
 impl system::Trait for Runtime {
@@ -160,6 +162,7 @@ impl system::Trait for Runtime {
 	type MaximumBlockWeight = MaximumBlockWeight;
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
+	type Version = Version;
 }
 
 parameter_types! {
@@ -275,7 +278,7 @@ impl session::historical::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const SessionsPerEra: session::SessionIndex = 6;
+	pub const SessionsPerEra: SessionIndex = 6;
 	pub const BondingDuration: staking::EraIndex = 24 * 28;
 }
 
@@ -402,10 +405,18 @@ impl treasury::Trait for Runtime {
 	type Burn = Burn;
 }
 
+impl offences::Trait for Runtime {
+	type Event = Event;
+	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
+	type OnOffenceHandler = Staking;
+}
+
 impl im_online::Trait for Runtime {
 	type Call = Call;
 	type Event = Event;
 	type UncheckedExtrinsic = UncheckedExtrinsic;
+	type ReportUnresponsiveness = ();
+	type CurrentElectedSet = staking::CurrentElectedStashAccounts<Runtime>;
 }
 
 impl grandpa::Trait for Runtime {
@@ -489,6 +500,7 @@ construct_runtime!(
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
 		Staking: staking::{default, OfflineWorker},
+		Offences: offences::{Module, Call, Storage, Event},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
@@ -531,6 +543,7 @@ pub type BlockId = generic::BlockId<Block>;
 pub type SignedExtra = (
 	// RELEASE: remove this for release build.
 	OnlyStakingAndClaims,
+	system::CheckVersion<Runtime>,
 	system::CheckGenesis<Runtime>,
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
