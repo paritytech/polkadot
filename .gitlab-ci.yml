@@ -22,6 +22,9 @@ variables:
   CI_SERVER_NAME:                  "GitLab CI"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
+  GITHUB_API:                      "https://api.github.com"
+  GITLAB_API:                      "https://gitlab.parity.io/api/v4"
+  GITHUB_API_PROJECT:              "parity%2Finfrastructure%2Fgithub-api"
 
 
 .collect-artifacts:                &collect-artifacts
@@ -54,10 +57,6 @@ check-merge-conflict:
   <<:                              *kubernetes-build
   only:
     - /^[0-9]+$/
-  variables:
-    GITHUB_API:                    "https://api.github.com"
-    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
-    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
   script:
     - ./scripts/gitlab/check_merge_conflict.sh
 
@@ -120,6 +119,14 @@ build-linux-release:               &build
     - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
     - cp -r scripts/docker/* ./artifacts
     - sccache -s
+    - echo "| backporting commits into kusama branch"
+    - curl -sS -X POST
+        -F "token=${CI_JOB_TOKEN}"
+        -F "ref=master"
+        -F "variables[BACKPORT_BRANCH]=\"kusama\""
+        ${GITLAB_API}/projects/${GITHUB_API_PROJECT}/trigger/pipeline
+
+
 
 
 
