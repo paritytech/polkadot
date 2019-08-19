@@ -24,7 +24,6 @@ use system::ensure_none;
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
-#[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
 use sr_primitives::{
 	weights::SimpleDispatchInfo,
