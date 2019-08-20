@@ -429,7 +429,7 @@ parameter_types! {
 }
 
 impl finality_tracker::Trait for Runtime {
-	type OnFinalizationStalled = Grandpa;
+	type OnFinalizationStalled = ();
 	type WindowSize = WindowSize;
 	type ReportLatency = ReportLatency;
 }
