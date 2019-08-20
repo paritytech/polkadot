@@ -23,6 +23,8 @@ use srml_support::traits::{Currency, Get};
 use system::ensure_none;
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
+use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
+#[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
 use sr_primitives::{
 	weights::SimpleDispatchInfo,
@@ -41,7 +43,37 @@ pub trait Trait: system::Trait {
 	type Prefix: Get<&'static [u8]>;
 }
 
-type EthereumAddress = [u8; 20];
+/// An Ethereum address (i.e. 20 bytes, used to represent an Ethereum account).
+///
+/// This gets serialized to the 0x-prefixed hex representation.
+#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct EthereumAddress([u8; 20]);
+
+#[cfg(feature = "std")]
+impl Serialize for EthereumAddress {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+		let hex: String = rustc_hex::ToHex::to_hex(&self.0[..]);
+		serializer.serialize_str(&format!("0x{}", hex))
+	}
+}
+
+#[cfg(feature = "std")]
+impl<'de> Deserialize<'de> for EthereumAddress {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+		let base_string = String::deserialize(deserializer)?;
+		let offset = if base_string.starts_with("0x") { 2 } else { 0 };
+		let s = &base_string[offset..];
+		if s.len() != 40 {
+			Err(serde::de::Error::custom("Bad length of Ethereum address (should be 42 including '0x')"))?;
+		}
+		let raw: Vec<u8> = rustc_hex::FromHex::from_hex(s)
+			.map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?;
+		let mut r = Self::default();
+		r.0.copy_from_slice(&raw);
+		Ok(r)
+	}
+}
 
 #[derive(Encode, Decode, Clone)]
 pub struct EcdsaSignature(pub [u8; 65]);
@@ -154,7 +186,7 @@ impl<T: Trait> Module<T> {
 	fn eth_recover(s: &EcdsaSignature, what: &[u8]) -> Option<EthereumAddress> {
 		let msg = keccak_256(&Self::ethereum_signable_message(what));
 		let mut res = EthereumAddress::default();
-		res.copy_from_slice(&keccak_256(&secp256k1_ecdsa_recover(&s.0, &msg).ok()?[..])[12..]);
+		res.0.copy_from_slice(&keccak_256(&secp256k1_ecdsa_recover(&s.0, &msg).ok()?[..])[12..]);
 		Some(res)
 	}
 }
@@ -290,7 +322,7 @@ mod tests {
 	}
 	fn alice_eth() -> EthereumAddress {
 		let mut res = EthereumAddress::default();
-		res.copy_from_slice(&keccak256(&alice_public().serialize()[1..65])[12..]);
+		res.0.copy_from_slice(&keccak256(&alice_public().serialize()[1..65])[12..]);
 		res
 	}
 	fn alice_sig(what: &[u8]) -> EcdsaSignature {
@@ -330,8 +362,17 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Claims::total(), 100);
 			assert_eq!(Claims::claims(&alice_eth()), Some(100));
-			assert_eq!(Claims::claims(&[0; 20]), None);
+			assert_eq!(Claims::claims(&Default::default()), None);
 		});
+	}
+
+	#[test]
+	fn serde_works() {
+		let x = EthereumAddress(hex!["0123456789abcdef0123456789abcdef01234567"]);
+		let y = serde_json::to_string(&x).unwrap();
+		assert_eq!(y, "\"0x0123456789abcdef0123456789abcdef01234567\"");
+		let z: EthereumAddress = serde_json::from_str(&y).unwrap();
+		assert_eq!(x, z);
 	}
 
 	#[test]
@@ -385,7 +426,7 @@ mod tests {
 			let sig = EcdsaSignature(sig);
 			let who = 42u64.using_encoded(to_ascii_hex);
 			let signer = Claims::eth_recover(&sig, &who).unwrap();
-			assert_eq!(signer, hex!["6d31165d5d932d571f3b44695653b46dcc327e84"]);
+			assert_eq!(signer.0, hex!["6d31165d5d932d571f3b44695653b46dcc327e84"]);
 		});
 	}
 
