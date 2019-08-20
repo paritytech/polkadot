@@ -120,7 +120,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		staking: Some(StakingConfig {
 			current_era: 0,
-			validator_count: 7,
+			validator_count: 50,
 			minimum_validator_count: 4,
 			stakers: initial_authorities.iter().map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator)).collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
@@ -140,8 +140,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		elections: Some(ElectionsConfig {
 			members: vec![],
 			presentation_duration: 1 * DAYS,
-			term_duration: 28 * DAYS,
-			desired_seats: 0,
+			term_duration: 49 * DAYS,
+			desired_seats: 7,
 		}),
 		membership_Instance1: Some(Default::default()),
 		babe: Some(Default::default()),
@@ -276,8 +276,8 @@ pub fn testnet_genesis(
 					.find(|&(_, controller, _, _, _, _)| controller == endowed)
 					.is_none()
 				).map(|a| (a.clone(), 1000000)).collect(),
-			presentation_duration: 10,
-			term_duration: 1000000,
+			presentation_duration: 10 * MINUTES,
+			term_duration: 1 * DAYS,
 			desired_seats,
 		}),
 		membership_Instance1: Some(Default::default()),
