@@ -27,11 +27,11 @@ RUN mv /usr/share/ca* /tmp && \
 	rm -rf /usr/share/*  && \
 	mv /tmp/ca-certificates /usr/share/ && \
 	rm -rf /usr/lib/python* && \
-	rm -rf /usr/bin /usr/sbin && \
 	useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
 	mkdir -p /polkadot/.local/share/polkadot && \
 	chown -R polkadot:polkadot /polkadot/.local && \
-	ln -s /polkadot/.local/share/polkadot /data
+	ln -s /polkadot/.local/share/polkadot /data && \
+	rm -rf /usr/bin /usr/sbin
 
 USER polkadot
 EXPOSE 30333 9933 9944
