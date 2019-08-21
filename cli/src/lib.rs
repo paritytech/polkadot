@@ -25,9 +25,9 @@ use std::ops::Deref;
 use chain_spec::ChainSpec;
 use futures::Future;
 use tokio::runtime::Runtime;
-use service::Service as BareService;
+use service::{Service as BareService, Error as ServiceError};
 use std::sync::Arc;
-use log::info;
+use log::{info, error};
 use structopt::StructOpt;
 
 pub use service::{
@@ -86,8 +86,8 @@ struct ValidationWokerCommand {
 pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	W: Worker,
 {
-	let command = cli::parse_and_execute::<service::Factory, PolkadotSubCommands, NoCustom, _, _, _, _, _>(
-		load_spec, &version, "parity-polkadot", std::env::args(), worker,
+	match cli::parse_and_prepare::<PolkadotSubCommands, NoCustom, _>(&version, "parity-polkadot", std::env::args()) {
+		cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, worker,
 		|worker, _cli_args, _custom_args, mut config| {
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
@@ -110,14 +110,18 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 						worker
 					),
 			}.map_err(|e| format!("{:?}", e))
+		}),
+		cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run(load_spec),
+		cli::ParseAndPrepare::ExportBlocks(cmd) =>
+			cmd.run::<service::Factory, _, _>(load_spec, worker),
+		cli::ParseAndPrepare::ImportBlocks(cmd) =>
+			cmd.run::<service::Factory, _, _>(load_spec, worker),
+		cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
+		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run::<service::Factory, _>(load_spec),
+		cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
+			service::run_validation_worker(&args.mem_id)?;
+			Ok(())
 		}
-	)?;
-
-	match command {
-		Some(PolkadotSubCommands::ValidationWorker(args)) => {
-			service::run_validation_worker(&args.mem_id).map_err(Into::into)
-		}
-		_ => Ok(())
 	}
 }
 
@@ -127,7 +131,7 @@ fn run_until_exit<T, C, W>(
 	worker: W,
 ) -> error::Result<()>
 	where
-		T: Deref<Target=BareService<C>> + Future<Item = (), Error = ()> + Send + 'static,
+		T: Deref<Target=BareService<C>> + Future<Item = (), Error = ServiceError> + Send + 'static,
 		C: service::Components,
 		BareService<C>: PolkadotService,
 		W: Worker,
@@ -143,6 +147,7 @@ fn run_until_exit<T, C, W>(
 	let _telemetry = service.telemetry();
 
 	let work = worker.work(&*service, Arc::new(executor));
+	let service = service.map_err(|err| error!("Error while running Service: {}", err));
 	let _ = runtime.block_on(service.select(work));
 	exit_send.fire();
 
