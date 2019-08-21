@@ -73,7 +73,6 @@ pub fn execute_good_on_parent() {
 
 	let ret = parachain::wasm_executor::validate_candidate(
 		TEST_CODE,
-		0.into(),
 		ValidationParams {
 			parent_head: parent_head.encode(),
 			block_data: block_data.encode(),
@@ -110,7 +109,6 @@ fn execute_good_chain_on_parent() {
 
 		let ret = parachain::wasm_executor::validate_candidate(
 			TEST_CODE,
-			0.into(),
 			ValidationParams {
 				parent_head: parent_head.encode(),
 				block_data: block_data.encode(),
@@ -147,7 +145,6 @@ fn execute_bad_on_parent() {
 
 	let _ret = parachain::wasm_executor::validate_candidate(
 		TEST_CODE,
-		0.into(),
 		ValidationParams {
 			parent_head: parent_head.encode(),
 			block_data: block_data.encode(),
@@ -176,7 +173,6 @@ fn processes_messages() {
 
 	let ret = parachain::wasm_executor::validate_candidate(
 		TEST_CODE,
-		0.into(),
 		ValidationParams {
 			parent_head: parent_head.encode(),
 			block_data: block_data.encode(),
