@@ -178,14 +178,12 @@ pub fn validate_candidate<E: Externalities>(
 ) -> Result<ValidationResult, Error> {
 	for host in HOSTS.iter() {
 		if let Some(mut host) = host.try_lock() {
-			let result = host.validate_candidate(validation_code, params, externalities, test_mode);
-			return result;
+			return host.validate_candidate(validation_code, params, externalities, test_mode);
 		}
 	}
 
 	// all workers are busy, just wait for the first one
-	let result = HOSTS[0].lock().validate_candidate(validation_code, params, externalities, test_mode);
-	result
+	HOSTS[0].lock().validate_candidate(validation_code, params, externalities, test_mode)
 }
 
 impl Drop for ValidationHost {
