@@ -175,8 +175,7 @@ pub fn validate_candidate<E: Externalities>(
 	params: ValidationParams,
 	externalities: &mut E,
 	test_mode: bool,
-) -> Result<ValidationResult, Error>
-{
+) -> Result<ValidationResult, Error> {
 	for host in HOSTS.iter() {
 		if let Some(mut host) = host.try_lock() {
 			let result = host.validate_candidate(validation_code, params, externalities, test_mode);
@@ -243,8 +242,7 @@ impl ValidationHost {
 		params: ValidationParams,
 		externalities: &mut E,
 		test_mode: bool,
-	) -> Result<ValidationResult, Error>
-	{
+	) -> Result<ValidationResult, Error> {
 		if validation_code.len() > MAX_CODE_MEM {
 			return Err(Error::CodeTooLarge(validation_code.len()));
 		}
