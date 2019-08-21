@@ -27,7 +27,8 @@ use wasmi::{
 	ModuleImportResolver, RuntimeValue, Externals, Error as WasmError, ValueType,
 	memory_units::{self, Bytes, Pages, RoundUpTo}
 };
-use super::{ValidationParams, ValidationResult, MessageRef, UpwardMessageRef,
+use super::{
+	ValidationParams, ValidationResult, MessageRef, UpwardMessageRef,
 	UpwardMessage, IncomingMessage};
 
 #[cfg(not(target_os = "unknown"))]
