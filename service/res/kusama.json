@@ -13,7 +13,7 @@
   "protocolId": "dot",
   "consensusEngine": null,
   "properties": {
-		"networkId": 2,
+		"ss58Format": 2,
 		"tokenDecimals": 15,
 		"tokenSymbol": "DOT"
   },
