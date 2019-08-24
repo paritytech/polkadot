@@ -18,7 +18,7 @@
 
 use polkadot_parachain as parachain;
 use crate::{adder, DummyExt};
-use crate::parachain::ValidationParams;
+use crate::parachain::{ValidationParams, wasm_executor::EXECUTION_TIMEOUT_SEC};
 
 // Code that exposes `validate_block` and loops infinitely
 const INFINITE_LOOP_CODE: &[u8] = halt::WASM_BINARY;
@@ -42,4 +42,36 @@ fn terminates_on_timeout() {
 
 	// check that another parachain can validate normaly
 	adder::execute_good_on_parent();
+}
+
+#[test]
+fn parallel_execution() {
+	let start = std::time::Instant::now();
+	let thread = std::thread::spawn(move ||
+		parachain::wasm_executor::validate_candidate(
+		INFINITE_LOOP_CODE,
+		ValidationParams {
+			parent_head: Default::default(),
+			block_data: Vec::new(),
+			ingress: Vec::new(),
+		},
+		&mut DummyExt,
+		parachain::wasm_executor::ExecutionMode::RemoteTest,
+	).ok());
+	let _ = parachain::wasm_executor::validate_candidate(
+		INFINITE_LOOP_CODE,
+		ValidationParams {
+			parent_head: Default::default(),
+			block_data: Vec::new(),
+			ingress: Vec::new(),
+		},
+		&mut DummyExt,
+		parachain::wasm_executor::ExecutionMode::RemoteTest,
+	);
+	thread.join().unwrap();
+	// total time should be < 2 x EXECUTION_TIMEOUT_SEC
+	assert!(
+		std::time::Instant::now().duration_since(start)
+		< std::time::Duration::from_secs(EXECUTION_TIMEOUT_SEC * 2)
+	);
 }
