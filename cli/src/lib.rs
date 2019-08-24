@@ -69,7 +69,7 @@ pub trait Worker: IntoExit {
 #[derive(Debug, StructOpt, Clone)]
 enum PolkadotSubCommands {
 	#[structopt(name = "validation-worker", raw(setting = "structopt::clap::AppSettings::Hidden"))]
-	ValidationWorker(ValidationWokerCommand),
+	ValidationWorker(ValidationWorkerCommand),
 }
 
 impl cli::GetLogFilter for PolkadotSubCommands {
@@ -77,7 +77,7 @@ impl cli::GetLogFilter for PolkadotSubCommands {
 }
 
 #[derive(Debug, StructOpt, Clone)]
-struct ValidationWokerCommand {
+struct ValidationWorkerCommand {
 	#[structopt()]
 	pub mem_id: String,
 }
