@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-collator"
-version = "0.1.0"
+version = "0.6.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator node implementation"
 edition = "2018"
@@ -12,8 +12,8 @@ client = { package = "substrate-client", git = "https://github.com/paritytech/su
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-polkadot-runtime = { path = "../runtime", version = "0.1" }
-polkadot-primitives = { path = "../primitives", version = "0.1" }
+polkadot-runtime = { path = "../runtime" }
+polkadot-primitives = { path = "../primitives" }
 polkadot-cli = { path = "../cli" }
 polkadot-network = { path = "../network" }
 polkadot-validation = { path = "../validation" }
