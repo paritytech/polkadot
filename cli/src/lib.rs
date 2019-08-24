@@ -69,7 +69,7 @@ pub trait Worker: IntoExit {
 #[derive(Debug, StructOpt, Clone)]
 enum PolkadotSubCommands {
 	#[structopt(name = "validation-worker", raw(setting = "structopt::clap::AppSettings::Hidden"))]
-	ValidationWorker(ValidationWokerCommand),
+	ValidationWorker(ValidationWorkerCommand),
 }
 
 impl cli::GetLogFilter for PolkadotSubCommands {
@@ -77,7 +77,7 @@ impl cli::GetLogFilter for PolkadotSubCommands {
 }
 
 #[derive(Debug, StructOpt, Clone)]
-struct ValidationWokerCommand {
+struct ValidationWorkerCommand {
 	#[structopt()]
 	pub mem_id: String,
 }
@@ -93,11 +93,13 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 			info!("  version {}", config.full_version());
 			info!("  by {}, 2017-2019", version.author);
 			info!("Chain specification: {}", config.chain_spec.name());
-			info!("----------------------------");
-			info!("This chain is not in any way");
-			info!("      endorsed by the       ");
-			info!("     KUSAMA FOUNDATION      ");
-			info!("----------------------------");
+			if config.chain_spec.name() == "kusama" {
+				info!("----------------------------");
+				info!("This chain is not in any way");
+				info!("      endorsed by the       ");
+				info!("     KUSAMA FOUNDATION      ");
+				info!("----------------------------");
+			}
 			info!("Node name: {}", config.name);
 			info!("Roles: {:?}", config.roles);
 			config.custom = worker.configuration();
