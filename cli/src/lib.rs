@@ -136,12 +136,11 @@ fn run_until_exit<T, C, W>(
 	mut runtime: Runtime,
 	service: T,
 	worker: W,
-) -> error::Result<()>
-	where
-		T: Deref<Target=BareService<C>> + Future<Item = (), Error = ServiceError> + Send + 'static,
-		C: service::Components,
-		BareService<C>: PolkadotService,
-		W: Worker,
+) -> error::Result<()> where
+	T: Deref<Target=BareService<C>> + Future<Item = (), Error = ServiceError> + Send + 'static,
+	C: service::Components,
+	BareService<C>: PolkadotService,
+	W: Worker,
 {
 	let (exit_send, exit) = exit_future::signal();
 
