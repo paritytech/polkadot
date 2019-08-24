@@ -98,7 +98,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 1,
-	spec_version: 1000,
+	spec_version: 1001,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -278,8 +278,10 @@ impl session::historical::Trait for Runtime {
 }
 
 parameter_types! {
+	// Six sessions in an era (24 hours).
 	pub const SessionsPerEra: SessionIndex = 6;
-	pub const BondingDuration: staking::EraIndex = 24 * 28;
+	// 28 eras for unbonding (28 days).
+	pub const BondingDuration: staking::EraIndex = 28;
 }
 
 impl staking::Trait for Runtime {

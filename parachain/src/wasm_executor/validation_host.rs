@@ -18,7 +18,8 @@
 
 use std::{process, env, sync::Arc, sync::atomic};
 use crate::codec::{Decode, Encode};
-use crate::{ValidationParams, ValidationResult, MessageRef, UpwardMessageRef, UpwardMessage, IncomingMessage};
+use crate::{ValidationParams, ValidationResult, MessageRef,
+	UpwardMessageRef, UpwardMessage, IncomingMessage};
 use super::{validate_candidate_internal, Error, Externalities, WorkerExternalities};
 use super::{MAX_CODE_MEM, MAX_RUNTIME_MEM};
 use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
@@ -33,6 +34,11 @@ const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 const WORKER_ARG: &'static str = "validation-worker";
 const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
 
+const NUM_HOSTS: usize = 8;
+
+/// Execution timeout in seconds;
+pub const EXECUTION_TIMEOUT_SEC: u64 =  5;
+
 enum Event {
 	CandidateReady = 0,
 	ResultReady = 1,
@@ -40,7 +46,7 @@ enum Event {
 }
 
 lazy_static::lazy_static! {
-	pub static ref HOST: Mutex<ValidationHost> = Mutex::new(ValidationHost::new());
+	static ref HOSTS: [Mutex<ValidationHost>; NUM_HOSTS] = Default::default();
 }
 
 /// Validation worker process entry point. Runs a loop waiting for canidates to validate
@@ -154,11 +160,31 @@ pub enum ValidationResultHeader {
 
 unsafe impl Send for ValidationHost {}
 
-pub struct ValidationHost {
+#[derive(Default)]
+struct ValidationHost {
 	worker: Option<process::Child>,
 	memory: Option<SharedMem>,
 }
 
+
+/// Validate a candidate under the given validation code.
+///
+/// This will fail if the validation code is not a proper parachain validation module.
+pub fn validate_candidate<E: Externalities>(
+	validation_code: &[u8],
+	params: ValidationParams,
+	externalities: &mut E,
+	test_mode: bool,
+) -> Result<ValidationResult, Error> {
+	for host in HOSTS.iter() {
+		if let Some(mut host) = host.try_lock() {
+			return host.validate_candidate(validation_code, params, externalities, test_mode);
+		}
+	}
+
+	// all workers are busy, just wait for the first one
+	HOSTS[0].lock().validate_candidate(validation_code, params, externalities, test_mode)
+}
 
 impl Drop for ValidationHost {
 	fn drop(&mut self) {
@@ -176,16 +202,9 @@ impl ValidationHost {
 			.add_lock(shared_memory::LockType::Mutex, 0, mem_size)?
 			.add_event(shared_memory::EventType::Auto)?  // Event::CandidateReady
 			.add_event(shared_memory::EventType::Auto)?  // Event::ResultReady
-			.add_event(shared_memory::EventType::Auto)?; // Evebt::WorkerReady
+			.add_event(shared_memory::EventType::Auto)?; // Event::WorkerReady
 
 		Ok(mem_config.create()?)
-	}
-
-	fn new() -> ValidationHost {
-		ValidationHost {
-			worker: None,
-			memory: None,
-		}
 	}
 
 	fn start_worker(&mut self, test_mode: bool) -> Result<(), Error> {
@@ -207,7 +226,7 @@ impl ValidationHost {
 			.spawn()?;
 		self.worker = Some(worker);
 
-		memory.wait(Event::WorkerReady as usize, shared_memory::Timeout::Sec(5))?;
+		memory.wait(Event::WorkerReady as usize, shared_memory::Timeout::Sec(EXECUTION_TIMEOUT_SEC as usize))?;
 		self.memory = Some(memory);
 		Ok(())
 	}
@@ -221,8 +240,7 @@ impl ValidationHost {
 		params: ValidationParams,
 		externalities: &mut E,
 		test_mode: bool,
-	) -> Result<ValidationResult, Error>
-	{
+	) -> Result<ValidationResult, Error> {
 		if validation_code.len() > MAX_CODE_MEM {
 			return Err(Error::CodeTooLarge(validation_code.len()));
 		}
