@@ -93,7 +93,7 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 			info!("  version {}", config.full_version());
 			info!("  by {}, 2017-2019", version.author);
 			info!("Chain specification: {}", config.chain_spec.name());
-			if config.chain_spec.name() == "kusama" {
+			if config.chain_spec.name().contains("usama") {
 				info!("----------------------------");
 				info!("This chain is not in any way");
 				info!("      endorsed by the       ");
