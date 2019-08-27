@@ -62,13 +62,12 @@ use polkadot_primitives::{
 	}
 };
 use polkadot_cli::{
-	Worker, IntoExit, ProvideRuntimeApi, TaskExecutor, PolkadotService, CustomConfiguration,
-	ParachainHost,
+	Worker, IntoExit, ProvideRuntimeApi, TaskExecutor, AbstractService,
+	CustomConfiguration, ParachainHost,
 };
 use polkadot_network::validation::{SessionParams, ValidationNetwork};
-use polkadot_network::NetworkService;
+use polkadot_network::{NetworkService, PolkadotProtocol};
 use tokio::timer::Timeout;
-use consensus_common::SelectChain;
 
 pub use polkadot_cli::VersionInfo;
 pub use polkadot_network::validation::Incoming;
@@ -287,8 +286,11 @@ impl<P, E> Worker for CollationNode<P, E> where
 		config
 	}
 
-	fn work<S>(self, service: &S, task_executor: TaskExecutor) -> Self::Work where
-		S: PolkadotService,
+	fn work<S, SC, B, CE>(self, service: &S, task_executor: TaskExecutor) -> Self::Work
+	where S: AbstractService<Block = polkadot_service::Block, RuntimeApi = polkadot_service::RuntimeApi, Backend = B, SelectChain = SC, NetworkSpecialization = PolkadotProtocol, CallExecutor = CE>,
+		SC: polkadot_service::SelectChain<polkadot_service::Block> + 'static,
+		B: polkadot_service::Backend<polkadot_service::Block, polkadot_service::Blake2Hasher> + 'static,
+		CE: polkadot_service::CallExecutor<polkadot_service::Block, polkadot_service::Blake2Hasher> + Clone + Send + Sync + 'static
 	{
 		let CollationNode { build_parachain_context, exit, para_id, key } = self;
 		let client = service.client();
