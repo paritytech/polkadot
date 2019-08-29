@@ -26,8 +26,8 @@ use polkadot_primitives::{Block, Hash, BlockId, Balance, parachain::{
 	Id as ParaId, Collation, Extrinsic, OutgoingMessage, UpwardMessage, FeeSchedule,
 }};
 use runtime_primitives::traits::ProvideRuntimeApi;
-use parachain::{wasm_executor::{self, ExternalitiesError}, MessageRef, UpwardMessageRef};
-
+use parachain::{wasm_executor::{self, ExternalitiesError, ExecutionMode}, MessageRef, UpwardMessageRef};
+use trie::TrieConfiguration;
 use futures::prelude::*;
 use log::debug;
 
@@ -186,7 +186,7 @@ impl std::error::Error for Error {
 pub fn message_queue_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
 	where A: AsRef<[u8]>
 {
-	::trie::ordered_trie_root::<primitives::Blake2Hasher, _, _>(messages)
+	::trie::trie_types::Layout::<primitives::Blake2Hasher>::ordered_trie_root(messages)
 }
 
 /// Compute the set of egress roots for all given outgoing messages.
@@ -434,7 +434,7 @@ pub fn validate_collation<P>(
 		fees_charged: 0,
 	};
 
-	match wasm_executor::validate_candidate(&validation_code, params, &mut ext) {
+	match wasm_executor::validate_candidate(&validation_code, params, &mut ext, ExecutionMode::Remote) {
 		Ok(result) => {
 			if result.head_data == collation.receipt.head_data.0 {
 				ext.final_checks(&collation.receipt)

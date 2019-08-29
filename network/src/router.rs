@@ -199,13 +199,16 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 					validated.extrinsic().cloned(),
 				);
 
-
 				// propagate the statement.
 				// consider something more targeted than gossip in the future.
 				let statement = GossipStatement::new(
 					parent_hash,
-					table.import_validated(validated),
+					match table.import_validated(validated) {
+						None => return,
+						Some(s) => s,
+					}
 				);
+
 				network.gossip_message(attestation_topic, statement.into());
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
@@ -224,10 +227,18 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	fn local_collation(&self, collation: Collation, extrinsic: Extrinsic) {
 		// produce a signed statement
 		let hash = collation.receipt.hash();
-		let validated = Validated::collated_local(collation.receipt, collation.pov.clone(), extrinsic.clone());
+		let validated = Validated::collated_local(
+			collation.receipt,
+			collation.pov.clone(),
+			extrinsic.clone(),
+		);
+
 		let statement = GossipStatement::new(
 			self.parent_hash(),
-			self.table.import_validated(validated),
+			match self.table.import_validated(validated) {
+				None => return,
+				Some(s) => s,
+			},
 		);
 
 		// give to network to make available.

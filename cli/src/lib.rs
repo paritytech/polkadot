@@ -21,16 +21,15 @@
 
 mod chain_spec;
 
-use std::ops::Deref;
 use chain_spec::ChainSpec;
 use futures::Future;
 use tokio::runtime::Runtime;
-use service::Service as BareService;
 use std::sync::Arc;
-use log::info;
+use log::{info, error};
+use structopt::StructOpt;
 
 pub use service::{
-	Components as ServiceComponents, PolkadotService, CustomConfiguration, ServiceFactory, Factory,
+	AbstractService, CustomConfiguration,
 	ProvideRuntimeApi, CoreApi, ParachainHost,
 };
 
@@ -62,24 +61,37 @@ pub trait Worker: IntoExit {
 	fn configuration(&self) -> service::CustomConfiguration { Default::default() }
 
 	/// Do work and schedule exit.
-	fn work<S: PolkadotService>(self, service: &S, executor: TaskExecutor) -> Self::Work;
+	fn work<S, SC, B, CE>(self, service: &S, executor: TaskExecutor) -> Self::Work
+	where S: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
+		Backend = B, SelectChain = SC,
+		NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
+		SC: service::SelectChain<service::Block> + 'static,
+		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
+		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static;
 }
 
-/// Parse command line arguments into service configuration.
-///
-/// IANA unassigned port ranges that we could use:
-/// 6717-6766		Unassigned
-/// 8504-8553		Unassigned
-/// 9556-9591		Unassigned
-/// 9803-9874		Unassigned
-/// 9926-9949		Unassigned
-pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Result<()> where
-	I: IntoIterator<Item = T>,
-	T: Into<std::ffi::OsString> + Clone,
+#[derive(Debug, StructOpt, Clone)]
+enum PolkadotSubCommands {
+	#[structopt(name = "validation-worker", raw(setting = "structopt::clap::AppSettings::Hidden"))]
+	ValidationWorker(ValidationWorkerCommand),
+}
+
+impl cli::GetLogFilter for PolkadotSubCommands {
+	fn get_log_filter(&self) -> Option<String> { None }
+}
+
+#[derive(Debug, StructOpt, Clone)]
+struct ValidationWorkerCommand {
+	#[structopt()]
+	pub mem_id: String,
+}
+
+/// Parses polkadot specific CLI arguments and run the service.
+pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	W: Worker,
 {
-	cli::parse_and_execute::<service::Factory, NoCustom, NoCustom, _, _, _, _, _>(
-		load_spec, &version, "parity-polkadot", args, worker,
+	match cli::parse_and_prepare::<PolkadotSubCommands, NoCustom, _>(&version, "parity-polkadot", std::env::args()) {
+		cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, worker,
 		|worker, _cli_args, _custom_args, mut config| {
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
@@ -93,28 +105,42 @@ pub fn run<I, T, W>(args: I, worker: W, version: cli::VersionInfo) -> error::Res
 				service::Roles::LIGHT =>
 					run_until_exit(
 						runtime,
-						Factory::new_light(config).map_err(|e| format!("{:?}", e))?,
+						service::new_light(config).map_err(|e| format!("{:?}", e))?,
 						worker
 					),
 				_ => run_until_exit(
 						runtime,
-						Factory::new_full(config).map_err(|e| format!("{:?}", e))?,
+						service::new_full(config).map_err(|e| format!("{:?}", e))?,
 						worker
 					),
 			}.map_err(|e| format!("{:?}", e))
+		}),
+		cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run(load_spec),
+		cli::ParseAndPrepare::ExportBlocks(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
+			Ok(service::new_chain_ops(config)?), load_spec, worker),
+		cli::ParseAndPrepare::ImportBlocks(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
+			Ok(service::new_chain_ops(config)?), load_spec, worker),
+		cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
+		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<(), _, _, _, _>(|config|
+			Ok(service::new_chain_ops(config)?), load_spec),
+		cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
+			service::run_validation_worker(&args.mem_id)?;
+			Ok(())
 		}
-	).map_err(Into::into).map(|_| ())
+	}
 }
 
-fn run_until_exit<T, C, W>(
+fn run_until_exit<T, SC, B, CE, W>(
 	mut runtime: Runtime,
 	service: T,
 	worker: W,
 ) -> error::Result<()>
 	where
-		T: Deref<Target=BareService<C>> + Future<Item = (), Error = ()> + Send + 'static,
-		C: service::Components,
-		BareService<C>: PolkadotService,
+		T: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
+			SelectChain = SC, Backend = B, NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
+		SC: service::SelectChain<service::Block> + 'static,
+		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
+		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static,
 		W: Worker,
 {
 	let (exit_send, exit) = exit_future::signal();
@@ -127,7 +153,8 @@ fn run_until_exit<T, C, W>(
 	// but we need to keep holding a reference to the global telemetry guard
 	let _telemetry = service.telemetry();
 
-	let work = worker.work(&*service, Arc::new(executor));
+	let work = worker.work(&service, Arc::new(executor));
+	let service = service.map_err(|err| error!("Error while running Service: {}", err));
 	let _ = runtime.block_on(service.select(work));
 	exit_send.fire();
 
