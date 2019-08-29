@@ -54,7 +54,7 @@ use sr_staking_primitives::SessionIndex;
 use srml_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
 };
-use im_online::AuthorityId as ImOnlineId;
+use im_online::sr25519::{AuthorityId as ImOnlineId};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -414,6 +414,7 @@ impl offences::Trait for Runtime {
 }
 
 impl im_online::Trait for Runtime {
+	type AuthorityId = ImOnlineId;
 	type Call = Call;
 	type Event = Event;
 	type UncheckedExtrinsic = UncheckedExtrinsic;
@@ -506,7 +507,7 @@ construct_runtime!(
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
-		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config},
+		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 
 		// Governance stuff; uncallable initially.
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
