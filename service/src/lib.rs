@@ -36,7 +36,7 @@ pub use service::{ServiceBuilderExport, ServiceBuilderImport, ServiceBuilderReve
 pub use service::config::full_version_from_strs;
 pub use client::{backend::Backend, runtime_api::{Core as CoreApi, ConstructRuntimeApi}, ExecutionStrategy, CallExecutor};
 pub use consensus_common::SelectChain;
-pub use polkadot_network::{PolkadotProtocol, NetworkService};
+pub use polkadot_network::{PolkadotProtocol};
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use polkadot_runtime::RuntimeApi;
@@ -116,7 +116,7 @@ macro_rules! new_full_start {
 
 				Ok(import_queue)
 			})?;
-		
+
 		(builder, import_setup, inherent_data_providers, tasks_to_spawn)
 	}}
 }
@@ -175,32 +175,34 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		info!("The node cannot start as an authority because it can't select chain.");
 		return Ok(service);
 	};
-
 	let gossip_validator_select_chain = select_chain.clone();
-	let gossip_validator = network_gossip::register_validator(
-		service.network(),
-		move |block_hash: &Hash| {
-			use client::BlockStatus;
 
-			match known_oracle.block_status(&BlockId::hash(*block_hash)) {
-				Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
-				Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-				Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
-					match gossip_validator_select_chain.leaves() {
-						Err(_) => None,
-						Ok(leaves) => if leaves.contains(block_hash) {
-							Some(Known::Leaf)
-						} else {
-							Some(Known::Old)
-						},
-					}
+	let is_known = move |block_hash: &Hash| {
+		use client::BlockStatus;
+
+		match known_oracle.block_status(&BlockId::hash(*block_hash)) {
+			Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
+			Ok(BlockStatus::KnownBad) => Some(Known::Bad),
+			Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
+				match gossip_validator_select_chain.leaves() {
+					Err(_) => None,
+					Ok(leaves) => if leaves.contains(block_hash) {
+						Some(Known::Leaf)
+					} else {
+						Some(Known::Old)
+					},
 				}
 			}
-		},
+		}
+	};
+
+	let gossip_validator = network_gossip::register_validator(
+		service.network(),
+		(is_known, client.clone()),
 	);
 
 	if service.config().roles.is_authority() {
-		let extrinsic_store = {
+		let availability_store = {
 			use std::path::PathBuf;
 
 			let mut path = PathBuf::from(service.config().database_path.clone());
@@ -211,6 +213,13 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 				path,
 			})?
 		};
+
+		{
+			let availability_store = availability_store.clone();
+			service.network().with_spec(
+				|spec, _ctx| spec.register_availability_store(availability_store)
+			);
+		}
 
 		// collator connections and validation network both fulfilled by this
 		let validation_network = ValidationNetwork::new(
@@ -228,7 +237,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			service.transaction_pool(),
 			Arc::new(service.spawn_task_handle()),
 			service.keystore(),
-			extrinsic_store,
+			availability_store,
 			polkadot_runtime::constants::time::SLOT_DURATION,
 			service.config().custom.max_block_data_size,
 		);

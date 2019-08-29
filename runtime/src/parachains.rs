@@ -21,7 +21,9 @@ use rstd::collections::btree_map::BTreeMap;
 use codec::{Encode, Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
+use sr_primitives::traits::{
+	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero,
+};
 use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
@@ -588,15 +590,23 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Calculate the ingress to a specific parachain.
-	/// Complexity: O(n) in the number of blocks since the parachain's watermark.
+	/// If `since` is provided, only messages since (including those in) that block
+	/// will be included.
+	/// Complexity: O(n) in the number of blocks since the supplied block.
 	/// invoked off-chain.
 	///
 	/// Yields a structure containing all unrouted ingress to the parachain.
-	pub fn ingress(to: ParaId) -> Option<Vec<(T::BlockNumber, BlockIngressRoots)>> {
+	pub fn ingress(to: ParaId, since: Option<T::BlockNumber>) -> Option<Vec<(T::BlockNumber, BlockIngressRoots)>> {
 		let watermark = <Watermarks<T>>::get(to)?;
 		let now = <system::Module<T>>::block_number();
 
-		Some(number_range(watermark.saturating_add(One::one()),now)
+		let watermark_since = watermark.saturating_add(One::one());
+		let since = rstd::cmp::max(since.unwrap_or(Zero::zero()), watermark_since);
+		if since > now {
+			return Some(Vec::new());
+		}
+
+		Some(number_range(since, now)
 			.filter_map(|unrouted_height| {
 				<UnroutedIngress<T>>::get(&(unrouted_height, to)).map(|roots| {
 					(unrouted_height, BlockIngressRoots(roots))
@@ -1697,8 +1707,8 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			assert_eq!(Parachains::ingress(ParaId::from(1)), Some(Vec::new()));
-			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
+			assert_eq!(Parachains::ingress(ParaId::from(1), None), Some(Vec::new()));
+			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
 
 			for i in 1..10 {
 				System::set_block_number(i);
@@ -1755,7 +1765,7 @@ mod tests {
 			// parachain 1 has had a bunch of parachain candidates included,
 			// which raises the watermark.
 			assert_eq!(
-				Parachains::ingress(ParaId::from(1)),
+				Parachains::ingress(ParaId::from(1), None),
 				Some(vec![
 					(9, BlockIngressRoots(vec![
 						(0.into(), [9; 32].into())
@@ -1766,7 +1776,7 @@ mod tests {
 			// parachain 99 hasn't had any candidates included, so the
 			// ingress is piling up.
 			assert_eq!(
-				Parachains::ingress(ParaId::from(99)),
+				Parachains::ingress(ParaId::from(99), None),
 				Some((1..10).map(|i| (i, BlockIngressRoots(
 					vec![(1.into(), [i as u8; 32].into())]
 				))).collect::<Vec<_>>()),
@@ -1776,8 +1786,8 @@ mod tests {
 
 			// after deregistering, there is no ingress to 1, but unrouted messages
 			// from 1 stick around.
-			assert_eq!(Parachains::ingress(ParaId::from(1)), None);
-			assert_eq!(Parachains::ingress(ParaId::from(99)), Some((1..10).map(|i| (i, BlockIngressRoots(
+			assert_eq!(Parachains::ingress(ParaId::from(1), None), None);
+			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some((1..10).map(|i| (i, BlockIngressRoots(
 				vec![(1.into(), [i as u8; 32].into())]
 			))).collect::<Vec<_>>()));
 
@@ -1809,7 +1819,7 @@ mod tests {
 			System::set_block_number(12);
 
 			// at the next block, ingress to 99 should be empty.
-			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
+			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
 		});
 	}
 

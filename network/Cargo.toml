@@ -18,7 +18,7 @@ sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "pol
 futures = "0.1"
 log = "0.4"
 exit-future = "0.1.4"
+substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [dev-dependencies]
-substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
