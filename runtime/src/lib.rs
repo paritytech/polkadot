@@ -506,7 +506,7 @@ construct_runtime!(
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
-		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config},
+		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 
 		// Governance stuff; uncallable initially.
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
