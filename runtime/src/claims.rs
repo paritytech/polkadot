@@ -115,7 +115,6 @@ decl_storage! {
 	}
 	add_extra_genesis {
 		config(claims): Vec<(EthereumAddress, BalanceOf<T>)>;
-
 	}
 }
 
