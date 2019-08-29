@@ -4,7 +4,7 @@
 :toc:
 :sectnums:
 
-Implementation of a https://polkadot.network node in Rust.
+Im plementation of a https://polkadot.network node in Rust.
 
 == NOTE
 
