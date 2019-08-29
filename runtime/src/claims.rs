@@ -125,7 +125,7 @@ decl_module! {
 		const Prefix: &[u8] = T::Prefix::get();
 
 		/// Deposit one of this module's events by using the default implementation.
-		fn deposit_event<T>() = default;
+		fn deposit_event() = default;
 
 		/// Make a claim.
 		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
