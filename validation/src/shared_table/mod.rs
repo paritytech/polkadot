@@ -20,11 +20,11 @@
 use std::collections::hash_map::{HashMap, Entry};
 use std::sync::Arc;
 
-use extrinsic_store::{Data, Store as ExtrinsicStore};
+use availability_store::{Data, Store as AvailabilityStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Collation, Extrinsic, CandidateReceipt, ValidatorPair, ValidatorId,
+	Id as ParaId, Collation, OutgoingMessages, CandidateReceipt, ValidatorPair, ValidatorId,
 	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex
 };
 
@@ -91,7 +91,7 @@ impl TableContext {
 }
 
 pub(crate) enum Validation {
-	Valid(PoVBlock, Extrinsic),
+	Valid(PoVBlock, OutgoingMessages),
 	Invalid(PoVBlock), // should take proof.
 }
 
@@ -122,7 +122,7 @@ impl ValidationWork {
 struct SharedTableInner {
 	table: Table<TableContext>,
 	trackers: Vec<IncludabilitySender>,
-	extrinsic_store: ExtrinsicStore,
+	availability_store: AvailabilityStore,
 	validated: HashMap<Hash, ValidationWork>,
 }
 
@@ -186,7 +186,7 @@ impl SharedTableInner {
 		};
 
 		work.map(|work| ParachainWork {
-			extrinsic_store: self.extrinsic_store.clone(),
+			availability_store: self.availability_store.clone(),
 			relay_parent: context.parent_hash.clone(),
 			work,
 			max_block_data_size,
@@ -221,24 +221,24 @@ impl Validated {
 	}
 
 	/// Note that we've validated a candidate with given hash and it is good.
-	/// Extrinsic data required.
-	pub fn known_good(hash: Hash, collation: PoVBlock, extrinsic: Extrinsic) -> Self {
+	/// outgoing message required.
+	pub fn known_good(hash: Hash, collation: PoVBlock, outgoing: OutgoingMessages) -> Self {
 		Validated {
 			statement: GenericStatement::Valid(hash),
-			result: Validation::Valid(collation, extrinsic),
+			result: Validation::Valid(collation, outgoing),
 		}
 	}
 
 	/// Note that we've collated a candidate.
-	/// Extrinsic data required.
+	/// outgoing message required.
 	pub fn collated_local(
 		receipt: CandidateReceipt,
 		collation: PoVBlock,
-		extrinsic: Extrinsic,
+		outgoing: OutgoingMessages,
 	) -> Self {
 		Validated {
 			statement: GenericStatement::Candidate(receipt),
-			result: Validation::Valid(collation, extrinsic),
+			result: Validation::Valid(collation, outgoing),
 		}
 	}
 
@@ -249,8 +249,8 @@ impl Validated {
 		}
 	}
 
-	/// Get a reference to the extrinsic data, if any.
-	pub fn extrinsic(&self) -> Option<&Extrinsic> {
+	/// Get a reference to the outgoing messages data, if any.
+	pub fn outgoing_messages(&self) -> Option<&OutgoingMessages> {
 		match self.result {
 			Validation::Valid(_, ref ex) => Some(ex),
 			Validation::Invalid(_) => None,
@@ -262,7 +262,7 @@ impl Validated {
 pub struct ParachainWork<Fetch> {
 	work: Work<Fetch>,
 	relay_parent: Hash,
-	extrinsic_store: ExtrinsicStore,
+	availability_store: AvailabilityStore,
 	max_block_data_size: Option<u64>,
 }
 
@@ -272,7 +272,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			Fetch,
-			impl Send + FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>,
+			impl Send + FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()>,
 		>
 		where
 			P: Send + Sync + 'static,
@@ -301,7 +301,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 
 	/// Prime the parachain work with a custom validation function.
 	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<Fetch, F>
-		where F: FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>
+		where F: FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()>
 	{
 		PrimedParachainWork { inner: self, validate }
 	}
@@ -321,7 +321,7 @@ pub struct PrimedParachainWork<Fetch, F> {
 impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 	where
 		Fetch: Future<Item=PoVBlock,Error=Err>,
-		F: FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>,
+		F: FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()>,
 		Err: From<::std::io::Error>,
 {
 	type Item = Validated;
@@ -347,18 +347,22 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 				GenericStatement::Invalid(candidate_hash),
 				Validation::Invalid(pov_block),
 			),
-			Ok(extrinsic) => {
-				self.inner.extrinsic_store.make_available(Data {
+			Ok(outgoing_targeted) => {
+				let outgoing_queues = crate::outgoing_queues(&outgoing_targeted)
+					.map(|(_target, root, data)| (root, data))
+					.collect();
+
+				self.inner.availability_store.make_available(Data {
 					relay_parent: self.inner.relay_parent,
 					parachain_id: work.candidate_receipt.parachain_index,
 					candidate_hash,
 					block_data: pov_block.block_data.clone(),
-					extrinsic: Some(extrinsic.clone()),
+					outgoing_queues: Some(outgoing_queues),
 				})?;
 
 				(
 					GenericStatement::Valid(candidate_hash),
-					Validation::Valid(pov_block, extrinsic)
+					Validation::Valid(pov_block, outgoing_targeted)
 				)
 			}
 		};
@@ -397,7 +401,7 @@ impl SharedTable {
 		groups: HashMap<ParaId, GroupInfo>,
 		key: Option<Arc<ValidatorPair>>,
 		parent_hash: Hash,
-		extrinsic_store: ExtrinsicStore,
+		availability_store: AvailabilityStore,
 		max_block_data_size: Option<u64>,
 	) -> Self {
 		SharedTable {
@@ -407,7 +411,7 @@ impl SharedTable {
 				table: Table::default(),
 				validated: HashMap::new(),
 				trackers: Vec::new(),
-				extrinsic_store,
+				availability_store,
 			}))
 		}
 	}
@@ -425,19 +429,6 @@ impl SharedTable {
 	/// Get group info.
 	pub fn group_info(&self) -> &HashMap<ParaId, GroupInfo> {
 		&self.context.groups
-	}
-
-	/// Get extrinsic data for candidate with given hash, if any.
-	///
-	/// This will return `Some` for any candidates that have been validated
-	/// locally.
-	pub(crate) fn extrinsic_data(&self, hash: &Hash) -> Option<Extrinsic> {
-		self.inner.lock().validated.get(hash).and_then(|x| match *x {
-			ValidationWork::Error(_) => None,
-			ValidationWork::InProgress => None,
-			ValidationWork::Done(Validation::Invalid(_)) => None,
-			ValidationWork::Done(Validation::Valid(_, ref ex)) => Some(ex.clone()),
-		})
 	}
 
 	/// Import a single statement with remote source, whose signature has already been checked.
@@ -598,7 +589,7 @@ mod tests {
 		type Error = ::std::io::Error;
 		type FetchValidationProof = future::FutureResult<PoVBlock,Self::Error>;
 
-		fn local_collation(&self, _collation: Collation, _extrinsic: Extrinsic) {
+		fn local_collation(&self, _collation: Collation, _outgoing: OutgoingMessages) {
 		}
 
 		fn fetch_pov_block(&self, _candidate: &CandidateReceipt) -> Self::FetchValidationProof {
@@ -631,7 +622,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 
@@ -686,7 +677,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 
@@ -718,7 +709,7 @@ mod tests {
 
 	#[test]
 	fn evaluate_makes_block_data_available() {
-		let store = ExtrinsicStore::new_in_memory();
+		let store = AvailabilityStore::new_in_memory();
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
@@ -742,11 +733,11 @@ mod tests {
 				fetch: future::ok(pov_block.clone()),
 			},
 			relay_parent,
-			extrinsic_store: store.clone(),
+			availability_store: store.clone(),
 			max_block_data_size: None,
 		};
 
-		let validated = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+		let validated = producer.prime_with(|_, _| Ok(OutgoingMessages { outgoing_messages: Vec::new() }))
 			.wait()
 			.unwrap();
 
@@ -754,12 +745,12 @@ mod tests {
 		assert_eq!(validated.statement, GenericStatement::Valid(hash));
 
 		assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
-		assert!(store.extrinsic(relay_parent, hash).is_some());
+		// TODO: check that a message queue is included by root.
 	}
 
 	#[test]
 	fn full_availability() {
-		let store = ExtrinsicStore::new_in_memory();
+		let store = AvailabilityStore::new_in_memory();
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
@@ -783,18 +774,18 @@ mod tests {
 				fetch: future::ok::<_, ::std::io::Error>(pov_block.clone()),
 			},
 			relay_parent,
-			extrinsic_store: store.clone(),
+			availability_store: store.clone(),
 			max_block_data_size: None,
 		};
 
-		let validated = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+		let validated = producer.prime_with(|_, _| Ok(OutgoingMessages { outgoing_messages: Vec::new() }))
 			.wait()
 			.unwrap();
 
 		assert_eq!(validated.pov_block(), &pov_block);
 
 		assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
-		assert!(store.extrinsic(relay_parent, hash).is_some());
+		// TODO: check that a message queue is included by root.
 	}
 
 	#[test]
@@ -822,7 +813,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 
@@ -868,7 +859,7 @@ mod tests {
 
 		let para_id = ParaId::from(1);
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
-		let extrinsic = Extrinsic { outgoing_messages: Vec::new() };
+		let outgoing_messages = OutgoingMessages { outgoing_messages: Vec::new() };
 		let parent_hash = Default::default();
 
 		let local_key = Sr25519Keyring::Alice.pair();
@@ -888,7 +879,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 
@@ -907,7 +898,7 @@ mod tests {
 		let signed_statement = shared_table.import_validated(Validated::collated_local(
 			candidate,
 			pov_block,
-			extrinsic,
+			outgoing_messages,
 		)).unwrap();
 
 		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_done());

@@ -14,13 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Persistent database for parachain data.
+//! Persistent database for parachain data: PoV block data and outgoing messages.
+//!
+//! This will be written into during the block validation pipeline, and queried
+//! by networking code in order to circulate required data and maintain availability
+//! of it.
 
 use codec::{Encode, Decode};
 use kvdb::{KeyValueDB, DBTransaction};
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use polkadot_primitives::Hash;
-use polkadot_primitives::parachain::{Id as ParaId, BlockData, Extrinsic};
+use polkadot_primitives::parachain::{Id as ParaId, BlockData, Message};
 use log::warn;
 
 use std::collections::HashSet;
@@ -42,7 +46,7 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
-/// Some data to keep available.
+/// Some data to keep available about a parachain block candidate.
 pub struct Data {
 	/// The relay chain parent hash this should be localized to.
 	pub relay_parent: Hash,
@@ -52,16 +56,14 @@ pub struct Data {
 	pub candidate_hash: Hash,
 	/// Block data.
 	pub block_data: BlockData,
-	/// Extrinsic data.
-	pub extrinsic: Option<Extrinsic>,
+	/// Outgoing message queues from execution of the block, if any.
+	///
+	/// The tuple pairs the message queue root and the queue data.
+	pub outgoing_queues: Option<Vec<(Hash, Vec<Message>)>>,
 }
 
 fn block_data_key(relay_parent: &Hash, candidate_hash: &Hash) -> Vec<u8> {
 	(relay_parent, candidate_hash, 0i8).encode()
-}
-
-fn extrinsic_key(relay_parent: &Hash, candidate_hash: &Hash) -> Vec<u8> {
-	(relay_parent, candidate_hash, 1i8).encode()
 }
 
 /// Handle to the availability store.
@@ -96,6 +98,16 @@ impl Store {
 	}
 
 	/// Make some data available provisionally.
+	///
+	/// Validators with the responsibility of maintaining availability
+	/// for a block or collators collating a block will call this function
+	/// in order to persist that data to disk and so it can be queried and provided
+	/// to other nodes in the network.
+	///
+	/// The message data of `Data` is optional but is expected
+	/// to be present with the exception of the case where there is no message data
+	/// due to the block's invalidity. Determination of invalidity is beyond the
+	/// scope of this function.
 	pub fn make_available(&self, data: Data) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
 
@@ -118,12 +130,16 @@ impl Store {
 			data.block_data.encode()
 		);
 
-		if let Some(extrinsic) = data.extrinsic {
-			tx.put_vec(
-				columns::DATA,
-				extrinsic_key(&data.relay_parent, &data.candidate_hash).as_slice(),
-				extrinsic.encode(),
-			);
+		if let Some(outgoing_queues) = data.outgoing_queues {
+			// This is kept forever and not pruned.
+			for (root, messages) in outgoing_queues {
+				tx.put_vec(
+					columns::DATA,
+					root.as_ref(),
+					messages.encode(),
+				);
+			}
+
 		}
 
 		self.inner.write(tx)
@@ -146,7 +162,6 @@ impl Store {
 		for candidate_hash in v {
 			if !finalized_candidates.contains(&candidate_hash) {
 				tx.delete(columns::DATA, block_data_key(&parent, &candidate_hash).as_slice());
-				tx.delete(columns::DATA, extrinsic_key(&parent, &candidate_hash).as_slice());
 			}
 		}
 
@@ -168,12 +183,11 @@ impl Store {
 		}
 	}
 
-	/// Query extrinsic data.
-	pub fn extrinsic(&self, relay_parent: Hash, candidate_hash: Hash) -> Option<Extrinsic> {
-		let encoded_key = extrinsic_key(&relay_parent, &candidate_hash);
-		match self.inner.get(columns::DATA, &encoded_key[..]) {
+	/// Query message queue data by message queue root hash.
+	pub fn queue_by_root(&self, queue_root: &Hash) -> Option<Vec<Message>> {
+		match self.inner.get(columns::DATA, queue_root.as_ref()) {
 			Ok(Some(raw)) => Some(
-				Extrinsic::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")
+				<_>::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")
 			),
 			Ok(None) => None,
 			Err(e) => {
@@ -207,7 +221,7 @@ mod tests {
 			parachain_id: para_id_1,
 			candidate_hash: candidate_1,
 			block_data: block_data_1.clone(),
-			extrinsic: Some(Extrinsic { outgoing_messages: Vec::new() }),
+			outgoing_queues: None,
 		}).unwrap();
 
 		store.make_available(Data {
@@ -215,21 +229,53 @@ mod tests {
 			parachain_id: para_id_2,
 			candidate_hash: candidate_2,
 			block_data: block_data_2.clone(),
-			extrinsic: Some(Extrinsic { outgoing_messages: Vec::new() }),
+			outgoing_queues: None,
 		}).unwrap();
 
 		assert_eq!(store.block_data(relay_parent, candidate_1).unwrap(), block_data_1);
 		assert_eq!(store.block_data(relay_parent, candidate_2).unwrap(), block_data_2);
 
-		assert!(store.extrinsic(relay_parent, candidate_1).is_some());
-		assert!(store.extrinsic(relay_parent, candidate_2).is_some());
-
 		store.candidates_finalized(relay_parent, [candidate_1].iter().cloned().collect()).unwrap();
 
 		assert_eq!(store.block_data(relay_parent, candidate_1).unwrap(), block_data_1);
 		assert!(store.block_data(relay_parent, candidate_2).is_none());
+	}
 
-		assert!(store.extrinsic(relay_parent, candidate_1).is_some());
-		assert!(store.extrinsic(relay_parent, candidate_2).is_none());
+	#[test]
+	fn queues_available_by_queue_root() {
+		let relay_parent = [1; 32].into();
+		let para_id = 5.into();
+		let candidate = [2; 32].into();
+		let block_data = BlockData(vec![1, 2, 3]);
+
+		let message_queue_root_1 = [0x42; 32].into();
+		let message_queue_root_2 = [0x43; 32].into();
+
+		let message_a = Message(vec![1, 2, 3, 4]);
+		let message_b = Message(vec![4, 5, 6, 7]);
+
+		let outgoing_queues = vec![
+			(message_queue_root_1, vec![message_a.clone()]),
+			(message_queue_root_2, vec![message_b.clone()]),
+		];
+
+		let store = Store::new_in_memory();
+		store.make_available(Data {
+			relay_parent,
+			parachain_id: para_id,
+			candidate_hash: candidate,
+			block_data: block_data.clone(),
+			outgoing_queues: Some(outgoing_queues),
+		}).unwrap();
+
+		assert_eq!(
+			store.queue_by_root(&message_queue_root_1),
+			Some(vec![message_a]),
+		);
+
+		assert_eq!(
+			store.queue_by_root(&message_queue_root_2),
+			Some(vec![message_b]),
+		);
 	}
 }

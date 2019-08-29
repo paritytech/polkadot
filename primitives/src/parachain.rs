@@ -96,31 +96,37 @@ pub struct DutyRoster {
 	pub validator_duty: Vec<Chain>,
 }
 
-/// An outgoing message
+/// A message targeted to a specific parachain.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]
-pub struct OutgoingMessage {
+pub struct TargetedMessage {
 	/// The target parachain.
 	pub target: Id,
 	/// The message data.
 	pub data: Vec<u8>,
 }
 
-impl PartialOrd for OutgoingMessage {
+impl AsRef<[u8]> for TargetedMessage {
+	fn as_ref(&self) -> &[u8] {
+		&self.data[..]
+	}
+}
+
+impl PartialOrd for TargetedMessage {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.target.cmp(&other.target))
 	}
 }
 
-impl Ord for OutgoingMessage {
+impl Ord for TargetedMessage {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.target.cmp(&other.target)
 	}
 }
 
-/// Extrinsic data for a parachain candidate.
+/// Outgoing message data for a parachain candidate.
 ///
 /// This is data produced by evaluating the candidate. It contains
 /// full records of all outgoing messages to other parachains.
@@ -128,11 +134,37 @@ impl Ord for OutgoingMessage {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]
-pub struct Extrinsic {
+pub struct OutgoingMessages {
 	/// The outgoing messages from the execution of the parachain.
 	///
 	/// This must be sorted in ascending order by parachain ID.
-	pub outgoing_messages: Vec<OutgoingMessage>
+	pub outgoing_messages: Vec<TargetedMessage>
+}
+
+impl OutgoingMessages {
+	/// Returns an iterator of slices of all outgoing message queues.
+	///
+	/// All messages in a given slice are guaranteed to have the same target.
+	pub fn message_queues(&'_ self) -> impl Iterator<Item=&'_ [TargetedMessage]> + '_ {
+		let mut outgoing = &self.outgoing_messages[..];
+
+		rstd::iter::from_fn(move || {
+			if outgoing.is_empty() { return None }
+			let target = outgoing[0].target;
+			let mut end = 1; // the index of the last matching item + 1.
+			loop {
+				match outgoing.get(end) {
+					None => break,
+					Some(x) => if x.target != target { break },
+				}
+				end += 1;
+			}
+
+			let item = &outgoing[..end];
+			outgoing = &outgoing[end..];
+			Some(item)
+		})
+	}
 }
 
 /// Candidate receipt type.
@@ -216,6 +248,18 @@ pub struct PoVBlock {
 #[derive(PartialEq, Eq, Clone, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
 pub struct Message(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+
+impl AsRef<[u8]> for Message {
+	fn as_ref(&self) -> &[u8] {
+		&self.0[..]
+	}
+}
+
+impl From<TargetedMessage> for Message {
+	fn from(targeted: TargetedMessage) -> Self {
+		Message(targeted.data)
+	}
+}
 
 /// All ingress roots at one block.
 ///
@@ -395,7 +439,10 @@ substrate_client::decl_runtime_apis! {
 		fn parachain_code(id: Id) -> Option<Vec<u8>>;
 		/// Get all the unrouted ingress roots at the given block that
 		/// are targeting the given parachain.
-		fn ingress(to: Id) -> Option<StructuredUnroutedIngress>;
+		///
+		/// If `since` is provided, only messages since (including those in) that block
+		/// will be included.
+		fn ingress(to: Id, since: Option<BlockNumber>) -> Option<StructuredUnroutedIngress>;
 	}
 }
 

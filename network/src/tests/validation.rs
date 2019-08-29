@@ -18,18 +18,17 @@
 
 #![allow(unused)]
 
-use crate::validation::{NetworkService, GossipService, GossipMessageStream};
 use crate::gossip::GossipMessage;
 use substrate_network::Context as NetContext;
 use substrate_network::consensus_gossip::TopicNotification;
 use substrate_primitives::{NativeOrEncoded, ExecutionContext};
 use substrate_keyring::Sr25519Keyring;
-use crate::PolkadotProtocol;
+use crate::{GossipService, PolkadotProtocol, NetworkService, GossipMessageStream};
 
-use polkadot_validation::{SharedTable, MessagesFrom, Network};
-use polkadot_primitives::{Block, Hash, Header, BlockId};
+use polkadot_validation::{SharedTable, Network};
+use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, ParachainHost, OutgoingMessage,
+	Id as ParaId, Chain, DutyRoster, ParachainHost, TargetedMessage,
 	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
 	FeeSchedule, HeadData,
 };
@@ -43,7 +42,7 @@ use std::sync::Arc;
 use futures::{prelude::*, sync::mpsc};
 use codec::Encode;
 
-use super::TestContext;
+use super::{TestContext, TestChainContext};
 
 type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
@@ -315,10 +314,10 @@ impl ParachainHost<Block> for RuntimeApi {
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
-		id: Option<ParaId>,
+		id: Option<(ParaId, Option<BlockNumber>)>,
 		_: Vec<u8>,
 	) -> ClientResult<NativeOrEncoded<Option<StructuredUnroutedIngress>>> {
-		let id = id.unwrap();
+		let (id, _) = id.unwrap();
 		Ok(NativeOrEncoded::Native(self.data.lock().ingress.get(&id).cloned()))
 	}
 }
@@ -348,7 +347,7 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 		});
 
 		let message_val = crate::gossip::RegisteredMessageValidator::new_test(
-			|_hash: &_| Some(crate::gossip::Known::Leaf),
+			TestChainContext::default(),
 			Box::new(|_, _| {}),
 		);
 
@@ -376,7 +375,7 @@ struct IngressBuilder {
 }
 
 impl IngressBuilder {
-	fn add_messages(&mut self, source: ParaId, messages: &[OutgoingMessage]) {
+	fn add_messages(&mut self, source: ParaId, messages: &[TargetedMessage]) {
 		for message in messages {
 			let target = message.target;
 			self.egress.entry((source, target)).or_insert_with(Vec::new).push(message.data.clone());
