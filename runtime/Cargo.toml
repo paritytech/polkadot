@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.1.0"
+version = "0.6.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -21,7 +21,7 @@ srml-support = { git = "https://github.com/paritytech/substrate", default-featur
 substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-offchain_primitives = { package = "substrate-offchain-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+offchain-primitives = { package = "substrate-offchain-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 authorship = { package = "srml-authorship", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 collective = { package = "srml-collective", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -33,7 +33,9 @@ grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/subst
 im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 indices = { package = "srml-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 membership = { package = "srml-membership", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+offences = { package = "srml-offences", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sr-staking-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 session = { package = "srml-session", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 staking = { package = "srml-staking", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sudo = { package = "srml-sudo", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -52,6 +54,7 @@ tiny-keccak = "1.4.2"
 keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 trie-db = "0.15"
+serde_json = "1.0"
 
 [build-dependencies]
 wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.1" }
@@ -59,6 +62,7 @@ wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.
 [features]
 default = ["std"]
 no_std = []
+only-staking = []
 std = [
 	"bitvec/std",
 	"primitives/std",
@@ -67,7 +71,7 @@ std = [
 	"inherents/std",
 	"substrate-primitives/std",
 	"client/std",
-	"offchain_primitives/std",
+	"offchain-primitives/std",
 	"rstd/std",
 	"sr-io/std",
 	"srml-support/std",
@@ -82,7 +86,9 @@ std = [
 	"im-online/std",
 	"indices/std",
 	"membership/std",
+	"offences/std",
 	"sr-primitives/std",
+	"sr-staking-primitives/std",
 	"session/std",
 	"staking/std",
 	"sudo/std",

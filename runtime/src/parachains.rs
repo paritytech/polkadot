@@ -323,7 +323,6 @@ decl_module! {
 				}
 
 				let para_blocks = Self::check_candidates(&heads, &active_parachains)?;
-
 				let current_number = <system::Module<T>>::block_number();
 
 				<attestations::Module<T>>::note_included(&heads, para_blocks);
@@ -850,11 +849,17 @@ impl<T: Trait> Module<T> {
 impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
+	fn on_genesis_session<'a, I: 'a>(validators: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		<Self as Store>::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+	}
+
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, _queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
 		if changed {
-			<Self as Store>::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+			Self::on_genesis_session(validators)
 		}
 	}
 
@@ -941,6 +946,7 @@ mod tests {
 		type MaximumBlockWeight = MaximumBlockWeight;
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
+		type Version = ();
 	}
 
 	parameter_types! {
@@ -974,7 +980,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
+		pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
 		pub const ExpectedBlockTime: u64 = MILLISECS_PER_BLOCK;
 	}
 
@@ -1008,8 +1014,8 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const SessionsPerEra: session::SessionIndex = 6;
-		pub const BondingDuration: staking::EraIndex = 24 * 28;
+		pub const SessionsPerEra: sr_staking_primitives::SessionIndex = 6;
+		pub const BondingDuration: staking::EraIndex = 28;
 		pub const AttestationPeriod: BlockNumber = 100;
 	}
 
@@ -1029,6 +1035,7 @@ mod tests {
 	impl attestations::Trait for Test {
 		type AttestationPeriod = AttestationPeriod;
 		type ValidatorIdentities = ValidatorIdentities<Test>;
+		type RewardAttestation = ();
 	}
 
 	impl Trait for Test {
@@ -1090,7 +1097,7 @@ mod tests {
 
 		babe::GenesisConfig {
 			authorities: babe_authorities,
-		}.assimilate_storage(&mut t).unwrap();
+		}.assimilate_storage::<Test>(&mut t).unwrap();
 
 		balances::GenesisConfig::<Test> {
 			balances,
@@ -1102,9 +1109,8 @@ mod tests {
 			stakers,
 			validator_count: 10,
 			minimum_validator_count: 8,
-			offline_slash: Perbill::from_percent(5),
-			offline_slash_grace: 0,
 			invulnerables: vec![],
+			.. Default::default()
 		}.assimilate_storage(&mut t).unwrap();
 
 		t.into()

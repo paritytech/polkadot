@@ -18,7 +18,7 @@
 
 #![warn(missing_docs)]
 
-use cli::{PolkadotService, VersionInfo, TaskExecutor};
+use cli::{AbstractService, VersionInfo, TaskExecutor};
 use futures::sync::oneshot;
 use futures::{future, Future};
 
@@ -45,7 +45,13 @@ impl cli::IntoExit for Worker {
 
 impl cli::Worker for Worker {
 	type Work = <Self as cli::IntoExit>::Exit;
-	fn work<S: PolkadotService>(self, _service: &S, _: TaskExecutor) -> Self::Work {
+	fn work<S, SC, B, CE>(self, _: &S, _: TaskExecutor) -> Self::Work
+	where S: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
+		Backend = B, SelectChain = SC,
+		NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
+		SC: service::SelectChain<service::Block> + 'static,
+		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
+		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static {
 		use cli::IntoExit;
 		self.into_exit()
 	}
