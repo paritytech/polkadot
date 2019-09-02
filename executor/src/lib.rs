@@ -22,6 +22,5 @@ use substrate_executor::native_executor_instance;
 native_executor_instance!(
     pub Executor,
     polkadot_runtime::api::dispatch,
-    polkadot_runtime::native_version,
-    polkadot_runtime::WASM_BINARY
+    polkadot_runtime::native_version
 );
