@@ -27,6 +27,13 @@ services:
     image: parity/polkadot
     networks:
       - network-a
+    environment:
+        - VALIDATOR_NODE_KEY
+        - VALIDATOR_BASE_PATH
+        - VALIDATOR_CHAIN
+        - VALIDATOR_PORT
+        - VALIDATOR_NAME
+        - VALIDATOR_RESERVED_NODES
     command:
       # Local node id: QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR
       - "--node-key"
@@ -61,6 +68,13 @@ services:
     networks:
       - network-a
       - internet
+    environment:
+        - SENTRY_NODE_KEY
+        - SENTRY_BASE_PATH
+        - SENTRY_CHAIN
+        - SENTRY_PORT
+        - SENTRY_NAME
+        - SENTRY_BOOTNODES
     command:
       # Local node id: QmV7EhW6J6KgmNdr558RH1mPx2xGGznW7At4BhXzntRFsi
       - "--node-key"
