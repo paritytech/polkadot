@@ -31,7 +31,7 @@ use primitives::{Hash, Balance, parachain::{
 }};
 use {system, session};
 use srml_support::{
-	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
+	StorageValue, StorageMap, Parameter, Dispatchable, dispatch::Result,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement}
 };
 
@@ -256,26 +256,21 @@ decl_storage! {
 }
 
 #[cfg(feature = "std")]
-fn build<T: Trait>(
-	storage: &mut (StorageOverlay, ChildrenStorageOverlay),
-	config: &GenesisConfig<T>
-) {
+fn build<T: Trait>(config: &GenesisConfig<T>) {
 	let mut p = config.parachains.clone();
 	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
 	p.dedup_by_key(|&mut (ref id, _, _)| *id);
 
 	let only_ids: Vec<ParaId> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-	sr_io::with_storage(storage, || {
-		Parachains::put(&only_ids);
+	Parachains::put(&only_ids);
 
-		for (id, code, genesis) in p {
-			// no ingress -- a chain cannot be routed to until it is live.
-			Code::insert(&id, &code);
-			Heads::insert(&id, &genesis);
-			<Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
-		}
-	});
+	for (id, code, genesis) in p {
+		// no ingress -- a chain cannot be routed to until it is live.
+		Code::insert(&id, &code);
+		Heads::insert(&id, &genesis);
+		<Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
+	}
 }
 
 decl_module! {
