@@ -49,7 +49,7 @@ lazy_static::lazy_static! {
 	static ref HOSTS: [Mutex<ValidationHost>; NUM_HOSTS] = Default::default();
 }
 
-/// Validation worker process entry point. Runs a loop waiting for canidates to validate
+/// Validation worker process entry point. Runs a loop waiting for candidates to validate
 /// and sends back results via shared memory.
 pub fn run_worker(mem_id: &str) -> Result<(), String> {
 	let mut memory = match SharedMem::open(mem_id) {
