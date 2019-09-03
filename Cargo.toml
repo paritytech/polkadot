@@ -13,6 +13,7 @@ edition = "2018"
 cli = { package = "polkadot-cli", path = "cli" }
 futures = "0.1"
 ctrlc = { version = "3.0", features = ["termination"] }
+service = { package = "polkadot-service", path = "service" }
 
 [build-dependencies]
 vergen = "3"

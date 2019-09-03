@@ -25,7 +25,7 @@ use substrate_primitives::Pair;
 use parachain::codec::{Encode, Decode};
 use primitives::{
 	Hash,
-	parachain::{HeadData, BlockData, Id as ParaId, Message, Extrinsic, Status as ParachainStatus},
+	parachain::{HeadData, BlockData, Id as ParaId, Message, OutgoingMessages, Status as ParachainStatus},
 };
 use collator::{InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext};
 use parking_lot::Mutex;
@@ -53,14 +53,14 @@ struct AdderContext {
 
 /// The parachain context.
 impl ParachainContext for AdderContext {
-	type ProduceCandidate = Result<(BlockData, HeadData, Extrinsic), InvalidHead>;
+	type ProduceCandidate = Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>;
 
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 		&self,
 		_relay_parent: Hash,
 		status: ParachainStatus,
 		ingress: I,
-	) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead>
+	) -> Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>
 	{
 		let adder_head = AdderHead::decode(&mut &status.head_data.0[..])
 			.map_err(|_| InvalidHead)?;
@@ -94,7 +94,7 @@ impl ParachainContext for AdderContext {
 			next_head.number, next_body.state.overflowing_add(next_body.add).0);
 
 		db.insert(next_head.clone(), next_body);
-		Ok((encoded_body, encoded_head, Extrinsic { outgoing_messages: Vec::new() }))
+		Ok((encoded_body, encoded_head, OutgoingMessages { outgoing_messages: Vec::new() }))
 	}
 }
 

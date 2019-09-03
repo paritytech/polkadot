@@ -29,7 +29,7 @@ use polkadot_validation::{
 };
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	Extrinsic, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock,
+	OutgoingMessages, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock,
 };
 use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement};
 
@@ -41,7 +41,8 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 
-use crate::validation::{self, SessionDataFetcher, NetworkService, Executor};
+use crate::validation::{self, LeafWorkDataFetcher, Executor};
+use crate::NetworkService;
 
 /// Compute the gossip topic for attestations on the given parent hash.
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
@@ -72,7 +73,7 @@ pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
 pub struct Router<P, E, N: NetworkService, T> {
 	table: Arc<SharedTable>,
 	attestation_topic: Hash,
-	fetcher: SessionDataFetcher<P, E, N, T>,
+	fetcher: LeafWorkDataFetcher<P, E, N, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 	message_validator: RegisteredMessageValidator,
 }
@@ -80,7 +81,7 @@ pub struct Router<P, E, N: NetworkService, T> {
 impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
-		fetcher: SessionDataFetcher<P, E, N, T>,
+		fetcher: LeafWorkDataFetcher<P, E, N, T>,
 		message_validator: RegisteredMessageValidator,
 	) -> Self {
 		let parent_hash = fetcher.parent_hash();
@@ -196,7 +197,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 				knowledge.lock().note_candidate(
 					candidate_hash,
 					Some(validated.pov_block().clone()),
-					validated.extrinsic().cloned(),
+					validated.outgoing_messages().cloned(),
 				);
 
 				// propagate the statement.
@@ -224,13 +225,13 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	type Error = io::Error;
 	type FetchValidationProof = validation::PoVReceiver;
 
-	fn local_collation(&self, collation: Collation, extrinsic: Extrinsic) {
+	fn local_collation(&self, collation: Collation, outgoing: OutgoingMessages) {
 		// produce a signed statement
 		let hash = collation.receipt.hash();
 		let validated = Validated::collated_local(
 			collation.receipt,
 			collation.pov.clone(),
-			extrinsic.clone(),
+			outgoing.clone(),
 		);
 
 		let statement = GossipStatement::new(
@@ -242,7 +243,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 		);
 
 		// give to network to make available.
-		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov), Some(extrinsic));
+		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov), Some(outgoing));
 		self.network().gossip_message(self.attestation_topic, statement.into());
 	}
 
