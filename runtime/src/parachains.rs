@@ -38,9 +38,6 @@ use srml_support::{
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
 #[cfg(any(feature = "std", test))]
-use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
-
-#[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
 
 use system::{ensure_none, ensure_root};
