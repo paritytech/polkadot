@@ -278,4 +278,28 @@ deploy-ue1-tag:
 
 
 
+deploy-polkasync-kusama:
+  stage:                           deploy
+  cache:                           {}
+  retry:                           1
+  image:                           parity/tools:latest
+  only:
+    - kusama-nightly-staging
+    - /^[0-9]+$/
+  tags:
+    - kubernetes-parity-build
+  variables:
+    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
+    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
+  allow_failure:                   true
+  script:
+    - |
+      echo "kusama-nightly-staging: triggering roll-out on parity-testnet"
+      curl -sS -X POST \
+        -F "token=${CI_JOB_TOKEN}" \
+        -F "ref=master" \
+        -F "variables[KUSAMA_NIGHTLY_TAG]=${CI_COMMIT_REF_NAME}" \
+        ${GITLAB_API}/projects/${GITHUB_API_PROJECT}/trigger/pipeline
+
+
 
