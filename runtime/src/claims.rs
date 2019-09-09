@@ -33,6 +33,7 @@ use sr_primitives::{
 		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction
 	},
 };
+use primitives::ValidityError;
 use system;
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -196,11 +197,6 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
 	fn validate_unsigned(call: &Self::Call) -> TransactionValidity {
-		// Note errors > 0 are from ApplyError
-		const INVALID_ETHEREUM_SIGNATURE: u8 = 10;
-		const SIGNER_HAS_NO_CLAIM: u8 = 20;
-		const INVALID_CALL: u8 = 30;
-
 		const PRIORITY: u64 = 100;
 
 		match call {
@@ -210,11 +206,15 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 				let signer = if let Some(s) = maybe_signer {
 					s
 				} else {
-					return Err(InvalidTransaction::Custom(INVALID_ETHEREUM_SIGNATURE).into());
+					return InvalidTransaction::Custom(
+						ValidityError::InvalidEthereumSignature.into(),
+					).into();
 				};
 
 				if !<Claims<T>>::exists(&signer) {
-					return Err(InvalidTransaction::Custom(SIGNER_HAS_NO_CLAIM).into());
+					return Err(InvalidTransaction::Custom(
+						ValidityError::SignerHasNoClaim.into(),
+					).into());
 				}
 
 				Ok(ValidTransaction {
@@ -225,7 +225,7 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 					propagate: true,
 				})
 			}
-			_ => Err(InvalidTransaction::Custom(INVALID_CALL).into()),
+			_ => Err(InvalidTransaction::Call.into()),
 		}
 	}
 }
@@ -389,8 +389,10 @@ mod tests {
 	fn origin_signed_claiming_fail() {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_err!(Claims::claim(Origin::signed(42), 42, alice_sig(&42u64.encode())),
-				"bad origin: expected to be no origin");
+			assert_err!(
+				Claims::claim(Origin::signed(42), 42, alice_sig(&42u64.encode())),
+				"RequireNoOrigin",
+			);
 		});
 	}
 
@@ -436,7 +438,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(1, alice_sig(&1u64.encode()))),
-				TransactionValidity::Valid(ValidTransaction {
+				Ok(ValidTransaction {
 					priority: 100,
 					requires: vec![],
 					provides: vec![("claims", alice_eth()).encode()],
@@ -446,15 +448,15 @@ mod tests {
 			);
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(0, EcdsaSignature([0; 65]))),
-				TransactionValidity::Invalid(-10)
+				InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()).into(),
 			);
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(1, bob_sig(&1u64.encode()))),
-				TransactionValidity::Invalid(-20)
+				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(0, bob_sig(&1u64.encode()))),
-				TransactionValidity::Invalid(-20)
+				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 		});
 	}

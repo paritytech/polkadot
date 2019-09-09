@@ -31,7 +31,7 @@ use codec::{Encode, Decode};
 use substrate_primitives::u32_trait::{_1, _2, _3, _4};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain,
+	parachain, ValidityError,
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
@@ -114,8 +114,6 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
-const NO_PERMISSION: u8 = 40;
-
 /// Avoid processing transactions that are anything except staking and claims.
 ///
 /// RELEASE: This is only relevant for the initial PoA run-in period and may be removed
@@ -135,7 +133,7 @@ impl SignedExtension for OnlyStakingAndClaims {
 		match call {
 			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_) =>
 				Ok(Default::default()),
-			_ => Err(InvalidTransaction::Custom(NO_PERMISSION).into()),
+			_ => Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
 		}
 	}
 }

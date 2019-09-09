@@ -729,7 +729,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 						debug!("[{:?}] Pushed to the block.", ready.hash);
 						pending_size += encoded_size;
 					}
-					Err(client::error::Error::ApplyExtrinsicFailed(e)) if e.exhausted_resources() => {
+					Err(e) if e.exhausted_resources() => {
 						debug!("Block is full, proceed with proposing.");
 						break;
 					}
