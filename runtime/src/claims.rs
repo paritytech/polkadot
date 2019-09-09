@@ -29,7 +29,9 @@ use sr_primitives::traits::Zero;
 use sr_primitives::{
 	weights::SimpleDispatchInfo,
 	traits::ValidateUnsigned,
-	transaction_validity::{TransactionLongevity, TransactionValidity, ValidTransaction},
+	transaction_validity::{
+		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction
+	},
 };
 use system;
 
@@ -195,9 +197,9 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 
 	fn validate_unsigned(call: &Self::Call) -> TransactionValidity {
 		// Note errors > 0 are from ApplyError
-		const INVALID_ETHEREUM_SIGNATURE: i8 = -10;
-		const SIGNER_HAS_NO_CLAIM: i8 = -20;
-		const INVALID_CALL: i8 = -30;
+		const INVALID_ETHEREUM_SIGNATURE: u8 = 10;
+		const SIGNER_HAS_NO_CLAIM: u8 = 20;
+		const INVALID_CALL: u8 = 30;
 
 		const PRIORITY: u64 = 100;
 
@@ -208,14 +210,14 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 				let signer = if let Some(s) = maybe_signer {
 					s
 				} else {
-					return TransactionValidity::Invalid(INVALID_ETHEREUM_SIGNATURE);
+					return Err(InvalidTransaction::Custom(INVALID_ETHEREUM_SIGNATURE).into());
 				};
 
 				if !<Claims<T>>::exists(&signer) {
-					return TransactionValidity::Invalid(SIGNER_HAS_NO_CLAIM);
+					return Err(InvalidTransaction::Custom(SIGNER_HAS_NO_CLAIM).into());
 				}
 
-				TransactionValidity::Valid(ValidTransaction {
+				Ok(ValidTransaction {
 					priority: PRIORITY,
 					requires: vec![],
 					provides: vec![("claims", signer).encode()],
@@ -223,7 +225,7 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 					propagate: true,
 				})
 			}
-			_ => TransactionValidity::Invalid(INVALID_CALL)
+			_ => Err(InvalidTransaction::Custom(INVALID_CALL).into()),
 		}
 	}
 }
