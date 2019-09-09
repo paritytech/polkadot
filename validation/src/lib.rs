@@ -35,6 +35,7 @@ use babe_primitives::BabeApi;
 use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
+use client::error as client_error;
 use codec::Encode;
 use consensus::SelectChain;
 use availability_store::Store as AvailabilityStore;
@@ -729,7 +730,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 						debug!("[{:?}] Pushed to the block.", ready.hash);
 						pending_size += encoded_size;
 					}
-					Err(e) if e.exhausted_resources() => {
+					Err(client_error::Error::ApplyExtrinsicFailed(e)) if e.exhausted_resources() => {
 						debug!("Block is full, proceed with proposing.");
 						break;
 					}
