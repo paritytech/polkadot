@@ -7,7 +7,6 @@
 
 
 stages:
-  - merge-test
   - test
   - build
   - publish
@@ -32,11 +31,15 @@ variables:
     paths:
       - artifacts/
 
-.kubernetes-build:                 &kubernetes-build
+.kubernetes-env:                   &kubernetes-env
   tags:
     - kubernetes-parity-build
   environment:
     name: parity-build
+
+.docker-env:                       &docker-env
+  tags:
+    - linux-docker
 
 .compiler_info:                    &compiler_info
   before_script:
@@ -45,26 +48,38 @@ variables:
     - sccache -s
 
 
-#### stage:                        merge-test
 
-check-merge-conflict:
-  stage:                           merge-test
-  image:                           parity/tools:latest
-  cache:                           {}
-  <<:                              *kubernetes-build
+.build-refs:                       &build-refs
   only:
+    - master
+    - schedules
+    - web
+    - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
+    - kusama-nightly-staging
+  except:
+    variables:
+      - $DEPLOY_TAG
+
+.test-refs:                        &test-refs
+  only:
+    - master
+    - schedules
+    - web
+    - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
+    - kusama-nightly-staging
     - /^[0-9]+$/
-  variables:
-    GITHUB_API:                    "https://api.github.com"
-    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
-    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
-  script:
-    - ./scripts/gitlab/check_merge_conflict.sh
+  except:
+    variables:
+      - $DEPLOY_TAG
+
+
 
 
 
 test-linux-stable:                 &test
   stage:                           test
+  <<:                              *test-refs
+  <<:                              *docker-env
   <<:                              *compiler_info
   variables:
     RUST_TOOLCHAIN: stable
@@ -72,40 +87,29 @@ test-linux-stable:                 &test
     # but still want to have debug assertions.
     RUSTFLAGS: -Cdebug-assertions=y
     TARGET: native
-  tags:
-    - linux-docker
-  only:
-    - tags
-    - master
-    - schedules
-    - web
-    - /^[0-9]+$/
-  except:
-    variables:
-      - $DEPLOY_TAG
   script:
-    - time cargo test --all --release --verbose --locked
+    - |
+      test "${CI_COMMIT_TAG}" = "kusama-nightly-staging" && (
+      echo "kusama-nightly-staging: change Cargo.toml to build against substrate:kusama-nightly-staging"
+      find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate: { s:branch = "polkadot-master":tag = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \;
+      time cargo test --all --release --verbose) || \
+      time cargo test --all --release --verbose --locked
     - sccache -s
 
 
-.build-only:                       &build-only
-  only:
-    - master
-    - tags
-    - web
 
 
 build-linux-release:               &build
   stage:                           build
   <<:                              *collect-artifacts
-  <<:                              *build-only
+  <<:                              *build-refs
+  <<:                              *docker-env
   <<:                              *compiler_info
-  except:
-    variables:
-      - $DEPLOY_TAG
-  tags:
-    - linux-docker
   script:
+    - |
+      test "${CI_COMMIT_TAG}" = "kusama-nightly-staging" && (
+      echo "kusama-nightly-staging: change Cargo.toml to build against substrate:kusama-nightly-staging";
+      find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate: { s:branch = "polkadot-master":tag = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \;)
     - time cargo build --release --verbose
     - mkdir -p ./artifacts
     - mv ./target/release/polkadot ./artifacts/.
@@ -129,8 +133,8 @@ build-linux-release:               &build
   dependencies:
     - build-linux-release
   cache:                           {}
-  <<:                              *build-only
-  <<:                              *kubernetes-build
+  <<:                              *build-refs
+  <<:                              *kubernetes-env
 
 
 
@@ -206,7 +210,7 @@ publish-s3-release:
   cache:                           {}
   retry:                           1
   image:                           parity/kubetools:latest
-  <<:                              *build-only
+  <<:                              *build-refs
   tags:
     # this is the runner that is used to deploy it
     - kubernetes-parity-build
@@ -245,6 +249,9 @@ publish-s3-release:
   only:
     variables:
       - $DEPLOY_TAG
+  except:
+    variables:
+      - $DEPLOY_TAG == ""
 
 
 

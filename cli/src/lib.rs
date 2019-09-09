@@ -21,17 +21,15 @@
 
 mod chain_spec;
 
-use std::ops::Deref;
 use chain_spec::ChainSpec;
 use futures::Future;
 use tokio::runtime::Runtime;
-use service::{Service as BareService, Error as ServiceError};
 use std::sync::Arc;
 use log::{info, error};
 use structopt::StructOpt;
 
 pub use service::{
-	Components as ServiceComponents, PolkadotService, CustomConfiguration, ServiceFactory, Factory,
+	AbstractService, CustomConfiguration,
 	ProvideRuntimeApi, CoreApi, ParachainHost,
 };
 
@@ -63,7 +61,13 @@ pub trait Worker: IntoExit {
 	fn configuration(&self) -> service::CustomConfiguration { Default::default() }
 
 	/// Do work and schedule exit.
-	fn work<S: PolkadotService>(self, service: &S, executor: TaskExecutor) -> Self::Work;
+	fn work<S, SC, B, CE>(self, service: &S, executor: TaskExecutor) -> Self::Work
+	where S: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
+		Backend = B, SelectChain = SC,
+		NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
+		SC: service::SelectChain<service::Block> + 'static,
+		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
+		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static;
 }
 
 #[derive(Debug, StructOpt, Clone)]
@@ -101,23 +105,24 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 				service::Roles::LIGHT =>
 					run_until_exit(
 						runtime,
-						Factory::new_light(config).map_err(|e| format!("{:?}", e))?,
+						service::new_light(config).map_err(|e| format!("{:?}", e))?,
 						worker
 					),
 				_ => run_until_exit(
 						runtime,
-						Factory::new_full(config).map_err(|e| format!("{:?}", e))?,
+						service::new_full(config).map_err(|e| format!("{:?}", e))?,
 						worker
 					),
 			}.map_err(|e| format!("{:?}", e))
 		}),
 		cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run(load_spec),
-		cli::ParseAndPrepare::ExportBlocks(cmd) =>
-			cmd.run::<service::Factory, _, _>(load_spec, worker),
-		cli::ParseAndPrepare::ImportBlocks(cmd) =>
-			cmd.run::<service::Factory, _, _>(load_spec, worker),
+		cli::ParseAndPrepare::ExportBlocks(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
+			Ok(service::new_chain_ops(config)?), load_spec, worker),
+		cli::ParseAndPrepare::ImportBlocks(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
+			Ok(service::new_chain_ops(config)?), load_spec, worker),
 		cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
-		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run::<service::Factory, _>(load_spec),
+		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<(), _, _, _, _>(|config|
+			Ok(service::new_chain_ops(config)?), load_spec),
 		cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
 			service::run_validation_worker(&args.mem_id)?;
 			Ok(())
@@ -125,15 +130,17 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	}
 }
 
-fn run_until_exit<T, C, W>(
+fn run_until_exit<T, SC, B, CE, W>(
 	mut runtime: Runtime,
 	service: T,
 	worker: W,
 ) -> error::Result<()>
 	where
-		T: Deref<Target=BareService<C>> + Future<Item = (), Error = ServiceError> + Send + 'static,
-		C: service::Components,
-		BareService<C>: PolkadotService,
+		T: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
+			SelectChain = SC, Backend = B, NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
+		SC: service::SelectChain<service::Block> + 'static,
+		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
+		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static,
 		W: Worker,
 {
 	let (exit_send, exit) = exit_future::signal();
@@ -146,7 +153,7 @@ fn run_until_exit<T, C, W>(
 	// but we need to keep holding a reference to the global telemetry guard
 	let _telemetry = service.telemetry();
 
-	let work = worker.work(&*service, Arc::new(executor));
+	let work = worker.work(&service, Arc::new(executor));
 	let service = service.map_err(|err| error!("Error while running Service: {}", err));
 	let _ = runtime.block_on(service.select(work));
 	exit_send.fire();

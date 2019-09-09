@@ -17,6 +17,7 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-cli = { path = "../cli" }
 polkadot-network = { path = "../network" }
 polkadot-validation = { path = "../validation" }
+polkadot-service = { path = "../service" }
 log = "0.4"
 tokio = "0.1.7"
 

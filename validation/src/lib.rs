@@ -37,17 +37,17 @@ use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
 use codec::Encode;
 use consensus::SelectChain;
-use extrinsic_store::Store as ExtrinsicStore;
+use availability_store::Store as AvailabilityStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
-	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage,
+	Id as ParaId, Chain, DutyRoster, OutgoingMessages, CandidateReceipt,
+	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message,
 	Collation, PoVBlock, ValidatorSignature, ValidatorPair, ValidatorId
 };
 use primitives::Pair;
 use runtime_primitives::{
-	traits::{ProvideRuntimeApi, Header as HeaderT, DigestFor}, ApplyError
+	traits::{ProvideRuntimeApi, DigestFor}, ApplyError
 };
 use futures_timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
@@ -88,27 +88,6 @@ const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
 /// Incoming messages; a series of sorted (ParaId, Message) pairs.
 pub type Incoming = Vec<(ParaId, Vec<Message>)>;
 
-/// Outgoing messages from various candidates.
-pub type Outgoing = Vec<MessagesFrom>;
-
-/// Some messages from a parachain.
-pub struct MessagesFrom {
-	/// The parachain originating the messages.
-	pub from: ParaId,
-	/// The messages themselves.
-	pub messages: ParachainExtrinsic,
-}
-
-impl MessagesFrom {
-	/// Construct from the raw messages.
-	pub fn from_messages(from: ParaId, messages: Vec<OutgoingMessage>) -> Self {
-		MessagesFrom {
-			from,
-			messages: ParachainExtrinsic { outgoing_messages: messages },
-		}
-	}
-}
-
 /// A handle to a statement table router.
 ///
 /// This is expected to be a lightweight, shared type like an `Arc`.
@@ -120,7 +99,7 @@ pub trait TableRouter: Clone {
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
-	fn local_collation(&self, collation: Collation, extrinsic: ParachainExtrinsic);
+	fn local_collation(&self, collation: Collation, outgoing: OutgoingMessages);
 
 	/// Fetch validation proof for a specific candidate.
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
@@ -227,6 +206,18 @@ pub fn make_group_info(
 
 }
 
+/// Compute the (target, root, messages) of all outgoing queues.
+pub fn outgoing_queues(outgoing_targeted: &'_ OutgoingMessages)
+	-> impl Iterator<Item=(ParaId, Hash, Vec<Message>)> + '_
+{
+	outgoing_targeted.message_queues().filter_map(|queue| {
+		let target = queue.get(0)?.target;
+		let queue_root = message_queue_root(queue);
+		let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
+		Some((target, queue_root, queue_data))
+	})
+}
+
 // finds the first key we are capable of signing with out of the given set of validators,
 // if any.
 fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc<ValidatorPair>> {
@@ -249,7 +240,7 @@ struct ParachainValidation<C, N, P> {
 	/// handle to remote task executor
 	handle: TaskExecutor,
 	/// Store for extrinsic data.
-	extrinsic_store: ExtrinsicStore,
+	availability_store: AvailabilityStore,
 	/// Live agreements. Maps relay chain parent hashes to attestation
 	/// instances.
 	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
@@ -274,7 +265,6 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	fn get_or_instantiate(
 		&self,
 		parent_hash: Hash,
-		grandparent_hash: Hash,
 		keystore: &KeyStorePtr,
 		max_block_data_size: Option<u64>,
 	)
@@ -289,32 +279,6 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let validators = self.client.runtime_api().validators(&id)?;
 		let sign_with = signing_key(&validators[..], keystore);
-
-		// compute the parent candidates, if we know of them.
-		// this will allow us to circulate outgoing messages to other peers as necessary.
-		let parent_candidates: Vec<_> = crate::attestation_service::fetch_candidates(&*self.client, &id)
-			.ok()
-			.and_then(|x| x)
-			.map(|x| x.collect())
-			.unwrap_or_default();
-
-		// TODO: https://github.com/paritytech/polkadot/issues/253
-		//
-		// We probably don't only want active validators to do this, or messages
-		// will disappear when validators exit the set.
-		let _outgoing: Vec<_> = {
-			// extract all extrinsic data that we have and propagate to peers.
-			live_instances.get(&grandparent_hash).map(|parent_validation| {
-				parent_candidates.iter().filter_map(|c| {
-					let para_id = c.parachain_index;
-					let hash = c.hash();
-					parent_validation.table.extrinsic_data(&hash).map(|ex| MessagesFrom {
-						from: para_id,
-						messages: ex,
-					})
-				}).collect()
-			}).unwrap_or_default()
-		};
 
 		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
 
@@ -339,7 +303,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			group_info,
 			sign_with,
 			parent_hash,
-			self.extrinsic_store.clone(),
+			self.availability_store.clone(),
 			max_block_data_size,
 		));
 
@@ -380,10 +344,10 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		max_block_data_size: Option<u64>,
 		exit: exit_future::Exit,
 	) {
-		use extrinsic_store::Data;
+		use availability_store::Data;
 
 		let (collators, client) = (self.collators.clone(), self.client.clone());
-		let extrinsic_store = self.extrinsic_store.clone();
+		let availability_store = self.availability_store.clone();
 
 		let with_router = move |router: N::TableRouter| {
 			// fetch a local collation from connected collators.
@@ -396,20 +360,24 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			);
 
 			collation_work.then(move |result| match result {
-				Ok((collation, extrinsic)) => {
-					let res = extrinsic_store.make_available(Data {
+				Ok((collation, outgoing_targeted)) => {
+					let outgoing_queues = crate::outgoing_queues(&outgoing_targeted)
+						.map(|(_target, root, data)| (root, data))
+						.collect();
+
+					let res = availability_store.make_available(Data {
 						relay_parent,
 						parachain_id: collation.receipt.parachain_index,
 						candidate_hash: collation.receipt.hash(),
 						block_data: collation.pov.block_data.clone(),
-						extrinsic: Some(extrinsic.clone()),
+						outgoing_queues: Some(outgoing_queues),
 					});
 
 					match res {
 						Ok(()) => {
 							// TODO: https://github.com/paritytech/polkadot/issues/51
 							// Erasure-code and provide merkle branches.
-							router.local_collation(collation, extrinsic);
+							router.local_collation(collation, outgoing_targeted);
 						}
 						Err(e) => warn!(
 							target: "validation",
@@ -482,7 +450,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 		transaction_pool: Arc<Pool<TxApi>>,
 		thread_pool: TaskExecutor,
 		keystore: KeyStorePtr,
-		extrinsic_store: ExtrinsicStore,
+		availability_store: AvailabilityStore,
 		babe_slot_duration: u64,
 		max_block_data_size: Option<u64>,
 	) -> Self {
@@ -491,7 +459,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			network,
 			collators,
 			handle: thread_pool.clone(),
-			extrinsic_store: extrinsic_store.clone(),
+			availability_store: availability_store.clone(),
 			live_instances: Mutex::new(HashMap::new()),
 		});
 
@@ -501,7 +469,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			parachain_validation.clone(),
 			thread_pool,
 			keystore.clone(),
-			extrinsic_store,
+			availability_store,
 			max_block_data_size,
 		);
 
@@ -540,7 +508,6 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 
 		let tracker = self.parachain_validation.get_or_instantiate(
 			parent_hash,
-			parent_header.parent_hash().clone(),
 			&self.keystore,
 			self.max_block_data_size,
 		)?;
