@@ -89,10 +89,10 @@ test-linux-stable:                 &test
     TARGET: native
   script:
     - |
-      test "${CI_COMMIT_TAG}" = "kusama-nightly-staging" && (
-      echo "kusama-nightly-staging: change Cargo.toml to build against substrate:kusama-nightly-staging"
-      find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate: { s:branch = "polkadot-master":tag = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \;
-      time cargo test --all --release --verbose) || \
+      test "${CI_COMMIT_REF_NAME}" = "kusama-nightly-staging" && (
+        echo "kusama-nightly-staging: change Cargo.toml to build against substrate:kusama-nightly-staging"
+        find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate": { s:branch = "polkadot-(master|testing)":branch = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \;
+        time cargo test --all --release --verbose) || \
       time cargo test --all --release --verbose --locked
     - sccache -s
 
@@ -107,9 +107,9 @@ build-linux-release:               &build
   <<:                              *compiler_info
   script:
     - |
-      test "${CI_COMMIT_TAG}" = "kusama-nightly-staging" && (
-      echo "kusama-nightly-staging: change Cargo.toml to build against substrate:kusama-nightly-staging";
-      find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate: { s:branch = "polkadot-master":tag = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \;)
+      test "${CI_COMMIT_REF_NAME}" = "kusama-nightly-staging" && (
+        echo "kusama-nightly-staging: change Cargo.toml to build against substrate:kusama-nightly-staging";
+        find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate": { s:branch = "polkadot-(master|testing)":branch = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \;
     - time cargo build --release --verbose
     - mkdir -p ./artifacts
     - mv ./target/release/polkadot ./artifacts/.
@@ -285,7 +285,6 @@ deploy-polkasync-kusama:
   image:                           parity/tools:latest
   only:
     - kusama-nightly-staging
-    - /^[0-9]+$/
   tags:
     - kubernetes-parity-build
   variables:
@@ -298,8 +297,8 @@ deploy-polkasync-kusama:
       curl -sS -X POST \
         -F "token=${CI_JOB_TOKEN}" \
         -F "ref=master" \
-        -F "variables[KUSAMA_NIGHTLY_TAG]=${CI_COMMIT_REF_NAME}" \
-        ${GITLAB_API}/projects/${GITHUB_API_PROJECT}/trigger/pipeline
+        -F "variables[POLKADOT_BUILD_REF]=${CI_COMMIT_REF_NAME}" \
+        ${GITLAB_API}/projects/${GITHUB_API_PROJECT}/trigger/pipeline | jq .
 
 
 
