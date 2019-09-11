@@ -423,7 +423,6 @@ impl im_online::Trait for Runtime {
 	type Call = Call;
 	type SubmitTransaction = SubmitTransaction;
 	type ReportUnresponsiveness = ();
-	type CurrentElectedSet = staking::CurrentElectedStashAccounts<Runtime>;
 }
 
 impl grandpa::Trait for Runtime {
