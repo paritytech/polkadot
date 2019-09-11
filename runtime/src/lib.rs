@@ -31,16 +31,17 @@ use codec::{Encode, Decode};
 use substrate_primitives::u32_trait::{_1, _2, _3, _4};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain,
+	parachain, ValidityError,
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
 	runtime_api as client_api, impl_runtime_apis,
 };
 use sr_primitives::{
-	ApplyResult, generic, transaction_validity::{ValidTransaction, TransactionValidity},
+	ApplyResult, generic,
+	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	impl_opaque_keys, weights::{Weight, DispatchInfo}, create_runtime_str, key_types, traits::{
-		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, DispatchError, SignedExtension,
+		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, SignedExtension,
 	},
 };
 use version::RuntimeVersion;
@@ -55,6 +56,7 @@ use srml_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
 };
 use im_online::sr25519::{AuthorityId as ImOnlineId};
+use system::offchain::TransactionSubmitter;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -98,7 +100,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 1,
-	spec_version: 1002,
+	spec_version: 1003,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -124,14 +126,14 @@ impl SignedExtension for OnlyStakingAndClaims {
 	type Call = Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	fn additional_signed(&self) -> rstd::result::Result<(), &'static str> { Ok(()) }
+	fn additional_signed(&self) -> rstd::result::Result<(), TransactionValidityError> { Ok(()) }
 	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
-		-> Result<ValidTransaction, DispatchError>
+		-> TransactionValidity
 	{
 		match call {
 			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_) =>
 				Ok(Default::default()),
-			_ => Err(DispatchError::NoPermission),
+			_ => Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
 		}
 	}
 }
@@ -413,11 +415,13 @@ impl offences::Trait for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
+type SubmitTransaction = TransactionSubmitter<ImOnlineId, Runtime, UncheckedExtrinsic>;
+
 impl im_online::Trait for Runtime {
 	type AuthorityId = ImOnlineId;
-	type Call = Call;
 	type Event = Event;
-	type UncheckedExtrinsic = UncheckedExtrinsic;
+	type Call = Call;
+	type SubmitTransaction = SubmitTransaction;
 	type ReportUnresponsiveness = ();
 	type CurrentElectedSet = staking::CurrentElectedStashAccounts<Runtime>;
 }

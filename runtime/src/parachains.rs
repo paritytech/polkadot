@@ -22,7 +22,7 @@ use codec::{Encode, Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
 use sr_primitives::traits::{
-	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero,
+	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero, Dispatchable,
 };
 use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
@@ -31,7 +31,7 @@ use primitives::{Hash, Balance, parachain::{
 }};
 use {system, session};
 use srml_support::{
-	StorageValue, StorageMap, Parameter, Dispatchable, dispatch::Result,
+	StorageValue, StorageMap, Parameter, dispatch::Result,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement}
 };
 
