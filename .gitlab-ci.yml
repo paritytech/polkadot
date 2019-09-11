@@ -289,7 +289,7 @@ deploy-polkasync-kusama:
     - kubernetes-parity-build
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
-    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
+    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fparity-testnet"
   allow_failure:                   true
   script:
     - |
