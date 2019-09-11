@@ -13,7 +13,7 @@ tiny-keccak = "1.5.0"
 dlmalloc = { version = "0.1.3", features = ["global"], optional = true }
 
 # We need to make sure the global allocator is disabled until we have support of full substrate externalities
-rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-testing", default-features = false }
+rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 
 [build-dependencies]
 wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.2" }
