@@ -32,16 +32,17 @@ use codec::{Encode, Decode};
 use substrate_primitives::u32_trait::{_1, _2, _3, _4};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain,
+	parachain, ValidityError,
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
 	runtime_api as client_api, impl_runtime_apis,
 };
 use sr_primitives::{
-	ApplyResult, generic, transaction_validity::{ValidTransaction, TransactionValidity},
+	ApplyResult, generic,
+	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	impl_opaque_keys, weights::{Weight, DispatchInfo}, create_runtime_str, key_types, traits::{
-		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, DispatchError, SignedExtension,
+		BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, SignedExtension,
 	},
 };
 use version::RuntimeVersion;
@@ -51,10 +52,12 @@ use elections::VoteIndex;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
+use sr_staking_primitives::SessionIndex;
 use srml_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
 };
-use im_online::AuthorityId as ImOnlineId;
+use im_online::sr25519::{AuthorityId as ImOnlineId};
+use system::offchain::TransactionSubmitter;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -98,7 +101,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 1,
-	spec_version: 1000,
+	spec_version: 1003,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -124,13 +127,14 @@ impl SignedExtension for OnlyStakingAndClaims {
 	type Call = Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	fn additional_signed(&self) -> rstd::result::Result<(), &'static str> { Ok(()) }
+	fn additional_signed(&self) -> rstd::result::Result<(), TransactionValidityError> { Ok(()) }
 	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
-		-> Result<ValidTransaction, DispatchError>
+		-> TransactionValidity
 	{
 		match call {
-			Call::Staking(_) | Call::Claims(_) => Ok(Default::default()),
-			_ => Err(DispatchError::NoPermission),
+			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_) =>
+				Ok(Default::default()),
+			_ => Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
 		}
 	}
 }
@@ -142,6 +146,7 @@ parameter_types! {
 	pub const MaximumBlockWeight: Weight = 1_000_000_000;
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
+	pub const Version: RuntimeVersion = VERSION;
 }
 
 impl system::Trait for Runtime {
@@ -160,10 +165,11 @@ impl system::Trait for Runtime {
 	type MaximumBlockWeight = MaximumBlockWeight;
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
+	type Version = Version;
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
+	pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 }
 
@@ -275,8 +281,10 @@ impl session::historical::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const SessionsPerEra: session::SessionIndex = 6;
-	pub const BondingDuration: staking::EraIndex = 24 * 28;
+	// Six sessions in an era (24 hours).
+	pub const SessionsPerEra: SessionIndex = 6;
+	// 28 eras for unbonding (28 days).
+	pub const BondingDuration: staking::EraIndex = 28;
 }
 
 impl staking::Trait for Runtime {
@@ -284,7 +292,7 @@ impl staking::Trait for Runtime {
 	type CurrencyToVote = CurrencyToVoteHandler;
 	type Event = Event;
 	type Currency = Balances;
-	type Slash = ();
+	type Slash = Treasury;
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
@@ -384,15 +392,15 @@ impl membership::Trait<membership::Instance1> for Runtime {
 
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
-	pub const ProposalBondMinimum: Balance = 1 * DOLLARS;
-	pub const SpendPeriod: BlockNumber = 1 * DAYS;
-	pub const Burn: Permill = Permill::from_percent(50);
+	pub const ProposalBondMinimum: Balance = 100 * DOLLARS;
+	pub const SpendPeriod: BlockNumber = 24 * DAYS;
+	pub const Burn: Permill = Permill::from_percent(5);
 }
 
 impl treasury::Trait for Runtime {
 	type Currency = Balances;
-	type ApproveOrigin = collective::EnsureMembers<_4, AccountId, CouncilCollective>;
-	type RejectOrigin = collective::EnsureMembers<_2, AccountId, CouncilCollective>;
+	type ApproveOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>;
+	type RejectOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 	type Event = Event;
 	type MintedForSpending = ();
 	type ProposalRejection = ();
@@ -402,10 +410,21 @@ impl treasury::Trait for Runtime {
 	type Burn = Burn;
 }
 
-impl im_online::Trait for Runtime {
-	type Call = Call;
+impl offences::Trait for Runtime {
 	type Event = Event;
-	type UncheckedExtrinsic = UncheckedExtrinsic;
+	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
+	type OnOffenceHandler = Staking;
+}
+
+type SubmitTransaction = TransactionSubmitter<ImOnlineId, Runtime, UncheckedExtrinsic>;
+
+impl im_online::Trait for Runtime {
+	type AuthorityId = ImOnlineId;
+	type Event = Event;
+	type Call = Call;
+	type SubmitTransaction = SubmitTransaction;
+	type ReportUnresponsiveness = ();
+	type CurrentElectedSet = staking::CurrentElectedStashAccounts<Runtime>;
 }
 
 impl grandpa::Trait for Runtime {
@@ -418,7 +437,7 @@ parameter_types! {
 }
 
 impl finality_tracker::Trait for Runtime {
-	type OnFinalizationStalled = Grandpa;
+	type OnFinalizationStalled = ();
 	type WindowSize = WindowSize;
 	type ReportLatency = ReportLatency;
 }
@@ -430,6 +449,7 @@ parameter_types! {
 impl attestations::Trait for Runtime {
 	type AttestationPeriod = AttestationPeriod;
 	type ValidatorIdentities = parachains::ValidatorIdentities<Runtime>;
+	type RewardAttestation = Staking;
 }
 
 impl parachains::Trait for Runtime {
@@ -488,10 +508,11 @@ construct_runtime!(
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
 		Staking: staking::{default, OfflineWorker},
+		Offences: offences::{Module, Call, Storage, Event},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
-		ImOnline: im_online::{Module, Call, Storage, Event, ValidateUnsigned, Config<T>},
+		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 
 		// Governance stuff; uncallable initially.
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
@@ -504,15 +525,15 @@ construct_runtime!(
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 
-		// Sudo. Usable initially.
-		// RELEASE: remove this for release build.
-		Sudo: sudo,
-
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
 		// have no public dispatchables.
 		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
+
+		// Sudo. Usable initially.
+		// RELEASE: remove this for release build.
+		Sudo: sudo,
 	}
 );
 
@@ -530,6 +551,7 @@ pub type BlockId = generic::BlockId<Block>;
 pub type SignedExtra = (
 	// RELEASE: remove this for release build.
 	OnlyStakingAndClaims,
+	system::CheckVersion<Runtime>,
 	system::CheckGenesis<Runtime>,
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
@@ -614,8 +636,10 @@ impl_runtime_apis! {
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)
 		}
-		fn ingress(to: parachain::Id) -> Option<parachain::StructuredUnroutedIngress> {
-			Parachains::ingress(to).map(parachain::StructuredUnroutedIngress)
+		fn ingress(to: parachain::Id, since: Option<BlockNumber>)
+			-> Option<parachain::StructuredUnroutedIngress>
+		{
+			Parachains::ingress(to, since).map(parachain::StructuredUnroutedIngress)
 		}
 	}
 
@@ -647,7 +671,7 @@ impl_runtime_apis! {
 			babe_primitives::BabeConfiguration {
 				median_required_blocks: 1000,
 				slot_duration: Babe::slot_duration(),
-				c: (278, 1000),
+				c: PRIMARY_PROBABILITY,
 			}
 		}
 
@@ -658,6 +682,7 @@ impl_runtime_apis! {
 				epoch_index: Babe::epoch_index(),
 				randomness: Babe::randomness(),
 				duration: EpochDuration::get(),
+				secondary_slots: Babe::secondary_slots().0,
 			}
 		}
 	}

@@ -18,7 +18,7 @@
 
 use std::collections::HashMap;
 use super::{PolkadotProtocol, Status, Message, FullStatus};
-use crate::validation::SessionParams;
+use crate::validation::LeafWorkParams;
 
 use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash};
@@ -77,6 +77,28 @@ impl TestContext {
 	}
 }
 
+#[derive(Default)]
+pub struct TestChainContext {
+	pub known_map: HashMap<Hash, crate::gossip::Known>,
+	pub ingress_roots: HashMap<Hash, Vec<Hash>>,
+}
+
+impl crate::gossip::ChainContext for TestChainContext {
+	fn is_known(&self, block_hash: &Hash) -> Option<crate::gossip::Known> {
+		self.known_map.get(block_hash).map(|x| x.clone())
+	}
+
+	fn leaf_unrouted_roots(&self, leaf: &Hash, with_queue_root: &mut dyn FnMut(&Hash))
+		-> Result<(), substrate_client::error::Error>
+	{
+		for root in self.ingress_roots.get(leaf).into_iter().flat_map(|roots| roots) {
+			with_queue_root(root)
+		}
+
+		Ok(())
+	}
+}
+
 fn make_pov(block_data: Vec<u8>) -> PoVBlock {
 	PoVBlock {
 		block_data: BlockData(block_data),
@@ -96,8 +118,8 @@ fn make_status(status: &Status, roles: Roles) -> FullStatus {
 	}
 }
 
-fn make_validation_session(parent_hash: Hash, local_key: ValidatorId) -> SessionParams {
-	SessionParams {
+fn make_validation_leaf_work(parent_hash: Hash, local_key: ValidatorId) -> LeafWorkParams {
+	LeafWorkParams {
 		local_session_key: Some(local_key),
 		parent_hash,
 		authorities: Vec::new(),
@@ -129,8 +151,8 @@ fn sends_session_key() {
 
 	{
 		let mut ctx = TestContext::default();
-		let params = make_validation_session(parent_hash, local_key.clone());
-		protocol.new_validation_session(&mut ctx, params);
+		let params = make_validation_leaf_work(parent_hash, local_key.clone());
+		protocol.new_validation_leaf_work(&mut ctx, params);
 		assert!(ctx.has_message(peer_a, Message::ValidatorId(local_key.clone())));
 	}
 
@@ -169,8 +191,8 @@ fn fetches_from_those_with_knowledge() {
 
 	let status = Status { collating_for: None };
 
-	let params = make_validation_session(parent_hash, local_key.clone());
-	let session = protocol.new_validation_session(&mut TestContext::default(), params);
+	let params = make_validation_leaf_work(parent_hash, local_key.clone());
+	let session = protocol.new_validation_leaf_work(&mut TestContext::default(), params);
 	let knowledge = session.knowledge();
 
 	knowledge.lock().note_statement(a_key.clone(), &GenericStatement::Valid(candidate_hash));
@@ -259,7 +281,7 @@ fn fetches_available_block_data() {
 		parachain_id: para_id,
 		candidate_hash,
 		block_data: block_data.clone(),
-		extrinsic: None,
+		outgoing_queues: None,
 	}).unwrap();
 
 	// connect peer A
@@ -323,13 +345,13 @@ fn many_session_keys() {
 	let local_key_a: ValidatorId = [3; 32].unchecked_into();
 	let local_key_b: ValidatorId = [4; 32].unchecked_into();
 
-	let params_a = make_validation_session(parent_a, local_key_a.clone());
-	let params_b = make_validation_session(parent_b, local_key_b.clone());
+	let params_a = make_validation_leaf_work(parent_a, local_key_a.clone());
+	let params_b = make_validation_leaf_work(parent_b, local_key_b.clone());
 
-	protocol.new_validation_session(&mut TestContext::default(), params_a);
-	protocol.new_validation_session(&mut TestContext::default(), params_b);
+	protocol.new_validation_leaf_work(&mut TestContext::default(), params_a);
+	protocol.new_validation_leaf_work(&mut TestContext::default(), params_b);
 
-	assert_eq!(protocol.live_validation_sessions.recent_keys(), &[local_key_a.clone(), local_key_b.clone()]);
+	assert_eq!(protocol.live_validation_leaves.recent_keys(), &[local_key_a.clone(), local_key_b.clone()]);
 
 	let peer_a = PeerId::random();
 

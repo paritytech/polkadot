@@ -27,7 +27,7 @@
 use codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::{Hash as H256, BlakeTwo256, HashT};
-use primitives::parachain::{BlockData, Extrinsic};
+use primitives::parachain::{BlockData, OutgoingMessages};
 use substrate_primitives::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 
@@ -124,11 +124,11 @@ fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 /// Obtain erasure-coded chunks, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, extrinsic: &Extrinsic)
+pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, outgoing: &OutgoingMessages)
 	-> Result<Vec<Vec<u8>>, Error>
 {
 	let params  = code_params(n_validators)?;
-	let encoded = (block_data, extrinsic).encode();
+	let encoded = (block_data, outgoing).encode();
 
 	if encoded.is_empty() {
 		return Err(Error::BadPayload);
@@ -150,7 +150,7 @@ pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, extrinsic: &Ex
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
 pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
-	-> Result<(BlockData, Extrinsic), Error>
+	-> Result<(BlockData, OutgoingMessages), Error>
 	where I: IntoIterator<Item=(&'a [u8], usize)>
 {
 	let params = code_params(n_validators)?;
@@ -399,7 +399,7 @@ mod tests {
     #[test]
 	fn round_trip_block_data() {
 		let block_data = BlockData((0..255).collect());
-		let ex = Extrinsic { outgoing_messages: Vec::new() };
+		let ex = OutgoingMessages { outgoing_messages: Vec::new() };
 		let chunks = obtain_chunks(
 			10,
 			&block_data,
@@ -428,7 +428,7 @@ mod tests {
 		let chunks = obtain_chunks(
 			10,
 			&block_data,
-			&Extrinsic { outgoing_messages: Vec::new() },
+			&OutgoingMessages { outgoing_messages: Vec::new() },
 		).unwrap();
 		let chunks: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
 
