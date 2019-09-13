@@ -78,7 +78,6 @@ use substrate_primitives::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
 
 pub type BalanceOf<T> = <<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
-pub type NegativeImbalanceOf<T> = <<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
 pub type ParaIdOf<T> = <<T as slots::Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
 
 pub trait Trait: slots::Trait {
