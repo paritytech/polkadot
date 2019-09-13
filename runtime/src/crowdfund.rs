@@ -99,7 +99,16 @@ pub trait Trait: slots::Trait {
 	type OrphanedFunds: OnUnbalanced<NegativeImbalanceOf<Self>>;
 }
 
+/// Simple index for identifying a fund.
 pub type FundIndex = u32;
+
+#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub enum LastContribution<BlockNumber> {
+	Never,
+	PreEnding(slots::AuctionIndex),
+	Ending(BlockNumber),
+}
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug))]
@@ -120,7 +129,7 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber, ParaId> {
 	cap: Balance,
 	/// The most recent block that this had a contribution. Determines if we make a bid or not.
 	/// If this is `None`, then the last contribution was made outside of the ending period.
-	last_contribution: Option<BlockNumber>,
+	last_contribution: LastContribution<BlockNumber>,
 	/// First slot in range to bid on; it's actually a LeasePeriod, but that's the same type as
 	/// BlockNumber.
 	first_slot: BlockNumber,
@@ -144,10 +153,13 @@ decl_storage! {
 		/// The funds that have had additional contributions during the last block. This is used
 		/// in order to determine which funds should submit new or updated bids.
 		NewRaise get(new_raise): Vec<FundIndex>;
+
+		/// The number of auctions that have entered into their ending period so far.
+		EndingsCount get(endings_count): slots::AuctionIndex;
 	}
 }
 
-decl_event!(
+decl_event! {
 	pub enum Event<T> where
 		<T as system::Trait>::AccountId,
 		Balance = BalanceOf<T>,
@@ -161,28 +173,25 @@ decl_event!(
 		DeployDataFixed(FundIndex),
 		Onboarded(FundIndex, ParaId),
 	}
-);
+}
 
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
-		fn deposit_event<T>() = default;
+		fn deposit_event() = default;
 		
 		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
 		#[weight = SimpleDispatchInfo::FixedNormal(100_000)]
 		fn create(origin,
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: T::BlockNumber,
-			#[compact] last_slot: T::BlockNumber
+			#[compact] last_slot: T::BlockNumber,
+			#[compact] end: T::BlockNumber
 		) {
 			let owner = ensure_signed(origin)?;
 
 			ensure!(first_slot < last_slot, "last slot must be greater than first slot");
 			ensure!(last_slot <= first_slot + 3.into(), "last slot cannot be more then 3 more than first slot");
-			// Check an auction is in progress, and extract the `early_end` block
-			let (_, early_end) = <slots::Module<T>>::auction_info().ok_or("no auction in progress")?;
-
-			// End of the crowdfund will be the last possible block for the ongoing auction
-			let end = early_end + T::EndingPeriod::get();
+			ensure!(end > <system::Module<T>>::block_number(), "end must be in the future");
 
 			let deposit = T::SubmissionDeposit::get();
 			let imb = T::Currency::withdraw(
@@ -207,7 +216,7 @@ decl_module! {
 				raised: Zero::zero(),
 				end,
 				cap,
-				last_contribution: None,
+				last_contribution: LastContribution::Never,
 				first_slot,
 				last_slot,
 				deploy_data: None,
@@ -238,23 +247,34 @@ decl_module! {
 			let balance = balance.saturating_add(value);
 			Self::contribution_put(index, &who, &balance);
 
-			// First contribution to a fund should add it to `NewRaise` so initial bid is made
-			if fund.last_contribution.is_none() {
-				NewRaise::mutate(|v| v.push(index));
+			if <slots::Module<T>>::is_ending(now).is_some() {
+				match fund.last_contribution {
+					// In ending period; must ensure that we are in NewRaise.
+					LastContribution::Ending(n) if n == now => {
+						// do nothing - already in NewRaise
+					}
+					_ => {
+						NewRaise::mutate(|v| v.push(index));
+						fund.last_contribution = LastContribution::Ending(now);
+					}
+				}
 			} else {
-				// Any contributions that happen during the ending period should
-				// cause another bid to be placed with updated value
-				if <slots::Module<T>>::is_ending(now).is_some() {
-					// Only add to `NewRaised` if it hasn't already been added this block
-					if let Some(c) = fund.last_contribution {
-						if c != now {
-							NewRaise::mutate(|v| v.push(index));
-						}
+				let endings_count = Self::endings_count();
+				match fund.last_contribution {
+					LastContribution::PreEnding(a) if a == endings_count => {
+						// Not in ending period and no auctions have ended ending since our
+						// previous bid which was also not in an ending period.
+						// `NewRaise` will contain our ID still: Do nothing.
+					}
+					_ => {
+						// Not in ending period; but an auction has been ending since our previous
+						// bid, or we never had one to begin with. Add bid.
+						NewRaise::mutate(|v| v.push(index));
+						fund.last_contribution = LastContribution::PreEnding(endings_count);
 					}
 				}
 			}
-			
-			fund.last_contribution = Some(now);
+
 			<Funds<T>>::insert(index, &fund);
 
 			Self::deposit_event(RawEvent::Contributed(who, index, value));
@@ -396,9 +416,13 @@ decl_module! {
 		}
 		
 		fn on_finalize(n: T::BlockNumber) {
-			if <slots::Module<T>>::is_ending(n).is_some() {
-				for (fund, index) in NewRaise::take().into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i)))
-				{
+			if let Some(n) = <slots::Module<T>>::is_ending(n) {
+				let auction_index = <slots::Module<T>>::auction_counter();
+				if n.is_zero() {
+					// first block of ending period.
+					EndingsCount::mutate(|c| *c += 1);
+				}
+				for (fund, index) in NewRaise::take().into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i))) {
 					let bidder = slots::Bidder::New(slots::NewBidder {
 						who: Self::fund_account_id(index),
 						/// FundIndex and slots::SubId happen to be the same type (u32). If this
@@ -410,7 +434,7 @@ decl_module! {
 					// the crowdfunding configuration. We do some checks ahead of time in crowdfund `create`.
 					let _ = <slots::Module<T>>::handle_bid(
 						bidder,
-						<slots::Module<T>>::auction_counter(),
+						auction_index,
 						fund.first_slot,
 						fund.last_slot,
 						fund.raised,
