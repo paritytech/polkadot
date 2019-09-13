@@ -202,14 +202,14 @@ decl_module! {
 
 			<Funds<T>>::insert(index, FundInfo {
 				parachain: None,
-				owner: owner,
-				deposit: deposit,
+				owner,
+				deposit,
 				raised: Zero::zero(),
-				end: end,
-				cap: cap,
+				end,
+				cap,
 				last_contribution: None,
-				first_slot: first_slot,
-				last_slot: last_slot,
+				first_slot,
+				last_slot,
 				deploy_data: None,
 			});
 
