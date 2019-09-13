@@ -534,6 +534,7 @@ mod tests {
 		type MaximumBlockWeight = MaximumBlockWeight;
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
+		type Version = ();
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
@@ -694,7 +695,7 @@ mod tests {
 			// Set up an auction
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			// Now try to create a crowdfund campaign
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Crowdfund::fund_count(), 1);
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
@@ -705,7 +706,7 @@ mod tests {
 				// 5 blocks length + 3 block ending period + 1 starting block
 				end: 9,
 				cap: 1000,
-				last_contribution: None,
+				last_contribution: LastContribution::Never,
 				first_slot: 1,
 				last_slot: 4,
 				deploy_data: None,
@@ -724,17 +725,14 @@ mod tests {
 	#[test]
 	fn create_handles_basic_errors() {
 		with_externalities(&mut new_test_ext(), || {
-			// Cannot create crowdfund without ongoing auction
-			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 1, 4), "no auction in progress");
-
 			// Set up an auction
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			// Cannot create a crowdfund with bad slots
-			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 4, 1), "last slot must be greater than first slot");
-			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 1, 5), "last slot cannot be more then 3 more than first slot");
+			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 4, 1, 9), "last slot must be greater than first slot");
+			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 1, 5, 9), "last slot cannot be more then 3 more than first slot");
 
 			// Cannot create a crowdfund without some deposit funds
-			assert_noop!(Crowdfund::create(Origin::signed(1337), 1000, 1, 3), "too few free funds in account");
+			assert_noop!(Crowdfund::create(Origin::signed(1337), 1000, 1, 3, 9), "too few free funds in account");
 		});
 	}
 
@@ -743,7 +741,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 1);
 
@@ -764,7 +762,7 @@ mod tests {
 			let fund = Crowdfund::funds(0).unwrap();
 
 			// Last contribution time recorded
-			assert_eq!(fund.last_contribution, Some(1));
+			assert_eq!(fund.last_contribution, LastContribution::PreEnding(0));
 			assert_eq!(fund.raised, 49);
 		});
 	}
@@ -779,7 +777,7 @@ mod tests {
 
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 101));
 
 			// Cannot contribute past the limit
@@ -798,7 +796,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
@@ -821,7 +819,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Cannot set deploy data by non-owner
@@ -865,7 +863,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
@@ -897,7 +895,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Fund crowdfund
@@ -934,7 +932,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
@@ -976,7 +974,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
@@ -1020,7 +1018,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
 			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 200));
@@ -1046,7 +1044,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
 			assert_eq!(Balances::free_balance(1), 940);
@@ -1070,7 +1068,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
 			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 200));
@@ -1105,7 +1103,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4));
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
 			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 200));
