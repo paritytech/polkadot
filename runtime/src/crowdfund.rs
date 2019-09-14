@@ -236,10 +236,9 @@ decl_module! {
 			fund.raised  = fund.raised.checked_add(&value).ok_or("overflow when adding new funds")?;
 			ensure!(fund.raised <= fund.cap, "contributions exceed cap");
 
-			// Make sure crowdfund has not ended and auction has not "ended early" (it is still in progress).
+			// Make sure crowdfund has not ended
 			let now = <system::Module<T>>::block_number();
 			ensure!(fund.end > now, "contribution period ended");
-			ensure!(<slots::Module<T>>::is_in_progress(), "no auction in progress");
 
 			T::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
 
@@ -686,14 +685,13 @@ mod tests {
 			let empty: Vec<FundIndex> = Vec::new();
 			assert_eq!(Crowdfund::new_raise(), empty);
 			assert_eq!(Crowdfund::contribution_get(0, &1), 0);
+			assert_eq!(Crowdfund::endings_count(), 0);
 		});
 	}
 
 	#[test]
 	fn create_works() {
 		with_externalities(&mut new_test_ext(), || {
-			// Set up an auction
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			// Now try to create a crowdfund campaign
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Crowdfund::fund_count(), 1);
@@ -725,8 +723,6 @@ mod tests {
 	#[test]
 	fn create_handles_basic_errors() {
 		with_externalities(&mut new_test_ext(), || {
-			// Set up an auction
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			// Cannot create a crowdfund with bad slots
 			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 4, 1, 9), "last slot must be greater than first slot");
 			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 1, 5, 9), "last slot cannot be more then 3 more than first slot");
@@ -740,7 +736,6 @@ mod tests {
 	fn contribute_works() {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 1);
@@ -776,7 +771,6 @@ mod tests {
 			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 9), "contribution too small");
 
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 101));
 
@@ -795,7 +789,6 @@ mod tests {
 	fn fix_deploy_data_works() {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
@@ -818,7 +811,6 @@ mod tests {
 	fn fix_deploy_data_handles_basic_errors() {
 		with_externalities(&mut new_test_ext(), || {
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
@@ -878,6 +870,9 @@ mod tests {
 			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 1000));
 
 			run_to_block(10);
+
+			// Endings count incremented
+			assert_eq!(Crowdfund::endings_count(), 1);
 
 			// Onboard crowdfund
 			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
@@ -1127,6 +1122,44 @@ mod tests {
 
 			// Cannot dissolve an active fund
 			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 0), "cannot dissolve fund with active parachain");
+		});
+	}
+
+	#[test]
+	fn fund_before_auction_works() {
+		with_externalities(&mut new_test_ext(), || {
+			// Create a crowdfund before an auction is created
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			// Users can already contribute
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
+			// Fund added to NewRaise
+			assert_eq!(Crowdfund::new_raise(), vec![0]);
+
+			// Some blocks later...
+			run_to_block(2);
+			// Create an auction
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			// Add deploy data
+			assert_ok!(Crowdfund::fix_deploy_data(
+				Origin::signed(1),
+				0,
+				<Test as system::Trait>::Hash::default(),
+				vec![0]
+			));
+			// Move to the end of auction...
+			run_to_block(12);
+
+			// Endings count incremented
+			assert_eq!(Crowdfund::endings_count(), 1);
+
+			// Onboard crowdfund
+			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
+
+			let fund = Crowdfund::funds(0).unwrap();
+			// Crowdfund is now assigned a parachain id
+			assert_eq!(fund.parachain, Some(0.into()));
+			// This parachain is managed by Slots
+			assert_eq!(Slots::managed_ids(), vec![0.into()]);
 		});
 	}
 }
