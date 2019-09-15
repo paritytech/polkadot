@@ -1162,4 +1162,61 @@ mod tests {
 			assert_eq!(Slots::managed_ids(), vec![0.into()]);
 		});
 	}
+
+	#[test]
+	fn fund_across_multiple_auctions_works() {
+		with_externalities(&mut new_test_ext(), || {
+			// Create an auction
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			// Create two competing crowdfunds, with end dates across multiple auctions
+			// Each crowdfund is competing for the same slots, so only one can win
+			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 30));
+			assert_ok!(Crowdfund::create(Origin::signed(2), 1000, 1, 4, 30));
+
+			// Contribute to all, but more money to 0, less to 1
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 300));
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 1, 200));
+
+			// Add deploy data to all
+			assert_ok!(Crowdfund::fix_deploy_data(
+				Origin::signed(1),
+				0,
+				<Test as system::Trait>::Hash::default(),
+				vec![0]
+			));
+			assert_ok!(Crowdfund::fix_deploy_data(
+				Origin::signed(2),
+				1,
+				<Test as system::Trait>::Hash::default(),
+				vec![0]
+			));
+
+			// End the current auction, fund 0 wins!
+			run_to_block(10);
+			assert_eq!(Crowdfund::endings_count(), 1);
+			// Onboard crowdfund
+			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
+			let fund = Crowdfund::funds(0).unwrap();
+			// Crowdfund is now assigned a parachain id
+			assert_eq!(fund.parachain, Some(0.into()));
+			// This parachain is managed by Slots
+			assert_eq!(Slots::managed_ids(), vec![0.into()]);
+
+			// Create a second auction
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			// Contribute to existing funds add to NewRaise
+			assert_ok!(Crowdfund::contribute(Origin::signed(1), 1, 10));
+
+			// End the current auction, fund 1 wins!
+			run_to_block(20);
+			assert_eq!(Crowdfund::endings_count(), 2);
+			// Onboard crowdfund
+			assert_ok!(Crowdfund::onboard(Origin::signed(2), 1, 1.into()));
+			let fund = Crowdfund::funds(1).unwrap();
+			// Crowdfund is now assigned a parachain id
+			assert_eq!(fund.parachain, Some(1.into()));
+			// This parachain is managed by Slots
+			assert_eq!(Slots::managed_ids(), vec![0.into(), 1.into()]);
+		});
+	}
 }
