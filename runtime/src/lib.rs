@@ -413,11 +413,14 @@ impl offences::Trait for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
+type SubmitTransaction =
+	system::offchain::TransactionSubmitter<ImOnlineId, Runtime, UncheckedExtrinsic>;
+
 impl im_online::Trait for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Call = Call;
 	type Event = Event;
-	type UncheckedExtrinsic = UncheckedExtrinsic;
+	type SubmitTransaction = SubmitTransaction;
 	type ReportUnresponsiveness = ();
 	type CurrentElectedSet = staking::CurrentElectedStashAccounts<Runtime>;
 }
