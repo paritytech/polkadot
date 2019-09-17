@@ -25,6 +25,7 @@ mod claims;
 mod parachains;
 mod slot_range;
 mod slots;
+mod crowdfund;
 
 use rstd::prelude::*;
 use codec::{Encode, Decode};

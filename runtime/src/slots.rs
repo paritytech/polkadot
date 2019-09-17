@@ -65,10 +65,10 @@ pub type AuctionIndex = u32;
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct NewBidder<AccountId> {
 	/// The bidder's account ID; this is the account that funds the bid.
-	who: AccountId,
+	pub who: AccountId,
 	/// An additional ID to allow the same account ID (and funding source) to have multiple
 	/// logical bidders.
-	sub: SubId,
+	pub sub: SubId,
 }
 
 /// The desired target of a bidder in an auction.
@@ -246,8 +246,7 @@ decl_module! {
 		/// called by the root origin. Accepts the `duration` of this auction and the
 		/// `lease_period_index` of the initial lease period of the four that are to be auctioned.
 		#[weight = SimpleDispatchInfo::FixedOperational(100_000)]
-		fn new_auction(
-			origin,
+		pub fn new_auction(origin,
 			#[compact] duration: T::BlockNumber,
 			#[compact] lease_period_index: LeasePeriodOf<T>
 		) {
@@ -282,8 +281,7 @@ decl_module! {
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
 		#[weight = SimpleDispatchInfo::FixedNormal(500_000)]
-		fn bid(
-			origin,
+		fn bid(origin,
 			#[compact] sub: SubId,
 			#[compact] auction_index: AuctionIndex,
 			#[compact] first_slot: LeasePeriodOf<T>,
@@ -310,9 +308,8 @@ decl_module! {
 		/// absolute lease period index value, not an auction-specific offset.
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
-		#[weight = SimpleDispatchInfo::FixedNormal(500_000)]
-		fn bid_renew(
-			origin,
+    #[weight = SimpleDispatchInfo::FixedNormal(500_000)]
+		fn bid_renew(origin,
 			#[compact] auction_index: AuctionIndex,
 			#[compact] first_slot: LeasePeriodOf<T>,
 			#[compact] last_slot: LeasePeriodOf<T>,
@@ -346,9 +343,8 @@ decl_module! {
 		/// - `para_id` is the parachain ID allotted to the winning bidder.
 		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
-		#[weight = SimpleDispatchInfo::FixedNormal(500_000)]
-		fn fix_deploy_data(
-			origin,
+    #[weight = SimpleDispatchInfo::FixedNormal(500_000)]
+		pub fn fix_deploy_data(origin,
 			#[compact] sub: SubId,
 			#[compact] para_id: ParaIdOf<T>,
 			code_hash: T::Hash,
@@ -408,13 +404,13 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// True if an auction is in progress.
-	fn is_in_progress() -> bool {
+	pub fn is_in_progress() -> bool {
 		<AuctionInfo<T>>::exists()
 	}
 
 	/// Returns `Some(n)` if the now block is part of the ending period of an auction, where `n`
 	/// represents how far into the ending period this block is. Otherwise, returns `None`.
-	fn is_ending(now: T::BlockNumber) -> Option<T::BlockNumber> {
+	pub fn is_ending(now: T::BlockNumber) -> Option<T::BlockNumber> {
 		if let Some((_, early_end)) = <AuctionInfo<T>>::get() {
 			if let Some(after_early_end) = now.checked_sub(&early_end) {
 				if after_early_end < T::EndingPeriod::get() {
@@ -496,7 +492,7 @@ impl<T: Trait> Module<T> {
 					}
 
 					// Add para IDs of any chains that will be newly deployed to our set of managed
-					// IDs
+					// IDs.
 					<ManagedIds<T>>::mutate(|m| m.push(para_id));
 
 					Self::deposit_event(RawEvent::WonDeploy(bidder.clone(), range, para_id, amount));
@@ -506,6 +502,8 @@ impl<T: Trait> Module<T> {
 					let begin_offset = <LeasePeriodOf<T>>::from(range.as_pair().0 as u32);
 					let begin_lease_period = auction_lease_period_index + begin_offset;
 					<OnboardQueue<T>>::mutate(begin_lease_period, |starts| starts.push(para_id));
+					// Add a default off-boarding account which matches the original bidder
+					<Offboarding<T>>::insert(&para_id, &bidder.who);
 					let entry = (begin_lease_period, IncomingParachain::Unset(bidder));
 					<Onboarding<T>>::insert(&para_id, entry);
 				}
@@ -645,7 +643,7 @@ impl<T: Trait> Module<T> {
 	/// - `first_slot`: The first lease period index of the range to be bid on.
 	/// - `last_slot`: The last lease period index of the range to be bid on (inclusive).
 	/// - `amount`: The total amount to be the bid for deposit over the range.
-	fn handle_bid(
+	pub fn handle_bid(
 		bidder: Bidder<T::AccountId, ParaIdOf<T>>,
 		auction_index: u32,
 		first_slot: LeasePeriodOf<T>,
@@ -1046,6 +1044,24 @@ mod tests {
 
 	#[test]
 	fn offboarding_works() {
+		with_externalities(&mut new_test_ext(), || {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
+			assert_eq!(Balances::free_balance(&1), 9);
+
+			run_to_block(9);
+			assert_eq!(Slots::deposit_held(&0.into()), 1);
+			assert_eq!(Slots::deposits(&0.into())[0], 0);
+
+			run_to_block(50);
+			assert_eq!(Slots::deposit_held(&0.into()), 0);
+			assert_eq!(Balances::free_balance(&1), 10);
+		});
+	}
+
+	#[test]
+	fn set_offboarding_works() {
 		with_externalities(&mut new_test_ext(), || {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
