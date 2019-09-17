@@ -33,6 +33,11 @@
 //!
 //! Funds may be set up during an auction period; their closing time is fixed at creation (as a
 //! block number) and if the fund is not successful by the closing time, then it will become *retired*.
+//! Funds may span multiple auctions, and even auctions that sell differing periods. However, for a
+//! fund to be active in bidding for an auction, it *must* have had *at least one bid* since the end
+//! of the last auction. Until a fund takes a further bid following the end of an auction, then it
+//! will be inactive.
+//!
 //! Contributors may get a refund of their contributions from retired funds. After a period (`RetirementPeriod`)
 //! the fund may be dissolved entirely. At this point any non-refunded contributions are considered
 //! `orphaned` and are disposed of through the `OrphanedFunds` handler (which may e.g. place them
@@ -558,7 +563,6 @@ mod tests {
 		type TransactionBaseFee = TransactionBaseFee;
 		type TransactionByteFee = TransactionByteFee;
 		type WeightToFee = ConvertInto;
-
 	}
 
 	parameter_types! {
