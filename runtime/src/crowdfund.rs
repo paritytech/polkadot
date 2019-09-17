@@ -133,7 +133,11 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber, ParaId> {
 	/// A hard-cap on the amount that may be contributed.
 	cap: Balance,
 	/// The most recent block that this had a contribution. Determines if we make a bid or not.
-	/// If this is `None`, then the last contribution was made outside of the ending period.
+	/// If this is `Never`, this fund has never received a contribution.
+	/// If this is `PreEnding(n)`, this fund received a contribution sometime in auction
+	/// number `n` before the ending period.
+	/// If this is `Ending(n)`, this fund received a contribution during the current ending period,
+	/// where `n` is how far into the ending period the contribution was made.
 	last_contribution: LastContribution<BlockNumber>,
 	/// First slot in range to bid on; it's actually a LeasePeriod, but that's the same type as
 	/// BlockNumber.
