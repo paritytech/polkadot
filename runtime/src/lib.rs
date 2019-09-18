@@ -98,7 +98,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 1,
-	spec_version: 1002,
+	spec_version: 1003,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -413,11 +413,14 @@ impl offences::Trait for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
+type SubmitTransaction =
+	system::offchain::TransactionSubmitter<ImOnlineId, Runtime, UncheckedExtrinsic>;
+
 impl im_online::Trait for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Call = Call;
 	type Event = Event;
-	type UncheckedExtrinsic = UncheckedExtrinsic;
+	type SubmitTransaction = SubmitTransaction;
 	type ReportUnresponsiveness = ();
 	type CurrentElectedSet = staking::CurrentElectedStashAccounts<Runtime>;
 }
