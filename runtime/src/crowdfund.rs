@@ -84,6 +84,7 @@ const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
 
 pub type BalanceOf<T> =
 	<<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
+#[allow(dead_code)]
 pub type NegativeImbalanceOf<T> =
 	<<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
 

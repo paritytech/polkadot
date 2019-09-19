@@ -121,6 +121,10 @@ pub trait Trait: parachains::Trait {
 	type OnSwap: OnSwap;
 }
 
+/// The number of items in the parathread queue, aka the number of blocks in advance to schedule
+/// parachain execution.
+const QUEUE_SIZE: usize = 2;
+
 decl_storage! {
 	trait Store for Module<T: Trait> as Registrar {
 		// Ordered vector of all parachain IDs.
@@ -129,9 +133,9 @@ decl_storage! {
 		/// The number of threads to schedule per block.
 		ThreadCount: u32;
 
-		/// Current set of threads the next block; ordered by para ID. There can be no duplicates
-		/// of para ID in the list.
-		SelectedThreads: Vec<(ParaId, CollatorId)>;
+		/// An array of the queue of set of threads scheduled for the coming blocks; ordered by
+		/// para ID. There can be no duplicates of para ID in each list item.
+		SelectedThreads: Vec<Vec<(ParaId, CollatorId)>>;
 
 		/// Parathreads/chains scheduled for execution this block. If the collator ID is set, then
 		/// a particular collator has already been chosen for the next block, and no other collator
@@ -282,9 +286,20 @@ decl_module! {
 
 		/// Block initializer. Clears SelectedThreads and constructs/replaces Active.
 		fn on_initialize() {
+			let next_up = SelectedThreads::mutate(|t| {
+				let r = if t.len() >= QUEUE_SIZE {
+					t.remove(0)
+				} else {
+					vec![]
+				};
+				if t.len() < QUEUE_SIZE {
+					t.push(vec![]);
+				}
+				r
+			});
 			let paras = Parachains::get().into_iter()
 				.map(|id| (id, None))
-				.chain(SelectedThreads::take().into_iter()
+				.chain(next_up.into_iter()
 					.map(|(who, id)| (who, Some(id))
 				))
 				.collect::<Vec<_>>();
@@ -371,7 +386,12 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 				<Module<T>>::ensure_thread_id(*id).ok_or(e)?;
 
 				// ensure that we haven't already had a full complement of selected parathreads.
-				let mut selected_threads = SelectedThreads::get();
+				let mut upcoming_selected_threads = SelectedThreads::get();
+				if upcoming_selected_threads.is_empty() {
+					upcoming_selected_threads.push(vec![]);
+				}
+				let i = upcoming_selected_threads.len() - 1;
+				let selected_threads = &mut upcoming_selected_threads[i];
 				let thread_count = ThreadCount::get() as usize;
 				ensure!(
 					selected_threads.len() < thread_count,
@@ -393,7 +413,8 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 
 				// updated the selected threads.
 				selected_threads.insert(pos, (*id, collator.clone()));
-				SelectedThreads::put(selected_threads);
+				rstd::mem::drop(selected_threads);
+				SelectedThreads::put(upcoming_selected_threads);
 
 				// provides the state-transition for this head-data-hash; this should cue the pool
 				// to throw out competing transactions with lesser fees.
