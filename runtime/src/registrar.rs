@@ -22,8 +22,9 @@ use rstd::marker::PhantomData;
 use codec::{Encode, Decode};
 
 use sr_primitives::{
-	weights::{SimpleDispatchInfo, DispatchInfo}, transaction_validity::ValidTransaction,
-	traits::{Hash as HashT, StaticLookup, DispatchError, SignedExtension}
+	weights::{SimpleDispatchInfo, DispatchInfo},
+	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
+	traits::{Hash as HashT, StaticLookup, SignedExtension}
 };
 
 use srml_support::{
@@ -36,6 +37,7 @@ use primitives::parachain::{
 	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, OnSwap, Info as ParaInfo, ActiveParas
 };
 use crate::parachains;
+use sr_primitives::transaction_validity::InvalidTransaction;
 
 /// Parachain registration API.
 pub trait Registrar<AccountId> {
@@ -156,26 +158,21 @@ decl_storage! {
 }
 
 #[cfg(feature = "std")]
-fn build<T: Trait>(
-	storage: &mut (sr_primitives::StorageOverlay, sr_primitives::ChildrenStorageOverlay),
-	config: &GenesisConfig<T>
-) {
+fn build<T: Trait>(config: &GenesisConfig<T>) {
 	let mut p = config.parachains.clone();
 	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
 	p.dedup_by_key(|&mut (ref id, _, _)| *id);
 
 	let only_ids: Vec<ParaId> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-	sr_io::with_storage(storage, || {
-		Parachains::put(&only_ids);
+	Parachains::put(&only_ids);
 
-		for (id, code, genesis) in p {
-			// no ingress -- a chain cannot be routed to until it is live.
-			<parachains::Code>::insert(&id, &code);
-			<parachains::Heads>::insert(&id, &genesis);
-			<parachains::Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
-		}
-	});
+	for (id, code, genesis) in p {
+		// no ingress -- a chain cannot be routed to until it is live.
+		<parachains::Code>::insert(&id, &code);
+		<parachains::Heads>::insert(&id, &genesis);
+		<parachains::Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
+	}
 }
 
 decl_module! {
@@ -336,6 +333,15 @@ impl<T: Trait + Send + Sync> rstd::fmt::Debug for LimitParathreadCommits<T> wher
 	}
 }
 
+/// Custom validity errors used in Polkadot while validating transactions.
+#[repr(u8)]
+pub enum Error {
+	/// Parathread ID has already been submitted for this block.
+	Duplicate = 0,
+	/// Parathread ID does not identify a parathread.
+	InvalidId = 1,
+}
+
 impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>
 {
@@ -344,7 +350,9 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	type AdditionalSigned = ();
 	type Pre = ();
 
-	fn additional_signed(&self) -> rstd::result::Result<Self::AdditionalSigned, &'static str> {
+	fn additional_signed(&self)
+		-> rstd::result::Result<Self::AdditionalSigned, TransactionValidityError>
+	{
 		Ok(())
 	}
 
@@ -354,29 +362,34 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 		call: &Self::Call,
 		_info: DispatchInfo,
 		_len: usize,
-	) -> rstd::result::Result<ValidTransaction, DispatchError> {
+	) -> TransactionValidity {
 		let mut r = ValidTransaction::default();
 		if let Some(local_call) = call.is_sub_type() {
 			if let Call::select_parathread(id, collator, hash) = local_call {
 				// ensure that the para ID is actually a parathread.
-				<Module<T>>::ensure_thread_id(*id).ok_or(DispatchError::BadState)?;
+				let e = TransactionValidityError::from(InvalidTransaction::Custom(Error::InvalidId as u8));
+				<Module<T>>::ensure_thread_id(*id).ok_or(e)?;
 
 				// ensure that we haven't already had a full complement of selected parathreads.
 				let mut selected_threads = SelectedThreads::get();
 				let thread_count = ThreadCount::get() as usize;
-				ensure!(selected_threads.len() < thread_count, DispatchError::Exhausted);
+				ensure!(
+					selected_threads.len() < thread_count,
+					InvalidTransaction::ExhaustsResources.into()
+				);
 
 				// ensure that this is not selecting a duplicate parathread ID
+				let e = TransactionValidityError::from(InvalidTransaction::Custom(Error::Duplicate as u8));
 				let pos = selected_threads
 					.binary_search_by(|&(ref other_id, _)| other_id.cmp(id))
 					.err()
-					.ok_or(DispatchError::BadState)?;
+					.ok_or(e)?;
 
 				// ensure that this is a live bid (i.e. that the thread's chain head matches)
-				let head = <parachains::Module<T>>::parachain_head(id)
-					.ok_or(DispatchError::BadState)?;
+				let e = TransactionValidityError::from(InvalidTransaction::Custom(Error::InvalidId as u8));
+				let head = <parachains::Module<T>>::parachain_head(id).ok_or(e)?;
 				let actual = T::Hashing::hash(&head);
-				ensure!(&actual == hash, DispatchError::Stale);
+				ensure!(&actual == hash, InvalidTransaction::Stale.into());
 
 				// updated the selected threads.
 				selected_threads.insert(pos, (*id, collator.clone()));

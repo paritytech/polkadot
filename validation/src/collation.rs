@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use polkadot_primitives::{Block, Hash, BlockId, Balance, parachain::{
 	CollatorId, ConsolidatedIngress, StructuredUnroutedIngress, CandidateReceipt, ParachainHost,
-	Id as ParaId, Collation, Extrinsic, OutgoingMessage, UpwardMessage, FeeSchedule,
+	Id as ParaId, Collation, TargetedMessage, OutgoingMessages, UpwardMessage, FeeSchedule,
 }};
 use runtime_primitives::traits::ProvideRuntimeApi;
 use parachain::{wasm_executor::{self, ExternalitiesError, ExecutionMode}, MessageRef, UpwardMessageRef};
@@ -100,10 +100,10 @@ impl<C: Collators, P> CollationFetch<C, P> {
 impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 	where P::Api: ParachainHost<Block>,
 {
-	type Item = (Collation, Extrinsic);
+	type Item = (Collation, OutgoingMessages);
 	type Error = C::Error;
 
-	fn poll(&mut self) -> Poll<(Collation, Extrinsic), C::Error> {
+	fn poll(&mut self) -> Poll<(Collation, OutgoingMessages), C::Error> {
 		loop {
 			let collation = {
 				let parachain = self.parachain.clone();
@@ -182,15 +182,15 @@ impl std::error::Error for Error {
 	}
 }
 
-/// Compute a trie root for a set of messages.
+/// Compute a trie root for a set of messages, given the raw message data.
 pub fn message_queue_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
 	where A: AsRef<[u8]>
 {
-	::trie::trie_types::Layout::<primitives::Blake2Hasher>::ordered_trie_root(messages)
+	trie::trie_types::Layout::<primitives::Blake2Hasher>::ordered_trie_root(messages)
 }
 
 /// Compute the set of egress roots for all given outgoing messages.
-pub fn egress_roots(outgoing: &mut [OutgoingMessage]) -> Vec<(ParaId, Hash)> {
+pub fn egress_roots(outgoing: &mut [TargetedMessage]) -> Vec<(ParaId, Hash)> {
 	// stable sort messages by parachain ID.
 	outgoing.sort_by_key(|msg| ParaId::from(msg.target));
 
@@ -214,10 +214,10 @@ pub fn egress_roots(outgoing: &mut [OutgoingMessage]) -> Vec<(ParaId, Hash)> {
 	egress_roots
 }
 
-fn check_extrinsic(
-	mut outgoing: Vec<OutgoingMessage>,
+fn check_egress(
+	mut outgoing: Vec<TargetedMessage>,
 	expected_egress_roots: &[(ParaId, Hash)],
-) -> Result<Extrinsic, Error> {
+) -> Result<OutgoingMessages, Error> {
 	// stable sort messages by parachain ID.
 	outgoing.sort_by_key(|msg| ParaId::from(msg.target));
 
@@ -264,12 +264,12 @@ fn check_extrinsic(
 		}
 	}
 
-	Ok(Extrinsic { outgoing_messages: outgoing })
+	Ok(OutgoingMessages { outgoing_messages: outgoing })
 }
 
 struct Externalities {
 	parachain_index: ParaId,
-	outgoing: Vec<OutgoingMessage>,
+	outgoing: Vec<TargetedMessage>,
 	upward: Vec<UpwardMessage>,
 	fees_charged: Balance,
 	free_balance: Balance,
@@ -284,7 +284,7 @@ impl wasm_executor::Externalities for Externalities {
 		}
 
 		self.apply_message_fee(message.data.len())?;
-		self.outgoing.push(OutgoingMessage {
+		self.outgoing.push(TargetedMessage {
 			target,
 			data: message.data.to_vec(),
 		});
@@ -317,11 +317,11 @@ impl Externalities {
 		}
 	}
 
-	// Performs final checks of validity, producing the extrinsic data.
+	// Performs final checks of validity, producing the outgoing message data.
 	fn final_checks(
 		self,
 		candidate: &CandidateReceipt,
-	) -> Result<Extrinsic, Error> {
+	) -> Result<OutgoingMessages, Error> {
 		if &self.upward != &candidate.upward_messages {
 			return Err(Error::UpwardMessagesInvalid {
 				expected: candidate.upward_messages.clone(),
@@ -336,7 +336,7 @@ impl Externalities {
 			});
 		}
 
-		check_extrinsic(
+		check_egress(
 			self.outgoing,
 			&candidate.egress_queue_roots[..],
 		)
@@ -386,7 +386,7 @@ pub fn validate_collation<P>(
 	relay_parent: &BlockId,
 	collation: &Collation,
 	max_block_data_size: Option<u64>,
-) -> Result<Extrinsic, Error> where
+) -> Result<OutgoingMessages, Error> where
 	P: ProvideRuntimeApi,
 	P::Api: ParachainHost<Block>,
 {
@@ -407,7 +407,7 @@ pub fn validate_collation<P>(
 	let chain_status = api.parachain_status(relay_parent, para_id)?
 		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
-	let roots = api.ingress(relay_parent, para_id)?
+	let roots = api.ingress(relay_parent, para_id, None)?
 		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
 	validate_incoming(&roots, &collation.pov.ingress)?;
@@ -459,42 +459,42 @@ mod tests {
 	#[test]
 	fn compute_and_check_egress() {
 		let messages = vec![
-			OutgoingMessage { target: 3.into(), data: vec![1, 1, 1] },
-			OutgoingMessage { target: 1.into(), data: vec![1, 2, 3] },
-			OutgoingMessage { target: 2.into(), data: vec![4, 5, 6] },
-			OutgoingMessage { target: 1.into(), data: vec![7, 8, 9] },
+			TargetedMessage { target: 3.into(), data: vec![1, 1, 1] },
+			TargetedMessage { target: 1.into(), data: vec![1, 2, 3] },
+			TargetedMessage { target: 2.into(), data: vec![4, 5, 6] },
+			TargetedMessage { target: 1.into(), data: vec![7, 8, 9] },
 		];
 
 		let root_1 = message_queue_root(&[vec![1, 2, 3], vec![7, 8, 9]]);
 		let root_2 = message_queue_root(&[vec![4, 5, 6]]);
 		let root_3 = message_queue_root(&[vec![1, 1, 1]]);
 
-		assert!(check_extrinsic(
+		assert!(check_egress(
 			messages.clone(),
 			&[(1.into(), root_1), (2.into(), root_2), (3.into(), root_3)],
 		).is_ok());
 
 		let egress_roots = egress_roots(&mut messages.clone()[..]);
 
-		assert!(check_extrinsic(
+		assert!(check_egress(
 			messages.clone(),
 			&egress_roots[..],
 		).is_ok());
 
 		// missing root.
-		assert!(check_extrinsic(
+		assert!(check_egress(
 			messages.clone(),
 			&[(1.into(), root_1), (3.into(), root_3)],
 		).is_err());
 
 		// extra root.
-		assert!(check_extrinsic(
+		assert!(check_egress(
 			messages.clone(),
 			&[(1.into(), root_1), (2.into(), root_2), (3.into(), root_3), (4.into(), Default::default())],
 		).is_err());
 
 		// root mismatch.
-		assert!(check_extrinsic(
+		assert!(check_egress(
 			messages.clone(),
 			&[(1.into(), root_2), (2.into(), root_1), (3.into(), root_3)],
 		).is_err());

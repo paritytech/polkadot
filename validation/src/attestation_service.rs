@@ -29,13 +29,13 @@ use client::{error::Result as ClientResult, BlockchainEvents, BlockBody};
 use client::block_builder::api::BlockBuilder;
 use client::blockchain::HeaderBackend;
 use consensus::SelectChain;
-use extrinsic_store::Store as ExtrinsicStore;
+use availability_store::Store as AvailabilityStore;
 use futures::prelude::*;
 use futures03::{TryStreamExt as _, StreamExt as _};
 use log::error;
 use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
-use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
+use runtime_primitives::traits::{ProvideRuntimeApi};
 use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
 
@@ -73,7 +73,7 @@ pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
 //
 // NOTE: this will need to be changed to finality notification rather than
 // block import notifications when the consensus switches to non-instant finality.
-fn prune_unneeded_availability<P>(client: Arc<P>, extrinsic_store: ExtrinsicStore)
+fn prune_unneeded_availability<P>(client: Arc<P>, availability_store: AvailabilityStore)
 	-> impl Future<Item=(),Error=()> + Send
 	where P: Send + Sync + BlockchainEvents<Block> + BlockBody<Block> + 'static
 {
@@ -94,7 +94,7 @@ fn prune_unneeded_availability<P>(client: Arc<P>, extrinsic_store: ExtrinsicStor
 				}
 			};
 
-			if let Err(e) = extrinsic_store.candidates_finalized(parent_hash, candidate_hashes) {
+			if let Err(e) = availability_store.candidates_finalized(parent_hash, candidate_hashes) {
 				warn!(target: "validation", "Failed to prune unneeded available data: {:?}", e);
 			}
 
@@ -115,7 +115,7 @@ pub(crate) fn start<C, N, P, SC>(
 	parachain_validation: Arc<crate::ParachainValidation<C, N, P>>,
 	thread_pool: TaskExecutor,
 	keystore: KeyStorePtr,
-	extrinsic_store: ExtrinsicStore,
+	availability_store: AvailabilityStore,
 	max_block_data_size: Option<u64>,
 ) -> ServiceHandle
 	where
@@ -148,7 +148,6 @@ pub(crate) fn start<C, N, P, SC>(
 					if notification.is_new_best {
 						let res = validation.get_or_instantiate(
 							parent_hash,
-							notification.header.parent_hash().clone(),
 							&keystore,
 							max_block_data_size,
 						);
@@ -194,7 +193,7 @@ pub(crate) fn start<C, N, P, SC>(
 			error!("Failed to spawn old sessions pruning task");
 		}
 
-		let prune_available = prune_unneeded_availability(client, extrinsic_store)
+		let prune_available = prune_unneeded_availability(client, availability_store)
 			.select(exit.clone())
 			.then(|_| Ok(()));
 

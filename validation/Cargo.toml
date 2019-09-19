@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-validation"
-version = "0.1.0"
+version = "0.6.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -14,7 +14,7 @@ derive_more = "0.14.0"
 log = "0.4.6"
 exit-future = "0.1"
 codec = { package = "parity-scale-codec", version = "~1.0.0", default-features = false, features = ["derive"] }
-extrinsic_store = { package = "polkadot-availability-store", path = "../availability-store" }
+availability_store = { package = "polkadot-availability-store", path = "../availability-store" }
 parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }

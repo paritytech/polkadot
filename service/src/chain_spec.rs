@@ -19,17 +19,17 @@
 use primitives::{Pair, Public, crypto::UncheckedInto};
 use polkadot_primitives::{AccountId, parachain::ValidatorId};
 use polkadot_runtime::{
-	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig, BabeConfig,
+	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig,
 	SessionConfig, StakingConfig, BalancesConfig, Perbill, SessionKeys, TechnicalCommitteeConfig,
-	GrandpaConfig, SudoConfig, IndicesConfig, StakerStatus, WASM_BINARY,
-	ClaimsConfig, ImOnlineConfig, ParachainsConfig, RegistrarConfig
+	SudoConfig, IndicesConfig, StakerStatus, WASM_BINARY,
+	ClaimsConfig, ParachainsConfig, RegistrarConfig
 };
 use polkadot_runtime::constants::{currency::DOTS, time::*};
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
 use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
-use im_online::AuthorityId as ImOnlineId;
+use im_online::sr25519::{AuthorityId as ImOnlineId};
 use srml_staking::Forcing;
 
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -120,13 +120,13 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		staking: Some(StakingConfig {
 			current_era: 0,
-			offline_slash: Perbill::from_parts(1_000_000),
-			validator_count: 7,
-			offline_slash_grace: 4,
+			validator_count: 50,
 			minimum_validator_count: 4,
 			stakers: initial_authorities.iter().map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator)).collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			force_era: Forcing::ForceNone,
+			slash_reward_fraction: Perbill::from_percent(10),
+			.. Default::default()
 		}),
 		democracy: Some(Default::default()),
 		collective_Instance1: Some(CouncilConfig {
@@ -140,22 +140,15 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		elections: Some(ElectionsConfig {
 			members: vec![],
 			presentation_duration: 1 * DAYS,
-			term_duration: 28 * DAYS,
-			desired_seats: 0,
+			term_duration: 49 * DAYS,
+			desired_seats: 7,
 		}),
 		membership_Instance1: Some(Default::default()),
-		babe: Some(BabeConfig {
-			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
-		}),
-		grandpa: Some(GrandpaConfig {
-			authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
-		}),
-		im_online: Some(ImOnlineConfig {
-			gossip_at: 0,
-			keys: initial_authorities.iter().map(|x| x.4.clone()).collect(),
-		}),
+		babe: Some(Default::default()),
+		grandpa: Some(Default::default()),
+		im_online: Some(Default::default()),
 		parachains: Some(ParachainsConfig {
-			authorities: initial_authorities.iter().map(|x| x.5.clone()).collect(),
+			authorities: vec![],
 		}),
 		registrar: Some(RegistrarConfig {
 			parachains: vec![],
@@ -262,13 +255,13 @@ pub fn testnet_genesis(
 			current_era: 0,
 			minimum_validator_count: 1,
 			validator_count: 2,
-			offline_slash: Perbill::zero(),
-			offline_slash_grace: 0,
 			stakers: initial_authorities.iter()
 				.map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
 				.collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			force_era: Forcing::NotForcing,
+			slash_reward_fraction: Perbill::from_percent(10),
+			.. Default::default()
 		}),
 		democracy: Some(DemocracyConfig::default()),
 		collective_Instance1: Some(CouncilConfig {
@@ -285,23 +278,16 @@ pub fn testnet_genesis(
 					.find(|&(_, controller, _, _, _, _)| controller == endowed)
 					.is_none()
 				).map(|a| (a.clone(), 1000000)).collect(),
-			presentation_duration: 10,
-			term_duration: 1000000,
+			presentation_duration: 10 * MINUTES,
+			term_duration: 1 * DAYS,
 			desired_seats,
 		}),
 		membership_Instance1: Some(Default::default()),
-		babe: Some(BabeConfig {
-			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
-		}),
-		grandpa: Some(GrandpaConfig {
-			authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
-		}),
-		im_online: Some(ImOnlineConfig {
-			gossip_at: 0,
-			keys: initial_authorities.iter().map(|x| x.4.clone()).collect(),
-		}),
+		babe: Some(Default::default()),
+		grandpa: Some(Default::default()),
+		im_online: Some(Default::default()),
 		parachains: Some(ParachainsConfig {
-			authorities: initial_authorities.iter().map(|x| x.5.clone()).collect(),
+			authorities: vec![],
 		}),
 		registrar: Some(RegistrarConfig{
 			parachains: vec![],

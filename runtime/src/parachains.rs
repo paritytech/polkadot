@@ -22,7 +22,10 @@ use rstd::collections::btree_map::BTreeMap;
 use codec::{Encode, Decode};
 use srml_support::{decl_storage, decl_module, ensure};
 
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Saturating, One, AccountIdConversion};
+use sr_primitives::traits::{
+	Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
+	AccountIdConversion,
+};
 use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
@@ -30,7 +33,7 @@ use primitives::{Hash, Balance, parachain::{
 }};
 use {system, session};
 use srml_support::{
-	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
+	StorageValue, StorageMap, Parameter, dispatch::Result,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement}
 };
 
@@ -230,7 +233,6 @@ decl_module! {
 				}
 
 				let para_blocks = Self::check_candidates(&heads, &active_parachains)?;
-
 				let current_number = <system::Module<T>>::block_number();
 
 				<attestations::Module<T>>::note_included(&heads, para_blocks);
@@ -543,15 +545,23 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Calculate the ingress to a specific parachain.
-	/// Complexity: O(n) in the number of blocks since the parachain's watermark.
+	/// If `since` is provided, only messages since (including those in) that block
+	/// will be included.
+	/// Complexity: O(n) in the number of blocks since the supplied block.
 	/// invoked off-chain.
 	///
 	/// Yields a structure containing all unrouted ingress to the parachain.
-	pub fn ingress(to: ParaId) -> Option<Vec<(T::BlockNumber, BlockIngressRoots)>> {
+	pub fn ingress(to: ParaId, since: Option<T::BlockNumber>) -> Option<Vec<(T::BlockNumber, BlockIngressRoots)>> {
 		let watermark = <Watermarks<T>>::get(to)?;
 		let now = <system::Module<T>>::block_number();
 
-		Some(number_range(watermark.saturating_add(One::one()),now)
+		let watermark_since = watermark.saturating_add(One::one());
+		let since = rstd::cmp::max(since.unwrap_or(Zero::zero()), watermark_since);
+		if since > now {
+			return Some(Vec::new());
+		}
+
+		Some(number_range(since, now)
 			.filter_map(|unrouted_height| {
 				<UnroutedIngress<T>>::get(&(unrouted_height, to)).map(|roots| {
 					(unrouted_height, BlockIngressRoots(roots))
@@ -804,11 +814,17 @@ impl<T: Trait> Module<T> {
 impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
+	fn on_genesis_session<'a, I: 'a>(validators: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		<Self as Store>::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+	}
+
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, _queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
 		if changed {
-			<Self as Store>::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+			Self::on_genesis_session(validators)
 		}
 	}
 
@@ -908,6 +924,7 @@ mod tests {
 		type MaximumBlockWeight = MaximumBlockWeight;
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
+		type Version = ();
 	}
 
 	parameter_types! {
@@ -941,7 +958,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
+		pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
 		pub const ExpectedBlockTime: u64 = MILLISECS_PER_BLOCK;
 	}
 
@@ -975,8 +992,8 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const SessionsPerEra: session::SessionIndex = 6;
-		pub const BondingDuration: staking::EraIndex = 24 * 28;
+		pub const SessionsPerEra: sr_staking_primitives::SessionIndex = 6;
+		pub const BondingDuration: staking::EraIndex = 28;
 		pub const AttestationPeriod: BlockNumber = 100;
 	}
 
@@ -996,6 +1013,7 @@ mod tests {
 	impl attestations::Trait for Test {
 		type AttestationPeriod = AttestationPeriod;
 		type ValidatorIdentities = ValidatorIdentities<Test>;
+		type RewardAttestation = ();
 	}
 
 	parameter_types!{
@@ -1088,7 +1106,7 @@ mod tests {
 
 		babe::GenesisConfig {
 			authorities: babe_authorities,
-		}.assimilate_storage(&mut t).unwrap();
+		}.assimilate_storage::<Test>(&mut t).unwrap();
 
 		balances::GenesisConfig::<Test> {
 			balances,
@@ -1100,8 +1118,6 @@ mod tests {
 			stakers,
 			validator_count: 10,
 			minimum_validator_count: 8,
-			offline_slash: Perbill::from_percent(5),
-			offline_slash_grace: 0,
 			invulnerables: vec![],
 			.. Default::default()
 		}.assimilate_storage(&mut t).unwrap();
@@ -1513,7 +1529,7 @@ mod tests {
 			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
 
 			run_to_block(3);
-			
+
 			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
@@ -1597,7 +1613,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			run_to_block(2);
 			assert_eq!(Parachains::active_parachains().len(), 2);
-			
+
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1728,8 +1744,8 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			assert_eq!(Parachains::ingress(ParaId::from(1)), Some(Vec::new()));
-			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
+			assert_eq!(Parachains::ingress(ParaId::from(1), None), Some(Vec::new()));
+			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
 
 			for i in 1..10 {
 				run_to_block(i);
@@ -1786,7 +1802,7 @@ mod tests {
 			// parachain 1 has had a bunch of parachain candidates included,
 			// which raises the watermark.
 			assert_eq!(
-				Parachains::ingress(ParaId::from(1)),
+				Parachains::ingress(ParaId::from(1), None),
 				Some(vec![
 					(9, BlockIngressRoots(vec![
 						(0.into(), [9; 32].into())
@@ -1797,7 +1813,7 @@ mod tests {
 			// parachain 99 hasn't had any candidates included, so the
 			// ingress is piling up.
 			assert_eq!(
-				Parachains::ingress(ParaId::from(99)),
+				Parachains::ingress(ParaId::from(99), None),
 				Some((1..10).map(|i| (i, BlockIngressRoots(
 					vec![(1.into(), [i as u8; 32].into())]
 				))).collect::<Vec<_>>()),
@@ -1807,8 +1823,8 @@ mod tests {
 
 			// after deregistering, there is no ingress to 1, but unrouted messages
 			// from 1 stick around.
-			assert_eq!(Parachains::ingress(ParaId::from(1)), None);
-			assert_eq!(Parachains::ingress(ParaId::from(99)), Some((1..10).map(|i| (i, BlockIngressRoots(
+			assert_eq!(Parachains::ingress(ParaId::from(1), None), None);
+			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some((1..10).map(|i| (i, BlockIngressRoots(
 				vec![(1.into(), [i as u8; 32].into())]
 			))).collect::<Vec<_>>()));
 
@@ -1840,7 +1856,7 @@ mod tests {
 			System::set_block_number(12);
 
 			// at the next block, ingress to 99 should be empty.
-			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
+			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
 		});
 	}
 

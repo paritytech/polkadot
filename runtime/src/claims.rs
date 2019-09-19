@@ -23,12 +23,17 @@ use srml_support::traits::{Currency, Get};
 use system::ensure_none;
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
+use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
+#[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
 use sr_primitives::{
 	weights::SimpleDispatchInfo,
 	traits::ValidateUnsigned,
-	transaction_validity::{TransactionLongevity, TransactionValidity, ValidTransaction},
+	transaction_validity::{
+		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction
+	},
 };
+use primitives::ValidityError;
 use system;
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -41,29 +46,52 @@ pub trait Trait: system::Trait {
 	type Prefix: Get<&'static [u8]>;
 }
 
-type EthereumAddress = [u8; 20];
-
-// This is a bit of a workaround until codec supports [u8; 65] directly.
-#[derive(Encode, Decode, Clone, PartialEq)]
+/// An Ethereum address (i.e. 20 bytes, used to represent an Ethereum account).
+///
+/// This gets serialized to the 0x-prefixed hex representation.
+#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub struct EcdsaSignature([u8; 32], [u8; 32], i8);
+pub struct EthereumAddress([u8; 20]);
 
-impl EcdsaSignature {
-	pub fn to_blob(&self) -> [u8; 65] {
-		let mut r = [0u8; 65];
-		r[0..32].copy_from_slice(&self.0[..]);
-		r[32..64].copy_from_slice(&self.1[..]);
-		r[64] = self.2 as u8;
-		r
+#[cfg(feature = "std")]
+impl Serialize for EthereumAddress {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+		let hex: String = rustc_hex::ToHex::to_hex(&self.0[..]);
+		serializer.serialize_str(&format!("0x{}", hex))
 	}
-	#[cfg(test)]
-	pub fn from_blob(blob: &[u8; 65]) -> Self {
-		let mut r = Self([0u8; 32], [0u8; 32], 0);
-		r.0[..].copy_from_slice(&blob[0..32]);
-		r.1[..].copy_from_slice(&blob[32..64]);
-		r.2 = blob[64] as i8;
-		r
+}
+
+#[cfg(feature = "std")]
+impl<'de> Deserialize<'de> for EthereumAddress {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+		let base_string = String::deserialize(deserializer)?;
+		let offset = if base_string.starts_with("0x") { 2 } else { 0 };
+		let s = &base_string[offset..];
+		if s.len() != 40 {
+			Err(serde::de::Error::custom("Bad length of Ethereum address (should be 42 including '0x')"))?;
+		}
+		let raw: Vec<u8> = rustc_hex::FromHex::from_hex(s)
+			.map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?;
+		let mut r = Self::default();
+		r.0.copy_from_slice(&raw);
+		Ok(r)
 	}
+}
+
+#[derive(Encode, Decode, Clone)]
+pub struct EcdsaSignature(pub [u8; 65]);
+
+impl PartialEq for EcdsaSignature {
+	fn eq(&self, other: &Self) -> bool {
+		&self.0[..] == &other.0[..]
+	}
+}
+
+#[cfg(feature = "std")]
+impl std::fmt::Debug for EcdsaSignature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", &self.0[..])
+    }
 }
 
 decl_event!(
@@ -99,14 +127,15 @@ decl_module! {
 		const Prefix: &[u8] = T::Prefix::get();
 
 		/// Deposit one of this module's events by using the default implementation.
-		fn deposit_event<T>() = default;
+		fn deposit_event() = default;
 
 		/// Make a claim.
 		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
-			let signer = dest.using_encoded(|data| Self::eth_recover(&ethereum_signature, data))
+			let data = dest.using_encoded(to_ascii_hex);
+			let signer = Self::eth_recover(&ethereum_signature, &data)
 				.ok_or("Invalid Ethereum signature")?;
 
 			let balance_due = <Claims<T>>::take(&signer)
@@ -124,6 +153,17 @@ decl_module! {
 			Self::deposit_event(RawEvent::Claimed(dest, signer, balance_due));
 		}
 	}
+}
+
+/// Converts the given binary data into ASCII-encoded hex. It will be twice the length.
+fn to_ascii_hex(data: &[u8]) -> Vec<u8> {
+	let mut r = Vec::with_capacity(data.len() * 2);
+	let mut push_nibble = |n| r.push(if n < 10 { b'0' + n } else { b'a' - 10 + n });
+	for &b in data.iter() {
+		push_nibble(b / 16);
+		push_nibble(b % 16);
+	}
+	r
 }
 
 impl<T: Trait> Module<T> {
@@ -148,7 +188,7 @@ impl<T: Trait> Module<T> {
 	fn eth_recover(s: &EcdsaSignature, what: &[u8]) -> Option<EthereumAddress> {
 		let msg = keccak_256(&Self::ethereum_signable_message(what));
 		let mut res = EthereumAddress::default();
-		res.copy_from_slice(&keccak_256(&secp256k1_ecdsa_recover(&s.to_blob(), &msg).ok()?[..])[12..]);
+		res.0.copy_from_slice(&keccak_256(&secp256k1_ecdsa_recover(&s.0, &msg).ok()?[..])[12..]);
 		Some(res)
 	}
 }
@@ -157,35 +197,35 @@ impl<T: Trait> ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
 	fn validate_unsigned(call: &Self::Call) -> TransactionValidity {
-		// Note errors > 0 are from ApplyError
-		const INVALID_ETHEREUM_SIGNATURE: i8 = -10;
-		const SIGNER_HAS_NO_CLAIM: i8 = -20;
-		const INVALID_CALL: i8 = -30;
-
 		const PRIORITY: u64 = 100;
 
 		match call {
 			Call::claim(account, ethereum_signature) => {
-				let signer = account.using_encoded(|data| Self::eth_recover(&ethereum_signature, data));
-				let signer = if let Some(signer) = signer {
-					signer
+				let data = account.using_encoded(to_ascii_hex);
+				let maybe_signer = Self::eth_recover(&ethereum_signature, &data);
+				let signer = if let Some(s) = maybe_signer {
+					s
 				} else {
-					return TransactionValidity::Invalid(INVALID_ETHEREUM_SIGNATURE);
+					return InvalidTransaction::Custom(
+						ValidityError::InvalidEthereumSignature.into(),
+					).into();
 				};
 
 				if !<Claims<T>>::exists(&signer) {
-					return TransactionValidity::Invalid(SIGNER_HAS_NO_CLAIM);
+					return Err(InvalidTransaction::Custom(
+						ValidityError::SignerHasNoClaim.into(),
+					).into());
 				}
 
-				TransactionValidity::Valid(ValidTransaction {
+				Ok(ValidTransaction {
 					priority: PRIORITY,
 					requires: vec![],
-					provides: vec![],
+					provides: vec![("claims", signer).encode()],
 					longevity: TransactionLongevity::max_value(),
 					propagate: true,
 				})
 			}
-			_ => TransactionValidity::Invalid(INVALID_CALL)
+			_ => Err(InvalidTransaction::Call.into()),
 		}
 	}
 }
@@ -199,7 +239,7 @@ mod tests {
 
 	use sr_io::with_externalities;
 	use substrate_primitives::{H256, Blake2Hasher};
-	use codec::{Decode, Encode};
+	use codec::Encode;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sr_primitives::{Perbill, traits::{BlakeTwo256, IdentityLookup, ConvertInto}, testing::Header};
@@ -236,6 +276,7 @@ mod tests {
 		type MaximumBlockWeight = MaximumBlockWeight;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type MaximumBlockLength = MaximumBlockLength;
+		type Version = ();
 	}
 
 	parameter_types! {
@@ -263,7 +304,7 @@ mod tests {
 	}
 
 	parameter_types!{
-		pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
+		pub const Prefix: &'static [u8] = b"Pay RUSTs to the TEST account:";
 	}
 
 	impl Trait for Test {
@@ -282,23 +323,27 @@ mod tests {
 	}
 	fn alice_eth() -> EthereumAddress {
 		let mut res = EthereumAddress::default();
-		res.copy_from_slice(&keccak256(&alice_public().serialize()[1..65])[12..]);
+		res.0.copy_from_slice(&keccak256(&alice_public().serialize()[1..65])[12..]);
 		res
 	}
 	fn alice_sig(what: &[u8]) -> EcdsaSignature {
-		let msg = keccak256(&Claims::ethereum_signable_message(what));
+		let msg = keccak256(&Claims::ethereum_signable_message(&to_ascii_hex(what)[..]));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &alice_secret()).unwrap();
-		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
-		EcdsaSignature(sig.0, sig.1, recovery_id.serialize() as i8)
+		let mut r = [0u8; 65];
+		r[0..64].copy_from_slice(&sig.serialize()[..]);
+		r[64] = recovery_id.serialize();
+		EcdsaSignature(r)
 	}
 	fn bob_secret() -> secp256k1::SecretKey {
 		secp256k1::SecretKey::parse(&keccak256(b"Bob")).unwrap()
 	}
 	fn bob_sig(what: &[u8]) -> EcdsaSignature {
-		let msg = keccak256(&Claims::ethereum_signable_message(what));
+		let msg = keccak256(&Claims::ethereum_signable_message(&to_ascii_hex(what)[..]));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &bob_secret()).unwrap();
-		let sig: ([u8; 32], [u8; 32]) = Decode::decode(&mut &sig.serialize()[..]).unwrap();
-		EcdsaSignature(sig.0, sig.1, recovery_id.serialize() as i8)
+		let mut r = [0u8; 65];
+		r[0..64].copy_from_slice(&sig.serialize()[..]);
+		r[64] = recovery_id.serialize();
+		EcdsaSignature(r)
 	}
 
 	// This function basically just builds a genesis storage key/value store according to
@@ -318,8 +363,17 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Claims::total(), 100);
 			assert_eq!(Claims::claims(&alice_eth()), Some(100));
-			assert_eq!(Claims::claims(&[0; 20]), None);
+			assert_eq!(Claims::claims(&Default::default()), None);
 		});
+	}
+
+	#[test]
+	fn serde_works() {
+		let x = EthereumAddress(hex!["0123456789abcdef0123456789abcdef01234567"]);
+		let y = serde_json::to_string(&x).unwrap();
+		assert_eq!(y, "\"0x0123456789abcdef0123456789abcdef01234567\"");
+		let z: EthereumAddress = serde_json::from_str(&y).unwrap();
+		assert_eq!(x, z);
 	}
 
 	#[test]
@@ -335,8 +389,10 @@ mod tests {
 	fn origin_signed_claiming_fail() {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_err!(Claims::claim(Origin::signed(42), 42, alice_sig(&42u64.encode())),
-				"bad origin: expected to be no origin");
+			assert_err!(
+				Claims::claim(Origin::signed(42), 42, alice_sig(&42u64.encode())),
+				"RequireNoOrigin",
+			);
 		});
 	}
 
@@ -368,11 +424,12 @@ mod tests {
 	#[test]
 	fn real_eth_sig_works() {
 		with_externalities(&mut new_test_ext(), || {
-			let sig = hex!["7505f2880114da51b3f5d535f8687953c0ab9af4ab81e592eaebebf53b728d2b6dfd9b5bcd70fee412b1f31360e7c2774009305cb84fc50c1d0ff8034dfa5fff1c"];
-			let sig = EcdsaSignature::from_blob(&sig);
-			let who = 42u64.encode();
+			// "Pay RUSTs to the TEST account:2a00000000000000"
+			let sig = hex!["444023e89b67e67c0562ed0305d252a5dd12b2af5ac51d6d3cb69a0b486bc4b3191401802dc29d26d586221f7256cd3329fe82174bdf659baea149a40e1c495d1c"];
+			let sig = EcdsaSignature(sig);
+			let who = 42u64.using_encoded(to_ascii_hex);
 			let signer = Claims::eth_recover(&sig, &who).unwrap();
-			assert_eq!(signer, hex!["DF67EC7EAe23D2459694685257b6FC59d1BAA1FE"]);
+			assert_eq!(signer.0, hex!["6d31165d5d932d571f3b44695653b46dcc327e84"]);
 		});
 	}
 
@@ -381,25 +438,25 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(1, alice_sig(&1u64.encode()))),
-				TransactionValidity::Valid(ValidTransaction {
+				Ok(ValidTransaction {
 					priority: 100,
 					requires: vec![],
-					provides: vec![],
+					provides: vec![("claims", alice_eth()).encode()],
 					longevity: TransactionLongevity::max_value(),
 					propagate: true,
 				})
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(0, EcdsaSignature::from_blob(&[0; 65]))),
-				TransactionValidity::Invalid(-10)
+				<Module<Test>>::validate_unsigned(&Call::claim(0, EcdsaSignature([0; 65]))),
+				InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()).into(),
 			);
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(1, bob_sig(&1u64.encode()))),
-				TransactionValidity::Invalid(-20)
+				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(0, bob_sig(&1u64.encode()))),
-				TransactionValidity::Invalid(-20)
+				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 		});
 	}
