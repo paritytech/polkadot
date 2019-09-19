@@ -504,13 +504,14 @@ mod tests {
 	use srml_support::{impl_outer_origin, assert_ok, assert_noop, parameter_types};
 	use sr_io::with_externalities;
 	use substrate_primitives::{H256, Blake2Hasher};
+	use primitives::parachain::Info as ParaInfo;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sr_primitives::{
 		Perbill, Permill, testing::Header,
 		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup, ConvertInto},
 	};
-	use crate::registrar::Registrar as ParachainRegistrar;
+	use crate::registrar::Registrar;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -596,16 +597,16 @@ mod tests {
 	}
 
 	pub struct TestParachains;
-	impl ParachainRegistrar<u64> for TestParachains {
-		type ParaId = ParaId;
-		fn new_id() -> Self::ParaId {
+	impl Registrar<u64> for TestParachains {
+		fn new_id() -> ParaId {
 			PARACHAIN_COUNT.with(|p| {
 				*p.borrow_mut() += 1;
 				(*p.borrow() - 1).into()
 			})
 		}
-		fn register_parachain(
-			id: Self::ParaId,
+		fn register_para(
+			id: ParaId,
+			_info: ParaInfo,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>
 		) -> Result<(), &'static str> {
@@ -617,7 +618,7 @@ mod tests {
 				Ok(())
 			})
 		}
-		fn deregister_parachain(id: Self::ParaId) -> Result<(), &'static str> {
+		fn deregister_para(id: ParaId) -> Result<(), &'static str> {
 			PARACHAINS.with(|p| {
 				if !p.borrow().contains_key(&id.into_inner()) {
 					panic!("ID doesn't exist")
