@@ -586,7 +586,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Get the currently active set of parachains.
-	fn active_parachains() -> Vec<(ParaId, Option<CollatorId>)> {
+	pub fn active_parachains() -> Vec<(ParaId, Option<CollatorId>)> {
 		T::ActiveParachains::active_paras()
 	}
 
@@ -1512,34 +1512,7 @@ mod tests {
 		});
 	}
 
-	#[test]
-	fn register_deregister() {
-		let parachains = vec![
-			(5u32.into(), vec![1,2,3], vec![1]),
-			(100u32.into(), vec![4,5,6], vec![2,]),
-		];
-
-		with_externalities(&mut new_test_ext(parachains), || {
-			run_to_block(2);
-			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
-
-			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
-			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
-
-			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
-
-			run_to_block(3);
-
-			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
-			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
-
-			assert_ok!(Registrar::deregister_para(Origin::ROOT, 5u32.into()));
-
-			assert_eq!(Parachains::active_parachains(), vec![(99u32.into(), None), (100u32.into(), None)]);
-			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
-		});
-	}
-
+	
 	#[test]
 	fn duty_roster_works() {
 		let parachains = vec![

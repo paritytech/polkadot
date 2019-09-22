@@ -226,7 +226,7 @@ decl_module! {
 
 		/// Place a bid for a parathread to be progressed in the next block.
 		///
-		/// This is a kind of special transaction that should by heavily prioritised in the
+		/// This is a kind of special transaction that should by heavily prioritized in the
 		/// transaction pool according to the `value`; only `ThreadCount` of them may be presented
 		/// in any single block.
 		fn select_parathread(origin,
@@ -238,7 +238,7 @@ decl_module! {
 			// Everything else is checked for in the transaction `SignedExtension`.
 		}
 
-		/// Unregister a parathread and retrieve the deposit.
+		/// Deregister a parathread and retrieve the deposit.
 		///
 		/// Must be sent from a `Parachain` origin which is currently a parathread.
 		///
@@ -334,7 +334,7 @@ impl<T: Trait> ActiveParas for Module<T> {
 	}
 }
 
-/// Ensure that parathread selections happen prioritised by fees.
+/// Ensure that parathread selections happen prioritized by fees.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct LimitParathreadCommits<T: Trait + Send + Sync>(rstd::marker::PhantomData<T>) where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
@@ -422,5 +422,238 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 			}
 		}
 		Ok(r)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use sr_io::{TestExternalities, with_externalities};
+	use substrate_primitives::{H256, Blake2Hasher};
+	use sr_primitives::{
+		Perbill,
+		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize},
+		testing::{UintAuthorityId, Header},
+	};
+	use primitives::{
+		parachain::{ValidatorId, Info as ParaInfo, Scheduling},
+		Balance, BlockNumber,
+	};
+	use srml_support::{
+		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
+	};
+	use keyring::Sr25519Keyring;
+
+	use crate::parachains;
+	use crate::slots;
+	use crate::attestations;
+
+	impl_outer_origin! {
+		pub enum Origin for Test {
+			parachains,
+		}
+	}
+
+	impl_outer_dispatch! {
+		pub enum Call for Test where origin: Origin {
+			parachains::Parachains,
+		}
+	}
+
+	#[derive(Clone, Eq, PartialEq)]
+	pub struct Test;
+	parameter_types! {
+		pub const BlockHashCount: u32 = 250;
+		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
+		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
+		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+	}
+	impl system::Trait for Test {
+		type Origin = Origin;
+		type Call = Call;
+		type Index = u64;
+		type BlockNumber = u64;
+		type Hash = H256;
+		type Hashing = BlakeTwo256;
+		type AccountId = u64;
+		type Lookup = IdentityLookup<u64>;
+		type Header = Header;
+		type WeightMultiplierUpdate = ();
+		type Event = ();
+		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type MaximumBlockLength = MaximumBlockLength;
+		type AvailableBlockRatio = AvailableBlockRatio;
+		type Version = ();
+	}
+
+	parameter_types! {
+		pub const ExistentialDeposit: Balance = 0;
+		pub const TransferFee: Balance = 0;
+		pub const CreationFee: Balance = 0;
+		pub const TransactionBaseFee: Balance = 0;
+		pub const TransactionByteFee: Balance = 0;
+	}
+
+	impl balances::Trait for Test {
+		type Balance = Balance;
+		type OnFreeBalanceZero = ();
+		type OnNewAccount = ();
+		type Event = ();
+		type TransactionPayment = ();
+		type DustRemoval = ();
+		type TransferPayment = ();
+		type ExistentialDeposit = ExistentialDeposit;
+		type TransferFee = TransferFee;
+		type CreationFee = CreationFee;
+		type TransactionBaseFee = TransactionBaseFee;
+		type TransactionByteFee = TransactionByteFee;
+		type WeightToFee = ConvertInto;
+	}
+
+	parameter_types!{
+		pub const LeasePeriod: u64 = 10;
+		pub const EndingPeriod: u64 = 3;
+	}
+
+	impl slots::Trait for Test {
+		type Event = ();
+		type Currency = balances::Module<Test>;
+		type Parachains = Registrar;
+		type EndingPeriod = EndingPeriod;
+		type LeasePeriod = LeasePeriod;
+	}
+
+	parameter_types!{
+		pub const AttestationPeriod: BlockNumber = 100;
+	}
+
+	impl attestations::Trait for Test {
+		type AttestationPeriod = AttestationPeriod;
+		type ValidatorIdentities = parachains::ValidatorIdentities<Test>;
+		type RewardAttestation = ();
+	}
+
+	parameter_types! {
+		pub const Period: BlockNumber = 1;
+		pub const Offset: BlockNumber = 0;
+	}
+
+	impl session::Trait for Test {
+		type OnSessionEnding = ();
+		type Keys = UintAuthorityId;
+		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+		type SessionHandler = ();
+		type Event = ();
+		type SelectInitialValidators = ();
+		type ValidatorId = u64;
+		type ValidatorIdOf = ();
+	}
+
+	impl parachains::Trait for Test {
+		type Origin = Origin;
+		type Call = Call;
+		type ParachainCurrency = balances::Module<Test>;
+		type ActiveParachains = Registrar;
+		type Registrar = Registrar;
+	}
+
+	parameter_types! {
+		pub const ParathreadDeposit: Balance = 10;
+	}
+
+	impl Trait for Test {
+		type Event = ();
+		type Origin = Origin;
+		type Currency = balances::Module<Test>;
+		type ParathreadDeposit = ParathreadDeposit;
+		type OnSwap = slots::Module<Test>;
+	}
+
+	type Parachains = parachains::Module<Test>;
+	type System = system::Module<Test>;
+	type Registrar = Module<Test>;
+
+fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+
+		let authority_keys = [
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+			Sr25519Keyring::Ferdie,
+			Sr25519Keyring::One,
+			Sr25519Keyring::Two,
+		];
+
+		// stashes are the index.
+		let session_keys: Vec<_> = authority_keys.iter().enumerate()
+			.map(|(i, _k)| (i as u64, UintAuthorityId(i as u64)))
+			.collect();
+
+		let authorities: Vec<_> = authority_keys.iter().map(|k| ValidatorId::from(k.public())).collect();
+
+		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
+
+		parachains::GenesisConfig {
+			authorities: authorities.clone(),
+		}.assimilate_storage(&mut t).unwrap();
+
+		GenesisConfig::<Test> {
+			parachains,
+			_phdata: Default::default(),
+		}.assimilate_storage(&mut t).unwrap();
+
+		session::GenesisConfig::<Test> {
+			keys: session_keys,
+		}.assimilate_storage(&mut t).unwrap();
+
+		balances::GenesisConfig::<Test> {
+			balances,
+			vesting: vec![],
+		}.assimilate_storage(&mut t).unwrap();
+
+		t.into()
+	}
+
+
+	fn run_to_block(n: u64) {
+		while System::block_number() < n {
+			Registrar::on_finalize(System::block_number());
+			System::on_finalize(System::block_number());
+			System::set_block_number(System::block_number() + 1);
+			System::on_initialize(System::block_number());
+			Registrar::on_initialize(System::block_number());
+		}
+	}
+
+	#[test]
+	fn register_deregister() {
+		let parachains = vec![
+			(5u32.into(), vec![1,2,3], vec![1]),
+			(100u32.into(), vec![4,5,6], vec![2,]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
+			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
+
+			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
+			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
+
+			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
+
+			run_to_block(3);
+
+			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
+			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
+
+			assert_ok!(Registrar::deregister_para(Origin::ROOT, 5u32.into()));
+
+			assert_eq!(Parachains::active_parachains(), vec![(99u32.into(), None), (100u32.into(), None)]);
+			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
+		});
 	}
 }
