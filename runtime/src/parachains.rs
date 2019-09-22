@@ -876,7 +876,7 @@ mod tests {
 		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo, Scheduling},
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId},
 		BlockNumber,
 	};
 	use crate::constants::time::*;
@@ -1512,7 +1512,6 @@ mod tests {
 		});
 	}
 
-	
 	#[test]
 	fn duty_roster_works() {
 		let parachains = vec![

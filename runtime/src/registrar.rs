@@ -80,6 +80,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 			)?;
 		}
 		<parachains::Module<T>>::initialize_para(id, code, initial_head_data);
+		Paras::insert(id, info);
 		Ok(())
 	}
 
@@ -176,6 +177,9 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 		<parachains::Code>::insert(&id, &code);
 		<parachains::Heads>::insert(&id, &genesis);
 		<parachains::Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
+		// Save initial parachains in registrar
+		Paras::insert(id, ParaInfo { scheduling: Scheduling::Always })
+
 	}
 }
 
@@ -638,21 +642,28 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 
 		with_externalities(&mut new_test_ext(parachains), || {
 			run_to_block(2);
-			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
-
+			// Genesis registration works
+			assert_eq!(Registrar::active_paras(), vec![(5u32.into(), None), (100u32.into(), None)]);
+			assert_eq!(Registrar::paras(&5u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
+			assert_eq!(Registrar::paras(&100u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
 
+			// Register a new parachain
 			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
 
 			run_to_block(3);
 
-			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
+			// New parachain is registered
+			assert_eq!(Registrar::active_paras(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
+			assert_eq!(Registrar::paras(&99u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
 			assert_ok!(Registrar::deregister_para(Origin::ROOT, 5u32.into()));
 
-			assert_eq!(Parachains::active_parachains(), vec![(99u32.into(), None), (100u32.into(), None)]);
+			run_to_block(4);
+
+			assert_eq!(Registrar::active_paras(), vec![(99u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
 		});
 	}
