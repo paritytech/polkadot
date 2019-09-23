@@ -16,8 +16,6 @@
 
 use wasm_builder_runner::{build_current_project_with_rustflags, WasmBuilderSource};
 
-use std::env;
-
 fn main() {
 	build_current_project_with_rustflags(
 		"wasm_binary.rs",

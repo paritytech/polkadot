@@ -43,6 +43,7 @@ offences = { package = "srml-offences", git = "https://github.com/paritytech/sub
 session = { package = "srml-session", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 srml-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 staking = { package = "srml-staking", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+srml-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sudo = { package = "srml-sudo", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 system = { package = "srml-system", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 timestamp = { package = "srml-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
