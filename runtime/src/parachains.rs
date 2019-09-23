@@ -437,7 +437,6 @@ impl<T: Trait> Module<T> {
 			});
 			// Should never be able to fail assuming our state is uncorrupted, but best not
 			// to panic, even if it does.
-			println!("ordered_needs_dispatch {:?}, id {:?}", ordered_needs_dispatch, id);
 			let _ = RelayDispatchQueue::append(id, upward_messages);
 			if ordered_needs_dispatch.binary_search(&id).is_err() {
 				// same.
@@ -455,7 +454,6 @@ impl<T: Trait> Module<T> {
 		mut dispatch_message: impl FnMut(ParaId, ParachainDispatchOrigin, &[u8]),
 	) {
 		let queueds = NeedsDispatch::get();
-		println!("Queueds: {:?}", queueds);
 		let mut drained_count = 0usize;
 		let mut dispatched_count = 0usize;
 		let mut dispatched_size = 0usize;

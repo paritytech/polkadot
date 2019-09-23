@@ -345,7 +345,6 @@ decl_module! {
 					// collator needs wrapping to be merged into Active.
 					.map(|(para, collator)| (para, Some(collator)))
 				).collect::<Vec<_>>();
-			println!("Active paras: {:?}/{:?}", Parachains::get(), paras);
 			Active::put(paras);
 		}
 
