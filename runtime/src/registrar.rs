@@ -19,7 +19,6 @@
 use rstd::{prelude::*, result};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
-use sr_io::print;
 use codec::{Encode, Decode};
 
 use sr_primitives::{
@@ -374,7 +373,7 @@ decl_module! {
 							_ => Self::retry_later(sched, retries + 1),
 						}
 					} else {
-						print("UNREACHABLE! No active chain when retry exists");
+						sr_primitives::print("UNREACHABLE! No active chain when retry exists");
 					}
 				}
 
@@ -639,6 +638,7 @@ mod tests {
 	parameter_types! {
 		pub const Period: BlockNumber = 1;
 		pub const Offset: BlockNumber = 0;
+		pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	}
 
 	impl session::Trait for Test {
@@ -650,6 +650,7 @@ mod tests {
 		type SelectInitialValidators = ();
 		type ValidatorId = u64;
 		type ValidatorIdOf = ();
+		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	}
 
 	impl parachains::Trait for Test {
@@ -816,7 +817,6 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 
 			run_to_block(4);
 
-			
 			// Deregister a parachain
 			assert_ok!(Registrar::deregister_parathread(parachains::Origin::Parachain(ParaId::from(1000)).into(), 0));
 
@@ -828,6 +828,13 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 			// Parachain is no longer registered
 			assert_eq!(Registrar::paras(&1000u32.into()), None);
 			assert_eq!(Parachains::parachain_code(&1000u32.into()), None);
+		});
+	}
+
+	#[test]
+	fn parathread_can_activate() {
+		with_externalities(&mut new_test_ext(vec![]), || {
+
 		});
 	}
 }

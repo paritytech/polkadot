@@ -442,7 +442,7 @@ impl<T: Trait> Module<T> {
 				// same.
 				let _ = NeedsDispatch::append(&[id]);
 			} else {
-				sr_io::print("ordered_needs_dispatch contains id?!");
+				sr_primitives::print("ordered_needs_dispatch contains id?!");
 			}
 		}
 	}
