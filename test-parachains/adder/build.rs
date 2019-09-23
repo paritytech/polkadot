@@ -16,10 +16,12 @@
 
 use wasm_builder_runner::{build_current_project_with_rustflags, WasmBuilderSource};
 
+use std::env;
+
 fn main() {
 	build_current_project_with_rustflags(
 		"wasm_binary.rs",
-		WasmBuilderSource::Crates("1.0.5"),
+		WasmBuilderSource::Crates("1.0.7"),
 		"-C link-arg=--import-memory",
 	);
 }
