@@ -29,9 +29,8 @@ use sr_primitives::{
 };
 
 use srml_support::{
-	decl_storage, decl_module, decl_event, ensure,
-	StorageValue, StorageMap, dispatch::{Result, IsSubType},
-	traits::{Get, Currency, ReservableCurrency}
+	decl_storage, decl_module, decl_event, ensure, StorageValue, StorageMap,
+	dispatch::{Result, IsSubType}, traits::{Get, Currency, ReservableCurrency}
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
@@ -69,6 +68,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		code: Vec<u8>,
 		initial_head_data: Vec<u8>
 	) -> Result {
+		ensure!(!Paras::exists(id), "Parachain already exists");
 		if let Scheduling::Always = info.scheduling {
 			Parachains::mutate(|parachains|
 				match parachains.binary_search(&id) {
@@ -80,6 +80,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 				}
 			)?;
 		}
+		Paras::insert(id, info);
 		<parachains::Module<T>>::initialize_para(id, code, initial_head_data);
 		Ok(())
 	}
@@ -185,6 +186,7 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 	Parachains::put(&only_ids);
 
 	for (id, code, genesis) in p {
+		Paras::insert(id, &primitives::parachain::PARACHAIN_INFO);
 		// no ingress -- a chain cannot be routed to until it is live.
 		<parachains::Code>::insert(&id, &code);
 		<parachains::Heads>::insert(&id, &genesis);
@@ -332,6 +334,7 @@ decl_module! {
 					// collator needs wrapping to be merged into Active.
 					.map(|(para, collator)| (para, Some(collator)))
 				).collect::<Vec<_>>();
+			println!("Active paras: {:?}/{:?}", Parachains::get(), paras);
 			Active::put(paras);
 		}
 
