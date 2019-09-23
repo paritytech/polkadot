@@ -94,6 +94,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 			)?;
 		}
 		<parachains::Module<T>>::cleanup_para(id);
+		Paras::remove(id);
 		Ok(())
 	}
 }
@@ -186,6 +187,8 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+		fn deposit_event() = default;
+
 		/// Register a parachain with given code.
 		/// Fails if given ID is already used.
 		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
@@ -211,7 +214,7 @@ decl_module! {
 		///
 		/// Must be sent from a Signed origin that is able to have ParathreadDeposit reserved.
 		/// `code` and `initial_head_data` are used to initialize the parathread's state.
-		fn register_parathead(origin,
+		fn register_parathread(origin,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>
 		) {
@@ -226,6 +229,8 @@ decl_module! {
 
 			let _ = <Self as Registrar<T::AccountId>>::
 				register_para(id, info, code, initial_head_data);
+
+			Self::deposit_event(Event::ParathreadRegistered(id));
 		}
 
 		/// Place a bid for a parathread to be progressed in the next block.
@@ -261,6 +266,8 @@ decl_module! {
 			<Self as Registrar<T::AccountId>>::deregister_para(id)?;
 
 			let _ = T::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
+
+			Self::deposit_event(Event::ParathreadRegistered(id));
 		}
 
 		/// Swap a parachain with another parachain or parathread. The origin must be a `Parachain`.
@@ -289,9 +296,10 @@ decl_module! {
 		}
 
 		/// Block initializer. Clears SelectedThreads and constructs/replaces Active.
-		fn on_initialize() {
+		fn on_initialize() {			
 			let next_up = SelectedThreads::mutate(|t| {
 				let r = if t.len() >= QUEUE_SIZE {
+					// Take the first set of parachains in queue
 					t.remove(0)
 				} else {
 					vec![]
@@ -447,6 +455,7 @@ mod tests {
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
 	};
 	use keyring::Sr25519Keyring;
+	use std::convert::TryInto;
 
 	use crate::parachains;
 	use crate::slots;
@@ -574,6 +583,7 @@ mod tests {
 		type OnSwap = slots::Module<Test>;
 	}
 
+	type Balances = balances::Module<Test>;
 	type Parachains = parachains::Module<Test>;
 	type System = system::Module<Test>;
 	type Registrar = Module<Test>;
@@ -634,13 +644,27 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 	}
 
 	#[test]
-	fn register_deregister() {
+	fn basic_setup_works() {
+		with_externalities(&mut new_test_ext(vec![]), || {
+			//assert_eq!(Parachains::get(), vec![]);
+			assert_eq!(ThreadCount::get(), 0);
+			//assert_eq!(SelectedThreads::get(), vec![];
+			assert_eq!(Active::get(), vec![]);
+			assert_eq!(NextFreeId::get(), LOWEST_USER_ID);
+			assert_eq!(PendingSwap::get(&0u32.into()), None);
+			assert_eq!(Paras::get(&0u32.into()), None);
+		});
+	}
+
+	#[test]
+	fn genesis_registration_works() {
 		let parachains = vec![
 			(5u32.into(), vec![1,2,3], vec![1]),
 			(100u32.into(), vec![4,5,6], vec![2,]),
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			// Need to trigger on_initalize
 			run_to_block(2);
 			// Genesis registration works
 			assert_eq!(Registrar::active_paras(), vec![(5u32.into(), None), (100u32.into(), None)]);
@@ -648,6 +672,18 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 			assert_eq!(Registrar::paras(&100u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
 			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
+		});
+	}
+
+	#[test]
+	fn register_deregister_parachain() {
+		let parachains = vec![
+			(5u32.into(), vec![1,2,3], vec![1]),
+			(100u32.into(), vec![4,5,6], vec![2,]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 
 			// Register a new parachain
 			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
@@ -659,12 +695,51 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 			assert_eq!(Registrar::paras(&99u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
 			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
 
+			// Deregister a parachain
 			assert_ok!(Registrar::deregister_para(Origin::ROOT, 5u32.into()));
 
 			run_to_block(4);
 
+			// Parachain is no longer registered
 			assert_eq!(Registrar::active_paras(), vec![(99u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
+		});
+	}
+
+	#[test]
+	fn register_deregister_parathread() {
+		with_externalities(&mut new_test_ext(vec![]), || {
+			run_to_block(2);
+
+			let original_balance = Balances::free_balance(0);
+
+			// Register a new parathread
+			assert_ok!(Registrar::register_parathread(Origin::signed(0), vec![7,8,9], vec![1, 1, 1]));
+			// Parathread deposit is reserved
+			assert_eq!(Balances::free_balance(0), original_balance - 10);
+			assert_eq!(Balances::reserved_balance(0), 10);
+
+			run_to_block(3);
+
+			// New parachain is registered, first number is 1000
+			assert_eq!(Registrar::paras(&1000u32.into()), Some(ParaInfo { scheduling: Scheduling::Dynamic }));
+			assert_eq!(Parachains::parachain_code(&1000u32.into()), Some(vec![7,8,9]));
+
+			run_to_block(4);
+
+			/*
+			// Deregister a parachain
+			assert_ok!(Registrar::deregister_parathread(<Test as parachains::Trait>::Origin::parachains(ParaId::from(1000)), 0));
+
+			run_to_block(5);
+
+			assert_eq!(Balances::free_balance(0), original_balance);
+			assert_eq!(Balances::reserved_balance(0), 0);
+
+			// Parachain is no longer registered
+			assert_eq!(Registrar::paras(&1000u32.into()), None);
+			assert_eq!(Parachains::parachain_code(&1000u32.into()), None);
+			*/
 		});
 	}
 }
