@@ -598,7 +598,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Get the currently active set of parachains.
-	fn active_parachains() -> Vec<(ParaId, Option<CollatorId>)> {
+	pub fn active_parachains() -> Vec<(ParaId, Option<CollatorId>)> {
 		T::ActiveParachains::active_paras()
 	}
 
