@@ -177,8 +177,9 @@ decl_storage! {
 		/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
 		NeedsDispatch: Vec<ParaId>;
 
-		// Did the parachain heads get updated in this block?
-		DidUpdate: bool;
+		/// Some if the parachain heads get updated in this block, along with the parachain IDs that
+		/// did update. None if not yet updated.
+		pub DidUpdate: Option<Vec<ParaId>>;
 	}
 }
 
@@ -194,9 +195,10 @@ decl_module! {
 			let mut active_parachains = Self::active_parachains();
 			active_parachains.sort_by_key(|&(ref id, _)| *id);
 
-			// TODO: verify that the heads each come from the right collator, if one is specified.
 			let parachain_count = active_parachains.len();
 			ensure!(heads.len() <= parachain_count, "Too many parachain candidates");
+
+			let mut proceeded = Vec::with_capacity(heads.len());
 
 			if !active_parachains.is_empty() {
 				// perform integrity checks before writing to storage.
@@ -228,7 +230,9 @@ decl_module! {
 						)?;
 						Self::check_egress_queue_roots(&head, &active_parachains)?;
 
-						last_id = Some(head.parachain_index());
+						let id = head.parachain_index();
+						proceeded.push(id);
+						last_id = Some(id);
 					}
 				}
 
@@ -249,13 +253,17 @@ decl_module! {
 				);
 			}
 
-			<DidUpdate>::put(true);
+			DidUpdate::put(proceeded);
 
 			Ok(())
 		}
 
-		fn on_finalize(_n: T::BlockNumber) {
-			assert!(<Self as Store>::DidUpdate::take(), "Parachain heads must be updated once in the block");
+		fn on_initialize() {
+			<Self as Store>::DidUpdate::kill();
+		}
+
+		fn on_finalize() {
+			assert!(<Self as Store>::DidUpdate::exists(), "Parachain heads must be updated once in the block");
 		}
 	}
 }
@@ -429,10 +437,13 @@ impl<T: Trait> Module<T> {
 			});
 			// Should never be able to fail assuming our state is uncorrupted, but best not
 			// to panic, even if it does.
+			println!("ordered_needs_dispatch {:?}, id {:?}", ordered_needs_dispatch, id);
 			let _ = RelayDispatchQueue::append(id, upward_messages);
 			if ordered_needs_dispatch.binary_search(&id).is_err() {
 				// same.
 				let _ = NeedsDispatch::append(&[id]);
+			} else {
+				sr_io::print("ordered_needs_dispatch contains id?!");
 			}
 		}
 	}
@@ -444,6 +455,7 @@ impl<T: Trait> Module<T> {
 		mut dispatch_message: impl FnMut(ParaId, ParachainDispatchOrigin, &[u8]),
 	) {
 		let queueds = NeedsDispatch::get();
+		println!("Queueds: {:?}", queueds);
 		let mut drained_count = 0usize;
 		let mut dispatched_count = 0usize;
 		let mut dispatched_size = 0usize;
@@ -876,7 +888,7 @@ mod tests {
 		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId},
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo, Scheduling},
 		BlockNumber,
 	};
 	use crate::constants::time::*;
@@ -1215,13 +1227,23 @@ mod tests {
 		}
 	}
 
+	fn init_block() {
+		println!("Initializing {}", System::block_number());
+		System::on_initialize(System::block_number());
+		Registrar::on_initialize(System::block_number());
+		Parachains::on_initialize(System::block_number());
+	}
 	fn run_to_block(n: u64) {
+		println!("Running until block {}", n);
 		while System::block_number() < n {
-			Registrar::on_finalize(System::block_number());
-			System::on_finalize(System::block_number());
+			if System::block_number() > 1 {
+				println!("Finalizing {}", System::block_number());
+				Parachains::on_finalize(System::block_number());
+				Registrar::on_finalize(System::block_number());
+				System::on_finalize(System::block_number());
+			}
 			System::set_block_number(System::block_number() + 1);
-			System::on_initialize(System::block_number());
-			Registrar::on_initialize(System::block_number());
+			init_block();
 		}
 	}
 
@@ -1233,13 +1255,13 @@ mod tests {
 			(2u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
-			let parachains = vec![0.into(), 1.into(), 2.into()];
+			init_block();
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 4] }
-			], &parachains);
+			], &NeedsDispatch::get());
 			Parachains::queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 4] }
-			], &parachains);
+			], &NeedsDispatch::get());
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
@@ -1250,16 +1272,16 @@ mod tests {
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
-			let parachains = vec![0.into(), 1.into(), 2.into()];
+			init_block();
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			], &parachains);
+			], &NeedsDispatch::get());
 			Parachains::queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			], &parachains);
+			], &NeedsDispatch::get());
 			Parachains::queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			], &parachains);
+			], &NeedsDispatch::get());
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
@@ -1272,44 +1294,44 @@ mod tests {
 			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
-			let parachains = vec![0.into(), 1.into(), 2.into()];
+			init_block();
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			], &parachains);
+			], &NeedsDispatch::get());
 			Parachains::queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			], &parachains);
+			], &NeedsDispatch::get());
 			Parachains::queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			], &parachains);
+			], &NeedsDispatch::get());
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
-				(1.into(), ParachainDispatchOrigin::Parachain, vec![1; 2]),
+				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
 			]);
-			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(0)).len(), 1);
-			assert!(<RelayDispatchQueue>::get(ParaId::from(1)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
 			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
-			let parachains = vec![0.into(), 1.into(), 2.into()];
+			init_block();
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			], &parachains);
+			], &NeedsDispatch::get());
 			Parachains::queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			], &parachains);
+			], &NeedsDispatch::get());
 			Parachains::queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			], &parachains);
+			], &NeedsDispatch::get());
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
+				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2]),
-				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2])
 			]);
 			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
@@ -1513,6 +1535,39 @@ mod tests {
 	}
 
 	#[test]
+	fn register_deregister() {
+		let parachains = vec![
+			(5u32.into(), vec![1,2,3], vec![1]),
+			(100u32.into(), vec![4,5,6], vec![2,]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
+			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
+
+			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
+			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
+
+			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
+			assert_ok!(Parachains::set_heads(Origin::NONE, vec![]));
+
+			run_to_block(3);
+
+			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
+			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
+
+			assert_ok!(Registrar::deregister_para(Origin::ROOT, 5u32.into()));
+			assert_ok!(Parachains::set_heads(Origin::NONE, vec![]));
+
+			// parachain still active this block. another block must pass before it's inactive.
+			run_to_block(4);
+
+			assert_eq!(Parachains::active_parachains(), vec![(99u32.into(), None), (100u32.into(), None)]);
+			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
+		});
+	}
+
+	#[test]
 	fn duty_roster_works() {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
@@ -1707,8 +1762,6 @@ mod tests {
 
 	#[test]
 	fn ingress_works() {
-		use sr_primitives::traits::OnFinalize;
-
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 			(1u32.into(), vec![], vec![]),
@@ -1719,6 +1772,7 @@ mod tests {
 			assert_eq!(Parachains::ingress(ParaId::from(1), None), Some(Vec::new()));
 			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
 
+			init_block();
 			for i in 1..10 {
 				run_to_block(i);
 
@@ -1761,8 +1815,6 @@ mod tests {
 					set_heads(vec![candidate_a, candidate_b]),
 					Origin::NONE,
 				));
-
-				Parachains::on_finalize(i);
 			}
 
 			run_to_block(10);
@@ -1800,8 +1852,7 @@ mod tests {
 				vec![(1.into(), [i as u8; 32].into())]
 			))).collect::<Vec<_>>()));
 
-			Parachains::on_finalize(10);
-			System::set_block_number(11);
+			run_to_block(11);
 
 			let mut candidate_c = AttestedCandidate {
 				validity_votes: vec![],
@@ -1824,8 +1875,7 @@ mod tests {
 				Origin::NONE,
 			));
 
-			Parachains::on_finalize(11);
-			System::set_block_number(12);
+			run_to_block(12);
 
 			// at the next block, ingress to 99 should be empty.
 			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));

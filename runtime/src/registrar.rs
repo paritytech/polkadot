@@ -19,6 +19,7 @@
 use rstd::{prelude::*, result};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
+use sr_io::print;
 use codec::{Encode, Decode};
 
 use sr_primitives::{
@@ -28,9 +29,8 @@ use sr_primitives::{
 };
 
 use srml_support::{
-	decl_storage, decl_module, decl_event, ensure,
-	StorageValue, StorageMap, dispatch::{Result, IsSubType},
-	traits::{Get, Currency, ReservableCurrency}
+	decl_storage, decl_module, decl_event, ensure, StorageValue, StorageMap,
+	dispatch::{Result, IsSubType}, traits::{Get, Currency, ReservableCurrency}
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
@@ -68,6 +68,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		code: Vec<u8>,
 		initial_head_data: Vec<u8>
 	) -> Result {
+		ensure!(!Paras::exists(id), "Parachain already exists");
 		if let Scheduling::Always = info.scheduling {
 			Parachains::mutate(|parachains|
 				match parachains.binary_search(&id) {
@@ -79,8 +80,8 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 				}
 			)?;
 		}
-		<parachains::Module<T>>::initialize_para(id, code, initial_head_data);
 		Paras::insert(id, info);
+		<parachains::Module<T>>::initialize_para(id, code, initial_head_data);
 		Ok(())
 	}
 
@@ -127,6 +128,9 @@ pub trait Trait: parachains::Trait {
 /// parachain execution.
 const QUEUE_SIZE: usize = 2;
 
+/// The number of rotations that you will have as grace if you miss a block.
+const MAX_RETRIES: u32 = 3;
+
 decl_storage! {
 	trait Store for Module<T: Trait> as Registrar {
 		// Ordered vector of all parachain IDs.
@@ -153,8 +157,17 @@ decl_storage! {
 		/// Pending swap operations.
 		PendingSwap: map ParaId => Option<ParaId>;
 
-		// Map of all registered parathreads/chains.
+		/// Map of all registered parathreads/chains.
 		Paras get(paras): map ParaId => Option<ParaInfo>;
+
+		/// The current queue for parathreads that should be retried.
+		RetryQueue get(retry_queue): [Vec<(ParaId, CollatorId)>; MAX_RETRIES as usize];
+
+		/// Some if we are scheduling a retry in this block, along with the number of previous
+		/// retries. None if not. If `Some` then the last para of `Active` will be the retried
+		/// thread. If None, then it will be the last normally scheduled parathread (or the last
+		/// parachain if there are no parathreads).
+		Retrying: Option<u32>;
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
@@ -174,6 +187,7 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 	Parachains::put(&only_ids);
 
 	for (id, code, genesis) in p {
+		Paras::insert(id, &primitives::parachain::PARACHAIN_INFO);
 		// no ingress -- a chain cannot be routed to until it is live.
 		<parachains::Code>::insert(&id, &code);
 		<parachains::Heads>::insert(&id, &genesis);
@@ -309,13 +323,74 @@ decl_module! {
 				}
 				r
 			});
+			// mutable so that we can replace with `None` if parathread appears in new schedule.
+			let mut retrying = Self::take_next_retry();
+			if let Some(((para, _), _)) = retrying {
+				// this isn't really ideal: better would be if there were an earlier pass that set
+				// retrying to the first item in the Missed queue that isn't already scheduled, but
+				// this is potentially O(m*n) in terms of missed queue size and parathread pool size.
+				if next_up.iter().any(|x| x.0 == para) {
+					retrying = None
+				}
+			}
+			// We store these two for block finalisation to help work out which, if any, threads
+			// missed their slot.
+			if let Some(ref r) = retrying {
+				Retrying::put(r.1);
+			}
+
 			let paras = Parachains::get().into_iter()
 				.map(|id| (id, None))
-				.chain(next_up.into_iter()
-					.map(|(who, id)| (who, Some(id))
-				))
-				.collect::<Vec<_>>();
+				.chain(next_up.into_iter().chain(retrying.into_iter().map(|x| x.0))
+					// collator needs wrapping to be merged into Active.
+					.map(|(para, collator)| (para, Some(collator)))
+				).collect::<Vec<_>>();
+			println!("Active paras: {:?}/{:?}", Parachains::get(), paras);
 			Active::put(paras);
+		}
+
+		fn on_finalize() {
+			let retrying = Retrying::take();
+			// a block without this will panic, but let's not panic here.
+			if let Some(proceeded_vec) = parachains::DidUpdate::get() {
+				// We can't remove the non-parathread items as with Active, so we reverse everything
+				// so that we safely ignore permanent chains (which are at the beginning of
+				// `DidUpdate`).
+				let mut proceeded = proceeded_vec.into_iter().rev();
+				let mut i = proceeded.next();
+
+				let mut active = Active::get().into_iter()
+					.rev()
+					// Skip any permanent parachains (i.e. without collators).
+					.take_while(|i| i.1.is_some())
+					.map(|i| (i.0, i.1.expect("previous line guarantees this is_some(); qed")));
+
+				// Check the parathread that we are retrying, if any.
+				if let Some(retries) = retrying {
+					// There was a retry. `active.next()` is guaranteed to be the retried para.
+					if let Some(sched) = active.next() {
+						match i.clone() {
+							// If it got a block in, move onto next item.
+							Some(para) if para == sched.0 => i = proceeded.next(),
+							// If it missed its slot, then queue for retry.
+							_ => Self::retry_later(sched, retries + 1),
+						}
+					} else {
+						print("UNREACHABLE! No active chain when retry exists");
+					}
+				}
+
+				// Check all normally scheduled parathreads: the rest of the `active` iterator are
+				// just normally scheduled parathreads (albeit in reverse order).
+				for sched in active {
+					match i {
+						// Scheduled parachain proceeded properly. Move onto next item.
+						Some(para) if para == sched.0 => i = proceeded.next(),
+						// Scheduled parachain missed their block. Queue for retry.
+						_ => Self::retry_later(sched, 0),
+					}
+				}
+			}
 		}
 	}
 }
@@ -335,6 +410,23 @@ impl<T: Trait> Module<T> {
 		Paras::get(id).and_then(|info| if let Scheduling::Dynamic = info.scheduling {
 			Some(info)
 		} else {
+			None
+		})
+	}
+
+	fn retry_later(sched: (ParaId, CollatorId), retries: u32) {
+		if retries < MAX_RETRIES {
+			RetryQueue::mutate(|q| q[retries as usize].push(sched));
+		}
+	}
+
+	fn take_next_retry() -> Option<((ParaId, CollatorId), u32)> {
+		RetryQueue::mutate(|q| {
+			for i in q.iter_mut() {
+				if !i.is_empty() {
+					return Some((i.remove(0), 0));
+				}
+			}
 			None
 		})
 	}
