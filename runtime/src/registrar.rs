@@ -80,8 +80,8 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 				}
 			)?;
 		}
-		Paras::insert(id, info);
 		<parachains::Module<T>>::initialize_para(id, code, initial_head_data);
+		Paras::insert(id, info);
 		Ok(())
 	}
 
@@ -194,7 +194,6 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 		<parachains::Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
 		// Save initial parachains in registrar
 		Paras::insert(id, ParaInfo { scheduling: Scheduling::Always })
-
 	}
 }
 
@@ -546,7 +545,6 @@ mod tests {
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
 	};
 	use keyring::Sr25519Keyring;
-	use std::convert::TryInto;
 
 	use crate::parachains;
 	use crate::slots;
@@ -818,9 +816,9 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 
 			run_to_block(4);
 
-			/*
+			
 			// Deregister a parachain
-			assert_ok!(Registrar::deregister_parathread(<Test as parachains::Trait>::Origin::parachains(ParaId::from(1000)), 0));
+			assert_ok!(Registrar::deregister_parathread(parachains::Origin::Parachain(ParaId::from(1000)).into(), 0));
 
 			run_to_block(5);
 
@@ -830,7 +828,6 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 			// Parachain is no longer registered
 			assert_eq!(Registrar::paras(&1000u32.into()), None);
 			assert_eq!(Parachains::parachain_code(&1000u32.into()), None);
-			*/
 		});
 	}
 }
