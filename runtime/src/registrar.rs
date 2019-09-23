@@ -19,6 +19,7 @@
 use rstd::{prelude::*, result};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
+use sr_io::print;
 use codec::{Encode, Decode};
 
 use sr_primitives::{
@@ -160,12 +161,11 @@ decl_storage! {
 		/// The current queue for parathreads that should be retried.
 		RetryQueue get(retry_queue): [Vec<(ParaId, CollatorId)>; MAX_RETRIES as usize];
 
-		/// The thread we are currently attempting to retry, along with the number of retries it
-		/// already had.
-		Retrying: Option<((ParaId, CollatorId), u32)>;
-
-		/// The threads currently scheduled. Does not include `Retrying`, if anything.
-		Scheduled: Vec<(ParaId, CollatorId)>;
+		/// Some if we are scheduling a retry in this block, along with the number of previous
+		/// retries. None if not. If `Some` then the last para of `Active` will be the retried
+		/// thread. If None, then it will be the last normally scheduled parathread (or the last
+		/// parachain if there are no parathreads).
+		Retrying: Option<u32>;
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
@@ -322,9 +322,8 @@ decl_module! {
 			}
 			// We store these two for block finalisation to help work out which, if any, threads
 			// missed their slot.
-			Scheduled::put(&next_up);
 			if let Some(ref r) = retrying {
-				Retrying::put(r);
+				Retrying::put(r.1);
 			}
 
 			let paras = Parachains::get().into_iter()
@@ -338,34 +337,43 @@ decl_module! {
 
 		fn on_finalize() {
 			let retrying = Retrying::take();
-			let scheduled = Scheduled::take();
 			// a block without this will panic, but let's not panic here.
 			if let Some(proceeded_vec) = parachains::DidUpdate::get() {
-				// Reverse is so that we safely ignore permanent chains (which are at the beginning
-				// of `DidUpdate`).
+				// We can't remove the non-parathread items as with Active, so we reverse everything
+				// so that we safely ignore permanent chains (which are at the beginning of
+				// `DidUpdate`).
 				let mut proceeded = proceeded_vec.into_iter().rev();
 				let mut i = proceeded.next();
 
+				let mut active = Active::get().into_iter()
+					.rev()
+					// Skip any permanent parachains (i.e. without collators).
+					.take_while(|i| i.1.is_some())
+					.map(|i| (i.0, i.1.expect("previous line guarantees this is_some(); qed")));
+
 				// Check the parathread that we are retrying, if any.
-				if let Some((sched, retries)) = retrying {
-					// There was a retry.
-					match i {
-						// If it got a block in, move onto next item.
-						Some(para) if para == sched.0 => i = proceeded.next(),
-						// If it missed its slot, then queue for retry.
-						_ => Self::retry_later(sched, retries + 1),
+				if let Some(retries) = retrying {
+					// There was a retry. `active.next()` is guaranteed to be the retried para.
+					if let Some(sched) = active.next() {
+						match i.clone() {
+							// If it got a block in, move onto next item.
+							Some(para) if para == sched.0 => i = proceeded.next(),
+							// If it missed its slot, then queue for retry.
+							_ => Self::retry_later(sched, retries + 1),
+						}
+					} else {
+						print("UNREACHABLE! No active chain when retry exists");
 					}
 				}
 
-				// Check all normally scheduled parathreads.
-				for sched in scheduled.into_iter().rev() {
+				// Check all normally scheduled parathreads: the rest of the `active` iterator are
+				// just normally scheduled parathreads (albeit in reverse order).
+				for sched in active {
 					match i {
-						Some(para) if para == sched.0 =>
-							// Scheduled parachain proceeded properly. Move onto next item.
-							i = proceeded.next(),
-						_ =>
-							// Scheduled parachain missed their block. Queue for retry.
-							Self::retry_later(sched, 0),
+						// Scheduled parachain proceeded properly. Move onto next item.
+						Some(para) if para == sched.0 => i = proceeded.next(),
+						// Scheduled parachain missed their block. Queue for retry.
+						_ => Self::retry_later(sched, 0),
 					}
 				}
 			}
