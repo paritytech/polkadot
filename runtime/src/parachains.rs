@@ -177,8 +177,9 @@ decl_storage! {
 		/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
 		NeedsDispatch: Vec<ParaId>;
 
-		// Did the parachain heads get updated in this block?
-		DidUpdate: bool;
+		/// Some if the parachain heads get updated in this block, along with the parachain IDs that
+		/// did update. None if not yet updated.
+		pub DidUpdate: Option<Vec<ParaId>>;
 	}
 }
 
@@ -197,6 +198,8 @@ decl_module! {
 			// TODO: verify that the heads each come from the right collator, if one is specified.
 			let parachain_count = active_parachains.len();
 			ensure!(heads.len() <= parachain_count, "Too many parachain candidates");
+
+			let mut proceeded = Vec::with_capacity(heads.len());
 
 			if !active_parachains.is_empty() {
 				// perform integrity checks before writing to storage.
@@ -228,7 +231,9 @@ decl_module! {
 						)?;
 						Self::check_egress_queue_roots(&head, &active_parachains)?;
 
-						last_id = Some(head.parachain_index());
+						let id = head.parachain_index();
+						proceeded.push(id);
+						last_id = Some(id);
 					}
 				}
 
@@ -249,13 +254,17 @@ decl_module! {
 				);
 			}
 
-			<DidUpdate>::put(true);
+			DidUpdate::put(proceeded);
 
 			Ok(())
 		}
 
-		fn on_finalize(_n: T::BlockNumber) {
-			assert!(<Self as Store>::DidUpdate::take(), "Parachain heads must be updated once in the block");
+		fn on_initialize() {
+			<Self as Store>::DidUpdate::kill();
+		}
+
+		fn on_finalize() {
+			assert!(<Self as Store>::DidUpdate::exists(), "Parachain heads must be updated once in the block");
 		}
 	}
 }

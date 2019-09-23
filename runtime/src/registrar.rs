@@ -125,6 +125,9 @@ pub trait Trait: parachains::Trait {
 /// parachain execution.
 const QUEUE_SIZE: usize = 2;
 
+/// The number of rotations that you will have as grace if you miss a block.
+const MAX_RETRIES: u32 = 3;
+
 decl_storage! {
 	trait Store for Module<T: Trait> as Registrar {
 		// Ordered vector of all parachain IDs.
@@ -151,8 +154,20 @@ decl_storage! {
 		/// Pending swap operations.
 		PendingSwap: map ParaId => Option<ParaId>;
 
-		// Map of all registered parathreads/chains.
+		/// Map of all registered parathreads/chains.
 		Paras get(paras): map ParaId => Option<ParaInfo>;
+
+		/// The current queue for parathreads that should be retried.
+		RetryQueue get(retry_queue): [Vec<(ParaId, CollatorId)>; MAX_RETRIES as usize];
+
+		/// The thread we are currently attempting to retry, along with the number of retries it
+		/// already had.
+		// TODO: CollatorId isn't needed - consider removing.
+		Retrying: Option<((ParaId, CollatorId), u32)>;
+
+		/// The threads currently scheduled. Does not include `Retrying`, if anything.
+		// TODO: CollatorId isn't needed - consider removing.
+		Scheduled: Vec<(ParaId, CollatorId)>;
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
@@ -297,13 +312,65 @@ decl_module! {
 				}
 				r
 			});
+			// mutable so that we can replace with `None` if parathread appears in new schedule.
+			let mut retrying = Self::take_next_retry();
+			if let Some(((para, _), _)) = retrying {
+				// this isn't really ideal: better would be if there were an earlier pass that set
+				// retrying to the first item in the Missed queue that isn't already scheduled, but
+				// this is potentially O(m*n) in terms of missed queue size and parathread pool size.
+				if next_up.iter().any(|x| x.0 == para) {
+					retrying = None
+				}
+			}
+			// We store these two for block finalisation to help work out which, if any, threads
+			// missed their slot.
+			Scheduled::put(&next_up);
+			if let Some(ref r) = retrying {
+				Retrying::put(r);
+			} else {
+				Retrying::kill();
+			}
+
 			let paras = Parachains::get().into_iter()
 				.map(|id| (id, None))
-				.chain(next_up.into_iter()
-					.map(|(who, id)| (who, Some(id))
-				))
-				.collect::<Vec<_>>();
+				.chain(next_up.into_iter().chain(retrying.into_iter().map(|x| x.0))
+					// collator needs wrapping to be merged into Active.
+					.map(|(para, collator)| (para, Some(collator)))
+				).collect::<Vec<_>>();
 			Active::put(paras);
+		}
+
+		fn on_finalize() {
+			// a block without this will panic, but let's not panic here.
+			if let Some(proceeded_vec) = parachains::DidUpdate::get() {
+				// Reverse is so that we safely ignore permanent chains (which are at the beginning
+				// of `DidUpdate`).
+				let mut proceeded = proceeded_vec.into_iter().rev();
+				let mut i = proceeded.next();
+
+				// Check the parathread that we are retrying, if any.
+				if let Some((sched, retries)) = Retrying::take() {
+					// There was a retry.
+					match i {
+						// If it got a block in, move onto next item.
+						Some(para) if para == sched.0 => i = proceeded.next(),
+						// If it missed its slot, then queue for retry.
+						_ => Self::retry_later(sched, retries + 1),
+					}
+				}
+
+				// Check all normally scheduled parathreads.
+				for sched in Scheduled::take().into_iter().rev() {
+					match i {
+						Some(para) if para == sched.0 =>
+							// Scheduled parachain proceeded properly. Move onto next item.
+							i = proceeded.next(),
+						_ =>
+							// Scheduled parachain missed their block. Queue for retry.
+							Self::retry_later(sched, 0),
+					}
+				}
+			}
 		}
 	}
 }
@@ -323,6 +390,23 @@ impl<T: Trait> Module<T> {
 		Paras::get(id).and_then(|info| if let Scheduling::Dynamic = info.scheduling {
 			Some(info)
 		} else {
+			None
+		})
+	}
+
+	fn retry_later(sched: (ParaId, CollatorId), retries: u32) {
+		if retries < MAX_RETRIES {
+			RetryQueue::mutate(|q| q[retries as usize].push(sched));
+		}
+	}
+
+	fn take_next_retry() -> Option<((ParaId, CollatorId), u32)> {
+		RetryQueue::mutate(|q| {
+			for i in q.iter_mut() {
+				if !i.is_empty() {
+					return Some((i.remove(0), 0));
+				}
+			}
 			None
 		})
 	}
