@@ -884,6 +884,7 @@ mod tests {
 		Perbill,
 		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize},
 		testing::{UintAuthorityId, Header},
+		curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo, Scheduling},
@@ -940,6 +941,7 @@ mod tests {
 	parameter_types! {
 		pub const Period: BlockNumber = 1;
 		pub const Offset: BlockNumber = 0;
+		pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	}
 
 	impl session::Trait for Test {
@@ -951,6 +953,7 @@ mod tests {
 		type SelectInitialValidators = staking::Module<Self>;
 		type ValidatorId = u64;
 		type ValidatorIdOf = staking::StashOf<Self>;
+		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	}
 
 	impl session::historical::Trait for Test {
@@ -1001,10 +1004,22 @@ mod tests {
 		type WeightToFee = ConvertInto;
 	}
 
+	srml_staking_reward_curve::build! {
+		const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
+			min_inflation: 0_025_000,
+			max_inflation: 0_100_000,
+			ideal_stake: 0_500_000,
+			falloff: 0_050_000,
+			max_piece_count: 40,
+			test_precision: 0_005_000,
+		);
+	}
+
 	parameter_types! {
 		pub const SessionsPerEra: sr_staking_primitives::SessionIndex = 6;
 		pub const BondingDuration: staking::EraIndex = 28;
 		pub const AttestationPeriod: BlockNumber = 100;
+		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	}
 
 	impl staking::Trait for Test {
@@ -1018,6 +1033,7 @@ mod tests {
 		type BondingDuration = BondingDuration;
 		type SessionInterface = Self;
 		type Time = timestamp::Module<Test>;
+		type RewardCurve = RewardCurve;
 	}
 
 	impl attestations::Trait for Test {

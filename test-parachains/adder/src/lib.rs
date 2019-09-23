@@ -18,14 +18,14 @@
 
 #![no_std]
 
-#![cfg_attr(feature = "no_std", feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler))]
+#![cfg_attr(not(feature = "std"), feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler))]
 
 use codec::{Encode, Decode};
 
-#[cfg(feature = "no_std")]
+#[cfg(not(feature = "std"))]
 mod wasm_validation;
 
-#[cfg(feature = "no_std")]
+#[cfg(not(feature = "std"))]
 #[global_allocator]
 static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 
@@ -46,7 +46,7 @@ pub struct HeadData {
 
 impl HeadData {
 	pub fn hash(&self) -> [u8; 32] {
-		::tiny_keccak::keccak256(&self.encode())
+		tiny_keccak::keccak256(&self.encode())
 	}
 }
 
@@ -60,7 +60,7 @@ pub struct BlockData {
 }
 
 pub fn hash_state(state: u64) -> [u8; 32] {
-	::tiny_keccak::keccak256(state.encode().as_slice())
+	tiny_keccak::keccak256(state.encode().as_slice())
 }
 
 #[derive(Default, Encode, Decode)]

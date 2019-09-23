@@ -9,9 +9,8 @@ build = "build.rs"
 [dependencies]
 
 [build-dependencies]
-wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.2" }
+wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.3" }
 
 [features]
 default = [ "std" ]
-no_std = []
 std = []
