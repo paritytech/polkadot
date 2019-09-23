@@ -162,11 +162,9 @@ decl_storage! {
 
 		/// The thread we are currently attempting to retry, along with the number of retries it
 		/// already had.
-		// TODO: CollatorId isn't needed - consider removing.
 		Retrying: Option<((ParaId, CollatorId), u32)>;
 
 		/// The threads currently scheduled. Does not include `Retrying`, if anything.
-		// TODO: CollatorId isn't needed - consider removing.
 		Scheduled: Vec<(ParaId, CollatorId)>;
 	}
 	add_extra_genesis {
@@ -327,8 +325,6 @@ decl_module! {
 			Scheduled::put(&next_up);
 			if let Some(ref r) = retrying {
 				Retrying::put(r);
-			} else {
-				Retrying::kill();
 			}
 
 			let paras = Parachains::get().into_iter()
@@ -341,6 +337,8 @@ decl_module! {
 		}
 
 		fn on_finalize() {
+			let retrying = Retrying::take();
+			let scheduled = Scheduled::take();
 			// a block without this will panic, but let's not panic here.
 			if let Some(proceeded_vec) = parachains::DidUpdate::get() {
 				// Reverse is so that we safely ignore permanent chains (which are at the beginning
@@ -349,7 +347,7 @@ decl_module! {
 				let mut i = proceeded.next();
 
 				// Check the parathread that we are retrying, if any.
-				if let Some((sched, retries)) = Retrying::take() {
+				if let Some((sched, retries)) = retrying {
 					// There was a retry.
 					match i {
 						// If it got a block in, move onto next item.
@@ -360,7 +358,7 @@ decl_module! {
 				}
 
 				// Check all normally scheduled parathreads.
-				for sched in Scheduled::take().into_iter().rev() {
+				for sched in scheduled.into_iter().rev() {
 					match i {
 						Some(para) if para == sched.0 =>
 							// Scheduled parachain proceeded properly. Move onto next item.
