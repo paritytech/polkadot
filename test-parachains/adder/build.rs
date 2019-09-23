@@ -24,8 +24,4 @@ fn main() {
 		WasmBuilderSource::Crates("1.0.7"),
 		"-C link-arg=--import-memory",
 	);
-
-	if env::var("TARGET") == Ok("wasm32-unknown-unknown".into()) {
-		println!("cargo:rustc-cfg=no_std");
-	}
 }
