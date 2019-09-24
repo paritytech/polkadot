@@ -14,6 +14,7 @@ safe-mix = { version = "1.0", default-features = false}
 serde = { version = "1.0", default-features = false }
 serde_derive = { version = "1.0", optional = true }
 
+authority-discovery-primitives = { package = "substrate-authority-discovery-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -27,6 +28,7 @@ substrate-serializer = { git = "https://github.com/paritytech/substrate", defaul
 substrate-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 version = { package = "sr-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
+authority-discovery = { package = "srml-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 authorship = { package = "srml-authorship", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -68,6 +70,8 @@ default = ["std"]
 no_std = []
 only-staking = []
 std = [
+	"authority-discovery-primitives/std",
+	"authority-discovery/std",
 	"bitvec/std",
 	"primitives/std",
 	"rustc-hex/std",

@@ -148,6 +148,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		babe: Some(Default::default()),
 		grandpa: Some(Default::default()),
 		im_online: Some(Default::default()),
+		authority_discovery: Some(Default::default()),
 		parachains: Some(ParachainsConfig {
 			authorities: vec![],
 			parachains: vec![],
@@ -285,6 +286,7 @@ pub fn testnet_genesis(
 		babe: Some(Default::default()),
 		grandpa: Some(Default::default()),
 		im_online: Some(Default::default()),
+		authority_discovery: Some(Default::default()),
 		parachains: Some(ParachainsConfig {
 			authorities: vec![],
 			parachains: vec![],
