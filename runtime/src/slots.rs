@@ -23,8 +23,8 @@ use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversi
 use sr_primitives::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode};
 use srml_support::{
-	decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
-	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}
+	decl_module, decl_storage, decl_event, StorageMap, ensure,
+	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get},
 };
 use primitives::parachain::AccountIdConversion;
 use crate::parachains::ParachainRegistrar;

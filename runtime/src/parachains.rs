@@ -31,8 +31,7 @@ use primitives::{Hash, Balance, parachain::{
 }};
 use {system, session};
 use srml_support::{
-	StorageValue, StorageMap, Parameter, dispatch::Result,
-	traits::{Currency, Get, WithdrawReason, ExistenceRequirement}
+	Parameter, dispatch::Result, traits::{Currency, Get, WithdrawReason, ExistenceRequirement},
 };
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
