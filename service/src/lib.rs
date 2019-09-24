@@ -19,6 +19,7 @@
 pub mod chain_spec;
 
 use futures::prelude::*;
+use futures::sync::mpsc;
 use client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
@@ -138,6 +139,8 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
 	>, ServiceError>
 {
+	use substrate_network::DhtEvent;
+
 	let is_authority = config.roles.is_authority();
 	let is_collator = config.custom.collating_for.is_some();
 	let force_authoring = config.force_authoring;
@@ -148,11 +151,19 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config);
 
+	// Dht event channel from the network to the authority discovery module. Use
+	// bounded channel to ensure back-pressure. Authority discovery is triggering one
+	// event per authority within the current authority set. This estimates the
+	// authority set size to be somewhere below 10 000 thereby setting the channel
+	// buffer size to 10 000.
+	let (dht_event_tx, dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
+
 	let service = builder
 		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
+		.with_dht_event_tx(dht_event_tx)?
 		.build()?;
 
 	let (block_import, link_half, babe_link) = import_setup.take()
@@ -258,6 +269,13 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		let babe = start_babe(babe_config)?;
 		let select = babe.select(service.on_exit()).then(|_| Ok(()));
 		service.spawn_essential_task(Box::new(select));
+
+		let authority_discovery = authority_discovery::AuthorityDiscovery::new(
+			service.client(),
+			service.network(),
+			dht_event_rx,
+		);
+		service.spawn_task(authority_discovery);
 	} else {
 		network_gossip::register_non_authority_validator(service.network());
 	}
