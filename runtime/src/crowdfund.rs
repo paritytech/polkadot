@@ -67,7 +67,7 @@
 //! funds ultimately end up in module's fund sub-account.
 
 use srml_support::{
-	StorageValue, StorageMap, decl_module, decl_storage, decl_event, storage::child, ensure,
+	decl_module, decl_storage, decl_event, storage::child, ensure,
 	traits::{Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement}
 };
 use system::ensure_signed;
@@ -187,7 +187,7 @@ decl_event! {
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		fn deposit_event() = default;
-		
+
 		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
 		#[weight = SimpleDispatchInfo::FixedNormal(100_000)]
 		fn create(origin,
@@ -233,7 +233,7 @@ decl_module! {
 
 			Self::deposit_event(RawEvent::Created(index));
 		}
-		
+
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
 		/// slot is
@@ -312,7 +312,7 @@ decl_module! {
 
 			Self::deposit_event(RawEvent::DeployDataFixed(index));
 		}
-		
+
 		/// Complete onboarding process for a winning parachain fund. This can be called once by
 		/// any origin once a fund wins a slot and the fund has set its deploy data (using
 		/// `fix_deploy_data`).
@@ -337,7 +337,7 @@ decl_module! {
 
 			Self::deposit_event(RawEvent::Onboarded(index, para_id));
 		}
-		
+
 		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
 		fn begin_retirement(origin, #[compact] index: FundIndex) {
 			let _ = ensure_signed(origin)?;
@@ -388,7 +388,7 @@ decl_module! {
 
 			Self::deposit_event(RawEvent::Withdrew(who, index, balance));
 		}
-		
+
 		/// Remove a fund after either: it was unsuccessful and it timed out; or it was successful
 		/// but it has been retired from its parachain slot. This places any deposits that were not
 		/// withdrawn into the treasury.
@@ -422,7 +422,7 @@ decl_module! {
 
 			Self::deposit_event(RawEvent::Dissolved(index));
 		}
-		
+
 		fn on_finalize(n: T::BlockNumber) {
 			if let Some(n) = <slots::Module<T>>::is_ending(n) {
 				let auction_index = <slots::Module<T>>::auction_counter();
@@ -1041,7 +1041,7 @@ mod tests {
 			assert_eq!(Balances::free_balance(3), 2990);
 		});
 	}
-	
+
 	#[test]
 	fn withdraw_handles_basic_errors() {
 		with_externalities(&mut new_test_ext(), || {
@@ -1079,7 +1079,7 @@ mod tests {
 
 			// Skip all the way to the end
 			run_to_block(50);
-			
+
 			// Check current funds (contributions + deposit)
 			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 601);
 

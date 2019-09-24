@@ -41,12 +41,11 @@ use client::{
 use sr_primitives::{
 	ApplyResult, generic, Permill, Perbill, impl_opaque_keys, create_runtime_str, key_types,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
-	weights::{Weight, DispatchInfo},
-	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, SignedExtension},
-	curve::PiecewiseLinear,
+	weights::{Weight, DispatchInfo}, curve::PiecewiseLinear,
+	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension},
 };
 use version::RuntimeVersion;
-use grandpa::{AuthorityId as GrandpaId, fg_primitives::{self, ScheduledChange}};
+use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use babe_primitives::AuthorityId as BabeId;
 use elections::VoteIndex;
 #[cfg(any(feature = "std", test))]
@@ -662,45 +661,25 @@ impl_runtime_apis! {
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
-		fn grandpa_pending_change(digest: &DigestFor<Block>)
-			-> Option<ScheduledChange<BlockNumber>>
-		{
-			Grandpa::pending_change(digest)
-		}
-
-		fn grandpa_forced_change(digest: &DigestFor<Block>)
-			-> Option<(BlockNumber, ScheduledChange<BlockNumber>)>
-		{
-			Grandpa::forced_change(digest)
-		}
-
 		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
 			Grandpa::grandpa_authorities()
 		}
 	}
 
 	impl babe_primitives::BabeApi<Block> for Runtime {
-		fn startup_data() -> babe_primitives::BabeConfiguration {
+		fn configuration() -> babe_primitives::BabeConfiguration {
 			// The choice of `c` parameter (where `1 - c` represents the
 			// probability of a slot being empty), is done in accordance to the
 			// slot duration and expected target block time, for safely
 			// resisting network delays of maximum two seconds.
 			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 			babe_primitives::BabeConfiguration {
-				median_required_blocks: 1000,
 				slot_duration: Babe::slot_duration(),
+				epoch_length: EpochDuration::get(),
 				c: PRIMARY_PROBABILITY,
-			}
-		}
-
-		fn epoch() -> babe_primitives::Epoch {
-			babe_primitives::Epoch {
-				start_slot: Babe::epoch_start_slot(),
-				authorities: Babe::authorities(),
-				epoch_index: Babe::epoch_index(),
+				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				duration: EpochDuration::get(),
-				secondary_slots: Babe::secondary_slots().0,
+				secondary_slots: true,
 			}
 		}
 	}
