@@ -331,7 +331,7 @@ decl_module! {
 					retrying = None
 				}
 			}
-			// We store these two for block finalisation to help work out which, if any, threads
+			// We store these two for block finalization to help work out which, if any, threads
 			// missed their slot.
 			if let Some(ref r) = retrying {
 				Retrying::put(r.1);
@@ -558,6 +558,7 @@ mod tests {
 	impl_outer_dispatch! {
 		pub enum Call for Test where origin: Origin {
 			parachains::Parachains,
+			registrar::Registrar,
 		}
 	}
 
@@ -834,7 +835,40 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 	#[test]
 	fn parathread_can_activate() {
 		with_externalities(&mut new_test_ext(vec![]), || {
+			run_to_block(2);
+			assert_ok!(Registrar::register_parathread(Origin::signed(0), vec![7,8,9], vec![1, 1, 1]));
 
+			run_to_block(3);
+			assert_eq!(Registrar::paras(&1000u32.into()), Some(ParaInfo { scheduling: Scheduling::Dynamic }));
+
+			let para_id = ParaId::from(1000);
+			let collator_id = CollatorId::default();
+			let head_data_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 1, 1]);
+			let call = Call::Registrar(super::Call::select_parathread(para_id, collator_id, head_data_hash));
+			let info = DispatchInfo::default();
+
+			ThreadCount::put(10);
+
+			// Someone calls `select_parathread`
+			assert!(LimitParathreadCommits::<Test>(std::marker::PhantomData).validate(&0, &call, info, 0).is_ok());
+
+			// Thread is put in newest queue
+			assert_eq!(SelectedThreads::get()[1], vec![(1000u32.into(), CollatorId::default())]);
+
+			// Assuming Queue Size is 2
+			assert_eq!(QUEUE_SIZE, 2);
+
+			// 1 block later
+			run_to_block(4);
+			// Thread is getting ready to play ball
+			assert_eq!(SelectedThreads::get()[0], vec![(1000u32.into(), CollatorId::default())]);
+
+			// 2 blocks later
+			run_to_block(5);
+			// Thread leaves queue
+			assert_eq!(SelectedThreads::get()[0], vec![]);
+			// Thread is active
+			assert_eq!(Registrar::active_paras(), vec![(1000u32.into(), Some(CollatorId::default()))]);
 		});
 	}
 }
