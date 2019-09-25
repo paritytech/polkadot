@@ -29,6 +29,9 @@ use serde::{Serialize, Deserialize};
 use primitives::bytes;
 use application_crypto::KeyTypeId;
 
+#[cfg(feature = "std")]
+use trie::TrieConfiguration;
+
 pub use polkadot_parachain::{
 	Id, AccountIdConversion, ParachainDispatchOrigin, UpwardMessage,
 };
@@ -172,16 +175,16 @@ impl OutgoingMessages {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
 pub struct AvailableMessages(pub Vec<(Hash, Vec<Message>)>);
 
-//use trie::TrieConfiguration;
 
 /// Compute a trie root for a set of messages, given the raw message data.
+#[cfg(feature = "std")]
 pub fn message_queue_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
 	where A: AsRef<[u8]>
 {
-	Hash::default()
-	//trie::trie_types::Layout::<primitives::Blake2Hasher>::ordered_trie_root(messages)
+	trie::trie_types::Layout::<primitives::Blake2Hasher>::ordered_trie_root(messages)
 }
 
+#[cfg(feature = "std")]
 impl From<OutgoingMessages> for AvailableMessages {
 	fn from(outgoing: OutgoingMessages) -> Self {
 		let queues = outgoing.message_queues().filter_map(|queue| {

@@ -176,7 +176,7 @@ impl Store {
 				}
 			}
 		}
-		
+
 		v.chunks.push(chunk);
 
 		tx.put_vec(
@@ -343,77 +343,101 @@ mod tests {
 	use super::*;
 	use polkadot_primitives::parachain::AvailableMessages;
 
+	// Adds two blocks with the same parent into availability-store with enough chunks to reconstruct
+	// whole blocks and messages.
+	// Checks that data is available.
+	// Finalizes one of the blocks.
+	// Checks that the other block's erasure chunks and block data are removed from storage, but that the
+	// messages are left intact.
 	#[test]
 	fn finalization_removes_unneeded() {
-		let relay_parent = [1; 32].into();
+		let relay_parent: Hash = [1; 32].into();
+		let num_validators = 10;
 
 		let para_id_1 = 5.into();
 		let para_id_2 = 6.into();
 
-		let candidate_1 = [2; 32].into();
-		let candidate_2 = [3; 32].into();
+		let candidate_1: Hash = [2; 32].into();
+		let candidate_2: Hash = [3; 32].into();
 
-		let erasure_chunk_1 = ErasureChunk {
-			relay_parent,
-			candidate_hash: candidate_1,
-			chunk: vec![1; 8],
-			index: 1,
-			proof: vec![]
-		};
+		let block_data_1 = BlockData(vec![42; 128]);
+		let block_data_2 = BlockData(vec![24; 128]);
 
-		let erasure_chunk_2 = ErasureChunk {
-			relay_parent,
-			candidate_hash: candidate_2,
-			chunk: vec![2; 8],
-			index: 2,
-			proof: vec![]
-		};
+		let message_1 = Message(vec![12u8; 32]);
+		let message_2 = Message(vec![13u8; 32]);
 
-		let block_1_chunks = ErasureChunks {
-			n_validators: 10,
-			root: Hash::default(),
-			chunks: vec![
-				erasure_chunk_1.clone()
-			],
-		};
+		let queue_root_1: Hash = [44; 32].into();
 
-		let block_2_chunks = ErasureChunks {
-			n_validators: 10,
-			root: Hash::default(),
-			chunks: vec![
-				erasure_chunk_2.clone()
-			],
-		};
+		let messages_1 = Some(AvailableMessages(vec![(
+				queue_root_1.clone(),
+				vec![message_1.clone()]
+			)]
+		));
+
+		let queue_root_2: Hash = [55; 32].into();
+
+		let messages_2 = Some(AvailableMessages(vec![(
+				queue_root_2.clone(),
+				vec![message_2.clone()]
+			)]
+		));
+
+		let chunks_1 = erasure::obtain_chunks(num_validators, relay_parent.clone(), candidate_1.clone(), &block_data_1, &messages_1).unwrap();
+		let chunks_2 = erasure::obtain_chunks(num_validators, relay_parent.clone(), candidate_2.clone(), &block_data_2, &messages_2).unwrap();
 
 		let store = Store::new_in_memory();
+
+
 		store.make_available(Data {
 			relay_parent,
 			parachain_id: para_id_1,
 			candidate_hash: candidate_1,
-			erasure_chunks: block_1_chunks,
+			erasure_chunks: ErasureChunks {
+				n_validators: num_validators as u64,
+				root: chunks_1.root,
+				chunks: chunks_1.chunks.clone().into_iter().take(4).collect(),
+			},
 		}).unwrap();
 
 		store.make_available(Data {
 			relay_parent,
 			parachain_id: para_id_2,
 			candidate_hash: candidate_2,
-			erasure_chunks: block_2_chunks,
+			erasure_chunks: ErasureChunks {
+				n_validators: num_validators as u64,
+				root: chunks_2.root,
+				chunks: chunks_2.chunks.clone().into_iter().take(4).collect(),
+			},
 		}).unwrap();
 
-		assert_eq!(store.erasure_chunk(relay_parent, candidate_1, 1).unwrap(), erasure_chunk_1);
-		assert_eq!(store.erasure_chunk(relay_parent, candidate_2, 2).unwrap(), erasure_chunk_2);
+		// Check that data for each candidate is available now.
+		assert_eq!(store.erasure_chunk(relay_parent, candidate_1, 1).unwrap(), chunks_1.chunks[1]);
+		assert_eq!(store.erasure_chunk(relay_parent, candidate_2, 2).unwrap(), chunks_2.chunks[2]);
+		assert_eq!(store.queue_by_root(&queue_root_1).unwrap(), vec![message_1.clone()]);
+		assert_eq!(store.queue_by_root(&queue_root_2).unwrap(), vec![message_2.clone()]);
 
 		store.candidates_finalized(relay_parent, [candidate_1].iter().cloned().collect()).unwrap();
 
-		assert_eq!(store.erasure_chunk(relay_parent, candidate_1, 1).unwrap(), erasure_chunk_1);
+		// First candidate is finalized and it's data persists in the store.
+		assert_eq!(store.erasure_chunk(relay_parent, candidate_1, 1).unwrap(), chunks_1.chunks[1]);
+		// Second candidate is not finalized and it's is purged from the store
 		assert!(store.erasure_chunk(relay_parent, candidate_2, 2).is_none());
+
+		// However, messages remain for both candidates.
+		assert_eq!(store.queue_by_root(&queue_root_1).unwrap(), vec![message_1.clone()]);
+		assert_eq!(store.queue_by_root(&queue_root_2).unwrap(), vec![message_2.clone()]);
 	}
 
+	// Checks that block data is correctly reconstructed from erasure chunks.
+	// First an encoding for 10 validators is created and 3 chunks are added to the store.
+	// 3 chunks are not enough to reconstruct block data and messages, this is checked.
+	// Another chunk is added, 4 chunks are now enough for reconstructing block data and
+	// messages, this is also checked.
 	#[test]
 	fn block_reconstructed_from_erasure() {
-		let relay_parent = [1; 32].into();
+		let relay_parent: Hash = [1; 32].into();
 		let num_validators = 10;
-		let candidate_hash = [2; 32].into();
+		let candidate_hash: Hash = [2; 32].into();
 
 		let para_id = 10.into();
 
@@ -425,13 +449,11 @@ mod tests {
 			)]
 		));
 
-		let chunks = erasure::obtain_chunks(num_validators, &block_data, &messages).unwrap();
-		let chunks_refs: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
-
-		let branches = erasure::branches(chunks_refs.clone());
-		let root = branches.root();
-
-		let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+		let chunks = erasure::obtain_chunks(num_validators,
+			relay_parent.clone(),
+			candidate_hash.clone(),
+			&block_data,
+			&messages).unwrap();
 
 		let store = Store::new_in_memory();
 
@@ -441,43 +463,15 @@ mod tests {
 			candidate_hash,
 			erasure_chunks: ErasureChunks {
 				n_validators: num_validators as u64,
-				root,
-				chunks: vec![
-					ErasureChunk {
-						relay_parent,
-						candidate_hash,
-						chunk: chunks[0].clone(),
-						index: 0,
-						proof: proofs[0].clone()
-					},
-					ErasureChunk {
-						relay_parent,
-						candidate_hash,
-						chunk: chunks[3].clone(),
-						index: 3,
-						proof: proofs[3].clone()
-					},
-					ErasureChunk {
-						relay_parent,
-						candidate_hash,
-						chunk: chunks[5].clone(),
-						index: 5,
-						proof: proofs[5].clone()
-					},
-				],
+				root: chunks.root,
+				chunks: chunks.chunks.clone().into_iter().take(3).collect(),
 			},
 		}).unwrap();
 
 		assert_eq!(store.block_data(relay_parent, candidate_hash), None);
 		assert_eq!(store.queue_by_root(&[5u8; 32].into()), None);
 
-		store.add_erasure_chunk(ErasureChunk {
-			relay_parent,
-			candidate_hash,
-			chunk: chunks[9].clone(),
-			index: 9,
-			proof: proofs[9].clone(),
-		}).unwrap();
+		store.add_erasure_chunk(chunks.chunks[9].clone()).unwrap();
 
 		let block_data_res = store.block_data(relay_parent, candidate_hash).unwrap();
 		let messages_res = store.queue_by_root(&[5u8; 32].into()).unwrap();
@@ -486,11 +480,13 @@ mod tests {
 		assert_eq!(messages_res, vec![message]);
 	}
 
+	// A broken chunk fails to be added to the store.
+	// A chunk with a broken proof fails to be added to the store.
 	#[test]
 	fn broken_chunk_is_ignored() {
-		let relay_parent = [1; 32].into();
+		let relay_parent: Hash = [1; 32].into();
 		let num_validators = 10;
-		let candidate_hash = [2; 32].into();
+		let candidate_hash: Hash = [2; 32].into();
 
 		let para_id = 10.into();
 
@@ -503,13 +499,11 @@ mod tests {
 			)]
 		));
 
-		let chunks = erasure::obtain_chunks(num_validators, &block_data, &messages).unwrap();
-		let chunks_refs: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
-
-		let branches = erasure::branches(chunks_refs.clone());
-		let root = branches.root();
-
-		let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+		let chunks = erasure::obtain_chunks(num_validators,
+			relay_parent.clone(),
+			candidate_hash.clone(),
+			&block_data,
+			&messages).unwrap();
 
 		let store = Store::new_in_memory();
 
@@ -519,18 +513,8 @@ mod tests {
 			candidate_hash,
 			erasure_chunks: ErasureChunks {
 				n_validators: num_validators as u64,
-				root,
-				chunks: chunks.iter().zip(proofs.iter())
-							.enumerate()
-							.take(3)
-							.map(|(index, (chunk, proof))|
-								ErasureChunk {
-									relay_parent,
-									candidate_hash,
-									chunk: chunk.clone(),
-									index: index as u32,
-									proof: proof.clone()
-								}).collect(),
+				root: chunks.root,
+				chunks: chunks.chunks.clone().into_iter().take(3).collect(),
 			},
 		}).unwrap();
 
@@ -538,7 +522,7 @@ mod tests {
 		assert_eq!(store.queue_by_root(&[5u8; 32].into()), None);
 
 		// Test that a broken chunk is rejected
-		let mut broken = chunks[9].clone();
+		let mut broken = chunks.chunks[9].chunk.clone();
 		broken.push(1);
 
 		assert!(store.add_erasure_chunk(ErasureChunk {
@@ -546,32 +530,26 @@ mod tests {
 											candidate_hash,
 											chunk: broken,
 											index: 9,
-											proof: proofs[9].clone()
+											proof: chunks.chunks[9].proof.clone()
 										}).is_err());
 
 		// Test that a chunk with the wrong proof is rejected
 		assert!(store.add_erasure_chunk(ErasureChunk {
 											relay_parent,
 											candidate_hash,
-											chunk: chunks[9].clone(),
+											chunk: chunks.chunks[9].chunk.clone(),
 											index: 9,
-											proof: proofs[8].clone()
+											proof: chunks.chunks[8].proof.clone()
 										}).is_err());
-
-		//assert_eq!(store.block_data(relay_parent, candidate_1).unwrap(), block_data_1);
-		//assert_eq!(store.block_data(relay_parent, candidate_2).unwrap(), block_data_2);
-
-		//store.candidates_finalized(relay_parent, [candidate_1].iter().cloned().collect()).unwrap();
-
-		//assert_eq!(store.block_data(relay_parent, candidate_1).unwrap(), block_data_1);
-		//assert!(store.block_data(relay_parent, candidate_2).is_none());
 	}
 
+	// Tests that as soon as a store has enough chunks to reconstruct
+	// block data and messages, queues are available by their roots.
 	#[test]
 	fn queues_available_by_queue_root() {
-		let relay_parent = [1; 32].into();
+		let relay_parent: Hash = [1; 32].into();
 		let para_id = 5.into();
-		let candidate_hash = [2; 32].into();
+		let candidate_hash: Hash = [2; 32].into();
 		let block_data = BlockData(vec![1, 2, 3]);
 		let n_validators = 5;
 
@@ -586,34 +564,19 @@ mod tests {
 			(message_queue_root_2, vec![message_b.clone()]),
 		]));
 
-		let chunks = erasure::obtain_chunks(n_validators, &block_data, &messages).unwrap();
-		let chunks_refs: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
-
-		let branches = erasure::branches(chunks_refs.clone());
-		let root = branches.root();
-		let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+		let erasure_chunks = erasure::obtain_chunks(n_validators,
+			relay_parent.clone(),
+			candidate_hash.clone(),
+			&block_data,
+			&messages).unwrap();
 
 		let store = Store::new_in_memory();
 
 		store.make_available(Data {
 			relay_parent,
 			parachain_id: para_id,
-			candidate_hash, 
-			erasure_chunks: ErasureChunks {
-				n_validators: n_validators as u64,
-				root,
-				chunks: chunks.iter().zip(proofs)
-					.enumerate()
-					.take(4)
-					.map(|(index, (chunk, proof))|
-					ErasureChunk {
-						relay_parent,
-						candidate_hash,
-						chunk: chunk.clone(),
-						index: index as u32,
-						proof: proof.clone(),
-					}).collect(),
-			}
+			candidate_hash,
+			erasure_chunks,
 		}).unwrap();
 
 		assert_eq!(

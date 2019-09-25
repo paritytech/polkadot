@@ -33,6 +33,7 @@ use polkadot_primitives::parachain::{
 	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock,
 	StructuredUnroutedIngress, ValidatorId, OutgoingMessages, ErasureChunk,
 };
+use polkadot_erasure_coding::{self as erasure};
 use substrate_network::{
 	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
 	specialization::{Event, NetworkSpecialization as Specialization},
@@ -916,21 +917,23 @@ impl PolkadotProtocol {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",
 			relay_parent, collation.receipt.parachain_index);
 
-		let outgoing_queues: Vec<_> = polkadot_validation::outgoing_queues(&outgoing_targeted)
-			.map(|(_target, root, data)| (root, data))
-			.collect();
+		let authorities_num = self.validators.len(); // TODO: check if it's really all authorities
+		let candidate_hash = collation.receipt.hash();
 
-		/*
+		let erasure_chunks = erasure::obtain_chunks(authorities_num,
+			relay_parent,
+			candidate_hash,
+			&collation.pov.block_data,
+			&Some(outgoing_targeted.clone().into())).unwrap();
+
 		if let Some(ref availability_store) = self.availability_store {
 			availability_store.make_available(av_store::Data {
 				relay_parent,
 				parachain_id: collation.receipt.parachain_index,
-				candidate_hash: collation.receipt.hash(),
-				block_data: collation.pov.block_data.clone(),
-				outgoing_queues: Some(outgoing_queues),
+				candidate_hash,
+				erasure_chunks,
 			})?;
 		}
-		*/
 
 		for (primary, cloned_collation) in self.local_collations.add_collation(relay_parent, targets, collation.clone()) {
 			match self.validators.get(&primary) {

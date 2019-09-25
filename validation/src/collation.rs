@@ -116,7 +116,12 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 				futures::try_ready!(poll)
 			};
 
-			let res = validate_collation(&*self.client, &self.relay_parent, &collation, self.max_block_data_size);
+			let res = validate_collation(&*self.client,
+				&self.relay_parent,
+				&self.relay_parent_hash,
+				&collation,
+				self.max_block_data_size
+			);
 
 			match res {
 				Ok(e) => {
@@ -139,11 +144,11 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 pub enum Error {
 	/// Client error
 	Client(client::error::Error),
-	/// Wasm validation error.
+	/// Wasm validation error
 	WasmValidation(wasm_executor::Error),
 	/// Erasure-encoding error.
 	Erasure(erasure::Error),
-	/// Collated for inactive parachain.
+	/// Collated for inactive parachain
 	#[display(fmt = "Collated for inactive parachain: {:?}", _0)]
 	InactiveParachain(ParaId),
 	/// Unexpected egress root
@@ -408,6 +413,7 @@ pub fn validate_incoming(
 pub fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
+	relay_parent_hash: &Hash,
 	collation: &Collation,
 	max_block_data_size: Option<u64>,
 ) -> Result<OutgoingMessages, Error> where
@@ -468,18 +474,16 @@ pub fn validate_collation<P>(
 					let authorities_num = api.validators(relay_parent)?.len();
 
 					let chunks = erasure::obtain_chunks(authorities_num,
+						relay_parent_hash.clone(),
+						collation.receipt.block_data_hash,
 						&collation.pov.block_data,
 						&Some(messages.clone().into()))?;
 
-					let chunks_ref: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
-					let branches = erasure::branches(chunks_ref.clone());
-					let root = branches.root();
-
-					if root != candidate_erasure_root {
+					if chunks.root != candidate_erasure_root {
 						return Err(Error::ErasureRootMismatch{
 							candidate: collation.receipt.block_data_hash,
 							expected: candidate_erasure_root,
-							got: root
+							got: chunks.root
 						});
 					}
 				}

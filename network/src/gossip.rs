@@ -138,7 +138,7 @@ pub enum GossipMessage {
 	ParachainMessages(GossipParachainMessages),
 	// TODO: https://github.com/paritytech/polkadot/issues/253
 	/// A packet containing one of the erasure-coding chunks of one candidate.
-	#[codec(index = "3")]
+	#[codec(index = "4")]
 	ErasureChunk(ErasureChunkMessage),
 }
 
@@ -524,64 +524,6 @@ struct Inner<C: ?Sized> {
 }
 
 impl<C: ?Sized + ChainContext> Inner<C> {
-/*
-	fn validate_statement(&mut self, message: GossipStatement)
-		-> (GossipValidationResult<Hash>, i32)
-	{
-		// message must reference one of our chain heads and one
-		// if message is not a `Candidate` we should have the candidate available
-		// in `our_view`.
-		match self.our_view.session_view(&message.relay_chain_leaf) {
-			None => {
-				let cost = match self.oracle.is_known(&message.relay_chain_leaf) {
-					Some(Known::Leaf) => {
-						warn!(
-							target: "network",
-							"Leaf block {} not considered live for attestation",
-							message.relay_chain_leaf,
-						);
-
-						0
-					}
-					Some(Known::Old) => cost::PAST_MESSAGE,
-					_ => cost::FUTURE_MESSAGE,
-				};
-
-				(GossipValidationResult::Discard, cost)
-			}
-			Some(view) => {
-				// first check that we are capable of receiving this message
-				// in a DoS-proof manner.
-				let benefit = match message.signed_statement.statement {
-					GenericStatement::Candidate(_) => benefit::NEW_CANDIDATE,
-					GenericStatement::Valid(ref h) | GenericStatement::Invalid(ref h) => {
-						if !view.knowledge.is_aware_of(h) {
-							let cost = cost::ATTESTATION_NO_CANDIDATE;
-							return (GossipValidationResult::Discard, cost);
-						}
-
-						benefit::NEW_ATTESTATION
-					}
-				};
-
-				// validate signature.
-				let res = view.validation_data.check_statement(
-					&message.relay_chain_leaf,
-					&message.signed_statement,
-				);
-
-				match res {
-					Ok(()) => {
-						let topic = attestation_topic(message.relay_chain_leaf);
-						(GossipValidationResult::ProcessAndKeep(topic), benefit)
-					}
-					Err(()) => (GossipValidationResult::Discard, cost::BAD_SIGNATURE),
-				}
-			}
-		}
-	}
-	*/
-
 	fn validate_neighbor_packet(&mut self, sender: &PeerId, packet: NeighborPacket)
 		-> (GossipValidationResult<Hash>, i32, Vec<Hash>)
 	{

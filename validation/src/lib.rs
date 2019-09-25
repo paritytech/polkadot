@@ -42,9 +42,9 @@ use availability_store::Store as AvailabilityStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, CandidateReceipt, AvailableMessages,
+	Id as ParaId, Chain, DutyRoster, CandidateReceipt,
 	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessages,
-	CollatorSignature, Collation, PoVBlock, ErasureChunk, ErasureChunks, ValidatorSignature, ValidatorIndex,
+	Collation, PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
 	ValidatorPair, ValidatorId,
 };
 use primitives::Pair;
@@ -394,51 +394,25 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			);
 
 			collation_work.then(move |result| match result {
-				Ok((mut collation, outgoing_targeted)) => {
-					let outgoing_queues: Vec<_> = crate::outgoing_queues(&outgoing_targeted)
-						.map(|(_target, root, data)| (root, data))
-						.collect();
-
-					let chunks = erasure::obtain_chunks(authorities_num,
-						&collation.pov.block_data,
-						&Some(outgoing_targeted.clone().into())).unwrap();
-
-					let chunks_ref: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
-					let branches = erasure::branches(chunks_ref.clone());
-					let root = branches.root();
-					let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
-					collation.receipt.erasure_root = Some(root);
-
+				Ok((collation, outgoing_targeted)) => {
 					let candidate_hash = collation.receipt.hash();
 
-					// As a node that has received a valid collation, we store all of the
-					// erasure-coded chunks of data, at least for now.
-					let chunks: Vec<_> = chunks.into_iter().zip(proofs)
-						.enumerate()
-						.map(|(index, (chunk, proof))| ErasureChunk {
-							relay_parent,
-							candidate_hash,
-							chunk,
-							index: index as u32,
-							proof
-						}).collect();
-
-					let chunks_to_save = ErasureChunks {
-						n_validators: authorities_num as u64,
-						root,
-						chunks: chunks.clone(),
-					};
+					let erasure_chunks = erasure::obtain_chunks(authorities_num,
+						relay_parent,
+						candidate_hash,
+						&collation.pov.block_data,
+						&Some(outgoing_targeted.clone().into())).unwrap();
 
 					let res = availability_store.make_available(Data {
 						relay_parent,
 						parachain_id: collation.receipt.parachain_index,
 						candidate_hash,
-						erasure_chunks: chunks_to_save,
+						erasure_chunks: erasure_chunks.clone(),
 					});
 
 					match res {
 						Ok(()) => {
-							router.local_collation(collation, outgoing_targeted, (local_id, &chunks));
+							router.local_collation(collation, outgoing_targeted, (local_id, &erasure_chunks.chunks));
 						}
 						Err(e) => warn!(
 							target: "validation",

@@ -24,7 +24,7 @@ use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
 	CandidateReceipt, HeadData, PoVBlock, BlockData, CollatorId, ValidatorId,
-	StructuredUnroutedIngress, ErasureChunk, ErasureChunks, Extrinsic,
+	StructuredUnroutedIngress, ErasureChunk, ErasureChunks, OutgoingMessages,
 };
 use polkadot_erasure_coding::{self as erasure};
 use substrate_primitives::crypto::UncheckedInto;
@@ -279,31 +279,29 @@ fn fetches_available_chunk_data() {
 
 	protocol.register_availability_store(av_store.clone());
 
-	let extrinsic = Extrinsic {
+	let messages = OutgoingMessages {
 		outgoing_messages: vec![],
 	};
 
-	let chunks = erasure::obtain_chunks(3, &block_data, &extrinsic).unwrap();
-	let chunks_ref: Vec<_> = chunks.iter().map(|a| &a[..]).collect();
-	let branches = erasure::branches(chunks_ref.clone());
-	let root = branches.root();
-	let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+	let n_validators = 3;
+	let chunks = erasure::obtain_chunks(
+		n_validators,
+		parent_hash,
+		candidate_hash,
+		&block_data,
+		&Some(messages.into())
+	).unwrap();
+
+	let mut chunks2 = chunks.clone();
+
+	let old_chunks = std::mem::replace(&mut chunks2.chunks, vec![]);
+	chunks2.chunks = vec![old_chunks[0].clone()];
 
 	av_store.make_available(::av_store::Data {
 		relay_parent: parent_hash,
 		parachain_id: para_id,
 		candidate_hash,
-		erasure_chunks: ErasureChunks {
-			n_validators: 3,
-			root,
-			chunks: vec![ErasureChunk {
-				relay_parent: parent_hash,
-				candidate_hash,
-				chunk: chunks[0].clone(),
-				index: 0,
-				proof: proofs[0].clone()
-			}],
-		},
+		erasure_chunks: chunks2,
 	}).unwrap();
 
 	// connect peer A
@@ -317,15 +315,7 @@ fn fetches_available_chunk_data() {
 		let mut ctx = TestContext::default();
 		on_message(&mut protocol, &mut ctx, peer_a.clone(),
 		Message::RequestBlockChunk(1, parent_hash, candidate_hash, 0));
-		assert!(ctx.has_message(peer_a,Message::BlockChunk(1, Some(
-							ErasureChunk {
-								relay_parent: parent_hash,
-								candidate_hash,
-								chunk: chunks[0].clone(),
-								index: 0,
-								proof: proofs[0].clone()
-							},
-		))));
+		assert!(ctx.has_message(peer_a, Message::BlockChunk(1, Some(chunks.chunks[0].clone()))));
 	}
 }
 

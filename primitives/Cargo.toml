@@ -16,7 +16,7 @@ runtime_primitives = { package = "sr-primitives", git = "https://github.com/pari
 polkadot-parachain = { path = "../parachain", default-features = false }
 bitvec = { version = "0.14.0", default-features = false, features = ["alloc"] }
 babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-# trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 [dev-dependencies]
 substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
@@ -28,6 +28,7 @@ std = [
 	"parity-scale-codec/std",
 	"primitives/std",
 	"substrate-client/std",
+	"trie/std",
 	"rstd/std",
 	"sr-version/std",
 	"runtime_primitives/std",

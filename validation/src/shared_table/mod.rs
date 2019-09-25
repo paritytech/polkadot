@@ -25,8 +25,7 @@ use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Collation, OutgoingMessages, CandidateReceipt, ValidatorPair, ValidatorId,
-	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex,
-	ErasureChunk, ErasureChunks, ValidatorSignature,
+	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, ErasureChunk, ValidatorSignature,
 };
 use polkadot_erasure_coding::{self as erasure};
 
@@ -295,10 +294,13 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 			P::Api: ParachainHost<Block>,
 	{
 		let max_block_data_size = self.max_block_data_size;
+		let relay_parent = self.relay_parent.clone();
+
 		let validate = move |id: &_, collation: &_| {
 			let res = crate::collation::validate_collation(
 				&*api,
 				id,
+				&relay_parent,
 				collation,
 				max_block_data_size,
 			);
@@ -364,26 +366,17 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 				Validation::Invalid(pov_block),
 			),
 			Ok(outgoing_targeted) => {
-				let outgoing_queues = outgoing_targeted.clone().into(); 
+				let outgoing_queues = outgoing_targeted.clone().into();
 
-				let chunks = erasure::obtain_chunks(self.inner.n_validators, &pov_block.block_data, &Some(outgoing_queues)).unwrap();
-				let chunks_ref: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
-				let branches = erasure::branches(chunks_ref);
-				let root = branches.root();
-				let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+				let mut chunks = erasure::obtain_chunks(self.inner.n_validators,
+					self.inner.relay_parent,
+					candidate_hash,
+					&pov_block.block_data,
+					&Some(outgoing_queues)).unwrap();
+
 				let local_index: usize = self.inner.local_index;
 
-				let chunks = ErasureChunks {
-					n_validators: self.inner.n_validators as u64,
-					root,
-					chunks: vec![ErasureChunk {
-						relay_parent: self.inner.relay_parent,
-						candidate_hash,
-						chunk: chunks[local_index].clone(),
-						index: local_index as u32,
-						proof: proofs[local_index].clone()
-					}],
-				};
+				chunks.chunks = vec![chunks.chunks[local_index].clone()];
 
 				self.inner.availability_store.make_available(Data {
 					relay_parent: self.inner.relay_parent,
@@ -619,7 +612,7 @@ mod tests {
 	use super::*;
 	use substrate_keyring::Sr25519Keyring;
 	use primitives::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::{BlockData, ConsolidatedIngress};
+	use polkadot_primitives::parachain::{AvailableMessages, BlockData, ConsolidatedIngress};
 	use futures::future;
 
 	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
@@ -810,8 +803,13 @@ mod tests {
 		assert_eq!(validated.pov_block(), &pov_block);
 		assert_eq!(validated.statement, GenericStatement::Valid(hash));
 
+		if let Some(messages) = validated.outgoing_messages() {
+			let available_messages: AvailableMessages = messages.clone().into();
+			for (root, queue) in available_messages.0 {
+				assert_eq!(store.queue_by_root(&root), Some(queue));
+			}
+		}
 		assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
-		// TODO: check that a message queue is included by root.
 	}
 
 	#[test]
@@ -854,8 +852,13 @@ mod tests {
 		assert_eq!(validated.pov_block(), &pov_block);
 
 		assert!(store.block_data(relay_parent, hash).is_some());
-		//assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
-		// TODO: check that a message queue is included by root.
+		if let Some(messages) = validated.outgoing_messages() {
+			let available_messages: AvailableMessages = messages.clone().into();
+			for (root, queue) in available_messages.0 {
+				assert_eq!(store.queue_by_root(&root), Some(queue));
+			}
+		}
+		assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
 	}
 
 	#[test]

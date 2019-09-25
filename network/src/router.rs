@@ -67,7 +67,7 @@ pub(crate) fn erasure_chunks_topic(parent_hash: Hash) -> Hash {
 /// infinitely.
 pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
 	impl Stream<Item=SignedStatement, Error=()> {
-	// spin up a task in the background that processes all incoming statements.
+	// spin up a task in the background that processes all incoming statements
 	// validation has been done already by the gossip validator.
 	// this will block internally until the gossip messages stream is obtained.
 	network.gossip_messages_for(topic)
