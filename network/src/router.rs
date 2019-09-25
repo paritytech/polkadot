@@ -29,7 +29,7 @@ use polkadot_validation::{
 };
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	Extrinsic, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
+	OutgoingMessages, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
 };
 use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
 
@@ -41,7 +41,8 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
 
-use crate::validation::{self, SessionDataFetcher, NetworkService, Executor};
+use crate::validation::{self, LeafWorkDataFetcher, Executor};
+use crate::NetworkService;
 
 /// Compute the gossip topic for attestations on the given parent hash.
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
@@ -96,7 +97,7 @@ pub struct Router<P, E, N: NetworkService, T> {
 	table: Arc<SharedTable>,
 	attestation_topic: Hash,
 	erasure_chunks_topic: Hash,
-	fetcher: SessionDataFetcher<P, E, N, T>,
+	fetcher: LeafWorkDataFetcher<P, E, N, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 	deferred_chunks: Arc<Mutex<DeferredChunks>>,
 	message_validator: RegisteredMessageValidator,
@@ -105,7 +106,7 @@ pub struct Router<P, E, N: NetworkService, T> {
 impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
-		fetcher: SessionDataFetcher<P, E, N, T>,
+		fetcher: LeafWorkDataFetcher<P, E, N, T>,
 		message_validator: RegisteredMessageValidator,
 	) -> Self {
 		let parent_hash = fetcher.parent_hash();
@@ -253,15 +254,17 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 				knowledge.lock().note_candidate(
 					candidate_hash,
 					Some(validated.pov_block().clone()),
-					validated.extrinsic().cloned(),
+					validated.outgoing_messages().cloned(),
 				);
-
 
 				// propagate the statement.
 				// consider something more targeted than gossip in the future.
 				let statement = GossipStatement::new(
 					parent_hash,
-					table.import_validated(validated),
+					match table.import_validated(validated) {
+						None => return,
+						Some(s) => s,
+					}
 				);
 
 				// regardless of the validation result remove all deferred chunks.
@@ -288,28 +291,37 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	type FetchValidationProof = validation::PoVReceiver;
 	type FetchBlockChunk = validation::ChunkReceiver;
 
-	fn local_collation(&self, collation: Collation, extrinsic: Extrinsic, chunks: (ValidatorIndex, &Vec<ErasureChunk>)) {
+	fn local_collation(&self, collation: Collation, outgoing: OutgoingMessages, chunks: (ValidatorIndex, &Vec<ErasureChunk>)) {
 		// produce a signed statement
 		let hash = collation.receipt.hash();
-		let validated = Validated::collated_local(collation.receipt, collation.pov.clone(), extrinsic.clone());
+		let validated = Validated::collated_local(
+			collation.receipt,
+			collation.pov.clone(),
+			outgoing.clone(),
+		);
+
 		let statement = GossipStatement::new(
 			self.parent_hash(),
-			self.table.import_validated(validated),
+			match self.table.import_validated(validated) {
+				None => return,
+				Some(s) => s,
+			},
 		);
 
 		// give to network to make available.
-		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov), Some(extrinsic));
+		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov), Some(outgoing));
 		self.network().gossip_message(self.attestation_topic, statement.into());
 
 		for chunk in chunks.1 {
-			let signature = self.table.sign_chunk(chunk, chunks.0);
-			let message = ErasureChunkMessage {
-				chunk: chunk.clone(),
-				sender: chunks.0,
-				signature
-			};
+			if let Some(signature) = self.table.sign_chunk(chunk, chunks.0) {
+				let message = ErasureChunkMessage {
+					chunk: chunk.clone(),
+					sender: chunks.0,
+					signature
+				};
 
-			self.network().gossip_message(self.erasure_chunks_topic, message.into());
+				self.network().gossip_message(self.erasure_chunks_topic, message.into());
+			}
 		}
 	}
 

@@ -26,15 +26,15 @@ pub enum ChainSpec {
 	Development,
 	/// Whatever the current runtime is, with simple Alice/Bob auths.
 	LocalTestnet,
-	/// The PoC-3 era testnet.
-	Alexander,
+	/// The Kusama network.
+	Kusama,
 	/// Whatever the current runtime is with the "global testnet" defaults.
 	StagingTestnet,
 }
 
 impl Default for ChainSpec {
 	fn default() -> Self {
-		ChainSpec::Alexander
+		ChainSpec::Kusama
 	}
 }
 
@@ -42,7 +42,7 @@ impl Default for ChainSpec {
 impl ChainSpec {
 	pub(crate) fn load(self) -> Result<service::ChainSpec, String> {
 		Ok(match self {
-			ChainSpec::Alexander => service::chain_spec::poc_3_testnet_config()?,
+			ChainSpec::Kusama => service::chain_spec::kusama_config()?,
 			ChainSpec::Development => service::chain_spec::development_config(),
 			ChainSpec::LocalTestnet => service::chain_spec::local_testnet_config(),
 			ChainSpec::StagingTestnet => service::chain_spec::staging_testnet_config(),
@@ -53,7 +53,7 @@ impl ChainSpec {
 		match s {
 			"dev" => Some(ChainSpec::Development),
 			"local" => Some(ChainSpec::LocalTestnet),
-			"poc-3" | "alex" | "alexander" => Some(ChainSpec::Alexander),
+			"kusama" => Some(ChainSpec::Kusama),
 			"staging" => Some(ChainSpec::StagingTestnet),
 			"" => Some(ChainSpec::default()),
 			_ => None,

@@ -16,8 +16,8 @@
 
 //! Polkadot-specific network implementation.
 //!
-//! This manages routing for parachain statements, parachain block and extrinsic data fetching,
-//! communication between collators and validators, and more.
+//! This manages routing for parachain statements, parachain block and outgoing message
+//! data fetching, communication between collators and validators, and more.
 
 mod collator_pool;
 mod local_collations;
@@ -25,23 +25,29 @@ mod router;
 pub mod validation;
 pub mod gossip;
 
-use parity_codec::{Decode, Encode};
-use futures::sync::oneshot;
-use polkadot_primitives::{Block, SessionKey, Hash, Header};
+use codec::{Decode, Encode};
+use futures::sync::{oneshot, mpsc};
+use futures::prelude::*;
+use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock,
-	StructuredUnroutedIngress, ErasureChunk,
+	StructuredUnroutedIngress, ValidatorId, OutgoingMessages, ErasureChunk,
 };
 use substrate_network::{
 	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
 	specialization::{Event, NetworkSpecialization as Specialization},
 };
-use self::validation::{LiveValidationSessions, RecentValidatorIds, InsertedRecentKey};
+use substrate_network::consensus_gossip::{
+	self, TopicNotification, MessageRecipient as GossipMessageRecipient, ConsensusMessage,
+};
+use self::validation::{LiveValidationLeaves, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
 use log::{trace, debug, warn};
 
 use std::collections::{HashMap, HashSet};
+
+use crate::gossip::{POLKADOT_ENGINE_ID, GossipMessage};
 
 #[cfg(test)]
 mod tests;
@@ -71,7 +77,112 @@ mod benefit {
 type FullStatus = GenericFullStatus<Block>;
 
 /// Specialization of the network service for the polkadot protocol.
-pub type NetworkService = substrate_network::NetworkService<Block, PolkadotProtocol, Hash>;
+pub type PolkadotNetworkService = substrate_network::NetworkService<Block, PolkadotProtocol, Hash>;
+
+/// Basic functionality that a network has to fulfill.
+pub trait NetworkService: Send + Sync + 'static {
+	/// Get a stream of gossip messages for a given hash.
+	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream;
+
+	/// Gossip a message on given topic.
+	fn gossip_message(&self, topic: Hash, message: GossipMessage);
+
+	/// Execute a closure with the gossip service.
+	fn with_gossip<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut dyn GossipService, &mut dyn Context<Block>);
+
+	/// Execute a closure with the polkadot protocol.
+	fn with_spec<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>);
+}
+
+impl NetworkService for PolkadotNetworkService {
+	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
+		let (tx, rx) = std::sync::mpsc::channel();
+
+		PolkadotNetworkService::with_gossip(self, move |gossip, _| {
+			let inner_rx = gossip.messages_for(POLKADOT_ENGINE_ID, topic);
+			let _ = tx.send(inner_rx);
+		});
+
+		let topic_stream = match rx.recv() {
+			Ok(rx) => rx,
+			Err(_) => mpsc::unbounded().1, // return empty channel.
+		};
+
+		GossipMessageStream::new(topic_stream)
+	}
+
+	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
+		self.gossip_consensus_message(
+			topic,
+			POLKADOT_ENGINE_ID,
+			message.encode(),
+			GossipMessageRecipient::BroadcastToAll,
+		);
+	}
+
+	fn with_gossip<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut dyn GossipService, &mut dyn Context<Block>)
+	{
+		PolkadotNetworkService::with_gossip(self, move |gossip, ctx| with(gossip, ctx))
+	}
+
+	fn with_spec<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>)
+	{
+		PolkadotNetworkService::with_spec(self, with)
+	}
+}
+
+/// A gossip network subservice.
+pub trait GossipService {
+	fn send_message(&mut self, ctx: &mut dyn Context<Block>, who: &PeerId, message: ConsensusMessage);
+	fn multicast(&mut self, ctx: &mut dyn Context<Block>, topic: &Hash, message: ConsensusMessage);
+}
+
+impl GossipService for consensus_gossip::ConsensusGossip<Block> {
+	fn send_message(&mut self, ctx: &mut dyn Context<Block>, who: &PeerId, message: ConsensusMessage) {
+		consensus_gossip::ConsensusGossip::send_message(self, ctx, who, message)
+	}
+
+	fn multicast(&mut self, ctx: &mut dyn Context<Block>, topic: &Hash, message: ConsensusMessage) {
+		consensus_gossip::ConsensusGossip::multicast(self, ctx, *topic, message, false)
+	}
+}
+
+/// A stream of gossip messages and an optional sender for a topic.
+pub struct GossipMessageStream {
+	topic_stream: mpsc::UnboundedReceiver<TopicNotification>,
+}
+
+impl GossipMessageStream {
+	/// Create a new instance with the given topic stream.
+	pub fn new(topic_stream: mpsc::UnboundedReceiver<TopicNotification>) -> Self {
+		Self {
+			topic_stream
+		}
+	}
+}
+
+impl Stream for GossipMessageStream {
+	type Item = (GossipMessage, Option<PeerId>);
+	type Error = ();
+
+	fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+		loop {
+			let msg = match futures::try_ready!(self.topic_stream.poll()) {
+				Some(msg) => msg,
+				None => return Ok(Async::Ready(None)),
+			};
+
+			debug!(target: "validation", "Processing statement for live validation leaf-work");
+			if let Ok(gmsg) = GossipMessage::decode(&mut &msg.message[..]) {
+				return Ok(Async::Ready(Some((gmsg, msg.sender))))
+			}
+		}
+	}
+}
 
 /// Status of a Polkadot node.
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
@@ -80,8 +191,8 @@ pub struct Status {
 }
 
 struct PoVBlockRequest {
-	attempted_peers: HashSet<SessionKey>,
-	validation_session_parent: Hash,
+	attempted_peers: HashSet<ValidatorId>,
+	validation_leaf: Hash,
 	candidate_hash: Hash,
 	block_data_hash: Hash,
 	sender: oneshot::Sender<PoVBlock>,
@@ -89,7 +200,7 @@ struct PoVBlockRequest {
 }
 
 struct BlockChunkRequest {
-	attempted_peers: HashSet<SessionKey>,
+	attempted_peers: HashSet<ValidatorId>,
 	relay_parent: Hash,
 	candidate_hash: Hash,
 	chunk_id: u64,
@@ -145,8 +256,8 @@ enum CollatorState {
 }
 
 impl CollatorState {
-	fn send_key<F: FnMut(Message)>(&mut self, key: SessionKey, mut f: F) {
-		f(Message::SessionKey(key));
+	fn send_key<F: FnMut(Message)>(&mut self, key: ValidatorId, mut f: F) {
+		f(Message::ValidatorId(key));
 		if let CollatorState::RolePending(role) = *self {
 			f(Message::CollatorRole(role));
 			*self = CollatorState::Primed(Some(role));
@@ -190,7 +301,7 @@ pub enum Message {
 	/// As a validator, tell the peer your current session key.
 	// TODO: do this with a cryptographic proof of some kind
 	// https://github.com/paritytech/polkadot/issues/47
-	SessionKey(SessionKey),
+	ValidatorId(ValidatorId),
 	/// Requesting parachain proof-of-validation block (relay_parent, candidate_hash).
 	RequestPovBlock(RequestId, Hash, Hash),
 	/// Provide requested proof-of-validation block data by candidate hash or nothing if unknown.
@@ -216,14 +327,14 @@ pub struct PolkadotProtocol {
 	peers: HashMap<PeerId, PeerInfo>,
 	collating_for: Option<(CollatorId, ParaId)>,
 	collators: CollatorPool,
-	validators: HashMap<SessionKey, PeerId>,
+	validators: HashMap<ValidatorId, PeerId>,
 	local_collations: LocalCollations<Collation>,
-	live_validation_sessions: LiveValidationSessions,
+	live_validation_leaves: LiveValidationLeaves,
 	in_flight: HashMap<(RequestId, PeerId), PoVBlockRequest>,
 	in_flight_chunk_requests: HashMap<(RequestId, PeerId), BlockChunkRequest>,
 	pending: Vec<PoVBlockRequest>,
 	pending_chunk_requests: Vec<BlockChunkRequest>,
-	extrinsic_store: Option<::av_store::Store>,
+	availability_store: Option<av_store::Store>,
 	next_req_id: u64,
 }
 
@@ -236,12 +347,12 @@ impl PolkadotProtocol {
 			collating_for,
 			validators: HashMap::new(),
 			local_collations: LocalCollations::new(),
-			live_validation_sessions: LiveValidationSessions::new(),
+			live_validation_leaves: LiveValidationLeaves::new(),
 			in_flight: HashMap::new(),
 			in_flight_chunk_requests: HashMap::new(),
 			pending: Vec::new(),
 			pending_chunk_requests: Vec::new(),
-			extrinsic_store: None,
+			availability_store: None,
 			next_req_id: 1,
 		}
 	}
@@ -258,7 +369,7 @@ impl PolkadotProtocol {
 
 		self.pending.push(PoVBlockRequest {
 			attempted_peers: Default::default(),
-			validation_session_parent: relay_parent,
+			validation_leaf: relay_parent,
 			candidate_hash: candidate.hash(),
 			block_data_hash: candidate.block_data_hash,
 			sender: tx,
@@ -291,15 +402,15 @@ impl PolkadotProtocol {
 		rx
 	}
 
-	/// Note new validation session.
-	fn new_validation_session(
+	/// Note new leaf to do validation work at
+	fn new_validation_leaf_work(
 		&mut self,
 		ctx: &mut dyn Context<Block>,
-		params: validation::SessionParams,
-	) -> validation::ValidationSession {
+		params: validation::LeafWorkParams,
+	) -> validation::LiveValidationLeaf {
 
-		let (session, new_local) = self.live_validation_sessions
-			.new_validation_session(params);
+		let (work, new_local) = self.live_validation_leaves
+			.new_validation_leaf(params);
 
 		if let Some(new_local) = new_local {
 			for (id, peer_data) in self.peers.iter_mut()
@@ -313,12 +424,12 @@ impl PolkadotProtocol {
 			}
 		}
 
-		session
+		work
 	}
 
 	// true indicates that it was removed actually.
 	fn remove_validation_session(&mut self, parent_hash: Hash) -> bool {
-		self.live_validation_sessions.remove(parent_hash)
+		self.live_validation_leaves.remove(parent_hash)
 	}
 
 	fn dispatch_pending_requests(&mut self, ctx: &mut dyn Context<Block>) {
@@ -329,10 +440,10 @@ impl PolkadotProtocol {
 		let in_flight_chunk_requests = &mut self.in_flight_chunk_requests;
 
 		for mut pending in ::std::mem::replace(&mut self.pending, Vec::new()) {
-			let parent = pending.validation_session_parent;
+			let parent = pending.validation_leaf;
 			let c_hash = pending.candidate_hash;
 
-			let still_pending = self.live_validation_sessions.with_pov_block(&parent, &c_hash, |x| match x {
+			let still_pending = self.live_validation_leaves.with_pov_block(&parent, &c_hash, |x| match x {
 				Ok(data @ &_) => {
 					// answer locally.
 					let _ = pending.sender.send(data.clone());
@@ -362,7 +473,7 @@ impl PolkadotProtocol {
 						Some(pending)
 					}
 				}
-				Err(None) => None, // no such known validation session. prune out.
+				Err(None) => None, // no such known validation leaf-work. prune out.
 			});
 
 			if let Some(pending) = still_pending {
@@ -405,9 +516,9 @@ impl PolkadotProtocol {
 	fn on_polkadot_message(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, msg: Message) {
 		trace!(target: "p_net", "Polkadot message from {}: {:?}", who, msg);
 		match msg {
-			Message::SessionKey(key) => self.on_session_key(ctx, who, key),
+			Message::ValidatorId(key) => self.on_session_key(ctx, who, key),
 			Message::RequestPovBlock(req_id, relay_parent, candidate_hash) => {
-				let pov_block = self.live_validation_sessions.with_pov_block(
+				let pov_block = self.live_validation_leaves.with_pov_block(
 					&relay_parent,
 					&candidate_hash,
 					|res| res.ok().map(|b| b.clone()),
@@ -417,12 +528,11 @@ impl PolkadotProtocol {
 			}
 			Message::PovBlock(req_id, data) => self.on_pov_block(ctx, who, req_id, data),
 			Message::RequestBlockChunk(req_id, relay_parent, candidate_hash, idx) => {
-				let msg = self.extrinsic_store.as_ref().and_then(|s| {
+				let msg = self.availability_store.as_ref().and_then(|s| {
 					s.erasure_chunk(relay_parent, candidate_hash, idx as usize).and_then(|chunk| {
 						Some(chunk)
 					})
 				});
-
 				send_polkadot_message(ctx, who, Message::BlockChunk(req_id, msg));
 			}
 			Message::BlockChunk(req_id, chunk) => {
@@ -433,7 +543,7 @@ impl PolkadotProtocol {
 		}
 	}
 
-	fn on_session_key(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, key: SessionKey) {
+	fn on_session_key(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, key: ValidatorId) {
 		{
 			let info = match self.peers.get_mut(&who) {
 				Some(peer) => peer,
@@ -588,12 +698,8 @@ impl Specialization<Block> for PolkadotProtocol {
 	}
 
 	fn on_connect(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, status: FullStatus) {
-		let local_status = match Status::decode(&mut &status.chain_status[..]) {
-			Some(status) => status,
-			None => {
-				Status { collating_for: None }
-			}
-		};
+		let local_status = Status::decode(&mut &status.chain_status[..])
+			.unwrap_or_else(|_| Status { collating_for: None });
 
 		let validator = status.roles.contains(substrate_network::config::Roles::AUTHORITY);
 
@@ -626,7 +732,7 @@ impl Specialization<Block> for PolkadotProtocol {
 
 		// send session keys.
 		if peer_info.should_send_key() {
-			for local_session_key in self.live_validation_sessions.recent_keys() {
+			for local_session_key in self.live_validation_leaves.recent_keys() {
 				peer_info.collator_state.send_key(local_session_key.clone(), |msg| send_polkadot_message(
 					ctx,
 					who.clone(),
@@ -668,7 +774,7 @@ impl Specialization<Block> for PolkadotProtocol {
 						let (sender, _) = oneshot::channel();
 						pending.push(::std::mem::replace(val, PoVBlockRequest {
 							attempted_peers: Default::default(),
-							validation_session_parent: Default::default(),
+							validation_leaf: Default::default(),
 							candidate_hash: Default::default(),
 							block_data_hash: Default::default(),
 							canon_roots: StructuredUnroutedIngress(Vec::new()),
@@ -690,11 +796,11 @@ impl Specialization<Block> for PolkadotProtocol {
 		message: Vec<u8>,
 	) {
 		match Message::decode(&mut &message[..]) {
-			Some(msg) => {
+			Ok(msg) => {
 				ctx.report_peer(who.clone(), benefit::VALID_FORMAT);
 				self.on_polkadot_message(ctx, who, msg)
 			},
-			None => {
+			Err(_) => {
 				trace!(target: "p_net", "Bad message from {}", who);
 				ctx.report_peer(who, cost::INVALID_FORMAT);
 			}
@@ -795,15 +901,36 @@ impl PolkadotProtocol {
 
 impl PolkadotProtocol {
 	/// Add a local collation and broadcast it to the necessary peers.
+	///
+	/// This should be called by a collator intending to get the locally-collated
+	/// block into the hands of validators.
+	/// It also places the outgoing message and block data in the local availability store.
 	pub fn add_local_collation(
 		&mut self,
 		ctx: &mut dyn Context<Block>,
 		relay_parent: Hash,
-		targets: HashSet<SessionKey>,
+		targets: HashSet<ValidatorId>,
 		collation: Collation,
-	) {
+		outgoing_targeted: OutgoingMessages,
+	) -> std::io::Result<()> {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",
 			relay_parent, collation.receipt.parachain_index);
+
+		let outgoing_queues: Vec<_> = polkadot_validation::outgoing_queues(&outgoing_targeted)
+			.map(|(_target, root, data)| (root, data))
+			.collect();
+
+		/*
+		if let Some(ref availability_store) = self.availability_store {
+			availability_store.make_available(av_store::Data {
+				relay_parent,
+				parachain_id: collation.receipt.parachain_index,
+				candidate_hash: collation.receipt.hash(),
+				block_data: collation.pov.block_data.clone(),
+				outgoing_queues: Some(outgoing_queues),
+			})?;
+		}
+		*/
 
 		for (primary, cloned_collation) in self.local_collations.add_collation(relay_parent, targets, collation.clone()) {
 			match self.validators.get(&primary) {
@@ -819,10 +946,13 @@ impl PolkadotProtocol {
 					warn!(target: "polkadot_network", "Encountered tracked but disconnected validator {:?}", primary),
 			}
 		}
+
+		Ok(())
 	}
 
-	/// register availability store.
-	pub fn register_availability_store(&mut self, extrinsic_store: ::av_store::Store) {
-		self.extrinsic_store = Some(extrinsic_store);
+	/// Give the network protocol a handle to an availability store, used for
+	/// circulation of parachain data required for validation.
+	pub fn register_availability_store(&mut self, availability_store: ::av_store::Store) {
+		self.availability_store = Some(availability_store);
 	}
 }

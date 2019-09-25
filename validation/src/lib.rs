@@ -31,25 +31,25 @@
 
 use std::{collections::{HashMap, HashSet}, pin::Pin, sync::Arc, time::{self, Duration, Instant}};
 
-use aura::{SlotDuration, AuraApi};
+use babe_primitives::BabeApi;
 use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
-use parity_codec::Encode;
+use client::error as client_error;
+use codec::Encode;
 use consensus::SelectChain;
-use extrinsic_store::Store as ExtrinsicStore;
+use availability_store::Store as AvailabilityStore;
 use parking_lot::Mutex;
-use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header, SessionKey, AuraId};
+use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, Extrinsic as ParachainExtrinsic, CandidateReceipt,
-	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessage,
+	Id as ParaId, Chain, DutyRoster, CandidateReceipt, AvailableMessages,
+	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessages,
 	CollatorSignature, Collation, PoVBlock, ErasureChunk, ErasureChunks, ValidatorSignature, ValidatorIndex,
+	ValidatorPair, ValidatorId,
 };
+use primitives::Pair;
 use polkadot_erasure_coding::{self as erasure};
-use primitives::{Pair, ed25519};
-use runtime_primitives::{
-	traits::{ProvideRuntimeApi, Header as HeaderT, DigestFor}, ApplyError
-};
+use runtime_primitives::traits::{AppVerify, ProvideRuntimeApi, DigestFor};
 use futures_timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
 
@@ -59,10 +59,9 @@ use futures03::{future::{self, Either, FutureExt}, task::Context, stream::Stream
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
-use runtime_aura::timestamp::TimestampInherentData;
+use runtime_babe::timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace, error};
-
-use ed25519::Public as AuthorityId;
+use keystore::KeyStorePtr;
 
 type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
@@ -90,27 +89,6 @@ const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
 /// Incoming messages; a series of sorted (ParaId, Message) pairs.
 pub type Incoming = Vec<(ParaId, Vec<Message>)>;
 
-/// Outgoing messages from various candidates.
-pub type Outgoing = Vec<MessagesFrom>;
-
-/// Some messages from a parachain.
-pub struct MessagesFrom {
-	/// The parachain originating the messages.
-	pub from: ParaId,
-	/// The messages themselves.
-	pub messages: ParachainExtrinsic,
-}
-
-impl MessagesFrom {
-	/// Construct from the raw messages.
-	pub fn from_messages(from: ParaId, messages: Vec<OutgoingMessage>) -> Self {
-		MessagesFrom {
-			from,
-			messages: ParachainExtrinsic { outgoing_messages: messages },
-		}
-	}
-}
-
 /// A handle to a statement table router.
 ///
 /// This is expected to be a lightweight, shared type like an `Arc`.
@@ -124,7 +102,7 @@ pub trait TableRouter: Clone {
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
-	fn local_collation(&self, collation: Collation, extrinsic: ParachainExtrinsic, chunks: (ValidatorIndex, &Vec<ErasureChunk>));
+	fn local_collation(&self, collation: Collation, outgoing: OutgoingMessages, chunks: (ValidatorIndex, &Vec<ErasureChunk>));
 
 	/// Fetch validation proof for a specific candidate.
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
@@ -151,7 +129,7 @@ pub trait Network {
 	fn communication_for(
 		&self,
 		table: Arc<SharedTable>,
-		authorities: &[SessionKey],
+		authorities: &[ValidatorId],
 		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter;
 }
@@ -160,7 +138,7 @@ pub trait Network {
 #[derive(Debug, Clone, Default)]
 pub struct GroupInfo {
 	/// Authorities meant to check validity of candidates.
-	validity_guarantors: HashSet<SessionKey>,
+	validity_guarantors: HashSet<ValidatorId>,
 	/// Number of votes needed for validity.
 	needed_validity: usize,
 }
@@ -168,28 +146,26 @@ pub struct GroupInfo {
 /// Sign a table statement against a parent hash.
 /// The actual message signed is the encoded statement concatenated with the
 /// parent hash.
-pub fn sign_table_statement(statement: &Statement, key: &ed25519::Pair, parent_hash: &Hash) -> CollatorSignature {
+pub fn sign_table_statement(statement: &Statement, key: &ValidatorPair, parent_hash: &Hash) -> ValidatorSignature {
 	// we sign using the primitive statement type because that's what the runtime
 	// expects. These types probably encode the same way so this clone could be optimized
 	// out in the future.
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
 	encoded.extend(parent_hash.as_ref());
 
-	key.sign(&encoded).into()
+	key.sign(&encoded)
 }
 
 /// Check signature on table statement.
-pub fn check_statement(statement: &Statement, signature: &CollatorSignature, signer: SessionKey, parent_hash: &Hash) -> bool {
-	use runtime_primitives::traits::Verify;
-
+pub fn check_statement(statement: &Statement, signature: &ValidatorSignature, signer: ValidatorId, parent_hash: &Hash) -> bool {
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
 	encoded.extend(parent_hash.as_ref());
 
-	signature.verify(&encoded[..], &signer.into())
+	signature.verify(&encoded[..], &signer)
 }
 
 /// Sign an erasure chunk message.
-pub fn sign_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, key: &ed25519::Pair) -> ValidatorSignature {
+pub fn sign_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, key: &ValidatorPair) -> ValidatorSignature {
 	let mut encoded = chunk.encode();
 	encoded.extend(validator.to_be_bytes().iter());
 
@@ -197,9 +173,7 @@ pub fn sign_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, key: &ed25519
 }
 
 /// Check the signature of a chunk message.
-pub fn check_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, signer: SessionKey, signature: &ValidatorSignature) -> bool {
-	use runtime_primitives::traits::Verify;
-
+pub fn check_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, signer: ValidatorId, signature: &ValidatorSignature) -> bool {
 	let mut encoded = chunk.encode();
 	encoded.extend(validator.to_be_bytes().iter());
 
@@ -209,9 +183,9 @@ pub fn check_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, signer: Sess
 /// Compute group info out of a duty roster and a local authority set.
 pub fn make_group_info(
 	roster: DutyRoster,
-	authorities: &[AuthorityId],
-	local_id: AuthorityId,
-) -> Result<(HashMap<ParaId, GroupInfo>, LocalDuty), Error> {
+	authorities: &[ValidatorId],
+	local_id: Option<ValidatorId>,
+) -> Result<(HashMap<ParaId, GroupInfo>, Option<LocalDuty>), Error> {
 	if roster.validator_duty.len() != authorities.len() {
 		return Err(Error::InvalidDutyRosterLength {
 			expected: authorities.len(),
@@ -225,7 +199,7 @@ pub fn make_group_info(
 
 	let duty_iter = authorities.iter().zip(&roster.validator_duty);
 	for (i, (authority, v_duty)) in duty_iter.enumerate() {
-		if authority == &local_id {
+		if Some(authority) == local_id.as_ref() {
 			local_validation = Some(v_duty.clone());
 			local_index = i;
 		}
@@ -251,11 +225,40 @@ pub fn make_group_info(
 				validation: local_validation,
 				index: local_index as ValidatorIndex,
 			};
-
-			Ok((map, local_duty))
 		}
-		None => return Err(Error::NotValidator(local_id)),
+		None => unimplemented!(),
 	}
+
+	let local_duty = local_validation.map(|v| LocalDuty {
+		validation: v,
+		index: local_index as u32,
+	});
+
+	Ok((map, local_duty))
+
+}
+
+/// Compute the (target, root, messages) of all outgoing queues.
+pub fn outgoing_queues(outgoing_targeted: &'_ OutgoingMessages)
+	-> impl Iterator<Item=(ParaId, Hash, Vec<Message>)> + '_
+{
+	outgoing_targeted.message_queues().filter_map(|queue| {
+		let target = queue.get(0)?.target;
+		let queue_root = message_queue_root(queue);
+		let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
+		Some((target, queue_root, queue_data))
+	})
+}
+
+// finds the first key we are capable of signing with out of the given set of validators,
+// if any.
+fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc<ValidatorPair>> {
+	let keystore = keystore.read();
+	validators.iter()
+		.find_map(|v| {
+			keystore.key_pair::<ValidatorPair>(&v).ok()
+		})
+		.map(|pair| Arc::new(pair))
 }
 
 /// Constructs parachain-agreement instances.
@@ -269,7 +272,7 @@ struct ParachainValidation<C, N, P> {
 	/// handle to remote task executor
 	handle: TaskExecutor,
 	/// Store for extrinsic data.
-	extrinsic_store: ExtrinsicStore,
+	availability_store: AvailabilityStore,
 	/// Live agreements. Maps relay chain parent hashes to attestation
 	/// instances.
 	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
@@ -279,7 +282,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -294,8 +297,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	fn get_or_instantiate(
 		&self,
 		parent_hash: Hash,
-		grandparent_hash: Hash,
-		sign_with: Arc<ed25519::Pair>,
+		keystore: &KeyStorePtr,
 		max_block_data_size: Option<u64>,
 	)
 		-> Result<Arc<AttestationTracker>, Error>
@@ -307,46 +309,21 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let id = BlockId::hash(parent_hash);
 
-		let authorities = self.client.runtime_api().authorities(&id)?;
-
-		// compute the parent candidates, if we know of them.
-		// this will allow us to circulate outgoing messages to other peers as necessary.
-		let parent_candidates: Vec<_> = crate::attestation_service::fetch_candidates(&*self.client, &id)
-			.ok()
-			.and_then(|x| x)
-			.map(|x| x.collect())
-			.unwrap_or_default();
-
-		// TODO: https://github.com/paritytech/polkadot/issues/253
-		//
-		// We probably don't only want active validators to do this, or messages
-		// will disappear when validators exit the set.
-		let _outgoing: Vec<_> = {
-			// extract all extrinsic data that we have and propagate to peers.
-			live_instances.get(&grandparent_hash).map(|parent_validation| {
-				parent_candidates.iter().filter_map(|c| {
-					let para_id = c.parachain_index;
-					let hash = c.hash();
-					parent_validation.table.extrinsic_data(&hash).map(|ex| MessagesFrom {
-						from: para_id,
-						messages: ex,
-					})
-				}).collect()
-			}).unwrap_or_default()
-		};
+		let validators = self.client.runtime_api().validators(&id)?;
+		let sign_with = signing_key(&validators[..], keystore);
 
 		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
 
 		let (group_info, local_duty) = make_group_info(
 			duty_roster,
-			&authorities,
-			sign_with.public(),
+			&validators,
+			sign_with.as_ref().map(|k| k.public()),
 		)?;
 
 		info!(
 			"Starting parachain attestation session on top of parent {:?}. Local parachain duty is {:?}",
 			parent_hash,
-			local_duty.validation,
+			local_duty,
 		);
 
 		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
@@ -354,11 +331,11 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
 		let table = Arc::new(SharedTable::new(
-			&authorities,
+			validators.clone(),
 			group_info,
-			sign_with.clone(),
+			sign_with,
 			parent_hash,
-			self.extrinsic_store.clone(),
+			self.availability_store.clone(),
 			max_block_data_size,
 		));
 
@@ -366,12 +343,12 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let router = self.network.communication_for(
 			table.clone(),
-			&authorities,
+			&validators,
 			exit.clone(),
 		);
 
-		if let Chain::Parachain(id) = local_duty.validation {
-			self.launch_work(parent_hash, id, router, max_block_data_size, authorities.len(), local_duty.index, exit);
+		if let Some((Chain::Parachain(id), index)) = local_duty.as_ref().map(|d| (d.validation, d.index)) {
+			self.launch_work(parent_hash, id, router, max_block_data_size, validators.len(), index, exit);
 		}
 
 		let tracker = Arc::new(AttestationTracker {
@@ -401,10 +378,10 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		local_id: ValidatorIndex,
 		exit: exit_future::Exit,
 	) {
-		use extrinsic_store::Data;
+		use availability_store::Data;
 
 		let (collators, client) = (self.collators.clone(), self.client.clone());
-		let extrinsic_store = self.extrinsic_store.clone();
+		let availability_store = self.availability_store.clone();
 
 		let with_router = move |router: N::TableRouter| {
 			// fetch a local collation from connected collators.
@@ -417,10 +394,14 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			);
 
 			collation_work.then(move |result| match result {
-				Ok((mut collation, extrinsic)) => {
+				Ok((mut collation, outgoing_targeted)) => {
+					let outgoing_queues: Vec<_> = crate::outgoing_queues(&outgoing_targeted)
+						.map(|(_target, root, data)| (root, data))
+						.collect();
+
 					let chunks = erasure::obtain_chunks(authorities_num,
 						&collation.pov.block_data,
-						&extrinsic.clone()).unwrap();
+						&Some(outgoing_targeted.clone().into())).unwrap();
 
 					let chunks_ref: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
 					let branches = erasure::branches(chunks_ref.clone());
@@ -448,7 +429,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 						chunks: chunks.clone(),
 					};
 
-					let res = extrinsic_store.make_available(Data {
+					let res = availability_store.make_available(Data {
 						relay_parent,
 						parachain_id: collation.receipt.parachain_index,
 						candidate_hash,
@@ -457,7 +438,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 					match res {
 						Ok(()) => {
-							router.local_collation(collation, extrinsic, (local_id, &chunks));
+							router.local_collation(collation, outgoing_targeted, (local_id, &chunks));
 						}
 						Err(e) => warn!(
 							target: "validation",
@@ -502,9 +483,9 @@ struct AttestationTracker {
 pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	parachain_validation: Arc<ParachainValidation<C, N, P>>,
 	transaction_pool: Arc<Pool<TxApi>>,
-	key: Arc<ed25519::Pair>,
+	keystore: KeyStorePtr,
 	_service_handle: ServiceHandle,
-	aura_slot_duration: SlotDuration,
+	babe_slot_duration: u64,
 	_select_chain: SC,
 	max_block_data_size: Option<u64>,
 }
@@ -514,7 +495,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -529,9 +510,9 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 		collators: C,
 		transaction_pool: Arc<Pool<TxApi>>,
 		thread_pool: TaskExecutor,
-		key: Arc<ed25519::Pair>,
-		extrinsic_store: ExtrinsicStore,
-		aura_slot_duration: SlotDuration,
+		keystore: KeyStorePtr,
+		availability_store: AvailabilityStore,
+		babe_slot_duration: u64,
 		max_block_data_size: Option<u64>,
 	) -> Self {
 		let parachain_validation = Arc::new(ParachainValidation {
@@ -539,7 +520,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			network,
 			collators,
 			handle: thread_pool.clone(),
-			extrinsic_store: extrinsic_store.clone(),
+			availability_store: availability_store.clone(),
 			live_instances: Mutex::new(HashMap::new()),
 		});
 
@@ -548,17 +529,17 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			_select_chain.clone(),
 			parachain_validation.clone(),
 			thread_pool,
-			key.clone(),
-			extrinsic_store,
+			keystore.clone(),
+			availability_store,
 			max_block_data_size,
 		);
 
 		ProposerFactory {
 			parachain_validation,
 			transaction_pool,
-			key,
+			keystore,
 			_service_handle: service_handle,
-			aura_slot_duration,
+			babe_slot_duration,
 			_select_chain,
 			max_block_data_size,
 		}
@@ -570,7 +551,7 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + AuraApi<Block, AuraId>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -580,16 +561,15 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 	type Error = Error;
 
 	fn init(
-		&self,
+		&mut self,
 		parent_header: &Header,
 	) -> Result<Self::Proposer, Error> {
 		let parent_hash = parent_header.hash();
 		let parent_id = BlockId::hash(parent_hash);
-		let sign_with = self.key.clone();
+
 		let tracker = self.parachain_validation.get_or_instantiate(
 			parent_hash,
-			parent_header.parent_hash().clone(),
-			sign_with,
+			&self.keystore,
 			self.max_block_data_size,
 		)?;
 
@@ -600,12 +580,13 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 			parent_id,
 			parent_number: parent_header.number,
 			transaction_pool: self.transaction_pool.clone(),
-			slot_duration: self.aura_slot_duration,
+			slot_duration: self.babe_slot_duration,
 		})
 	}
 }
 
 /// The local duty of a validator.
+#[derive(Debug)]
 pub struct LocalDuty {
 	validation: Chain,
 	index: ValidatorIndex,
@@ -621,7 +602,7 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 	parent_number: BlockNumber,
 	tracker: Arc<AttestationTracker>,
 	transaction_pool: Arc<Pool<TxApi>>,
-	slot_duration: SlotDuration,
+	slot_duration: u64,
 }
 
 impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
@@ -632,7 +613,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	type Error = Error;
 	type Create = Either<CreateProposal<C, TxApi>, future::Ready<Result<Block, Error>>>;
 
-	fn propose(&self,
+	fn propose(&mut self,
 		inherent_data: InherentData,
 		inherent_digests: DigestFor<Block>,
 		max_duration: Duration,
@@ -646,7 +627,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		let dynamic_inclusion = DynamicInclusion::new(
 			self.tracker.table.num_parachains(),
 			self.tracker.started,
-			Duration::from_secs(self.slot_duration.get() / SLOT_DURATION_DENOMINATOR),
+			Duration::from_millis(self.slot_duration / SLOT_DURATION_DENOMINATOR),
 		);
 
 		let enough_candidates = dynamic_inclusion.acceptable_in(
@@ -664,7 +645,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		let delay_future = if current_timestamp >= believed_timestamp {
 			None
 		} else {
-			Some(Delay::new(Duration::from_secs(current_timestamp - believed_timestamp)))
+			Some(Delay::new(Duration::from_millis (current_timestamp - believed_timestamp)))
 		};
 
 		let timing = ProposalTiming {
@@ -673,6 +654,14 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 			enough_candidates: Delay::new(enough_candidates),
 			dynamic_inclusion,
 			last_included: initial_included,
+		};
+
+		let deadline_diff = max_duration - max_duration / 3;
+		let deadline = match Instant::now().checked_add(deadline_diff) {
+			None => return Either::Right(
+				future::err(Error::DeadlineComputeFailure(deadline_diff)),
+			),
+			Some(d) => d,
 		};
 
 		Either::Left(CreateProposal {
@@ -687,7 +676,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 			inherent_data: Some(inherent_data),
 			inherent_digests,
 			// leave some time for the proposal finalisation
-			deadline: Instant::now() + max_duration - max_duration / 3,
+			deadline,
 		})
 	}
 }
@@ -695,8 +684,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 fn current_timestamp() -> u64 {
 	time::SystemTime::now().duration_since(time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
-		.as_secs()
-		.into()
+		.as_millis() as u64
 }
 
 struct ProposalTiming {
@@ -793,7 +781,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			for ready in ready_iter.take(MAX_TRANSACTIONS) {
 				let encoded_size = ready.data.encode().len();
 				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
-					break
+					break;
 				}
 				if Instant::now() > self.deadline {
 					debug!("Consensus deadline reached when pushing block transactions, proceeding with proposing.");
@@ -805,7 +793,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 						debug!("[{:?}] Pushed to the block.", ready.hash);
 						pending_size += encoded_size;
 					}
-					Err(client::error::Error::ApplyExtrinsicFailed(ApplyError::FullBlock)) => {
+					Err(client_error::Error::ApplyExtrinsicFailed(e)) if e.exhausted_resources() => {
 						debug!("Block is full, proceed with proposing.");
 						break;
 					}
@@ -868,17 +856,17 @@ impl<C, TxApi> futures03::Future for CreateProposal<C, TxApi> where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::Ed25519Keyring;
+	use substrate_keyring::Sr25519Keyring;
 
 	#[test]
 	fn sign_and_check_statement() {
 		let statement: Statement = GenericStatement::Valid([1; 32].into());
 		let parent_hash = [2; 32].into();
 
-		let sig = sign_table_statement(&statement, &Ed25519Keyring::Alice.pair(), &parent_hash);
+		let sig = sign_table_statement(&statement, &Sr25519Keyring::Alice.pair().into(), &parent_hash);
 
-		assert!(check_statement(&statement, &sig, Ed25519Keyring::Alice.into(), &parent_hash));
-		assert!(!check_statement(&statement, &sig, Ed25519Keyring::Alice.into(), &[0xff; 32].into()));
-		assert!(!check_statement(&statement, &sig, Ed25519Keyring::Bob.into(), &parent_hash));
+		assert!(check_statement(&statement, &sig, Sr25519Keyring::Alice.public().into(), &parent_hash));
+		assert!(!check_statement(&statement, &sig, Sr25519Keyring::Alice.public().into(), &[0xff; 32].into()));
+		assert!(!check_statement(&statement, &sig, Sr25519Keyring::Bob.public().into(), &parent_hash));
 	}
 }

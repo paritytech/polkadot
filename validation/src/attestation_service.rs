@@ -29,15 +29,15 @@ use client::{error::Result as ClientResult, BlockchainEvents, BlockBody};
 use client::block_builder::api::BlockBuilder;
 use client::blockchain::HeaderBackend;
 use consensus::SelectChain;
-use extrinsic_store::Store as ExtrinsicStore;
+use availability_store::Store as AvailabilityStore;
 use futures::prelude::*;
 use futures03::{TryStreamExt as _, StreamExt as _};
 use log::error;
-use primitives::ed25519;
-use polkadot_primitives::{Block, BlockId, AuraId};
+use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
-use runtime_primitives::traits::{ProvideRuntimeApi, Header as HeaderT};
-use aura::AuraApi;
+use runtime_primitives::traits::{ProvideRuntimeApi};
+use babe_primitives::BabeApi;
+use keystore::KeyStorePtr;
 
 use tokio::{timer::Interval, runtime::current_thread::Runtime as LocalRuntime};
 use log::{warn, debug};
@@ -50,14 +50,14 @@ type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), 
 pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
 	-> ClientResult<Option<impl Iterator<Item=CandidateReceipt>>>
 {
-	use parity_codec::{Encode, Decode};
+	use codec::{Encode, Decode};
 	use polkadot_runtime::{Call, ParachainsCall, UncheckedExtrinsic as RuntimeExtrinsic};
 
 	let extrinsics = client.block_body(block)?;
 	Ok(match extrinsics {
 		Some(extrinsics) => extrinsics
 			.into_iter()
-			.filter_map(|ex| RuntimeExtrinsic::decode(&mut ex.encode().as_slice()))
+			.filter_map(|ex| RuntimeExtrinsic::decode(&mut ex.encode().as_slice()).ok())
 			.filter_map(|ex| match ex.function {
 				Call::Parachains(ParachainsCall::set_heads(heads)) => {
 					Some(heads.into_iter().map(|c| c.candidate))
@@ -73,7 +73,7 @@ pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
 //
 // NOTE: this will need to be changed to finality notification rather than
 // block import notifications when the consensus switches to non-instant finality.
-fn prune_unneeded_availability<P>(client: Arc<P>, extrinsic_store: ExtrinsicStore)
+fn prune_unneeded_availability<P>(client: Arc<P>, availability_store: AvailabilityStore)
 	-> impl Future<Item=(),Error=()> + Send
 	where P: Send + Sync + BlockchainEvents<Block> + BlockBody<Block> + 'static
 {
@@ -94,7 +94,7 @@ fn prune_unneeded_availability<P>(client: Arc<P>, extrinsic_store: ExtrinsicStor
 				}
 			};
 
-			if let Err(e) = extrinsic_store.candidates_finalized(parent_hash, candidate_hashes) {
+			if let Err(e) = availability_store.candidates_finalized(parent_hash, candidate_hashes) {
 				warn!(target: "validation", "Failed to prune unneeded available data: {:?}", e);
 			}
 
@@ -114,8 +114,8 @@ pub(crate) fn start<C, N, P, SC>(
 	select_chain: SC,
 	parachain_validation: Arc<crate::ParachainValidation<C, N, P>>,
 	thread_pool: TaskExecutor,
-	key: Arc<ed25519::Pair>,
-	extrinsic_store: ExtrinsicStore,
+	keystore: KeyStorePtr,
+	availability_store: AvailabilityStore,
 	max_block_data_size: Option<u64>,
 ) -> ServiceHandle
 	where
@@ -123,7 +123,7 @@ pub(crate) fn start<C, N, P, SC>(
 		<C::Collation as IntoFuture>::Future: Send + 'static,
 		P: BlockchainEvents<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> + BlockBuilder<Block> + AuraApi<Block, AuraId>,
+		P::Api: ParachainHost<Block> + BlockBuilder<Block> + BabeApi<Block>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
 		<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -138,7 +138,8 @@ pub(crate) fn start<C, N, P, SC>(
 		let notifications = {
 			let client = client.clone();
 			let validation = parachain_validation.clone();
-			let key = key.clone();
+
+			let keystore = keystore.clone();
 
 			client.import_notification_stream()
 				.map(|v| Ok::<_, ()>(v)).compat()
@@ -147,8 +148,7 @@ pub(crate) fn start<C, N, P, SC>(
 					if notification.is_new_best {
 						let res = validation.get_or_instantiate(
 							parent_hash,
-							notification.header.parent_hash().clone(),
-							key.clone(),
+							&keystore,
 							max_block_data_size,
 						);
 
@@ -193,7 +193,7 @@ pub(crate) fn start<C, N, P, SC>(
 			error!("Failed to spawn old sessions pruning task");
 		}
 
-		let prune_available = prune_unneeded_availability(client, extrinsic_store)
+		let prune_available = prune_unneeded_availability(client, availability_store)
 			.select(exit.clone())
 			.then(|_| Ok(()));
 

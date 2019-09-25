@@ -24,12 +24,12 @@
 //! f is the maximum number of faulty validators in the system.
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
-use parity_codec::{Encode, Decode};
+use codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::{Hash as H256, BlakeTwo256, HashT};
-use primitives::parachain::{BlockData, Extrinsic};
+use primitives::parachain::{BlockData, AvailableMessages};
 use substrate_primitives::Blake2Hasher;
-use trie::{MemoryDB, Trie, TrieMut, TrieDB, TrieDBMut};
+use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 
 use self::wrapped_shard::WrappedShard;
 
@@ -125,11 +125,11 @@ fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 /// Obtain erasure-coded chunks, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, extrinsic: &Extrinsic)
+pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, outgoing: &Option<AvailableMessages>)
 	-> Result<Vec<Vec<u8>>, Error>
 {
 	let params  = code_params(n_validators)?;
-	let encoded = (block_data, extrinsic).encode();
+	let encoded = (block_data, outgoing).encode();
 
 	if encoded.is_empty() {
 		return Err(Error::BadPayload);
@@ -151,7 +151,7 @@ pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, extrinsic: &Ex
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
 pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
-	-> Result<(BlockData, Extrinsic), Error>
+	-> Result<(BlockData, Option<AvailableMessages>), Error>
 	where I: IntoIterator<Item=(&'a [u8], usize)>
 {
 	let params = code_params(n_validators)?;
@@ -188,13 +188,14 @@ pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
 
 	// lazily decode from the data shards.
 	Decode::decode(&mut ShardInput {
+		remaining_len: shard_len.map(|s| s * params.data_shards).unwrap_or(0),
 		cur_shard: None,
 		shards: shards.iter()
 			.map(|x| x.as_ref())
 			.take(params.data_shards)
 			.map(|x| x.expect("all data shards have been recovered; qed"))
 			.map(|x| x.as_ref()),
-	}).ok_or_else(|| Error::BadPayload)
+	}).or_else(|_| Err(Error::BadPayload))
 }
 
 /// An iterator that yields merkle branches and chunk data for all chunks to
@@ -270,7 +271,7 @@ pub fn branches<'a>(chunks: Vec<&'a [u8]>) -> Branches<'a> {
 pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Result<H256, Error> {
 	let mut trie_storage: MemoryDB<Blake2Hasher> = MemoryDB::default();
 	for node in branch_nodes.iter() {
-		(&mut trie_storage as &mut trie::HashDB<_>).insert(&[], node.as_slice());
+		(&mut trie_storage as &mut trie::HashDB<_>).insert(EMPTY_PREFIX, node.as_slice());
 	}
 
 	let trie = TrieDB::new(&trie_storage, &root).map_err(|_| Error::InvalidBranchProof)?;
@@ -279,21 +280,26 @@ pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Resul
 	);
 
 	match res {
-		Ok(Some(Some(hash))) => Ok(hash),
-		Ok(Some(None)) => Err(Error::InvalidBranchProof), // hash failed to decode
+		Ok(Some(Ok(hash))) => Ok(hash),
+		Ok(Some(Err(_))) => Err(Error::InvalidBranchProof), // hash failed to decode
 		Ok(None) => Err(Error::BranchOutOfBounds),
 		Err(_) => Err(Error::InvalidBranchProof),
 	}
 }
 
-// input for `parity_codec` which draws data from the data shards
+// input for `codec` which draws data from the data shards
 struct ShardInput<'a, I> {
+	remaining_len: usize,
 	shards: I,
 	cur_shard: Option<(&'a [u8], usize)>,
 }
 
-impl<'a, I: Iterator<Item=&'a [u8]>> parity_codec::Input for ShardInput<'a, I> {
-	fn read(&mut self, into: &mut [u8]) -> usize {
+impl<'a, I: Iterator<Item=&'a [u8]>> codec::Input for ShardInput<'a, I> {
+	fn remaining_len(&mut self) -> Result<Option<usize>, codec::Error> {
+		Ok(Some(self.remaining_len))
+	}
+
+	fn read(&mut self, into: &mut [u8]) -> Result<(), codec::Error> {
 		let mut read_bytes = 0;
 
 		loop {
@@ -321,7 +327,12 @@ impl<'a, I: Iterator<Item=&'a [u8]>> parity_codec::Input for ShardInput<'a, I> {
 			self.cur_shard = Some((active_shard, in_shard))
 		}
 
-		read_bytes
+		self.remaining_len -= read_bytes;
+		if read_bytes == into.len() {
+			Ok(())
+		} else {
+			Err("slice provided too big for input".into())
+		}
 	}
 }
 
@@ -389,7 +400,7 @@ mod tests {
     #[test]
 	fn round_trip_block_data() {
 		let block_data = BlockData((0..255).collect());
-		let ex = Extrinsic { outgoing_messages: Vec::new() };
+		let ex = Some(AvailableMessages(Vec::new()));
 		let chunks = obtain_chunks(
 			10,
 			&block_data,
@@ -415,10 +426,11 @@ mod tests {
 	#[test]
 	fn construct_valid_branches() {
 		let block_data = BlockData(vec![2; 256]);
+		let msgs = Some(AvailableMessages(Vec::new()));
 		let chunks = obtain_chunks(
 			10,
 			&block_data,
-			&Extrinsic { outgoing_messages: Vec::new() },
+			&msgs,
 		).unwrap();
 		let chunks: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
 

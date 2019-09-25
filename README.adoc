@@ -12,13 +12,15 @@ In 2017 we split our implementation of "Polkadot" from its platform-level compon
 
 We are actively building both Substrate and Polkadot, but things will be a little odd for a while.  If you see "substrate" and are wondering why you need it for Polkadot, now you know.
 
-To play on the ("Alexander") testnet, you'll want the PoC-4 code which is in this **Polkadot** repo.  Note that PoC-3 uses the Alexander testnet, but will not be able to sync to the latest block.
+To connect on the "Kusama" canary network, you will want the `v0.5` code which is in this **Polkadot** repo. To play on the ("Alexander") testnet, you'll want the PoC-4 code instead.  Note that PoC-3 uses the Alexander testnet, but will not be able to sync to the latest block.
 
-* **Polkadot PoC-4 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.4[**Polkadot**] repo branch `v0.4`
+* **Kusama** is in this link:https://github.com/paritytech/polkadot/tree/v0.5[**Polkadot**] repo branch `v0.5`.
 
-* **Polkadot PoC-3 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.3[**Polkadot**] repo branch `v0.3`
+* **Polkadot PoC-4 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.4[**Polkadot**] repo branch `v0.4`.
 
-* **Polkadot PoC-2 "Krumme Lanke"** is in the link:https://github.com/paritytech/substrate/tree/v0.2[**Substrate**] repo branch `v0.2`
+* **Polkadot PoC-3 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.3[**Polkadot**] repo branch `v0.3`.
+
+* **Polkadot PoC-2 "Krumme Lanke"** is in the link:https://github.com/paritytech/substrate/tree/v0.2[**Substrate**] repo branch `v0.2`.
 
 
 == To play
@@ -40,6 +42,22 @@ If you already have Rust installed, make sure you're using the latest version by
 ----
 rustup update
 ----
+
+=== Install "Kusama" Canary Network
+
+Build Kusama by cloning this repository and running the following commands from the root directory of the repo:
+
+```bash
+git checkout v0.5
+./scripts/init.sh
+cargo build --release
+```
+
+Connect to the global Kusama canary network by default by running:
+
+```bash
+./target/release/polkadot
+```
 
 === Install PoC-4 on "Alexander" Testnet
 

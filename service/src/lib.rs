@@ -18,36 +18,33 @@
 
 pub mod chain_spec;
 
+use futures::prelude::*;
 use client::LongestChain;
-use consensus_common::SelectChain;
 use std::sync::Arc;
 use std::time::Duration;
-use grandpa_primitives::AuthorityPair as GrandpaPair;
-use polkadot_primitives::{parachain, Block, Hash, BlockId, AuraPair};
-use polkadot_runtime::{GenesisConfig, RuntimeApi};
-use polkadot_network::gossip::{self as network_gossip, Known};
-use primitives::{ed25519, Pair};
-use service::{FactoryFullConfiguration, FullBackend, LightBackend, FullExecutor, LightExecutor};
+use polkadot_primitives::{parachain, Hash, BlockId};
+use polkadot_runtime::GenesisConfig;
+use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
+use service::{error::{Error as ServiceError}, Configuration, ServiceBuilder};
 use transaction_pool::txpool::{Pool as TransactionPool};
-use aura::{import_queue, start_aura, AuraImportQueue, SlotDuration};
+use babe::{import_queue, start_babe, Config};
+use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use log::info;
-pub use service::{
-	Roles, PruningMode, TransactionPoolOptions, ComponentClient,
-	Error, ComponentBlock, LightComponents, FullComponents,
-	FullClient, LightClient, Components, Service, ServiceFactory
-};
+pub use service::{AbstractService, Roles, PruningMode, TransactionPoolOptions, Error};
+pub use service::{ServiceBuilderExport, ServiceBuilderImport, ServiceBuilderRevert};
 pub use service::config::full_version_from_strs;
-pub use client::{backend::Backend, runtime_api::Core as CoreApi, ExecutionStrategy};
-pub use polkadot_network::{PolkadotProtocol, NetworkService};
+pub use client::{backend::Backend, runtime_api::{Core as CoreApi, ConstructRuntimeApi}, ExecutionStrategy, CallExecutor};
+pub use consensus_common::SelectChain;
+pub use polkadot_network::{PolkadotProtocol};
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
+pub use polkadot_primitives::Block;
+pub use polkadot_runtime::RuntimeApi;
 pub use primitives::Blake2Hasher;
 pub use sr_primitives::traits::ProvideRuntimeApi;
+pub use substrate_network::specialization::NetworkSpecialization;
 pub use chain_spec::ChainSpec;
 pub use consensus::run_validation_worker;
-
-/// All configuration for the polkadot node.
-pub type Configuration = FactoryFullConfiguration<Factory>;
 
 /// Polkadot-specific configuration.
 pub struct CustomConfiguration {
@@ -55,26 +52,14 @@ pub struct CustomConfiguration {
 	/// if the network protocol should be started in collator mode.
 	pub collating_for: Option<(CollatorId, parachain::Id)>,
 
-	/// Intermediate state during setup. Will be removed in future. Set to `None`.
-	// FIXME: rather than putting this on the config, let's have an actual intermediate setup state
-	// https://github.com/paritytech/substrate/issues/1134
-	pub grandpa_import_setup: Option<(
-		grandpa::BlockImportForService<Factory>,
-		grandpa::LinkHalfForService<Factory>
-	)>,
-
 	/// Maximal `block_data` size.
 	pub max_block_data_size: Option<u64>,
-
-	inherent_data_providers: InherentDataProviders,
 }
 
 impl Default for CustomConfiguration {
 	fn default() -> Self {
 		Self {
 			collating_for: None,
-			grandpa_import_setup: None,
-			inherent_data_providers: InherentDataProviders::new(),
 			max_block_data_size: None,
 		}
 	}
@@ -86,288 +71,297 @@ pub type TxChainApi<Backend, Executor> = transaction_pool::ChainApi<
 	Block,
 >;
 
-/// Provides polkadot types.
-pub trait PolkadotService {
-	/// The client's backend type.
-	type Backend: 'static + client::backend::Backend<Block, Blake2Hasher>;
-	/// The client's call executor type.
-	type Executor: 'static + client::CallExecutor<Block, Blake2Hasher> + Send + Sync + Clone;
+/// Starts a `ServiceBuilder` for a full service.
+///
+/// Use this macro if you don't actually need the full service, but just the builder in order to
+/// be able to perform chain operations.
+macro_rules! new_full_start {
+	($config:expr) => {{
+		let mut import_setup = None;
+		let inherent_data_providers = inherents::InherentDataProviders::new();
+		let mut tasks_to_spawn = None;
 
-	/// Get a handle to the client.
-	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>>;
-
-	fn select_chain(&self) -> Option<client::LongestChain<Self::Backend, Block>>;
-
-	/// Get a handle to the network.
-	fn network(&self) -> Arc<NetworkService>;
-
-	/// Get a handle to the transaction pool.
-	fn transaction_pool(&self) -> Arc<TransactionPool<TxChainApi<Self::Backend, Self::Executor>>>;
-}
-
-impl PolkadotService for Service<FullComponents<Factory>> {
-	type Backend = <FullComponents<Factory> as Components>::Backend;
-	type Executor = <FullComponents<Factory> as Components>::Executor;
-
-	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>> {
-		Service::client(self)
-	}
-
-	fn select_chain(&self) -> Option<client::LongestChain<Self::Backend, Block>> {
-		Service::select_chain(self)
-	}
-
-	fn network(&self) -> Arc<NetworkService> {
-		Service::network(self)
-	}
-
-	fn transaction_pool(&self) -> Arc<TransactionPool<TxChainApi<Self::Backend, Self::Executor>>> {
-		Service::transaction_pool(self)
-	}
-}
-
-impl PolkadotService for Service<LightComponents<Factory>> {
-	type Backend = <LightComponents<Factory> as Components>::Backend;
-	type Executor = <LightComponents<Factory> as Components>::Executor;
-
-	fn client(&self) -> Arc<client::Client<Self::Backend, Self::Executor, Block, RuntimeApi>> {
-		Service::client(self)
-	}
-
-	fn select_chain(&self) -> Option<client::LongestChain<Self::Backend, Block>> {
-		None
-	}
-
-	fn network(&self) -> Arc<NetworkService> {
-		Service::network(self)
-	}
-
-	fn transaction_pool(&self) -> Arc<TransactionPool<TxChainApi<Self::Backend, Self::Executor>>> {
-		Service::transaction_pool(self)
-	}
-}
-
-service::construct_service_factory! {
-	struct Factory {
-		Block = Block,
-		ConsensusPair = AuraPair,
-		FinalityPair = GrandpaPair,
-		RuntimeApi = RuntimeApi,
-		NetworkProtocol = PolkadotProtocol {
-			|config: &Configuration| Ok(PolkadotProtocol::new(config.custom.collating_for.clone()))
-		},
-		RuntimeDispatch = polkadot_executor::Executor,
-		FullTransactionPoolApi = TxChainApi<FullBackend<Self>, FullExecutor<Self>>
-			{ |config, client| Ok(TransactionPool::new(config, TxChainApi::new(client))) },
-		LightTransactionPoolApi = TxChainApi<LightBackend<Self>, LightExecutor<Self>>
-			{ |config, client| Ok(TransactionPool::new(config, TxChainApi::new(client))) },
-		Genesis = GenesisConfig,
-		Configuration = CustomConfiguration,
-		FullService = FullComponents<Self>
-			{ |config: FactoryFullConfiguration<Self>| {
-				FullComponents::<Factory>::new(config)
-			} },
-		AuthoritySetup = { |mut service: Self::FullService| {
-				use polkadot_network::validation::ValidationNetwork;
-
-				let (block_import, link_half) = service.config.custom.grandpa_import_setup.take()
-					.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
-
-				// always run GRANDPA in order to sync.
-				{
-					let grandpa_key = if service.config.disable_grandpa {
-						None
-					} else {
-						service.authority_key()
-					};
-
-					let config = grandpa::Config {
-						local_key: grandpa_key.map(Arc::new),
-						// FIXME #1578 make this available through chainspec
-						gossip_duration: Duration::from_millis(333),
-						justification_period: 4096,
-						name: Some(service.config.name.clone())
-					};
-
-					match config.local_key {
-						None => {
-							service.spawn_task(grandpa::run_grandpa_observer(
-								config,
-								link_half,
-								service.network(),
-								service.on_exit(),
-							)?);
-						},
-						Some(_) => {
-							use service::TelemetryOnConnect;
-
-							let telemetry_on_connect = TelemetryOnConnect {
-								telemetry_connection_sinks: service.telemetry_on_connect_stream(),
-							};
-
-							let grandpa_config = grandpa::GrandpaParams {
-								config: config,
-								link: link_half,
-								network: service.network(),
-								inherent_data_providers: service.config.custom.inherent_data_providers.clone(),
-								on_exit: service.on_exit(),
-								telemetry_on_connect: Some(telemetry_on_connect),
-							};
-							service.spawn_task(grandpa::run_grandpa_voter(grandpa_config)?);
-						},
-					}
-				}
-
-				let extrinsic_store = {
-					use std::path::PathBuf;
-
-					let mut path = PathBuf::from(service.config.database_path.clone());
-					path.push("availability");
-
-					av_store::Store::new(::av_store::Config {
-						cache_size: None,
-						path,
-					})?
-				};
-
-				// run authorship only if authority.
-				let aura_key = match service.authority_key()  {
-					Some(key) => Arc::new(key),
-					None => return Ok(service),
-				};
-
-				if service.config.custom.collating_for.is_some() {
-					info!(
-						"The node cannot start as an authority because it is also configured to run as a collator."
-					);
-					return Ok(service);
-				}
-
-				let client = service.client();
-				let known_oracle = client.clone();
-				let select_chain = if let Some(select_chain) = service.select_chain() {
-					select_chain
-				} else {
-					info!("The node cannot start as an authority because it can't select chain.");
-					return Ok(service);
-				};
-
-				let gossip_validator_select_chain = select_chain.clone();
-				let gossip_validator = network_gossip::register_validator(
-					service.network(),
-					move |block_hash: &Hash| {
-						use client::BlockStatus;
-
-						match known_oracle.block_status(&BlockId::hash(*block_hash)) {
-							Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
-							Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-							Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
-								match gossip_validator_select_chain.leaves() {
-									Err(_) => None,
-									Ok(leaves) => if leaves.contains(block_hash) {
-										Some(Known::Leaf)
-									} else {
-										Some(Known::Old)
-									},
-								}
-							}
-						}
-					},
-				);
-
-				// collator connections and validation network both fulfilled by this
-				let validation_network = ValidationNetwork::new(
-					service.network(),
-					service.on_exit(),
-					gossip_validator,
-					service.client(),
-					polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
-				);
-				let proposer_factory = consensus::ProposerFactory::new(
-					client.clone(),
-					select_chain.clone(),
-					validation_network.clone(),
-					validation_network,
-					service.transaction_pool(),
-					Arc::new(service.spawn_task_handle()),
-					aura_key.clone(),
-					extrinsic_store,
-					SlotDuration::get_or_compute(&*client)?,
-					service.config.custom.max_block_data_size,
-				);
-
-				info!("Using authority key {}", aura_key.public());
-				let task = start_aura(
-					SlotDuration::get_or_compute(&*client)?,
-					aura_key,
-					client.clone(),
-					select_chain,
-					block_import,
-					Arc::new(proposer_factory),
-					service.network(),
-					service.config.custom.inherent_data_providers.clone(),
-					service.config.force_authoring,
-				)?;
-
-				service.spawn_task(task);
-				Ok(service)
-			}},
-		LightService = LightComponents<Self>
-			{ |config| <LightComponents<Factory>>::new(config) },
-		FullImportQueue = AuraImportQueue<
-			Self::Block,
-		>
-			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>, select_chain: Self::SelectChain| {
-				let slot_duration = SlotDuration::get_or_compute(&*client)?;
-
+		let builder = service::ServiceBuilder::new_full::<
+			Block, RuntimeApi, polkadot_executor::Executor
+		>($config)?
+			.with_select_chain(|_, backend| {
+				Ok(client::LongestChain::new(backend.clone()))
+			})?
+			.with_transaction_pool(|config, client|
+				Ok(transaction_pool::txpool::Pool::new(config, transaction_pool::ChainApi::new(client)))
+			)?
+			.with_import_queue(|_config, client, mut select_chain, transaction_pool| {
+				let select_chain = select_chain.take()
+					.ok_or_else(|| service::Error::SelectChainRequired)?;
 				let (block_import, link_half) =
-					grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>, _>(
+					grandpa::block_import::<_, _, _, RuntimeApi, _, _>(
 						client.clone(), client.clone(), select_chain
 					)?;
 				let justification_import = block_import.clone();
 
-				config.custom.grandpa_import_setup = Some((block_import.clone(), link_half));
-				import_queue::<_, _, ed25519::Pair>(
-					slot_duration,
-					Box::new(block_import),
+				let (import_queue, babe_link, babe_block_import, pruning_task) = babe::import_queue(
+					babe::Config::get_or_compute(&*client)?,
+					block_import,
 					Some(Box::new(justification_import)),
 					None,
+					client.clone(),
 					client,
-					config.custom.inherent_data_providers.clone(),
-				).map_err(Into::into)
-			}},
-		LightImportQueue = AuraImportQueue<
-			Self::Block,
-		>
-			{ |config: &mut FactoryFullConfiguration<Self>, client: Arc<LightClient<Self>>| {
-				#[allow(deprecated)]
-				let fetch_checker = client.backend().blockchain().fetcher()
-					.upgrade()
-					.map(|fetcher| fetcher.checker().clone())
-					.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
-				let block_import = grandpa::light_block_import::<_, _, _, RuntimeApi, LightClient<Self>>(
-					client.clone(), Arc::new(fetch_checker), client.clone()
+					inherent_data_providers.clone(),
+					Some(transaction_pool)
 				)?;
-				let finality_proof_import = block_import.clone();
-				let finality_proof_request_builder = finality_proof_import.create_finality_proof_request_builder();
 
-				import_queue::<_, _, ed25519::Pair>(
-					SlotDuration::get_or_compute(&*client)?,
-					Box::new(block_import),
-					None,
-					Some(Box::new(finality_proof_import)),
-					client,
-					config.custom.inherent_data_providers.clone(),
-				).map_err(Into::into).map(|q| (q, finality_proof_request_builder))
-			}},
-		SelectChain = LongestChain<FullBackend<Self>, Self::Block>
-			{ |config: &FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
-				#[allow(deprecated)]
-				Ok(LongestChain::new(client.backend().clone()))
-			}
-		},
-		FinalityProofProvider = { |client: Arc<FullClient<Self>>| {
-			Ok(Some(Arc::new(grandpa::FinalityProofProvider::new(client.clone(), client)) as _))
-		}},
+				import_setup = Some((babe_block_import.clone(), link_half, babe_link));
+				tasks_to_spawn = Some(vec![Box::new(pruning_task)]);
+
+				Ok(import_queue)
+			})?;
+
+		(builder, import_setup, inherent_data_providers, tasks_to_spawn)
+	}}
+}
+
+/// Builds a new object suitable for chain operations.
+pub fn new_chain_ops(config: Configuration<impl Send + Default + 'static, GenesisConfig>)
+	-> Result<impl ServiceBuilderExport + ServiceBuilderImport + ServiceBuilderRevert, ServiceError>
+{
+	Ok(new_full_start!(config).0)
+}
+
+/// Builds a new service for a full client.
+pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
+	-> Result<impl AbstractService<
+		Block = Block, RuntimeApi = RuntimeApi, NetworkSpecialization = PolkadotProtocol,
+		Backend = impl Backend<Block, Blake2Hasher> + 'static,
+		SelectChain = impl SelectChain<Block>,
+		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
+	>, ServiceError>
+{
+	let is_authority = config.roles.is_authority();
+	let is_collator = config.custom.collating_for.is_some();
+	let force_authoring = config.force_authoring;
+	let max_block_data_size = config.custom.max_block_data_size;
+	let db_path = config.database_path.clone();
+	let disable_grandpa = config.disable_grandpa;
+	let name = config.name.clone();
+
+	let (builder, mut import_setup, inherent_data_providers, mut tasks_to_spawn) = new_full_start!(config);
+
+	let service = builder
+		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
+		.with_finality_proof_provider(|client, backend|
+			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
+		)?
+		.build()?;
+
+	let (block_import, link_half, babe_link) = import_setup.take()
+		.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
+
+	// spawn any futures that were created in the previous setup steps
+	if let Some(tasks) = tasks_to_spawn.take() {
+		for task in tasks {
+			service.spawn_task(
+				task.select(service.on_exit())
+					.map(|_| ())
+					.map_err(|_| ())
+			);
+		}
 	}
+
+	if is_collator {
+		info!(
+			"The node cannot start as an authority because it is also configured to run as a collator."
+		);
+		return Ok(service);
+	}
+
+	let client = service.client();
+	let known_oracle = client.clone();
+	let select_chain = if let Some(select_chain) = service.select_chain() {
+		select_chain
+	} else {
+		info!("The node cannot start as an authority because it can't select chain.");
+		return Ok(service);
+	};
+	let gossip_validator_select_chain = select_chain.clone();
+
+	let is_known = move |block_hash: &Hash| {
+		use client::BlockStatus;
+
+		match known_oracle.block_status(&BlockId::hash(*block_hash)) {
+			Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
+			Ok(BlockStatus::KnownBad) => Some(Known::Bad),
+			Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
+				match gossip_validator_select_chain.leaves() {
+					Err(_) => None,
+					Ok(leaves) => if leaves.contains(block_hash) {
+						Some(Known::Leaf)
+					} else {
+						Some(Known::Old)
+					},
+				}
+			}
+		}
+	};
+
+	let gossip_validator = network_gossip::register_validator(
+		service.network(),
+		(is_known, client.clone()),
+	);
+
+	if is_authority {
+		let availability_store = {
+			use std::path::PathBuf;
+
+			let mut path = PathBuf::from(db_path);
+			path.push("availability");
+
+			av_store::Store::new(::av_store::Config {
+				cache_size: None,
+				path,
+			})?
+		};
+
+		{
+			let availability_store = availability_store.clone();
+			service.network().with_spec(
+				|spec, _ctx| spec.register_availability_store(availability_store)
+			);
+		}
+
+		// collator connections and validation network both fulfilled by this
+		let validation_network = ValidationNetwork::new(
+			service.network(),
+			service.on_exit(),
+			gossip_validator,
+			service.client(),
+			polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
+		);
+		let proposer = consensus::ProposerFactory::new(
+			client.clone(),
+			select_chain.clone(),
+			validation_network.clone(),
+			validation_network,
+			service.transaction_pool(),
+			Arc::new(service.spawn_task_handle()),
+			service.keystore(),
+			availability_store,
+			polkadot_runtime::constants::time::SLOT_DURATION,
+			max_block_data_size,
+		);
+
+		let client = service.client();
+		let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
+
+		let babe_config = babe::BabeParams {
+			config: Config::get_or_compute(&*client)?,
+			keystore: service.keystore(),
+			client,
+			select_chain,
+			block_import,
+			env: proposer,
+			sync_oracle: service.network(),
+			inherent_data_providers: inherent_data_providers.clone(),
+			force_authoring: force_authoring,
+			time_source: babe_link,
+		};
+
+		let babe = start_babe(babe_config)?;
+		let select = babe.select(service.on_exit()).then(|_| Ok(()));
+		service.spawn_essential_task(Box::new(select));
+	} else {
+		network_gossip::register_non_authority_validator(service.network());
+	}
+
+	let config = grandpa::Config {
+		// FIXME substrate#1578 make this available through chainspec
+		gossip_duration: Duration::from_millis(333),
+		justification_period: 4096,
+		name: Some(name),
+		keystore: Some(service.keystore()),
+	};
+
+	match (is_authority, disable_grandpa) {
+		(false, false) => {
+			// start the lightweight GRANDPA observer
+			service.spawn_task(Box::new(grandpa::run_grandpa_observer(
+				config,
+				link_half,
+				service.network(),
+				service.on_exit(),
+			)?));
+		},
+		(true, false) => {
+			// start the full GRANDPA voter
+			let grandpa_config = grandpa::GrandpaParams {
+				config: config,
+				link: link_half,
+				network: service.network(),
+				inherent_data_providers: inherent_data_providers.clone(),
+				on_exit: service.on_exit(),
+				telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
+			};
+			service.spawn_essential_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
+		},
+		(_, true) => {
+			grandpa::setup_disabled_grandpa(
+				service.client(),
+				&inherent_data_providers,
+				service.network(),
+			)?;
+		},
+	}
+
+	Ok(service)
+}
+
+/// Builds a new service for a light client.
+pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
+	-> Result<impl AbstractService<
+		Block = Block, RuntimeApi = RuntimeApi, NetworkSpecialization = PolkadotProtocol,
+		Backend = impl Backend<Block, Blake2Hasher> + 'static,
+		SelectChain = impl SelectChain<Block>,
+		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
+	>, ServiceError>
+{
+	let inherent_data_providers = InherentDataProviders::new();
+
+	ServiceBuilder::new_light::<Block, RuntimeApi, polkadot_executor::Executor>(config)?
+		.with_select_chain(|_, backend| {
+			Ok(LongestChain::new(backend.clone()))
+		})?
+		.with_transaction_pool(|config, client|
+			Ok(TransactionPool::new(config, transaction_pool::ChainApi::new(client)))
+		)?
+		.with_import_queue_and_fprb(|_config, client, backend, _select_chain, transaction_pool| {
+			let fetch_checker = backend.blockchain().fetcher()
+				.upgrade()
+				.map(|fetcher| fetcher.checker().clone())
+				.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
+			let block_import = grandpa::light_block_import::<_, _, _, RuntimeApi, _>(
+				client.clone(), backend, Arc::new(fetch_checker), client.clone()
+			)?;
+
+			let finality_proof_import = block_import.clone();
+			let finality_proof_request_builder =
+				finality_proof_import.create_finality_proof_request_builder();
+
+			// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
+			let (import_queue, ..) = import_queue(
+				Config::get_or_compute(&*client)?,
+				block_import,
+				None,
+				Some(Box::new(finality_proof_import)),
+				client.clone(),
+				client,
+				inherent_data_providers.clone(),
+				Some(transaction_pool)
+			)?;
+
+			Ok((import_queue, finality_proof_request_builder))
+		})?
+		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
+		.with_finality_proof_provider(|client, backend|
+			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
+		)?
+		.build()
 }

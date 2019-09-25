@@ -18,28 +18,24 @@
 
 use rstd::prelude::*;
 use rstd::collections::btree_map::BTreeMap;
-use parity_codec::{Encode, Decode, HasCompact};
+use codec::{Encode, Decode, HasCompact};
 use srml_support::{decl_storage, decl_module, fail, ensure};
 
-use sr_primitives::traits::{Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One};
+use sr_primitives::traits::{
+	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero, Dispatchable,
+};
 use sr_primitives::weights::SimpleDispatchInfo;
-use primitives::{Hash, Balance, ParachainPublic, parachain::{
+use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots,
+	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId
 }};
 use {system, session};
 use srml_support::{
-	StorageValue, StorageMap, storage::AppendableStorageMap, Parameter, Dispatchable, dispatch::Result,
+	StorageValue, StorageMap, Parameter, dispatch::Result,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement}
 };
 
-#[cfg(feature = "std")]
-use srml_support::storage::hashed::generator;
-
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
-
-#[cfg(any(feature = "std", test))]
-use sr_primitives::{StorageOverlay, ChildrenStorageOverlay};
 
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
@@ -217,7 +213,7 @@ const WATERMARK_QUEUE_SIZE: usize = 20000;
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		/// All authorities' keys at the moment.
-		pub Authorities get(authorities) config(authorities): Vec<ParachainPublic>;
+		pub Authorities get(authorities) config(authorities): Vec<ValidatorId>;
 		/// Vector of all parachain IDs.
 		pub Parachains get(active_parachains): Vec<ParaId>;
 		/// The parachains registered at present.
@@ -252,24 +248,25 @@ decl_storage! {
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
 		config(_phdata): PhantomData<T>;
-		build(|storage: &mut StorageOverlay, _: &mut ChildrenStorageOverlay, config: &GenesisConfig<T>| {
-			use sr_primitives::traits::Zero;
+		build(build::<T>);
+	}
+}
 
-			let mut p = config.parachains.clone();
-			p.sort_unstable_by_key(|&(ref id, _, _)| *id);
-			p.dedup_by_key(|&mut (ref id, _, _)| *id);
+#[cfg(feature = "std")]
+fn build<T: Trait>(config: &GenesisConfig<T>) {
+	let mut p = config.parachains.clone();
+	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
+	p.dedup_by_key(|&mut (ref id, _, _)| *id);
 
-			let only_ids: Vec<_> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
+	let only_ids: Vec<ParaId> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
 
-			<Parachains as generator::StorageValue<_>>::put(&only_ids, storage);
+	Parachains::put(&only_ids);
 
-			for (id, code, genesis) in p {
-				// no ingress -- a chain cannot be routed to until it is live.
-				<Code as generator::StorageMap<_, _>>::insert(&id, &code, storage);
-				<Heads as generator::StorageMap<_, _>>::insert(&id, &genesis, storage);
-				<Watermarks<T> as generator::StorageMap<_, _>>::insert(&id, &Zero::zero(), storage);
-			}
-		});
+	for (id, code, genesis) in p {
+		// no ingress -- a chain cannot be routed to until it is live.
+		Code::insert(&id, &code);
+		Heads::insert(&id, &genesis);
+		<Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
 	}
 }
 
@@ -318,7 +315,6 @@ decl_module! {
 				}
 
 				let para_blocks = Self::check_candidates(&heads, &active_parachains)?;
-
 				let current_number = <system::Module<T>>::block_number();
 
 				<attestations::Module<T>>::note_included(&heads, para_blocks);
@@ -380,7 +376,7 @@ impl<T: Trait> Module<T> {
 		origin: ParachainDispatchOrigin,
 		data: &[u8],
 	) {
-		if let Some(message_call) = T::Call::decode(&mut &data[..]) {
+		if let Ok(message_call) = <T as Trait>::Call::decode(&mut &data[..]) {
 			let origin: <T as Trait>::Origin = match origin {
 				ParachainDispatchOrigin::Signed =>
 					system::RawOrigin::Signed(id.into_account()).into(),
@@ -528,6 +524,7 @@ impl<T: Trait> Module<T> {
 	pub fn calculate_duty_roster() -> (DutyRoster, [u8; 32]) {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
+		// TODO: use decode length. substrate #2794
 		let validator_count = Self::authorities().len();
 		let validators_per_parachain = if parachain_count != 0 { (validator_count - 1) / parachain_count } else { 0 };
 
@@ -561,12 +558,12 @@ impl<T: Trait> Module<T> {
 		let orig_seed = seed.clone().to_fixed_bytes();
 
 		// shuffle
-		for i in 0..(validator_count - 1) {
+		for i in 0..(validator_count.saturating_sub(1)) {
 			// 4 bytes of entropy used per cycle, 32 bytes entropy per hash
 			let offset = (i * 4 % 32) as usize;
 
 			// number of roles remaining to select from.
-			let remaining = (validator_count - i) as usize;
+			let remaining = rstd::cmp::max(1, (validator_count - i) as usize);
 
 			// 8 32-bit ints per 256-bit seed.
 			let val_index = u32::decode(&mut &seed[offset..offset + 4])
@@ -585,15 +582,23 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Calculate the ingress to a specific parachain.
-	/// Complexity: O(n) in the number of blocks since the parachain's watermark.
+	/// If `since` is provided, only messages since (including those in) that block
+	/// will be included.
+	/// Complexity: O(n) in the number of blocks since the supplied block.
 	/// invoked off-chain.
 	///
 	/// Yields a structure containing all unrouted ingress to the parachain.
-	pub fn ingress(to: ParaId) -> Option<Vec<(T::BlockNumber, BlockIngressRoots)>> {
+	pub fn ingress(to: ParaId, since: Option<T::BlockNumber>) -> Option<Vec<(T::BlockNumber, BlockIngressRoots)>> {
 		let watermark = <Watermarks<T>>::get(to)?;
 		let now = <system::Module<T>>::block_number();
 
-		Some(number_range(watermark.saturating_add(One::one()),now)
+		let watermark_since = watermark.saturating_add(One::one());
+		let since = rstd::cmp::max(since.unwrap_or(Zero::zero()), watermark_since);
+		if since > now {
+			return Some(Vec::new());
+		}
+
+		Some(number_range(since, now)
 			.filter_map(|unrouted_height| {
 				<UnroutedIngress<T>>::get(&(unrouted_height, to)).map(|roots| {
 					(unrouted_height, BlockIngressRoots(roots))
@@ -656,7 +661,7 @@ impl<T: Trait> Module<T> {
 		-> rstd::result::Result<IncludedBlocks<T>, &'static str>
 	{
 		use primitives::parachain::ValidityAttestation;
-		use sr_primitives::traits::Verify;
+		use sr_primitives::traits::AppVerify;
 
 		// returns groups of slices that have the same chain ID.
 		// assumes the inner slice is sorted by id.
@@ -801,7 +806,7 @@ impl<T: Trait> Module<T> {
 
 			para_block_hashes.push(candidate_hash.unwrap_or_else(|| candidate.candidate().hash()));
 
-      ensure!(
+		ensure!(
 				candidate.validity_votes.len() == expected_votes_len,
 				"Extra untagged validity votes along with candidate"
 			);
@@ -834,13 +839,19 @@ impl<T: Trait> Module<T> {
 }
 
 impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
-	type Key = ParachainPublic;
+	type Key = ValidatorId;
+
+	fn on_genesis_session<'a, I: 'a>(validators: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		<Self as Store>::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, _queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
 		if changed {
-			<Self as Store>::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+			Self::on_genesis_session(validators)
 		}
 	}
 
@@ -881,10 +892,11 @@ mod tests {
 		testing::{UintAuthorityId, Header},
 	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation}, SessionKey,
-		BlockNumber, AuraId,
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId},
+		BlockNumber,
 	};
-	use keyring::Ed25519Keyring;
+	use crate::constants::time::*;
+	use keyring::Sr25519Keyring;
 	use srml_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
@@ -905,13 +917,14 @@ mod tests {
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
 	parameter_types! {
-		pub const BlockHashCount: u64 = 250;
+		pub const BlockHashCount: u32 = 250;
 		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
+		type Call = Call;
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -925,6 +938,7 @@ mod tests {
 		type MaximumBlockWeight = MaximumBlockWeight;
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
+		type Version = ();
 	}
 
 	parameter_types! {
@@ -957,9 +971,14 @@ mod tests {
 		type MinimumPeriod = MinimumPeriod;
 	}
 
-	impl aura::Trait for Test {
-		type HandleReport = aura::StakingSlasher<Test>;
-		type AuthorityId = AuraId;
+	parameter_types! {
+		pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
+		pub const ExpectedBlockTime: u64 = MILLISECS_PER_BLOCK;
+	}
+
+	impl babe::Trait for Test {
+		type EpochDuration = EpochDuration;
+		type ExpectedBlockTime = ExpectedBlockTime;
 	}
 
 	parameter_types! {
@@ -987,9 +1006,9 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const SessionsPerEra: session::SessionIndex = 6;
-		pub const BondingDuration: staking::EraIndex = 24 * 28;
-		pub const AttestationPeriod: u64 = 100;
+		pub const SessionsPerEra: sr_staking_primitives::SessionIndex = 6;
+		pub const BondingDuration: staking::EraIndex = 28;
+		pub const AttestationPeriod: BlockNumber = 100;
 	}
 
 	impl staking::Trait for Test {
@@ -1008,6 +1027,7 @@ mod tests {
 	impl attestations::Trait for Test {
 		type AttestationPeriod = AttestationPeriod;
 		type ValidatorIdentities = ValidatorIdentities<Test>;
+		type RewardAttestation = ();
 	}
 
 	impl Trait for Test {
@@ -1021,17 +1041,19 @@ mod tests {
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		use staking::StakerStatus;
+		use babe::AuthorityId as BabeAuthorityId;
 
-		let (mut t, mut c) = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+
 		let authority_keys = [
-			Ed25519Keyring::Alice,
-			Ed25519Keyring::Bob,
-			Ed25519Keyring::Charlie,
-			Ed25519Keyring::Dave,
-			Ed25519Keyring::Eve,
-			Ed25519Keyring::Ferdie,
-			Ed25519Keyring::One,
-			Ed25519Keyring::Two,
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+			Sr25519Keyring::Ferdie,
+			Sr25519Keyring::One,
+			Sr25519Keyring::Two,
 		];
 
 		// stashes are the index.
@@ -1039,7 +1061,11 @@ mod tests {
 			.map(|(i, _k)| (i as u64, UintAuthorityId(i as u64)))
 			.collect();
 
-		let authorities: Vec<_> = authority_keys.iter().map(|k| SessionKey::from(*k)).collect();
+		let authorities: Vec<_> = authority_keys.iter().map(|k| ValidatorId::from(k.public())).collect();
+		let babe_authorities: Vec<_> = authority_keys.iter()
+			.map(|k| BabeAuthorityId::from(k.public()))
+			.map(|k| (k, 1))
+			.collect();
 
 		// controllers are the index + 1000
 		let stakers: Vec<_> = (0..authority_keys.len()).map(|i| (
@@ -1051,33 +1077,33 @@ mod tests {
 
 		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
 
-		session::GenesisConfig::<Test> {
-			keys: session_keys,
-		}.assimilate_storage(&mut t, &mut c).unwrap();
 		GenesisConfig::<Test> {
 			parachains,
 			authorities: authorities.clone(),
 			_phdata: Default::default(),
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+		}.assimilate_storage(&mut t).unwrap();
 
-		aura::GenesisConfig::<Test> {
-			authorities,
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+		session::GenesisConfig::<Test> {
+			keys: session_keys,
+		}.assimilate_storage(&mut t).unwrap();
+
+		babe::GenesisConfig {
+			authorities: babe_authorities,
+		}.assimilate_storage::<Test>(&mut t).unwrap();
 
 		balances::GenesisConfig::<Test> {
 			balances,
 			vesting: vec![],
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+		}.assimilate_storage(&mut t).unwrap();
 
 		staking::GenesisConfig::<Test> {
 			current_era: 0,
 			stakers,
 			validator_count: 10,
 			minimum_validator_count: 8,
-			offline_slash: Perbill::from_percent(5),
-			offline_slash_grace: 0,
 			invulnerables: vec![],
-		}.assimilate_storage(&mut t, &mut c).unwrap();
+			.. Default::default()
+		}.assimilate_storage(&mut t).unwrap();
 
 		t.into()
 	}
@@ -1094,8 +1120,10 @@ mod tests {
 		let candidate_hash = candidate.candidate.hash();
 
 		let authorities = Parachains::authorities();
-		let extract_key = |public: SessionKey| {
-			Ed25519Keyring::from_raw_public(public.0).unwrap()
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
 		};
 
 		let validation_entries = duty_roster.validator_duty.iter()
@@ -1678,8 +1706,8 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			assert_eq!(Parachains::ingress(ParaId::from(1)), Some(Vec::new()));
-			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
+			assert_eq!(Parachains::ingress(ParaId::from(1), None), Some(Vec::new()));
+			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
 
 			for i in 1..10 {
 				System::set_block_number(i);
@@ -1738,7 +1766,7 @@ mod tests {
 			// parachain 1 has had a bunch of parachain candidates included,
 			// which raises the watermark.
 			assert_eq!(
-				Parachains::ingress(ParaId::from(1)),
+				Parachains::ingress(ParaId::from(1), None),
 				Some(vec![
 					(9, BlockIngressRoots(vec![
 						(0.into(), [9; 32].into())
@@ -1749,7 +1777,7 @@ mod tests {
 			// parachain 99 hasn't had any candidates included, so the
 			// ingress is piling up.
 			assert_eq!(
-				Parachains::ingress(ParaId::from(99)),
+				Parachains::ingress(ParaId::from(99), None),
 				Some((1..10).map(|i| (i, BlockIngressRoots(
 					vec![(1.into(), [i as u8; 32].into())]
 				))).collect::<Vec<_>>()),
@@ -1759,8 +1787,8 @@ mod tests {
 
 			// after deregistering, there is no ingress to 1, but unrouted messages
 			// from 1 stick around.
-			assert_eq!(Parachains::ingress(ParaId::from(1)), None);
-			assert_eq!(Parachains::ingress(ParaId::from(99)), Some((1..10).map(|i| (i, BlockIngressRoots(
+			assert_eq!(Parachains::ingress(ParaId::from(1), None), None);
+			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some((1..10).map(|i| (i, BlockIngressRoots(
 				vec![(1.into(), [i as u8; 32].into())]
 			))).collect::<Vec<_>>()));
 
@@ -1793,7 +1821,7 @@ mod tests {
 			System::set_block_number(12);
 
 			// at the next block, ingress to 99 should be empty.
-			assert_eq!(Parachains::ingress(ParaId::from(99)), Some(Vec::new()));
+			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
 		});
 	}
 

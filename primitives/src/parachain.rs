@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
-use parity_codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 use super::{Hash, Balance, BlockNumber};
 
@@ -27,32 +27,56 @@ use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
-use primitives::ed25519;
+use application_crypto::KeyTypeId;
 
 pub use polkadot_parachain::{
 	Id, AccountIdConversion, ParachainDispatchOrigin, UpwardMessage,
 };
 
+/// The key type ID for a collator key.
+pub const COLLATOR_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"coll");
+
+mod collator_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::COLLATOR_KEY_TYPE_ID);
+}
+
 /// Identity that collators use.
-pub type CollatorId = ed25519::Public;
+pub type CollatorId = collator_app::Public;
+
+/// A Parachain collator keypair.
+#[cfg(feature = "std")]
+pub type CollatorPair = collator_app::Pair;
 
 /// Signature on candidate's block data by a collator.
-pub type CollatorSignature = ed25519::Signature;
+pub type CollatorSignature = collator_app::Signature;
+
+/// The key type ID for a parachain validator key.
+pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
+
+mod validator_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::PARACHAIN_KEY_TYPE_ID);
+}
 
 /// Identity that parachain validators use when signing validation messages.
 ///
 /// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
-pub type ValidatorId = super::SessionKey;
+pub type ValidatorId = validator_app::Public;
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
 pub type ValidatorIndex = u32;
+
+/// A Parachain validator keypair.
+#[cfg(feature = "std")]
+pub type ValidatorPair = validator_app::Pair;
 
  /// Signature with which parachain validators sign blocks.
 ///
 /// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
-pub type ValidatorSignature = super::SessionSignature;
+pub type ValidatorSignature = validator_app::Signature;
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
 #[derive(Copy, Clone, PartialEq, Encode, Decode)]
@@ -72,31 +96,37 @@ pub struct DutyRoster {
 	pub validator_duty: Vec<Chain>,
 }
 
-/// An outgoing message
+/// A message targeted to a specific parachain.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]
-pub struct OutgoingMessage {
+pub struct TargetedMessage {
 	/// The target parachain.
 	pub target: Id,
 	/// The message data.
 	pub data: Vec<u8>,
 }
 
-impl PartialOrd for OutgoingMessage {
+impl AsRef<[u8]> for TargetedMessage {
+	fn as_ref(&self) -> &[u8] {
+		&self.data[..]
+	}
+}
+
+impl PartialOrd for TargetedMessage {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.target.cmp(&other.target))
 	}
 }
 
-impl Ord for OutgoingMessage {
+impl Ord for TargetedMessage {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.target.cmp(&other.target)
 	}
 }
 
-/// Extrinsic data for a parachain candidate.
+/// Outgoing message data for a parachain candidate.
 ///
 /// This is data produced by evaluating the candidate. It contains
 /// full records of all outgoing messages to other parachains.
@@ -104,11 +134,64 @@ impl Ord for OutgoingMessage {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]
-pub struct Extrinsic {
+pub struct OutgoingMessages {
 	/// The outgoing messages from the execution of the parachain.
 	///
 	/// This must be sorted in ascending order by parachain ID.
-	pub outgoing_messages: Vec<OutgoingMessage>
+	pub outgoing_messages: Vec<TargetedMessage>
+}
+
+impl OutgoingMessages {
+	/// Returns an iterator of slices of all outgoing message queues.
+	///
+	/// All messages in a given slice are guaranteed to have the same target.
+	pub fn message_queues(&'_ self) -> impl Iterator<Item=&'_ [TargetedMessage]> + '_ {
+		let mut outgoing = &self.outgoing_messages[..];
+
+		rstd::iter::from_fn(move || {
+			if outgoing.is_empty() { return None }
+			let target = outgoing[0].target;
+			let mut end = 1; // the index of the last matching item + 1.
+			loop {
+				match outgoing.get(end) {
+					None => break,
+					Some(x) => if x.target != target { break },
+				}
+				end += 1;
+			}
+
+			let item = &outgoing[..end];
+			outgoing = &outgoing[end..];
+			Some(item)
+		})
+	}
+}
+
+/// Messages by queue root that are stored in the availability store.
+#[derive(PartialEq, Clone, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
+pub struct AvailableMessages(pub Vec<(Hash, Vec<Message>)>);
+
+//use trie::TrieConfiguration;
+
+/// Compute a trie root for a set of messages, given the raw message data.
+pub fn message_queue_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
+	where A: AsRef<[u8]>
+{
+	Hash::default()
+	//trie::trie_types::Layout::<primitives::Blake2Hasher>::ordered_trie_root(messages)
+}
+
+impl From<OutgoingMessages> for AvailableMessages {
+	fn from(outgoing: OutgoingMessages) -> Self {
+		let queues = outgoing.message_queues().filter_map(|queue| {
+			let queue_root = message_queue_root(queue);
+			let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
+			Some((queue_root, queue_data))
+		}).collect();
+
+		AvailableMessages(queues)
+	}
 }
 
 /// Candidate receipt type.
@@ -145,7 +228,7 @@ impl CandidateReceipt {
 
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
-		use runtime_primitives::traits::Verify;
+		use runtime_primitives::traits::AppVerify;
 
 		if self.signature.verify(self.block_data_hash.as_ref(), &self.collator) {
 			Ok(())
@@ -194,6 +277,18 @@ pub struct PoVBlock {
 #[derive(PartialEq, Eq, Clone, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
 pub struct Message(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+
+impl AsRef<[u8]> for Message {
+	fn as_ref(&self) -> &[u8] {
+		&self.0[..]
+	}
+}
+
+impl From<TargetedMessage> for Message {
+	fn from(targeted: TargetedMessage) -> Self {
+		Message(targeted.data)
+	}
+}
 
 /// All ingress roots at one block.
 ///
@@ -324,11 +419,11 @@ pub enum ValidityAttestation {
 	/// implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
 	#[codec(index = "1")]
-	Implicit(CollatorSignature),
+	Implicit(ValidatorSignature),
 	/// An explicit attestation. This corresponds to issuance of a
 	/// `Valid` statement.
 	#[codec(index = "2")]
-	Explicit(CollatorSignature),
+	Explicit(ValidatorSignature),
 }
 
 /// An attested candidate.
@@ -403,7 +498,10 @@ substrate_client::decl_runtime_apis! {
 		fn parachain_code(id: Id) -> Option<Vec<u8>>;
 		/// Get all the unrouted ingress roots at the given block that
 		/// are targeting the given parachain.
-		fn ingress(to: Id) -> Option<StructuredUnroutedIngress>;
+		///
+		/// If `since` is provided, only messages since (including those in) that block
+		/// will be included.
+		fn ingress(to: Id, since: Option<BlockNumber>) -> Option<StructuredUnroutedIngress>;
 	}
 }
 

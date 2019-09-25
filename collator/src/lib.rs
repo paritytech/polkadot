@@ -53,23 +53,21 @@ use futures::{future, Stream, Future, IntoFuture};
 use futures03::{TryStreamExt as _, StreamExt as _};
 use log::{info, warn};
 use client::BlockchainEvents;
-use primitives::{ed25519, Pair};
+use primitives::Pair;
 use polkadot_primitives::{
-	BlockId, SessionKey, Hash, Block,
+	BlockId, Hash, Block,
 	parachain::{
-		self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, Extrinsic,
-		PoVBlock, Status as ParachainStatus,
+		self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, OutgoingMessages,
+		PoVBlock, Status as ParachainStatus, ValidatorId, CollatorPair,
 	}
 };
 use polkadot_cli::{
-	Worker, IntoExit, ProvideRuntimeApi, TaskExecutor, PolkadotService, CustomConfiguration,
-	ParachainHost,
+	Worker, IntoExit, ProvideRuntimeApi, TaskExecutor, AbstractService,
+	CustomConfiguration, ParachainHost,
 };
-use polkadot_network::validation::{SessionParams, ValidationNetwork};
-use polkadot_network::NetworkService;
+use polkadot_network::validation::{LeafWorkParams, ValidationNetwork};
+use polkadot_network::{PolkadotNetworkService, PolkadotProtocol};
 use tokio::timer::Timeout;
-use consensus_common::SelectChain;
-use aura::AuraApi;
 
 pub use polkadot_cli::VersionInfo;
 pub use polkadot_network::validation::Incoming;
@@ -93,7 +91,7 @@ pub trait Network: Send + Sync {
 	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement, Error=()>>;
 }
 
-impl<P, E> Network for ValidationNetwork<P, E, NetworkService, TaskExecutor> where
+impl<P, E> Network for ValidationNetwork<P, E, PolkadotNetworkService, TaskExecutor> where
 	P: 'static + Send + Sync,
 	E: 'static + Send + Sync,
 {
@@ -144,7 +142,7 @@ pub trait BuildParachainContext {
 /// This can be implemented through an externally attached service or a stub.
 /// This is expected to be a lightweight, shared type like an Arc.
 pub trait ParachainContext: Clone {
-	type ProduceCandidate: IntoFuture<Item=(BlockData, HeadData, Extrinsic), Error=InvalidHead>;
+	type ProduceCandidate: IntoFuture<Item=(BlockData, HeadData, OutgoingMessages), Error=InvalidHead>;
 
 	/// Produce a candidate, given the relay parent hash, the latest ingress queue information
 	/// and the last parachain head.
@@ -177,9 +175,9 @@ pub fn collate<'a, R, P>(
 	parachain_status: ParachainStatus,
 	relay_context: R,
 	para_context: P,
-	key: Arc<ed25519::Pair>,
+	key: Arc<CollatorPair>,
 )
-	-> impl Future<Item=parachain::Collation, Error=Error<R::Error>> + 'a
+	-> impl Future<Item=(parachain::Collation, OutgoingMessages), Error=Error<R::Error>> + 'a
 	where
 		R: RelayChainContext,
 		R::Error: 'a,
@@ -199,11 +197,11 @@ pub fn collate<'a, R, P>(
 				.map(move |x| (ingress, x))
 				.map_err(Error::Collator)
 		})
-		.and_then(move |(ingress, (block_data, head_data, mut extrinsic))| {
+		.and_then(move |(ingress, (block_data, head_data, mut outgoing))| {
 			let block_data_hash = block_data.hash();
 			let signature = key.sign(block_data_hash.as_ref()).into();
 			let egress_queue_roots =
-				polkadot_validation::egress_roots(&mut extrinsic.outgoing_messages);
+				polkadot_validation::egress_roots(&mut outgoing.outgoing_messages);
 
 			let receipt = parachain::CandidateReceipt {
 				parachain_index: local_id,
@@ -217,21 +215,23 @@ pub fn collate<'a, R, P>(
 				erasure_root: None,
 			};
 
-			Ok(parachain::Collation {
+			let collation = parachain::Collation {
 				receipt,
 				pov: PoVBlock {
 					block_data,
 					ingress,
 				},
-			})
+			};
+
+			Ok((collation, outgoing))
 		})
 }
 
 /// Polkadot-api context.
 struct ApiContext<P, E> {
-	network: Arc<ValidationNetwork<P, E, NetworkService, TaskExecutor>>,
+	network: Arc<ValidationNetwork<P, E, PolkadotNetworkService, TaskExecutor>>,
 	parent_hash: Hash,
-	authorities: Vec<SessionKey>,
+	validators: Vec<ValidatorId>,
 }
 
 impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
@@ -246,10 +246,10 @@ impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 		// TODO: https://github.com/paritytech/polkadot/issues/253
 		//
 		// Fetch ingress and accumulate all unrounted egress
-		let _session = self.network.instantiate_session(SessionParams {
+		let _session = self.network.instantiate_leaf_work(LeafWorkParams {
 			local_session_key: None,
 			parent_hash: self.parent_hash,
-			authorities: self.authorities.clone(),
+			authorities: self.validators.clone(),
 		}).map_err(|e| format!("unable to instantiate validation session: {:?}", e));
 
 		Box::new(future::ok(ConsolidatedIngress(Vec::new())))
@@ -260,7 +260,7 @@ struct CollationNode<P, E> {
 	build_parachain_context: P,
 	exit: E,
 	para_id: ParaId,
-	key: Arc<ed25519::Pair>,
+	key: Arc<CollatorPair>,
 }
 
 impl<P, E> IntoExit for CollationNode<P, E> where
@@ -289,8 +289,11 @@ impl<P, E> Worker for CollationNode<P, E> where
 		config
 	}
 
-	fn work<S>(self, service: &S, task_executor: TaskExecutor) -> Self::Work where
-		S: PolkadotService,
+	fn work<S, SC, B, CE>(self, service: &S, task_executor: TaskExecutor) -> Self::Work
+	where S: AbstractService<Block = polkadot_service::Block, RuntimeApi = polkadot_service::RuntimeApi, Backend = B, SelectChain = SC, NetworkSpecialization = PolkadotProtocol, CallExecutor = CE>,
+		SC: polkadot_service::SelectChain<polkadot_service::Block> + 'static,
+		B: polkadot_service::Backend<polkadot_service::Block, polkadot_service::Blake2Hasher> + 'static,
+		CE: polkadot_service::CallExecutor<polkadot_service::Block, polkadot_service::Blake2Hasher> + Clone + Send + Sync + 'static
 	{
 		let CollationNode { build_parachain_context, exit, para_id, key } = self;
 		let client = service.client();
@@ -303,26 +306,28 @@ impl<P, E> Worker for CollationNode<P, E> where
 			return Box::new(future::err(()));
 		};
 
+		let is_known = move |block_hash: &Hash| {
+			use client::BlockStatus;
+			use polkadot_network::gossip::Known;
+
+			match known_oracle.block_status(&BlockId::hash(*block_hash)) {
+				Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
+				Ok(BlockStatus::KnownBad) => Some(Known::Bad),
+				Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) =>
+					match select_chain.leaves() {
+						Err(_) => None,
+						Ok(leaves) => if leaves.contains(block_hash) {
+							Some(Known::Leaf)
+						} else {
+							Some(Known::Old)
+						},
+					}
+			}
+		};
+
 		let message_validator = polkadot_network::gossip::register_validator(
 			network.clone(),
-			move |block_hash: &Hash| {
-				use client::BlockStatus;
-				use polkadot_network::gossip::Known;
-
-				match known_oracle.block_status(&BlockId::hash(*block_hash)) {
-					Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
-					Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-					Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) =>
-						match select_chain.leaves() {
-							Err(_) => None,
-							Ok(leaves) => if leaves.contains(block_hash) {
-								Some(Known::Leaf)
-							} else {
-								Some(Known::Old)
-							},
-						}
-				}
-			},
+			(is_known, client.clone()),
 		);
 
 		let validation_network = Arc::new(ValidationNetwork::new(
@@ -365,18 +370,18 @@ impl<P, E> Worker for CollationNode<P, E> where
 						None => return future::Either::A(future::ok(())),
 					};
 
-					let authorities = try_fr!(api.authorities(&id));
+					let validators = try_fr!(api.validators(&id));
 
 					let targets = compute_targets(
 						para_id,
-						authorities.as_slice(),
+						validators.as_slice(),
 						try_fr!(api.duty_roster(&id)),
 					);
 
 					let context = ApiContext {
 						network: validation_network,
 						parent_hash: relay_parent,
-						authorities,
+						validators,
 					};
 
 					let collation_work = collate(
@@ -386,13 +391,20 @@ impl<P, E> Worker for CollationNode<P, E> where
 						context,
 						parachain_context,
 						key,
-					).map(move |collation| {
-						network.with_spec(move |spec, ctx| spec.add_local_collation(
-							ctx,
-							relay_parent,
-							targets,
-							collation,
-						));
+					).map(move |(collation, outgoing)| {
+						network.with_spec(move |spec, ctx| {
+							let res = spec.add_local_collation(
+								ctx,
+								relay_parent,
+								targets,
+								collation,
+								outgoing,
+							);
+
+							if let Err(e) = res {
+								warn!("Unable to broadcast local collation: {:?}", e);
+							}
+						})
 					});
 
 					future::Either::B(collation_work)
@@ -415,7 +427,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 	}
 }
 
-fn compute_targets(para_id: ParaId, session_keys: &[SessionKey], roster: DutyRoster) -> HashSet<SessionKey> {
+fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRoster) -> HashSet<ValidatorId> {
 	use polkadot_primitives::parachain::Chain;
 
 	roster.validator_duty.iter().enumerate()
@@ -434,7 +446,7 @@ pub fn run_collator<P, E>(
 	build_parachain_context: P,
 	para_id: ParaId,
 	exit: E,
-	key: Arc<ed25519::Pair>,
+	key: Arc<CollatorPair>,
 	version: VersionInfo,
 ) -> polkadot_cli::error::Result<()> where
 	P: BuildParachainContext + Send + 'static,
@@ -450,8 +462,8 @@ pub fn run_collator<P, E>(
 #[cfg(test)]
 mod tests {
 	use std::collections::HashMap;
-	use polkadot_primitives::parachain::{OutgoingMessage, FeeSchedule};
-	use keyring::Ed25519Keyring;
+	use polkadot_primitives::parachain::{TargetedMessage, FeeSchedule};
+	use keyring::Sr25519Keyring;
 	use super::*;
 
 	#[derive(Default, Clone)]
@@ -475,20 +487,20 @@ mod tests {
 	struct DummyParachainContext;
 
 	impl ParachainContext for DummyParachainContext {
-		type ProduceCandidate = Result<(BlockData, HeadData, Extrinsic), InvalidHead>;
+		type ProduceCandidate = Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>;
 
 		fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 			&self,
 			_relay_parent: Hash,
 			_status: ParachainStatus,
 			ingress: I,
-		) -> Result<(BlockData, HeadData, Extrinsic), InvalidHead> {
+		) -> Result<(BlockData, HeadData, OutgoingMessages), InvalidHead> {
 			// send messages right back.
 			Ok((
 				BlockData(vec![1, 2, 3, 4, 5,]),
 				HeadData(vec![9, 9, 9]),
-				Extrinsic {
-					outgoing_messages: ingress.into_iter().map(|(id, msg)| OutgoingMessage {
+				OutgoingMessages {
+					outgoing_messages: ingress.into_iter().map(|(id, msg)| TargetedMessage {
 						target: id,
 						data: msg.0,
 					}).collect(),
@@ -541,8 +553,8 @@ mod tests {
 			},
 			context.clone(),
 			DummyParachainContext,
-			Ed25519Keyring::Alice.pair().into(),
-		).wait().unwrap();
+			Arc::new(Sr25519Keyring::Alice.pair().into()),
+		).wait().unwrap().0;
 
 		// ascending order by root.
 		assert_eq!(collation.receipt.egress_queue_roots, vec![(a, root_a), (b, root_b)]);

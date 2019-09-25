@@ -20,12 +20,13 @@
 use std::collections::hash_map::{HashMap, Entry};
 use std::sync::Arc;
 
-use extrinsic_store::{Data, Store as ExtrinsicStore};
+use availability_store::{Data, Store as AvailabilityStore};
 use table::{self, Table, Context as TableContextTrait};
-use polkadot_primitives::{Block, BlockId, Hash, SessionKey};
-use polkadot_primitives::parachain::{Id as ParaId, Collation, Extrinsic, CandidateReceipt,
-	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, ErasureChunk, ErasureChunks,
-	ValidatorSignature,
+use polkadot_primitives::{Block, BlockId, Hash};
+use polkadot_primitives::parachain::{
+	Id as ParaId, Collation, OutgoingMessages, CandidateReceipt, ValidatorPair, ValidatorId,
+	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex,
+	ErasureChunk, ErasureChunks, ValidatorSignature,
 };
 use polkadot_erasure_coding::{self as erasure};
 
@@ -36,7 +37,7 @@ use bitvec::bitvec;
 
 use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
-use primitives::{ed25519, Pair};
+use primitives::Pair;
 use runtime_primitives::traits::ProvideRuntimeApi;
 
 mod includable;
@@ -47,14 +48,14 @@ pub use table::generic::Statement as GenericStatement;
 
 struct TableContext {
 	parent_hash: Hash,
-	key: Arc<ed25519::Pair>,
+	key: Option<Arc<ValidatorPair>>,
 	groups: HashMap<ParaId, GroupInfo>,
-	index_mapping: HashMap<ValidatorIndex, SessionKey>,
+	validators: Vec<ValidatorId>,
 }
 
 impl table::Context for TableContext {
 	fn is_member_of(&self, authority: ValidatorIndex, group: &ParaId) -> bool {
-		let key = match self.index_mapping.get(&authority) {
+		let key = match self.validators.get(authority as usize) {
 			Some(val) => val,
 			None => return false,
 		};
@@ -68,41 +69,39 @@ impl table::Context for TableContext {
 }
 
 impl TableContext {
-	fn local_id(&self) -> SessionKey {
-		self.key.public().into()
+	fn local_id(&self) -> Option<ValidatorId> {
+		self.key.as_ref().map(|k| k.public())
 	}
 
 	fn validators_num(&self) -> usize {
 		self.groups.iter().fold(0, |acc, (_, v)| acc + v.validity_guarantors.len())
 	}
 
-	fn local_index(&self) -> ValidatorIndex {
-		let id = self.local_id();
-		self
-			.index_mapping
-			.iter()
-			.find(|(_, k)| k == &&id)
-			.map(|(i, _)| *i)
-			.unwrap()
+	fn local_index(&self) -> Option<ValidatorIndex> {
+		self.local_id().and_then(|id|
+			self.validators
+				.iter()
+				.enumerate()
+				.find(|(_, k)| k == &&id)
+				.map(|(i, _)| i as ValidatorIndex)
+		)
 	}
 
-	fn sign_statement(&self, statement: table::Statement) -> table::SignedStatement {
-		let signature = crate::sign_table_statement(&statement, &self.key, &self.parent_hash).into();
-
-		table::SignedStatement {
-			statement,
-			signature,
-			sender: self.local_index(),
-		}
+	fn sign_statement(&self, statement: table::Statement) -> Option<table::SignedStatement> {
+		self.local_index().and_then(move |sender|
+			self.key.as_ref()
+				.map(|key| crate::sign_table_statement(&statement, key, &self.parent_hash).into())
+				.map(move |signature| table::SignedStatement { statement, signature, sender })
+		)
 	}
 
-	fn sign_chunk(&self, chunk: &ErasureChunk, sender: ValidatorIndex) -> ValidatorSignature {
-		crate::sign_chunk(chunk, sender, &self.key)
+	fn sign_chunk(&self, chunk: &ErasureChunk, sender: ValidatorIndex) -> Option<ValidatorSignature> {
+		self.key.as_ref().map(|key| crate::sign_chunk(chunk, sender, key))
 	}
 }
 
 pub(crate) enum Validation {
-	Valid(PoVBlock, Extrinsic),
+	Valid(PoVBlock, OutgoingMessages),
 	Invalid(PoVBlock), // should take proof.
 }
 
@@ -133,7 +132,7 @@ impl ValidationWork {
 struct SharedTableInner {
 	table: Table<TableContext>,
 	trackers: Vec<IncludabilitySender>,
-	extrinsic_store: ExtrinsicStore,
+	availability_store: AvailabilityStore,
 	validated: HashMap<Hash, ValidationWork>,
 }
 
@@ -152,15 +151,10 @@ impl SharedTableInner {
 	) -> Option<ParachainWork<
 		<R::FetchValidationProof as IntoFuture>::Future,
 	>> {
-		let summary = match self.table.import_statement(context, statement) {
-			Some(summary) => summary,
-			None => return None,
-		};
-
+		let summary = self.table.import_statement(context, statement)?;
 		self.update_trackers(&summary.candidate, context);
 
-		let local_index = context.local_index();
-
+		let local_index = context.local_index()?;
 		let para_member = context.is_member_of(local_index, &summary.group_id);
 
 		let n_validators = context.validators_num();
@@ -204,7 +198,7 @@ impl SharedTableInner {
 		};
 
 		work.map(|work| ParachainWork {
-			extrinsic_store: self.extrinsic_store.clone(),
+			availability_store: self.availability_store.clone(),
 			relay_parent: context.parent_hash.clone(),
 			work,
 			n_validators,
@@ -241,24 +235,24 @@ impl Validated {
 	}
 
 	/// Note that we've validated a candidate with given hash and it is good.
-	/// Extrinsic data required.
-	pub fn known_good(hash: Hash, collation: PoVBlock, extrinsic: Extrinsic) -> Self {
+	/// outgoing message required.
+	pub fn known_good(hash: Hash, collation: PoVBlock, outgoing: OutgoingMessages) -> Self {
 		Validated {
 			statement: GenericStatement::Valid(hash),
-			result: Validation::Valid(collation, extrinsic),
+			result: Validation::Valid(collation, outgoing),
 		}
 	}
 
 	/// Note that we've collated a candidate.
-	/// Extrinsic data required.
+	/// outgoing message required.
 	pub fn collated_local(
 		receipt: CandidateReceipt,
 		collation: PoVBlock,
-		extrinsic: Extrinsic,
+		outgoing: OutgoingMessages,
 	) -> Self {
 		Validated {
 			statement: GenericStatement::Candidate(receipt),
-			result: Validation::Valid(collation, extrinsic),
+			result: Validation::Valid(collation, outgoing),
 		}
 	}
 
@@ -269,8 +263,8 @@ impl Validated {
 		}
 	}
 
-	/// Get a reference to the extrinsic data, if any.
-	pub fn extrinsic(&self) -> Option<&Extrinsic> {
+	/// Get a reference to the outgoing messages data, if any.
+	pub fn outgoing_messages(&self) -> Option<&OutgoingMessages> {
 		match self.result {
 			Validation::Valid(_, ref ex) => Some(ex),
 			Validation::Invalid(_) => None,
@@ -284,7 +278,7 @@ pub struct ParachainWork<Fetch> {
 	relay_parent: Hash,
 	n_validators: usize,
 	local_index: usize,
-	extrinsic_store: ExtrinsicStore,
+	availability_store: AvailabilityStore,
 	max_block_data_size: Option<u64>,
 }
 
@@ -294,7 +288,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			Fetch,
-			impl Send + FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>,
+			impl Send + FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()>,
 		>
 		where
 			P: Send + Sync + 'static,
@@ -323,7 +317,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 
 	/// Prime the parachain work with a custom validation function.
 	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<Fetch, F>
-		where F: FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>
+		where F: FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()>
 	{
 		PrimedParachainWork { inner: self, validate }
 	}
@@ -343,7 +337,7 @@ pub struct PrimedParachainWork<Fetch, F> {
 impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 	where
 		Fetch: Future<Item=PoVBlock,Error=Err>,
-		F: FnMut(&BlockId, &Collation) -> Result<Extrinsic, ()>,
+		F: FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()>,
 		Err: From<::std::io::Error>,
 {
 	type Item = Validated;
@@ -369,8 +363,10 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 				GenericStatement::Invalid(candidate_hash),
 				Validation::Invalid(pov_block),
 			),
-			Ok(extrinsic) => {
-				let chunks = erasure::obtain_chunks(self.inner.n_validators, &pov_block.block_data, &extrinsic).unwrap();
+			Ok(outgoing_targeted) => {
+				let outgoing_queues = outgoing_targeted.clone().into(); 
+
+				let chunks = erasure::obtain_chunks(self.inner.n_validators, &pov_block.block_data, &Some(outgoing_queues)).unwrap();
 				let chunks_ref: Vec<_> = chunks.iter().map(|c| &c[..]).collect();
 				let branches = erasure::branches(chunks_ref);
 				let root = branches.root();
@@ -389,18 +385,16 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 					}],
 				};
 
-				debug!(target: "validation", "Storing {}-th chunk out of {} chunks for {}",
-					   local_index, self.inner.n_validators, candidate_hash);
-				self.inner.extrinsic_store.make_available(Data {
+				self.inner.availability_store.make_available(Data {
 					relay_parent: self.inner.relay_parent,
 					parachain_id: work.candidate_receipt.parachain_index,
 					candidate_hash,
-					erasure_chunks: chunks,
+					erasure_chunks: chunks
 				})?;
 
 				(
 					GenericStatement::Valid(candidate_hash),
-					Validation::Valid(pov_block, extrinsic)
+					Validation::Valid(pov_block, outgoing_targeted)
 				)
 			}
 		};
@@ -435,22 +429,21 @@ impl SharedTable {
 	/// Provide the key to sign with, and the parent hash of the relay chain
 	/// block being built.
 	pub fn new(
-		authorities: &[ed25519::Public],
+		validators: Vec<ValidatorId>,
 		groups: HashMap<ParaId, GroupInfo>,
-		key: Arc<ed25519::Pair>,
+		key: Option<Arc<ValidatorPair>>,
 		parent_hash: Hash,
-		extrinsic_store: ExtrinsicStore,
+		availability_store: AvailabilityStore,
 		max_block_data_size: Option<u64>,
 	) -> Self {
-		let index_mapping = authorities.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect();
-		Self {
-			context: Arc::new(TableContext { groups, key, parent_hash, index_mapping, }),
+		SharedTable {
+			context: Arc::new(TableContext { groups, key, parent_hash, validators: validators.clone(), }),
 			max_block_data_size,
 			inner: Arc::new(Mutex::new(SharedTableInner {
 				table: Table::default(),
 				validated: HashMap::new(),
 				trackers: Vec::new(),
-				extrinsic_store,
+				availability_store,
 			}))
 		}
 	}
@@ -461,26 +454,13 @@ impl SharedTable {
 	}
 
 	/// Get the local validator session key.
-	pub fn session_key(&self) -> SessionKey {
+	pub fn session_key(&self) -> Option<ValidatorId> {
 		self.context.local_id()
 	}
 
 	/// Get group info.
 	pub fn group_info(&self) -> &HashMap<ParaId, GroupInfo> {
 		&self.context.groups
-	}
-
-	/// Get extrinsic data for candidate with given hash, if any.
-	///
-	/// This will return `Some` for any candidates that have been validated
-	/// locally.
-	pub(crate) fn extrinsic_data(&self, hash: &Hash) -> Option<Extrinsic> {
-		self.inner.lock().validated.get(hash).and_then(|x| match *x {
-			ValidationWork::Error(_) => None,
-			ValidationWork::InProgress => None,
-			ValidationWork::Done(Validation::Invalid(_)) => None,
-			ValidationWork::Done(Validation::Valid(_, ref ex)) => Some(ex.clone()),
-		})
 	}
 
 	/// Import a single statement with remote source, whose signature has already been checked.
@@ -518,9 +498,10 @@ impl SharedTable {
 		}).collect()
 	}
 
-	/// Sign and import the result of candidate validation.
+	/// Sign and import the result of candidate validation. Returns `None` if the table
+	/// was instantiated without a local key.
 	pub fn import_validated(&self, validated: Validated)
-		-> SignedStatement
+		-> Option<SignedStatement>
 	{
 		let digest = match validated.statement {
 			GenericStatement::Candidate(ref c) => c.hash(),
@@ -529,9 +510,11 @@ impl SharedTable {
 
 		let signed_statement = self.context.sign_statement(validated.statement);
 
-		let mut inner = self.inner.lock();
-		inner.table.import_statement(&*self.context, signed_statement.clone());
-		inner.validated.insert(digest, ValidationWork::Done(validated.result));
+		if let Some(ref signed) = signed_statement {
+			let mut inner = self.inner.lock();
+			inner.table.import_statement(&*self.context, signed.clone());
+			inner.validated.insert(digest, ValidationWork::Done(validated.result));
+		}
 
 		signed_statement
 	}
@@ -540,12 +523,13 @@ impl SharedTable {
 	///
 	/// Only imports `i`-th erasure-encoded chunk of data where `i` is the `local_index`.
 	pub fn import_erasure_chunk(&self, chunk: ErasureChunk) {
-		if chunk.index == self.context.local_index() {
-			let _ = self.inner.lock().extrinsic_store.add_erasure_chunk(chunk);
+		if Some(chunk.index) == self.context.local_index() {
+			let _ = self.inner.lock().availability_store.add_erasure_chunk(chunk);
 		}
 	}
+
 	/// Sign the erasure-encoded chunk of data with a validator's signature.
-	pub fn sign_chunk(&self, chunk: &ErasureChunk, sender: ValidatorIndex) -> ValidatorSignature {
+	pub fn sign_chunk(&self, chunk: &ErasureChunk, sender: ValidatorIndex) -> Option<ValidatorSignature> {
 		self.context.sign_chunk(chunk, sender)
 	}
 
@@ -625,15 +609,15 @@ impl SharedTable {
 	}
 
 	/// Returns id of the validator corresponding to the given index.
-	pub fn index_to_id(&self, index: ValidatorIndex) -> Option<SessionKey> {
-		self.context.index_mapping.get(&index).cloned()
+	pub fn index_to_id(&self, index: ValidatorIndex) -> Option<ValidatorId> {
+		self.context.validators.get(index as usize).cloned()
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::Ed25519Keyring;
+	use substrate_keyring::Sr25519Keyring;
 	use primitives::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{BlockData, ConsolidatedIngress};
 	use futures::future;
@@ -652,7 +636,7 @@ mod tests {
 		type FetchValidationProof = future::FutureResult<PoVBlock,Self::Error>;
 		type FetchBlockChunk = future::FutureResult<ErasureChunk, Self::Error>;
 
-		fn local_collation(&self, _collation: Collation, _extrinsic: Extrinsic, _chunks: (ValidatorIndex, &Vec<ErasureChunk>)) {
+		fn local_collation(&self, _collation: Collation, _outgoing: OutgoingMessages, _chunks: (ValidatorIndex, &Vec<ErasureChunk>)) {
 		}
 
 		fn fetch_pov_block(&self, _candidate: &CandidateReceipt) -> Self::FetchValidationProof {
@@ -681,11 +665,12 @@ mod tests {
 		let para_id = ParaId::from(1);
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
-		let local_id = local_key.public();
+		let local_key = Sr25519Keyring::Alice.pair();
+		let local_id: ValidatorId = local_key.public().into();
+		let local_key: Arc<ValidatorPair> = Arc::new(local_key.into());
 
-		let validity_other_key = Ed25519Keyring::Bob.pair();
-		let validity_other = validity_other_key.public();
+		let validity_other_key = Sr25519Keyring::Bob.pair();
+		let validity_other: ValidatorId = validity_other_key.public().into();
 		let validity_other_index = 1;
 
 		groups.insert(para_id, GroupInfo {
@@ -694,11 +679,11 @@ mod tests {
 		});
 
 		let shared_table = SharedTable::new(
-			&[local_id, validity_other],
+			[local_id, validity_other].to_vec(),
 			groups,
-			local_key.clone(),
+			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 
@@ -716,7 +701,7 @@ mod tests {
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
-		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
+		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key.into(), &parent_hash);
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
@@ -736,11 +721,12 @@ mod tests {
 		let para_id = ParaId::from(1);
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
-		let local_id = local_key.public();
+		let local_key = Sr25519Keyring::Alice.pair();
+		let local_id: ValidatorId = local_key.public().into();
+		let local_key: Arc<ValidatorPair> = Arc::new(local_key.into());
 
-		let validity_other_key = Ed25519Keyring::Bob.pair();
-		let validity_other = validity_other_key.public();
+		let validity_other_key = Sr25519Keyring::Bob.pair();
+		let validity_other: ValidatorId = validity_other_key.public().into();
 		let validity_other_index = 1;
 
 		groups.insert(para_id, GroupInfo {
@@ -749,11 +735,11 @@ mod tests {
 		});
 
 		let shared_table = SharedTable::new(
-			&[local_id, validity_other],
+			[local_id, validity_other].to_vec(),
 			groups,
-			local_key.clone(),
+			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 
@@ -771,7 +757,7 @@ mod tests {
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
-		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
+		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key.into(), &parent_hash);
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
@@ -786,7 +772,7 @@ mod tests {
 
 	#[test]
 	fn evaluate_makes_block_data_available() {
-		let store = ExtrinsicStore::new_in_memory();
+		let store = AvailabilityStore::new_in_memory();
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
@@ -813,11 +799,11 @@ mod tests {
 			local_index: 0,
 			n_validators: 2,
 			relay_parent,
-			extrinsic_store: store.clone(),
+			availability_store: store.clone(),
 			max_block_data_size: None,
 		};
 
-		let validated = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+		let validated = producer.prime_with(|_, _| Ok(OutgoingMessages { outgoing_messages: Vec::new() }))
 			.wait()
 			.unwrap();
 
@@ -825,12 +811,12 @@ mod tests {
 		assert_eq!(validated.statement, GenericStatement::Valid(hash));
 
 		assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
-		assert!(store.extrinsic(relay_parent, hash).is_some());
+		// TODO: check that a message queue is included by root.
 	}
 
 	#[test]
 	fn full_availability() {
-		let store = ExtrinsicStore::new_in_memory();
+		let store = AvailabilityStore::new_in_memory();
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
@@ -857,18 +843,19 @@ mod tests {
 			local_index: 0,
 			n_validators: 2,
 			relay_parent,
-			extrinsic_store: store.clone(),
+			availability_store: store.clone(),
 			max_block_data_size: None,
 		};
 
-		let validated = producer.prime_with(|_, _| Ok(Extrinsic { outgoing_messages: Vec::new() }))
+		let validated = producer.prime_with(|_, _| Ok(OutgoingMessages { outgoing_messages: Vec::new() }))
 			.wait()
 			.unwrap();
 
 		assert_eq!(validated.pov_block(), &pov_block);
 
 		assert!(store.block_data(relay_parent, hash).is_some());
-		assert!(store.extrinsic(relay_parent, hash).is_some());
+		//assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
+		// TODO: check that a message queue is included by root.
 	}
 
 	#[test]
@@ -878,11 +865,12 @@ mod tests {
 		let para_id = ParaId::from(1);
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
-		let local_id = local_key.public();
+		let local_key = Sr25519Keyring::Alice.pair();
+		let local_id: ValidatorId = local_key.public().into();
+		let local_key: Arc<ValidatorPair> = Arc::new(local_key.into());
 
-		let validity_other_key = Ed25519Keyring::Bob.pair();
-		let validity_other = validity_other_key.public();
+		let validity_other_key = Sr25519Keyring::Bob.pair();
+		let validity_other: ValidatorId = validity_other_key.public().into();
 		let validity_other_index = 1;
 
 		groups.insert(para_id, GroupInfo {
@@ -891,11 +879,11 @@ mod tests {
 		});
 
 		let shared_table = SharedTable::new(
-			&[local_id, validity_other],
+			[local_id, validity_other].to_vec(),
 			groups,
-			local_key.clone(),
+			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 
@@ -914,7 +902,7 @@ mod tests {
 		let hash = candidate.hash();
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
-		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key, &parent_hash);
+		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key.into(), &parent_hash);
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
@@ -942,14 +930,15 @@ mod tests {
 
 		let para_id = ParaId::from(1);
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
-		let extrinsic = Extrinsic { outgoing_messages: Vec::new() };
+		let outgoing_messages = OutgoingMessages { outgoing_messages: Vec::new() };
 		let parent_hash = Default::default();
 
-		let local_key = Arc::new(Ed25519Keyring::Alice.pair());
-		let local_id = local_key.public();
+		let local_key = Sr25519Keyring::Alice.pair();
+		let local_id: ValidatorId = local_key.public().into();
+		let local_key: Arc<ValidatorPair> = Arc::new(local_key.into());
 
-		let validity_other_key = Ed25519Keyring::Bob.pair();
-		let validity_other = validity_other_key.public();
+		let validity_other_key = Sr25519Keyring::Bob.pair();
+		let validity_other: ValidatorId = validity_other_key.public().into();
 
 		groups.insert(para_id, GroupInfo {
 			validity_guarantors: [local_id.clone(), validity_other.clone()].iter().cloned().collect(),
@@ -957,11 +946,11 @@ mod tests {
 		});
 
 		let shared_table = SharedTable::new(
-			&[local_id, validity_other],
+			[local_id, validity_other].to_vec(),
 			groups,
-			local_key.clone(),
+			Some(local_key.clone()),
 			parent_hash,
-			ExtrinsicStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(),
 			None,
 		);
 
@@ -981,8 +970,8 @@ mod tests {
 		let signed_statement = shared_table.import_validated(Validated::collated_local(
 			candidate,
 			pov_block,
-			extrinsic,
-		));
+			outgoing_messages,
+		)).unwrap();
 
 		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_done());
 
@@ -992,30 +981,5 @@ mod tests {
 		);
 
 		assert!(a.is_none());
-	}
-
-	#[test]
-	fn index_mapping_from_authorities() {
-		let authorities_set: &[&[_]] = &[
-			&[],
-			&[Ed25519Keyring::Alice.pair().public()],
-			&[Ed25519Keyring::Alice.pair().public(), Ed25519Keyring::Bob.pair().public()],
-			&[Ed25519Keyring::Bob.pair().public(), Ed25519Keyring::Alice.pair().public()],
-			&[Ed25519Keyring::Alice.pair().public(), Ed25519Keyring::Bob.pair().public(), Ed25519Keyring::Charlie.pair().public()],
-			&[Ed25519Keyring::Charlie.pair().public(), Ed25519Keyring::Bob.pair().public(), Ed25519Keyring::Alice.pair().public()],
-		];
-
-		for authorities in authorities_set {
-			let shared_table = SharedTable::new(
-				authorities,
-				HashMap::new(),
-				Arc::new(Ed25519Keyring::Alice.pair()),
-				Default::default(),
-				ExtrinsicStore::new_in_memory(),
-				None,
-			);
-			let expected_mapping = authorities.iter().enumerate().map(|(i, k)| (i as ValidatorIndex, k.clone())).collect();
-			assert_eq!(shared_table.context.index_mapping, expected_mapping);
-		}
 	}
 }
