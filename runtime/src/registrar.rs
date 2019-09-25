@@ -167,6 +167,9 @@ decl_storage! {
 		/// thread. If None, then it will be the last normally scheduled parathread (or the last
 		/// parachain if there are no parathreads).
 		Retrying: Option<u32>;
+
+		/// Users who have paid a parathread's deposit
+		Debtors: map ParaId => T::AccountId;
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
@@ -241,6 +244,8 @@ decl_module! {
 
 			let _ = <Self as Registrar<T::AccountId>>::
 				register_para(id, info, code, initial_head_data);
+			
+			<Debtors<T>>::insert(id, who);
 
 			Self::deposit_event(Event::ParathreadRegistered(id));
 		}
@@ -266,17 +271,15 @@ decl_module! {
 		/// Ensure that before calling this that any funds you want emptied from the parathread's
 		/// account is moved out; after this it will be impossible to retrieve them (without
 		/// governance intervention).
-		fn deregister_parathread(origin,
-			debtor: <T::Lookup as StaticLookup>::Source
-		) {
+		fn deregister_parathread(origin) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
-			let debtor = T::Lookup::lookup(debtor)?;
 
 			let info = Paras::get(id).ok_or("invalid id")?;
 			if let Scheduling::Dynamic = info.scheduling {} else { Err("invalid parathread id")? }
 
 			<Self as Registrar<T::AccountId>>::deregister_para(id)?;
 
+			let debtor = <Debtors<T>>::take(id);
 			let _ = T::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
 			Self::deposit_event(Event::ParathreadRegistered(id));
@@ -826,7 +829,7 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 			run_to_block(4);
 
 			// Deregister a parachain
-			assert_ok!(Registrar::deregister_parathread(parachains::Origin::Parachain(ParaId::from(1000)).into(), 0));
+			assert_ok!(Registrar::deregister_parathread(parachains::Origin::Parachain(ParaId::from(1000)).into()));
 
 			run_to_block(5);
 
