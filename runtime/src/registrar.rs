@@ -24,7 +24,7 @@ use codec::{Encode, Decode};
 use sr_primitives::{
 	weights::{SimpleDispatchInfo, DispatchInfo},
 	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
-	traits::{Hash as HashT, StaticLookup, SignedExtension}
+	traits::{Hash as HashT, SignedExtension}
 };
 
 use srml_support::{
@@ -747,9 +747,8 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 	#[test]
 	fn basic_setup_works() {
 		with_externalities(&mut new_test_ext(vec![]), || {
-			//assert_eq!(Parachains::get(), vec![]);
+			assert_eq!(super::Parachains::get(), vec![]);
 			assert_eq!(ThreadCount::get(), 0);
-			//assert_eq!(SelectedThreads::get(), vec![];
 			assert_eq!(Active::get(), vec![]);
 			assert_eq!(NextFreeId::get(), LOWEST_USER_ID);
 			assert_eq!(PendingSwap::get(&0u32.into()), None);
