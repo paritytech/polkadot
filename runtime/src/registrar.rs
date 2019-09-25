@@ -307,6 +307,13 @@ decl_module! {
 			}
 		}
 
+		/// Set the thread count, i.e. number of threads to schedule per block.
+		/// Must be sent from `Root` origin.
+		fn set_thread_count(origin, new_thread_count: u32) {
+			ensure_root(origin)?;
+			ThreadCount::put(new_thread_count);
+		}
+
 		/// Block initializer. Clears SelectedThreads and constructs/replaces Active.
 		fn on_initialize() {			
 			let next_up = SelectedThreads::mutate(|t| {
@@ -541,7 +548,7 @@ mod tests {
 		Balance, BlockNumber,
 	};
 	use srml_support::{
-		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
+		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
 	};
 	use keyring::Sr25519Keyring;
 
@@ -833,7 +840,7 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 	}
 
 	#[test]
-	fn parathread_can_activate() {
+	fn parathread_auction_handles_basic_errors() {
 		with_externalities(&mut new_test_ext(vec![]), || {
 			run_to_block(2);
 			assert_ok!(Registrar::register_parathread(Origin::signed(0), vec![7,8,9], vec![1, 1, 1]));
@@ -841,34 +848,99 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 			run_to_block(3);
 			assert_eq!(Registrar::paras(&1000u32.into()), Some(ParaInfo { scheduling: Scheduling::Dynamic }));
 
-			let para_id = ParaId::from(1000);
-			let collator_id = CollatorId::default();
-			let head_data_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 1, 1]);
-			let call = Call::Registrar(super::Call::select_parathread(para_id, collator_id, head_data_hash));
+			let good_para_id = ParaId::from(1000);
+			let bad_para_id = ParaId::from(1001);
+			let bad_head_data_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 2, 1]);
+			let good_head_data_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 1, 1]);
 			let info = DispatchInfo::default();
 
-			ThreadCount::put(10);
+			// Allow for threads
+			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 10));
 
-			// Someone calls `select_parathread`
+			// Bad parathread id
+			let call = Call::Registrar(super::Call::select_parathread(bad_para_id, CollatorId::default(), good_head_data_hash));
+			assert!(LimitParathreadCommits::<Test>(std::marker::PhantomData).validate(&0, &call, info, 0).is_err());
+
+			// Bad head data
+			let call = Call::Registrar(super::Call::select_parathread(good_para_id, CollatorId::default(), bad_head_data_hash));
+			assert!(LimitParathreadCommits::<Test>(std::marker::PhantomData).validate(&0, &call, info, 0).is_err());
+
+			// No duplicates
+			let call = Call::Registrar(super::Call::select_parathread(good_para_id, CollatorId::default(), good_head_data_hash));
 			assert!(LimitParathreadCommits::<Test>(std::marker::PhantomData).validate(&0, &call, info, 0).is_ok());
+			assert!(LimitParathreadCommits::<Test>(std::marker::PhantomData).validate(&0, &call, info, 0).is_err());
+		});
+	}
 
-			// Thread is put in newest queue
-			assert_eq!(SelectedThreads::get()[1], vec![(1000u32.into(), CollatorId::default())]);
+	#[test]
+	fn parathread_auction_works() {
+		with_externalities(&mut new_test_ext(vec![]), || {
+			run_to_block(2);
+			// Register 5 parathreads
+			for x in 0..5 {
+				assert_ok!(Registrar::register_parathread(Origin::signed(x as u64), vec![x,x,x], vec![x, x, x]));
+			}
+
+			run_to_block(3);
+			
+			for x in 1000..1005 {
+				assert_eq!(Registrar::paras(&x.into()), Some(ParaInfo { scheduling: Scheduling::Dynamic }));
+			}
+
+			// Only 3 slots available... who will win??
+			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 3));
+
+			// Everyone wants a thread
+			for x in 0..5 {
+				let para_id = ParaId::from(1000 + x as u32);
+				let collator_id = CollatorId::default();
+				let head_data_hash = <Test as system::Trait>::Hashing::hash(&vec![x, x, x]);
+				let call = Call::Registrar(super::Call::select_parathread(para_id, collator_id, head_data_hash));
+				let info = DispatchInfo::default();
+
+				// First 3 transactions win a slot
+				if x < 3 {
+					assert!(
+						LimitParathreadCommits::<Test>(std::marker::PhantomData)
+						.validate(&0, &call, info, 0)
+						.is_ok()
+					);
+				} else {
+				// All others lose
+					assert_noop!(
+						LimitParathreadCommits::<Test>(std::marker::PhantomData)
+						.validate(&0, &call, info, 0),
+						InvalidTransaction::ExhaustsResources.into()
+					);
+				}
+			}
+
+			// 3 Threads are selected
+			assert_eq!(
+				SelectedThreads::get()[1],
+				vec![
+					(1000u32.into(), CollatorId::default()),
+					(1001u32.into(), CollatorId::default()),
+					(1002u32.into(), CollatorId::default())
+				]
+			);
 
 			// Assuming Queue Size is 2
 			assert_eq!(QUEUE_SIZE, 2);
 
-			// 1 block later
-			run_to_block(4);
-			// Thread is getting ready to play ball
-			assert_eq!(SelectedThreads::get()[0], vec![(1000u32.into(), CollatorId::default())]);
-
 			// 2 blocks later
 			run_to_block(5);
-			// Thread leaves queue
+			// Threads left queue
 			assert_eq!(SelectedThreads::get()[0], vec![]);
-			// Thread is active
-			assert_eq!(Registrar::active_paras(), vec![(1000u32.into(), Some(CollatorId::default()))]);
+			// Threads are active
+			assert_eq!(
+				Registrar::active_paras(),
+				vec![
+					(1000u32.into(), Some(CollatorId::default())),
+					(1001u32.into(), Some(CollatorId::default())),
+					(1002u32.into(), Some(CollatorId::default()))
+				]
+			);
 		});
 	}
 }
