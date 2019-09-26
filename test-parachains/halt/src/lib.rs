@@ -17,13 +17,13 @@
 //! Basic parachain that executes forever.
 
 #![no_std]
-#![cfg_attr(feature = "no_std", feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler))]
+#![cfg_attr(not(feature = "std"), feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler))]
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-#[cfg(feature = "no_std")]
+#[cfg(not(feature = "std"))]
 #[panic_handler]
 #[no_mangle]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -32,7 +32,7 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
 	}
 }
 
-#[cfg(feature = "no_std")]
+#[cfg(not(feature = "std"))]
 #[alloc_error_handler]
 #[no_mangle]
 pub fn oom(_: core::alloc::Layout) -> ! {
@@ -41,7 +41,7 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 	}
 }
 
-#[cfg(feature = "no_std")]
+#[cfg(not(feature = "std"))]
 #[no_mangle]
 pub extern fn validate_block(params: *const u8, len: usize) -> usize {
 	loop {}

@@ -306,7 +306,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 		};
 
 		let is_known = move |block_hash: &Hash| {
-			use client::BlockStatus;
+			use consensus_common::BlockStatus;
 			use polkadot_network::gossip::Known;
 
 			match known_oracle.block_status(&BlockId::hash(*block_hash)) {

@@ -35,6 +35,7 @@ use babe_primitives::BabeApi;
 use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
 use client::block_builder::api::BlockBuilder as BlockBuilderApi;
+use client::error as client_error;
 use codec::Encode;
 use consensus::SelectChain;
 use availability_store::Store as AvailabilityStore;
@@ -46,9 +47,7 @@ use polkadot_primitives::parachain::{
 	Collation, PoVBlock, ValidatorSignature, ValidatorPair, ValidatorId
 };
 use primitives::Pair;
-use runtime_primitives::{
-	traits::{ProvideRuntimeApi, DigestFor}, ApplyError
-};
+use runtime_primitives::traits::{ProvideRuntimeApi, DigestFor};
 use futures_timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
 
@@ -719,7 +718,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			for ready in ready_iter.take(MAX_TRANSACTIONS) {
 				let encoded_size = ready.data.encode().len();
 				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
-					break
+					break;
 				}
 				if Instant::now() > self.deadline {
 					debug!("Consensus deadline reached when pushing block transactions, proceeding with proposing.");
@@ -731,7 +730,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 						debug!("[{:?}] Pushed to the block.", ready.hash);
 						pending_size += encoded_size;
 					}
-					Err(client::error::Error::ApplyExtrinsicFailed(ApplyError::FullBlock)) => {
+					Err(client_error::Error::ApplyExtrinsicFailed(e)) if e.exhausted_resources() => {
 						debug!("Block is full, proceed with proposing.");
 						break;
 					}
