@@ -188,7 +188,7 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
-		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
+		pub fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
 

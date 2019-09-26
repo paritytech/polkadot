@@ -221,6 +221,16 @@ decl_module! {
 			<Self as Registrar<T::AccountId>>::deregister_para(id)
 		}
 
+		/// Reset the number of parathreads that can pay to be scheduled in a single block.
+		///
+		/// - `count`: The number of parathreads.
+		///
+		/// Must be called from Root origin.
+		fn set_thread_count(origin, count: u32) {
+			ensure_root(origin)?;
+			ThreadCount::put(count);
+		}
+
 		/// Register a parathread for immediate use.
 		///
 		/// Must be sent from a Signed origin that is able to have ParathreadDeposit reserved.
@@ -276,6 +286,8 @@ decl_module! {
 
 			let _ = T::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 		}
+
+		// TODO: swapping or removing a parathread should clear its para ID from all schedule queues
 
 		/// Swap a parachain with another parachain or parathread. The origin must be a `Parachain`.
 		/// The swap will happen only if there is already an opposite swap pending. If there is not,
@@ -414,9 +426,9 @@ impl<T: Trait> Module<T> {
 
 	fn take_next_retry() -> Option<((ParaId, CollatorId), u32)> {
 		RetryQueue::mutate(|q| {
-			for i in q.iter_mut() {
-				if !i.is_empty() {
-					return Some((i.remove(0), 0));
+			for (i, q) in q.iter_mut().enumerate() {
+				if !q.is_empty() {
+					return Some((q.remove(0), i as u32));
 				}
 			}
 			None
@@ -527,17 +539,14 @@ mod tests {
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher};
 	use sr_primitives::{
-		Perbill,
-		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize},
-		testing::{UintAuthorityId, Header},
+		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize, Dispatchable},
+		testing::{UintAuthorityId, Header}, Perbill
 	};
 	use primitives::{
-		parachain::{ValidatorId, Info as ParaInfo, Scheduling},
+		parachain::{ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID},
 		Balance, BlockNumber,
 	};
-	use srml_support::{
-		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
-	};
+	use srml_support::{impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types};
 	use keyring::Sr25519Keyring;
 
 	use crate::parachains;
@@ -553,6 +562,7 @@ mod tests {
 	impl_outer_dispatch! {
 		pub enum Call for Test where origin: Origin {
 			parachains::Parachains,
+			registrar::Registrar,
 		}
 	}
 
@@ -666,11 +676,12 @@ mod tests {
 		type OnSwap = slots::Module<Test>;
 	}
 
+	type Balances = balances::Module<Test>;
 	type Parachains = parachains::Module<Test>;
 	type System = system::Module<Test>;
 	type Registrar = Module<Test>;
 
-fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
+	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
 		let authority_keys = [
@@ -714,49 +725,171 @@ fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalitie
 		t.into()
 	}
 
+	fn init_block() {
+		println!("Initializing {}", System::block_number());
+		System::on_initialize(System::block_number());
+		Registrar::on_initialize(System::block_number());
+		Parachains::on_initialize(System::block_number());
+	}
 
 	fn run_to_block(n: u64) {
+		println!("Running until block {}", n);
 		while System::block_number() < n {
-			Registrar::on_finalize(System::block_number());
-			System::on_finalize(System::block_number());
+			if System::block_number() > 1 {
+				println!("Finalizing {}", System::block_number());
+				if !parachains::DidUpdate::exists() {
+					println!("Null heads update");
+					assert_ok!(Parachains::set_heads(system::RawOrigin::None.into(), vec![]));
+				}
+				Parachains::on_finalize(System::block_number());
+				Registrar::on_finalize(System::block_number());
+				System::on_finalize(System::block_number());
+			}
 			System::set_block_number(System::block_number() + 1);
-			System::on_initialize(System::block_number());
-			Registrar::on_initialize(System::block_number());
+			init_block();
 		}
 	}
 
 	#[test]
-	fn register_deregister() {
+	fn register_deregister_chains_works() {
 		let parachains = vec![
-			(5u32.into(), vec![1,2,3], vec![1]),
-			(100u32.into(), vec![4,5,6], vec![2,]),
+			(1u32.into(), vec![1; 3], vec![1; 3]),
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
 			run_to_block(2);
+
 			// Genesis registration works
-			assert_eq!(Registrar::active_paras(), vec![(5u32.into(), None), (100u32.into(), None)]);
-			assert_eq!(Registrar::paras(&5u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
-			assert_eq!(Registrar::paras(&100u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
-			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
-			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
+			assert_eq!(Registrar::active_paras(), vec![(1u32.into(), None)]);
+			assert_eq!(
+				Registrar::paras(&1u32.into()),
+				Some(ParaInfo { scheduling: Scheduling::Always })
+			);
+			assert_eq!(Parachains::parachain_code(&1u32.into()), Some(vec![1; 3]));
 
 			// Register a new parachain
-			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
+			assert_ok!(Registrar::register_para(
+				Origin::ROOT,
+				2u32.into(),
+				vec![2; 3],
+				vec![2; 3],
+				ParaInfo { scheduling: Scheduling::Always }
+			));
+
+			let orig_bal = Balances::free_balance(&3u64.into());
+			// Register a new parathread
+			assert_ok!(Registrar::register_parathead(
+				Origin::signed(3u64.into()),
+				vec![3; 3],
+				vec![3; 3],
+			));
+			// deposit should be taken (reserved)
+			assert_eq!(Balances::free_balance(&3u64.into()) + ParathreadDeposit::get(), orig_bal);
+			assert_eq!(Balances::reserved_balance(&3u64.into()), ParathreadDeposit::get());
 
 			run_to_block(3);
 
-			// New parachain is registered
-			assert_eq!(Registrar::active_paras(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
-			assert_eq!(Registrar::paras(&99u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
-			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
+			// New paras are registered
+			assert_eq!(Registrar::active_paras(), vec![(1u32.into(), None), (2u32.into(), None)]);
+			assert_eq!(
+				Registrar::paras(&2u32.into()),
+				Some(ParaInfo { scheduling: Scheduling::Always })
+			);
+			assert_eq!(
+				Registrar::paras(&LOWEST_USER_ID),
+				Some(ParaInfo { scheduling: Scheduling::Dynamic })
+			);
+			assert_eq!(Parachains::parachain_code(&2u32.into()), Some(vec![2; 3]));
+			assert_eq!(Parachains::parachain_code(&LOWEST_USER_ID), Some(vec![3; 3]));
 
-			assert_ok!(Registrar::deregister_para(Origin::ROOT, 5u32.into()));
+			assert_ok!(Registrar::deregister_para(Origin::ROOT, 2u32.into()));
+			assert_ok!(Registrar::deregister_parathread(
+				parachains::Origin::Parachain(LOWEST_USER_ID).into(),
+				3u32.into()
+			));
+			// reserved balance should be returned.
+			assert_eq!(Balances::free_balance(&3u64.into()), orig_bal);
+			assert_eq!(Balances::reserved_balance(&3u64.into()), 0);
 
 			run_to_block(4);
 
-			assert_eq!(Registrar::active_paras(), vec![(99u32.into(), None), (100u32.into(), None)]);
-			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
+			assert_eq!(Registrar::active_paras(), vec![(1u32.into(), None)]);
+			assert_eq!(Registrar::paras(&2u32.into()), None);
+			assert_eq!(Parachains::parachain_code(&2u32.into()), None);
+			assert_eq!(Registrar::paras(&LOWEST_USER_ID), None);
+			assert_eq!(Parachains::parachain_code(&LOWEST_USER_ID), None);
+		});
+	}
+
+	#[test]
+	fn parathread_scheduling_works() {
+		with_externalities(&mut new_test_ext(vec![]), || {
+			Registrar::set_thread_count(Origin::ROOT, 1);
+
+			run_to_block(2);
+
+			// Register a new parathread
+			assert_ok!(Registrar::register_parathead(
+				Origin::signed(3u64),
+				vec![3; 3],
+				vec![3; 3],
+			));
+
+			run_to_block(3);
+
+			// transaction submitted to get parathread progressed.
+			let tx: LimitParathreadCommits<Test> = LimitParathreadCommits(Default::default());
+			let col: CollatorId = Sr25519Keyring::One.public().into();
+			let hdh = BlakeTwo256::hash(&vec![3; 3]);
+			let inner_call = super::Call::select_parathread(LOWEST_USER_ID, col.clone(), hdh);
+			let call = Call::Registrar(inner_call);
+			let origin = 4u64;
+			assert!(tx.validate(&origin, &call, Default::default(), 0).is_ok());
+			assert_ok!(call.dispatch(Origin::signed(origin)));
+
+			run_to_block(5);
+
+			assert_eq!(Registrar::active_paras(), vec![(LOWEST_USER_ID, Some(col))]);
+
+			assert_ok!(Parachains::set_heads(vec![]));
+		});
+	}
+
+	// TODO: check for error conditions along the way.
+
+	#[test]
+	fn parathread_rescheduling_works() {
+		with_externalities(&mut new_test_ext(vec![]), || {
+			Registrar::set_thread_count(Origin::ROOT, 1);
+
+			run_to_block(2);
+
+			// Register some parathreads.
+			assert_ok!(Registrar::register_parathead(Origin::signed(3), vec![3; 3], vec![3; 3]));
+			assert_ok!(Registrar::register_parathead(Origin::signed(4), vec![4; 3], vec![4; 3]));
+			assert_ok!(Registrar::register_parathead(Origin::signed(5), vec![5; 3], vec![5; 3]));
+
+			run_to_block(3);
+
+			// transaction submitted to get parathread progressed.
+			let tx: LimitParathreadCommits<Test> = LimitParathreadCommits(Default::default());
+			let col: CollatorId = Sr25519Keyring::One.public().into();
+			let hdh = BlakeTwo256::hash(&vec![3; 3]);
+			let inner_call = super::Call::select_parathread(LOWEST_USER_ID, col.clone(), hdh);
+			let call = Call::Registrar(inner_call);
+			let origin = 4u64;
+			assert!(tx.validate(&origin, &call, Default::default(), 0).is_ok());
+			assert_ok!(call.dispatch(Origin::signed(origin)));
+
+			// 4x: the initial time it was scheduled, plus 3 retries.
+			for n in 5..9 {
+				run_to_block(n);
+				assert_eq!(Registrar::active_paras(), vec![(LOWEST_USER_ID, Some(col.clone()))]);
+			}
+
+			// missed too many times. dropped.
+			run_to_block(9);
+			assert_eq!(Registrar::active_paras(), vec![]);
 		});
 	}
 }
