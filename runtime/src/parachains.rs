@@ -437,13 +437,12 @@ impl<T: Trait> Module<T> {
 			});
 			// Should never be able to fail assuming our state is uncorrupted, but best not
 			// to panic, even if it does.
-			println!("ordered_needs_dispatch {:?}, id {:?}", ordered_needs_dispatch, id);
 			let _ = RelayDispatchQueue::append(id, upward_messages);
 			if ordered_needs_dispatch.binary_search(&id).is_err() {
 				// same.
 				let _ = NeedsDispatch::append(&[id]);
 			} else {
-				sr_io::print("ordered_needs_dispatch contains id?!");
+				sr_primitives::print("ordered_needs_dispatch contains id?!");
 			}
 		}
 	}
@@ -455,7 +454,6 @@ impl<T: Trait> Module<T> {
 		mut dispatch_message: impl FnMut(ParaId, ParachainDispatchOrigin, &[u8]),
 	) {
 		let queueds = NeedsDispatch::get();
-		println!("Queueds: {:?}", queueds);
 		let mut drained_count = 0usize;
 		let mut dispatched_count = 0usize;
 		let mut dispatched_size = 0usize;
@@ -886,6 +884,7 @@ mod tests {
 		Perbill,
 		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize},
 		testing::{UintAuthorityId, Header},
+		curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo, Scheduling},
@@ -942,6 +941,7 @@ mod tests {
 	parameter_types! {
 		pub const Period: BlockNumber = 1;
 		pub const Offset: BlockNumber = 0;
+		pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	}
 
 	impl session::Trait for Test {
@@ -953,6 +953,7 @@ mod tests {
 		type SelectInitialValidators = staking::Module<Self>;
 		type ValidatorId = u64;
 		type ValidatorIdOf = staking::StashOf<Self>;
+		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	}
 
 	impl session::historical::Trait for Test {
@@ -1003,10 +1004,22 @@ mod tests {
 		type WeightToFee = ConvertInto;
 	}
 
+	srml_staking_reward_curve::build! {
+		const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
+			min_inflation: 0_025_000,
+			max_inflation: 0_100_000,
+			ideal_stake: 0_500_000,
+			falloff: 0_050_000,
+			max_piece_count: 40,
+			test_precision: 0_005_000,
+		);
+	}
+
 	parameter_types! {
 		pub const SessionsPerEra: sr_staking_primitives::SessionIndex = 6;
 		pub const BondingDuration: staking::EraIndex = 28;
 		pub const AttestationPeriod: BlockNumber = 100;
+		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	}
 
 	impl staking::Trait for Test {
@@ -1020,6 +1033,7 @@ mod tests {
 		type BondingDuration = BondingDuration;
 		type SessionInterface = Self;
 		type Time = timestamp::Module<Test>;
+		type RewardCurve = RewardCurve;
 	}
 
 	impl attestations::Trait for Test {

@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.1.17"
-futures03 = { package = "futures-preview", version = "0.3.0-alpha.17", features = ["compat"] }
+futures03 = { package = "futures-preview", version = "0.3.0-alpha.18", features = ["compat"] }
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

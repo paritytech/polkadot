@@ -19,13 +19,12 @@
 use rstd::{prelude::*, result};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
-use sr_io::print;
 use codec::{Encode, Decode};
 
 use sr_primitives::{
 	weights::{SimpleDispatchInfo, DispatchInfo},
 	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
-	traits::{Hash as HashT, StaticLookup, SignedExtension}
+	traits::{Hash as HashT, SignedExtension}
 };
 
 use srml_support::{
@@ -80,8 +79,8 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 				}
 			)?;
 		}
-		Paras::insert(id, info);
 		<parachains::Module<T>>::initialize_para(id, code, initial_head_data);
+		Paras::insert(id, info);
 		Ok(())
 	}
 
@@ -95,6 +94,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 			)?;
 		}
 		<parachains::Module<T>>::cleanup_para(id);
+		Paras::remove(id);
 		Ok(())
 	}
 }
@@ -167,6 +167,9 @@ decl_storage! {
 		/// thread. If None, then it will be the last normally scheduled parathread (or the last
 		/// parachain if there are no parathreads).
 		Retrying: Option<u32>;
+
+		/// Users who have paid a parathread's deposit
+		Debtors: map ParaId => T::AccountId;
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
@@ -193,13 +196,14 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 		<parachains::Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
 		// Save initial parachains in registrar
 		Paras::insert(id, ParaInfo { scheduling: Scheduling::Always })
-
 	}
 }
 
 decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+		fn deposit_event() = default;
+
 		/// Register a parachain with given code.
 		/// Fails if given ID is already used.
 		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
@@ -235,7 +239,7 @@ decl_module! {
 		///
 		/// Must be sent from a Signed origin that is able to have ParathreadDeposit reserved.
 		/// `code` and `initial_head_data` are used to initialize the parathread's state.
-		fn register_parathead(origin,
+		fn register_parathread(origin,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>
 		) {
@@ -250,6 +254,10 @@ decl_module! {
 
 			let _ = <Self as Registrar<T::AccountId>>::
 				register_para(id, info, code, initial_head_data);
+
+			<Debtors<T>>::insert(id, who);
+
+			Self::deposit_event(Event::ParathreadRegistered(id));
 		}
 
 		/// Place a bid for a parathread to be progressed in the next block.
@@ -273,18 +281,18 @@ decl_module! {
 		/// Ensure that before calling this that any funds you want emptied from the parathread's
 		/// account is moved out; after this it will be impossible to retrieve them (without
 		/// governance intervention).
-		fn deregister_parathread(origin,
-			debtor: <T::Lookup as StaticLookup>::Source
-		) {
+		fn deregister_parathread(origin) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
-			let debtor = T::Lookup::lookup(debtor)?;
 
 			let info = Paras::get(id).ok_or("invalid id")?;
 			if let Scheduling::Dynamic = info.scheduling {} else { Err("invalid parathread id")? }
 
 			<Self as Registrar<T::AccountId>>::deregister_para(id)?;
 
+			let debtor = <Debtors<T>>::take(id);
 			let _ = T::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
+
+			Self::deposit_event(Event::ParathreadRegistered(id));
 		}
 
 		// TODO: swapping or removing a parathread should clear its para ID from all schedule queues
@@ -314,10 +322,18 @@ decl_module! {
 			}
 		}
 
+		/// Set the thread count, i.e. number of threads to schedule per block.
+		/// Must be sent from `Root` origin.
+		fn set_thread_count(origin, new_thread_count: u32) {
+			ensure_root(origin)?;
+			ThreadCount::put(new_thread_count);
+		}
+
 		/// Block initializer. Clears SelectedThreads and constructs/replaces Active.
 		fn on_initialize() {
 			let next_up = SelectedThreads::mutate(|t| {
 				let r = if t.len() >= QUEUE_SIZE {
+					// Take the first set of parachains in queue
 					t.remove(0)
 				} else {
 					vec![]
@@ -337,7 +353,7 @@ decl_module! {
 					retrying = None
 				}
 			}
-			// We store these two for block finalisation to help work out which, if any, threads
+			// We store these two for block finalization to help work out which, if any, threads
 			// missed their slot.
 			if let Some(ref r) = retrying {
 				Retrying::put(r.1);
@@ -349,7 +365,6 @@ decl_module! {
 					// collator needs wrapping to be merged into Active.
 					.map(|(para, collator)| (para, Some(collator)))
 				).collect::<Vec<_>>();
-			println!("Active paras: {:?}/{:?}", Parachains::get(), paras);
 			Active::put(paras);
 		}
 
@@ -380,7 +395,7 @@ decl_module! {
 							_ => Self::retry_later(sched, retries + 1),
 						}
 					} else {
-						print("UNREACHABLE! No active chain when retry exists");
+						sr_primitives::print("UNREACHABLE! No active chain when retry exists");
 					}
 				}
 
@@ -546,7 +561,9 @@ mod tests {
 		parachain::{ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID},
 		Balance, BlockNumber,
 	};
-	use srml_support::{impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types};
+	use srml_support::{
+		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
+	};
 	use keyring::Sr25519Keyring;
 
 	use crate::parachains;
@@ -643,6 +660,7 @@ mod tests {
 	parameter_types! {
 		pub const Period: BlockNumber = 1;
 		pub const Offset: BlockNumber = 0;
+		pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	}
 
 	impl session::Trait for Test {
@@ -654,6 +672,7 @@ mod tests {
 		type SelectInitialValidators = ();
 		type ValidatorId = u64;
 		type ValidatorIdOf = ();
+		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	}
 
 	impl parachains::Trait for Test {
@@ -751,12 +770,44 @@ mod tests {
 	}
 
 	#[test]
+	fn basic_setup_works() {
+		with_externalities(&mut new_test_ext(vec![]), || {
+			assert_eq!(super::Parachains::get(), vec![]);
+			assert_eq!(ThreadCount::get(), 0);
+			assert_eq!(Active::get(), vec![]);
+			assert_eq!(NextFreeId::get(), LOWEST_USER_ID);
+			assert_eq!(PendingSwap::get(&0u32.into()), None);
+			assert_eq!(Paras::get(&0u32.into()), None);
+		});
+	}
+
+	#[test]
+	fn genesis_registration_works() {
+		let parachains = vec![
+			(5u32.into(), vec![1,2,3], vec![1]),
+			(100u32.into(), vec![4,5,6], vec![2,]),
+		];
+
+		with_externalities(&mut new_test_ext(parachains), || {
+			// Need to trigger on_initalize
+			run_to_block(2);
+			// Genesis registration works
+			assert_eq!(Registrar::active_paras(), vec![(5u32.into(), None), (100u32.into(), None)]);
+			assert_eq!(Registrar::paras(&5u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
+			assert_eq!(Registrar::paras(&100u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
+			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
+			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
+		});
+	}
+
+	#[test]
 	fn register_deregister_chains_works() {
 		let parachains = vec![
 			(1u32.into(), vec![1; 3], vec![1; 3]),
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			// Need to trigger on_initalize
 			run_to_block(2);
 
 			// Genesis registration works
@@ -890,6 +941,111 @@ mod tests {
 			// missed too many times. dropped.
 			run_to_block(9);
 			assert_eq!(Registrar::active_paras(), vec![]);
+		});
+	}
+
+	#[test]
+	fn parathread_auction_handles_basic_errors() {
+		with_externalities(&mut new_test_ext(vec![]), || {
+			run_to_block(2);
+			assert_ok!(Registrar::register_parathread(Origin::signed(0), vec![7,8,9], vec![1, 1, 1]));
+
+			run_to_block(3);
+			assert_eq!(Registrar::paras(&1000u32.into()), Some(ParaInfo { scheduling: Scheduling::Dynamic }));
+
+			let good_para_id = ParaId::from(1000);
+			let bad_para_id = ParaId::from(1001);
+			let bad_head_data_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 2, 1]);
+			let good_head_data_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 1, 1]);
+			let info = DispatchInfo::default();
+
+			// Allow for threads
+			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 10));
+
+			// Bad parathread id
+			let call = Call::Registrar(super::Call::select_parathread(bad_para_id, CollatorId::default(), good_head_data_hash));
+			assert!(LimitParathreadCommits::<Test>(std::marker::PhantomData).validate(&0, &call, info, 0).is_err());
+
+			// Bad head data
+			let call = Call::Registrar(super::Call::select_parathread(good_para_id, CollatorId::default(), bad_head_data_hash));
+			assert!(LimitParathreadCommits::<Test>(std::marker::PhantomData).validate(&0, &call, info, 0).is_err());
+
+			// No duplicates
+			let call = Call::Registrar(super::Call::select_parathread(good_para_id, CollatorId::default(), good_head_data_hash));
+			assert!(LimitParathreadCommits::<Test>(std::marker::PhantomData).validate(&0, &call, info, 0).is_ok());
+			assert!(LimitParathreadCommits::<Test>(std::marker::PhantomData).validate(&0, &call, info, 0).is_err());
+		});
+	}
+
+	#[test]
+	fn parathread_auction_works() {
+		with_externalities(&mut new_test_ext(vec![]), || {
+			run_to_block(2);
+			// Register 5 parathreads
+			for x in 0..5 {
+				assert_ok!(Registrar::register_parathread(Origin::signed(x as u64), vec![x,x,x], vec![x, x, x]));
+			}
+
+			run_to_block(3);
+
+			for x in 1000..1005 {
+				assert_eq!(Registrar::paras(&x.into()), Some(ParaInfo { scheduling: Scheduling::Dynamic }));
+			}
+
+			// Only 3 slots available... who will win??
+			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 3));
+
+			// Everyone wants a thread
+			for x in 0..5 {
+				let para_id = ParaId::from(1000 + x as u32);
+				let collator_id = CollatorId::default();
+				let head_data_hash = <Test as system::Trait>::Hashing::hash(&vec![x, x, x]);
+				let call = Call::Registrar(super::Call::select_parathread(para_id, collator_id, head_data_hash));
+				let info = DispatchInfo::default();
+
+				// First 3 transactions win a slot
+				if x < 3 {
+					assert!(
+						LimitParathreadCommits::<Test>(std::marker::PhantomData)
+						.validate(&0, &call, info, 0)
+						.is_ok()
+					);
+				} else {
+				// All others lose
+					assert_noop!(
+						LimitParathreadCommits::<Test>(std::marker::PhantomData)
+						.validate(&0, &call, info, 0),
+						InvalidTransaction::ExhaustsResources.into()
+					);
+				}
+			}
+
+			// 3 Threads are selected
+			assert_eq!(
+				SelectedThreads::get()[1],
+				vec![
+					(1000u32.into(), CollatorId::default()),
+					(1001u32.into(), CollatorId::default()),
+					(1002u32.into(), CollatorId::default())
+				]
+			);
+
+			// Assuming Queue Size is 2
+			assert_eq!(QUEUE_SIZE, 2);
+
+			// 2 blocks later
+			run_to_block(5);
+			// Threads left queue
+			assert_eq!(SelectedThreads::get()[0], vec![]);
+			// Threads are active
+			assert_eq!(
+				Registrar::active_paras(),
+				vec![
+					(1000u32.into(), Some(CollatorId::default())),
+					(1001u32.into(), Some(CollatorId::default())),
+					(1002u32.into(), Some(CollatorId::default()))
+				]
+			);
 		});
 	}
 }
