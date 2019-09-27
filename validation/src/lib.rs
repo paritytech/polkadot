@@ -219,16 +219,6 @@ pub fn make_group_info(
 		live_group.needed_validity = validity_len / 2 + validity_len % 2;
 	}
 
-	match local_validation {
-		Some(local_validation) => {
-			let local_duty = LocalDuty {
-				validation: local_validation,
-				index: local_index as ValidatorIndex,
-			};
-		}
-		None => unimplemented!(),
-	}
-
 	let local_duty = local_validation.map(|v| LocalDuty {
 		validation: v,
 		index: local_index as u32,
