@@ -21,14 +21,10 @@
 
 use rstd::prelude::*;
 use codec::{Encode, Decode};
-use srml_support::{decl_storage, decl_module, ensure};
+use srml_support::{decl_storage, decl_module, ensure, dispatch::Result, traits::Get};
 
 use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};
 use sr_staking_primitives::SessionIndex;
-use {system, session};
-use srml_support::{
-	StorageValue, StorageMap, StorageDoubleMap, dispatch::Result, traits::Get,
-};
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 use system::ensure_none;
