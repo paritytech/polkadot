@@ -557,14 +557,18 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use bitvec::vec::BitVec;
 	use sr_io::{TestExternalities, with_externalities};
-	use substrate_primitives::{H256, Blake2Hasher};
+	use substrate_primitives::{H256, Blake2Hasher, Pair};
 	use sr_primitives::{
 		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize, Dispatchable},
 		testing::{UintAuthorityId, Header}, Perbill
 	};
 	use primitives::{
-		parachain::{ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate},
+		parachain::{
+			ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
+			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain, CollatorPair
+		},
 		Balance, BlockNumber,
 	};
 	use srml_support::{
@@ -706,6 +710,17 @@ mod tests {
 	type System = system::Module<Test>;
 	type Registrar = Module<Test>;
 
+	const AUTHORITY_KEYS: [Sr25519Keyring; 8] = [
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+		Sr25519Keyring::Eve,
+		Sr25519Keyring::Ferdie,
+		Sr25519Keyring::One,
+		Sr25519Keyring::Two,
+	];
+
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
@@ -772,6 +787,34 @@ mod tests {
 			}
 			System::set_block_number(System::block_number() + 1);
 			init_block();
+		}
+	}
+
+	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], block_data: &[u8]) -> AttestedCandidate {
+		let block_data_hash = BlakeTwo256::hash(block_data);
+		let candidate = CandidateReceipt {
+			parachain_index: user_id(0),
+			collator: collator.public(),
+			signature: block_data_hash.using_encoded(|d| collator.sign(d)),
+			head_data: HeadData(head_data.to_vec()),
+			egress_queue_roots: vec![],
+			fees: 0,
+			block_data_hash,
+			upward_messages: vec![],
+		};
+		let payload = (Statement::Valid(candidate.hash()), System::parent_hash()).encode();
+		let roster = Parachains::calculate_duty_roster().0.validator_duty;
+		AttestedCandidate {
+			candidate,
+			validity_votes: AUTHORITY_KEYS.iter()
+				.enumerate()
+				.filter(|(i, _)| roster[*i] == Chain::Parachain(user_id(0)))
+				.map(|(_, k)| k.sign(&payload).into())
+				.map(ValidityAttestation::Explicit)
+				.collect(),
+			validator_indices: roster.iter()
+				.map(|i| i == &Chain::Parachain(user_id(0)))
+				.collect::<BitVec>(),
 		}
 	}
 
@@ -895,30 +938,23 @@ mod tests {
 
 			// transaction submitted to get parathread progressed.
 			let col = Sr25519Keyring::One.public().into();
-			progress_thread(user_id(0), &[3; 3], &col);
+			schedule_thread(user_id(0), &[3; 3], &col);
 
 			run_to_block(5);
-			assert_eq!(Registrar::active_paras(), vec![(user_id(0), Some(col))]);
-			// TODO: make valid.
-/*			let ac = AttestedCandidate {
-				candidate: CandidateReceipt {
-					parachain_index: Id,
-					collator: CollatorId,
-					signature: CollatorSignature,
-					head_data: HeadData,
-					egress_queue_roots: Vec<(Id, Hash)>,
-					fees: Balance,
-					block_data_hash: Hash,
-					upward_messages: Vec<UpwardMessage>,
-				},
-				validity_votes: vec![],
-				validator_indices: BitVec::default(),
-			};
-			assert_ok!(Parachains::set_heads(vec![ac]));*/
+			assert_eq!(Registrar::active_paras(), vec![(user_id(0), Some(col.clone()))]);
+			assert_ok!(Parachains::set_heads(Origin::NONE, vec![
+				attest(user_id(0), &Sr25519Keyring::One.pair().into(), &[3; 3], &[0; 0])
+			]));
+
+			run_to_block(6);
+			// at next block, it shouldn't be retried.
+			assert_eq!(Registrar::active_paras(), vec![]);
 		});
 	}
 
-	fn progress_thread(id: ParaId, head_data: &[u8], col: &CollatorId) {
+	// TODO: Test that reschedule queuing works properly.
+
+	fn schedule_thread(id: ParaId, head_data: &[u8], col: &CollatorId) {
 		let tx: LimitParathreadCommits<Test> = LimitParathreadCommits(Default::default());
 		let hdh = BlakeTwo256::hash(head_data);
 		let inner_call = super::Call::select_parathread(id, col.clone(), hdh);
@@ -945,7 +981,7 @@ mod tests {
 			run_to_block(3);
 			// transaction submitted to get parathread progressed.
 			let col = Sr25519Keyring::One.public().into();
-			progress_thread(user_id(0), &[3; 3], &col);
+			schedule_thread(user_id(0), &[3; 3], &col);
 
 			// now we remove the parathread
 			assert_ok!(Registrar::deregister_parathread(
@@ -959,7 +995,7 @@ mod tests {
 
 			run_to_block(6);
 			// transaction submitted to get parathread progressed.
-			progress_thread(user_id(1), &[4; 3], &col);
+			schedule_thread(user_id(1), &[4; 3], &col);
 
 			run_to_block(9);
 			// thread's slot was missed and is now being re-scheduled.
@@ -991,7 +1027,7 @@ mod tests {
 
 			// transaction submitted to get parathread progressed.
 			let col = Sr25519Keyring::One.public().into();
-			progress_thread(user_id(0), &[3; 3], &col);
+			schedule_thread(user_id(0), &[3; 3], &col);
 
 			// 4x: the initial time it was scheduled, plus 3 retries.
 			for n in 5..9 {
@@ -1004,9 +1040,6 @@ mod tests {
 			assert_eq!(Registrar::active_paras(), vec![]);
 		});
 	}
-
-	// TODO: Test that chains don't get rescheduled when they progress.
-	// TODO: Test that reschedule queuing works properly.
 
 	#[test]
 	fn parathread_auction_handles_basic_errors() {
