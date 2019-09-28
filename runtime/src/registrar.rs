@@ -1037,29 +1037,35 @@ mod tests {
 			run_to_block(9);
 			assert_eq!(Registrar::active_paras(), vec![]);
 
-			// schedule and miss all three.
+			// schedule and miss all 3 and check that they go through the queueing system ok.
 			Registrar::set_thread_count(Origin::ROOT, 2);
 			schedule_thread(user_id(0), &[3; 3], &col);
 			schedule_thread(user_id(1), &[4; 3], &col);
 
+			run_to_block(10);
+			schedule_thread(user_id(2), &[5; 3], &col);
+
+			// 0 and 1 scheduled as normal.
 			run_to_block(11);
 			assert_eq!(Registrar::active_paras(), vec![
 				(user_id(0), Some(col.clone())),
 				(user_id(1), Some(col.clone()))
 			]);
-			schedule_thread(user_id(2), &[5; 3], &col);
 
+			// 2 scheduled, 1 retried (retry happens in reverse order of original)
 			run_to_block(12);
 			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(2), Some(col.clone())),
 				(user_id(1), Some(col.clone()))
 			]);
 
+			// 0 retried
 			run_to_block(13);
 			assert_eq!(Registrar::active_paras(), vec![
-				(user_id(2), Some(col.clone())),
 				(user_id(0), Some(col.clone()))
 			]);
 
+			// 2 retried
 			run_to_block(14);
 			assert_eq!(Registrar::active_paras(), vec![
 				(user_id(2), Some(col.clone()))
