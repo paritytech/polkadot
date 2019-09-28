@@ -952,8 +952,6 @@ mod tests {
 		});
 	}
 
-	// TODO: Test that reschedule queuing works properly.
-
 	fn schedule_thread(id: ParaId, head_data: &[u8], col: &CollatorId) {
 		let tx: LimitParathreadCommits<Test> = LimitParathreadCommits(Default::default());
 		let hdh = BlakeTwo256::hash(head_data);
@@ -1038,6 +1036,49 @@ mod tests {
 			// missed too many times. dropped.
 			run_to_block(9);
 			assert_eq!(Registrar::active_paras(), vec![]);
+
+			// schedule and miss all three.
+			Registrar::set_thread_count(Origin::ROOT, 2);
+			schedule_thread(user_id(0), &[3; 3], &col);
+			schedule_thread(user_id(1), &[4; 3], &col);
+
+			run_to_block(11);
+			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(0), Some(col.clone())),
+				(user_id(1), Some(col.clone()))
+			]);
+			schedule_thread(user_id(2), &[5; 3], &col);
+
+			run_to_block(12);
+			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(1), Some(col.clone()))
+			]);
+
+			run_to_block(13);
+			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(2), Some(col.clone())),
+				(user_id(0), Some(col.clone()))
+			]);
+
+			run_to_block(14);
+			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(2), Some(col.clone()))
+			]);
+
+			run_to_block(15);
+			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(1), Some(col.clone()))
+			]);
+
+			run_to_block(16);
+			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(0), Some(col.clone()))
+			]);
+
+			run_to_block(17);
+			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(2), Some(col.clone()))
+			]);
 		});
 	}
 
