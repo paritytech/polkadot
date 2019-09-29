@@ -661,7 +661,7 @@ impl_runtime_apis! {
 		fn duty_roster() -> parachain::DutyRoster {
 			Parachains::calculate_duty_roster().0
 		}
-		fn active_parachains() -> Vec<(parachain::Id, Option<parachain::CollatorId>)> {
+		fn active_parachains() -> Vec<(parachain::Id, Option<(parachain::CollatorId, parachain::Retriable)>)> {
 			Registrar::active_paras()
 		}
 		fn parachain_status(id: parachain::Id) -> Option<parachain::Status> {

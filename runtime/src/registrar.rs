@@ -33,7 +33,8 @@ use srml_support::{
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
-	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, OnSwap, Info as ParaInfo, ActiveParas
+	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, OnSwap, Info as ParaInfo, ActiveParas,
+	Retriable
 };
 use crate::parachains;
 use sr_primitives::transaction_validity::InvalidTransaction;
@@ -144,10 +145,11 @@ decl_storage! {
 
 		/// Parathreads/chains scheduled for execution this block. If the collator ID is set, then
 		/// a particular collator has already been chosen for the next block, and no other collator
-		/// may provide the block.
+		/// may provide the block. In this case we allow the possibility of the combination being
+		/// retried in a later block, expressed by `Retriable`.
 		///
 		/// Ordered as Parachains ++ Selected_Parathreads.
-		Active: Vec<(ParaId, Option<CollatorId>)>;
+		Active: Vec<(ParaId, Option<(CollatorId, Retriable)>)>;
 
 		/// The next unused ParaId value. Start this high in order to keep low numbers for
 		/// system-level chains.
@@ -161,12 +163,6 @@ decl_storage! {
 
 		/// The current queue for parathreads that should be retried.
 		RetryQueue get(retry_queue): [Vec<(ParaId, CollatorId)>; MAX_RETRIES as usize];
-
-		/// Some if we are scheduling a retry in this block, along with the number of previous
-		/// retries. None if not. If `Some` then the last para of `Active` will be the retried
-		/// thread. If None, then it will be the last normally scheduled parathread (or the last
-		/// parachain if there are no parathreads).
-		Retrying: Option<u32>;
 
 		/// Users who have paid a parathread's deposit
 		Debtors: map ParaId => T::AccountId;
@@ -197,6 +193,17 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 		// Save initial parachains in registrar
 		Paras::insert(id, ParaInfo { scheduling: Scheduling::Always })
 	}
+}
+
+pub fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut Vec<T>, one: T, other: T) {
+	let maybe_one_pos = ids.binary_search(&one);
+	let maybe_other_pos = ids.binary_search(&other);
+	match (maybe_one_pos, maybe_other_pos) {
+		(Ok(one_pos), Err(_)) => ids[one_pos] = other,
+		(Err(_), Ok(other_pos)) => ids[other_pos] = one,
+		_ => return,
+	};
+	ids.sort();
 }
 
 decl_module! {
@@ -288,27 +295,13 @@ decl_module! {
 			if let Scheduling::Dynamic = info.scheduling {} else { Err("invalid parathread id")? }
 
 			<Self as Registrar<T::AccountId>>::deregister_para(id)?;
-
-			RetryQueue::mutate(|qs| for q in qs.iter_mut() {
-				q.retain(|i| i.0 != id)
-			});
-			SelectedThreads::mutate(|qs| for q in qs.iter_mut() {
-				q.retain(|i| i.0 != id)
-			});
-			// Active::get().last() is the info on the retrying thread, if Retrying.
-			if Retrying::exists() && Active::get().last().map_or(false, |x| x.0 == id) {
-				// We rewrite with the `max_value` here in order to avoid it getting rescheduled
-				// in block finalization.
-				Retrying::put(u32::max_value());
-			}
+			Self::force_unschedule(|i| i == id);
 
 			let debtor = <Debtors<T>>::take(id);
 			let _ = T::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
 			Self::deposit_event(Event::ParathreadRegistered(id));
 		}
-
-		// TODO: swapping or removing a parathread should clear its para ID from all schedule queues
 
 		/// Swap a parachain with another parachain or parathread. The origin must be a `Parachain`.
 		/// The swap will happen only if there is already an opposite swap pending. If there is not,
@@ -324,11 +317,15 @@ decl_module! {
 			if PendingSwap::get(other) == Some(id) {
 				// actually do the swap.
 				T::OnSwap::can_swap(id, other)?;
+
+				Self::force_unschedule(|i| i == id || i == other);
+				Parachains::mutate(|ids| swap_ordered_existence(ids, id, other));
 				Paras::mutate(id, |i|
 					Paras::mutate(other, |j|
 						rstd::mem::swap(i, j)
 					)
 				);
+
 				let _ = T::OnSwap::on_swap(id, other);
 			} else {
 				PendingSwap::insert(id, other);
@@ -359,23 +356,18 @@ decl_module! {
 					retrying = None
 				}
 			}
-			// We store these two for block finalization to help work out which, if any, threads
-			// missed their slot.
-			if let Some(ref r) = retrying {
-				Retrying::put(r.1 + 1);
-			}
 
 			let paras = Parachains::get().into_iter()
 				.map(|id| (id, None))
-				.chain(next_up.into_iter().chain(retrying.into_iter().map(|x| x.0))
-					// collator needs wrapping to be merged into Active.
-					.map(|(para, collator)| (para, Some(collator)))
+				.chain(next_up.into_iter()
+					.map(|(para, collator)| (para, Some((collator, Retriable::WithRetries(0)))))
+				).chain(retrying.into_iter()
+					.map(|((para, collator), retries)| (para, Some((collator, Retriable::WithRetries(retries + 1)))))
 				).collect::<Vec<_>>();
 			Active::put(paras);
 		}
 
 		fn on_finalize() {
-			let retrying = Retrying::take();
 			// a block without this will panic, but let's not panic here.
 			if let Some(proceeded_vec) = parachains::DidUpdate::get() {
 				// We can't remove the non-parathread items as with Active, so we reverse everything
@@ -386,24 +378,13 @@ decl_module! {
 
 				let mut active = Active::get().into_iter()
 					.rev()
-					// Skip any permanent parachains (i.e. without collators).
+					// Early exit to skip any permanent parachains (i.e. without collators). Not
+					// needed with the following line, but early-exit should provide some speed-up.
 					.take_while(|i| i.1.is_some())
-					.map(|i| (i.0, i.1.expect("previous line guarantees this is_some(); qed")));
-
-				// Check the parathread that we are retrying, if any.
-				if let Some(retries) = retrying {
-					// There was a retry. `active.next()` is guaranteed to be the retried para.
-					if let Some(sched) = active.next() {
-						match i.clone() {
-							// If it got a block in, move onto next item.
-							Some(para) if para == sched.0 => i = proceeded.next(),
-							// If it missed its slot, then queue for retry.
-							_ => Self::retry_later(sched, retries),
-						}
-					} else {
-						sr_primitives::print("UNREACHABLE! No active chain when retry exists");
-					}
-				}
+					.filter_map(|i| match i.1 {
+						None | Some((_, Retriable::Never)) => None,
+						Some((c, Retriable::WithRetries(n))) => Some((i.0, c, n)),
+					});
 
 				// Check all normally scheduled parathreads: the rest of the `active` iterator are
 				// just normally scheduled parathreads (albeit in reverse order).
@@ -412,7 +393,7 @@ decl_module! {
 						// Scheduled parachain proceeded properly. Move onto next item.
 						Some(para) if para == sched.0 => i = proceeded.next(),
 						// Scheduled parachain missed their block. Queue for retry.
-						_ => Self::retry_later(sched, 0),
+						_ => Self::retry_later((sched.0, sched.1), sched.2),
 					}
 				}
 			}
@@ -455,10 +436,27 @@ impl<T: Trait> Module<T> {
 			None
 		})
 	}
+
+	/// Forcibly remove the threads matching `m` from all current and future scheduling.
+	fn force_unschedule(m: impl Fn(ParaId) -> bool) {
+		RetryQueue::mutate(|qs| for q in qs.iter_mut() {
+			q.retain(|i| !m(i.0))
+		});
+		SelectedThreads::mutate(|qs| for q in qs.iter_mut() {
+			q.retain(|i| !m(i.0))
+		});
+		Active::mutate(|a| for i in a.iter_mut() {
+			if m(i.0) {
+				if let Some((_, ref mut r)) = i.1 {
+					*r = Retriable::Never;
+				}
+			}
+		});
+	}
 }
 
 impl<T: Trait> ActiveParas for Module<T> {
-	fn active_paras() -> Vec<(ParaId, Option<CollatorId>)> {
+	fn active_paras() -> Vec<(ParaId, Option<(CollatorId, Retriable)>)> {
 		Active::get()
 	}
 }
@@ -561,13 +559,15 @@ mod tests {
 	use sr_io::{TestExternalities, with_externalities};
 	use substrate_primitives::{H256, Blake2Hasher, Pair};
 	use sr_primitives::{
-		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize, Dispatchable},
-		testing::{UintAuthorityId, Header}, Perbill
+		traits::{
+			BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize, Dispatchable,
+			AccountIdConversion,
+		}, testing::{UintAuthorityId, Header}, Perbill
 	};
 	use primitives::{
 		parachain::{
 			ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
-			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain, CollatorPair
+			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain, CollatorPair,
 		},
 		Balance, BlockNumber,
 	};
@@ -708,6 +708,7 @@ mod tests {
 	type Balances = balances::Module<Test>;
 	type Parachains = parachains::Module<Test>;
 	type System = system::Module<Test>;
+	type Slots = slots::Module<Test>;
 	type Registrar = Module<Test>;
 
 	const AUTHORITY_KEYS: [Sr25519Keyring; 8] = [
@@ -770,6 +771,7 @@ mod tests {
 		System::on_initialize(System::block_number());
 		Registrar::on_initialize(System::block_number());
 		Parachains::on_initialize(System::block_number());
+		Slots::on_initialize(System::block_number());
 	}
 
 	fn run_to_block(n: u64) {
@@ -781,6 +783,7 @@ mod tests {
 					println!("Null heads update");
 					assert_ok!(Parachains::set_heads(system::RawOrigin::None.into(), vec![]));
 				}
+				Slots::on_finalize(System::block_number());
 				Parachains::on_finalize(System::block_number());
 				Registrar::on_finalize(System::block_number());
 				System::on_finalize(System::block_number());
@@ -788,6 +791,20 @@ mod tests {
 			System::set_block_number(System::block_number() + 1);
 			init_block();
 		}
+	}
+
+	fn schedule_thread(id: ParaId, head_data: &[u8], col: &CollatorId) {
+		let tx: LimitParathreadCommits<Test> = LimitParathreadCommits(Default::default());
+		let hdh = BlakeTwo256::hash(head_data);
+		let inner_call = super::Call::select_parathread(id, col.clone(), hdh);
+		let call = Call::Registrar(inner_call);
+		let origin = 4u64;
+		assert!(tx.validate(&origin, &call, Default::default(), 0).is_ok());
+		assert_ok!(call.dispatch(Origin::signed(origin)));
+	}
+
+	fn user_id(i: u32) -> ParaId {
+		(LOWEST_USER_ID.into_inner() + i).into()
 	}
 
 	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], block_data: &[u8]) -> AttestedCandidate {
@@ -844,8 +861,78 @@ mod tests {
 			assert_eq!(Registrar::active_paras(), vec![(5u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Registrar::paras(&5u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
 			assert_eq!(Registrar::paras(&100u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
-			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
-			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
+			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1, 2, 3]));
+			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4, 5, 6]));
+		});
+	}
+
+	#[test]
+	fn swap_chain_and_thread_works() {
+		with_externalities(&mut new_test_ext(vec![]), || {
+			Registrar::set_thread_count(Origin::ROOT, 1);
+
+			// Need to trigger on_initalize
+			run_to_block(2);
+
+			// Register a new parathread
+			assert_ok!(Registrar::register_parathread(
+				Origin::signed(1u64),
+				vec![1; 3],
+				vec![1; 3],
+			));
+
+			// Lease out a new parachain
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
+
+			run_to_block(9);
+			// Ensure that the thread is scheduled around the swap time.
+			let col = Sr25519Keyring::One.public().into();
+			schedule_thread(user_id(0), &[1; 3], &col);
+
+			run_to_block(10);
+			let h = BlakeTwo256::hash(&[2u8; 3]);
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, user_id(1), h, vec![2; 3]));
+			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), user_id(1), vec![2; 3]));
+			assert_ok!(Slots::set_offboarding(Origin::signed(user_id(1).into_account()), 1));
+
+			run_to_block(11);
+			// should be one active parachain and one active parathread.
+			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(1), None),
+				(user_id(0), Some((col.clone(), Retriable::WithRetries(0))))
+			]);
+
+			assert_ok!(Registrar::swap(parachains::Origin::Parachain(user_id(0)).into(), user_id(1)));
+
+			assert_eq!(Registrar::paras(&user_id(0)), Some(ParaInfo { scheduling: Scheduling::Dynamic }));
+			assert_eq!(Registrar::paras(&user_id(1)), Some(ParaInfo { scheduling: Scheduling::Always }));
+			assert_eq!(super::Parachains::get(), vec![user_id(1)]);
+			assert_eq!(Slots::managed_ids(), vec![user_id(1)]);
+			assert_eq!(Slots::deposits(user_id(1)), vec![1; 3]);
+			assert_eq!(Slots::offboarding(user_id(1)), 1);
+			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![1u8; 3]));
+			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3]));
+			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3]));
+			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3]));
+
+			assert_ok!(Registrar::swap(parachains::Origin::Parachain(user_id(1)).into(), user_id(0)));
+
+			assert_eq!(Registrar::paras(&user_id(0)), Some(ParaInfo { scheduling: Scheduling::Always }));
+			assert_eq!(Registrar::paras(&user_id(1)), Some(ParaInfo { scheduling: Scheduling::Dynamic }));
+			assert_eq!(super::Parachains::get(), vec![user_id(0)]);
+			assert_eq!(Slots::managed_ids(), vec![user_id(0)]);
+			assert_eq!(Slots::deposits(user_id(0)), vec![1; 3]);
+			assert_eq!(Slots::offboarding(user_id(0)), 1);
+			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![1u8; 3]));
+			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3]));
+			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3]));
+			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3]));
+
+			run_to_block(12);
+			// thread should not be queued or scheduled any more, even though it would otherwise be
+			// being retried..
+			assert_eq!(Registrar::active_paras(), vec![(user_id(0), None)]);
 		});
 	}
 
@@ -941,7 +1028,9 @@ mod tests {
 			schedule_thread(user_id(0), &[3; 3], &col);
 
 			run_to_block(5);
-			assert_eq!(Registrar::active_paras(), vec![(user_id(0), Some(col.clone()))]);
+			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(0), Some((col.clone(), Retriable::WithRetries(0))))
+			]);
 			assert_ok!(Parachains::set_heads(Origin::NONE, vec![
 				attest(user_id(0), &Sr25519Keyring::One.pair().into(), &[3; 3], &[0; 0])
 			]));
@@ -950,20 +1039,6 @@ mod tests {
 			// at next block, it shouldn't be retried.
 			assert_eq!(Registrar::active_paras(), vec![]);
 		});
-	}
-
-	fn schedule_thread(id: ParaId, head_data: &[u8], col: &CollatorId) {
-		let tx: LimitParathreadCommits<Test> = LimitParathreadCommits(Default::default());
-		let hdh = BlakeTwo256::hash(head_data);
-		let inner_call = super::Call::select_parathread(id, col.clone(), hdh);
-		let call = Call::Registrar(inner_call);
-		let origin = 4u64;
-		assert!(tx.validate(&origin, &call, Default::default(), 0).is_ok());
-		assert_ok!(call.dispatch(Origin::signed(origin)));
-	}
-
-	fn user_id(i: u32) -> ParaId {
-		(LOWEST_USER_ID.into_inner() + i).into()
 	}
 
 	#[test]
@@ -1030,7 +1105,9 @@ mod tests {
 			// 4x: the initial time it was scheduled, plus 3 retries.
 			for n in 5..9 {
 				run_to_block(n);
-				assert_eq!(Registrar::active_paras(), vec![(user_id(0), Some(col.clone()))]);
+				assert_eq!(Registrar::active_paras(), vec![
+					(user_id(0), Some((col.clone(), Retriable::WithRetries((n - 5) as u32))))
+				]);
 			}
 
 			// missed too many times. dropped.
@@ -1048,42 +1125,42 @@ mod tests {
 			// 0 and 1 scheduled as normal.
 			run_to_block(11);
 			assert_eq!(Registrar::active_paras(), vec![
-				(user_id(0), Some(col.clone())),
-				(user_id(1), Some(col.clone()))
+				(user_id(0), Some((col.clone(), Retriable::WithRetries(0)))),
+				(user_id(1), Some((col.clone(), Retriable::WithRetries(0))))
 			]);
 
 			// 2 scheduled, 1 retried (retry happens in reverse order of original)
 			run_to_block(12);
 			assert_eq!(Registrar::active_paras(), vec![
-				(user_id(2), Some(col.clone())),
-				(user_id(1), Some(col.clone()))
+				(user_id(2), Some((col.clone(), Retriable::WithRetries(0)))),
+				(user_id(1), Some((col.clone(), Retriable::WithRetries(1))))
 			]);
 
 			// 0 retried
 			run_to_block(13);
 			assert_eq!(Registrar::active_paras(), vec![
-				(user_id(0), Some(col.clone()))
+				(user_id(0), Some((col.clone(), Retriable::WithRetries(1))))
 			]);
 
 			// 2 retried
 			run_to_block(14);
 			assert_eq!(Registrar::active_paras(), vec![
-				(user_id(2), Some(col.clone()))
+				(user_id(2), Some((col.clone(), Retriable::WithRetries(1))))
 			]);
 
 			run_to_block(15);
 			assert_eq!(Registrar::active_paras(), vec![
-				(user_id(1), Some(col.clone()))
+				(user_id(1), Some((col.clone(), Retriable::WithRetries(2))))
 			]);
 
 			run_to_block(16);
 			assert_eq!(Registrar::active_paras(), vec![
-				(user_id(0), Some(col.clone()))
+				(user_id(0), Some((col.clone(), Retriable::WithRetries(2))))
 			]);
 
 			run_to_block(17);
 			assert_eq!(Registrar::active_paras(), vec![
-				(user_id(2), Some(col.clone()))
+				(user_id(2), Some((col.clone(), Retriable::WithRetries(2))))
 			]);
 		});
 	}
@@ -1210,9 +1287,9 @@ mod tests {
 			assert_eq!(
 				Registrar::active_paras(),
 				vec![
-					(1000u32.into(), Some(CollatorId::default())),
-					(1001u32.into(), Some(CollatorId::default())),
-					(1002u32.into(), Some(CollatorId::default())),
+					(1000u32.into(), Some((CollatorId::default(), Retriable::WithRetries(0)))),
+					(1001u32.into(), Some((CollatorId::default(), Retriable::WithRetries(0)))),
+					(1002u32.into(), Some((CollatorId::default(), Retriable::WithRetries(0)))),
 				]
 			);
 		});

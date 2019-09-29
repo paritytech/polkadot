@@ -29,7 +29,8 @@ use sr_primitives::traits::{
 use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
 	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId
+	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId,
+	Retriable
 }};
 use {system, session};
 use srml_support::{
@@ -218,7 +219,7 @@ decl_module! {
 						let (_, maybe_required_collator) = iter.find(|para| para.0 == id)
 							.ok_or("candidate for unregistered parachain {}")?;
 
-						if let Some(required_collator) = maybe_required_collator {
+						if let Some((required_collator, _)) = maybe_required_collator {
 							ensure!(required_collator == &head.candidate.collator, "invalid collator");
 						}
 
@@ -596,13 +597,13 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Get the currently active set of parachains.
-	pub fn active_parachains() -> Vec<(ParaId, Option<CollatorId>)> {
+	pub fn active_parachains() -> Vec<(ParaId, Option<(CollatorId, Retriable)>)> {
 		T::ActiveParachains::active_paras()
 	}
 
 	fn check_egress_queue_roots(
 		head: &AttestedCandidate,
-		active_parachains: &[(ParaId, Option<CollatorId>)]
+		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
 	) -> Result {
 		let mut last_egress_id = None;
 		let mut iter = active_parachains.iter().map(|x| x.0);
@@ -640,7 +641,7 @@ impl<T: Trait> Module<T> {
 	// that each candidates' chain ID is valid.
 	fn check_candidates(
 		attested_candidates: &[AttestedCandidate],
-		active_parachains: &[(ParaId, Option<CollatorId>)]
+		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
 	) -> rstd::result::Result<IncludedBlocks<T>, &'static str>
 	{
 		use primitives::parachain::ValidityAttestation;

@@ -78,6 +78,17 @@ pub type ValidatorPair = validator_app::Pair;
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorSignature = validator_app::Signature;
 
+/// Retriability for a given active para.
+#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub enum Retriable {
+	/// Ineligible for retry. This means it's either a parachain which is always scheduled anyway or
+	/// has been removed/swapped.
+	Never,
+	/// Eligible for retry; the associated value is the number of retries that the para already had.
+	WithRetries(u32),
+}
+
 /// Type determining the active set of parachains in current block.
 pub trait ActiveParas {
 	/// Return the active set of parachains in current block. This attempts to keep any IDs in the
@@ -87,7 +98,7 @@ pub trait ActiveParas {
 	///
 	/// NOTE: The initial implementation simply concatenates the (ordered) set of (permanent)
 	/// parachain IDs with the (unordered) set of parathread IDs selected for this block.
-	fn active_paras() -> Vec<(Id, Option<CollatorId>)>;
+	fn active_paras() -> Vec<(Id, Option<(CollatorId, Retriable)>)>;
 }
 
 /// Description of how often/when this parachain is scheduled for progression.
@@ -482,7 +493,7 @@ substrate_client::decl_runtime_apis! {
 		/// Get the current duty roster.
 		fn duty_roster() -> DutyRoster;
 		/// Get the currently active parachains.
-		fn active_parachains() -> Vec<(Id, Option<CollatorId>)>;
+		fn active_parachains() -> Vec<(Id, Option<(CollatorId, Retriable)>)>;
 		/// Get the given parachain's status.
 		fn parachain_status(id: Id) -> Option<Status>;
 		/// Get the given parachain's head code blob.

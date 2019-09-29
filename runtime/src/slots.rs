@@ -30,7 +30,7 @@ use primitives::parachain::{
 	OnSwap, PARACHAIN_INFO, Id as ParaId
 };
 use system::{ensure_signed, ensure_root};
-use crate::registrar::Registrar;
+use crate::registrar::{Registrar, swap_ordered_existence};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -187,16 +187,7 @@ impl<T: Trait> OnSwap for Module<T> {
 	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
 		<Offboarding<T>>::swap(one, other);
 		<Deposits<T>>::swap(one, other);
-		ManagedIds::mutate(|ids| {
-			let maybe_one_pos = ids.binary_search(&one);
-			let maybe_other_pos = ids.binary_search(&other);
-			match (maybe_one_pos, maybe_other_pos) {
-				(Ok(one_pos), Err(_)) => ids[one_pos] = other,
-				(Err(_), Ok(other_pos)) => ids[other_pos] = one,
-				_ => return,
-			};
-			ids.sort();
-		});
+		ManagedIds::mutate(|ids| swap_ordered_existence(ids, one, other));
 		Ok(())
 	}
 }
@@ -308,7 +299,7 @@ decl_module! {
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
 		#[weight = SimpleDispatchInfo::FixedNormal(500_000)]
-		fn bid(origin,
+		pub fn bid(origin,
 			#[compact] sub: SubId,
 			#[compact] auction_index: AuctionIndex,
 			#[compact] first_slot: LeasePeriodOf<T>,
@@ -355,7 +346,7 @@ decl_module! {
 		///
 		/// - `dest` is the destination account to receive the parachain's deposit.
 		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
-		fn set_offboarding(origin, dest: <T::Lookup as StaticLookup>::Source) {
+		pub fn set_offboarding(origin, dest: <T::Lookup as StaticLookup>::Source) {
 			let who = ensure_signed(origin)?;
 			let dest = T::Lookup::lookup(dest)?;
 			let para_id = <ParaId>::try_from_account(&who)
@@ -402,7 +393,7 @@ decl_module! {
 		/// - `para_id` is the parachain ID whose code will be elaborated.
 		/// - `code` is the preimage of the registered `code_hash` of `para_id`.
 		#[weight = SimpleDispatchInfo::FixedNormal(5_000_000)]
-		fn elaborate_deploy_data(_origin, #[compact] para_id: ParaId, code: Vec<u8>) {
+		pub fn elaborate_deploy_data(_origin, #[compact] para_id: ParaId, code: Vec<u8>) {
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
 				.ok_or("parachain id not in onboarding")?;
 			if let IncomingParachain::Fixed{code_hash, initial_head_data} = details {
