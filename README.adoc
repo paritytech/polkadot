@@ -12,9 +12,9 @@ In 2017 we split our implementation of "Polkadot" from its platform-level compon
 
 We are actively building both Substrate and Polkadot, but things will be a little odd for a while.  If you see "substrate" and are wondering why you need it for Polkadot, now you know.
 
-To connect on the "Kusama" canary network, you will want the `v0.5` code which is in this **Polkadot** repo. To play on the ("Alexander") testnet, you'll want the PoC-4 code instead.  Note that PoC-3 uses the Alexander testnet, but will not be able to sync to the latest block.
+To connect on the "Kusama" canary network, you will want the `v0.6` code, which is in this **Polkadot** repo. To play on the ("Alexander") testnet, you'll want the PoC-4 code instead.  Note that PoC-3 uses the Alexander testnet, but will not be able to sync to the latest block.
 
-* **Kusama** is in this link:https://github.com/paritytech/polkadot/tree/v0.5[**Polkadot**] repo branch `v0.5`.
+* **Kusama** is in this link:https://github.com/paritytech/polkadot/tree/v0.6[**Polkadot**] repo branch `v0.6`.
 
 * **Polkadot PoC-4 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.4[**Polkadot**] repo branch `v0.4`.
 
@@ -48,7 +48,7 @@ rustup update
 Build Kusama by cloning this repository and running the following commands from the root directory of the repo:
 
 ```bash
-git checkout v0.5
+git checkout v0.6
 ./scripts/init.sh
 cargo build --release
 ```
@@ -58,6 +58,8 @@ Connect to the global Kusama canary network by default by running:
 ```bash
 ./target/release/polkadot
 ```
+
+You can see your node on link:https://telemetry.polkadot.io/#list/Kusama%20CC2[telemetry].
 
 === Install PoC-4 on "Alexander" Testnet
 
