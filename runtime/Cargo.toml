@@ -110,4 +110,5 @@ std = [
 	"safe-mix/std",
 	"babe/std",
 	"babe-primitives/std",
+	"substrate-session/std",
 ]
