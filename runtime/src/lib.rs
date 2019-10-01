@@ -46,7 +46,7 @@ use sr_primitives::{
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
-use babe_primitives::AuthorityId as BabeId;
+use babe_primitives::{AuthorityId as BabeId, AuthoritySignature as BabeSignature};
 use elections::VoteIndex;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
@@ -56,7 +56,7 @@ use srml_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
 };
 use authority_discovery_primitives::{AuthorityId as EncodedAuthorityId, Signature as EncodedSignature};
-use im_online::sr25519::{AuthorityId as ImOnlineId, AuthoritySignature as ImOnlineSignature};
+use im_online::sr25519::AuthorityId as ImOnlineId;
 use system::offchain::TransactionSubmitter;
 
 #[cfg(feature = "std")]
@@ -444,7 +444,9 @@ impl im_online::Trait for Runtime {
 	type ReportUnresponsiveness = ();
 }
 
-impl authority_discovery::Trait for Runtime {}
+impl authority_discovery::Trait for Runtime {
+    type AuthorityId = BabeId;
+}
 
 impl grandpa::Trait for Runtime {
 	type Event = Event;
@@ -702,17 +704,18 @@ impl_runtime_apis! {
 		}
 
 		fn verify(payload: &Vec<u8>, signature: &EncodedSignature, authority_id: &EncodedAuthorityId) -> bool {
-			let signature = match ImOnlineSignature::decode(&mut &signature.0[..]) {
+			let signature = match BabeSignature::decode(&mut &signature.0[..]) {
 				Ok(s) => s,
 				_ => return false,
 			};
 
-			let authority_id = match ImOnlineId::decode(&mut &authority_id.0[..]) {
+			let authority_id = match BabeId::decode(&mut &authority_id.0[..]) {
 				Ok(id) => id,
 				_ => return false,
 			};
 
 			AuthorityDiscovery::verify(payload, signature, authority_id)
+
 		}
 	}
 
