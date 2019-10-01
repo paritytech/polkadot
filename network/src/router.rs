@@ -99,7 +99,6 @@ pub struct Router<P, E, N: NetworkService, T> {
 	erasure_chunks_topic: Hash,
 	fetcher: LeafWorkDataFetcher<P, E, N, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
-	deferred_chunks: Arc<Mutex<DeferredChunks>>,
 	message_validator: RegisteredMessageValidator,
 }
 
@@ -116,7 +115,6 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 			attestation_topic: attestation_topic(parent_hash),
 			erasure_chunks_topic: erasure_chunks_topic(parent_hash),
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
-			deferred_chunks: Arc::new(Mutex::new(DeferredChunks::new())),
 			message_validator,
 		}
 	}
@@ -158,7 +156,6 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 			attestation_topic: self.attestation_topic,
 			erasure_chunks_topic: self.erasure_chunks_topic,
 			deferred_statements: self.deferred_statements.clone(),
-			deferred_chunks: self.deferred_chunks.clone(),
 			message_validator: self.message_validator.clone(),
 		}
 	}
@@ -223,15 +220,6 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		trace!(target: "p_net", "importing erasure chunk {:?}", chunk);
 
 		let table = self.table.clone();
-		let hash = &chunk.candidate_hash;
-
-		match self.table.with_candidate(hash, |c| c.map(|_| *hash)) {
-			Some(_) => (),
-			None => {
-				self.deferred_chunks.lock().push(chunk);
-				return;
-			}
-		}
 
 		table.import_erasure_chunk(chunk);
 	}
@@ -246,7 +234,6 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		let knowledge = self.fetcher.knowledge().clone();
 		let attestation_topic = self.attestation_topic;
 		let parent_hash = self.parent_hash();
-		let deferred_chunks = self.deferred_chunks.clone();
 
 		producer.prime(self.fetcher.api().clone())
 			.map(move |validated| {
@@ -267,14 +254,6 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 					}
 				);
 
-				// regardless of the validation result remove all deferred chunks.
-				// if the validation was successful, import the deferred chunks
-				let chunks = deferred_chunks.lock().get_deferred(&candidate_hash);
-				if let GenericStatement::Valid(_) = statement.signed_statement.statement {
-					for chunk in chunks {
-						table.import_erasure_chunk(chunk);
-					}
-				}
 				network.gossip_message(attestation_topic, statement.into());
 			})
 			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
@@ -328,15 +307,6 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof {
 		self.fetcher.fetch_pov_block(candidate)
 	}
-
-	fn fetch_erasure_chunk(
-		&self,
-		relay_parent: Hash,
-		candidate_hash: Hash,
-		chunk_id: u64
-	) -> Self::FetchBlockChunk {
-		self.fetcher.fetch_erasure_chunk(relay_parent, candidate_hash, chunk_id)
-	}
 }
 
 impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
@@ -351,30 +321,6 @@ impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
 enum StatementTrace {
 	Valid(ValidatorIndex, Hash),
 	Invalid(ValidatorIndex, Hash),
-}
-
-/// Helper for deferring erasure-encoded chunks whose associated candidate block is unknown.
-struct DeferredChunks {
-	deferred: HashMap<Hash, Vec<ErasureChunk>>,
-}
-
-impl DeferredChunks {
-	fn new() -> Self {
-		DeferredChunks {
-			deferred: HashMap::new(),
-		}
-	}
-
-	fn push(&mut self, chunk: ErasureChunk) {
-		self.deferred.entry(chunk.candidate_hash).or_insert_with(Vec::new).push(chunk);
-	}
-
-	fn get_deferred(&mut self, hash: &Hash) -> Vec<ErasureChunk> {
-		match self.deferred.remove(hash) {
-			None => Vec::new(),
-			Some(deferred) => deferred,
-		}
-	}
 }
 
 // helper for deferring statements whose associated candidate is unknown.

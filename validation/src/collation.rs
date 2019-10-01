@@ -477,7 +477,7 @@ pub fn validate_collation<P>(
 						relay_parent_hash.clone(),
 						collation.receipt.block_data_hash,
 						&collation.pov.block_data,
-						&Some(messages.clone().into()))?;
+						Some(messages.clone().into()).as_ref())?;
 
 					if chunks.root != candidate_erasure_root {
 						return Err(Error::ErasureRootMismatch{

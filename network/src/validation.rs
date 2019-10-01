@@ -739,15 +739,6 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> LeafWorkDataFetcher<P, E, N, T> where
 		});
 		PoVReceiver { outer: rx, inner: None }
 	}
-
-	pub fn fetch_erasure_chunk(&self, relay_parent: Hash, candidate_hash: Hash, chunk_id: u64) -> ChunkReceiver {
-		let (tx, rx) = ::futures::sync::oneshot::channel();
-		self.network.with_spec(move |spec, ctx| {
-			let inner_rx = spec.fetch_erasure_chunk(ctx, relay_parent, candidate_hash, chunk_id);
-			let _ = tx.send(inner_rx);
-		});
-		ChunkReceiver { outer: rx, inner: None }
-	}
 }
 
 #[cfg(test)]

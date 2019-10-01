@@ -250,7 +250,7 @@ impl Store {
 		}
 	}
 
-
+    /// Query an erasure chunk of block by it's parent and it's hash and chunk's id.
 	pub fn erasure_chunk(&self, relay_parent: Hash, candidate_hash: Hash, chunk_id: usize) -> Option<ErasureChunk> {
 		let encoded_key = erasure_chunks_key(&relay_parent, &candidate_hash);
 
@@ -287,9 +287,8 @@ impl Store {
 			}
 		};
 
-		let chunks_ref: Vec<_> = chunks.chunks.iter()
-			.map(|ErasureChunk { chunk, index, .. }| (&chunk[..], (*index as usize)))
-			.collect();
+		let chunks_ref = chunks.chunks.iter()
+			.map(|ErasureChunk { chunk, index, .. }| (&chunk[..], (*index as usize)));
 
 		let res = erasure::reconstruct(chunks.n_validators as usize, chunks_ref);
 
@@ -382,8 +381,8 @@ mod tests {
 			)]
 		));
 
-		let chunks_1 = erasure::obtain_chunks(num_validators, relay_parent.clone(), candidate_1.clone(), &block_data_1, &messages_1).unwrap();
-		let chunks_2 = erasure::obtain_chunks(num_validators, relay_parent.clone(), candidate_2.clone(), &block_data_2, &messages_2).unwrap();
+		let chunks_1 = erasure::obtain_chunks(num_validators, relay_parent.clone(), candidate_1.clone(), &block_data_1, messages_1.as_ref()).unwrap();
+		let chunks_2 = erasure::obtain_chunks(num_validators, relay_parent.clone(), candidate_2.clone(), &block_data_2, messages_2.as_ref()).unwrap();
 
 		let store = Store::new_in_memory();
 
@@ -453,7 +452,7 @@ mod tests {
 			relay_parent.clone(),
 			candidate_hash.clone(),
 			&block_data,
-			&messages).unwrap();
+			messages.as_ref()).unwrap();
 
 		let store = Store::new_in_memory();
 
@@ -503,7 +502,7 @@ mod tests {
 			relay_parent.clone(),
 			candidate_hash.clone(),
 			&block_data,
-			&messages).unwrap();
+			messages.as_ref()).unwrap();
 
 		let store = Store::new_in_memory();
 
@@ -568,7 +567,7 @@ mod tests {
 			relay_parent.clone(),
 			candidate_hash.clone(),
 			&block_data,
-			&messages).unwrap();
+			messages.as_ref()).unwrap();
 
 		let store = Store::new_in_memory();
 

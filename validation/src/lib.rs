@@ -106,9 +106,6 @@ pub trait TableRouter: Clone {
 
 	/// Fetch validation proof for a specific candidate.
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
-
-	/// Fetch the erasure-encoded chunk for a specific candidate block.
-	fn fetch_erasure_chunk(&self, relay_parent: Hash, candidate_hash: Hash, chunk_id: u64) -> Self::FetchBlockChunk;
 }
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.
@@ -387,11 +384,12 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				Ok((collation, outgoing_targeted)) => {
 					let candidate_hash = collation.receipt.hash();
 
-					let erasure_chunks = erasure::obtain_chunks(authorities_num,
+					let erasure_chunks = erasure::obtain_chunks(
+                        authorities_num,
 						relay_parent,
 						candidate_hash,
 						&collation.pov.block_data,
-						&Some(outgoing_targeted.clone().into())).unwrap();
+						Some(&outgoing_targeted.clone().into())).unwrap();
 
 					let res = availability_store.make_available(Data {
 						relay_parent,

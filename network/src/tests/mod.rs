@@ -289,7 +289,7 @@ fn fetches_available_chunk_data() {
 		parent_hash,
 		candidate_hash,
 		&block_data,
-		&Some(messages.into())
+		Some(&messages.into())
 	).unwrap();
 
 	let mut chunks2 = chunks.clone();

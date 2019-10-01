@@ -381,28 +381,6 @@ impl PolkadotProtocol {
 		rx
 	}
 
-	fn fetch_erasure_chunk(
-		&mut self,
-		ctx: &mut dyn Context<Block>,
-		relay_parent: Hash,
-		candidate_hash: Hash,
-		chunk_id: u64
-	) -> oneshot::Receiver<ErasureChunk> {
-		let (tx, rx) = oneshot::channel();
-
-		self.pending_chunk_requests.push(BlockChunkRequest {
-			attempted_peers: HashSet::default(),
-			relay_parent,
-			chunk_id,
-			candidate_hash,
-			sender: tx,
-		});
-
-		// TODO: Pending requests probably should timeout.
-		self.dispatch_pending_requests(ctx);
-		rx
-	}
-
 	/// Note new leaf to do validation work at
 	fn new_validation_leaf_work(
 		&mut self,
@@ -924,7 +902,7 @@ impl PolkadotProtocol {
 			relay_parent,
 			candidate_hash,
 			&collation.pov.block_data,
-			&Some(outgoing_targeted.clone().into())).unwrap();
+			Some(&outgoing_targeted.clone().into())).unwrap();
 
 		if let Some(ref availability_store) = self.availability_store {
 			availability_store.make_available(av_store::Data {

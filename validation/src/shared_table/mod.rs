@@ -372,7 +372,7 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 					self.inner.relay_parent,
 					candidate_hash,
 					&pov_block.block_data,
-					&Some(outgoing_queues)).unwrap();
+					Some(&outgoing_queues)).unwrap();
 
 				let local_index: usize = self.inner.local_index;
 
@@ -634,20 +634,6 @@ mod tests {
 
 		fn fetch_pov_block(&self, _candidate: &CandidateReceipt) -> Self::FetchValidationProof {
 			future::ok(pov_block_with_data(vec![1, 2, 3, 4, 5]))
-		}
-
-		fn fetch_erasure_chunk(
-			&self, relay_parent:
-			Hash, candidate_hash:
-			Hash, _chunk_id: u64
-		) -> Self::FetchBlockChunk {
-			future::ok(ErasureChunk {
-				relay_parent,
-				candidate_hash,
-				chunk: vec![1,2,3],
-				index: 0,
-				proof: vec![]
-			})
 		}
 	}
 

@@ -193,8 +193,11 @@ impl GossipStatement {
 /// For each chunk of block erasure encoding one of this messages is constructed.
 #[derive(Encode, Decode, Clone, Debug)]
 pub struct ErasureChunkMessage {
+    /// The chunk itself.
 	pub chunk: PrimitiveChunk,
+    /// The validator that has sent this message.
 	pub sender: ValidatorIndex,
+    /// The signature of the validator.
 	pub signature: ValidatorSignature,
 }
 
@@ -490,7 +493,7 @@ impl MessageValidationData {
 		};
 
 		let good = self.authorities.contains(&sender) &&
-			::polkadot_validation::check_chunk(
+			polkadot_validation::check_chunk(
 				&msg.chunk,
 				msg.sender,
 				sender.clone(),
