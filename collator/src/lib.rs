@@ -147,7 +147,7 @@ pub trait ParachainContext: Clone {
 	/// Produce a candidate, given the relay parent hash, the latest ingress queue information
 	/// and the last parachain head.
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
-		&self,
+		&mut self,
 		relay_parent: Hash,
 		status: ParachainStatus,
 		ingress: I,
@@ -174,7 +174,7 @@ pub fn collate<'a, R, P>(
 	local_id: ParaId,
 	parachain_status: ParachainStatus,
 	relay_context: R,
-	para_context: P,
+	mut para_context: P,
 	key: Arc<CollatorPair>,
 )
 	-> impl Future<Item=(parachain::Collation, OutgoingMessages), Error=Error<R::Error>> + 'a
@@ -489,7 +489,7 @@ mod tests {
 		type ProduceCandidate = Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>;
 
 		fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
-			&self,
+			&mut self,
 			_relay_parent: Hash,
 			_status: ParachainStatus,
 			ingress: I,

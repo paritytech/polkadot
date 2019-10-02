@@ -56,7 +56,7 @@ impl ParachainContext for AdderContext {
 	type ProduceCandidate = Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>;
 
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
-		&self,
+		&mut self,
 		_relay_parent: Hash,
 		status: ParachainStatus,
 		ingress: I,
