@@ -54,7 +54,7 @@ pub mod wasm_api;
 use rstd::vec::Vec;
 
 use codec::{Encode, Decode};
-use sr_primitives::traits::TypeId;
+use substrate_primitives::TypeId;
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
