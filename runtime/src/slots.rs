@@ -178,7 +178,7 @@ decl_storage! {
 }
 
 impl<T: Trait> OnSwap for Module<T> {
-	fn can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
+	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
 		if <Onboarding<T>>::exists(one) || <Onboarding<T>>::exists(other) {
 			Err("can't swap an undeployed parachain")?
 		}

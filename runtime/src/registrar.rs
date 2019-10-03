@@ -316,7 +316,7 @@ decl_module! {
 
 			if PendingSwap::get(other) == Some(id) {
 				// actually do the swap.
-				T::OnSwap::can_swap(id, other)?;
+				T::OnSwap::ensure_can_swap(id, other)?;
 
 				Self::force_unschedule(|i| i == id || i == other);
 				Parachains::mutate(|ids| swap_ordered_existence(ids, id, other));

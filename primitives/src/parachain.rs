@@ -127,14 +127,14 @@ pub const PARACHAIN_INFO: Info = Info {
 /// Handler for when two parachains/parathreads get notionally swapped.
 pub trait OnSwap {
 	/// Result describing whether it is possible to swap two parachains. Doesn't mutate state.
-	fn can_swap(one: Id, other: Id) -> Result<(), &'static str>;
+	fn ensure_can_swap(one: Id, other: Id) -> Result<(), &'static str>;
 
 	/// Updates any needed state/references to enact a logical swap of two parachains. Identity,
 	/// code and head_data remain equivalent for all parachains/threads, however other properties
 	/// such as leases, deposits held and thread/chain nature are swapped.
 	///
-	/// May only be called on a state that `can_swap` has previously returned `Ok` for: if this is
-	/// not the case, the result is undefined. May only return an error if `can_swap` also returns
+	/// May only be called on a state that `ensure_can_swap` has previously returned `Ok` for: if this is
+	/// not the case, the result is undefined. May only return an error if `ensure_can_swap` also returns
 	/// an error.
 	fn on_swap(one: Id, other: Id) -> Result<(), &'static str>;
 }
