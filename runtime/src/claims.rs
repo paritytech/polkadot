@@ -363,7 +363,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Claims::total(), 100);
 			assert_eq!(Claims::claims(&alice_eth()), Some(100));
-			assert_eq!(Claims::claims(&Default::default()), None);
+			assert_eq!(Claims::claims(&EthereumAddress::default()), None);
 		});
 	}
 
