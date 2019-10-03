@@ -27,7 +27,7 @@
 use codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::{Hash as H256, BlakeTwo256, HashT};
-use primitives::parachain::{BlockData, AvailableMessages, ErasureChunk, ErasureChunks};
+use primitives::parachain::{BlockData, AvailableMessages};
 use substrate_primitives::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 
@@ -125,16 +125,10 @@ fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 /// Obtain erasure-coded chunks, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-pub fn obtain_chunks(
-	n_validators: usize,
-	relay_parent: H256,
-	candidate_hash: H256,
-	block_data: &BlockData,
-    outgoing: Option<&AvailableMessages>
-)
-	-> Result<ErasureChunks, Error>
+pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, outgoing: Option<&AvailableMessages>)
+	-> Result<Vec<Vec<u8>>, Error>
 {
-	let params  = code_params(n_validators)?;
+	let params = code_params(n_validators)?;
 	let encoded = (block_data, outgoing).encode();
 
 	if encoded.is_empty() {
@@ -146,28 +140,7 @@ pub fn obtain_chunks(
 	params.make_encoder().encode(&mut shards[..])
 		.expect("Payload non-empty, shard sizes are uniform, and validator numbers checked; qed");
 
-	let chunks: Vec<_> = shards.into_iter().map(|w| w.into_inner()).collect();
-	let branches = branches(chunks.as_slice());
-	let root = branches.root();
-	let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
-
-	let chunks: Vec<_> = chunks.into_iter().zip(proofs.into_iter())
-		.enumerate()
-		.map(|(index, (chunk, proof))|
-			ErasureChunk {
-				relay_parent,
-				candidate_hash,
-				chunk,
-				index: index as u32,
-				proof,
-			})
-		.collect();
-
-	Ok(ErasureChunks {
-		n_validators: n_validators as u64,
-		root,
-		chunks,
-	})
+	Ok(shards.into_iter().map(|w| w.into_inner()).collect())
 }
 
 /// Reconstruct the block data from a set of chunks.
@@ -432,22 +405,20 @@ mod tests {
 		let ex = Some(AvailableMessages(Vec::new()));
 		let chunks = obtain_chunks(
 			10,
-			[10; 32].into(),
-			[20; 32].into(),
 			&block_data,
 			ex.as_ref(),
 		).unwrap();
 
-		assert_eq!(chunks.chunks.len(), 10);
+		assert_eq!(chunks.len(), 10);
 
 		// any 4 chunks should work.
 		let reconstructed = reconstruct(
 			10,
 			[
-				(&*chunks.chunks[1].chunk, 1),
-				(&*chunks.chunks[4].chunk, 4),
-				(&*chunks.chunks[6].chunk, 6),
-				(&*chunks.chunks[9].chunk, 9),
+				(&*chunks[1], 1),
+				(&*chunks[4], 4),
+				(&*chunks[6], 6),
+				(&*chunks[9], 9),
 			].iter().cloned(),
 		).unwrap();
 
@@ -457,18 +428,25 @@ mod tests {
 	#[test]
 	fn construct_valid_branches() {
 		let block_data = BlockData(vec![2; 256]);
-		let msgs = Some(AvailableMessages(Vec::new()));
+		let ex = Some(AvailableMessages(Vec::new()));
+
 		let chunks = obtain_chunks(
 			10,
-			[10; 32].into(),
-			[20; 32].into(),
 			&block_data,
-			msgs.as_ref(),
+			ex.as_ref(),
 		).unwrap();
 
-		for (i, chunk) in chunks.chunks.iter().enumerate() {
-			assert_eq!(branch_hash(&chunks.root, &chunk.proof, i).unwrap(),
-				BlakeTwo256::hash(&chunks.chunks[i].chunk));
+		assert_eq!(chunks.len(), 10);
+
+		let branches = branches(chunks.as_ref());
+		let root = branches.root();
+
+		let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+
+		assert_eq!(proofs.len(), 10);
+
+		for (i, proof) in proofs.into_iter().enumerate() {
+			assert_eq!(branch_hash(&root, &proof, i).unwrap(), BlakeTwo256::hash(&chunks[i]));
 		}
 	}
 }
