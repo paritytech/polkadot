@@ -42,13 +42,12 @@ use client::{
 use sr_primitives::{
 	ApplyResult, generic, Permill, Perbill, impl_opaque_keys, create_runtime_str, key_types,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
-	weights::{Weight, DispatchInfo},
-	traits::{BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, SignedExtension},
-	curve::PiecewiseLinear,
+	weights::{Weight, DispatchInfo}, curve::PiecewiseLinear,
+	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension},
 };
 use version::RuntimeVersion;
-use grandpa::{AuthorityId as GrandpaId, fg_primitives::{self, ScheduledChange}};
-use babe_primitives::AuthorityId as BabeId;
+use grandpa::{AuthorityId as GrandpaId, fg_primitives};
+use babe_primitives::{AuthorityId as BabeId, AuthoritySignature as BabeSignature};
 use elections::VoteIndex;
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
@@ -57,7 +56,8 @@ use sr_staking_primitives::SessionIndex;
 use srml_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
 };
-use im_online::sr25519::{AuthorityId as ImOnlineId};
+use authority_discovery_primitives::{AuthorityId as EncodedAuthorityId, Signature as EncodedSignature};
+use im_online::sr25519::AuthorityId as ImOnlineId;
 use system::offchain::TransactionSubmitter;
 
 #[cfg(feature = "std")]
@@ -68,7 +68,6 @@ pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
 pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
 pub use parachains::{Call as ParachainsCall, NEW_HEADS_IDENTIFIER};
-pub use srml_support::StorageValue;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
@@ -243,7 +242,7 @@ parameter_types! {
 	pub const Offset: BlockNumber = 0;
 }
 
-type SessionHandlers = (Grandpa, Babe, ImOnline, Parachains);
+type SessionHandlers = (Grandpa, Babe, ImOnline, AuthorityDiscovery, Parachains);
 impl_opaque_keys! {
 	pub struct SessionKeys {
 		#[id(key_types::GRANDPA)]
@@ -445,6 +444,10 @@ impl im_online::Trait for Runtime {
 	type ReportUnresponsiveness = ();
 }
 
+impl authority_discovery::Trait for Runtime {
+    type AuthorityId = BabeId;
+}
+
 impl grandpa::Trait for Runtime {
 	type Event = Event;
 }
@@ -545,6 +548,7 @@ construct_runtime!(
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
+		AuthorityDiscovery: authority_discovery::{Module, Call, Config<T>},
 
 		// Governance stuff; uncallable initially.
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
@@ -678,46 +682,56 @@ impl_runtime_apis! {
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
-		fn grandpa_pending_change(digest: &DigestFor<Block>)
-			-> Option<ScheduledChange<BlockNumber>>
-		{
-			Grandpa::pending_change(digest)
-		}
-
-		fn grandpa_forced_change(digest: &DigestFor<Block>)
-			-> Option<(BlockNumber, ScheduledChange<BlockNumber>)>
-		{
-			Grandpa::forced_change(digest)
-		}
-
 		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
 			Grandpa::grandpa_authorities()
 		}
 	}
 
 	impl babe_primitives::BabeApi<Block> for Runtime {
-		fn startup_data() -> babe_primitives::BabeConfiguration {
+		fn configuration() -> babe_primitives::BabeConfiguration {
 			// The choice of `c` parameter (where `1 - c` represents the
 			// probability of a slot being empty), is done in accordance to the
 			// slot duration and expected target block time, for safely
 			// resisting network delays of maximum two seconds.
 			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 			babe_primitives::BabeConfiguration {
-				median_required_blocks: 1000,
 				slot_duration: Babe::slot_duration(),
+				epoch_length: EpochDuration::get(),
 				c: PRIMARY_PROBABILITY,
+				genesis_authorities: Babe::authorities(),
+				randomness: Babe::randomness(),
+				secondary_slots: true,
 			}
 		}
+	}
 
-		fn epoch() -> babe_primitives::Epoch {
-			babe_primitives::Epoch {
-				start_slot: Babe::epoch_start_slot(),
-				authorities: Babe::authorities(),
-				epoch_index: Babe::epoch_index(),
-				randomness: Babe::randomness(),
-				duration: EpochDuration::get(),
-				secondary_slots: Babe::secondary_slots().0,
-			}
+	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
+		fn authorities() -> Vec<EncodedAuthorityId> {
+			AuthorityDiscovery::authorities().into_iter()
+				.map(|id| id.encode())
+				.map(EncodedAuthorityId)
+				.collect()
+		}
+
+		fn sign(payload: &Vec<u8>) -> Option<(EncodedSignature, EncodedAuthorityId)> {
+			AuthorityDiscovery::sign(payload).map(|(sig, id)| {
+				(EncodedSignature(sig.encode()), EncodedAuthorityId(id.encode()))
+			})
+		}
+
+		fn verify(payload: &Vec<u8>, signature: &EncodedSignature, authority_id: &EncodedAuthorityId) -> bool {
+			let signature = match BabeSignature::decode(&mut &signature.0[..]) {
+				Ok(s) => s,
+				_ => return false,
+			};
+
+			let authority_id = match BabeId::decode(&mut &authority_id.0[..]) {
+				Ok(id) => id,
+				_ => return false,
+			};
+
+			AuthorityDiscovery::verify(payload, signature, authority_id)
+
 		}
 	}
 

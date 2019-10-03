@@ -24,11 +24,11 @@ use codec::{Encode, Decode};
 use sr_primitives::{
 	weights::{SimpleDispatchInfo, DispatchInfo},
 	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
-	traits::{Hash as HashT, SignedExtension}
+	traits::{Hash as HashT, SignedExtension, Zero}
 };
 
 use srml_support::{
-	decl_storage, decl_module, decl_event, ensure, StorageValue, StorageMap,
+	decl_storage, decl_module, decl_event, ensure,
 	dispatch::{Result, IsSubType}, traits::{Get, Currency, ReservableCurrency}
 };
 use system::{self, ensure_root, ensure_signed};
@@ -189,7 +189,7 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 		// no ingress -- a chain cannot be routed to until it is live.
 		<parachains::Code>::insert(&id, &code);
 		<parachains::Heads>::insert(&id, &genesis);
-		<parachains::Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
+		<parachains::Watermarks<T>>::insert(&id, T::BlockNumber::zero());
 		// Save initial parachains in registrar
 		Paras::insert(id, ParaInfo { scheduling: Scheduling::Always })
 	}
@@ -376,7 +376,7 @@ decl_module! {
 				let mut proceeded = proceeded_vec.into_iter().rev();
 				let mut i = proceeded.next();
 
-				let mut active = Active::get().into_iter()
+				let active = Active::get().into_iter()
 					.rev()
 					// Early exit to skip any permanent parachains (i.e. without collators). Not
 					// needed with the following line, but early-exit should provide some speed-up.
@@ -842,8 +842,8 @@ mod tests {
 			assert_eq!(ThreadCount::get(), 0);
 			assert_eq!(Active::get(), vec![]);
 			assert_eq!(NextFreeId::get(), LOWEST_USER_ID);
-			assert_eq!(PendingSwap::get(&0u32.into()), None);
-			assert_eq!(Paras::get(&0u32.into()), None);
+			assert_eq!(PendingSwap::get(&ParaId::from(0u32)), None);
+			assert_eq!(Paras::get(&ParaId::from(0u32)), None);
 		});
 	}
 
@@ -859,10 +859,10 @@ mod tests {
 			run_to_block(2);
 			// Genesis registration works
 			assert_eq!(Registrar::active_paras(), vec![(5u32.into(), None), (100u32.into(), None)]);
-			assert_eq!(Registrar::paras(&5u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
-			assert_eq!(Registrar::paras(&100u32.into()), Some(ParaInfo { scheduling: Scheduling::Always }));
-			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1, 2, 3]));
-			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4, 5, 6]));
+			assert_eq!(Registrar::paras(&ParaId::from(5u32)), Some(ParaInfo { scheduling: Scheduling::Always }));
+			assert_eq!(Registrar::paras(&ParaId::from(100u32)), Some(ParaInfo { scheduling: Scheduling::Always }));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(5u32)), Some(vec![1, 2, 3]));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(100u32)), Some(vec![4, 5, 6]));
 		});
 	}
 
@@ -949,10 +949,10 @@ mod tests {
 			// Genesis registration works
 			assert_eq!(Registrar::active_paras(), vec![(1u32.into(), None)]);
 			assert_eq!(
-				Registrar::paras(&1u32.into()),
+				Registrar::paras(&ParaId::from(1u32)),
 				Some(ParaInfo { scheduling: Scheduling::Always })
 			);
-			assert_eq!(Parachains::parachain_code(&1u32.into()), Some(vec![1; 3]));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(1u32)), Some(vec![1; 3]));
 
 			// Register a new parachain
 			assert_ok!(Registrar::register_para(
@@ -963,7 +963,7 @@ mod tests {
 				ParaInfo { scheduling: Scheduling::Always }
 			));
 
-			let orig_bal = Balances::free_balance(&3u64.into());
+			let orig_bal = Balances::free_balance(&3u64);
 			// Register a new parathread
 			assert_ok!(Registrar::register_parathread(
 				Origin::signed(3u64),
@@ -979,14 +979,14 @@ mod tests {
 			// New paras are registered
 			assert_eq!(Registrar::active_paras(), vec![(1u32.into(), None), (2u32.into(), None)]);
 			assert_eq!(
-				Registrar::paras(&2u32.into()),
+				Registrar::paras(&ParaId::from(2u32)),
 				Some(ParaInfo { scheduling: Scheduling::Always })
 			);
 			assert_eq!(
 				Registrar::paras(&user_id(0)),
 				Some(ParaInfo { scheduling: Scheduling::Dynamic })
 			);
-			assert_eq!(Parachains::parachain_code(&2u32.into()), Some(vec![2; 3]));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(2u32)), Some(vec![2; 3]));
 			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![3; 3]));
 
 			assert_ok!(Registrar::deregister_para(Origin::ROOT, 2u32.into()));
@@ -1000,8 +1000,8 @@ mod tests {
 			run_to_block(4);
 
 			assert_eq!(Registrar::active_paras(), vec![(1u32.into(), None)]);
-			assert_eq!(Registrar::paras(&2u32.into()), None);
-			assert_eq!(Parachains::parachain_code(&2u32.into()), None);
+			assert_eq!(Registrar::paras(&ParaId::from(2u32)), None);
+			assert_eq!(Parachains::parachain_code(&ParaId::from(2u32)), None);
 			assert_eq!(Registrar::paras(&user_id(0)), None);
 			assert_eq!(Parachains::parachain_code(&user_id(0)), None);
 		});
@@ -1174,7 +1174,7 @@ mod tests {
 
 			run_to_block(3);
 			assert_eq!(
-				Registrar::paras(&1000u32.into()),
+				Registrar::paras(&ParaId::from(1000u32)),
 				Some(ParaInfo { scheduling: Scheduling::Dynamic })
 			);
 
@@ -1232,7 +1232,7 @@ mod tests {
 
 			for x in 1000..1005 {
 				assert_eq!(
-					Registrar::paras(&x.into()),
+					Registrar::paras(&ParaId::from(x)),
 					Some(ParaInfo { scheduling: Scheduling::Dynamic })
 				);
 			}

@@ -34,8 +34,7 @@ use primitives::{Hash, Balance, parachain::{
 }};
 use {system, session};
 use srml_support::{
-	StorageValue, StorageMap, Parameter, dispatch::Result,
-	traits::{Currency, Get, WithdrawReason, ExistenceRequirement}
+	Parameter, dispatch::Result, traits::{Currency, Get, WithdrawReason, ExistenceRequirement},
 };
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
@@ -485,7 +484,7 @@ impl<T: Trait> Module<T> {
 				}
 			}
 		}
-		NeedsDispatch::put_ref(&queueds[drained_count..]);
+		NeedsDispatch::put(&queueds[drained_count..]);
 	}
 
 	/// Calculate the current block's duty roster using system's random seed.
@@ -1544,8 +1543,8 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			run_to_block(2);
 			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
-			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
-			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
+			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), Some(vec![1, 2, 3]));
+			assert_eq!(Parachains::parachain_code(ParaId::from(100u32)), Some(vec![4, 5, 6]));
 		});
 	}
 
@@ -1560,8 +1559,8 @@ mod tests {
 			run_to_block(2);
 			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
 
-			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
-			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
+			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), Some(vec![1,2,3]));
+			assert_eq!(Parachains::parachain_code(ParaId::from(100u32)), Some(vec![4,5,6]));
 
 			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
 			assert_ok!(Parachains::set_heads(Origin::NONE, vec![]));
@@ -1569,7 +1568,7 @@ mod tests {
 			run_to_block(3);
 
 			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
-			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(99u32)), Some(vec![7,8,9]));
 
 			assert_ok!(Registrar::deregister_para(Origin::ROOT, 5u32.into()));
 			assert_ok!(Parachains::set_heads(Origin::NONE, vec![]));
@@ -1578,7 +1577,7 @@ mod tests {
 			run_to_block(4);
 
 			assert_eq!(Parachains::active_parachains(), vec![(99u32.into(), None), (100u32.into(), None)]);
-			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
+			assert_eq!(Parachains::parachain_code(&ParaId::from(5u32)), None);
 		});
 	}
 

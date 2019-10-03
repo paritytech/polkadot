@@ -19,6 +19,7 @@
 pub mod chain_spec;
 
 use futures::prelude::*;
+use futures::sync::mpsc;
 use client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,7 +28,7 @@ use polkadot_runtime::GenesisConfig;
 use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
 use service::{error::{Error as ServiceError}, Configuration, ServiceBuilder};
 use transaction_pool::txpool::{Pool as TransactionPool};
-use babe::{import_queue, start_babe, Config};
+use babe::{import_queue, start_babe};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use log::info;
@@ -66,7 +67,7 @@ impl Default for CustomConfiguration {
 }
 
 /// Chain API type for the transaction pool.
-pub type TxChainApi<Backend, Executor> = transaction_pool::ChainApi<
+pub type TxChainApi<Backend, Executor> = transaction_pool::FullChainApi<
 	client::Client<Backend, Executor, Block, RuntimeApi>,
 	Block,
 >;
@@ -79,8 +80,6 @@ macro_rules! new_full_start {
 	($config:expr) => {{
 		let mut import_setup = None;
 		let inherent_data_providers = inherents::InherentDataProviders::new();
-		let mut tasks_to_spawn = None;
-
 		let builder = service::ServiceBuilder::new_full::<
 			Block, RuntimeApi, polkadot_executor::Executor
 		>($config)?
@@ -88,35 +87,39 @@ macro_rules! new_full_start {
 				Ok(client::LongestChain::new(backend.clone()))
 			})?
 			.with_transaction_pool(|config, client|
-				Ok(transaction_pool::txpool::Pool::new(config, transaction_pool::ChainApi::new(client)))
+				Ok(transaction_pool::txpool::Pool::new(config, transaction_pool::FullChainApi::new(client)))
 			)?
-			.with_import_queue(|_config, client, mut select_chain, transaction_pool| {
+			.with_import_queue(|_config, client, mut select_chain, _| {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
-				let (block_import, link_half) =
+				let (grandpa_block_import, grandpa_link) =
 					grandpa::block_import::<_, _, _, RuntimeApi, _, _>(
-						client.clone(), client.clone(), select_chain
+						client.clone(), &*client, select_chain
 					)?;
-				let justification_import = block_import.clone();
+				let justification_import = grandpa_block_import.clone();
 
-				let (import_queue, babe_link, babe_block_import, pruning_task) = babe::import_queue(
-					babe::Config::get_or_compute(&*client)?,
-					block_import,
-					Some(Box::new(justification_import)),
-					None,
-					client.clone(),
-					client,
-					inherent_data_providers.clone(),
-					Some(transaction_pool)
+				let (block_import, babe_link) = babe::block_import(
+						babe::Config::get_or_compute(&*client)?,
+						grandpa_block_import,
+						client.clone(),
+						client.clone(),
 				)?;
 
-				import_setup = Some((babe_block_import.clone(), link_half, babe_link));
-				tasks_to_spawn = Some(vec![Box::new(pruning_task)]);
+				let import_queue = babe::import_queue(
+						babe_link.clone(),
+						block_import.clone(),
+						Some(Box::new(justification_import)),
+						None,
+						client.clone(),
+						client,
+						inherent_data_providers.clone(),
+				)?;
 
+				import_setup = Some((block_import, grandpa_link, babe_link));
 				Ok(import_queue)
 			})?;
 
-		(builder, import_setup, inherent_data_providers, tasks_to_spawn)
+		(builder, import_setup, inherent_data_providers)
 	}}
 }
 
@@ -136,6 +139,8 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
 	>, ServiceError>
 {
+	use substrate_network::DhtEvent;
+
 	let is_authority = config.roles.is_authority();
 	let is_collator = config.custom.collating_for.is_some();
 	let force_authoring = config.force_authoring;
@@ -144,28 +149,25 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
 
-	let (builder, mut import_setup, inherent_data_providers, mut tasks_to_spawn) = new_full_start!(config);
+	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config);
+
+	// Dht event channel from the network to the authority discovery module. Use
+	// bounded channel to ensure back-pressure. Authority discovery is triggering one
+	// event per authority within the current authority set. This estimates the
+	// authority set size to be somewhere below 10 000 thereby setting the channel
+	// buffer size to 10 000.
+	let (dht_event_tx, dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
 
 	let service = builder
 		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
+		.with_dht_event_tx(dht_event_tx)?
 		.build()?;
 
 	let (block_import, link_half, babe_link) = import_setup.take()
 		.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
-
-	// spawn any futures that were created in the previous setup steps
-	if let Some(tasks) = tasks_to_spawn.take() {
-		for task in tasks {
-			service.spawn_task(
-				task.select(service.on_exit())
-					.map(|_| ())
-					.map_err(|_| ())
-			);
-		}
-	}
 
 	if is_collator {
 		info!(
@@ -185,7 +187,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	let gossip_validator_select_chain = select_chain.clone();
 
 	let is_known = move |block_hash: &Hash| {
-		use client::BlockStatus;
+		use consensus_common::BlockStatus;
 
 		match known_oracle.block_status(&BlockId::hash(*block_hash)) {
 			Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
@@ -253,7 +255,6 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
 
 		let babe_config = babe::BabeParams {
-			config: Config::get_or_compute(&*client)?,
 			keystore: service.keystore(),
 			client,
 			select_chain,
@@ -262,12 +263,19 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			sync_oracle: service.network(),
 			inherent_data_providers: inherent_data_providers.clone(),
 			force_authoring: force_authoring,
-			time_source: babe_link,
+			babe_link,
 		};
 
 		let babe = start_babe(babe_config)?;
 		let select = babe.select(service.on_exit()).then(|_| Ok(()));
 		service.spawn_essential_task(Box::new(select));
+
+		let authority_discovery = authority_discovery::AuthorityDiscovery::new(
+			service.client(),
+			service.network(),
+			dht_event_rx,
+		);
+		service.spawn_task(authority_discovery);
 	} else {
 		network_gossip::register_non_authority_validator(service.network());
 	}
@@ -275,7 +283,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
 		gossip_duration: Duration::from_millis(333),
-		justification_period: 4096,
+		justification_period: 512,
 		name: Some(name),
 		keystore: Some(service.keystore()),
 	};
@@ -330,30 +338,37 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 			Ok(LongestChain::new(backend.clone()))
 		})?
 		.with_transaction_pool(|config, client|
-			Ok(TransactionPool::new(config, transaction_pool::ChainApi::new(client)))
+			Ok(TransactionPool::new(config, transaction_pool::FullChainApi::new(client)))
 		)?
-		.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, transaction_pool| {
+		.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _| {
 			let fetch_checker = fetcher
 				.map(|fetcher| fetcher.checker().clone())
 				.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
-			let block_import = grandpa::light_block_import::<_, _, _, RuntimeApi, _>(
+			let grandpa_block_import = grandpa::light_block_import::<_, _, _, RuntimeApi, _>(
 				client.clone(), backend, Arc::new(fetch_checker), client.clone()
 			)?;
 
-			let finality_proof_import = block_import.clone();
+			let finality_proof_import = grandpa_block_import.clone();
 			let finality_proof_request_builder =
 				finality_proof_import.create_finality_proof_request_builder();
 
+
+			let (babe_block_import, babe_link) = babe::block_import(
+				babe::Config::get_or_compute(&*client)?,
+				grandpa_block_import,
+				client.clone(),
+				client.clone(),
+			)?;
+
 			// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
-			let (import_queue, ..) = import_queue(
-				Config::get_or_compute(&*client)?,
-				block_import,
+			let import_queue = import_queue(
+				babe_link,
+				babe_block_import,
 				None,
 				Some(Box::new(finality_proof_import)),
 				client.clone(),
 				client,
 				inherent_data_providers.clone(),
-				Some(transaction_pool)
 			)?;
 
 			Ok((import_queue, finality_proof_request_builder))

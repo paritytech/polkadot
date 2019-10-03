@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use sr_io::{keccak_256, secp256k1_ecdsa_recover};
-use srml_support::{StorageValue, StorageMap, decl_event, decl_storage, decl_module};
+use srml_support::{decl_event, decl_storage, decl_module};
 use srml_support::traits::{Currency, Get};
 use system::ensure_none;
 use codec::{Encode, Decode};
@@ -363,7 +363,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(), || {
 			assert_eq!(Claims::total(), 100);
 			assert_eq!(Claims::claims(&alice_eth()), Some(100));
-			assert_eq!(Claims::claims(&Default::default()), None);
+			assert_eq!(Claims::claims(&EthereumAddress::default()), None);
 		});
 	}
 

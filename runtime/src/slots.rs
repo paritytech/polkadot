@@ -23,8 +23,8 @@ use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversi
 use sr_primitives::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode, Codec};
 use srml_support::{
-	decl_module, decl_storage, decl_event, StorageValue, StorageMap, ensure,
-	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get}
+	decl_module, decl_storage, decl_event, ensure,
+	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get},
 };
 use primitives::parachain::{
 	OnSwap, PARACHAIN_INFO, Id as ParaId
@@ -1058,7 +1058,7 @@ mod tests {
 
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-			assert_eq!(Slots::onboarding(&0.into()),
+			assert_eq!(Slots::onboarding(ParaId::from(0)),
 				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
@@ -1077,7 +1077,7 @@ mod tests {
 
 			run_to_block(9);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
-			assert_eq!(Slots::deposits(&0.into())[0], 0);
+			assert_eq!(Slots::deposits(ParaId::from(0))[0], 0);
 
 			run_to_block(50);
 			assert_eq!(Slots::deposit_held(&0.into()), 0);
@@ -1094,7 +1094,7 @@ mod tests {
 
 			run_to_block(9);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
-			assert_eq!(Slots::deposits(&0.into())[0], 0);
+			assert_eq!(Slots::deposits(ParaId::from(0))[0], 0);
 
 			run_to_block(49);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
@@ -1177,17 +1177,17 @@ mod tests {
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
 			assert_eq!(
-				Slots::onboarding(&0.into()),
+				Slots::onboarding(ParaId::from(0)),
 				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
 			);
 			assert_eq!(Slots::onboard_queue(2), vec![1.into()]);
 			assert_eq!(
-				Slots::onboarding(&1.into()),
+				Slots::onboarding(ParaId::from(1)),
 				Some((2, IncomingParachain::Unset(NewBidder { who: 2, sub: 0 })))
 			);
 			assert_eq!(Slots::onboard_queue(4), vec![2.into()]);
 			assert_eq!(
-				Slots::onboarding(&2.into()),
+				Slots::onboarding(ParaId::from(2)),
 				Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
 			);
 		});
@@ -1225,26 +1225,26 @@ mod tests {
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into(), 3.into()]);
 			assert_eq!(
-				Slots::onboarding(&0.into()),
+				Slots::onboarding(ParaId::from(0)),
 				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
 			);
 			assert_eq!(
-				Slots::onboarding(&3.into()),
+				Slots::onboarding(ParaId::from(3)),
 				Some((1, IncomingParachain::Unset(NewBidder { who: 4, sub: 1 })))
 			);
 			assert_eq!(Slots::onboard_queue(2), vec![1.into()]);
 			assert_eq!(
-				Slots::onboarding(&1.into()),
+				Slots::onboarding(ParaId::from(1)),
 				Some((2, IncomingParachain::Unset(NewBidder { who: 2, sub: 0 })))
 			);
 			assert_eq!(Slots::onboard_queue(3), vec![4.into()]);
 			assert_eq!(
-				Slots::onboarding(&4.into()),
+				Slots::onboarding(ParaId::from(4)),
 				Some((3, IncomingParachain::Unset(NewBidder { who: 5, sub: 1 })))
 			);
 			assert_eq!(Slots::onboard_queue(4), vec![2.into()]);
 			assert_eq!(
-				Slots::onboarding(&2.into()),
+				Slots::onboarding(ParaId::from(2)),
 				Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
 			);
 
@@ -1349,13 +1349,13 @@ mod tests {
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 3));
 
 			run_to_block(20);
-			assert_eq!(Balances::free_balance(&ParaId::from(0).into_account()), 2);
+			assert_eq!(Balances::free_balance::<u64>(ParaId::from(0).into_account()), 2);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 4));
 
 			run_to_block(30);
-			assert_eq!(Balances::free_balance(&ParaId::from(0).into_account()), 1);
+			assert_eq!(Balances::free_balance::<u64>(ParaId::from(0).into_account()), 1);
 		});
 	}
 
@@ -1372,8 +1372,8 @@ mod tests {
 			assert_eq!(Slots::onboard_queue(2), vec![]);
 			assert_eq!(Slots::onboard_queue(3), vec![]);
 			assert_eq!(Slots::onboard_queue(4), vec![0.into()]);
-			assert_eq!(Slots::onboarding(
-				&0.into()),
+			assert_eq!(
+				Slots::onboarding(ParaId::from(0)),
 				Some((4, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 5);
@@ -1399,7 +1399,7 @@ mod tests {
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
 			assert_eq!(
-				Slots::onboarding(&0.into()),
+				Slots::onboarding(ParaId::from(0)),
 				Some((1, IncomingParachain::Unset(NewBidder { who: 5, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 5);
@@ -1426,8 +1426,8 @@ mod tests {
 
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-			assert_eq!(Slots::onboarding(
-				&0.into()),
+			assert_eq!(
+				Slots::onboarding(ParaId::from(0)),
 				Some((1, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 3);
