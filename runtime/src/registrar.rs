@@ -810,7 +810,7 @@ mod tests {
 	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], block_data: &[u8]) -> AttestedCandidate {
 		let block_data_hash = BlakeTwo256::hash(block_data);
 		let candidate = CandidateReceipt {
-			parachain_index: user_id(0),
+			parachain_index: id,
 			collator: collator.public(),
 			signature: block_data_hash.using_encoded(|d| collator.sign(d)),
 			head_data: HeadData(head_data.to_vec()),
@@ -825,12 +825,12 @@ mod tests {
 			candidate,
 			validity_votes: AUTHORITY_KEYS.iter()
 				.enumerate()
-				.filter(|(i, _)| roster[*i] == Chain::Parachain(user_id(0)))
+				.filter(|(i, _)| roster[*i] == Chain::Parachain(id))
 				.map(|(_, k)| k.sign(&payload).into())
 				.map(ValidityAttestation::Explicit)
 				.collect(),
 			validator_indices: roster.iter()
-				.map(|i| i == &Chain::Parachain(user_id(0)))
+				.map(|i| i == &Chain::Parachain(id))
 				.collect::<BitVec>(),
 		}
 	}
@@ -869,7 +869,7 @@ mod tests {
 	#[test]
 	fn swap_chain_and_thread_works() {
 		with_externalities(&mut new_test_ext(vec![]), || {
-			Registrar::set_thread_count(Origin::ROOT, 1);
+			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
 
 			// Need to trigger on_initalize
 			run_to_block(2);
@@ -1010,7 +1010,7 @@ mod tests {
 	#[test]
 	fn parathread_scheduling_works() {
 		with_externalities(&mut new_test_ext(vec![]), || {
-			Registrar::set_thread_count(Origin::ROOT, 1);
+			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
 
 			run_to_block(2);
 
@@ -1044,7 +1044,7 @@ mod tests {
 	#[test]
 	fn removing_scheduled_parathread_works() {
 		with_externalities(&mut new_test_ext(vec![]), || {
-			Registrar::set_thread_count(Origin::ROOT, 1);
+			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
 
 			run_to_block(2);
 
@@ -1087,7 +1087,7 @@ mod tests {
 	#[test]
 	fn parathread_rescheduling_works() {
 		with_externalities(&mut new_test_ext(vec![]), || {
-			Registrar::set_thread_count(Origin::ROOT, 1);
+			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
 
 			run_to_block(2);
 
@@ -1115,7 +1115,7 @@ mod tests {
 			assert_eq!(Registrar::active_paras(), vec![]);
 
 			// schedule and miss all 3 and check that they go through the queueing system ok.
-			Registrar::set_thread_count(Origin::ROOT, 2);
+			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 2));
 			schedule_thread(user_id(0), &[3; 3], &col);
 			schedule_thread(user_id(1), &[4; 3], &col);
 

@@ -30,7 +30,7 @@ use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, TargetedMessage,
 	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
-	FeeSchedule, HeadData,
+	FeeSchedule, HeadData, Retriable, CollatorId
 };
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
@@ -177,7 +177,7 @@ impl NetworkService for TestNetwork {
 struct ApiData {
 	validators: Vec<ValidatorId>,
 	duties: Vec<Chain>,
-	active_parachains: Vec<ParaId>,
+	active_parachains: Vec<(ParaId, Option<(CollatorId, Retriable)>)>,
 	ingress: HashMap<ParaId, StructuredUnroutedIngress>,
 }
 
@@ -279,7 +279,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: ExecutionContext,
 		_: Option<()>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Vec<ParaId>>> {
+	) -> ClientResult<NativeOrEncoded<Vec<(ParaId, Option<(CollatorId, Retriable)>)>>> {
 		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
 	}
 
