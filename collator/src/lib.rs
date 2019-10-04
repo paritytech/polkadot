@@ -200,23 +200,20 @@ pub fn collate<'a, R, P>(
 		.and_then(move |(ingress, (block_data, head_data, mut outgoing))| {
 			let block_data_hash = block_data.hash();
 			let signature = key.sign(block_data_hash.as_ref()).into();
-			let egress_queue_roots =
-				polkadot_validation::egress_roots(&mut outgoing.outgoing_messages);
+			let egress_queue_roots = polkadot_validation::egress_roots(&mut outgoing.outgoing_messages);
 
-			let receipt = parachain::CandidateReceipt {
+			let info = parachain::CollationInfo {
 				parachain_index: local_id,
 				collator: key.public(),
 				signature,
-				head_data,
 				egress_queue_roots,
-				fees: 0,
+				head_data,
 				block_data_hash,
 				upward_messages: Vec::new(),
-				erasure_root: None,
 			};
 
 			let collation = parachain::Collation {
-				receipt,
+				info,
 				pov: PoVBlock {
 					block_data,
 					ingress,
@@ -557,7 +554,7 @@ mod tests {
 		).wait().unwrap().0;
 
 		// ascending order by root.
-		assert_eq!(collation.receipt.egress_queue_roots, vec![(a, root_a), (b, root_b)]);
+		assert_eq!(collation.info.egress_queue_roots, vec![(a, root_a), (b, root_b)]);
 	}
 }
 

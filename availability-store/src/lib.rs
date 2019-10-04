@@ -336,6 +336,7 @@ mod tests {
 			block_data_hash: block_data_1.hash(),
 			index: 1,
 			n_validators: 3,
+			parachain_id: para_id_1,
 			proof: vec![],
 		};
 
@@ -344,6 +345,7 @@ mod tests {
 			chunk: vec![40, 50, 60],
 			block_data_hash: block_data_2.hash(),
 			index: 1,
+			parachain_id: para_id_2,
 			n_validators: 3,
 			proof: vec![],
 		};
@@ -460,6 +462,7 @@ mod tests {
 				chunk: chunk.clone(),
 				block_data_hash,
 				n_validators: n_validators as u32,
+				parachain_id: para_id,
 				proof,
 				index: index as u32,
 			})

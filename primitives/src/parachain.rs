@@ -200,6 +200,60 @@ impl From<OutgoingMessages> for AvailableMessages {
 /// Candidate receipt type.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
+pub struct CollationInfo {
+	/// The ID of the parachain this is a candidate for.
+	pub parachain_index: Id,
+	/// The collator's relay-chain account ID
+	pub collator: CollatorId,
+	/// Signature on blake2-256 of the block data by collator.
+	pub signature: CollatorSignature,
+	/// Egress queue roots. Must be sorted lexicographically (ascending)
+	/// by parachain ID.
+	pub egress_queue_roots: Vec<(Id, Hash)>,
+	/// The head-data
+	pub head_data: HeadData,
+	/// blake2-256 Hash of block data.
+	pub block_data_hash: Hash,
+	/// Messages destined to be interpreted by the Relay chain itself.
+	pub upward_messages: Vec<UpwardMessage>,
+}
+
+impl From<CandidateReceipt> for CollationInfo {
+	fn from(receipt: CandidateReceipt) -> Self {
+		CollationInfo {
+			parachain_index: receipt.parachain_index,
+			collator: receipt.collator,
+			signature: receipt.signature,
+			egress_queue_roots: receipt.egress_queue_roots,
+			head_data: receipt.head_data,
+			block_data_hash: receipt.block_data_hash,
+			upward_messages: receipt.upward_messages,
+		}
+	}
+}
+
+impl CollationInfo {
+	/// Get the blake2_256 hash
+	pub fn hash(&self) -> Hash {
+		use runtime_primitives::traits::{BlakeTwo256, Hash};
+		BlakeTwo256::hash_of(self)
+	}
+
+	/// Check integrity vs. provided block data.
+	pub fn check_signature(&self) -> Result<(), ()> {
+		use runtime_primitives::traits::AppVerify;
+
+		if self.signature.verify(self.block_data_hash.as_ref(), &self.collator) {
+			Ok(())
+		} else {
+			Err(())
+		}
+	}
+}
+
+/// Candidate receipt type.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct CandidateReceipt {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
@@ -218,8 +272,8 @@ pub struct CandidateReceipt {
 	pub block_data_hash: Hash,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
-	/// The root of a block's erasure encoding Merkle tree that may be added by validators.
-	pub erasure_root: Option<Hash>,
+	/// The root of a block's erasure encoding Merkle tree.
+	pub erasure_root: Hash,
 }
 
 impl CandidateReceipt {
@@ -238,6 +292,16 @@ impl CandidateReceipt {
 		} else {
 			Err(())
 		}
+	}
+
+	pub fn check_collation_info_equality(&self, info: &CollationInfo) -> bool {
+		self.parachain_index == info.parachain_index &&
+		self.collator == info.collator &&
+		self.signature == info.signature &&
+		self.egress_queue_roots == info.egress_queue_roots &&
+		self.head_data == info.head_data &&
+		self.block_data_hash == info.block_data_hash &&
+		self.upward_messages == info.upward_messages
 	}
 }
 
@@ -261,7 +325,7 @@ impl Ord for CandidateReceipt {
 #[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
 pub struct Collation {
 	/// Candidate receipt itself.
-	pub receipt: CandidateReceipt,
+	pub info: CollationInfo,
 	/// A proof-of-validation for the receipt.
 	pub pov: PoVBlock,
 }
@@ -342,17 +406,21 @@ pub struct ConsolidatedIngress(pub Vec<(Id, Vec<Message>)>);
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// A chunk of erasure-encoded block data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, Default)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct ErasureChunk{
+pub struct ErasureChunk {
 	/// The relay chain parent block hash of the candidate block hash that this erasure-encoded chunk of data belongs to.
 	pub relay_parent: Hash,
-	/// The hash of the candidate block that this erasure-encoded chunk of data belongs to.
-	pub candidate_hash: Hash,
 	/// The erasure-encoded chunk of data belonging to the candidate block.
 	pub chunk: Vec<u8>,
+	/// The hash of the block data this chunk belongs to.
+	pub block_data_hash: Hash,
 	/// The index of this erasure-encoded chunk of data.
 	pub index: u32,
+	/// Parachain ID
+	pub parachain_id: Id,
+	/// Number of validators that was used for erasure coding.
+	pub n_validators: u32,
 	/// Proof for this chunk's branch in the Merkle tree.
 	pub proof: Vec<Vec<u8>>,
 }
@@ -386,7 +454,7 @@ pub struct Header(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>)
 
 /// Parachain head data included in the chain.
 #[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Default))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Parachain validation code.

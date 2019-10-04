@@ -31,9 +31,8 @@ use futures::prelude::*;
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock,
-	StructuredUnroutedIngress, ValidatorId, OutgoingMessages, ErasureChunk,
+	StructuredUnroutedIngress, ValidatorId, OutgoingMessages,
 };
-use polkadot_erasure_coding::{self as erasure};
 use substrate_network::{
 	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
 	specialization::{Event, NetworkSpecialization as Specialization},
@@ -61,7 +60,6 @@ mod cost {
 	pub(super) const COLLATOR_ALREADY_KNOWN: i32 = -100;
 	pub(super) const BAD_COLLATION: i32 = -1000;
 	pub(super) const BAD_POV_BLOCK: i32 = -1000;
-	pub(super) const BAD_BLOCK_CHUNK: i32 = -1000;
 }
 
 mod benefit {
@@ -72,7 +70,6 @@ mod benefit {
 	pub(super) const NEW_COLLATOR: i32 = 10;
 	pub(super) const GOOD_COLLATION: i32 = 100;
 	pub(super) const GOOD_POV_BLOCK: i32 = 100;
-	pub(super) const GOOD_BLOCK_CHUNK: i32 = 100;
 }
 
 type FullStatus = GenericFullStatus<Block>;
@@ -200,34 +197,6 @@ struct PoVBlockRequest {
 	canon_roots: StructuredUnroutedIngress,
 }
 
-struct BlockChunkRequest {
-	attempted_peers: HashSet<ValidatorId>,
-	relay_parent: Hash,
-	candidate_hash: Hash,
-	chunk_id: u64,
-	sender: oneshot::Sender<ErasureChunk>,
-}
-
-impl BlockChunkRequest {
-	fn process_response(self, chunk: ErasureChunk) -> Result<(), Self> {
-		if self.relay_parent != chunk.relay_parent {
-			return Err(self);
-		}
-
-		if self.candidate_hash != chunk.candidate_hash {
-			return Err(self);
-		}
-
-		match polkadot_validation::collation::validate_chunk(&self.candidate_hash, &chunk) {
-			Ok(()) => {
-				let _ = self.sender.send(chunk);
-				Ok(())
-			}
-			Err(_) => Err(self)
-		}
-	}
-}
-
 impl PoVBlockRequest {
 	// Attempt to process a response. If the provided block is invalid,
 	// this returns an error result containing the unmodified request.
@@ -307,10 +276,6 @@ pub enum Message {
 	RequestPovBlock(RequestId, Hash, Hash),
 	/// Provide requested proof-of-validation block data by candidate hash or nothing if unknown.
 	PovBlock(RequestId, Option<PoVBlock>),
-	/// Request block chunk.
-	RequestBlockChunk(RequestId, Hash, Hash, u64),
-	/// Provide requested block data by candidate hash or nothing.
-	BlockChunk(RequestId, Option<ErasureChunk>),
 	/// Tell a collator their role.
 	CollatorRole(Role),
 	/// A collation provided by a peer. Relay parent and collation.
@@ -332,9 +297,7 @@ pub struct PolkadotProtocol {
 	local_collations: LocalCollations<Collation>,
 	live_validation_leaves: LiveValidationLeaves,
 	in_flight: HashMap<(RequestId, PeerId), PoVBlockRequest>,
-	in_flight_chunk_requests: HashMap<(RequestId, PeerId), BlockChunkRequest>,
 	pending: Vec<PoVBlockRequest>,
-	pending_chunk_requests: Vec<BlockChunkRequest>,
 	availability_store: Option<av_store::Store>,
 	next_req_id: u64,
 }
@@ -350,9 +313,7 @@ impl PolkadotProtocol {
 			local_collations: LocalCollations::new(),
 			live_validation_leaves: LiveValidationLeaves::new(),
 			in_flight: HashMap::new(),
-			in_flight_chunk_requests: HashMap::new(),
 			pending: Vec::new(),
-			pending_chunk_requests: Vec::new(),
 			availability_store: None,
 			next_req_id: 1,
 		}
@@ -416,7 +377,6 @@ impl PolkadotProtocol {
 		let validator_keys = &mut self.validators;
 		let next_req_id = &mut self.next_req_id;
 		let in_flight = &mut self.in_flight;
-		let in_flight_chunk_requests = &mut self.in_flight_chunk_requests;
 
 		for mut pending in ::std::mem::replace(&mut self.pending, Vec::new()) {
 			let parent = pending.validation_leaf;
@@ -461,35 +421,6 @@ impl PolkadotProtocol {
 		}
 
 		self.pending = new_pending;
-
-		let mut new_pending_chunk_requests = Vec::new();
-
-		// What we should be doing is iterating all validators asking them one by one.
-		for mut pending in ::std::mem::replace(&mut self.pending_chunk_requests, Vec::new()) {
-			let parent = pending.relay_parent;
-			let c_hash = pending.candidate_hash;
-
-			let next_peer = validator_keys.iter()
-				.find(|&(key, _)| pending.attempted_peers.insert(key.clone()))
-				.map(|(_, id)| id.clone());
-
-			if let Some(who) = next_peer {
-				let req_id = *next_req_id;
-				*next_req_id += 1;
-
-				send_polkadot_message(
-					ctx,
-					who.clone(),
-					Message::RequestBlockChunk(req_id, parent, c_hash, pending.chunk_id)
-				);
-
-				in_flight_chunk_requests.insert((req_id, who), pending);
-			} else {
-				new_pending_chunk_requests.push(pending);
-			}
-		}
-
-		self.pending_chunk_requests = new_pending_chunk_requests;
 	}
 
 	fn on_polkadot_message(&mut self, ctx: &mut dyn Context<Block>, who: PeerId, msg: Message) {
@@ -506,17 +437,6 @@ impl PolkadotProtocol {
 				send_polkadot_message(ctx, who, Message::PovBlock(req_id, pov_block));
 			}
 			Message::PovBlock(req_id, data) => self.on_pov_block(ctx, who, req_id, data),
-			Message::RequestBlockChunk(req_id, relay_parent, candidate_hash, idx) => {
-				let msg = self.availability_store.as_ref().and_then(|s| {
-					s.erasure_chunk(relay_parent, candidate_hash, idx as usize).and_then(|chunk| {
-						Some(chunk)
-					})
-				});
-				send_polkadot_message(ctx, who, Message::BlockChunk(req_id, msg));
-			}
-			Message::BlockChunk(req_id, chunk) => {
-				self.on_block_chunk(ctx, who, req_id, chunk);
-			}
 			Message::Collation(relay_parent, collation) => self.on_collation(ctx, who, relay_parent, collation),
 			Message::CollatorRole(role) => self.on_new_role(ctx, who, role),
 		}
@@ -562,40 +482,6 @@ impl PolkadotProtocol {
 		}
 
 		self.dispatch_pending_requests(ctx);
-	}
-
-	fn on_block_chunk(
-		&mut self,
-		ctx: &mut dyn Context<Block>,
-		who: PeerId,
-		req_id: RequestId,
-		erasure_chunk: Option<ErasureChunk>,
-	) {
-		match self.in_flight_chunk_requests.remove(&(req_id, who.clone())) {
-			Some(mut req) => {
-				match erasure_chunk {
-					Some(erasure_chunk) => {
-						match req.process_response(erasure_chunk) {
-							Ok(()) => {
-								ctx.report_peer(who, benefit::GOOD_BLOCK_CHUNK);
-								return;
-							}
-							Err(r) => {
-								ctx.report_peer(who, cost::BAD_BLOCK_CHUNK);
-								req = r;
-							}
-						}
-					},
-					None => {
-						ctx.report_peer(who, benefit::EXPECTED_MESSAGE);
-					}
-				}
-
-				self.pending_chunk_requests.push(req);
-				self.dispatch_pending_requests(ctx);
-			},
-			None => ctx.report_peer(who, cost::UNEXPECTED_MESSAGE),
-		}
 	}
 
 	fn on_pov_block(
@@ -824,8 +710,8 @@ impl PolkadotProtocol {
 		relay_parent: Hash,
 		collation: Collation
 	) {
-		let collation_para = collation.receipt.parachain_index;
-		let collated_acc = collation.receipt.collator.clone();
+		let collation_para = collation.info.parachain_index;
+		let collated_acc = collation.info.collator.clone();
 
 		match self.peers.get(&from) {
 			None => ctx.report_peer(from, cost::UNKNOWN_PEER),
@@ -836,7 +722,7 @@ impl PolkadotProtocol {
 					Some((ref acc_id, ref para_id)) => {
 						ctx.report_peer(from.clone(), benefit::EXPECTED_MESSAGE);
 						let structurally_valid = para_id == &collation_para && acc_id == &collated_acc;
-						if structurally_valid && collation.receipt.check_signature().is_ok() {
+						if structurally_valid && collation.info.check_signature().is_ok() {
 							debug!(target: "p_net", "Received collation for parachain {:?} from peer {}", para_id, from);
 							ctx.report_peer(from, benefit::GOOD_COLLATION);
 							self.collators.on_collation(acc_id.clone(), relay_parent, collation)
@@ -893,23 +779,14 @@ impl PolkadotProtocol {
 		outgoing_targeted: OutgoingMessages,
 	) -> std::io::Result<()> {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",
-			relay_parent, collation.receipt.parachain_index);
-
-		let authorities_num = self.validators.len(); // TODO: check if it's really all authorities
-		let candidate_hash = collation.receipt.hash();
-
-		let erasure_chunks = erasure::obtain_chunks(authorities_num,
-			relay_parent,
-			candidate_hash,
-			&collation.pov.block_data,
-			Some(&outgoing_targeted.clone().into())).unwrap();
+			relay_parent, collation.info.parachain_index);
 
 		if let Some(ref availability_store) = self.availability_store {
 			availability_store.make_available(av_store::Data {
 				relay_parent,
-				parachain_id: collation.receipt.parachain_index,
-				candidate_hash,
-				erasure_chunks,
+				parachain_id: collation.info.parachain_index,
+				block_data: collation.pov.block_data.clone(),
+				outgoing_queues: Some(outgoing_targeted.clone().into()),
 			})?;
 		}
 

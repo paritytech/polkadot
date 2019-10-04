@@ -193,11 +193,11 @@ impl GossipStatement {
 /// For each chunk of block erasure encoding one of this messages is constructed.
 #[derive(Encode, Decode, Clone, Debug)]
 pub struct ErasureChunkMessage {
-    /// The chunk itself.
+	/// The chunk itself.
 	pub chunk: PrimitiveChunk,
-    /// The validator that has sent this message.
+	/// The validator that has sent this message.
 	pub sender: ValidatorIndex,
-    /// The signature of the validator.
+	/// The signature of the validator.
 	pub signature: ValidatorSignature,
 }
 
@@ -486,7 +486,7 @@ impl MessageValidationData {
 		}
 	}
 
-	fn check_chunk(&self, msg: &ErasureChunkMessage) -> Result<(), ()> {
+	fn check_chunk(&self, relay_chain_leaf: &Hash, msg: &ErasureChunkMessage) -> Result<(), ()> {
 		let sender = match self.authorities.get(msg.sender as usize) {
 			Some(val) => val,
 			None => return Err(()),
@@ -495,9 +495,9 @@ impl MessageValidationData {
 		let good = self.authorities.contains(&sender) &&
 			polkadot_validation::check_chunk(
 				&msg.chunk,
-				msg.sender,
-				sender.clone(),
 				&msg.signature,
+				sender.clone(),
+				relay_chain_leaf,
 			);
 
 		if good {
@@ -832,7 +832,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [20u8; 32].into(),
 			upward_messages: Vec::new(),
-			erasure_root: Some(Hash::default()),
+			erasure_root: [1u8; 32].into(),
 		};
 
 		let statement = GossipMessage::Statement(GossipStatement {

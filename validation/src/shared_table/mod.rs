@@ -20,7 +20,7 @@
 use std::collections::hash_map::{HashMap, Entry};
 use std::sync::Arc;
 
-use availability_store::{Data, Store as AvailabilityStore};
+use availability_store::{Store as AvailabilityStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
@@ -95,7 +95,7 @@ impl TableContext {
 	}
 
 	fn sign_chunk(&self, chunk: &ErasureChunk, sender: ValidatorIndex) -> Option<ValidatorSignature> {
-		self.key.as_ref().map(|key| crate::sign_chunk(chunk, sender, key))
+		self.key.as_ref().map(|key| crate::sign_chunk(chunk, key, &self.parent_hash))
 	}
 }
 
@@ -287,7 +287,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			Fetch,
-			impl Send + FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()>,
+			impl Send + FnMut(&BlockId, &Collation, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>,
 		>
 		where
 			P: Send + Sync + 'static,
@@ -295,8 +295,9 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 	{
 		let max_block_data_size = self.max_block_data_size;
 		let relay_parent = self.relay_parent.clone();
+		let local_index = self.local_index;
 
-		let validate = move |id: &_, collation: &_| {
+		let validate = move |id: &_, collation: &_, receipt: &_| {
 			let res = crate::collation::validate_collation(
 				&*api,
 				id,
@@ -306,7 +307,25 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 			);
 
 			match res {
-				Ok(e) => Ok(e),
+				Ok((messages, fees)) => {
+					match crate::collation::validate_receipt(
+						&*api,
+						id,
+						&relay_parent,
+						collation,
+						receipt,
+						&messages,
+						fees,
+					) {
+						Ok(chunks) => {
+							Ok((messages, chunks.into_iter().nth(local_index).unwrap()))
+						}
+						Err(e) => {
+							debug!(target: "validation", "Encountered bad candidate receipt: {}", e);
+							Err(())
+						}
+					}
+				}
 				Err(e) => {
 					debug!(target: "validation", "Encountered bad collation: {}", e);
 					Err(())
@@ -319,7 +338,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 
 	/// Prime the parachain work with a custom validation function.
 	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<Fetch, F>
-		where F: FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()>
+		where F: FnMut(&BlockId, &Collation, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>
 	{
 		PrimedParachainWork { inner: self, validate }
 	}
@@ -339,7 +358,7 @@ pub struct PrimedParachainWork<Fetch, F> {
 impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 	where
 		Fetch: Future<Item=PoVBlock,Error=Err>,
-		F: FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()>,
+		F: FnMut(&BlockId, &Collation, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>,
 		Err: From<::std::io::Error>,
 {
 	type Item = Validated;
@@ -352,7 +371,8 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 		let pov_block = futures::try_ready!(work.fetch.poll());
 		let validation_res = (self.validate)(
 			&BlockId::hash(self.inner.relay_parent),
-			&Collation { pov: pov_block.clone(), receipt: candidate.clone() },
+			&Collation { pov: pov_block.clone(), info: candidate.clone().into() },
+			&candidate,
 		);
 
 		let candidate_hash = candidate.hash();
@@ -365,25 +385,30 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 				GenericStatement::Invalid(candidate_hash),
 				Validation::Invalid(pov_block),
 			),
-			Ok(outgoing_targeted) => {
+			Ok((outgoing_targeted, our_chunk)) => {
 				let outgoing_queues = outgoing_targeted.clone().into();
 
-				let mut chunks = erasure::obtain_chunks(self.inner.n_validators,
-					self.inner.relay_parent,
-					candidate_hash,
+				let chunks = erasure::obtain_chunks(
+					self.inner.n_validators,
 					&pov_block.block_data,
 					Some(&outgoing_queues)).unwrap();
 
+				let mut branches = erasure::branches(&chunks.as_ref());
 				let local_index: usize = self.inner.local_index;
 
-				chunks.chunks = vec![chunks.chunks[local_index].clone()];
+				let proof = branches.nth(self.inner.local_index).unwrap().0;
 
-				self.inner.availability_store.make_available(Data {
+				let chunk = ErasureChunk {
 					relay_parent: self.inner.relay_parent,
+					chunk: chunks[self.inner.local_index].clone(),
+					block_data_hash: pov_block.block_data.hash(),
+					index: local_index as u32,
 					parachain_id: work.candidate_receipt.parachain_index,
-					candidate_hash,
-					erasure_chunks: chunks
-				})?;
+					n_validators: self.inner.n_validators as u32,
+					proof,
+				};
+
+				self.inner.availability_store.add_erasure_chunk(chunk.parachain_id, our_chunk)?;
 
 				(
 					GenericStatement::Valid(candidate_hash),
@@ -517,7 +542,7 @@ impl SharedTable {
 	/// Only imports `i`-th erasure-encoded chunk of data where `i` is the `local_index`.
 	pub fn import_erasure_chunk(&self, chunk: ErasureChunk) {
 		if Some(chunk.index) == self.context.local_index() {
-			let _ = self.inner.lock().availability_store.add_erasure_chunk(chunk);
+			let _ = self.inner.lock().availability_store.add_erasure_chunk(chunk.parachain_id, chunk);
 		}
 	}
 
@@ -627,10 +652,14 @@ mod tests {
 	impl TableRouter for DummyRouter {
 		type Error = ::std::io::Error;
 		type FetchValidationProof = future::FutureResult<PoVBlock,Self::Error>;
-		type FetchBlockChunk = future::FutureResult<ErasureChunk, Self::Error>;
 
-		fn local_collation(&self, _collation: Collation, _outgoing: OutgoingMessages, _chunks: (ValidatorIndex, &Vec<ErasureChunk>)) {
-		}
+		fn local_collation(
+			&self,
+			_collation: Collation,
+			_candidate: CandidateReceipt,
+			_outgoing: OutgoingMessages,
+			_chunks: (ValidatorIndex, &Vec<ErasureChunk>)
+		) {}
 
 		fn fetch_pov_block(&self, _candidate: &CandidateReceipt) -> Self::FetchValidationProof {
 			future::ok(pov_block_with_data(vec![1, 2, 3, 4, 5]))
@@ -675,7 +704,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
-			erasure_root: Some(Hash::default()),
+			erasure_root: [1u8; 32].into(),
 		};
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
@@ -731,7 +760,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
-			erasure_root: Some(Hash::default()),
+			erasure_root: [1u8; 32].into(),
 		};
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
@@ -765,7 +794,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
-			erasure_root: Some(Hash::default()),
+			erasure_root: [1u8; 32].into(),
 		};
 
 		let hash = candidate.hash();
@@ -782,7 +811,10 @@ mod tests {
 			max_block_data_size: None,
 		};
 
-		let validated = producer.prime_with(|_, _| Ok(OutgoingMessages { outgoing_messages: Vec::new() }))
+		let validated = producer.prime_with(|_, _, _| Ok((
+				OutgoingMessages { outgoing_messages: Vec::new() },
+				ErasureChunk::default(),
+			)))
 			.wait()
 			.unwrap();
 
@@ -814,7 +846,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
-			erasure_root: Some(Hash::default()),
+			erasure_root: [1u8; 32].into(),
 		};
 
 		let hash = candidate.hash();
@@ -831,7 +863,10 @@ mod tests {
 			max_block_data_size: None,
 		};
 
-		let validated = producer.prime_with(|_, _| Ok(OutgoingMessages { outgoing_messages: Vec::new() }))
+		let validated = producer.prime_with(|_, _, _| Ok((
+				OutgoingMessages { outgoing_messages: Vec::new() },
+				ErasureChunk::default(),
+			)))
 			.wait()
 			.unwrap();
 
@@ -885,7 +920,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
-			erasure_root: Some(Hash::default()),
+			erasure_root: [1u8; 32].into(),
 		};
 
 		let hash = candidate.hash();
@@ -952,7 +987,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
-			erasure_root: Some(Hash::default()),
+			erasure_root: [1u8; 32].into(),
 		};
 
 		let hash = candidate.hash();

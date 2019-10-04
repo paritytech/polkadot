@@ -254,7 +254,7 @@ impl View {
 				(GossipValidationResult::Discard, cost)
 			}
 			Some(view) => {
-				let res = view.validation_data.check_chunk(&chunk);
+				let res = view.validation_data.check_chunk(&chunk.chunk.relay_parent, &chunk);
 				match res {
 					Ok(()) => (GossipValidationResult::ProcessAndKeep(Hash::default()), benefit::NEW_ERASURE_CHUNK),
 					Err(()) => (GossipValidationResult::Discard, cost::BAD_SIGNATURE),

@@ -184,7 +184,7 @@ fn fetches_from_those_with_knowledge() {
 		fees: 1_000_000,
 		block_data_hash,
 		upward_messages: Vec::new(),
-		erasure_root: Some(Hash::default()),
+		erasure_root: [1u8; 32].into(),
 	};
 
 	let candidate_hash = candidate_receipt.hash();
@@ -247,75 +247,6 @@ fn fetches_from_those_with_knowledge() {
 		on_message(&mut protocol, &mut ctx, peer_b, Message::PovBlock(2, Some(pov_block.clone())));
 		drop(protocol);
 		assert_eq!(recv.wait().unwrap(), pov_block);
-	}
-}
-
-#[test]
-fn fetches_available_chunk_data() {
-	let mut protocol = PolkadotProtocol::new(None);
-
-	let peer_a = PeerId::random();
-	let parent_hash = [0; 32].into();
-
-	let block_data = BlockData(vec![1, 2, 3, 4]);
-	let block_data_hash = block_data.hash();
-	let para_id = 5.into();
-	let candidate_receipt = CandidateReceipt {
-		parachain_index: para_id,
-		collator: [255; 32].unchecked_into(),
-		head_data: HeadData(vec![9, 9, 9]),
-		signature: Default::default(),
-		egress_queue_roots: Vec::new(),
-		fees: 1_000_000,
-		block_data_hash,
-		upward_messages: Vec::new(),
-		erasure_root: Some(Hash::default()),
-	};
-
-	let candidate_hash = candidate_receipt.hash();
-	let av_store = ::av_store::Store::new_in_memory();
-
-	let status = Status { collating_for: None };
-
-	protocol.register_availability_store(av_store.clone());
-
-	let messages = OutgoingMessages {
-		outgoing_messages: vec![],
-	};
-
-	let n_validators = 3;
-	let chunks = erasure::obtain_chunks(
-		n_validators,
-		parent_hash,
-		candidate_hash,
-		&block_data,
-		Some(&messages.into())
-	).unwrap();
-
-	let mut chunks2 = chunks.clone();
-
-	let old_chunks = std::mem::replace(&mut chunks2.chunks, vec![]);
-	chunks2.chunks = vec![old_chunks[0].clone()];
-
-	av_store.make_available(::av_store::Data {
-		relay_parent: parent_hash,
-		parachain_id: para_id,
-		candidate_hash,
-		erasure_chunks: chunks2,
-	}).unwrap();
-
-	// connect peer A
-	{
-		let mut ctx = TestContext::default();
-		protocol.on_connect(&mut ctx, peer_a.clone(), make_status(&status, Roles::FULL));
-	}
-
-	// peer A asks for a historic chunk and gets a response
-	{
-		let mut ctx = TestContext::default();
-		on_message(&mut protocol, &mut ctx, peer_a.clone(),
-		Message::RequestBlockChunk(1, parent_hash, candidate_hash, 0));
-		assert!(ctx.has_message(peer_a, Message::BlockChunk(1, Some(chunks.chunks[0].clone()))));
 	}
 }
 

@@ -48,7 +48,6 @@ use polkadot_primitives::parachain::{
 	ValidatorPair, ValidatorId,
 };
 use primitives::Pair;
-use polkadot_erasure_coding::{self as erasure};
 use runtime_primitives::traits::{AppVerify, ProvideRuntimeApi, DigestFor};
 use futures_timer::{Delay, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
@@ -66,7 +65,7 @@ use keystore::KeyStorePtr;
 type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
 pub use self::collation::{
-	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
+	validate_collation, validate_incoming, message_queue_root, egress_roots, produce_receipt_and_chunks, Collators,
 };
 pub use self::error::Error;
 pub use self::shared_table::{
@@ -97,12 +96,10 @@ pub trait TableRouter: Clone {
 	type Error: std::fmt::Debug;
 	/// Future that resolves when candidate data is fetched.
 	type FetchValidationProof: IntoFuture<Item=PoVBlock,Error=Self::Error>;
-	/// Future that resolves when a block erasure chunk is fetched.
-	type FetchBlockChunk: IntoFuture<Item=ErasureChunk, Error=Self::Error>;
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
-	fn local_collation(&self, collation: Collation, outgoing: OutgoingMessages, chunks: (ValidatorIndex, &Vec<ErasureChunk>));
+	fn local_collation(&self, collation: Collation, receipt: CandidateReceipt, outgoing: OutgoingMessages, chunks: (ValidatorIndex, &Vec<ErasureChunk>));
 
 	/// Fetch validation proof for a specific candidate.
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
@@ -162,19 +159,19 @@ pub fn check_statement(statement: &Statement, signature: &ValidatorSignature, si
 }
 
 /// Sign an erasure chunk message.
-pub fn sign_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, key: &ValidatorPair) -> ValidatorSignature {
+pub fn sign_chunk(chunk: &ErasureChunk, key: &ValidatorPair, parent_hash: &Hash) -> ValidatorSignature {
 	let mut encoded = chunk.encode();
-	encoded.extend(validator.to_be_bytes().iter());
+	encoded.extend(parent_hash.as_ref());
 
-	key.sign(&encoded).into()
+	key.sign(&encoded)
 }
 
 /// Check the signature of a chunk message.
-pub fn check_chunk(chunk: &ErasureChunk, validator: ValidatorIndex, signer: ValidatorId, signature: &ValidatorSignature) -> bool {
+pub fn check_chunk(chunk: &ErasureChunk, signature: &ValidatorSignature, signer: ValidatorId, parent_hash: &Hash) -> bool {
 	let mut encoded = chunk.encode();
-	encoded.extend(validator.to_be_bytes().iter());
+	encoded.extend(parent_hash.as_ref());
 
-	signature.verify(&encoded[..], &signer.into())
+	signature.verify(&encoded[..], &signer)
 }
 
 /// Compute group info out of a duty roster and a local authority set.
@@ -365,8 +362,6 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		local_id: ValidatorIndex,
 		exit: exit_future::Exit,
 	) {
-		use availability_store::Data;
-
 		let (collators, client) = (self.collators.clone(), self.client.clone());
 		let availability_store = self.availability_store.clone();
 
@@ -381,35 +376,42 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			);
 
 			collation_work.then(move |result| match result {
-				Ok((collation, outgoing_targeted)) => {
-					let candidate_hash = collation.receipt.hash();
+				Ok((collation, outgoing_targeted, fees_charged)) => {
+					match produce_receipt_and_chunks(
+						authorities_num,
+						&relay_parent,
+						&collation,
+						&outgoing_targeted,
+						fees_charged,
+					) {
+						Ok((receipt, chunks)) => {
+							let mut res = Ok(());
 
-					let erasure_chunks = erasure::obtain_chunks(
-                        authorities_num,
-						relay_parent,
-						candidate_hash,
-						&collation.pov.block_data,
-						Some(&outgoing_targeted.clone().into())).unwrap();
+							for chunk in &chunks {
+								if let Err(e) = availability_store.add_erasure_chunk(chunk.parachain_id, chunk.clone()) {
+									res = Err(e);
+									break;
+								}
+							};
 
-					let res = availability_store.make_available(Data {
-						relay_parent,
-						parachain_id: collation.receipt.parachain_index,
-						candidate_hash,
-						erasure_chunks: erasure_chunks.clone(),
-					});
+							match res {
+								Ok(()) => {
+									router.local_collation(collation, receipt, outgoing_targeted, (local_id, &chunks));
+								}
+								Err(e) => warn!(
+									target: "validation",
+									"Failed to make collation data available: {:?}",
+									e,
+								),
+							}
 
-					match res {
-						Ok(()) => {
-							router.local_collation(collation, outgoing_targeted, (local_id, &erasure_chunks.chunks));
+							Ok(())
 						}
-						Err(e) => warn!(
-							target: "validation",
-							"Failed to make collation data available: {:?}",
-							e,
-						),
+						Err(e) => {
+							warn!(target: "validation", "Failed to make produced a receipt: {:?}", e);
+							Ok(())
+						}
 					}
-
-					Ok(())
 				}
 				Err(e) => {
 					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
