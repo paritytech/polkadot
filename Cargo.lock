@@ -2840,6 +2840,7 @@ dependencies = [
  "polkadot-primitives 0.6.0",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "substrate-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-transaction-pool 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
