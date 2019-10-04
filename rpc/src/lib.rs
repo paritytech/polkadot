@@ -21,7 +21,6 @@
 use std::sync::Arc;
 
 use polkadot_primitives::Block;
-// TODO [ToDr] move to `srml::system`?
 use node_primitives::AccountNonceApi;
 use node_rpc::accounts::{Accounts, AccountsApi};
 use sr_primitives::traits::ProvideRuntimeApi;
