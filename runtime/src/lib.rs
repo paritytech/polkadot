@@ -725,4 +725,10 @@ impl_runtime_apis! {
 			SessionKeys::generate(seed)
 		}
 	}
+
+	impl node_primitives::AccountNonceApi<Block> for Runtime {
+		fn account_nonce(account: AccountId) -> Nonce {
+			System::account_nonce(account)
+		}
+	}
 }

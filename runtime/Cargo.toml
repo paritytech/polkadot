@@ -52,6 +52,7 @@ timestamp = { package = "srml-timestamp", git = "https://github.com/paritytech/s
 treasury = { package = "srml-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 primitives = { package = "polkadot-primitives", path = "../primitives", default-features = false }
+node-primitives = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [dev-dependencies]
 hex-literal = "0.2.0"
@@ -111,4 +112,5 @@ std = [
 	"babe/std",
 	"babe-primitives/std",
 	"substrate-session/std",
+	"node-primitives/std",
 ]

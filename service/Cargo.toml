@@ -18,6 +18,7 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-executor = { path = "../executor" }
 polkadot-network = { path = "../network"  }
+polkadot-rpc = { path = "../rpc" }
 sr-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
