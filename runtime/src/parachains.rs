@@ -25,10 +25,13 @@ use sr_primitives::traits::{
 	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero, Dispatchable,
 };
 use sr_primitives::weights::SimpleDispatchInfo;
-use primitives::{Hash, Balance, parachain::{
-	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId
-}};
+use primitives::{
+	Hash, Balance,
+	parachain::{
+		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
+		ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId
+	}
+};
 use {system, session};
 use srml_support::{
 	Parameter, dispatch::Result, traits::{Currency, Get, WithdrawReason, ExistenceRequirement},
@@ -265,7 +268,7 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 		// no ingress -- a chain cannot be routed to until it is live.
 		Code::insert(&id, &code);
 		Heads::insert(&id, &genesis);
-		<Watermarks<T>>::insert(&id, &sr_primitives::traits::Zero::zero());
+		<Watermarks<T>>::insert(&id, T::BlockNumber::zero());
 	}
 }
 

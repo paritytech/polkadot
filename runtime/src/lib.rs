@@ -174,6 +174,9 @@ parameter_types! {
 impl babe::Trait for Runtime {
 	type EpochDuration = EpochDuration;
 	type ExpectedBlockTime = ExpectedBlockTime;
+
+	// session module is the trigger
+	type EpochChangeTrigger = babe::ExternalTrigger;
 }
 
 impl indices::Trait for Runtime {
