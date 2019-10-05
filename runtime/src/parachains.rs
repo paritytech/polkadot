@@ -984,6 +984,9 @@ mod tests {
 	impl babe::Trait for Test {
 		type EpochDuration = EpochDuration;
 		type ExpectedBlockTime = ExpectedBlockTime;
+
+		// session module is the trigger
+		type EpochChangeTrigger = babe::ExternalTrigger;
 	}
 
 	parameter_types! {
@@ -1490,8 +1493,8 @@ mod tests {
 
 		with_externalities(&mut new_test_ext(parachains), || {
 			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 100u32.into()]);
-			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
-			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
+			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), Some(vec![1,2,3]));
+			assert_eq!(Parachains::parachain_code(ParaId::from(100u32)), Some(vec![4,5,6]));
 		});
 	}
 
@@ -1505,18 +1508,18 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 100u32.into()]);
 
-			assert_eq!(Parachains::parachain_code(&5u32.into()), Some(vec![1,2,3]));
-			assert_eq!(Parachains::parachain_code(&100u32.into()), Some(vec![4,5,6]));
+			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), Some(vec![1,2,3]));
+			assert_eq!(Parachains::parachain_code(ParaId::from(100u32)), Some(vec![4,5,6]));
 
 			assert_ok!(Parachains::register_parachain(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1]));
 
 			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 99u32.into(), 100u32.into()]);
-			assert_eq!(Parachains::parachain_code(&99u32.into()), Some(vec![7,8,9]));
+			assert_eq!(Parachains::parachain_code(ParaId::from(99u32)), Some(vec![7,8,9]));
 
 			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 5u32.into()));
 
 			assert_eq!(Parachains::active_parachains(), vec![99u32.into(), 100u32.into()]);
-			assert_eq!(Parachains::parachain_code(&5u32.into()), None);
+			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), None);
 		});
 	}
 
