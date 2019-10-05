@@ -53,7 +53,7 @@ pub mod wasm_api;
 
 use rstd::vec::Vec;
 
-use codec::{Encode, Decode};
+use codec::{Encode, Decode, CompactAs};
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
@@ -78,24 +78,9 @@ pub struct ValidationResult {
 }
 
 /// Unique identifier of a parachain.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Default, Clone, Copy, Encode, Decode)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Default, Clone, Copy, CompactAs, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, Debug))]
 pub struct Id(u32);
-
-impl codec::CompactAs for Id {
-	type As = u32;
-	fn encode_as(&self) -> &u32 {
-		&self.0
-	}
-	fn decode_from(x: u32) -> Self {
-		Self(x)
-	}
-}
-impl From<codec::Compact<Id>> for Id {
-	fn from(x: codec::Compact<Id>) -> Id {
-		x.0
-	}
-}
 
 impl From<Id> for u32 {
 	fn from(x: Id) -> Self { x.0 }
