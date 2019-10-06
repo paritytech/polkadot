@@ -903,8 +903,10 @@ mod tests {
 				(user_id(0), Some((col.clone(), Retriable::WithRetries(0))))
 			]);
 
+			// One half of the swap call does not actually trigger the swap.
 			assert_ok!(Registrar::swap(parachains::Origin::Parachain(user_id(0)).into(), user_id(1)));
 
+			// Nothing changes from what was originally registered
 			assert_eq!(Registrar::paras(&user_id(0)), Some(ParaInfo { scheduling: Scheduling::Dynamic }));
 			assert_eq!(Registrar::paras(&user_id(1)), Some(ParaInfo { scheduling: Scheduling::Always }));
 			assert_eq!(super::Parachains::get(), vec![user_id(1)]);
@@ -915,7 +917,10 @@ mod tests {
 			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3]));
 			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3]));
 			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3]));
+			// Intention to swap is added
+			assert_eq!(PendingSwap::get(user_id(0)), Some(user_id(1)));
 
+			// Intention to swap is reciprocated, swap actually happens
 			assert_ok!(Registrar::swap(parachains::Origin::Parachain(user_id(1)).into(), user_id(0)));
 
 			assert_eq!(Registrar::paras(&user_id(0)), Some(ParaInfo { scheduling: Scheduling::Always }));
@@ -928,6 +933,10 @@ mod tests {
 			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3]));
 			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3]));
 			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3]));
+
+			// Intention to swap is no longer present
+			assert_eq!(PendingSwap::get(user_id(0)), None);
+			assert_eq!(PendingSwap::get(user_id(1)), None);
 
 			run_to_block(12);
 			// thread should not be queued or scheduled any more, even though it would otherwise be
