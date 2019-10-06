@@ -1214,12 +1214,12 @@ mod tests {
 
 			run_to_block(3);
 			assert_eq!(
-				Registrar::paras(&ParaId::from(1000u32)),
+				Registrar::paras(&user_id(0)),
 				Some(ParaInfo { scheduling: Scheduling::Dynamic })
 			);
 
-			let good_para_id = ParaId::from(1000);
-			let bad_para_id = ParaId::from(1001);
+			let good_para_id = user_id(0);
+			let bad_para_id = user_id(1);
 			let bad_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 2, 1]);
 			let good_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 1, 1]);
 			let info = DispatchInfo::default();
@@ -1265,14 +1265,14 @@ mod tests {
 			// Register 5 parathreads
 			for x in 0..5 {
 				let o = Origin::signed(x as u64);
-				assert_ok!(Registrar::register_parathread(o, vec![x, x, x], vec![x, x, x]));
+				assert_ok!(Registrar::register_parathread(o, vec![x; 3], vec![x; 3]));
 			}
 
 			run_to_block(3);
 
-			for x in 1000..1005 {
+			for x in 0..5 {
 				assert_eq!(
-					Registrar::paras(&ParaId::from(x)),
+					Registrar::paras(&user_id(x)),
 					Some(ParaInfo { scheduling: Scheduling::Dynamic })
 				);
 			}
@@ -1282,9 +1282,9 @@ mod tests {
 
 			// Everyone wants a thread
 			for x in 0..5 {
-				let para_id = ParaId::from(1000 + x as u32);
+				let para_id = user_id(x as u32);
 				let collator_id = CollatorId::default();
-				let head_hash = <Test as system::Trait>::Hashing::hash(&vec![x, x, x]);
+				let head_hash = <Test as system::Trait>::Hashing::hash(&vec![x; 3]);
 				let inner = super::Call::select_parathread(para_id, collator_id, head_hash);
 				let call = Call::Registrar(inner);
 				let info = DispatchInfo::default();
@@ -1310,9 +1310,9 @@ mod tests {
 			assert_eq!(
 				SelectedThreads::get()[1],
 				vec![
-					(1000u32.into(), CollatorId::default()),
-					(1001u32.into(), CollatorId::default()),
-					(1002u32.into(), CollatorId::default()),
+					(user_id(0), CollatorId::default()),
+					(user_id(1), CollatorId::default()),
+					(user_id(2), CollatorId::default()),
 				]
 			);
 
@@ -1327,9 +1327,9 @@ mod tests {
 			assert_eq!(
 				Registrar::active_paras(),
 				vec![
-					(1000u32.into(), Some((CollatorId::default(), Retriable::WithRetries(0)))),
-					(1001u32.into(), Some((CollatorId::default(), Retriable::WithRetries(0)))),
-					(1002u32.into(), Some((CollatorId::default(), Retriable::WithRetries(0)))),
+					(user_id(0), Some((CollatorId::default(), Retriable::WithRetries(0)))),
+					(user_id(1), Some((CollatorId::default(), Retriable::WithRetries(0)))),
+					(user_id(2), Some((CollatorId::default(), Retriable::WithRetries(0)))),
 				]
 			);
 		});
