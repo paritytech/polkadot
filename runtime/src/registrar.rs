@@ -855,7 +855,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			// Need to trigger on_initalize
+			// Need to trigger on_initialize
 			run_to_block(2);
 			// Genesis registration works
 			assert_eq!(Registrar::active_paras(), vec![(5u32.into(), None), (100u32.into(), None)]);
@@ -871,7 +871,7 @@ mod tests {
 		with_externalities(&mut new_test_ext(vec![]), || {
 			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
 
-			// Need to trigger on_initalize
+			// Need to trigger on_initialize
 			run_to_block(2);
 
 			// Register a new parathread
@@ -937,13 +937,53 @@ mod tests {
 	}
 
 	#[test]
+	fn swap_handles_funds_correctly() {
+		with_externalities(&mut new_test_ext(vec![]), || {
+			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
+
+			// Need to trigger on_initialize
+			run_to_block(2);
+
+			let initial_1_balance = Balances::free_balance(1);
+			let initial_2_balance = Balances::free_balance(2);
+
+			// User 1 register a new parathread
+			assert_ok!(Registrar::register_parathread(
+				Origin::signed(1),
+				vec![1; 3],
+				vec![1; 3],
+			));
+
+			// User 2 leases out a new parachain
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 1, 4, 1));
+
+			run_to_block(9);
+
+			// Swap the parachain and parathread
+			assert_ok!(Registrar::swap(parachains::Origin::Parachain(user_id(0)).into(), user_id(1)));
+			assert_ok!(Registrar::swap(parachains::Origin::Parachain(user_id(1)).into(), user_id(0)));
+
+			// Deregister the parathread that was originally a parachain
+			assert_ok!(Registrar::deregister_parathread(parachains::Origin::Parachain(user_id(1)).into()));
+
+			// Go past when a parachain loses its slot
+			run_to_block(50);
+
+			// Funds are correctly returned
+			assert_eq!(Balances::free_balance(1), initial_1_balance);
+			assert_eq!(Balances::free_balance(2), initial_2_balance);
+		});	
+	}
+
+	#[test]
 	fn register_deregister_chains_works() {
 		let parachains = vec![
 			(1u32.into(), vec![1; 3], vec![1; 3]),
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			// Need to trigger on_initalize
+			// Need to trigger on_initialize
 			run_to_block(2);
 
 			// Genesis registration works
