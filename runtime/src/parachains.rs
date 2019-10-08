@@ -538,7 +538,7 @@ impl<T: Trait> Module<T> {
 
 		let mut seed = {
 			let phrase = b"validator_role_pairs";
-			let seed = system::Module::<T>::random(&phrase[..]);
+			let seed = randomness_collective_flip::Module::<T>::random(&phrase[..]);
 			let seed_len = seed.as_ref().len();
 			let needed_bytes = validator_count * 4;
 

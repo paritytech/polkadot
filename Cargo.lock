@@ -2830,6 +2830,7 @@ dependencies = [
  "srml-indices 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
  "srml-membership 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
  "srml-offences 1.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
+ "srml-randomness-collective-flip 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
  "srml-session 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
  "srml-staking 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
  "srml-staking-reward-curve 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
@@ -4007,6 +4008,19 @@ dependencies = [
  "sr-staking-primitives 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
  "sr-std 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
  "srml-balances 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
+ "srml-support 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
+ "srml-system 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
+]
+
+[[package]]
+name = "srml-randomness-collective-flip"
+version = "2.0.0"
+source = "git+https://github.com/expenses/substrate?branch=randomness-module#6a88d6251d0ea1c9ae9e3365a4575d880e0fad74"
+dependencies = [
+ "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sr-primitives 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
+ "sr-std 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
  "srml-support 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
  "srml-system 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)",
 ]
@@ -6235,6 +6249,7 @@ dependencies = [
 "checksum srml-membership 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)" = "<none>"
 "checksum srml-metadata 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)" = "<none>"
 "checksum srml-offences 1.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)" = "<none>"
+"checksum srml-randomness-collective-flip 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)" = "<none>"
 "checksum srml-session 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)" = "<none>"
 "checksum srml-staking 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)" = "<none>"
 "checksum srml-staking-reward-curve 2.0.0 (git+https://github.com/expenses/substrate?branch=randomness-module)" = "<none>"

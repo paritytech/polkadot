@@ -42,6 +42,7 @@ im-online = { package = "srml-im-online", git = "https://github.com/expenses/sub
 indices = { package = "srml-indices", git = "https://github.com/expenses/substrate", default-features = false, branch = "randomness-module" }
 membership = { package = "srml-membership", git = "https://github.com/expenses/substrate", default-features = false, branch = "randomness-module" }
 offences = { package = "srml-offences", git = "https://github.com/expenses/substrate", default-features = false, branch = "randomness-module" }
+randomness-collective-flip = { package = "srml-randomness-collective-flip", git = "https://github.com/expenses/substrate", default-features = false, branch = "randomness-module" }
 session = { package = "srml-session", git = "https://github.com/expenses/substrate", default-features = false, branch = "randomness-module" }
 srml-support = { git = "https://github.com/expenses/substrate", default-features = false, branch = "randomness-module" }
 staking = { package = "srml-staking", git = "https://github.com/expenses/substrate", default-features = false, branch = "randomness-module" }

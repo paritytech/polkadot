@@ -437,7 +437,7 @@ impl<T: Trait> Module<T> {
 			if early_end + T::EndingPeriod::get() == now {
 				// Just ended!
 				let ending_period = T::EndingPeriod::get();
-				let offset = T::BlockNumber::decode(&mut<system::Module<T>>::random_seed().as_ref())
+				let offset = T::BlockNumber::decode(&mut<randomness_collective_flip::Module<T>>::random_seed().as_ref())
 					.expect("secure hashes always bigger than block numbers; qed") % ending_period;
 				let res = <Winning<T>>::get(offset).unwrap_or_default();
 				let mut i = T::BlockNumber::zero();
