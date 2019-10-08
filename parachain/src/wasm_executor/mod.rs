@@ -32,8 +32,7 @@ use super::{
 	UpwardMessage, IncomingMessage};
 
 #[cfg(not(target_os = "unknown"))]
-pub use validation_host::run_worker;
-pub use validation_host::EXECUTION_TIMEOUT_SEC;
+pub use validation_host::{run_worker, EXECUTION_TIMEOUT_SEC};
 
 mod validation_host;
 
@@ -125,7 +124,7 @@ impl fmt::Display for ExternalitiesError {
 }
 
 impl wasmi::HostError for ExternalitiesError {}
-impl ::std::error::Error for ExternalitiesError {}
+impl std::error::Error for ExternalitiesError {}
 
 struct Resolver {
 	max_memory: u32, // in pages.
