@@ -981,6 +981,9 @@ mod tests {
 	impl babe::Trait for Test {
 		type EpochDuration = EpochDuration;
 		type ExpectedBlockTime = ExpectedBlockTime;
+
+		// session module is the trigger
+		type EpochChangeTrigger = babe::ExternalTrigger;
 	}
 
 	parameter_types! {
