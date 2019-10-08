@@ -8,7 +8,7 @@ Implementation of a https://polkadot.network node in Rust.
 
 == NOTE
 
-In 2017 we split our implementation of "Polkadot" from its platform-level component "Substrate". When we split them, we split the Polkadot code off into another repo (this repo), leaving the link:https://github.com/paritytech/substrate[**Substrate** repo] to be what used to be Polkadot, along with its branches and releases.
+In 2017 we split our implementation of "Polkadot" from its platform-level component "Substrate". When we split them, we split the Polkadot code off into another repo (this repo), leaving the link:https://github.com/expenses/substrate[**Substrate** repo] to be what used to be Polkadot, along with its branches and releases.
 
 We are actively building both Substrate and Polkadot, but things will be a little odd for a while.  If you see "substrate" and are wondering why you need it for Polkadot, now you know.
 
@@ -20,7 +20,7 @@ To connect on the "Kusama" canary network, you will want the `v0.6` code, which 
 
 * **Polkadot PoC-3 "Alexander"** is in this link:https://github.com/paritytech/polkadot/tree/v0.3[**Polkadot**] repo branch `v0.3`.
 
-* **Polkadot PoC-2 "Krumme Lanke"** is in the link:https://github.com/paritytech/substrate/tree/v0.2[**Substrate**] repo branch `v0.2`.
+* **Polkadot PoC-2 "Krumme Lanke"** is in the link:https://github.com/expenses/substrate/tree/v0.2[**Substrate**] repo branch `v0.2`.
 
 
 == To play
@@ -103,7 +103,7 @@ polkadot
 Install Polkadot PoC-2 and have a `polkadot` binary installed to your `PATH` with:
 
 [source, shell]
-cargo install --git https://github.com/paritytech/substrate.git --branch v0.2 polkadot
+cargo install --git https://github.com/expenses/substrate.git --branch v0.2 polkadot
 
 Connect to the global "Krumme Lanke" testnet by default by running:
 
@@ -120,7 +120,7 @@ cargo install --git https://github.com/paritytech/polkadot.git polkadot
 If you want a specific version of Polkadot, say `0.2.5`, you may run
 
 [source, shell]
-cargo install --git https://github.com/paritytech/substrate.git --tag v0.2.5 polkadot
+cargo install --git https://github.com/expenses/substrate.git --tag v0.2.5 polkadot
 
 === Obtaining DOTs
 
