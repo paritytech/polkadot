@@ -275,7 +275,7 @@ decl_module! {
 		fn select_parathread(origin,
 			#[compact] _id: ParaId,
 			_collator: CollatorId,
-			_head_hash: T::Hash
+			_head_hash: T::Hash,
 		) {
 			ensure_signed(origin)?;
 			// Everything else is checked for in the transaction `SignedExtension`.
