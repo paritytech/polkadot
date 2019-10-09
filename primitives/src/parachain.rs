@@ -124,8 +124,8 @@ pub const PARACHAIN_INFO: Info = Info {
 	scheduling: Scheduling::Always,
 };
 
-/// Handler for when two parachains/parathreads get notionally swapped.
-pub trait OnSwap {
+/// Auxilliary for when there's an attempt to swapped two parachains/parathreads.
+pub trait SwapAux {
 	/// Result describing whether it is possible to swap two parachains. Doesn't mutate state.
 	fn ensure_can_swap(one: Id, other: Id) -> Result<(), &'static str>;
 

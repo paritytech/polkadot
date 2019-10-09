@@ -490,7 +490,7 @@ impl registrar::Trait for Runtime {
 	type Origin = Origin;
 	type Currency = Balances;
 	type ParathreadDeposit = ParathreadDeposit;
-	type OnSwap = Slots;
+	type SwapAux = Slots;
 }
 
 parameter_types!{

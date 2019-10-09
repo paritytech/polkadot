@@ -1068,7 +1068,7 @@ mod tests {
 		type Origin = Origin;
 		type Currency = balances::Module<Test>;
 		type ParathreadDeposit = ParathreadDeposit;
-		type OnSwap = slots::Module<Test>;
+		type SwapAux = slots::Module<Test>;
 	}
 
 	impl Trait for Test {

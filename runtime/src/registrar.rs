@@ -35,7 +35,7 @@ use srml_support::{
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
-	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, OnSwap, Info as ParaInfo, ActiveParas,
+	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, SwapAux, Info as ParaInfo, ActiveParas,
 	Retriable
 };
 use crate::parachains;
@@ -123,7 +123,7 @@ pub trait Trait: parachains::Trait {
 	type ParathreadDeposit: Get<BalanceOf<Self>>;
 
 	/// Handler for when two ParaIds are swapped.
-	type OnSwap: OnSwap;
+	type SwapAux: SwapAux;
 
 	/// The number of items in the parathread queue, aka the number of blocks in advance to schedule
 	/// parachain execution.
@@ -323,7 +323,7 @@ decl_module! {
 
 			if PendingSwap::get(other) == Some(id) {
 				// actually do the swap.
-				T::OnSwap::ensure_can_swap(id, other)?;
+				T::SwapAux::ensure_can_swap(id, other)?;
 
 				// Remove intention to swap.
 				PendingSwap::remove(other);
@@ -340,7 +340,7 @@ decl_module! {
 						rstd::mem::swap(i, j)
 					)
 				);
-				let _ = T::OnSwap::on_swap(id, other);
+				let _ = T::SwapAux::on_swap(id, other);
 			} else {
 				PendingSwap::insert(id, other);
 			}
@@ -718,7 +718,7 @@ mod tests {
 		type Origin = Origin;
 		type Currency = balances::Module<Test>;
 		type ParathreadDeposit = ParathreadDeposit;
-		type OnSwap = slots::Module<Test>;
+		type SwapAux = slots::Module<Test>;
 		type QueueSize = QueueSize;
 		const MAX_RETRIES: u32 = 3;
 	}

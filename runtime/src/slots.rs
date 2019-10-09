@@ -27,7 +27,7 @@ use srml_support::{
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get},
 };
 use primitives::parachain::{
-	OnSwap, PARACHAIN_INFO, Id as ParaId
+	SwapAux, PARACHAIN_INFO, Id as ParaId
 };
 use system::{ensure_signed, ensure_root};
 use crate::registrar::{Registrar, swap_ordered_existence};
@@ -177,7 +177,7 @@ decl_storage! {
 	}
 }
 
-impl<T: Trait> OnSwap for Module<T> {
+impl<T: Trait> SwapAux for Module<T> {
 	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
 		if <Onboarding<T>>::exists(one) || <Onboarding<T>>::exists(other) {
 			Err("can't swap an undeployed parachain")?
