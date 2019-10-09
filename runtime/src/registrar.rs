@@ -52,7 +52,7 @@ pub trait Registrar<AccountId> {
 		id: ParaId,
 		info: ParaInfo,
 		code: Vec<u8>,
-		initial_head_data: Vec<u8>
+		initial_head_data: Vec<u8>,
 	) -> Result;
 
 	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
@@ -68,7 +68,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		id: ParaId,
 		info: ParaInfo,
 		code: Vec<u8>,
-		initial_head_data: Vec<u8>
+		initial_head_data: Vec<u8>,
 	) -> Result {
 		ensure!(!Paras::exists(id), "Parachain already exists");
 		if let Scheduling::Always = info.scheduling {
@@ -255,7 +255,7 @@ decl_module! {
 		/// `code` and `initial_head_data` are used to initialize the parathread's state.
 		fn register_parathread(origin,
 			code: Vec<u8>,
-			initial_head_data: Vec<u8>
+			initial_head_data: Vec<u8>,
 		) {
 			let who = ensure_signed(origin)?;
 
@@ -325,6 +325,8 @@ decl_module! {
 				// actually do the swap.
 				T::OnSwap::ensure_can_swap(id, other)?;
 
+				// Remove intention to swap.
+				PendingSwap::remove(other);
 				Self::force_unschedule(|i| i == id || i == other);
 				Parachains::mutate(|ids| swap_ordered_existence(ids, id, other));
 				Paras::mutate(id, |i|
@@ -333,6 +335,11 @@ decl_module! {
 					)
 				);
 
+				<Debtors<T>>::mutate(id, |i|
+					<Debtors<T>>::mutate(other, |j|
+						rstd::mem::swap(i, j)
+					)
+				);
 				let _ = T::OnSwap::on_swap(id, other);
 			} else {
 				PendingSwap::insert(id, other);
@@ -343,12 +350,12 @@ decl_module! {
 		fn on_initialize() {
 			let next_up = SelectedThreads::mutate(|t| {
 				let r = if t.len() >= T::QueueSize::get() {
-					// Take the first set of parachains in queue
+					// Take the first set of parathreads in queue
 					t.remove(0)
 				} else {
 					vec![]
 				};
-				if t.len() < T::QueueSize::get() {
+				while t.len() < T::QueueSize::get() {
 					t.push(vec![]);
 				}
 				r
@@ -419,6 +426,7 @@ decl_event!{
 }
 
 impl<T: Trait> Module<T> {
+        /// Ensures that the given `ParaId` corresponds to a registered parathread, and returns a descriptor if so.
 	pub fn ensure_thread_id(id: ParaId) -> Option<ParaInfo> {
 		Paras::get(id).and_then(|info| if let Scheduling::Dynamic = info.scheduling {
 			Some(info)
