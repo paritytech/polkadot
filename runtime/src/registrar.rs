@@ -133,14 +133,14 @@ const MAX_RETRIES: u32 = 3;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Registrar {
-		// Ordered vector of all parachain IDs.
+		// Vector of all parachain IDs, in ascending order.
 		Parachains: Vec<ParaId>;
 
 		/// The number of threads to schedule per block.
 		ThreadCount: u32;
 
 		/// An array of the queue of set of threads scheduled for the coming blocks; ordered by
-		/// para ID. There can be no duplicates of para ID in each list item.
+		/// ascending para ID. There can be no duplicates of para ID in each list item.
 		SelectedThreads: Vec<Vec<(ParaId, CollatorId)>>;
 
 		/// Parathreads/chains scheduled for execution this block. If the collator ID is set, then
@@ -148,7 +148,8 @@ decl_storage! {
 		/// may provide the block. In this case we allow the possibility of the combination being
 		/// retried in a later block, expressed by `Retriable`.
 		///
-		/// Ordered as Parachains ++ Selected_Parathreads.
+		/// Ordered as Parachains (ordered by ascending ID) ++ Selected_Parathreads (ordered by
+		/// ascending ID).
 		Active: Vec<(ParaId, Option<(CollatorId, Retriable)>)>;
 
 		/// The next unused ParaId value. Start this high in order to keep low numbers for
@@ -982,7 +983,7 @@ mod tests {
 			// Funds are correctly returned
 			assert_eq!(Balances::free_balance(1), initial_1_balance);
 			assert_eq!(Balances::free_balance(2), initial_2_balance);
-		});	
+		});
 	}
 
 	#[test]

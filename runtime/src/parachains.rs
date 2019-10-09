@@ -173,7 +173,6 @@ decl_storage! {
 		/// decoding when checking receipt validity. First item in tuple is the count of messages
 		///	second if the total length (in bytes) of the message payloads.
 		pub RelayDispatchQueueSize: map ParaId => (u32, u32);
-
 		/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
 		NeedsDispatch: Vec<ParaId>;
 
@@ -387,7 +386,6 @@ impl<T: Trait> Module<T> {
 		// we sort them in order to provide a fast lookup to ensure we can avoid duplicates in the
 		// needs_dispatch queue.
 		let mut ordered_needs_dispatch = NeedsDispatch::get();
-		ordered_needs_dispatch.sort_unstable();
 
 		for head in heads.iter() {
 			let id = head.parachain_index();
@@ -413,9 +411,11 @@ impl<T: Trait> Module<T> {
 			Self::queue_upward_messages(
 				id,
 				&head.candidate.upward_messages,
-				&ordered_needs_dispatch[..],
+				&mut ordered_needs_dispatch,
 			);
 		}
+
+		NeedsDispatch::put(ordered_needs_dispatch);
 
 		// apply the ingress update.
 		for (to, ingress_roots) in ingress_update {
@@ -424,13 +424,17 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Place any new upward messages into our queue for later dispatch.
+	///
+	/// `ordered_needs_dispatch` is mutated to ensure it reflects the new value of
+	/// `RelayDispatchQueueSize`. It is up to the caller to guarantee that it gets written into
+	/// storage after this call.
 	fn queue_upward_messages(
 		id: ParaId,
 		upward_messages: &[UpwardMessage],
-		ordered_needs_dispatch: &[ParaId],
+		ordered_needs_dispatch: &mut [ParaId],
 	) {
 		if !upward_messages.is_empty() {
-			<RelayDispatchQueueSize>::mutate(id, |&mut(ref mut count, ref mut len)| {
+			RelayDispatchQueueSize::mutate(id, |&mut(ref mut count, ref mut len)| {
 				*count += upward_messages.len() as u32;
 				*len += upward_messages.iter()
 					.fold(0, |a, x| a + x.data.len()) as u32;
@@ -438,9 +442,9 @@ impl<T: Trait> Module<T> {
 			// Should never be able to fail assuming our state is uncorrupted, but best not
 			// to panic, even if it does.
 			let _ = RelayDispatchQueue::append(id, upward_messages);
-			if ordered_needs_dispatch.binary_search(&id).is_err() {
+			if let Err(i) = ordered_needs_dispatch.binary_search(&id) {
 				// same.
-				let _ = NeedsDispatch::append(&[id]);
+				ordered_needs_dispatch.insert(i, id);
 			} else {
 				sr_primitives::print("ordered_needs_dispatch contains id?!");
 			}
@@ -1261,6 +1265,12 @@ mod tests {
 		}
 	}
 
+	fn queue_upward_messages(id: ParaId, upward_messages: &[UpwardMessage]) {
+		NeedsDispatch::mutate(|nd|
+			Parachains::queue_upward_messages(id, upward_messages, nd)
+		);
+	}
+
 	#[test]
 	fn check_dispatch_upward_works() {
 		let parachains = vec![
@@ -1270,12 +1280,12 @@ mod tests {
 		];
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
 			init_block();
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 4] }
-			], &NeedsDispatch::get());
-			Parachains::queue_upward_messages(1.into(), &vec![
+			);
+			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 4] }
-			], &NeedsDispatch::get());
+			);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
@@ -1287,15 +1297,15 @@ mod tests {
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
 			init_block();
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			], &NeedsDispatch::get());
-			Parachains::queue_upward_messages(1.into(), &vec![
+			);
+			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			], &NeedsDispatch::get());
-			Parachains::queue_upward_messages(2.into(), &vec![
+			);
+			queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			], &NeedsDispatch::get());
+			);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
@@ -1309,15 +1319,15 @@ mod tests {
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
 			init_block();
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			], &NeedsDispatch::get());
-			Parachains::queue_upward_messages(1.into(), &vec![
+			);
+			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			], &NeedsDispatch::get());
-			Parachains::queue_upward_messages(2.into(), &vec![
+			);
+			queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			], &NeedsDispatch::get());
+			);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
@@ -1331,15 +1341,15 @@ mod tests {
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
 			init_block();
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			], &NeedsDispatch::get());
-			Parachains::queue_upward_messages(1.into(), &vec![
+			);
+			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			], &NeedsDispatch::get());
-			Parachains::queue_upward_messages(2.into(), &vec![
+			);
+			queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			], &NeedsDispatch::get());
+			);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
@@ -1366,14 +1376,14 @@ mod tests {
 			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
 
 			// all good.
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
-			], &[]);
+			]);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1, 2] }
 			];
 			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
-			Parachains::queue_upward_messages(0.into(), &messages, &[]);
+			queue_upward_messages(0.into(), &messages);
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(0)), vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1, 2] },
@@ -1425,9 +1435,9 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			run_to_block(2);
 			// too many messages.
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
-			], &[]);
+			]);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![1] },
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![2] },
@@ -1447,9 +1457,9 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			run_to_block(2);
 			// too much data.
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0, 1] },
-			], &[]);
+			]);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![2, 3] },
 			];
@@ -1468,9 +1478,9 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			run_to_block(2);
 			// bad - already an oversize messages queued.
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] },
-			], &[]);
+			]);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] }
 			];
@@ -1489,9 +1499,9 @@ mod tests {
 		with_externalities(&mut new_test_ext(parachains), || {
 			run_to_block(2);
 			// bad - oversized and already a message queued.
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
-			], &[]);
+			]);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] }
 			];
