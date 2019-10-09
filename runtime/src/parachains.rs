@@ -1285,10 +1285,10 @@ mod tests {
 			init_block();
 			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 4] }
-			);
+			]);
 			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 4] }
-			);
+			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
@@ -1302,13 +1302,13 @@ mod tests {
 			init_block();
 			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			);
+			]);
 			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			);
+			]);
 			queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			);
+			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
@@ -1324,13 +1324,13 @@ mod tests {
 			init_block();
 			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			);
+			]);
 			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			);
+			]);
 			queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			);
+			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
@@ -1346,13 +1346,13 @@ mod tests {
 			init_block();
 			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
-			);
+			]);
 			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
-			);
+			]);
 			queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
-			);
+			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
