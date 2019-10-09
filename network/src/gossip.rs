@@ -265,6 +265,7 @@ impl<F, P> ChainContext for (F, P) where
 		let leaf_id = BlockId::Hash(leaf);
 		let active_parachains = api.active_parachains(&leaf_id)?;
 
+		// TODO: https://github.com/paritytech/polkadot/issues/467
 		for (para_id, _) in active_parachains {
 			if let Some(ingress) = api.ingress(&leaf_id, para_id, None)? {
 				for (_height, _from, queue_root) in ingress.iter() {
