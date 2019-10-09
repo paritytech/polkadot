@@ -413,7 +413,7 @@ impl<T: Trait> Module<T> {
 			Self::queue_upward_messages(
 				id,
 				&head.candidate.upward_messages,
-				&ordered_needs_dispatch[..]
+				&ordered_needs_dispatch[..],
 			);
 		}
 
