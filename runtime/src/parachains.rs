@@ -1549,7 +1549,7 @@ mod tests {
 
 
 			System::initialize(&2, &H256::from([2; 32]), &Default::default(), &Default::default());
-			RandomnessCollectiveFlip::on_initialize(1);
+			RandomnessCollectiveFlip::on_initialize(2);
 			let duty_roster_2 = Parachains::calculate_duty_roster().0;
 			check_roster(&duty_roster_2);
 			assert_ne!(duty_roster_0, duty_roster_2);
