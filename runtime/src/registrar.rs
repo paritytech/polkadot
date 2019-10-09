@@ -14,7 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Main parachains logic. For now this is just the determination of which validators do what.
+//! Module to handle which parachains/parathreads (collectively referred to as "paras") are
+//! registered and which are scheduled. Doesn't manage any of the actual execution/validation logic
+//! which is left to `parachains.rs`.
 
 use rstd::{prelude::*, result};
 #[cfg(any(feature = "std", test))]
@@ -122,14 +124,14 @@ pub trait Trait: parachains::Trait {
 
 	/// Handler for when two ParaIds are swapped.
 	type OnSwap: OnSwap;
+
+	/// The number of items in the parathread queue, aka the number of blocks in advance to schedule
+	/// parachain execution.
+	type QueueSize: Get<usize>;
+
+	/// The number of rotations that you will have as grace if you miss a block.
+	const MAX_RETRIES: u32;
 }
-
-/// The number of items in the parathread queue, aka the number of blocks in advance to schedule
-/// parachain execution.
-const QUEUE_SIZE: usize = 2;
-
-/// The number of rotations that you will have as grace if you miss a block.
-const MAX_RETRIES: u32 = 3;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Registrar {
@@ -148,8 +150,8 @@ decl_storage! {
 		/// may provide the block. In this case we allow the possibility of the combination being
 		/// retried in a later block, expressed by `Retriable`.
 		///
-		/// Ordered as Parachains (ordered by ascending ID) ++ Selected_Parathreads (ordered by
-		/// ascending ID).
+		/// Ordered as Parachains (ordered by ascending ID) ++ Selected_Parathreads (the last entry
+		/// is always the item from the retry queue, if one exists).
 		Active: Vec<(ParaId, Option<(CollatorId, Retriable)>)>;
 
 		/// The next unused ParaId value. Start this high in order to keep low numbers for
@@ -163,7 +165,7 @@ decl_storage! {
 		Paras get(paras): map ParaId => Option<ParaInfo>;
 
 		/// The current queue for parathreads that should be retried.
-		RetryQueue get(retry_queue): [Vec<(ParaId, CollatorId)>; MAX_RETRIES as usize];
+		RetryQueue get(retry_queue): [Vec<(ParaId, CollatorId)>; T::MAX_RETRIES as usize];
 
 		/// Users who have paid a parathread's deposit
 		Debtors: map ParaId => T::AccountId;
@@ -196,7 +198,11 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 	}
 }
 
-pub fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut Vec<T>, one: T, other: T) {
+/// Swap the existence of two items, provided by value, within an ordered list.
+///
+/// If neither item exists, or if both items exist this will do nothing. If exactly one of the
+/// items exists, then it will be removed and the other inserted.
+pub fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T, other: T) {
 	let maybe_one_pos = ids.binary_search(&one);
 	let maybe_other_pos = ids.binary_search(&other);
 	match (maybe_one_pos, maybe_other_pos) {
@@ -217,9 +223,9 @@ decl_module! {
 		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
 		pub fn register_para(origin,
 			#[compact] id: ParaId,
+			info: ParaInfo,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>,
-			info: ParaInfo
 		) -> Result {
 			ensure_root(origin)?;
 			<Self as Registrar<T::AccountId>>::
@@ -336,13 +342,13 @@ decl_module! {
 		/// Block initializer. Clears SelectedThreads and constructs/replaces Active.
 		fn on_initialize() {
 			let next_up = SelectedThreads::mutate(|t| {
-				let r = if t.len() >= QUEUE_SIZE {
+				let r = if t.len() >= T::QueueSize::get() {
 					// Take the first set of parachains in queue
 					t.remove(0)
 				} else {
 					vec![]
 				};
-				if t.len() < QUEUE_SIZE {
+				if t.len() < T::QueueSize::get() {
 					t.push(vec![]);
 				}
 				r
@@ -422,7 +428,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	fn retry_later(sched: (ParaId, CollatorId), retries: u32) {
-		if retries < MAX_RETRIES {
+		if retries < T::MAX_RETRIES {
 			RetryQueue::mutate(|q| q[retries as usize].push(sched));
 		}
 	}
@@ -696,6 +702,7 @@ mod tests {
 
 	parameter_types! {
 		pub const ParathreadDeposit: Balance = 10;
+		pub const QueueSize: usize = 2;
 	}
 
 	impl Trait for Test {
@@ -704,6 +711,8 @@ mod tests {
 		type Currency = balances::Module<Test>;
 		type ParathreadDeposit = ParathreadDeposit;
 		type OnSwap = slots::Module<Test>;
+		type QueueSize = QueueSize;
+		const MAX_RETRIES: u32 = 3;
 	}
 
 	type Balances = balances::Module<Test>;
@@ -1008,9 +1017,9 @@ mod tests {
 			assert_ok!(Registrar::register_para(
 				Origin::ROOT,
 				2u32.into(),
+				ParaInfo { scheduling: Scheduling::Always },
 				vec![2; 3],
 				vec![2; 3],
-				ParaInfo { scheduling: Scheduling::Always }
 			));
 
 			let orig_bal = Balances::free_balance(&3u64);
@@ -1327,7 +1336,7 @@ mod tests {
 			);
 
 			// Assuming Queue Size is 2
-			assert_eq!(QUEUE_SIZE, 2);
+			assert_eq!(Test::QueueSize::get(), 2);
 
 			// 2 blocks later
 			run_to_block(5);
