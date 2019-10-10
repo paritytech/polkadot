@@ -177,7 +177,9 @@ decl_storage! {
 		NeedsDispatch: Vec<ParaId>;
 
 		/// Some if the parachain heads get updated in this block, along with the parachain IDs that
-		/// did update. None if not yet updated.
+		/// did update. Ordered in the same way as `registrar::Active` (i.e. by ParaId).
+		///
+		/// None if not yet updated.
 		pub DidUpdate: Option<Vec<ParaId>>;
 	}
 }
@@ -192,7 +194,6 @@ decl_module! {
 			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
 
 			let mut active_parachains = Self::active_parachains();
-			active_parachains.sort_by_key(|&(ref id, _)| *id);
 
 			let parachain_count = active_parachains.len();
 			ensure!(heads.len() <= parachain_count, "Too many parachain candidates");

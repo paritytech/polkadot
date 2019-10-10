@@ -150,8 +150,7 @@ decl_storage! {
 		/// may provide the block. In this case we allow the possibility of the combination being
 		/// retried in a later block, expressed by `Retriable`.
 		///
-		/// Ordered as Parachains (ordered by ascending ID) ++ Selected_Parathreads (the last entry
-		/// is always the item from the retry queue, if one exists).
+		/// Ordered by ParaId.
 		Active: Vec<(ParaId, Option<(CollatorId, Retriable)>)>;
 
 		/// The next unused ParaId value. Start this high in order to keep low numbers for
@@ -371,43 +370,42 @@ decl_module! {
 				}
 			}
 
-			let paras = Parachains::get().into_iter()
+			let mut paras = Parachains::get().into_iter()
 				.map(|id| (id, None))
 				.chain(next_up.into_iter()
-					.map(|(para, collator)| (para, Some((collator, Retriable::WithRetries(0)))))
+					.map(|(para, collator)|
+						(para, Some((collator, Retriable::WithRetries(0))))
+					)
 				).chain(retrying.into_iter()
-					.map(|((para, collator), retries)| (para, Some((collator, Retriable::WithRetries(retries + 1)))))
+					.map(|((para, collator), retries)|
+						(para, Some((collator, Retriable::WithRetries(retries + 1))))
+					)
 				).collect::<Vec<_>>();
+			// for Rust's timsort algorithm, sorting a concatenation of two sorted ranges is near
+			// O(N).
+			paras.sort_by_key(|&(ref id, _)| *id);
+
 			Active::put(paras);
 		}
 
 		fn on_finalize() {
 			// a block without this will panic, but let's not panic here.
 			if let Some(proceeded_vec) = parachains::DidUpdate::get() {
-				// We can't remove the non-parathread items as with Active, so we reverse everything
-				// so that we safely ignore permanent chains (which are at the beginning of
-				// `DidUpdate`).
-				let mut proceeded = proceeded_vec.into_iter().rev();
+				// Active is sorted and DidUpdate is a sorted subset of its elements.
+				//
+				// We just go through the contents of active and find any items that don't appear in
+				// DidUpdate *and* which are enabled for retry.
+				let mut proceeded = proceeded_vec.into_iter();
 				let mut i = proceeded.next();
-
-				let active = Active::get().into_iter()
-					.rev()
-					// Early exit to skip any permanent parachains (i.e. without collators). Not
-					// needed with the following line, but early-exit should provide some speed-up.
-					.take_while(|i| i.1.is_some())
-					.filter_map(|i| match i.1 {
-						None | Some((_, Retriable::Never)) => None,
-						Some((c, Retriable::WithRetries(n))) => Some((i.0, c, n)),
-					});
-
-				// Check all normally scheduled parathreads: the rest of the `active` iterator are
-				// just normally scheduled parathreads (albeit in reverse order).
 				for sched in active {
 					match i {
 						// Scheduled parachain proceeded properly. Move onto next item.
-						Some(para) if para == sched.0 => i = proceeded.next(),
-						// Scheduled parachain missed their block. Queue for retry.
-						_ => Self::retry_later((sched.0, sched.1), sched.2),
+						Some(para) if para == sched => i = proceeded.next(),
+						// Scheduled `sched` missed their block.
+						// Queue for retry if it's allowed.
+						_ => if let (i, Some((c, Retriable::WithRetries(n)))) = sched {
+							Self::retry_later((i, c), n)
+						},
 					}
 				}
 			}
