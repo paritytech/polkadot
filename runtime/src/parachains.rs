@@ -1065,7 +1065,6 @@ mod tests {
 	parameter_types! {
 		pub const ParathreadDeposit: Balance = 10;
 		pub const QueueSize: usize = 2;
-		pub const MaxRetries: u32 = 3;
 	}
 
 	impl registrar::Trait for Test {
@@ -1075,7 +1074,7 @@ mod tests {
 		type ParathreadDeposit = ParathreadDeposit;
 		type SwapAux = slots::Module<Test>;
 		type QueueSize = QueueSize;
-		type MaxRetries = MaxRetries;
+		const MAX_RETRIES: u32 = 3;
 	}
 
 	impl Trait for Test {

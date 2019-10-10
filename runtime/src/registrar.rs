@@ -130,7 +130,7 @@ pub trait Trait: parachains::Trait {
 	type QueueSize: Get<usize>;
 
 	/// The number of rotations that you will have as grace if you miss a block.
-	type MaxRetries: Get<u32>;
+	const MAX_RETRIES: u32;
 }
 
 decl_storage! {
@@ -165,7 +165,7 @@ decl_storage! {
 		Paras get(paras): map ParaId => Option<ParaInfo>;
 
 		/// The current queue for parathreads that should be retried.
-		RetryQueue get(retry_queue): [Vec<(ParaId, CollatorId)>; T::MaxRetries::get() as usize];
+		RetryQueue get(retry_queue): [Vec<(ParaId, CollatorId)>; T::MAX_RETRIES as usize];
 
 		/// Users who have paid a parathread's deposit
 		Debtors: map ParaId => T::AccountId;
@@ -436,7 +436,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	fn retry_later(sched: (ParaId, CollatorId), retries: u32) {
-		if retries < T::MaxRetries::get() {
+		if retries < T::MAX_RETRIES {
 			RetryQueue::mutate(|q| q[retries as usize].push(sched));
 		}
 	}
@@ -711,7 +711,6 @@ mod tests {
 	parameter_types! {
 		pub const ParathreadDeposit: Balance = 10;
 		pub const QueueSize: usize = 2;
-		pub const MaxRetries: u32 = 3;
 	}
 
 	impl Trait for Test {
@@ -721,7 +720,7 @@ mod tests {
 		type ParathreadDeposit = ParathreadDeposit;
 		type SwapAux = slots::Module<Test>;
 		type QueueSize = QueueSize;
-		type MaxRetries = MaxRetries;
+		const MAX_RETRIES: u32 = 3;
 	}
 
 	type Balances = balances::Module<Test>;

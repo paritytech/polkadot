@@ -487,7 +487,6 @@ impl parachains::Trait for Runtime {
 parameter_types! {
 	pub const ParathreadDeposit: Balance = 500 * DOLLARS;
 	pub const QueueSize: usize = 2;
-	pub const MaxRetries: u32 = 3;
 }
 
 impl registrar::Trait for Runtime {
@@ -497,7 +496,7 @@ impl registrar::Trait for Runtime {
 	type ParathreadDeposit = ParathreadDeposit;
 	type SwapAux = Slots;
 	type QueueSize = QueueSize;
-	type MaxRetries = MaxRetries;
+	const MAX_RETRIES: u32 = 3;
 }
 
 parameter_types!{
