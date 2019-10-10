@@ -92,6 +92,7 @@ test-linux-stable:                 &test
       test "${CI_COMMIT_REF_NAME}" = "kusama-nightly-staging" && (
         echo "kusama-nightly-staging: change Cargo.toml to build against substrate:kusama-nightly-staging"
         find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate": { s:branch = "polkadot-(master|testing)":branch = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \;
+        sed -i -r 's:github.com/paritytech/substrate\?branch=polkadot-(master|testing):gitlab.parity.io/parity/substrate.git?branch=kusama-nightly-staging:' Cargo.lock
         time cargo test --all --release --verbose) || \
       time cargo test --all --release --verbose --locked
     - sccache -s
@@ -108,8 +109,9 @@ build-linux-release:               &build
   script:
     - |
       test "${CI_COMMIT_REF_NAME}" = "kusama-nightly-staging" && (
-        echo "kusama-nightly-staging: change Cargo.toml to build against substrate:kusama-nightly-staging";
-        find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate": { s:branch = "polkadot-(master|testing)":branch = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \; )
+        echo "kusama-nightly-staging: change Cargo.toml to build against substrate:kusama-nightly-staging"
+        find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate": { s:branch = "polkadot-(master|testing)":branch = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \;
+        sed -i -r 's:github.com/paritytech/substrate\?branch=polkadot-(master|testing):gitlab.parity.io/parity/substrate.git?branch=kusama-nightly-staging:' Cargo.lock )
     - time cargo build --release --verbose
     - mkdir -p ./artifacts
     - mv ./target/release/polkadot ./artifacts/.

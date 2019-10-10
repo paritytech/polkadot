@@ -42,6 +42,7 @@ im-online = { package = "srml-im-online", git = "https://github.com/paritytech/s
 indices = { package = "srml-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 membership = { package = "srml-membership", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 offences = { package = "srml-offences", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+randomness-collective-flip = { package = "srml-randomness-collective-flip", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 session = { package = "srml-session", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 srml-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 staking = { package = "srml-staking", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
