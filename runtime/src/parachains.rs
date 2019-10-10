@@ -538,7 +538,7 @@ impl<T: Trait> Module<T> {
 
 		let mut seed = {
 			let phrase = b"validator_role_pairs";
-			let seed = system::Module::<T>::random(&phrase[..]);
+			let seed = randomness_collective_flip::Module::<T>::random(&phrase[..]);
 			let seed_len = seed.as_ref().len();
 			let needed_bytes = validator_count * 4;
 
@@ -887,7 +887,7 @@ mod tests {
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
 		Perbill,
-		traits::{BlakeTwo256, IdentityLookup, ConvertInto},
+		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize},
 		testing::{UintAuthorityId, Header},
 		curve::PiecewiseLinear,
 	};
@@ -1056,6 +1056,7 @@ mod tests {
 
 	type Parachains = Module<Test>;
 	type System = system::Module<Test>;
+	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		use staking::StakerStatus;
@@ -1540,16 +1541,18 @@ mod tests {
 			check_roster(&duty_roster_0);
 
 			System::initialize(&1, &H256::from([1; 32]), &Default::default(), &Default::default());
+			RandomnessCollectiveFlip::on_initialize(1);
 			let duty_roster_1 = Parachains::calculate_duty_roster().0;
 			check_roster(&duty_roster_1);
-			assert!(duty_roster_0 != duty_roster_1);
+			assert_ne!(duty_roster_0, duty_roster_1);
 
 
 			System::initialize(&2, &H256::from([2; 32]), &Default::default(), &Default::default());
+			RandomnessCollectiveFlip::on_initialize(2);
 			let duty_roster_2 = Parachains::calculate_duty_roster().0;
 			check_roster(&duty_roster_2);
-			assert!(duty_roster_0 != duty_roster_2);
-			assert!(duty_roster_1 != duty_roster_2);
+			assert_ne!(duty_roster_0, duty_roster_2);
+			assert_ne!(duty_roster_1, duty_roster_2);
 		});
 	}
 
