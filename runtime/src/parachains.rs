@@ -432,7 +432,7 @@ impl<T: Trait> Module<T> {
 	fn queue_upward_messages(
 		id: ParaId,
 		upward_messages: &[UpwardMessage],
-		ordered_needs_dispatch: &mut [ParaId],
+		ordered_needs_dispatch: &mut Vec<ParaId>,
 	) {
 		if !upward_messages.is_empty() {
 			RelayDispatchQueueSize::mutate(id, |&mut(ref mut count, ref mut len)| {
@@ -1065,6 +1065,7 @@ mod tests {
 
 	parameter_types! {
 		pub const ParathreadDeposit: Balance = 10;
+		pub const QueueSize: usize = 2;
 	}
 
 	impl registrar::Trait for Test {
@@ -1073,6 +1074,8 @@ mod tests {
 		type Currency = balances::Module<Test>;
 		type ParathreadDeposit = ParathreadDeposit;
 		type SwapAux = slots::Module<Test>;
+		type QueueSize = QueueSize;
+		const MAX_RETRIES: u32 = 3;
 	}
 
 	impl Trait for Test {
@@ -1576,7 +1579,7 @@ mod tests {
 			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(ParaId::from(100u32)), Some(vec![4,5,6]));
 
-			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1], ParaInfo{scheduling: Scheduling::Always}));
+			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), ParaInfo{scheduling: Scheduling::Always}, vec![7,8,9], vec![1, 1, 1]));
 			assert_ok!(Parachains::set_heads(Origin::NONE, vec![]));
 
 			run_to_block(3);

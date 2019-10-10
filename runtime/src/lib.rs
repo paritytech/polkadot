@@ -486,6 +486,7 @@ impl parachains::Trait for Runtime {
 
 parameter_types! {
 	pub const ParathreadDeposit: Balance = 500 * DOLLARS;
+	pub const QueueSize: usize = 2;
 }
 
 impl registrar::Trait for Runtime {
@@ -494,6 +495,8 @@ impl registrar::Trait for Runtime {
 	type Currency = Balances;
 	type ParathreadDeposit = ParathreadDeposit;
 	type SwapAux = Slots;
+	type QueueSize = QueueSize;
+	const MAX_RETRIES: u32 = 3;
 }
 
 parameter_types!{

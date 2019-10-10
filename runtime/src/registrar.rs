@@ -1342,7 +1342,7 @@ mod tests {
 			);
 
 			// Assuming Queue Size is 2
-			assert_eq!(Test::QueueSize::get(), 2);
+			assert_eq!(<Test as self::Trait>::QueueSize::get(), 2);
 
 			// 2 blocks later
 			run_to_block(5);
