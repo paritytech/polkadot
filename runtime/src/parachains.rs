@@ -431,7 +431,7 @@ impl<T: Trait> Module<T> {
 	fn queue_upward_messages(
 		id: ParaId,
 		upward_messages: &[UpwardMessage],
-		ordered_needs_dispatch: &mut [ParaId],
+		ordered_needs_dispatch: &mut Vec<ParaId>,
 	) {
 		if !upward_messages.is_empty() {
 			RelayDispatchQueueSize::mutate(id, |&mut(ref mut count, ref mut len)| {
