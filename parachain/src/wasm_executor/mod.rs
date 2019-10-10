@@ -143,7 +143,7 @@ impl ModuleImportResolver for Resolver {
 				let (params, ret_ty): (&[ValueType], Option<ValueType>) =
 					(&[ValueType::I32, ValueType::I32, ValueType::I32], None);
 
-				if signature.params() != params && signature.return_type() != ret_ty {
+				if signature.params() != params || signature.return_type() != ret_ty {
 					Err(WasmError::Instantiation(
 						format!("Export {} has a bad signature", field_name)
 					))
@@ -159,7 +159,7 @@ impl ModuleImportResolver for Resolver {
 				let (params, ret_ty): (&[ValueType], Option<ValueType>) =
 					(&[ValueType::I32, ValueType::I32], None);
 
-				if signature.params() != params && signature.return_type() != ret_ty {
+				if signature.params() != params || signature.return_type() != ret_ty {
 					Err(WasmError::Instantiation(
 						format!("Export {} has a bad signature", field_name)
 					))
