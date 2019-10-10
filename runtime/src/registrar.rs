@@ -26,7 +26,7 @@ use codec::{Encode, Decode};
 use sr_primitives::{
 	weights::{SimpleDispatchInfo, DispatchInfo},
 	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
-	traits::{Hash as HashT, SignedExtension, Zero}
+	traits::{Hash as HashT, SignedExtension}
 };
 
 use srml_support::{
@@ -130,7 +130,7 @@ pub trait Trait: parachains::Trait {
 	type QueueSize: Get<usize>;
 
 	/// The number of rotations that you will have as grace if you miss a block.
-	const MAX_RETRIES: u32;
+	type MaxRetries: Get<u32>;
 }
 
 decl_storage! {
@@ -164,7 +164,7 @@ decl_storage! {
 		Paras get(paras): map ParaId => Option<ParaInfo>;
 
 		/// The current queue for parathreads that should be retried.
-		RetryQueue get(retry_queue): [Vec<(ParaId, CollatorId)>; T::MAX_RETRIES as usize];
+		RetryQueue get(retry_queue): Vec<Vec<(ParaId, CollatorId)>>;
 
 		/// Users who have paid a parathread's deposit
 		Debtors: map ParaId => T::AccountId;
@@ -178,6 +178,8 @@ decl_storage! {
 
 #[cfg(feature = "std")]
 fn build<T: Trait>(config: &GenesisConfig<T>) {
+	use sr_primitives::traits::Zero;
+
 	let mut p = config.parachains.clone();
 	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
 	p.dedup_by_key(|&mut (ref id, _, _)| *id);
@@ -397,10 +399,10 @@ decl_module! {
 				// DidUpdate *and* which are enabled for retry.
 				let mut proceeded = proceeded_vec.into_iter();
 				let mut i = proceeded.next();
-				for sched in active {
+				for sched in Active::get().into_iter() {
 					match i {
 						// Scheduled parachain proceeded properly. Move onto next item.
-						Some(para) if para == sched => i = proceeded.next(),
+						Some(para) if para == sched.0 => i = proceeded.next(),
 						// Scheduled `sched` missed their block.
 						// Queue for retry if it's allowed.
 						_ => if let (i, Some((c, Retriable::WithRetries(n)))) = sched {
@@ -434,8 +436,11 @@ impl<T: Trait> Module<T> {
 	}
 
 	fn retry_later(sched: (ParaId, CollatorId), retries: u32) {
-		if retries < T::MAX_RETRIES {
-			RetryQueue::mutate(|q| q[retries as usize].push(sched));
+		if retries < T::MaxRetries::get() {
+			RetryQueue::mutate(|q| {
+				q.resize(retries as usize, vec![]);
+				q[retries as usize].push(sched);
+			});
 		}
 	}
 
@@ -709,6 +714,7 @@ mod tests {
 	parameter_types! {
 		pub const ParathreadDeposit: Balance = 10;
 		pub const QueueSize: usize = 2;
+		pub const MaxRetries: u32 = 3;
 	}
 
 	impl Trait for Test {
@@ -718,7 +724,7 @@ mod tests {
 		type ParathreadDeposit = ParathreadDeposit;
 		type SwapAux = slots::Module<Test>;
 		type QueueSize = QueueSize;
-		const MAX_RETRIES: u32 = 3;
+		type MaxRetries = MaxRetries;
 	}
 
 	type Balances = balances::Module<Test>;

@@ -193,7 +193,7 @@ decl_module! {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
 
-			let mut active_parachains = Self::active_parachains();
+			let active_parachains = Self::active_parachains();
 
 			let parachain_count = active_parachains.len();
 			ensure!(heads.len() <= parachain_count, "Too many parachain candidates");
