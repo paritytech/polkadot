@@ -24,7 +24,7 @@ use sr_primitives::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode};
 use srml_support::{
 	decl_module, decl_storage, decl_event, ensure,
-	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get},
+	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
 };
 use primitives::parachain::AccountIdConversion;
 use crate::parachains::ParachainRegistrar;
@@ -50,6 +50,9 @@ pub trait Trait: system::Trait {
 
 	/// The number of blocks over which a single period lasts.
 	type LeasePeriod: Get<Self::BlockNumber>;
+
+	/// Something that provides randomness in the runtime.
+	type Randomness: Randomness<Self::Hash>;
 }
 
 /// A sub-bidder identifier. Used to distinguish between different logical bidders coming from the
@@ -118,7 +121,6 @@ type WinnersData<T> = Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, P
 // This module's storage items.
 decl_storage! {
 	trait Store for Module<T: Trait> as Slots {
-
 		/// The number of auctions that been started so far.
 		pub AuctionCounter get(auction_counter): AuctionIndex;
 
@@ -437,7 +439,7 @@ impl<T: Trait> Module<T> {
 			if early_end + T::EndingPeriod::get() == now {
 				// Just ended!
 				let ending_period = T::EndingPeriod::get();
-				let offset = T::BlockNumber::decode(&mut<randomness_collective_flip::Module<T>>::random_seed().as_ref())
+				let offset = T::BlockNumber::decode(&mut T::Randomness::random_seed().as_ref())
 					.expect("secure hashes always bigger than block numbers; qed") % ending_period;
 				let res = <Winning<T>>::get(offset).unwrap_or_default();
 				let mut i = T::BlockNumber::zero();
@@ -790,11 +792,9 @@ mod tests {
 	use super::*;
 	use std::{result::Result, collections::HashMap, cell::RefCell};
 
-	use substrate_primitives::{Blake2Hasher, H256};
-	use sr_io::with_externalities;
+	use substrate_primitives::H256;
 	use sr_primitives::{
-		Perbill,
-		testing::Header,
+		Perbill, testing::Header,
 		traits::{ConvertInto, BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
 	};
 	use srml_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
@@ -917,15 +917,17 @@ mod tests {
 		type Parachains = TestParachains;
 		type LeasePeriod = LeasePeriod;
 		type EndingPeriod = EndingPeriod;
+		type Randomness = RandomnessCollectiveFlip;
 	}
 
 	type System = system::Module<Test>;
 	type Balances = balances::Module<Test>;
 	type Slots = Module<Test>;
+	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
-	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
+	fn new_test_ext() -> sr_io::TestExternalities {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
@@ -948,7 +950,7 @@ mod tests {
 
 	#[test]
 	fn basic_setup_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			assert_eq!(Slots::auction_counter(), 0);
 			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
 			assert_eq!(Slots::is_in_progress(), false);
@@ -965,7 +967,7 @@ mod tests {
 
 	#[test]
 	fn can_start_auction() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
@@ -978,7 +980,7 @@ mod tests {
 
 	#[test]
 	fn auction_proceeds_correctly() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
@@ -1023,7 +1025,7 @@ mod tests {
 
 	#[test]
 	fn can_win_auction() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
@@ -1044,7 +1046,7 @@ mod tests {
 
 	#[test]
 	fn offboarding_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
@@ -1062,7 +1064,7 @@ mod tests {
 
 	#[test]
 	fn set_offboarding_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
@@ -1083,7 +1085,7 @@ mod tests {
 
 	#[test]
 	fn onboarding_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
@@ -1103,7 +1105,7 @@ mod tests {
 
 	#[test]
 	fn late_onboarding_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
@@ -1126,7 +1128,7 @@ mod tests {
 
 	#[test]
 	fn under_bidding_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 5));
@@ -1142,7 +1144,7 @@ mod tests {
 
 	#[test]
 	fn should_choose_best_combination() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
@@ -1170,7 +1172,7 @@ mod tests {
 
 	#[test]
 	fn independent_bids_should_fail() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 2, 1));
@@ -1185,7 +1187,7 @@ mod tests {
 
 	#[test]
 	fn multiple_onboards_offboards_should_work() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
@@ -1262,7 +1264,7 @@ mod tests {
 
 	#[test]
 	fn extensions_should_work() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
@@ -1307,7 +1309,7 @@ mod tests {
 
 	#[test]
 	fn renewal_with_lower_value_should_work() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
@@ -1336,7 +1338,7 @@ mod tests {
 
 	#[test]
 	fn can_win_incomplete_auction() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
@@ -1357,7 +1359,7 @@ mod tests {
 
 	#[test]
 	fn multiple_bids_work_pre_ending() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
@@ -1385,7 +1387,7 @@ mod tests {
 
 	#[test]
 	fn multiple_bids_work_post_ending() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
