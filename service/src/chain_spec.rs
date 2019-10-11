@@ -22,7 +22,7 @@ use polkadot_runtime::{
 	GenesisConfig, CouncilConfig, ElectionsConfig, DemocracyConfig, SystemConfig,
 	SessionConfig, StakingConfig, BalancesConfig, SessionKeys, TechnicalCommitteeConfig,
 	SudoConfig, IndicesConfig, StakerStatus, WASM_BINARY,
-	ClaimsConfig, ParachainsConfig
+	ClaimsConfig, ParachainsConfig, RegistrarConfig
 };
 use polkadot_runtime::constants::{currency::DOTS, time::*};
 use sr_primitives::Perbill;
@@ -151,6 +151,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		authority_discovery: Some(Default::default()),
 		parachains: Some(ParachainsConfig {
 			authorities: vec![],
+		}),
+		registrar: Some(RegistrarConfig {
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
@@ -289,6 +291,8 @@ pub fn testnet_genesis(
 		authority_discovery: Some(Default::default()),
 		parachains: Some(ParachainsConfig {
 			authorities: vec![],
+		}),
+		registrar: Some(RegistrarConfig{
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
