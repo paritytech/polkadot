@@ -24,15 +24,16 @@ mod attestations;
 mod claims;
 mod parachains;
 mod slot_range;
+mod registrar;
 mod slots;
 mod crowdfund;
 
 use rstd::prelude::*;
-use codec::{Encode, Decode};
 use substrate_primitives::u32_trait::{_1, _2, _3, _4};
+use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain, ValidityError,
+	parachain::{self, ActiveParas}, ValidityError,
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
@@ -187,7 +188,7 @@ impl indices::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: Balance = 10 * CENTS;
+	pub const ExistentialDeposit: Balance = 100 * CENTS;
 	pub const TransferFee: Balance = 1 * CENTS;
 	pub const CreationFee: Balance = 1 * CENTS;
 	pub const TransactionBaseFee: Balance = 1 * CENTS;
@@ -221,7 +222,6 @@ impl balances::Trait for Runtime {
 parameter_types! {
 	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
 }
-
 impl timestamp::Trait for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Babe;
@@ -275,15 +275,15 @@ impl session::Trait for Runtime {
 	type ShouldEndSession = Babe;
 	type Event = Event;
 	type Keys = SessionKeys;
-	type SelectInitialValidators = Staking;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = staking::StashOf<Self>;
+	type SelectInitialValidators = Staking;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 }
 
 impl session::historical::Trait for Runtime {
 	type FullIdentification = staking::Exposure<AccountId, Balance>;
-	type FullIdentificationOf = staking::ExposureOf<Self>;
+	type FullIdentificationOf = staking::ExposureOf<Runtime>;
 }
 
 srml_staking_reward_curve::build! {
@@ -480,6 +480,24 @@ impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
+	type ActiveParachains = Registrar;
+	type Registrar = Registrar;
+}
+
+parameter_types! {
+	pub const ParathreadDeposit: Balance = 500 * DOLLARS;
+	pub const QueueSize: usize = 2;
+	pub const MaxRetries: u32 = 3;
+}
+
+impl registrar::Trait for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type Currency = Balances;
+	type ParathreadDeposit = ParathreadDeposit;
+	type SwapAux = Slots;
+	type QueueSize = QueueSize;
+	type MaxRetries = MaxRetries;
 }
 
 parameter_types!{
@@ -489,8 +507,8 @@ parameter_types!{
 
 impl slots::Trait for Runtime {
 	type Event = Event;
-	type Currency = balances::Module<Self>;
-	type Parachains = parachains::Module<Self>;
+	type Currency = Balances;
+	type Parachains = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type EndingPeriod = EndingPeriod;
 }
@@ -553,9 +571,10 @@ construct_runtime!(
 
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
 		// have no public dispatchables.
-		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
+		Parachains: parachains::{Module, Call, Storage, Config, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
+		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
 
 		// Sudo. Usable initially.
 		// RELEASE: remove this for release build.
@@ -583,6 +602,7 @@ pub type SignedExtra = (
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
 	balances::TakeFees<Runtime>,
+	registrar::LimitParathreadCommits<Runtime>
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
@@ -653,8 +673,8 @@ impl_runtime_apis! {
 		fn duty_roster() -> parachain::DutyRoster {
 			Parachains::calculate_duty_roster().0
 		}
-		fn active_parachains() -> Vec<parachain::Id> {
-			Parachains::active_parachains()
+		fn active_parachains() -> Vec<(parachain::Id, Option<(parachain::CollatorId, parachain::Retriable)>)> {
+			Registrar::active_paras()
 		}
 		fn parachain_status(id: parachain::Id) -> Option<parachain::Status> {
 			Parachains::parachain_status(&id)

@@ -17,17 +17,20 @@
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
 use rstd::prelude::*;
+use rstd::result;
 use rstd::collections::btree_map::BTreeMap;
-use codec::{Encode, Decode, HasCompact};
-use srml_support::{decl_storage, decl_module, fail, ensure};
+use codec::{Encode, Decode};
+use srml_support::{decl_storage, decl_module, ensure};
 
 use sr_primitives::traits::{
-	Hash as HashT, BlakeTwo256, Member, CheckedConversion, Saturating, One, Zero, Dispatchable,
+	Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
+	AccountIdConversion,
 };
 use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{Hash, Balance, parachain::{
-	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId
+	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
+	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId,
+	Retriable
 }};
 use {system, session};
 use srml_support::{
@@ -36,11 +39,9 @@ use srml_support::{
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
 
-#[cfg(any(feature = "std", test))]
-use rstd::marker::PhantomData;
-
-use system::{ensure_none, ensure_root};
+use system::ensure_none;
 use crate::attestations::{self, IncludedBlocks};
+use crate::registrar::Registrar;
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -66,75 +67,6 @@ impl<N: Saturating + One + PartialOrd + PartialEq + Clone> Iterator for BlockNum
 // creates a range iterator between `low` and `high`. `low` must be <= `high`.
 fn number_range<N>(low: N, high: N) -> BlockNumberRange<N> {
 	BlockNumberRange { low, high }
-}
-
-/// Parachain registration API.
-pub trait ParachainRegistrar<AccountId> {
-	/// An identifier for a parachain.
-	type ParaId: Member + Parameter + Default + AccountIdConversion<AccountId> + Copy + HasCompact;
-
-	/// Create a new unique parachain identity for later registration.
-	fn new_id() -> Self::ParaId;
-
-	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
-	/// result in a error.
-	fn register_parachain(id: Self::ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result;
-
-	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
-	fn deregister_parachain(id: Self::ParaId) -> Result;
-}
-
-impl<T: Trait> ParachainRegistrar<T::AccountId> for Module<T> {
-	type ParaId = ParaId;
-	fn new_id() -> ParaId {
-		<NextFreeId>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
-	}
-	fn register_parachain(id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
-		let mut parachains = Self::active_parachains();
-		match parachains.binary_search(&id) {
-			Ok(_) => fail!("Parachain already exists"),
-			Err(idx) => parachains.insert(idx, id),
-		}
-
-		<Code>::insert(id, code);
-		<Parachains>::put(parachains);
-		<Heads>::insert(id, initial_head_data);
-
-		// Because there are no ordering guarantees that inherents
-		// are applied before regular transactions, a parachain candidate could
-		// be registered before the `UpdateHeads` inherent is processed. If so, messages
-		// could be sent to a parachain in the block it is registered.
-		<Watermarks<T>>::insert(id, <system::Module<T>>::block_number().saturating_sub(One::one()));
-
-		Ok(())
-	}
-	fn deregister_parachain(id: ParaId) -> Result {
-		let mut parachains = Self::active_parachains();
-		match parachains.binary_search(&id) {
-			Ok(idx) => { parachains.remove(idx); }
-			Err(_) => return Ok(()),
-		}
-
-		<Code>::remove(id);
-		<Heads>::remove(id);
-
-		let watermark = <Watermarks<T>>::take(id);
-
-		// clear all routing entries _to_. But not those _from_.
-		if let Some(watermark) = watermark {
-			let now = <system::Module<T>>::block_number();
-
-			// iterate over all blocks between watermark and now + 1 (since messages might
-			// have already been sent to `id` in this block.
-			for unrouted_block in number_range(watermark, now).map(|n| n.saturating_add(One::one())) {
-				<UnroutedIngress<T>>::remove(&(unrouted_block, id));
-			}
-		}
-
-		<Parachains>::put(parachains);
-
-		Ok(())
-	}
 }
 
 // wrapper trait because an associated type of `Currency<Self::AccountId,Balance=Balance>`
@@ -186,6 +118,12 @@ pub trait Trait: attestations::Trait {
 
 	/// Some way of interacting with balances for fees.
 	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
+
+	/// Means to determine what the current set of active parachains are.
+	type ActiveParachains: ActiveParas;
+
+	/// The way that we are able to register parachains.
+	type Registrar: Registrar<Self::AccountId>;
 }
 
 /// Origin for the parachains module.
@@ -213,8 +151,6 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		/// All authorities' keys at the moment.
 		pub Authorities get(authorities) config(authorities): Vec<ValidatorId>;
-		/// Vector of all parachain IDs.
-		pub Parachains get(active_parachains): Vec<ParaId>;
 		/// The parachains registered at present.
 		pub Code get(parachain_code): map ParaId => Option<Vec<u8>>;
 		/// The heads of the parachains registered at present.
@@ -237,35 +173,14 @@ decl_storage! {
 		/// decoding when checking receipt validity. First item in tuple is the count of messages
 		///	second if the total length (in bytes) of the message payloads.
 		pub RelayDispatchQueueSize: map ParaId => (u32, u32);
+		/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
+		NeedsDispatch: Vec<ParaId>;
 
-		/// Did the parachain heads get updated in this block?
-		DidUpdate: bool;
-
-		/// The next unused ParaId value.
-		NextFreeId: ParaId;
-	}
-	add_extra_genesis {
-		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
-		config(_phdata): PhantomData<T>;
-		build(build::<T>);
-	}
-}
-
-#[cfg(feature = "std")]
-fn build<T: Trait>(config: &GenesisConfig<T>) {
-	let mut p = config.parachains.clone();
-	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
-	p.dedup_by_key(|&mut (ref id, _, _)| *id);
-
-	let only_ids: Vec<ParaId> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
-
-	Parachains::put(&only_ids);
-
-	for (id, code, genesis) in p {
-		// no ingress -- a chain cannot be routed to until it is live.
-		Code::insert(&id, &code);
-		Heads::insert(&id, &genesis);
-		<Watermarks<T>>::insert(&id, &T::BlockNumber::zero());
+		/// Some if the parachain heads get updated in this block, along with the parachain IDs that
+		/// did update. Ordered in the same way as `registrar::Active` (i.e. by ParaId).
+		///
+		/// None if not yet updated.
+		pub DidUpdate: Option<Vec<ParaId>>;
 	}
 }
 
@@ -274,32 +189,38 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
-		fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
+		pub fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
 
 			let active_parachains = Self::active_parachains();
+
 			let parachain_count = active_parachains.len();
 			ensure!(heads.len() <= parachain_count, "Too many parachain candidates");
+
+			let mut proceeded = Vec::with_capacity(heads.len());
 
 			if !active_parachains.is_empty() {
 				// perform integrity checks before writing to storage.
 				{
 					let mut last_id = None;
+
 					let mut iter = active_parachains.iter();
 					for head in &heads {
 						let id = head.parachain_index();
 						// proposed heads must be ascending order by parachain ID without duplicate.
 						ensure!(
 							last_id.as_ref().map_or(true, |x| x < &id),
-							"Parachain candidates out of order by ID"
+							"candidate out of order"
 						);
 
 						// must be unknown since active parachains are always sorted.
-						ensure!(
-							iter.find(|x| x == &&id).is_some(),
-							"Submitted candidate for unregistered or out-of-order parachain {}"
-						);
+						let (_, maybe_required_collator) = iter.find(|para| para.0 == id)
+							.ok_or("candidate for unregistered parachain {}")?;
+
+						if let Some((required_collator, _)) = maybe_required_collator {
+							ensure!(required_collator == &head.candidate.collator, "invalid collator");
+						}
 
 						Self::check_upward_messages(
 							id,
@@ -309,7 +230,9 @@ decl_module! {
 						)?;
 						Self::check_egress_queue_roots(&head, &active_parachains)?;
 
-						last_id = Some(head.parachain_index());
+						let id = head.parachain_index();
+						proceeded.push(id);
+						last_id = Some(id);
 					}
 				}
 
@@ -324,36 +247,23 @@ decl_module! {
 				);
 
 				Self::dispatch_upward_messages(
-					current_number,
-					&active_parachains,
 					MAX_QUEUE_COUNT,
 					WATERMARK_QUEUE_SIZE,
 					Self::dispatch_message,
 				);
 			}
 
-			<DidUpdate>::put(true);
+			DidUpdate::put(proceeded);
 
 			Ok(())
 		}
 
-		/// Register a parachain with given code.
-		/// Fails if given ID is already used.
-		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
-		pub fn register_parachain(origin, id: ParaId, code: Vec<u8>, initial_head_data: Vec<u8>) -> Result {
-			ensure_root(origin)?;
-			<Self as ParachainRegistrar<T::AccountId>>::register_parachain(id, code, initial_head_data)
+		fn on_initialize() {
+			<Self as Store>::DidUpdate::kill();
 		}
 
-		/// Deregister a parachain with given id
-		#[weight = SimpleDispatchInfo::FixedOperational(10_000)]
-		pub fn deregister_parachain(origin, id: ParaId) -> Result {
-			ensure_root(origin)?;
-			<Self as ParachainRegistrar<T::AccountId>>::deregister_parachain(id)
-		}
-
-		fn on_finalize(_n: T::BlockNumber) {
-			assert!(<Self as Store>::DidUpdate::take(), "Parachain heads must be updated once in the block");
+		fn on_finalize() {
+			assert!(<Self as Store>::DidUpdate::exists(), "Parachain heads must be updated once in the block");
 		}
 	}
 }
@@ -369,6 +279,42 @@ fn localized_payload(statement: Statement, parent_hash: ::primitives::Hash) -> V
 }
 
 impl<T: Trait> Module<T> {
+	/// Initialize the state of a new parachain/parathread.
+	pub fn initialize_para(
+		id: ParaId,
+		code: Vec<u8>,
+		initial_head_data: Vec<u8>,
+	) {
+		<Code>::insert(id, code);
+		<Heads>::insert(id, initial_head_data);
+
+		// Because there are no ordering guarantees that inherents
+		// are applied before regular transactions, a parachain candidate could
+		// be registered before the `UpdateHeads` inherent is processed. If so, messages
+		// could be sent to a parachain in the block it is registered.
+		<Watermarks<T>>::insert(id, <system::Module<T>>::block_number().saturating_sub(One::one()));
+	}
+
+	pub fn cleanup_para(
+		id: ParaId,
+	) {
+		<Code>::remove(id);
+		<Heads>::remove(id);
+
+		let watermark = <Watermarks<T>>::take(id);
+
+		// clear all routing entries _to_. But not those _from_.
+		if let Some(watermark) = watermark {
+			let now = <system::Module<T>>::block_number();
+
+			// iterate over all blocks between watermark and now + 1 (since messages might
+			// have already been sent to `id` in this block.
+			for unrouted_block in number_range(watermark, now).map(|n| n.saturating_add(One::one())) {
+				<UnroutedIngress<T>>::remove(&(unrouted_block, id));
+			}
+		}
+	}
+
 	/// Dispatch some messages from a parachain.
 	fn dispatch_message(
 		id: ParaId,
@@ -381,6 +327,8 @@ impl<T: Trait> Module<T> {
 					system::RawOrigin::Signed(id.into_account()).into(),
 				ParachainDispatchOrigin::Parachain =>
 					Origin::Parachain(id).into(),
+				ParachainDispatchOrigin::Root =>
+					system::RawOrigin::Root.into(),
 			};
 			let _ok = message_call.dispatch(origin).is_ok();
 			// Not much to do with the result as it is. It's up to the parachain to ensure that the
@@ -415,6 +363,11 @@ impl<T: Trait> Module<T> {
 				),
 				"Messages added when queue full"
 			);
+			if !id.is_system() {
+				for m in upward_messages.iter() {
+					ensure!(m.origin != ParachainDispatchOrigin::Root, "bad message origin");
+				}
+			}
 		}
 		Ok(())
 	}
@@ -430,6 +383,10 @@ impl<T: Trait> Module<T> {
 		let watermark = now.saturating_sub(One::one());
 
 		let mut ingress_update = BTreeMap::new();
+
+		// we sort them in order to provide a fast lookup to ensure we can avoid duplicates in the
+		// needs_dispatch queue.
+		let mut ordered_needs_dispatch = NeedsDispatch::get();
 
 		for head in heads.iter() {
 			let id = head.parachain_index();
@@ -452,8 +409,14 @@ impl<T: Trait> Module<T> {
 			}
 
 			// Queue up upwards messages (from parachains to relay chain).
-			Self::queue_upward_messages(id, &head.candidate.upward_messages);
+			Self::queue_upward_messages(
+				id,
+				&head.candidate.upward_messages,
+				&mut ordered_needs_dispatch,
+			);
 		}
+
+		NeedsDispatch::put(ordered_needs_dispatch);
 
 		// apply the ingress update.
 		for (to, ingress_roots) in ingress_update {
@@ -462,36 +425,46 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Place any new upward messages into our queue for later dispatch.
-	fn queue_upward_messages(id: ParaId, upward_messages: &[UpwardMessage]) {
+	///
+	/// `ordered_needs_dispatch` is mutated to ensure it reflects the new value of
+	/// `RelayDispatchQueueSize`. It is up to the caller to guarantee that it gets written into
+	/// storage after this call.
+	fn queue_upward_messages(
+		id: ParaId,
+		upward_messages: &[UpwardMessage],
+		ordered_needs_dispatch: &mut Vec<ParaId>,
+	) {
 		if !upward_messages.is_empty() {
-			<RelayDispatchQueueSize>::mutate(id, |&mut(ref mut count, ref mut len)| {
+			RelayDispatchQueueSize::mutate(id, |&mut(ref mut count, ref mut len)| {
 				*count += upward_messages.len() as u32;
 				*len += upward_messages.iter()
 					.fold(0, |a, x| a + x.data.len()) as u32;
 			});
 			// Should never be able to fail assuming our state is uncorrupted, but best not
 			// to panic, even if it does.
-			let _ = <RelayDispatchQueue>::append(id, upward_messages);
+			let _ = RelayDispatchQueue::append(id, upward_messages);
+			if let Err(i) = ordered_needs_dispatch.binary_search(&id) {
+				// same.
+				ordered_needs_dispatch.insert(i, id);
+			} else {
+				sr_primitives::print("ordered_needs_dispatch contains id?!");
+			}
 		}
 	}
 
-	/// Simple round-robin dispatcher, using block number modulo parachain count
-	/// to decide which takes precedence and proceeding from there.
+	/// Simple FIFO dispatcher.
 	fn dispatch_upward_messages(
-		now: T::BlockNumber,
-		active_parachains: &[ParaId],
 		max_queue_count: usize,
 		watermark_queue_size: usize,
 		mut dispatch_message: impl FnMut(ParaId, ParachainDispatchOrigin, &[u8]),
 	) {
-		let para_count = active_parachains.len();
-		let offset = (now % T::BlockNumber::from(para_count as u32))
-			.checked_into::<usize>()
-			.expect("value is modulo a usize value; qed");
-
+		let queueds = NeedsDispatch::get();
+		let mut drained_count = 0usize;
 		let mut dispatched_count = 0usize;
 		let mut dispatched_size = 0usize;
-		for id in active_parachains.iter().cycle().skip(offset).take(para_count) {
+		for id in queueds.iter() {
+			drained_count += 1;
+
 			let (count, size) = <RelayDispatchQueueSize>::get(id);
 			let count = count as usize;
 			let size = size as usize;
@@ -501,8 +474,8 @@ impl<T: Trait> Module<T> {
 			) {
 				if count > 0 {
 					// still dispatching messages...
-					<RelayDispatchQueueSize>::remove(id);
-					let messages = <RelayDispatchQueue>::take(id);
+					RelayDispatchQueueSize::remove(id);
+					let messages = RelayDispatchQueue::take(id);
 					for UpwardMessage { origin, data } in messages.into_iter() {
 						dispatch_message(*id, origin, &data);
 					}
@@ -516,6 +489,7 @@ impl<T: Trait> Module<T> {
 				}
 			}
 		}
+		NeedsDispatch::put(&queueds[drained_count..]);
 	}
 
 	/// Calculate the current block's duty roster using system's random seed.
@@ -523,18 +497,23 @@ impl<T: Trait> Module<T> {
 	pub fn calculate_duty_roster() -> (DutyRoster, [u8; 32]) {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
+
 		// TODO: use decode length. substrate #2794
 		let validator_count = Self::authorities().len();
-		let validators_per_parachain = if parachain_count != 0 { (validator_count - 1) / parachain_count } else { 0 };
+		let validators_per_parachain =
+			if parachain_count == 0 {
+				0
+			} else {
+				(validator_count - 1) / parachain_count
+			};
 
 		let mut roles_val = (0..validator_count).map(|i| match i {
 			i if i < parachain_count * validators_per_parachain => {
 				let idx = i / validators_per_parachain;
-				Chain::Parachain(parachains[idx].clone())
+				Chain::Parachain(parachains[idx].0.clone())
 			}
 			_ => Chain::Relay,
 		}).collect::<Vec<_>>();
-
 
 		let mut seed = {
 			let phrase = b"validator_role_pairs";
@@ -621,9 +600,17 @@ impl<T: Trait> Module<T> {
 		})
 	}
 
-	fn check_egress_queue_roots(head: &AttestedCandidate, active_parachains: &[ParaId]) -> Result {
+	/// Get the currently active set of parachains.
+	pub fn active_parachains() -> Vec<(ParaId, Option<(CollatorId, Retriable)>)> {
+		T::ActiveParachains::active_paras()
+	}
+
+	fn check_egress_queue_roots(
+		head: &AttestedCandidate,
+		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
+	) -> Result {
 		let mut last_egress_id = None;
-		let mut iter = active_parachains.iter();
+		let mut iter = active_parachains.iter().map(|x| x.0);
 		for (egress_para_id, root) in &head.candidate.egress_queue_roots {
 			// egress routes should be ascending order by parachain ID without duplicate.
 			ensure!(
@@ -645,7 +632,7 @@ impl<T: Trait> Module<T> {
 
 			// can't route to a parachain which doesn't exist
 			ensure!(
-				iter.find(|x| x == &egress_para_id).is_some(),
+				iter.find(|x| x == egress_para_id).is_some(),
 				"Routing to non-existent parachain"
 			);
 
@@ -656,8 +643,10 @@ impl<T: Trait> Module<T> {
 
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
-	fn check_candidates(attested_candidates: &[AttestedCandidate], active_parachains: &[ParaId])
-		-> rstd::result::Result<IncludedBlocks<T>, &'static str>
+	fn check_candidates(
+		attested_candidates: &[AttestedCandidate],
+		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
+	) -> rstd::result::Result<IncludedBlocks<T>, &'static str>
 	{
 		use primitives::parachain::ValidityAttestation;
 		use sr_primitives::traits::AppVerify;
@@ -815,7 +804,7 @@ impl<T: Trait> Module<T> {
 			actual_number: <system::Module<T>>::block_number(),
 			session: <session::Module<T>>::current_index(),
 			random_seed,
-			active_parachains: active_parachains.to_vec(),
+			active_parachains: active_parachains.iter().map(|x| x.0).collect(),
 			para_blocks: para_block_hashes,
 		})
 	}
@@ -877,6 +866,17 @@ impl<T: Trait> ProvideInherent for Module<T> {
 	}
 }
 
+/// Ensure that the origin `o` represents a parachain.
+/// Returns `Ok` with the parachain ID that effected the extrinsic or an `Err` otherwise.
+pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, &'static str>
+	where OuterOrigin: Into<result::Result<Origin, OuterOrigin>>
+{
+	match o.into() {
+		Ok(Origin::Parachain(id)) => Ok(id),
+		_ => Err("bad origin: expected to be a parachain origin"),
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -887,12 +887,12 @@ mod tests {
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
 		Perbill,
-		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize},
+		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize},
 		testing::{UintAuthorityId, Header},
 		curve::PiecewiseLinear,
 	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId},
+		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo, Scheduling},
 		BlockNumber,
 	};
 	use crate::constants::time::*;
@@ -901,6 +901,8 @@ mod tests {
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
 	use crate::parachains;
+	use crate::registrar;
+	use crate::slots;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {
@@ -1048,15 +1050,47 @@ mod tests {
 		type RewardAttestation = ();
 	}
 
+	parameter_types!{
+		pub const LeasePeriod: u64 = 10;
+		pub const EndingPeriod: u64 = 3;
+	}
+
+	impl slots::Trait for Test {
+		type Event = ();
+		type Currency = balances::Module<Test>;
+		type Parachains = registrar::Module<Test>;
+		type EndingPeriod = EndingPeriod;
+		type LeasePeriod = LeasePeriod;
+	}
+
+	parameter_types! {
+		pub const ParathreadDeposit: Balance = 10;
+		pub const QueueSize: usize = 2;
+		pub const MaxRetries: u32 = 3;
+	}
+
+	impl registrar::Trait for Test {
+		type Event = ();
+		type Origin = Origin;
+		type Currency = balances::Module<Test>;
+		type ParathreadDeposit = ParathreadDeposit;
+		type SwapAux = slots::Module<Test>;
+		type QueueSize = QueueSize;
+		type MaxRetries = MaxRetries;
+	}
+
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
+		type ActiveParachains = registrar::Module<Test>;
+		type Registrar = registrar::Module<Test>;
 	}
 
 	type Parachains = Module<Test>;
 	type System = system::Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
+	type Registrar = registrar::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
 		use staking::StakerStatus;
@@ -1096,9 +1130,12 @@ mod tests {
 
 		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
 
-		GenesisConfig::<Test> {
-			parachains,
+		GenesisConfig {
 			authorities: authorities.clone(),
+		}.assimilate_storage(&mut t).unwrap();
+
+		registrar::GenesisConfig::<Test> {
+			parachains,
 			_phdata: Default::default(),
 		}.assimilate_storage(&mut t).unwrap();
 
@@ -1217,6 +1254,32 @@ mod tests {
 		}
 	}
 
+	fn init_block() {
+		println!("Initializing {}", System::block_number());
+		System::on_initialize(System::block_number());
+		Registrar::on_initialize(System::block_number());
+		Parachains::on_initialize(System::block_number());
+	}
+	fn run_to_block(n: u64) {
+		println!("Running until block {}", n);
+		while System::block_number() < n {
+			if System::block_number() > 1 {
+				println!("Finalizing {}", System::block_number());
+				Parachains::on_finalize(System::block_number());
+				Registrar::on_finalize(System::block_number());
+				System::on_finalize(System::block_number());
+			}
+			System::set_block_number(System::block_number() + 1);
+			init_block();
+		}
+	}
+
+	fn queue_upward_messages(id: ParaId, upward_messages: &[UpwardMessage]) {
+		NeedsDispatch::mutate(|nd|
+			Parachains::queue_upward_messages(id, upward_messages, nd)
+		);
+	}
+
 	#[test]
 	fn check_dispatch_upward_works() {
 		let parachains = vec![
@@ -1225,16 +1288,16 @@ mod tests {
 			(2u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
-			let parachains = vec![0.into(), 1.into(), 2.into()];
-			Parachains::queue_upward_messages(0.into(), &vec![
+			init_block();
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 4] }
 			]);
-			Parachains::queue_upward_messages(1.into(), &vec![
+			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 4] }
 			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(0, &parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 4])
 			]);
@@ -1242,19 +1305,19 @@ mod tests {
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
-			let parachains = vec![0.into(), 1.into(), 2.into()];
-			Parachains::queue_upward_messages(0.into(), &vec![
+			init_block();
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
 			]);
-			Parachains::queue_upward_messages(1.into(), &vec![
+			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
 			]);
-			Parachains::queue_upward_messages(2.into(), &vec![
+			queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
 			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(0, &parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
 				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
@@ -1264,44 +1327,44 @@ mod tests {
 			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
-			let parachains = vec![0.into(), 1.into(), 2.into()];
-			Parachains::queue_upward_messages(0.into(), &vec![
+			init_block();
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
 			]);
-			Parachains::queue_upward_messages(1.into(), &vec![
+			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
 			]);
-			Parachains::queue_upward_messages(2.into(), &vec![
+			queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
 			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(1, &parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
-				(1.into(), ParachainDispatchOrigin::Parachain, vec![1; 2]),
+				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
 			]);
-			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(0)).len(), 1);
-			assert!(<RelayDispatchQueue>::get(ParaId::from(1)).is_empty());
+			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
 			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
 		with_externalities(&mut new_test_ext(parachains.clone()), || {
-			let parachains = vec![0.into(), 1.into(), 2.into()];
-			Parachains::queue_upward_messages(0.into(), &vec![
+			init_block();
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
 			]);
-			Parachains::queue_upward_messages(1.into(), &vec![
+			queue_upward_messages(1.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1; 2] }
 			]);
-			Parachains::queue_upward_messages(2.into(), &vec![
+			queue_upward_messages(2.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![2] }
 			]);
 			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
 			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(2, &parachains, 2, 3, dummy);
+			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
+				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
 				(2.into(), ParachainDispatchOrigin::Parachain, vec![2]),
-				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2])
 			]);
 			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
@@ -1315,20 +1378,21 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] }
 			];
 			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
 
 			// all good.
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
 			]);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1, 2] }
 			];
 			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
-			Parachains::queue_upward_messages(0.into(), &messages);
+			queue_upward_messages(0.into(), &messages);
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(0)), vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![1, 2] },
@@ -1342,6 +1406,7 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// oversize, but ok since it's just one and the queue is empty.
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] },
@@ -1377,8 +1442,9 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// too many messages.
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
 			]);
 			let messages = vec![
@@ -1398,8 +1464,9 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// too much data.
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0, 1] },
 			]);
 			let messages = vec![
@@ -1418,8 +1485,9 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// bad - already an oversize messages queued.
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] },
 			]);
 			let messages = vec![
@@ -1438,8 +1506,9 @@ mod tests {
 			(0u32.into(), vec![], vec![]),
 		];
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// bad - oversized and already a message queued.
-			Parachains::queue_upward_messages(0.into(), &vec![
+			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
 			]);
 			let messages = vec![
@@ -1461,6 +1530,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// parachain 0 is self
 			let mut candidates = vec![
 				new_candidate_with_upward_messages(0, vec![
@@ -1490,9 +1560,10 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 100u32.into()]);
-			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), Some(vec![1,2,3]));
-			assert_eq!(Parachains::parachain_code(ParaId::from(100u32)), Some(vec![4,5,6]));
+			run_to_block(2);
+			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
+			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), Some(vec![1, 2, 3]));
+			assert_eq!(Parachains::parachain_code(ParaId::from(100u32)), Some(vec![4, 5, 6]));
 		});
 	}
 
@@ -1504,20 +1575,28 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
-			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 100u32.into()]);
+			run_to_block(2);
+			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
 
 			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(ParaId::from(100u32)), Some(vec![4,5,6]));
 
-			assert_ok!(Parachains::register_parachain(Origin::ROOT, 99u32.into(), vec![7,8,9], vec![1, 1, 1]));
+			assert_ok!(Registrar::register_para(Origin::ROOT, 99u32.into(), ParaInfo{scheduling: Scheduling::Always}, vec![7,8,9], vec![1, 1, 1]));
+			assert_ok!(Parachains::set_heads(Origin::NONE, vec![]));
 
-			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 99u32.into(), 100u32.into()]);
-			assert_eq!(Parachains::parachain_code(ParaId::from(99u32)), Some(vec![7,8,9]));
+			run_to_block(3);
 
-			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 5u32.into()));
+			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
+			assert_eq!(Parachains::parachain_code(&ParaId::from(99u32)), Some(vec![7,8,9]));
 
-			assert_eq!(Parachains::active_parachains(), vec![99u32.into(), 100u32.into()]);
-			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), None);
+			assert_ok!(Registrar::deregister_para(Origin::ROOT, 5u32.into()));
+			assert_ok!(Parachains::set_heads(Origin::NONE, vec![]));
+
+			// parachain still active this block. another block must pass before it's inactive.
+			run_to_block(4);
+
+			assert_eq!(Parachains::active_parachains(), vec![(99u32.into(), None), (100u32.into(), None)]);
+			assert_eq!(Parachains::parachain_code(&ParaId::from(5u32)), None);
 		});
 	}
 
@@ -1529,6 +1608,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			let check_roster = |duty_roster: &DutyRoster| {
 				assert_eq!(duty_roster.validator_duty.len(), 8);
 				for i in (0..2).map(ParaId::from) {
@@ -1564,6 +1644,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			let candidate = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1592,6 +1673,9 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
+			assert_eq!(Parachains::active_parachains().len(), 2);
+
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1645,6 +1729,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1681,6 +1766,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1711,8 +1797,6 @@ mod tests {
 
 	#[test]
 	fn ingress_works() {
-		use sr_primitives::traits::OnFinalize;
-
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 			(1u32.into(), vec![], vec![]),
@@ -1723,8 +1807,9 @@ mod tests {
 			assert_eq!(Parachains::ingress(ParaId::from(1), None), Some(Vec::new()));
 			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
 
+			init_block();
 			for i in 1..10 {
-				System::set_block_number(i);
+				run_to_block(i);
 
 				let from_a = vec![(1.into(), [i as u8; 32].into())];
 				let mut candidate_a = AttestedCandidate {
@@ -1765,11 +1850,9 @@ mod tests {
 					set_heads(vec![candidate_a, candidate_b]),
 					Origin::NONE,
 				));
-
-				Parachains::on_finalize(i);
 			}
 
-			System::set_block_number(10);
+			run_to_block(10);
 			assert_ok!(Parachains::dispatch(
 				set_heads(vec![]),
 				Origin::NONE,
@@ -1795,7 +1878,7 @@ mod tests {
 				))).collect::<Vec<_>>()),
 			);
 
-			assert_ok!(Parachains::deregister_parachain(Origin::ROOT, 1u32.into()));
+			assert_ok!(Registrar::deregister_para(Origin::ROOT, 1u32.into()));
 
 			// after deregistering, there is no ingress to 1, but unrouted messages
 			// from 1 stick around.
@@ -1804,8 +1887,7 @@ mod tests {
 				vec![(1.into(), [i as u8; 32].into())]
 			))).collect::<Vec<_>>()));
 
-			Parachains::on_finalize(10);
-			System::set_block_number(11);
+			run_to_block(11);
 
 			let mut candidate_c = AttestedCandidate {
 				validity_votes: vec![],
@@ -1828,8 +1910,7 @@ mod tests {
 				Origin::NONE,
 			));
 
-			Parachains::on_finalize(11);
-			System::set_block_number(12);
+			run_to_block(12);
 
 			// at the next block, ingress to 99 should be empty.
 			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
@@ -1845,6 +1926,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// parachain 99 does not exist
 			let non_existent = vec![(99.into(), [1; 32].into())];
 			let mut candidate = new_candidate_with_egress_roots(non_existent);
@@ -1869,6 +1951,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// parachain 0 is self
 			let to_self = vec![(0.into(), [1; 32].into())];
 			let mut candidate = new_candidate_with_egress_roots(to_self);
@@ -1893,6 +1976,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// parachain 0 is self
 			let out_of_order = vec![(1.into(), [1; 32].into()), ((0.into(), [1; 32].into()))];
 			let mut candidate = new_candidate_with_egress_roots(out_of_order);
@@ -1917,6 +2001,7 @@ mod tests {
 		];
 
 		with_externalities(&mut new_test_ext(parachains), || {
+			run_to_block(2);
 			// parachain 0 is self
 			let contains_empty_trie_root = vec![(1.into(), [1; 32].into()), ((2.into(), EMPTY_TRIE_ROOT.into()))];
 			let mut candidate = new_candidate_with_egress_roots(contains_empty_trie_root);

@@ -77,14 +77,16 @@ use sr_primitives::{ModuleId, weights::SimpleDispatchInfo,
 use crate::slots;
 use codec::{Encode, Decode};
 use rstd::vec::Vec;
-use crate::parachains::ParachainRegistrar;
 use substrate_primitives::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
+use primitives::parachain::Id as ParaId;
 
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
 
-pub type BalanceOf<T> = <<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
-pub type NegativeImbalanceOf<T> = <<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
-pub type ParaIdOf<T> = <<T as slots::Trait>::Parachains as ParachainRegistrar<<T as system::Trait>::AccountId>>::ParaId;
+pub type BalanceOf<T> =
+	<<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
+#[allow(dead_code)]
+pub type NegativeImbalanceOf<T> =
+	<<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
 
 pub trait Trait: slots::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
@@ -117,7 +119,7 @@ pub enum LastContribution<BlockNumber> {
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub struct FundInfo<AccountId, Balance, Hash, BlockNumber, ParaId> {
+pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// The parachain that this fund has funded, if there is one. As long as this is `Some`, then
 	/// the funds may not be withdrawn and the fund cannot be dissolved.
 	parachain: Option<ParaId>,
@@ -154,7 +156,7 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Example {
 		/// Info on all of the funds.
 		Funds get(funds):
-			map FundIndex => Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber, ParaIdOf<T>>>;
+			map FundIndex => Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
 
 		/// The total number of funds that have so far been allocated.
 		FundCount get(fund_count): FundIndex;
@@ -172,7 +174,6 @@ decl_event! {
 	pub enum Event<T> where
 		<T as system::Trait>::AccountId,
 		Balance = BalanceOf<T>,
-		ParaId = ParaIdOf<T>,
 	{
 		Created(FundIndex),
 		Contributed(AccountId, FundIndex, Balance),
@@ -321,7 +322,7 @@ decl_module! {
 		/// - `para_id` is the parachain index that this fund won.
 		fn onboard(origin,
 			#[compact] index: FundIndex,
-			#[compact] para_id: ParaIdOf<T>
+			#[compact] para_id: ParaId
 		) {
 			let _ = ensure_signed(origin)?;
 
@@ -503,13 +504,14 @@ mod tests {
 	use srml_support::{impl_outer_origin, assert_ok, assert_noop, parameter_types};
 	use sr_io::with_externalities;
 	use substrate_primitives::{H256, Blake2Hasher};
-	use primitives::parachain::Id as ParaId;
+	use primitives::parachain::Info as ParaInfo;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sr_primitives::{
 		Perbill, Permill, testing::Header,
 		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup, ConvertInto},
 	};
+	use crate::registrar::Registrar;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -595,16 +597,16 @@ mod tests {
 	}
 
 	pub struct TestParachains;
-	impl ParachainRegistrar<u64> for TestParachains {
-		type ParaId = ParaId;
-		fn new_id() -> Self::ParaId {
+	impl Registrar<u64> for TestParachains {
+		fn new_id() -> ParaId {
 			PARACHAIN_COUNT.with(|p| {
 				*p.borrow_mut() += 1;
 				(*p.borrow() - 1).into()
 			})
 		}
-		fn register_parachain(
-			id: Self::ParaId,
+		fn register_para(
+			id: ParaId,
+			_info: ParaInfo,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>
 		) -> Result<(), &'static str> {
@@ -616,7 +618,7 @@ mod tests {
 				Ok(())
 			})
 		}
-		fn deregister_parachain(id: Self::ParaId) -> Result<(), &'static str> {
+		fn deregister_para(id: ParaId) -> Result<(), &'static str> {
 			PARACHAINS.with(|p| {
 				if !p.borrow().contains_key(&id.into_inner()) {
 					panic!("ID doesn't exist")
