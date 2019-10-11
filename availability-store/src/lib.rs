@@ -197,6 +197,68 @@ impl Store {
 		self.inner.write(tx)
 	}
 
+	/// Add a set of chunks.
+	///
+	/// The same as `add_erasure_chunk` but adds a set of chunks in one atomic transaction.
+	/// Checks that all chunks have the same `relay_parent`, `block_data_hash` and `parachain_id` fields.
+	pub fn add_erasure_chunks<I>(&self, chunks: I) -> io::Result<()>
+		where I: IntoIterator<Item = ErasureChunk>
+	{
+		let mut tx = DBTransaction::new();
+		let mut key = None;
+		let mut v = vec![];
+
+		for chunk in chunks.into_iter() {
+			match key {
+				Some((parent, block_data_hash, parachain_id, _)) => {
+					if parent != chunk.relay_parent ||
+						block_data_hash != chunk.block_data_hash ||
+						parachain_id != chunk.parachain_id {
+							return Err(io::Error::new(io::ErrorKind::Other, "chunks mismatch"));
+					}
+				},
+				None => {
+					let dbkey = erasure_chunks_key(&chunk.relay_parent, &chunk.block_data_hash);
+
+					v = match self.inner.get(columns::DATA, &dbkey) {
+						Ok(Some(raw)) => Vec::decode(&mut &raw[..]).expect("all sorted data serialized correctly; qed"),
+						Ok(None) => Vec::new(),
+						Err(e) => {
+							warn!(target: "availability", "Error reading from availability store: {:?}", e);
+							Vec::new()
+						}
+					};
+					key = Some((chunk.relay_parent, chunk.block_data_hash, chunk.parachain_id, dbkey));
+				}
+			}
+
+			v.push(chunk);
+		}
+
+		match key {
+			Some((relay_parent, block_data_hash, parachain_id, key)) => {
+
+				// If therea are no block data and messages in the store at this point,
+				// check that they can be reconstructed now and add them to store if they can.
+				if let Ok(None) = self.inner.get(columns::DATA, &block_data_key(&relay_parent, &block_data_hash)) {
+					if let Ok((block_data, outgoing_queues)) = erasure::reconstruct(v[0].n_validators as usize,
+						v.iter().map(|chunk| (chunk.chunk.as_ref(), chunk.index as usize))) {
+						self.make_available(Data {
+							relay_parent,
+							parachain_id,
+							block_data,
+							outgoing_queues,
+						})?;
+					}
+				}
+
+				tx.put_vec(columns::DATA, &key, v.encode());
+				self.inner.write(tx)
+			}
+			None => Ok(()),
+		}
+	}
+
 	/// Queries an erasure chunk by it's block's parent and hash and index.
 	pub fn get_erasure_chunk(&self, relay_parent: Hash, block_data_hash: Hash, index: usize) -> Option<ErasureChunk> {
 		let key = erasure_chunks_key(&relay_parent, &block_data_hash);
@@ -468,16 +530,14 @@ mod tests {
 			})
 		.collect();
 
-	let store = Store::new_in_memory();
+		let store = Store::new_in_memory();
 
-	store.add_erasure_chunk(para_id, chunks[0].clone()).unwrap();
-	assert_eq!(store.get_erasure_chunk(relay_parent, block_data_hash, 0), Some(chunks[0].clone()));
+		store.add_erasure_chunk(para_id, chunks[0].clone()).unwrap();
+		assert_eq!(store.get_erasure_chunk(relay_parent, block_data_hash, 0), Some(chunks[0].clone()));
 
-	assert!(store.block_data(relay_parent, block_data_hash).is_none());
+		assert!(store.block_data(relay_parent, block_data_hash).is_none());
 
-	for chunk in chunks {
-		store.add_erasure_chunk(para_id, chunk.clone()).unwrap();
-	}
-	assert_eq!(store.block_data(relay_parent, block_data_hash), Some(block_data));
+		store.add_erasure_chunks(chunks).unwrap();
+		assert_eq!(store.block_data(relay_parent, block_data_hash), Some(block_data));
 	}
 }

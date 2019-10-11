@@ -385,14 +385,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 						fees_charged,
 					) {
 						Ok((receipt, chunks)) => {
-							let mut res = Ok(());
-
-							for chunk in &chunks {
-								if let Err(e) = availability_store.add_erasure_chunk(chunk.parachain_id, chunk.clone()) {
-									res = Err(e);
-									break;
-								}
-							};
+							let res = availability_store.add_erasure_chunks(chunks.clone());
 
 							match res {
 								Ok(()) => {
