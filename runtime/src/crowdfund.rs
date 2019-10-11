@@ -502,9 +502,8 @@ mod tests {
 
 	use std::{collections::HashMap, cell::RefCell};
 	use srml_support::{impl_outer_origin, assert_ok, assert_noop, parameter_types};
-	use sr_io::with_externalities;
-	use substrate_primitives::{H256, Blake2Hasher};
-	use primitives::parachain::Info as ParaInfo;
+	use substrate_primitives::H256;
+	use primitives::parachain::{Info as ParaInfo, Id as ParaId};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sr_primitives::{
@@ -639,6 +638,7 @@ mod tests {
 		type Parachains = TestParachains;
 		type LeasePeriod = LeasePeriod;
 		type EndingPeriod = EndingPeriod;
+		type Randomness = RandomnessCollectiveFlip;
 	}
 	parameter_types! {
 		pub const SubmissionDeposit: u64 = 1;
@@ -658,10 +658,11 @@ mod tests {
 	type Slots = slots::Module<Test>;
 	type Treasury = treasury::Module<Test>;
 	type Crowdfund = Module<Test>;
+	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
-	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
+	fn new_test_ext() -> sr_io::TestExternalities {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],
@@ -688,7 +689,7 @@ mod tests {
 
 	#[test]
 	fn basic_setup_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			assert_eq!(System::block_number(), 1);
 			assert_eq!(Crowdfund::fund_count(), 0);
 			assert_eq!(Crowdfund::funds(0), None);
@@ -701,7 +702,7 @@ mod tests {
 
 	#[test]
 	fn create_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Now try to create a crowdfund campaign
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Crowdfund::fund_count(), 1);
@@ -732,7 +733,7 @@ mod tests {
 
 	#[test]
 	fn create_handles_basic_errors() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Cannot create a crowdfund with bad slots
 			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 4, 1, 9), "last slot must be greater than first slot");
 			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 1, 5, 9), "last slot cannot be more then 3 more than first slot");
@@ -744,7 +745,7 @@ mod tests {
 
 	#[test]
 	fn contribute_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
@@ -774,7 +775,7 @@ mod tests {
 
 	#[test]
 	fn contribute_handles_basic_errors() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Cannot contribute to non-existing fund
 			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 49), "invalid fund index");
 			// Cannot contribute below minimum contribution
@@ -797,7 +798,7 @@ mod tests {
 
 	#[test]
 	fn fix_deploy_data_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
@@ -819,7 +820,7 @@ mod tests {
 
 	#[test]
 	fn fix_deploy_data_handles_basic_errors() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
@@ -862,7 +863,7 @@ mod tests {
 
 	#[test]
 	fn onboard_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
@@ -897,7 +898,7 @@ mod tests {
 
 	#[test]
 	fn onboard_handles_basic_errors() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
@@ -934,7 +935,7 @@ mod tests {
 
 	#[test]
 	fn begin_retirement_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
@@ -976,7 +977,7 @@ mod tests {
 
 	#[test]
 	fn begin_retirement_handles_basic_errors() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
@@ -1020,7 +1021,7 @@ mod tests {
 
 	#[test]
 	fn withdraw_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
@@ -1046,7 +1047,7 @@ mod tests {
 
 	#[test]
 	fn withdraw_handles_basic_errors() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
@@ -1070,7 +1071,7 @@ mod tests {
 
 	#[test]
 	fn dissolve_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
@@ -1105,7 +1106,7 @@ mod tests {
 
 	#[test]
 	fn dissolve_handles_basic_errors() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
@@ -1137,7 +1138,7 @@ mod tests {
 
 	#[test]
 	fn fund_before_auction_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Create a crowdfund before an auction is created
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Users can already contribute
@@ -1175,7 +1176,7 @@ mod tests {
 
 	#[test]
 	fn fund_across_multiple_auctions_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// Create an auction
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			// Create two competing crowdfunds, with end dates across multiple auctions

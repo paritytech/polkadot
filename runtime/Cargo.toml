@@ -114,4 +114,5 @@ std = [
 	"babe/std",
 	"babe-primitives/std",
 	"substrate-session/std",
+	"randomness-collective-flip/std",
 ]

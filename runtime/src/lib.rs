@@ -54,7 +54,7 @@ use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
 use sr_staking_primitives::SessionIndex;
 use srml_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
+	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness}
 };
 use authority_discovery_primitives::{AuthorityId as EncodedAuthorityId, Signature as EncodedSignature};
 use im_online::sr25519::AuthorityId as ImOnlineId;
@@ -480,6 +480,7 @@ impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
+	type Randomness = RandomnessCollectiveFlip;
 	type ActiveParachains = Registrar;
 	type Registrar = Registrar;
 }
@@ -511,6 +512,7 @@ impl slots::Trait for Runtime {
 	type Parachains = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type EndingPeriod = EndingPeriod;
+	type Randomness = RandomnessCollectiveFlip;
 }
 
 parameter_types!{

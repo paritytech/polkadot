@@ -574,8 +574,8 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 mod tests {
 	use super::*;
 	use bitvec::vec::BitVec;
-	use sr_io::{TestExternalities, with_externalities};
-	use substrate_primitives::{H256, Blake2Hasher, Pair};
+	use sr_io::TestExternalities;
+	use substrate_primitives::{H256, Pair};
 	use sr_primitives::{
 		traits::{
 			BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize, Dispatchable,
@@ -673,6 +673,7 @@ mod tests {
 		type Parachains = Registrar;
 		type EndingPeriod = EndingPeriod;
 		type LeasePeriod = LeasePeriod;
+		type Randomness = RandomnessCollectiveFlip;
 	}
 
 	parameter_types!{
@@ -709,6 +710,7 @@ mod tests {
 		type ParachainCurrency = balances::Module<Test>;
 		type ActiveParachains = Registrar;
 		type Registrar = Registrar;
+		type Randomness = RandomnessCollectiveFlip;
 	}
 
 	parameter_types! {
@@ -732,6 +734,7 @@ mod tests {
 	type System = system::Module<Test>;
 	type Slots = slots::Module<Test>;
 	type Registrar = Module<Test>;
+	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 
 	const AUTHORITY_KEYS: [Sr25519Keyring; 8] = [
 		Sr25519Keyring::Alice,
@@ -744,7 +747,7 @@ mod tests {
 		Sr25519Keyring::Two,
 	];
 
-	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
+	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
 		let authority_keys = [
@@ -859,7 +862,7 @@ mod tests {
 
 	#[test]
 	fn basic_setup_works() {
-		with_externalities(&mut new_test_ext(vec![]), || {
+		new_test_ext(vec![]).execute_with(|| {
 			assert_eq!(super::Parachains::get(), vec![]);
 			assert_eq!(ThreadCount::get(), 0);
 			assert_eq!(Active::get(), vec![]);
@@ -876,13 +879,19 @@ mod tests {
 			(100u32.into(), vec![4,5,6], vec![2,]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains).execute_with(|| {
 			// Need to trigger on_initialize
 			run_to_block(2);
 			// Genesis registration works
 			assert_eq!(Registrar::active_paras(), vec![(5u32.into(), None), (100u32.into(), None)]);
-			assert_eq!(Registrar::paras(&ParaId::from(5u32)), Some(ParaInfo { scheduling: Scheduling::Always }));
-			assert_eq!(Registrar::paras(&ParaId::from(100u32)), Some(ParaInfo { scheduling: Scheduling::Always }));
+			assert_eq!(
+				Registrar::paras(&ParaId::from(5u32)),
+				Some(ParaInfo { scheduling: Scheduling::Always }),
+			);
+			assert_eq!(
+				Registrar::paras(&ParaId::from(100u32)),
+				Some(ParaInfo { scheduling: Scheduling::Always }),
+			);
 			assert_eq!(Parachains::parachain_code(&ParaId::from(5u32)), Some(vec![1, 2, 3]));
 			assert_eq!(Parachains::parachain_code(&ParaId::from(100u32)), Some(vec![4, 5, 6]));
 		});
@@ -890,7 +899,7 @@ mod tests {
 
 	#[test]
 	fn swap_chain_and_thread_works() {
-		with_externalities(&mut new_test_ext(vec![]), || {
+		new_test_ext(vec![]).execute_with(|| {
 			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
 
 			// Need to trigger on_initialize
@@ -969,7 +978,7 @@ mod tests {
 
 	#[test]
 	fn swap_handles_funds_correctly() {
-		with_externalities(&mut new_test_ext(vec![]), || {
+		new_test_ext(vec![]).execute_with(|| {
 			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
 
 			// Need to trigger on_initialize
@@ -1013,7 +1022,7 @@ mod tests {
 			(1u32.into(), vec![1; 3], vec![1; 3]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains).execute_with(|| {
 			// Need to trigger on_initialize
 			run_to_block(2);
 
@@ -1080,7 +1089,7 @@ mod tests {
 
 	#[test]
 	fn parathread_scheduling_works() {
-		with_externalities(&mut new_test_ext(vec![]), || {
+		new_test_ext(vec![]).execute_with(|| {
 			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
 
 			run_to_block(2);
@@ -1114,7 +1123,7 @@ mod tests {
 
 	#[test]
 	fn removing_scheduled_parathread_works() {
-		with_externalities(&mut new_test_ext(vec![]), || {
+		new_test_ext(vec![]).execute_with(|| {
 			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
 
 			run_to_block(2);
@@ -1157,7 +1166,7 @@ mod tests {
 
 	#[test]
 	fn parathread_rescheduling_works() {
-		with_externalities(&mut new_test_ext(vec![]), || {
+		new_test_ext(vec![]).execute_with(|| {
 			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
 
 			run_to_block(2);
@@ -1238,7 +1247,7 @@ mod tests {
 
 	#[test]
 	fn parathread_auction_handles_basic_errors() {
-		with_externalities(&mut new_test_ext(vec![]), || {
+		new_test_ext(vec![]).execute_with(|| {
 			run_to_block(2);
 			let o = Origin::signed(0);
 			assert_ok!(Registrar::register_parathread(o, vec![7, 8, 9], vec![1, 1, 1]));
@@ -1291,7 +1300,7 @@ mod tests {
 
 	#[test]
 	fn parathread_auction_works() {
-		with_externalities(&mut new_test_ext(vec![]), || {
+		new_test_ext(vec![]).execute_with(|| {
 			run_to_block(2);
 			// Register 5 parathreads
 			for x in 0..5 {

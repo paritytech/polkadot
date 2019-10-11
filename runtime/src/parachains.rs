@@ -27,14 +27,16 @@ use sr_primitives::traits::{
 	AccountIdConversion,
 };
 use sr_primitives::weights::SimpleDispatchInfo;
-use primitives::{Hash, Balance, parachain::{
-	self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
-	ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId,
-	Retriable
-}};
-use {system, session};
+use primitives::{
+	Hash, Balance,
+	parachain::{
+		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
+		UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId, Retriable
+	},
+};
 use srml_support::{
-	Parameter, dispatch::Result, traits::{Currency, Get, WithdrawReason, ExistenceRequirement},
+	Parameter, dispatch::Result,
+	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
@@ -118,6 +120,9 @@ pub trait Trait: attestations::Trait {
 
 	/// Some way of interacting with balances for fees.
 	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
+
+	/// Something that provides randomness in the runtime.
+	type Randomness: Randomness<Self::Hash>;
 
 	/// Means to determine what the current set of active parachains are.
 	type ActiveParachains: ActiveParas;
@@ -517,7 +522,7 @@ impl<T: Trait> Module<T> {
 
 		let mut seed = {
 			let phrase = b"validator_role_pairs";
-			let seed = randomness_collective_flip::Module::<T>::random(&phrase[..]);
+			let seed = T::Randomness::random(&phrase[..]);
 			let seed_len = seed.as_ref().len();
 			let needed_bytes = validator_count * 4;
 
@@ -882,7 +887,7 @@ mod tests {
 	use super::*;
 	use super::Call as ParachainsCall;
 	use bitvec::{bitvec, vec::BitVec};
-	use sr_io::{TestExternalities, with_externalities};
+	use sr_io::TestExternalities;
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
@@ -1061,6 +1066,7 @@ mod tests {
 		type Parachains = registrar::Module<Test>;
 		type EndingPeriod = EndingPeriod;
 		type LeasePeriod = LeasePeriod;
+		type Randomness = RandomnessCollectiveFlip;
 	}
 
 	parameter_types! {
@@ -1083,6 +1089,7 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
+		type Randomness = RandomnessCollectiveFlip;
 		type ActiveParachains = registrar::Module<Test>;
 		type Registrar = registrar::Module<Test>;
 	}
@@ -1092,7 +1099,7 @@ mod tests {
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 	type Registrar = registrar::Module<Test>;
 
-	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
+	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities {
 		use staking::StakerStatus;
 		use babe::AuthorityId as BabeAuthorityId;
 
@@ -1287,7 +1294,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 			(2u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains.clone()), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			init_block();
 			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 4] }
@@ -1304,7 +1311,7 @@ mod tests {
 			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
 		});
-		with_externalities(&mut new_test_ext(parachains.clone()), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			init_block();
 			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
@@ -1326,7 +1333,7 @@ mod tests {
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
 			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
-		with_externalities(&mut new_test_ext(parachains.clone()), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			init_block();
 			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
@@ -1348,7 +1355,7 @@ mod tests {
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
 			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
-		with_externalities(&mut new_test_ext(parachains.clone()), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			init_block();
 			queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
@@ -1377,7 +1384,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] }
@@ -1405,7 +1412,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			// oversize, but ok since it's just one and the queue is empty.
 			let messages = vec![
@@ -1441,7 +1448,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			// too many messages.
 			queue_upward_messages(0.into(), &vec![
@@ -1463,7 +1470,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			// too much data.
 			queue_upward_messages(0.into(), &vec![
@@ -1484,7 +1491,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			// bad - already an oversize messages queued.
 			queue_upward_messages(0.into(), &vec![
@@ -1505,7 +1512,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			// bad - oversized and already a message queued.
 			queue_upward_messages(0.into(), &vec![
@@ -1529,7 +1536,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			// parachain 0 is self
 			let mut candidates = vec![
@@ -1559,7 +1566,7 @@ mod tests {
 			(100u32.into(), vec![4,5,6], vec![2]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), Some(vec![1, 2, 3]));
@@ -1574,7 +1581,7 @@ mod tests {
 			(100u32.into(), vec![4,5,6], vec![2,]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (100u32.into(), None)]);
 
@@ -1607,7 +1614,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			let check_roster = |duty_roster: &DutyRoster| {
 				assert_eq!(duty_roster.validator_duty.len(), 8);
@@ -1643,7 +1650,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			let candidate = AttestedCandidate {
 				validity_votes: vec![],
@@ -1672,7 +1679,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			assert_eq!(Parachains::active_parachains().len(), 2);
 
@@ -1728,7 +1735,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
@@ -1765,7 +1772,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
@@ -1803,7 +1810,7 @@ mod tests {
 			(99u32.into(), vec![1, 2, 3], vec![4, 5, 6]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains).execute_with(|| {
 			assert_eq!(Parachains::ingress(ParaId::from(1), None), Some(Vec::new()));
 			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
 
@@ -1925,7 +1932,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			// parachain 99 does not exist
 			let non_existent = vec![(99.into(), [1; 32].into())];
@@ -1950,7 +1957,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			// parachain 0 is self
 			let to_self = vec![(0.into(), [1; 32].into())];
@@ -1975,7 +1982,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			// parachain 0 is self
 			let out_of_order = vec![(1.into(), [1; 32].into()), ((0.into(), [1; 32].into()))];
@@ -2000,7 +2007,7 @@ mod tests {
 			(2u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			// parachain 0 is self
 			let contains_empty_trie_root = vec![(1.into(), [1; 32].into()), ((2.into(), EMPTY_TRIE_ROOT.into()))];
