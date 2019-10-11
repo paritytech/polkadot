@@ -438,7 +438,7 @@ impl<T: Trait> Module<T> {
 	fn retry_later(sched: (ParaId, CollatorId), retries: u32) {
 		if retries < T::MaxRetries::get() {
 			RetryQueue::mutate(|q| {
-				q.resize(retries as usize, vec![]);
+				q.resize(T::MaxRetries::get() as usize, vec![]);
 				q[retries as usize].push(sched);
 			});
 		}
@@ -921,8 +921,8 @@ mod tests {
 			run_to_block(11);
 			// should be one active parachain and one active parathread.
 			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(0), Some((col.clone(), Retriable::WithRetries(0)))),
 				(user_id(1), None),
-				(user_id(0), Some((col.clone(), Retriable::WithRetries(0))))
 			]);
 
 			// One half of the swap call does not actually trigger the swap.
@@ -1200,17 +1200,17 @@ mod tests {
 				(user_id(1), Some((col.clone(), Retriable::WithRetries(0))))
 			]);
 
-			// 2 scheduled, 1 retried (retry happens in reverse order of original)
+			// 2 scheduled, 0 retried
 			run_to_block(12);
 			assert_eq!(Registrar::active_paras(), vec![
+				(user_id(0), Some((col.clone(), Retriable::WithRetries(1)))),
 				(user_id(2), Some((col.clone(), Retriable::WithRetries(0)))),
-				(user_id(1), Some((col.clone(), Retriable::WithRetries(1))))
 			]);
 
-			// 0 retried
+			// 1 retried
 			run_to_block(13);
 			assert_eq!(Registrar::active_paras(), vec![
-				(user_id(0), Some((col.clone(), Retriable::WithRetries(1))))
+				(user_id(1), Some((col.clone(), Retriable::WithRetries(1))))
 			]);
 
 			// 2 retried
@@ -1221,12 +1221,12 @@ mod tests {
 
 			run_to_block(15);
 			assert_eq!(Registrar::active_paras(), vec![
-				(user_id(1), Some((col.clone(), Retriable::WithRetries(2))))
+				(user_id(0), Some((col.clone(), Retriable::WithRetries(2))))
 			]);
 
 			run_to_block(16);
 			assert_eq!(Registrar::active_paras(), vec![
-				(user_id(0), Some((col.clone(), Retriable::WithRetries(2))))
+				(user_id(1), Some((col.clone(), Retriable::WithRetries(2))))
 			]);
 
 			run_to_block(17);
