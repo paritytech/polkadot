@@ -53,6 +53,7 @@ timestamp = { package = "srml-timestamp", git = "https://github.com/paritytech/s
 treasury = { package = "srml-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 primitives = { package = "polkadot-primitives", path = "../primitives", default-features = false }
+polkadot-parachain = { path = "../parachain", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.0"
@@ -79,6 +80,7 @@ std = [
 	"codec/std",
 	"inherents/std",
 	"substrate-primitives/std",
+	"polkadot-parachain/std",
 	"client/std",
 	"offchain-primitives/std",
 	"rstd/std",
