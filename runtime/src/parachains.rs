@@ -30,9 +30,8 @@ use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{
 	Hash, Balance,
 	parachain::{
-		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
-		ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId,
-		Retriable
+		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
+		UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId, Retriable
 	},
 };
 use srml_support::{
@@ -1067,6 +1066,7 @@ mod tests {
 		type Parachains = registrar::Module<Test>;
 		type EndingPeriod = EndingPeriod;
 		type LeasePeriod = LeasePeriod;
+		type Randomness = RandomnessCollectiveFlip;
 	}
 
 	parameter_types! {
