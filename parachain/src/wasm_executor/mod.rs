@@ -45,7 +45,7 @@ mod ids {
 	pub const POST_MESSAGE: usize = 1;
 
 	/// Post a message to this parachain's relay chain.
-	pub const POST_UPWARDS_MESSAGE: usize = 2;
+	pub const POST_UPWARD_MESSAGE: usize = 2;
 }
 
 /// WASM code execution mode.
@@ -155,7 +155,7 @@ impl ModuleImportResolver for Resolver {
 				}
 			}
 			"ext_upwards_post_message" => {
-				let index = ids::POST_UPWARDS_MESSAGE;
+				let index = ids::POST_UPWARD_MESSAGE;
 				let (params, ret_ty): (&[ValueType], Option<ValueType>) =
 					(&[ValueType::I32, ValueType::I32], None);
 
@@ -268,7 +268,7 @@ impl<'a, E: 'a + Externalities> Externals for ValidationExternals<'a, E> {
 	) -> Result<Option<RuntimeValue>, Trap> {
 		match index {
 			ids::POST_MESSAGE => self.ext_post_message(args).map(|_| None),
-			ids::POST_UPWARDS_MESSAGE => self.ext_post_upward_message(args).map(|_| None),
+			ids::POST_UPWARD_MESSAGE => self.ext_post_upward_message(args).map(|_| None),
 			_ => panic!("no externality at given index"),
 		}
 	}
