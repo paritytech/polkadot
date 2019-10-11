@@ -30,7 +30,7 @@ use sr_primitives::weights::SimpleDispatchInfo;
 use primitives::{
 	Hash, Balance,
 	parachain::{
-		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, AccountIdConversion,
+		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement,
 		ParachainDispatchOrigin, UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId,
 		Retriable
 	},
