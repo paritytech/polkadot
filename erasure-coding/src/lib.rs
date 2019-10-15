@@ -200,7 +200,7 @@ pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
 
 /// An iterator that yields merkle branches and chunk data for all chunks to
 /// be sent to other validators.
-pub struct Branches<'a, I: AsRef<[u8]>> {
+pub struct Branches<'a, I> {
 	trie_storage: MemoryDB<Blake2Hasher>,
 	root: H256,
 	chunks: &'a [I],
@@ -243,7 +243,7 @@ impl<'a, I: AsRef<[u8]>> Iterator for Branches<'a, I> {
 /// Construct a trie from chunks of an erasure-coded value. This returns the root hash and an
 /// iterator of merkle proofs, one for each validator.
 pub fn branches<'a, I: 'a>(chunks: &'a [I]) -> Branches<'a, I>
-where I: AsRef<[u8]>,
+	where I: AsRef<[u8]>,
 {
 	let mut trie_storage: MemoryDB<Blake2Hasher> = MemoryDB::default();
 	let mut root = H256::default();

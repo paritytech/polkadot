@@ -233,12 +233,6 @@ impl From<CandidateReceipt> for CollationInfo {
 }
 
 impl CollationInfo {
-	/// Get the blake2_256 hash
-	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
-		BlakeTwo256::hash_of(self)
-	}
-
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
 		use runtime_primitives::traits::AppVerify;
@@ -293,8 +287,16 @@ impl CandidateReceipt {
 			Err(())
 		}
 	}
+}
 
-	pub fn check_collation_info_equality(&self, info: &CollationInfo) -> bool {
+impl PartialOrd for CandidateReceipt {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl PartialEq<CollationInfo> for CandidateReceipt {
+	fn eq(&self, info: &CollationInfo) -> bool {
 		self.parachain_index == info.parachain_index &&
 		self.collator == info.collator &&
 		self.signature == info.signature &&
@@ -302,12 +304,6 @@ impl CandidateReceipt {
 		self.head_data == info.head_data &&
 		self.block_data_hash == info.block_data_hash &&
 		self.upward_messages == info.upward_messages
-	}
-}
-
-impl PartialOrd for CandidateReceipt {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-		Some(self.cmp(other))
 	}
 }
 

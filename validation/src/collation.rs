@@ -118,7 +118,6 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 
 			let res = validate_collation(&*self.client,
 				&self.relay_parent,
-				&self.relay_parent_hash,
 				&collation,
 				self.max_block_data_size
 			);
@@ -429,7 +428,8 @@ pub fn produce_receipt_and_chunks(
 	let erasure_chunks = erasure::obtain_chunks(
 		n_validators,
 		&collation.pov.block_data,
-		Some(&messages.clone().into()))?;
+		Some(&messages.clone().into())
+	)?;
 
 	let branches = erasure::branches(erasure_chunks.as_ref());
 	let erasure_root = branches.root();
@@ -480,7 +480,7 @@ pub fn validate_receipt<P>(
 	P: ProvideRuntimeApi,
 	P::Api: ParachainHost<Block>,
 {
-	if !receipt.check_collation_info_equality(&collation.info) {
+	if *receipt != collation.info {
 		return Err(Error::CandidateReceiptMismatch { candidate: collation.info.block_data_hash });
 	}
 
@@ -495,14 +495,19 @@ pub fn validate_receipt<P>(
 		});
 	}
 
-	// TODO: probably we also need to check this produced receipt for equality with a given one.
-	let (_receipt, chunks) = produce_receipt_and_chunks(
+	let (new_receipt, chunks) = produce_receipt_and_chunks(
 		n_validators,
 		relay_parent_hash,
 		collation,
 		messages,
 		fees_charged
 	)?;
+
+	if new_receipt != *receipt {
+		return Err(Error::CandidateReceiptMismatch {
+			candidate: receipt.hash(),
+		});
+	}
 
 	Ok(chunks)
 }
@@ -514,7 +519,6 @@ pub fn validate_receipt<P>(
 pub fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
-	_relay_parent_hash: &Hash,
 	collation: &Collation,
 	max_block_data_size: Option<u64>,
 ) -> Result<(OutgoingMessages, Balance), Error> where

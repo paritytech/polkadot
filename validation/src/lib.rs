@@ -401,7 +401,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 							Ok(())
 						}
 						Err(e) => {
-							warn!(target: "validation", "Failed to make produced a receipt: {:?}", e);
+							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
 							Ok(())
 						}
 					}

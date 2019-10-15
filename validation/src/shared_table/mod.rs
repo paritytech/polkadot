@@ -301,7 +301,6 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 			let res = crate::collation::validate_collation(
 				&*api,
 				id,
-				&relay_parent,
 				collation,
 				max_block_data_size,
 			);
@@ -317,8 +316,8 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 						&messages,
 						fees,
 					) {
-						Ok(chunks) => {
-							Ok((messages, chunks.into_iter().nth(local_index).unwrap()))
+						Ok(mut chunks) => {
+							Ok((messages, chunks.swap_remove(local_index)))
 						}
 						Err(e) => {
 							debug!(target: "validation", "Encountered bad candidate receipt: {}", e);
