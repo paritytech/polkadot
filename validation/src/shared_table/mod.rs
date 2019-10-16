@@ -623,6 +623,7 @@ mod tests {
 	use substrate_keyring::Sr25519Keyring;
 	use primitives::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{AvailableMessages, BlockData, ConsolidatedIngress, Collation};
+	use polkadot_erasure_coding::{self as erasure};
 	use futures::future;
 
 	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
@@ -769,6 +770,9 @@ mod tests {
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
+		let block_data_hash = [2; 32].into();
+		let local_index = 0;
+		let n_validators = 2;
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
@@ -777,7 +781,7 @@ mod tests {
 			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
-			block_data_hash: [2; 32].into(),
+			block_data_hash,
 			upward_messages: Vec::new(),
 			erasure_root: [1u8; 32].into(),
 		};
@@ -789,8 +793,8 @@ mod tests {
 				candidate_receipt: candidate,
 				fetch: future::ok(pov_block.clone()),
 			},
-			local_index: 0,
-			n_validators: 2,
+			local_index,
+			n_validators,
 			relay_parent,
 			availability_store: store.clone(),
 			max_block_data_size: None,
@@ -798,7 +802,15 @@ mod tests {
 
 		let validated = producer.prime_with(|_, _, _| Ok((
 				OutgoingMessages { outgoing_messages: Vec::new() },
-				ErasureChunk::default(),
+				ErasureChunk {
+					relay_parent,
+					chunk: vec![1, 2, 3],
+					block_data_hash,
+					index: local_index as u32,
+					parachain_id: para_id,
+					n_validators: n_validators as u32,
+					proof: vec![],
+				},
 			)))
 			.wait()
 			.unwrap();
@@ -812,7 +824,8 @@ mod tests {
 				assert_eq!(store.queue_by_root(&root), Some(queue));
 			}
 		}
-		assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
+		assert!(store.get_erasure_chunk(relay_parent, block_data_hash, local_index).is_some());
+		assert!(store.get_erasure_chunk(relay_parent, block_data_hash, local_index + 1).is_none());
 	}
 
 	#[test]
@@ -821,6 +834,10 @@ mod tests {
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
+		let block_data_hash = pov_block.block_data.hash();
+		let local_index = 0;
+		let n_validators = 2;
+		let ex = Some(AvailableMessages(Vec::new()));
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
@@ -834,6 +851,8 @@ mod tests {
 			erasure_root: [1u8; 32].into(),
 		};
 
+		let chunks = erasure::obtain_chunks(n_validators, &pov_block.block_data, ex.as_ref()).unwrap();
+
 		let hash = candidate.hash();
 
 		let producer = ParachainWork {
@@ -841,8 +860,8 @@ mod tests {
 				candidate_receipt: candidate,
 				fetch: future::ok::<_, ::std::io::Error>(pov_block.clone()),
 			},
-			local_index: 0,
-			n_validators: 2,
+			local_index,
+			n_validators,
 			relay_parent,
 			availability_store: store.clone(),
 			max_block_data_size: None,
@@ -850,21 +869,31 @@ mod tests {
 
 		let validated = producer.prime_with(|_, _, _| Ok((
 				OutgoingMessages { outgoing_messages: Vec::new() },
-				ErasureChunk::default(),
+				ErasureChunk {
+					relay_parent,
+					chunk: chunks[local_index].clone(),
+					block_data_hash,
+					index: local_index as u32,
+					parachain_id: para_id,
+					n_validators: n_validators as u32,
+					proof: vec![],
+				},
 			)))
 			.wait()
 			.unwrap();
 
 		assert_eq!(validated.pov_block(), &pov_block);
 
-		assert!(store.block_data(relay_parent, hash).is_some());
 		if let Some(messages) = validated.outgoing_messages() {
 			let available_messages: AvailableMessages = messages.clone().into();
 			for (root, queue) in available_messages.0 {
 				assert_eq!(store.queue_by_root(&root), Some(queue));
 			}
 		}
-		assert_eq!(store.block_data(relay_parent, hash).unwrap(), pov_block.block_data);
+		// This works since there are only two validators and one erasure chunk should be
+		// enough to reconstruct the block data.
+		assert_eq!(store.block_data(relay_parent, block_data_hash).unwrap(), pov_block.block_data);
+		// TODO: check that a message queue is included by root.
 	}
 
 	#[test]

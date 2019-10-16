@@ -782,7 +782,7 @@ mod tests {
 			&receipt.upward_messages,
 			&receipt.egress_queue_roots,
 			Some(receipt.fees),
-		).is_err());
+		).is_ok());
 	}
 
 	#[test]
