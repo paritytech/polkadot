@@ -20,9 +20,7 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::Block;
-use node_primitives::AccountNonceApi;
-use node_rpc::accounts::{Accounts, AccountsApi};
+use polkadot_primitives::{Block, AccountId, Nonce};
 use sr_primitives::traits::ProvideRuntimeApi;
 use transaction_pool::txpool::{ChainApi, Pool};
 
@@ -34,12 +32,14 @@ pub fn create<C, P>(client: Arc<C>, pool: Arc<Pool<P>>) -> RpcExtension where
 	C: ProvideRuntimeApi,
 	C: client::blockchain::HeaderBackend<Block>,
 	C: Send + Sync + 'static,
-	C::Api: AccountNonceApi<Block>,
+	C::Api: srml_system_rpc::AccountNonceApi<Block, AccountId, Nonce>,
 	P: ChainApi + Sync + Send + 'static,
 {
+	use srml_system_rpc::{System, SystemApi};
+
 	let mut io = jsonrpc_core::IoHandler::default();
 	io.extend_with(
-		AccountsApi::to_delegate(Accounts::new(client.clone(), pool))
+		SystemApi::to_delegate(System::new(client.clone(), pool))
 	);
 	io
 }

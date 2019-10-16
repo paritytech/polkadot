@@ -7,11 +7,10 @@ edition = "2018"
 [dependencies]
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 jsonrpc-core = "13.2.0"
-node-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-node-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 polkadot-primitives = { path = "../primitives" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
 substrate-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
+srml-system-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
 
 
