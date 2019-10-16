@@ -380,9 +380,10 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 					match produce_receipt_and_chunks(
 						authorities_num,
 						&relay_parent,
-						&collation,
+						&collation.pov,
 						&outgoing_targeted,
 						fees_charged,
+						&collation.info,
 					) {
 						Ok((receipt, chunks)) => {
 							let res = availability_store.add_erasure_chunks(chunks.clone());

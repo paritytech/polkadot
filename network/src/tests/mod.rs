@@ -24,9 +24,8 @@ use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
 	CandidateReceipt, HeadData, PoVBlock, BlockData, CollatorId, ValidatorId,
-	StructuredUnroutedIngress, OutgoingMessages,
+	StructuredUnroutedIngress,
 };
-use polkadot_erasure_coding::{self as erasure};
 use substrate_primitives::crypto::UncheckedInto;
 use codec::Encode;
 use substrate_network::{

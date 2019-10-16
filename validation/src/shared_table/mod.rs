@@ -24,7 +24,7 @@ use availability_store::{Store as AvailabilityStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Collation, OutgoingMessages, CandidateReceipt, ValidatorPair, ValidatorId,
+	Id as ParaId, OutgoingMessages, CandidateReceipt, ValidatorPair, ValidatorId,
 	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, ErasureChunk, ValidatorSignature,
 };
 use polkadot_erasure_coding::{self as erasure};
@@ -287,7 +287,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			Fetch,
-			impl Send + FnMut(&BlockId, &Collation, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>,
+			impl Send + FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>,
 		>
 		where
 			P: Send + Sync + 'static,
@@ -297,33 +297,19 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 		let relay_parent = self.relay_parent.clone();
 		let local_index = self.local_index;
 
-		let validate = move |id: &_, collation: &_, receipt: &_| {
-			let res = crate::collation::validate_collation(
+		let validate = move |id: &_, pov_block: &_, receipt: &_| {
+			let res = crate::collation::validate_receipt(
 				&*api,
 				id,
-				collation,
+				&relay_parent,
+				pov_block,
+				receipt,
 				max_block_data_size,
 			);
 
 			match res {
-				Ok((messages, fees)) => {
-					match crate::collation::validate_receipt(
-						&*api,
-						id,
-						&relay_parent,
-						collation,
-						receipt,
-						&messages,
-						fees,
-					) {
-						Ok(mut chunks) => {
-							Ok((messages, chunks.swap_remove(local_index)))
-						}
-						Err(e) => {
-							debug!(target: "validation", "Encountered bad candidate receipt: {}", e);
-							Err(())
-						}
-					}
+				Ok((messages, mut chunks)) => {
+					Ok((messages, chunks.swap_remove(local_index)))
 				}
 				Err(e) => {
 					debug!(target: "validation", "Encountered bad collation: {}", e);
@@ -337,7 +323,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 
 	/// Prime the parachain work with a custom validation function.
 	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<Fetch, F>
-		where F: FnMut(&BlockId, &Collation, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>
+		where F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>
 	{
 		PrimedParachainWork { inner: self, validate }
 	}
@@ -357,7 +343,7 @@ pub struct PrimedParachainWork<Fetch, F> {
 impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 	where
 		Fetch: Future<Item=PoVBlock,Error=Err>,
-		F: FnMut(&BlockId, &Collation, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>,
+		F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>,
 		Err: From<::std::io::Error>,
 {
 	type Item = Validated;
@@ -370,7 +356,7 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 		let pov_block = futures::try_ready!(work.fetch.poll());
 		let validation_res = (self.validate)(
 			&BlockId::hash(self.inner.relay_parent),
-			&Collation { pov: pov_block.clone(), info: candidate.clone().into() },
+			&pov_block.clone(),
 			&candidate,
 		);
 
@@ -636,7 +622,7 @@ mod tests {
 	use super::*;
 	use substrate_keyring::Sr25519Keyring;
 	use primitives::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::{AvailableMessages, BlockData, ConsolidatedIngress};
+	use polkadot_primitives::parachain::{AvailableMessages, BlockData, ConsolidatedIngress, Collation};
 	use futures::future;
 
 	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
