@@ -21,7 +21,6 @@ variables:
   CI_SERVER_NAME:                  "GitLab CI"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  LATEST_BRANCH:                   "v0.6" # branch that carries the latest tag
 
 
 .collect-artifacts:                &collect-artifacts
@@ -140,6 +139,7 @@ build-linux-release:               &build
   <<:                              *kubernetes-env
   before_script:
     - test -s ./artifacts/VERSION || exit 1
+    - LATEST_BRANCH="$(ls -1 .git/refs/remotes/origin/ | sed -r -n 's:v([0-9]+)\.([0-9]+):v\1.\2:p' | sort -V | tail -n1)"
     - if [ "${CI_COMMIT_TAG}" ]; then
         VERSION="${CI_COMMIT_TAG}";
       else
