@@ -32,6 +32,7 @@ authority-discovery = { package = "srml-authority-discovery", git = "https://git
 authorship = { package = "srml-authorship", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-generic-weight-stuff" }
 babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-generic-weight-stuff" }
 balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-generic-weight-stuff" }
+transaction-payment = { package = "srml-transaction-payment", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-generic-weight-stuff" }
 collective = { package = "srml-collective", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-generic-weight-stuff" }
 democracy = { package = "srml-democracy", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-generic-weight-stuff" }
 elections = { package = "srml-elections", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-generic-weight-stuff" }
@@ -56,9 +57,9 @@ primitives = { package = "polkadot-primitives", path = "../primitives", default-
 polkadot-parachain = { path = "../parachain", default-features = false }
 
 [dev-dependencies]
-hex-literal = "0.2.0"
+hex-literal = "0.2.1"
 libsecp256k1 = "0.2.1"
-tiny-keccak = "1.4.2"
+tiny-keccak = "1.5.0"
 keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "kiz-generic-weight-stuff" }
 substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "kiz-generic-weight-stuff" }
 trie-db = "0.15"
@@ -88,6 +89,7 @@ std = [
 	"srml-support/std",
 	"authorship/std",
 	"balances/std",
+	"transaction-payment/std",
 	"collective/std",
 	"elections/std",
 	"democracy/std",
