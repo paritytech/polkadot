@@ -51,25 +51,25 @@ use std::time::Duration;
 
 use futures::{future, Stream, Future, IntoFuture};
 use futures03::{TryStreamExt as _, StreamExt as _};
-use log::{info, warn};
+use log::{warn, error};
 use client::BlockchainEvents;
-use primitives::Pair;
+use primitives::{Pair, Blake2Hasher};
 use polkadot_primitives::{
 	BlockId, Hash, Block,
 	parachain::{
-		self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId, OutgoingMessages,
-		PoVBlock, Status as ParachainStatus, ValidatorId, CollatorPair,
+		self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId,
+		OutgoingMessages, PoVBlock, Status as ParachainStatus, ValidatorId, CollatorPair,
 	}
 };
 use polkadot_cli::{
-	Worker, IntoExit, ProvideRuntimeApi, TaskExecutor, AbstractService,
-	CustomConfiguration, ParachainHost,
+	Worker, IntoExit, ProvideRuntimeApi, AbstractService, CustomConfiguration, ParachainHost,
 };
 use polkadot_network::validation::{LeafWorkParams, ValidationNetwork};
 use polkadot_network::{PolkadotNetworkService, PolkadotProtocol};
+use polkadot_runtime::RuntimeApi;
 use tokio::timer::Timeout;
 
-pub use polkadot_cli::VersionInfo;
+pub use polkadot_cli::{VersionInfo, TaskExecutor};
 pub use polkadot_network::validation::Incoming;
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
@@ -128,13 +128,24 @@ impl<R: fmt::Display> fmt::Display for Error<R> {
 	}
 }
 
+/// The Polkadot client type.
+pub type PolkadotClient<B, E> = client::Client<B, E, Block, RuntimeApi>;
+
 /// Something that can build a `ParachainContext`.
 pub trait BuildParachainContext {
 	/// The parachain context produced by the `build` function.
 	type ParachainContext: self::ParachainContext;
 
 	/// Build the `ParachainContext`.
-	fn build(self, network: Arc<dyn Network>) -> Result<Self::ParachainContext, ()>;
+	fn build<B, E>(
+		self,
+		client: Arc<PolkadotClient<B, E>>,
+		task_executor: TaskExecutor,
+		network: Arc<dyn Network>,
+	) -> Result<Self::ParachainContext, ()>
+		where
+			B: client::backend::Backend<Block, Blake2Hasher> + 'static,
+			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static;
 }
 
 /// Parachain context needed for collation.
@@ -289,10 +300,18 @@ impl<P, E> Worker for CollationNode<P, E> where
 	}
 
 	fn work<S, SC, B, CE>(self, service: &S, task_executor: TaskExecutor) -> Self::Work
-	where S: AbstractService<Block = polkadot_service::Block, RuntimeApi = polkadot_service::RuntimeApi, Backend = B, SelectChain = SC, NetworkSpecialization = PolkadotProtocol, CallExecutor = CE>,
-		SC: polkadot_service::SelectChain<polkadot_service::Block> + 'static,
-		B: polkadot_service::Backend<polkadot_service::Block, polkadot_service::Blake2Hasher> + 'static,
-		CE: polkadot_service::CallExecutor<polkadot_service::Block, polkadot_service::Blake2Hasher> + Clone + Send + Sync + 'static
+	where
+		S: AbstractService<
+			Block = Block,
+			RuntimeApi = RuntimeApi,
+			Backend = B,
+			SelectChain = SC,
+			NetworkSpecialization = PolkadotProtocol,
+			CallExecutor = CE,
+		>,
+		SC: polkadot_service::SelectChain<Block> + 'static,
+		B: client::backend::Backend<Block, Blake2Hasher> + 'static,
+		CE: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static
 	{
 		let CollationNode { build_parachain_context, exit, para_id, key } = self;
 		let client = service.client();
@@ -301,7 +320,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 		let select_chain = if let Some(select_chain) = service.select_chain() {
 			select_chain
 		} else {
-			info!("The node cannot work because it can't select chain.");
+			error!("The node cannot work because it can't select chain.");
 			return Box::new(future::err(()));
 		};
 
@@ -334,13 +353,25 @@ impl<P, E> Worker for CollationNode<P, E> where
 			exit.clone(),
 			message_validator,
 			client.clone(),
-			task_executor,
+			task_executor.clone(),
 		));
 
-		let parachain_context = build_parachain_context.build(validation_network.clone()).unwrap();
+		let parachain_context = match build_parachain_context.build(
+			client.clone(),
+			task_executor,
+			validation_network.clone(),
+		) {
+			Ok(ctx) => ctx,
+			Err(()) => {
+				error!("Could not build the parachain context!");
+				return Box::new(future::err(()))
+			}
+		};
+
 		let inner_exit = exit.clone();
 		let work = client.import_notification_stream()
-			.map(|v| Ok::<_, ()>(v)).compat()
+			.map(|v| Ok::<_, ()>(v))
+			.compat()
 			.for_each(move |notification| {
 				macro_rules! try_fr {
 					($e:expr) => {
