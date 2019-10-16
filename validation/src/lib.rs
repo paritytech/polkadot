@@ -763,7 +763,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			self.believed_minimum_timestamp,
 			&self.parent_hash,
 			self.parent_number,
-			&active_parachains,
+			&active_parachains[..],
 		).is_ok());
 
 		Ok(new_block)
