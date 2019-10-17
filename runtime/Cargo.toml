@@ -57,9 +57,9 @@ primitives = { package = "polkadot-primitives", path = "../primitives", default-
 polkadot-parachain = { path = "../parachain", default-features = false }
 
 [dev-dependencies]
-hex-literal = "0.2.1"
-libsecp256k1 = "0.2.1"
-tiny-keccak = "1.5.0"
+hex-literal = "0.2.0"
+libsecp256k1 = "0.3.1"
+tiny-keccak = "1.4.2"
 keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "kiz-generic-weight-stuff" }
 substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "kiz-generic-weight-stuff" }
 trie-db = "0.15"

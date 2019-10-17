@@ -892,7 +892,7 @@ mod tests {
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
 		Perbill,
-		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize},
+		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},
 		testing::{UintAuthorityId, Header},
 		curve::PiecewiseLinear,
 	};
@@ -939,7 +939,6 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
-		type WeightMultiplierUpdate = ();
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
@@ -997,8 +996,6 @@ mod tests {
 		pub const ExistentialDeposit: Balance = 0;
 		pub const TransferFee: Balance = 0;
 		pub const CreationFee: Balance = 0;
-		pub const TransactionBaseFee: Balance = 0;
-		pub const TransactionByteFee: Balance = 0;
 	}
 
 	impl balances::Trait for Test {
@@ -1006,15 +1003,11 @@ mod tests {
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
 		type Event = ();
-		type TransactionPayment = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
-		type TransactionBaseFee = TransactionBaseFee;
-		type TransactionByteFee = TransactionByteFee;
-		type WeightToFee = ConvertInto;
 	}
 
 	srml_staking_reward_curve::build! {

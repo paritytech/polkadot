@@ -820,7 +820,7 @@ mod tests {
 	use substrate_primitives::H256;
 	use sr_primitives::{
 		Perbill, testing::Header,
-		traits::{ConvertInto, BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
+		traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
 	};
 	use srml_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
 	use balances;
@@ -850,7 +850,6 @@ mod tests {
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
-		type WeightMultiplierUpdate = ();
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
@@ -864,8 +863,6 @@ mod tests {
 		pub const ExistentialDeposit: u64 = 0;
 		pub const TransferFee: u64 = 0;
 		pub const CreationFee: u64 = 0;
-		pub const TransactionBaseFee: u64 = 0;
-		pub const TransactionByteFee: u64 = 0;
 	}
 
 	impl balances::Trait for Test {
@@ -873,15 +870,11 @@ mod tests {
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
 		type Event = ();
-		type TransactionPayment = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
-		type TransactionBaseFee = TransactionBaseFee;
-		type TransactionByteFee = TransactionByteFee;
-		type WeightToFee = ConvertInto;
 	}
 
 	thread_local! {
