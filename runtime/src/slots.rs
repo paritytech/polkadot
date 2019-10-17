@@ -905,19 +905,19 @@ mod tests {
 			initial_head_data: Vec<u8>
 		) -> Result<(), &'static str> {
 			PARACHAINS.with(|p| {
-				if p.borrow().contains_key(&id.into_inner()) {
+				if p.borrow().contains_key(&id.into()) {
 					panic!("ID already exists")
 				}
-				p.borrow_mut().insert(id.into_inner(), (code, initial_head_data));
+				p.borrow_mut().insert(id.into(), (code, initial_head_data));
 				Ok(())
 			})
 		}
 		fn deregister_para(id: ParaId) -> Result<(), &'static str> {
 			PARACHAINS.with(|p| {
-				if !p.borrow().contains_key(&id.into_inner()) {
+				if !p.borrow().contains_key(&id.into()) {
 					panic!("ID doesn't exist")
 				}
-				p.borrow_mut().remove(&id.into_inner());
+				p.borrow_mut().remove(&id.into());
 				Ok(())
 			})
 		}
