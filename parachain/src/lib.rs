@@ -53,7 +53,7 @@ pub mod wasm_api;
 
 use rstd::vec::Vec;
 
-use codec::{Encode, Decode};
+use codec::{Encode, Decode, CompactAs};
 use substrate_primitives::TypeId;
 
 /// Validation parameters for evaluating the parachain validity function.
@@ -79,7 +79,7 @@ pub struct ValidationResult {
 }
 
 /// Unique identifier of a parachain.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Default, Clone, Copy, Encode, Decode)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Default, Clone, Copy, Encode, Decode, CompactAs)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, Debug))]
 pub struct Id(u32);
 
@@ -91,21 +91,6 @@ impl TypeId for Id {
 pub trait ActiveThreads {
 	/// Return the current ordered set of `Id`s of active parathreads.
 	fn active_threads() -> Vec<Id>;
-}
-
-impl codec::CompactAs for Id {
-	type As = u32;
-	fn encode_as(&self) -> &u32 {
-		&self.0
-	}
-	fn decode_from(x: u32) -> Self {
-		Self(x)
-	}
-}
-impl From<codec::Compact<Id>> for Id {
-	fn from(x: codec::Compact<Id>) -> Id {
-		x.0
-	}
 }
 
 impl From<Id> for u32 {
@@ -122,13 +107,21 @@ const USER_INDEX_START: u32 = 1000;
 pub const LOWEST_USER_ID: Id = Id(USER_INDEX_START);
 
 impl Id {
-	/// Convert this Id into its inner representation.
-	pub fn into_inner(self) -> u32 {
-		self.0
+	/// Create an `Id`.
+	pub const fn new(id: u32) -> Self {
+		Self(id)
 	}
 
 	/// Returns `true` if this parachain runs with system-level privileges.
 	pub fn is_system(&self) -> bool { self.0 < USER_INDEX_START }
+}
+
+impl rstd::ops::Add<u32> for Id {
+	type Output = Self;
+
+	fn add(self, other: u32) -> Self {
+		Self(self.0 + other)
+	}
 }
 
 // TODO: Remove all of this, move sr-primitives::AccountIdConversion to own crate and and use that.

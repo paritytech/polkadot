@@ -829,7 +829,7 @@ mod tests {
 	}
 
 	fn user_id(i: u32) -> ParaId {
-		(LOWEST_USER_ID.into_inner() + i).into()
+		LOWEST_USER_ID + i
 	}
 
 	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], block_data: &[u8]) -> AttestedCandidate {
