@@ -72,7 +72,7 @@ pub trait Worker: IntoExit {
 
 #[derive(Debug, StructOpt, Clone)]
 enum PolkadotSubCommands {
-	#[structopt(name = "validation-worker", raw(setting = "structopt::clap::AppSettings::Hidden"))]
+	#[structopt(name = "validation-worker", setting = structopt::clap::AppSettings::Hidden)]
 	ValidationWorker(ValidationWorkerCommand),
 }
 

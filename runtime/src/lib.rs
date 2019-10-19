@@ -70,7 +70,7 @@ pub use srml_support::StorageValue;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
-use impls::{CurrencyToVoteHandler, WeightMultiplierUpdateHandler, ToAuthor, WeightToFee};
+use impls::{CurrencyToVoteHandler, FeeMultiplierUpdateHandler, ToAuthor, WeightToFee};
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -157,7 +157,6 @@ impl system::Trait for Runtime {
 	type AccountId = AccountId;
 	type Lookup = Indices;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
-	type WeightMultiplierUpdate = WeightMultiplierUpdateHandler;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type MaximumBlockWeight = MaximumBlockWeight;
@@ -190,8 +189,6 @@ parameter_types! {
 	pub const ExistentialDeposit: Balance = 10 * CENTS;
 	pub const TransferFee: Balance = 1 * CENTS;
 	pub const CreationFee: Balance = 1 * CENTS;
-	pub const TransactionBaseFee: Balance = 1 * CENTS;
-	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
 }
 
 /// Splits fees 80/20 between treasury and block author.
@@ -207,15 +204,25 @@ impl balances::Trait for Runtime {
 	type OnFreeBalanceZero = Staking;
 	type OnNewAccount = Indices;
 	type Event = Event;
-	type TransactionPayment = DealWithFees;
 	type DustRemoval = ();
 	type TransferPayment = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type TransferFee = TransferFee;
 	type CreationFee = CreationFee;
+}
+
+parameter_types! {
+	pub const TransactionBaseFee: Balance = 1 * CENTS;
+	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
+}
+
+impl transaction_payment::Trait for Runtime {
+	type Currency = Balances;
+	type OnTransactionPayment = DealWithFees;
 	type TransactionBaseFee = TransactionBaseFee;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
+	type FeeMultiplierUpdate = FeeMultiplierUpdateHandler;
 }
 
 parameter_types! {
@@ -527,6 +534,7 @@ construct_runtime!(
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
 		Indices: indices,
 		Balances: balances::{Module, Call, Storage, Config<T>, Event<T>},
+		TransactionPayment: transaction_payment::{Module, Storage},
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
@@ -579,7 +587,7 @@ pub type SignedExtra = (
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
-	balances::TakeFees<Runtime>,
+	transaction_payment::ChargeTransactionPayment::<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
