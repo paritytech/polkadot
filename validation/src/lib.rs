@@ -487,7 +487,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxApi> where
 	C: Collators + Send + 'static,
 	N: Network,
-	TxApi: PoolChainApi<Block=Block>,
+	TxApi: PoolChainApi<Block=Block> + 'static,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
@@ -542,19 +542,24 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 	slot_duration: u64,
 }
 
+type Proof = Vec<Vec<u8>>;
+
 impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
-	TxApi: PoolChainApi<Block=Block>,
-	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
+	TxApi: PoolChainApi<Block=Block> + 'static,
+	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
 	type Error = Error;
-	type Create = Either<CreateProposal<C, TxApi>, future::Ready<Result<Block, Error>>>;
+	type Proposal = Either<
+		CreateProposal<C, TxApi>, future::Ready<Result<(Block, Option<Proof>), Error>>
+	>;
 
 	fn propose(&mut self,
 		inherent_data: InherentData,
 		inherent_digests: DigestFor<Block>,
 		max_duration: Duration,
-	) -> Self::Create {
+		record_proof: bool,
+	) -> Self::Proposal {
 		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
 		const SLOT_DURATION_DENOMINATOR: u64 = 3; // wait up to 1/3 of the slot for candidates.
 
@@ -614,6 +619,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 			inherent_digests,
 			// leave some time for the proposal finalisation
 			deadline,
+			record_proof,
 		})
 	}
 }
@@ -683,6 +689,7 @@ pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 	inherent_data: Option<InherentData>,
 	inherent_digests: DigestFor<Block>,
 	deadline: Instant,
+	record_proof: bool,
 }
 
 impl<C, TxApi> CreateProposal<C, TxApi> where
@@ -690,7 +697,10 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
-	fn propose_with(&mut self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
+	fn propose_with(
+		&mut self,
+		candidates: Vec<AttestedCandidate>,
+	) -> Result<(Block, Option<Proof>), Error> {
 		use client::block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
@@ -699,11 +709,19 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let mut inherent_data = self.inherent_data
 			.take()
 			.expect("CreateProposal is not polled after finishing; qed");
-		inherent_data.put_data(polkadot_runtime::NEW_HEADS_IDENTIFIER, &candidates).map_err(Error::InherentError)?;
+		inherent_data.put_data(
+			polkadot_runtime::NEW_HEADS_IDENTIFIER,
+			&candidates,
+		).map_err(Error::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
 
-		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false, self.inherent_digests.clone())?;
+		let mut block_builder = BlockBuilder::at_block(
+			&self.parent_id,
+			&*self.client,
+			self.record_proof,
+			self.inherent_digests.clone(),
+		)?;
 
 		{
 			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
@@ -744,7 +762,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			self.transaction_pool.remove_invalid(&unqueue_invalid);
 		}
 
-		let new_block = block_builder.bake()?;
+		let (new_block, proof) = block_builder.bake_and_extract_proof()?;
 
 		info!("Prepared block for proposing at {} [hash: {:?}; parent_hash: {}; extrinsics: [{}]]",
 			new_block.header.number,
@@ -766,7 +784,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 			&active_parachains[..],
 		).is_ok());
 
-		Ok(new_block)
+		Ok((new_block, proof))
 	}
 }
 
@@ -775,7 +793,7 @@ impl<C, TxApi> futures03::Future for CreateProposal<C, TxApi> where
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
 {
-	type Output = Result<Block, Error>;
+	type Output = Result<(Block, Option<Proof>), Error>;
 
 	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> futures03::Poll<Self::Output> {
 		// 1. try to propose if we have enough includable candidates and other
