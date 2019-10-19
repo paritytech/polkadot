@@ -1150,7 +1150,7 @@ mod tests {
 
 		GenesisConfig {
 			authorities: authorities.clone(),
-		}.assimilate_storage(&mut t).unwrap();
+		}.assimilate_storage::<Test>(&mut t).unwrap();
 
 		registrar::GenesisConfig::<Test> {
 			parachains,
