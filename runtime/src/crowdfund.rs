@@ -508,7 +508,7 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sr_primitives::{
 		Perbill, Permill, testing::Header,
-		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup, ConvertInto},
+		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup},
 	};
 	use crate::registrar::Registrar;
 
@@ -537,7 +537,6 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type WeightMultiplierUpdate = ();
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
@@ -551,23 +550,17 @@ mod tests {
 		// that our module correctly avoids these fees :)
 		pub const TransferFee: u64 = 10;
 		pub const CreationFee: u64 = 10;
-		pub const TransactionBaseFee: u64 = 0;
-		pub const TransactionByteFee: u64 = 0;
 	}
 	impl balances::Trait for Test {
 		type Balance = u64;
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
 		type Event = ();
-		type TransactionPayment = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
-		type TransactionBaseFee = TransactionBaseFee;
-		type TransactionByteFee = TransactionByteFee;
-		type WeightToFee = ConvertInto;
 	}
 
 	parameter_types! {
