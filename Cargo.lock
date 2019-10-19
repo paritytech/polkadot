@@ -24,6 +24,7 @@ dependencies = [
  "polkadot-collator 0.6.0",
  "polkadot-parachain 0.6.0",
  "polkadot-primitives 0.6.0",
+ "substrate-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
