@@ -894,7 +894,7 @@ mod tests {
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
 		Perbill,
-		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},
+		traits::{BlakeTwo256, IdentityLookup, OnInitialize},
 		testing::{UintAuthorityId, Header},
 		curve::PiecewiseLinear,
 	};
