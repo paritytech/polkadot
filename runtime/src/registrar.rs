@@ -578,7 +578,7 @@ mod tests {
 	use substrate_primitives::{H256, Pair};
 	use sr_primitives::{
 		traits::{
-			BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize, Dispatchable,
+			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, Dispatchable,
 			AccountIdConversion,
 		}, testing::{UintAuthorityId, Header}, Perbill
 	};
@@ -629,7 +629,6 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
-		type WeightMultiplierUpdate = ();
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
@@ -642,8 +641,6 @@ mod tests {
 		pub const ExistentialDeposit: Balance = 0;
 		pub const TransferFee: Balance = 0;
 		pub const CreationFee: Balance = 0;
-		pub const TransactionBaseFee: Balance = 0;
-		pub const TransactionByteFee: Balance = 0;
 	}
 
 	impl balances::Trait for Test {
@@ -651,15 +648,11 @@ mod tests {
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
 		type Event = ();
-		type TransactionPayment = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
-		type TransactionBaseFee = TransactionBaseFee;
-		type TransactionByteFee = TransactionByteFee;
-		type WeightToFee = ConvertInto;
 	}
 
 	parameter_types!{
@@ -829,7 +822,7 @@ mod tests {
 	}
 
 	fn user_id(i: u32) -> ParaId {
-		(LOWEST_USER_ID.into_inner() + i).into()
+		LOWEST_USER_ID + i
 	}
 
 	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], block_data: &[u8]) -> AttestedCandidate {
