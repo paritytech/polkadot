@@ -120,8 +120,7 @@ macro_rules! new_full_start {
 			})?
 			.with_rpc_extensions(|client, pool| -> polkadot_rpc::RpcExtension {
 				polkadot_rpc::create(client, pool)
-			})?
-			;
+			})?;
 
 		(builder, import_setup, inherent_data_providers)
 	}}

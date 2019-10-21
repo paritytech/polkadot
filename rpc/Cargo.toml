@@ -13,4 +13,3 @@ substrate-rpc = { git = "https://github.com/paritytech/substrate", branch = "pol
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
 srml-system-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
 
-
