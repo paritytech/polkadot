@@ -425,13 +425,20 @@ pub fn validate_collation<P>(
 			.collect()
 	};
 
-	let mut overlayed_changes = state_machine::OverlayedChanges::new();
-	let mut ext = state_machine::Ext::new(&mut overlayed_changes, *client.backend(), None, None);
+	let mut overlayed_changes = state_machine::OverlayedChanges::default();
+	let backend = state_machine::backend::InMemory::<primitives::Blake2Hasher>::default();
+	let mut ext = state_machine::Ext::<_, _, _, state_machine::InMemoryChangesTrieStorage<primitives::Blake2Hasher, u64>>::new(
+		&mut overlayed_changes,
+		&backend,
+		None,
+		None,
+	);
 
 	match wasm_executor::validate_candidate(&validation_code, params, &mut ext, ExecutionMode::Local) {
 		Ok(result) => {
 			if result.head_data == collation.receipt.head_data.0 {
-				ext.final_checks(&collation.receipt)
+				//ext.final_checks(&collation.receipt)
+				Ok(OutgoingMessages { outgoing_messages: Vec::new() })
 			} else {
 				Err(Error::WrongHeadData {
 					expected: collation.receipt.head_data.0.clone(),
