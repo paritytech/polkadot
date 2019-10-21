@@ -258,8 +258,6 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		let babe = start_babe(babe_config)?;
 		let select = babe.select(service.on_exit()).then(|_| Ok(()));
 		service.spawn_essential_task(Box::new(select));
-	} else {
-		network_gossip::register_non_authority_validator(service.network());
 	}
 
 	let config = grandpa::Config {
