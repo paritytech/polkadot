@@ -325,7 +325,7 @@ impl Externalities for WorkerExternalities {
 /// Validate a candidate under the given validation code.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
-pub fn validate_candidate<E: Externalities>(
+pub fn validate_candidate<E: substrate_externalities::Externalities>(
 	validation_code: &[u8],
 	params: ValidationParams,
 	externalities: &mut E,
@@ -354,102 +354,19 @@ pub fn validate_candidate<E: Externalities>(
 /// Validate a candidate under the given validation code.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
-pub fn validate_candidate_internal<E: Externalities>(
+pub fn validate_candidate_internal<E: substrate_externalities::Externalities>(
 	validation_code: &[u8],
 	encoded_call_data: &[u8],
 	externalities: &mut E,
-	) -> Result<ValidationResult, Error> {
-	use wasmi::LINEAR_MEMORY_PAGE_SIZE;
-
-	// instantiate the module.
-	let memory;
-	let mut externals;
-	let module = {
-		let module = Module::from_buffer(validation_code)?;
-
-		let module_resolver = Resolver {
-			max_memory: (MAX_RUNTIME_MEM / LINEAR_MEMORY_PAGE_SIZE.0) as u32,
-			memory: RefCell::new(None),
-		};
-
-		let module = ModuleInstance::new(
-			&module,
-			&wasmi::ImportsBuilder::new().with_resolver("env", &module_resolver),
-		)?;
-
-		memory = module_resolver.memory.borrow()
-			.as_ref()
-			.ok_or_else(|| WasmError::Instantiation("No imported memory instance".to_owned()))?
-			.clone();
-
-		externals = ValidationExternals {
-			externalities,
-			memory: &memory,
-		};
-
-		module.run_start(&mut externals).map_err(WasmError::Trap)?
-	};
-
-	// allocate call data in memory.
-	// we guarantee that:
-	// - `offset` has alignment at least of 8,
-	// - `len` is not zero.
-	let (offset, len) = {
-		// hard limit from WASM.
-		if encoded_call_data.len() > i32::max_value() as usize {
-			return Err(Error::ParamsTooLarge(encoded_call_data.len()));
-		}
-
-		// allocate sufficient amount of wasm pages to fit encoded call data.
-		let call_data_pages: Pages = Bytes(encoded_call_data.len()).round_up_to();
-		let allocated_mem_start: Bytes = memory.grow(call_data_pages)?.into();
-
-		memory.set(allocated_mem_start.0 as u32, &encoded_call_data)
-			.expect(
-				"enough memory allocated just before this; \
-				copying never fails if memory is large enough; qed"
-			);
-
-		(allocated_mem_start.0, encoded_call_data.len())
-	};
-
-	let output = module.invoke_export(
+) -> Result<ValidationResult, Error> {
+	let res = substrate_executor::call_in_wasm(
 		"validate_block",
-		&[RuntimeValue::I32(offset as i32), RuntimeValue::I32(len as i32)],
-		&mut externals,
-	).map_err(|e| -> Error {
-		e.as_host_error()
-			.and_then(|he| he.downcast_ref::<ExternalitiesError>())
-			.map(|ee| Error::Externalities(ee.clone()))
-			.unwrap_or_else(move || e.into())
-	})?;
+		encoded_call_data,
+		substrate_executor::WasmExecutionMethod::Interpreted,
+		externalities,
+		validation_code,
+		1024,
+	).map_err(|e| Error::External(format!("{:?}", e)))?;
 
-	match output {
-		Some(RuntimeValue::I32(len_offset)) => {
-			let len_offset = len_offset as u32;
-
-			let mut len_bytes = [0u8; 4];
-			memory.get_into(len_offset, &mut len_bytes)?;
-			let len_offset = len_offset as usize;
-
-			let len = u32::decode(&mut &len_bytes[..])
-				.map_err(|_| Error::BadReturn)? as usize;
-
-			let return_offset = if len > len_offset {
-				return Err(Error::BadReturn);
-			} else {
-				len_offset - len
-			};
-
-			memory.with_direct_access(|mem| {
-				if mem.len() < return_offset + len {
-					return Err(Error::BadReturn);
-				}
-
-				ValidationResult::decode(&mut &mem[return_offset..][..len])
-					.map_err(|_| Error::BadReturn.into())
-			})
-		}
-		_ => Err(Error::BadReturn),
-	}
+	ValidationResult::decode(&mut &res[..]).map_err(|_| Error::BadReturn.into())
 }

@@ -425,16 +425,10 @@ pub fn validate_collation<P>(
 			.collect()
 	};
 
-	let mut ext = Externalities {
-		parachain_index: collation.receipt.parachain_index.clone(),
-		outgoing: Vec::new(),
-		upward: Vec::new(),
-		free_balance: chain_status.balance,
-		fee_schedule: chain_status.fee_schedule,
-		fees_charged: 0,
-	};
+	let mut overlayed_changes = state_machine::OverlayedChanges::new();
+	let mut ext = state_machine::Ext::new(&mut overlayed_changes, *client.backend(), None, None);
 
-	match wasm_executor::validate_candidate(&validation_code, params, &mut ext, ExecutionMode::Remote) {
+	match wasm_executor::validate_candidate(&validation_code, params, &mut ext, ExecutionMode::Local) {
 		Ok(result) => {
 			if result.head_data == collation.receipt.head_data.0 {
 				ext.final_checks(&collation.receipt)

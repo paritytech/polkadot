@@ -2753,6 +2753,7 @@ dependencies = [
  "serde 1.0.101 (registry+https://github.com/rust-lang/crates.io-index)",
  "shared_memory 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
+ "substrate-executor 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmi 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)",

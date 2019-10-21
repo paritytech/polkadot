@@ -31,6 +31,7 @@ bitvec = { version = "0.14.0", default-features = false, features = ["alloc"] }
 runtime_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+state-machine = { package = "substrate-state-machine", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }

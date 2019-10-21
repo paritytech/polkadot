@@ -52,92 +52,7 @@ lazy_static::lazy_static! {
 /// Validation worker process entry point. Runs a loop waiting for candidates to validate
 /// and sends back results via shared memory.
 pub fn run_worker(mem_id: &str) -> Result<(), String> {
-	let mut memory = match SharedMem::open(mem_id) {
-		Ok(memory) => memory,
-		Err(e) => {
-			debug!("Error opening shared memory: {:?}", e);
-			return Err(format!("Error opening shared memory: {:?}", e));
-		}
-	};
-	let mut externalities = WorkerExternalities::default();
 
-	let exit = Arc::new(atomic::AtomicBool::new(false));
-	// spawn parent monitor thread
-	let watch_exit = exit.clone();
-	std::thread::spawn(move || {
-		use std::io::Read;
-		let mut in_data = Vec::new();
-		std::io::stdin().read_to_end(&mut in_data).ok(); // pipe terminates when parent process exits
-		debug!("Parent process is dead. Exiting");
-		exit.store(true, atomic::Ordering::Relaxed);
-	});
-
-	memory.set(Event::WorkerReady as usize, EventState::Signaled)
-		.map_err(|e| format!("Error setting shared event: {:?}", e))?;
-
-	loop {
-		if watch_exit.load(atomic::Ordering::Relaxed) {
-			break;
-		}
-
-		debug!("Waiting for candidate");
-		match memory.wait(Event::CandidateReady as usize, shared_memory::Timeout::Sec(1)) {
-			Err(e) => {
-				// Timeout
-				trace!("Timeout waiting for candidate: {:?}", e);
-				continue;
-			}
-			Ok(()) => {}
-		}
-
-		{
-			debug!("Processing candidate");
-			// we have candidate data
-			let mut slice = memory.wlock_as_slice(0)
-				.map_err(|e| format!("Error locking shared memory: {:?}", e))?;
-
-			let result = {
-				let data: &mut[u8] = &mut **slice;
-				let (header_buf, rest) = data.split_at_mut(1024);
-				let mut header_buf: &[u8] = header_buf;
-				let header = ValidationHeader::decode(&mut header_buf)
-					.map_err(|_| format!("Error decoding validation request."))?;
-				debug!("Candidate header: {:?}", header);
-				let (code, rest) = rest.split_at_mut(MAX_CODE_MEM);
-				let (code, _) = code.split_at_mut(header.code_size as usize);
-				let (call_data, rest) = rest.split_at_mut(MAX_RUNTIME_MEM);
-				let (call_data, _) = call_data.split_at_mut(header.params_size as usize);
-				let message_data = rest;
-
-				let result = validate_candidate_internal(code, call_data, &mut externalities);
-				debug!("Candidate validated: {:?}", result);
-
-				match result {
-					Ok(r) => {
-						if externalities.egress_data.len() + externalities.up_data.len() > MAX_MESSAGE_MEM {
-							ValidationResultHeader::Error("Message data is too large".into())
-						} else {
-							let e_len = externalities.egress_data.len();
-							let up_len = externalities.up_data.len();
-							message_data[0..e_len].copy_from_slice(&externalities.egress_data);
-							message_data[e_len..(e_len + up_len)].copy_from_slice(&externalities.up_data);
-							ValidationResultHeader::Ok {
-								result: r,
-								egress_message_count: externalities.egress_message_count as u64,
-								up_message_count: externalities.up_message_count as u64,
-							}
-						}
-					},
-					Err(e) => ValidationResultHeader::Error(e.to_string()),
-				}
-			};
-			let mut data: &mut[u8] = &mut **slice;
-			result.encode_to(&mut data);
-		}
-		debug!("Signaling result");
-		memory.set(Event::ResultReady as usize, EventState::Signaled)
-			.map_err(|e| format!("Error setting shared event: {:?}", e))?;
-	}
 	Ok(())
 }
 
@@ -170,7 +85,7 @@ struct ValidationHost {
 /// Validate a candidate under the given validation code.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
-pub fn validate_candidate<E: Externalities>(
+pub fn validate_candidate<E: substrate_externalities::Externalities>(
 	validation_code: &[u8],
 	params: ValidationParams,
 	externalities: &mut E,
@@ -234,7 +149,7 @@ impl ValidationHost {
 	/// Validate a candidate under the given validation code.
 	///
 	/// This will fail if the validation code is not a proper parachain validation module.
-	pub fn validate_candidate<E: Externalities>(
+	pub fn validate_candidate<E: substrate_externalities::Externalities>(
 		&mut self,
 		validation_code: &[u8],
 		params: ValidationParams,
@@ -300,7 +215,7 @@ impl ValidationHost {
 							target: message.source,
 							data: &message.data,
 						};
-						externalities.post_message(message_ref)?;
+						//externalities.post_message(message_ref)?;
 					}
 					for _ in 0 .. up_message_count {
 						let message = UpwardMessage::decode(&mut message_data).unwrap();
@@ -308,11 +223,16 @@ impl ValidationHost {
 							origin: message.origin,
 							data: &message.data,
 						};
-						externalities.post_upward_message(message_ref)?;
+						//externalities.post_upward_message(message_ref)?;
 					}
+
+					debug!("Candidate validation successful: {:?}", result);
+
 					Ok(result)
 				}
 				ValidationResultHeader::Error(message) => {
+					debug!("Candidate validation failed: {}", message);
+
 					Err(Error::External(message).into())
 				}
 			}
