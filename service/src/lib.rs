@@ -269,8 +269,6 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			dht_event_rx,
 		);
 		service.spawn_task(authority_discovery);
-	} else {
-		network_gossip::register_non_authority_validator(service.network());
 	}
 
 	let config = grandpa::Config {
