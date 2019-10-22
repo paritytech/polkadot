@@ -45,7 +45,7 @@ pub fn write_result(result: ValidationResult) -> u64 {
 	let len = encoded.len();
 
 	assert!(len <= u32::max_value() as usize, "Len too large for parachain-WASM abi");
-	let res = encoded.as_ptr() as u64 || ((encoded.len() as u64) << 32);
+	let res = encoded.as_ptr() as u64 | ((encoded.len() as u64) << 32);
 
 	// leak so it doesn't get zeroed.
 	rstd::mem::forget(encoded);
