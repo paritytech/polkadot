@@ -38,21 +38,19 @@ pub unsafe fn load_params(params: *const u8, len: usize) -> ValidationParams {
 
 /// Allocate the validation result in memory, getting the return-pointer back.
 ///
-/// As described in the crate docs, this is a pointer to the appended length
-/// of the vector.
-pub fn write_result(result: ValidationResult) -> usize {
+/// As described in the crate docs, this is a value holding the pointer to the encoded data and the
+/// length of this data.
+pub fn write_result(result: ValidationResult) -> u64 {
 	let mut encoded = result.encode();
 	let len = encoded.len();
 
 	assert!(len <= u32::max_value() as usize, "Len too large for parachain-WASM abi");
-	(len as u32).using_encoded(|s| encoded.extend(s));
-
-	// do not alter `encoded` beyond this point. may reallocate.
-	let end_ptr = &encoded[len] as *const u8 as usize;
+	let res = encoded.as_ptr() as u64 || ((encoded.len() as u64) << 32);
 
 	// leak so it doesn't get zeroed.
 	rstd::mem::forget(encoded);
-	end_ptr
+
+	res
 }
 
 /// Post a message to another parachain.
