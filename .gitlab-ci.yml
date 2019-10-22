@@ -115,15 +115,23 @@ build-linux-release:               &build
     - time cargo build --release --verbose
     - mkdir -p ./artifacts
     - mv ./target/release/polkadot ./artifacts/.
-    - echo -n "Polkadot version = "
-    - if [ "${CI_COMMIT_TAG}" ]; then
-        echo "${CI_COMMIT_TAG}" | tee ./artifacts/VERSION;
-      else
-        ./artifacts/polkadot --version |
-        sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p' |
-        tee ./artifacts/VERSION;
-      fi
     - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
+    - if [ "${CI_COMMIT_TAG}" ]; then
+        VERSION="${CI_COMMIT_TAG}";
+      else
+        VERSION="$(./artifacts/polkadot --version |
+          sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
+        VERSION="${VERSION}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
+      fi
+    - LATEST_BRANCH="$(ls -1 .git/refs/remotes/origin/ | sed -r -n 's:v([0-9]+)\.([0-9]+):v\1.\2:p' | sort -V | tail -n1)"
+    - if expr match x${CI_COMMIT_TAG} x${LATEST_BRANCH}; then
+        EXTRATAG="latest";
+      else
+        EXTRATAG="latest-${CI_COMMIT_REF_NAME}";
+      fi
+    - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
+    - echo -n ${VERSION} > ./artifacts/VERSION
+    - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/docker/* ./artifacts
     - sccache -s
 
@@ -139,18 +147,11 @@ build-linux-release:               &build
   <<:                              *kubernetes-env
   before_script:
     - test -s ./artifacts/VERSION || exit 1
-    - LATEST_BRANCH="$(ls -1 .git/refs/remotes/origin/ | sed -r -n 's:v([0-9]+)\.([0-9]+):v\1.\2:p' | sort -V | tail -n1)"
-    - if [ "${CI_COMMIT_TAG}" ]; then
-        VERSION="${CI_COMMIT_TAG}";
-      else
-        VERSION="$(cat ./artifacts/VERSION)-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
-      fi
-    - if expr match x${CI_COMMIT_TAG} x${LATEST_BRANCH}; then 
-        EXTRATAG="latest";
-      else
-        EXTRATAG="latest-${CI_COMMIT_REF_NAME}";
-      fi
-    - echo "Polkadot version = ${VERSION} (TAG ${EXTRATAG})"
+    - test -s ./artifacts/EXTRATAG || exit 1
+    - VERSION="$(cat ./artifacts/VERSION)"
+    - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
+    - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
+
 
 
 
@@ -159,7 +160,6 @@ publish-docker-release:
   image:                           docker:stable
   services:
     - docker:dind
-  # collect VERSION artifact here to pass it on to kubernetes
   <<:                              *collect-artifacts
   variables:
     DOCKER_HOST:                   tcp://localhost:2375
@@ -196,8 +196,9 @@ publish-s3-release:
     BUCKET:                        "releases.parity.io"
     PREFIX:                        "polkadot/${ARCH}-${DOCKER_OS}"
   script:
+    - echo "uploading objects to ${BUCKET}/${PREFIX}/${VERSION}"
     - aws s3 sync ./artifacts/ s3://${BUCKET}/${PREFIX}/${VERSION}/
-    - echo "update objects in latest path"
+    - echo "update objects at ${BUCKET}/${PREFIX}/${EXTRATAG}/${name}"
     - for file in ./artifacts/*; do
       name="$(basename ${file})";
       aws s3api copy-object
