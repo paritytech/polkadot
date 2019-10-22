@@ -32,6 +32,7 @@ authority-discovery = { package = "srml-authority-discovery", git = "https://git
 authorship = { package = "srml-authorship", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+transaction-payment = { package = "srml-transaction-payment", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 collective = { package = "srml-collective", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 democracy = { package = "srml-democracy", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 elections = { package = "srml-elections", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -57,7 +58,7 @@ polkadot-parachain = { path = "../parachain", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.0"
-libsecp256k1 = "0.2.1"
+libsecp256k1 = "0.3.1"
 tiny-keccak = "1.4.2"
 keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
@@ -88,6 +89,7 @@ std = [
 	"srml-support/std",
 	"authorship/std",
 	"balances/std",
+	"transaction-payment/std",
 	"collective/std",
 	"elections/std",
 	"democracy/std",

@@ -155,7 +155,7 @@ const WATERMARK_QUEUE_SIZE: usize = 20000;
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		/// All authorities' keys at the moment.
-		pub Authorities get(authorities) config(authorities): Vec<ValidatorId>;
+		pub Authorities get(authorities): Vec<ValidatorId>;
 		/// The parachains registered at present.
 		pub Code get(parachain_code): map ParaId => Option<Vec<u8>>;
 		/// The heads of the parachains registered at present.
@@ -186,6 +186,10 @@ decl_storage! {
 		///
 		/// None if not yet updated.
 		pub DidUpdate: Option<Vec<ParaId>>;
+	}
+	add_extra_genesis {
+		config(authorities): Vec<ValidatorId>;
+		build(|config| Module::<T>::initialize_authorities(&config.authorities))
 	}
 }
 
@@ -814,6 +818,13 @@ impl<T: Trait> Module<T> {
 		})
 	}
 
+	fn initialize_authorities(authorities: &[ValidatorId]) {
+		if !authorities.is_empty() {
+			assert!(Authorities::get().is_empty(), "Authorities are already initialized!");
+			Authorities::put(authorities);
+		}
+	}
+
 /*
 	// TODO: Consider integrating if needed. (https://github.com/paritytech/polkadot/issues/223)
 	/// Extract the parachain heads from the block.
@@ -837,14 +848,14 @@ impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	fn on_genesis_session<'a, I: 'a>(validators: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
-		<Self as Store>::Authorities::put(&validators.map(|(_, key)| key).collect::<Vec<_>>())
+		Self::initialize_authorities(&validators.map(|(_, key)| key).collect::<Vec<_>>());
 	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, _queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
 		if changed {
-			Self::on_genesis_session(validators)
+			<Self as Store>::Authorities::put(validators.map(|(_, key)| key).collect::<Vec<_>>());
 		}
 	}
 
@@ -892,7 +903,7 @@ mod tests {
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
 		Perbill,
-		traits::{BlakeTwo256, IdentityLookup, ConvertInto, OnInitialize, OnFinalize},
+		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},
 		testing::{UintAuthorityId, Header},
 		curve::PiecewiseLinear,
 	};
@@ -939,7 +950,6 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
-		type WeightMultiplierUpdate = ();
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
@@ -997,8 +1007,6 @@ mod tests {
 		pub const ExistentialDeposit: Balance = 0;
 		pub const TransferFee: Balance = 0;
 		pub const CreationFee: Balance = 0;
-		pub const TransactionBaseFee: Balance = 0;
-		pub const TransactionByteFee: Balance = 0;
 	}
 
 	impl balances::Trait for Test {
@@ -1006,15 +1014,11 @@ mod tests {
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
 		type Event = ();
-		type TransactionPayment = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
-		type TransactionBaseFee = TransactionBaseFee;
-		type TransactionByteFee = TransactionByteFee;
-		type WeightToFee = ConvertInto;
 	}
 
 	srml_staking_reward_curve::build! {
@@ -1139,7 +1143,7 @@ mod tests {
 
 		GenesisConfig {
 			authorities: authorities.clone(),
-		}.assimilate_storage(&mut t).unwrap();
+		}.assimilate_storage::<Test>(&mut t).unwrap();
 
 		registrar::GenesisConfig::<Test> {
 			parachains,

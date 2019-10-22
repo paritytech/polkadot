@@ -137,6 +137,20 @@ build-linux-release:               &build
   cache:                           {}
   <<:                              *build-refs
   <<:                              *kubernetes-env
+  before_script:
+    - test -s ./artifacts/VERSION || exit 1
+    - LATEST_BRANCH="$(ls -1 .git/refs/remotes/origin/ | sed -r -n 's:v([0-9]+)\.([0-9]+):v\1.\2:p' | sort -V | tail -n1)"
+    - if [ "${CI_COMMIT_TAG}" ]; then
+        VERSION="${CI_COMMIT_TAG}";
+      else
+        VERSION="$(cat ./artifacts/VERSION)-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
+      fi
+    - if expr match x${CI_COMMIT_TAG} x${LATEST_BRANCH}; then 
+        EXTRATAG="latest";
+      else
+        EXTRATAG="latest-${CI_COMMIT_REF_NAME}";
+      fi
+    - echo "Polkadot version = ${VERSION} (TAG ${EXTRATAG})"
 
 
 
@@ -153,16 +167,11 @@ publish-docker-release:
     GIT_STRATEGY:                  none
     # DOCKERFILE:                  scripts/docker/Dockerfile
     CONTAINER_IMAGE:               parity/polkadot
-  before_script:
+  script:
     - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity"
         || ( echo "no docker credentials provided"; exit 1 )
     - docker login -u "$Docker_Hub_User_Parity" -p "$Docker_Hub_Pass_Parity"
     - docker info
-  script:
-    - VERSION="$(cat ./artifacts/VERSION)"
-    - EXTRATAG="${CI_COMMIT_TAG:-latest}"
-    - echo "Polkadot version = ${VERSION}"
-    - test -z "${VERSION}" && exit 1
     - cd ./artifacts
     - docker build
       --build-arg VCS_REF="${CI_COMMIT_SHA}"
@@ -187,19 +196,16 @@ publish-s3-release:
     BUCKET:                        "releases.parity.io"
     PREFIX:                        "polkadot/${ARCH}-${DOCKER_OS}"
   script:
-    - VERSION="${CI_COMMIT_TAG:-$(cat ./artifacts/VERSION)}"
-    # LATEST_BRANCH will be empty if it's not a tag build i.e. CI_COMMIT_TAG is unset
-    - LATEST_BRANCH="$(echo $CI_COMMIT_TAG | sed -n -r 's/^(v[0-9]+\.[0-9]+)\.[0-9]+$/\1/p')"
     - aws s3 sync ./artifacts/ s3://${BUCKET}/${PREFIX}/${VERSION}/
     - echo "update objects in latest path"
     - for file in ./artifacts/*; do
       name="$(basename ${file})";
       aws s3api copy-object
         --copy-source ${BUCKET}/${PREFIX}/${VERSION}/${name}
-        --bucket ${BUCKET} --key ${PREFIX}/latest${LATEST_BRANCH}/${name};
+        --bucket ${BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
       done
   after_script:
-    - aws s3 ls s3://${BUCKET}/${PREFIX}/latest${LATEST_BRANCH}/
+    - aws s3 ls s3://${BUCKET}/${PREFIX}/${EXTRATAG}/
         --recursive --human-readable --summarize
 
 

@@ -343,16 +343,6 @@ impl NewLeafActions {
 	}
 }
 
-/// Register a gossip validator for a non-authority node.
-pub fn register_non_authority_validator(service: Arc<PolkadotNetworkService>) {
-	service.with_gossip(|gossip, ctx|
-		gossip.register_validator(
-			ctx,
-			POLKADOT_ENGINE_ID,
-			Arc::new(substrate_network::consensus_gossip::DiscardAll)),
-	);
-}
-
 /// A registered message validator.
 ///
 /// Create this using `register_validator`.

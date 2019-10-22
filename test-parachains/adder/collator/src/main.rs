@@ -21,13 +21,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
-use substrate_primitives::Pair;
+use substrate_primitives::{Pair, Blake2Hasher};
 use parachain::codec::{Encode, Decode};
 use primitives::{
-	Hash,
-	parachain::{HeadData, BlockData, Id as ParaId, Message, OutgoingMessages, Status as ParachainStatus},
+	Hash, Block,
+	parachain::{
+		HeadData, BlockData, Id as ParaId, Message, OutgoingMessages, Status as ParachainStatus,
+	},
 };
-use collator::{InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext};
+use collator::{
+	InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext, TaskExecutor,
+};
 use parking_lot::Mutex;
 
 const GENESIS: AdderHead = AdderHead {
@@ -101,7 +105,16 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build(self, network: Arc<dyn Network>) -> Result<Self::ParachainContext, ()> {
+	fn build<B, E>(
+		self,
+		_: Arc<collator::PolkadotClient<B, E>>,
+		_: TaskExecutor,
+		network: Arc<dyn Network>,
+	) -> Result<Self::ParachainContext, ()>
+		where
+			B: client::backend::Backend<Block, Blake2Hasher> + 'static,
+			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static
+	{
 		Ok(Self { _network: Some(network), ..self })
 	}
 }

@@ -508,7 +508,7 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sr_primitives::{
 		Perbill, Permill, testing::Header,
-		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup, ConvertInto},
+		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup},
 	};
 	use crate::registrar::Registrar;
 
@@ -537,7 +537,6 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type WeightMultiplierUpdate = ();
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
@@ -551,23 +550,17 @@ mod tests {
 		// that our module correctly avoids these fees :)
 		pub const TransferFee: u64 = 10;
 		pub const CreationFee: u64 = 10;
-		pub const TransactionBaseFee: u64 = 0;
-		pub const TransactionByteFee: u64 = 0;
 	}
 	impl balances::Trait for Test {
 		type Balance = u64;
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
 		type Event = ();
-		type TransactionPayment = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
-		type TransactionBaseFee = TransactionBaseFee;
-		type TransactionByteFee = TransactionByteFee;
-		type WeightToFee = ConvertInto;
 	}
 
 	parameter_types! {
@@ -610,19 +603,19 @@ mod tests {
 			initial_head_data: Vec<u8>
 		) -> Result<(), &'static str> {
 			PARACHAINS.with(|p| {
-				if p.borrow().contains_key(&id.into_inner()) {
+				if p.borrow().contains_key(&id.into()) {
 					panic!("ID already exists")
 				}
-				p.borrow_mut().insert(id.into_inner(), (code, initial_head_data));
+				p.borrow_mut().insert(id.into(), (code, initial_head_data));
 				Ok(())
 			})
 		}
 		fn deregister_para(id: ParaId) -> Result<(), &'static str> {
 			PARACHAINS.with(|p| {
-				if !p.borrow().contains_key(&id.into_inner()) {
+				if !p.borrow().contains_key(&id.into()) {
 					panic!("ID doesn't exist")
 				}
-				p.borrow_mut().remove(&id.into_inner());
+				p.borrow_mut().remove(&id.into());
 				Ok(())
 			})
 		}

@@ -141,8 +141,8 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 {
 	use substrate_network::DhtEvent;
 
-	let is_authority = config.roles.is_authority();
 	let is_collator = config.custom.collating_for.is_some();
+	let is_authority = config.roles.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = config.custom.max_block_data_size;
 	let db_path = config.database_path.clone();
@@ -168,13 +168,6 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 
 	let (block_import, link_half, babe_link) = import_setup.take()
 		.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
-
-	if is_collator {
-		info!(
-			"The node cannot start as an authority because it is also configured to run as a collator."
-		);
-		return Ok(service);
-	}
 
 	let client = service.client();
 	let known_oracle = client.clone();
@@ -276,8 +269,6 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			dht_event_rx,
 		);
 		service.spawn_task(authority_discovery);
-	} else {
-		network_gossip::register_non_authority_validator(service.network());
 	}
 
 	let config = grandpa::Config {
@@ -307,6 +298,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 				inherent_data_providers: inherent_data_providers.clone(),
 				on_exit: service.on_exit(),
 				telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
+				voting_rule: grandpa::VotingRulesBuilder::default().build(),
 			};
 			service.spawn_essential_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
 		},

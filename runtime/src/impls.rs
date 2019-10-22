@@ -17,7 +17,7 @@
 //! Auxillary struct/enums for polkadot runtime.
 
 use primitives::Balance;
-use sr_primitives::weights::{Weight, WeightMultiplier};
+use sr_primitives::weights::Weight;
 use sr_primitives::traits::{Convert, Saturating};
 use sr_primitives::Fixed64;
 use srml_support::traits::{OnUnbalanced, Currency};
@@ -81,10 +81,10 @@ impl Convert<Weight, Balance> for WeightToFee {
 ///   next_weight = weight * (1 + (v . diff) + (v . diff)^2 / 2)
 ///
 /// https://research.web3.foundation/en/latest/polkadot/Token%20Economics/#relay-chain-transaction-fees
-pub struct WeightMultiplierUpdateHandler;
+pub struct FeeMultiplierUpdateHandler;
 
-impl Convert<(Weight, WeightMultiplier), WeightMultiplier> for WeightMultiplierUpdateHandler {
-	fn convert(previous_state: (Weight, WeightMultiplier)) -> WeightMultiplier {
+impl Convert<(Weight, Fixed64), Fixed64> for FeeMultiplierUpdateHandler {
+	fn convert(previous_state: (Weight, Fixed64)) -> Fixed64 {
 		let (block_weight, multiplier) = previous_state;
 		let max_weight = MaximumBlockWeight::get();
 		let target_weight = (TARGET_BLOCK_FULLNESS * max_weight) as u128;
@@ -112,17 +112,17 @@ impl Convert<(Weight, WeightMultiplier), WeightMultiplier> for WeightMultiplierU
 			// Note: this is merely bounded by how big the multiplier and the inner value can go,
 			// not by any economical reasoning.
 			let excess = first_term.saturating_add(second_term);
-			multiplier.saturating_add(WeightMultiplier::from_fixed(excess))
+			multiplier.saturating_add(excess)
 		} else {
-			// first_term > second_term
+			// Proof: first_term > second_term. Safe subtraction.
 			let negative = first_term - second_term;
-			multiplier.saturating_sub(WeightMultiplier::from_fixed(negative))
+			multiplier.saturating_sub(negative)
 				// despite the fact that apply_to saturates weight (final fee cannot go below 0)
 				// it is crucially important to stop here and don't further reduce the weight fee
 				// multiplier. While at -1, it means that the network is so un-congested that all
 				// transactions have no weight fee. We stop here and only increase if the network
 				// became more busy.
-				.max(WeightMultiplier::from_rational(-1, 1))
+				.max(Fixed64::from_rational(-1, 1))
 		}
 	}
 }
