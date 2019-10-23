@@ -39,7 +39,8 @@ use client::{
 	runtime_api as client_api, impl_runtime_apis,
 };
 use sr_primitives::{
-	ApplyResult, generic, Permill, Perbill, impl_opaque_keys, create_runtime_str, key_types,
+	create_runtime_str, generic, impl_opaque_keys,  key_types,
+	ApplyResult, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	weights::{Weight, DispatchInfo}, curve::PiecewiseLinear,
 	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension},
@@ -53,7 +54,7 @@ use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
 use sr_staking_primitives::SessionIndex;
 use srml_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency}
+	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness}
 };
 use im_online::sr25519::{AuthorityId as ImOnlineId};
 use system::offchain::TransactionSubmitter;
@@ -70,7 +71,7 @@ pub use srml_support::StorageValue;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
-use impls::{CurrencyToVoteHandler, WeightMultiplierUpdateHandler, ToAuthor, WeightToFee};
+use impls::{CurrencyToVoteHandler, FeeMultiplierUpdateHandler, ToAuthor, WeightToFee};
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -117,8 +118,7 @@ pub fn native_version() -> NativeVersion {
 ///
 /// RELEASE: This is only relevant for the initial PoA run-in period and may be removed
 /// from the release runtime.
-#[derive(Default, Encode, Decode, Clone, Eq, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Default, Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug)]
 pub struct OnlyStakingAndClaims;
 impl SignedExtension for OnlyStakingAndClaims {
 	type AccountId = AccountId;
@@ -157,7 +157,6 @@ impl system::Trait for Runtime {
 	type AccountId = AccountId;
 	type Lookup = Indices;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
-	type WeightMultiplierUpdate = WeightMultiplierUpdateHandler;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type MaximumBlockWeight = MaximumBlockWeight;
@@ -190,8 +189,6 @@ parameter_types! {
 	pub const ExistentialDeposit: Balance = 10 * CENTS;
 	pub const TransferFee: Balance = 1 * CENTS;
 	pub const CreationFee: Balance = 1 * CENTS;
-	pub const TransactionBaseFee: Balance = 1 * CENTS;
-	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
 }
 
 /// Splits fees 80/20 between treasury and block author.
@@ -207,15 +204,25 @@ impl balances::Trait for Runtime {
 	type OnFreeBalanceZero = Staking;
 	type OnNewAccount = Indices;
 	type Event = Event;
-	type TransactionPayment = DealWithFees;
 	type DustRemoval = ();
 	type TransferPayment = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type TransferFee = TransferFee;
 	type CreationFee = CreationFee;
+}
+
+parameter_types! {
+	pub const TransactionBaseFee: Balance = 1 * CENTS;
+	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
+}
+
+impl transaction_payment::Trait for Runtime {
+	type Currency = Balances;
+	type OnTransactionPayment = DealWithFees;
 	type TransactionBaseFee = TransactionBaseFee;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
+	type FeeMultiplierUpdate = FeeMultiplierUpdateHandler;
 }
 
 parameter_types! {
@@ -476,6 +483,7 @@ impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
+	type Randomness = RandomnessCollectiveFlip;
 }
 
 parameter_types!{
@@ -489,6 +497,7 @@ impl slots::Trait for Runtime {
 	type Parachains = parachains::Module<Self>;
 	type LeasePeriod = LeasePeriod;
 	type EndingPeriod = EndingPeriod;
+	type Randomness = RandomnessCollectiveFlip;
 }
 
 parameter_types!{
@@ -517,6 +526,7 @@ construct_runtime!(
 	{
 		// Basic stuff; balances is uncallable initially.
 		System: system::{Module, Call, Storage, Config, Event},
+		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Storage},
 
 		// Must be before session.
 		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
@@ -524,6 +534,7 @@ construct_runtime!(
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
 		Indices: indices,
 		Balances: balances::{Module, Call, Storage, Config<T>, Event<T>},
+		TransactionPayment: transaction_payment::{Module, Storage},
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
@@ -576,7 +587,7 @@ pub type SignedExtra = (
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
-	balances::TakeFees<Runtime>,
+	transaction_payment::ChargeTransactionPayment::<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
@@ -624,7 +635,7 @@ impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			System::random_seed()
+			RandomnessCollectiveFlip::random_seed()
 		}
 	}
 
@@ -691,6 +702,12 @@ impl_runtime_apis! {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
 			let seed = seed.as_ref().map(|s| rstd::str::from_utf8(&s).expect("Seed is an utf8 string"));
 			SessionKeys::generate(seed)
+		}
+	}
+
+	impl system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
+		fn account_nonce(account: AccountId) -> Nonce {
+			System::account_nonce(account)
 		}
 	}
 }

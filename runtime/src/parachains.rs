@@ -34,7 +34,8 @@ use primitives::{
 };
 use {system, session};
 use srml_support::{
-	Parameter, dispatch::Result, traits::{Currency, Get, WithdrawReason, ExistenceRequirement},
+	Parameter, dispatch::Result,
+	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
@@ -189,6 +190,9 @@ pub trait Trait: attestations::Trait {
 
 	/// Some way of interacting with balances for fees.
 	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
+
+	/// Something that provides randomness in the runtime.
+	type Randomness: Randomness<Self::Hash>;
 }
 
 /// Origin for the parachains module.
@@ -541,7 +545,7 @@ impl<T: Trait> Module<T> {
 
 		let mut seed = {
 			let phrase = b"validator_role_pairs";
-			let seed = system::Module::<T>::random(&phrase[..]);
+			let seed = T::Randomness::random(&phrase[..]);
 			let seed_len = seed.as_ref().len();
 			let needed_bytes = validator_count * 4;
 
@@ -885,12 +889,12 @@ mod tests {
 	use super::*;
 	use super::Call as ParachainsCall;
 	use bitvec::{bitvec, vec::BitVec};
-	use sr_io::{TestExternalities, with_externalities};
+	use sr_io::TestExternalities;
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
 		Perbill,
-		traits::{BlakeTwo256, IdentityLookup, ConvertInto},
+		traits::{BlakeTwo256, IdentityLookup, OnInitialize},
 		testing::{UintAuthorityId, Header},
 		curve::PiecewiseLinear,
 	};
@@ -935,7 +939,6 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
-		type WeightMultiplierUpdate = ();
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
@@ -993,8 +996,6 @@ mod tests {
 		pub const ExistentialDeposit: Balance = 0;
 		pub const TransferFee: Balance = 0;
 		pub const CreationFee: Balance = 0;
-		pub const TransactionBaseFee: Balance = 0;
-		pub const TransactionByteFee: Balance = 0;
 	}
 
 	impl balances::Trait for Test {
@@ -1002,15 +1003,11 @@ mod tests {
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
 		type Event = ();
-		type TransactionPayment = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
-		type TransactionBaseFee = TransactionBaseFee;
-		type TransactionByteFee = TransactionByteFee;
-		type WeightToFee = ConvertInto;
 	}
 
 	srml_staking_reward_curve::build! {
@@ -1055,12 +1052,14 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
+		type Randomness = RandomnessCollectiveFlip;
 	}
 
 	type Parachains = Module<Test>;
 	type System = system::Module<Test>;
+	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 
-	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities<Blake2Hasher> {
+	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities {
 		use staking::StakerStatus;
 		use babe::AuthorityId as BabeAuthorityId;
 
@@ -1226,7 +1225,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 			(2u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains.clone()), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 4] }
@@ -1243,7 +1242,7 @@ mod tests {
 			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
 		});
-		with_externalities(&mut new_test_ext(parachains.clone()), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
@@ -1265,7 +1264,7 @@ mod tests {
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
 			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
-		with_externalities(&mut new_test_ext(parachains.clone()), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
@@ -1287,7 +1286,7 @@ mod tests {
 			assert!(<RelayDispatchQueue>::get(ParaId::from(1)).is_empty());
 			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
 		});
-		with_externalities(&mut new_test_ext(parachains.clone()), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			let parachains = vec![0.into(), 1.into(), 2.into()];
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Parachain, data: vec![0; 2] }
@@ -1316,7 +1315,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] }
 			];
@@ -1343,7 +1342,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			// oversize, but ok since it's just one and the queue is empty.
 			let messages = vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] },
@@ -1378,7 +1377,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			// too many messages.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
@@ -1399,7 +1398,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			// too much data.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0, 1] },
@@ -1419,7 +1418,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			// bad - already an oversize messages queued.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0; 4] },
@@ -1439,7 +1438,7 @@ mod tests {
 		let parachains = vec![
 			(0u32.into(), vec![], vec![]),
 		];
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			// bad - oversized and already a message queued.
 			Parachains::queue_upward_messages(0.into(), &vec![
 				UpwardMessage { origin: ParachainDispatchOrigin::Signed, data: vec![0] },
@@ -1462,7 +1461,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			// parachain 0 is self
 			let mut candidates = vec![
 				new_candidate_with_upward_messages(0, vec![
@@ -1491,7 +1490,7 @@ mod tests {
 			(100u32.into(), vec![4,5,6], vec![2]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 100u32.into()]);
 			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), Some(vec![1,2,3]));
 			assert_eq!(Parachains::parachain_code(ParaId::from(100u32)), Some(vec![4,5,6]));
@@ -1505,7 +1504,7 @@ mod tests {
 			(100u32.into(), vec![4,5,6], vec![2,]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			assert_eq!(Parachains::active_parachains(), vec![5u32.into(), 100u32.into()]);
 
 			assert_eq!(Parachains::parachain_code(ParaId::from(5u32)), Some(vec![1,2,3]));
@@ -1530,7 +1529,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			let check_roster = |duty_roster: &DutyRoster| {
 				assert_eq!(duty_roster.validator_duty.len(), 8);
 				for i in (0..2).map(ParaId::from) {
@@ -1543,16 +1542,18 @@ mod tests {
 			check_roster(&duty_roster_0);
 
 			System::initialize(&1, &H256::from([1; 32]), &Default::default(), &Default::default());
+			RandomnessCollectiveFlip::on_initialize(1);
 			let duty_roster_1 = Parachains::calculate_duty_roster().0;
 			check_roster(&duty_roster_1);
-			assert!(duty_roster_0 != duty_roster_1);
+			assert_ne!(duty_roster_0, duty_roster_1);
 
 
 			System::initialize(&2, &H256::from([2; 32]), &Default::default(), &Default::default());
+			RandomnessCollectiveFlip::on_initialize(2);
 			let duty_roster_2 = Parachains::calculate_duty_roster().0;
 			check_roster(&duty_roster_2);
-			assert!(duty_roster_0 != duty_roster_2);
-			assert!(duty_roster_1 != duty_roster_2);
+			assert_ne!(duty_roster_0, duty_roster_2);
+			assert_ne!(duty_roster_1, duty_roster_2);
 		});
 	}
 
@@ -1563,7 +1564,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			let candidate = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1591,7 +1592,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			let mut candidate_a = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1644,7 +1645,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1680,7 +1681,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			let mut candidate = AttestedCandidate {
 				validity_votes: vec![],
 				validator_indices: BitVec::new(),
@@ -1719,7 +1720,7 @@ mod tests {
 			(99u32.into(), vec![1, 2, 3], vec![4, 5, 6]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains).execute_with(|| {
 			assert_eq!(Parachains::ingress(ParaId::from(1), None), Some(Vec::new()));
 			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
 
@@ -1844,7 +1845,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			// parachain 99 does not exist
 			let non_existent = vec![(99.into(), [1; 32].into())];
 			let mut candidate = new_candidate_with_egress_roots(non_existent);
@@ -1868,7 +1869,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			// parachain 0 is self
 			let to_self = vec![(0.into(), [1; 32].into())];
 			let mut candidate = new_candidate_with_egress_roots(to_self);
@@ -1892,7 +1893,7 @@ mod tests {
 			(1u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			// parachain 0 is self
 			let out_of_order = vec![(1.into(), [1; 32].into()), ((0.into(), [1; 32].into()))];
 			let mut candidate = new_candidate_with_egress_roots(out_of_order);
@@ -1916,7 +1917,7 @@ mod tests {
 			(2u32.into(), vec![], vec![]),
 		];
 
-		with_externalities(&mut new_test_ext(parachains), || {
+		new_test_ext(parachains.clone()).execute_with(|| {
 			// parachain 0 is self
 			let contains_empty_trie_root = vec![(1.into(), [1; 32].into()), ((2.into(), EMPTY_TRIE_ROOT.into()))];
 			let mut candidate = new_candidate_with_egress_roots(contains_empty_trie_root);

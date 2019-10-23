@@ -32,8 +32,7 @@ use super::{
 	UpwardMessage, IncomingMessage};
 
 #[cfg(not(target_os = "unknown"))]
-pub use validation_host::run_worker;
-pub use validation_host::EXECUTION_TIMEOUT_SEC;
+pub use validation_host::{run_worker, EXECUTION_TIMEOUT_SEC};
 
 mod validation_host;
 
@@ -46,7 +45,7 @@ mod ids {
 	pub const POST_MESSAGE: usize = 1;
 
 	/// Post a message to this parachain's relay chain.
-	pub const POST_UPWARDS_MESSAGE: usize = 2;
+	pub const POST_UPWARD_MESSAGE: usize = 2;
 }
 
 /// WASM code execution mode.
@@ -125,7 +124,7 @@ impl fmt::Display for ExternalitiesError {
 }
 
 impl wasmi::HostError for ExternalitiesError {}
-impl ::std::error::Error for ExternalitiesError {}
+impl std::error::Error for ExternalitiesError {}
 
 struct Resolver {
 	max_memory: u32, // in pages.
@@ -144,7 +143,7 @@ impl ModuleImportResolver for Resolver {
 				let (params, ret_ty): (&[ValueType], Option<ValueType>) =
 					(&[ValueType::I32, ValueType::I32, ValueType::I32], None);
 
-				if signature.params() != params && signature.return_type() != ret_ty {
+				if signature.params() != params || signature.return_type() != ret_ty {
 					Err(WasmError::Instantiation(
 						format!("Export {} has a bad signature", field_name)
 					))
@@ -156,11 +155,11 @@ impl ModuleImportResolver for Resolver {
 				}
 			}
 			"ext_upwards_post_message" => {
-				let index = ids::POST_UPWARDS_MESSAGE;
+				let index = ids::POST_UPWARD_MESSAGE;
 				let (params, ret_ty): (&[ValueType], Option<ValueType>) =
 					(&[ValueType::I32, ValueType::I32], None);
 
-				if signature.params() != params && signature.return_type() != ret_ty {
+				if signature.params() != params || signature.return_type() != ret_ty {
 					Err(WasmError::Instantiation(
 						format!("Export {} has a bad signature", field_name)
 					))
@@ -269,7 +268,7 @@ impl<'a, E: 'a + Externalities> Externals for ValidationExternals<'a, E> {
 	) -> Result<Option<RuntimeValue>, Trap> {
 		match index {
 			ids::POST_MESSAGE => self.ext_post_message(args).map(|_| None),
-			ids::POST_UPWARDS_MESSAGE => self.ext_post_upward_message(args).map(|_| None),
+			ids::POST_UPWARD_MESSAGE => self.ext_post_upward_message(args).map(|_| None),
 			_ => panic!("no externality at given index"),
 		}
 	}

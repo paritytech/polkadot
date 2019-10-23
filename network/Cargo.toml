@@ -16,6 +16,7 @@ substrate-network = { git = "https://github.com/paritytech/substrate", branch = 
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 futures = "0.1"
+futures03 = { package = "futures-preview", version = "0.3.0-alpha.19", features = ["compat"] }
 log = "0.4"
 exit-future = "0.1.4"
 substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
