@@ -2778,6 +2778,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-rpc"
+version = "0.6.0"
+dependencies = [
+ "jsonrpc-core 13.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "polkadot-primitives 0.6.0",
+ "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "srml-system-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "substrate-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "substrate-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "substrate-transaction-pool 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
 name = "polkadot-runtime"
 version = "0.6.0"
 dependencies = [
@@ -2819,6 +2832,7 @@ dependencies = [
  "srml-sudo 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "srml-system-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-transaction-payment 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-treasury 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
@@ -2851,6 +2865,7 @@ dependencies = [
  "polkadot-executor 0.6.0",
  "polkadot-network 0.6.0",
  "polkadot-primitives 0.6.0",
+ "polkadot-rpc 0.6.0",
  "polkadot-runtime 0.6.0",
  "polkadot-validation 0.6.0",
  "slog 2.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4157,6 +4172,33 @@ dependencies = [
  "sr-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "srml-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "srml-system-rpc"
+version = "2.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#5fde6d0882bd9943da28df6d40dc78714672dcca"
+dependencies = [
+ "jsonrpc-core 13.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-core-client 13.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-derive 13.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.101 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "srml-system-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "substrate-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "substrate-transaction-pool 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "srml-system-rpc-runtime-api"
+version = "2.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#5fde6d0882bd9943da28df6d40dc78714672dcca"
+dependencies = [
+ "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -6306,6 +6348,8 @@ dependencies = [
 "checksum srml-support-procedural-tools 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-support-procedural-tools-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum srml-system-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum srml-system-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-transaction-payment 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum srml-treasury 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
