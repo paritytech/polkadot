@@ -20,9 +20,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use runtime_primitives::{generic, AnySignature};
-
-pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify};
+use runtime_primitives::{generic, MultiSignature};
+pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
 
 pub mod parachain;
 
@@ -37,10 +36,10 @@ pub type Moment = u64;
 
 /// Alias to 512-bit hash when used in the context of a signature on the relay chain.
 /// Equipped with logic for possibly "unsigned" messages.
-pub type Signature = AnySignature;
+pub type Signature = MultiSignature;
 
 /// Alias to an sr25519 or ed25519 key.
-pub type AccountId = <Signature as Verify>::Signer;
+pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 
 /// The type for looking up accounts. We don't expect more than 4 billion of them.
 pub type AccountIndex = u32;
