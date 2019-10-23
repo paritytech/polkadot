@@ -26,8 +26,9 @@ pub mod validation;
 pub mod gossip;
 
 use codec::{Decode, Encode};
-use futures::sync::{oneshot, mpsc};
+use futures::sync::oneshot;
 use futures::prelude::*;
+use futures03::channel::mpsc;
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
@@ -169,7 +170,7 @@ impl Stream for GossipMessageStream {
 
 	fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
 		loop {
-			let msg = match futures::try_ready!(self.topic_stream.poll()) {
+			let msg = match futures::try_ready!(self.topic_stream.into_future()) {
 				Some(msg) => msg,
 				None => return Ok(Async::Ready(None)),
 			};
