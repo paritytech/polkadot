@@ -118,8 +118,7 @@ pub fn native_version() -> NativeVersion {
 ///
 /// RELEASE: This is only relevant for the initial PoA run-in period and may be removed
 /// from the release runtime.
-#[derive(Default, Encode, Decode, Clone, Eq, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Default, Encode, Decode, Clone, Eq, PartialEq, Debug)]
 pub struct OnlyStakingAndClaims;
 impl SignedExtension for OnlyStakingAndClaims {
 	type AccountId = AccountId;

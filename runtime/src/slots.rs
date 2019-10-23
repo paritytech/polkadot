@@ -65,8 +65,7 @@ pub type AuctionIndex = u32;
 /// A bidder identifier, which is just the combination of an account ID and a sub-bidder ID.
 /// This is called `NewBidder` in order to distinguish between bidders that would deploy a *new*
 /// parachain and pre-existing parachains bidding to renew themselves.
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub struct NewBidder<AccountId> {
 	/// The bidder's account ID; this is the account that funds the bid.
 	pub who: AccountId,
@@ -76,8 +75,7 @@ pub struct NewBidder<AccountId> {
 }
 
 /// The desired target of a bidder in an auction.
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub enum Bidder<AccountId> {
 	/// An account ID, funds coming from that account.
 	New(NewBidder<AccountId>),
@@ -101,8 +99,7 @@ impl<AccountId: Clone + Default + Codec> Bidder<AccountId> {
 ///
 /// We store either the bidder that will be able to set the final deployment information or the
 /// information itself.
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub enum IncomingParachain<AccountId, Hash> {
 	/// Deploy information not yet set; just the bidder identity.
 	Unset(NewBidder<AccountId>),

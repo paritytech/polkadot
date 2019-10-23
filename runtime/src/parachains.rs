@@ -132,8 +132,7 @@ pub trait Trait: attestations::Trait {
 }
 
 /// Origin for the parachains module.
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Origin {
 	/// It comes from a parachain.
 	Parachain(ParaId),

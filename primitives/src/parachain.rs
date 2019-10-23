@@ -79,8 +79,7 @@ pub type ValidatorPair = validator_app::Pair;
 pub type ValidatorSignature = validator_app::Signature;
 
 /// Retriability for a given active para.
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub enum Retriable {
 	/// Ineligible for retry. This means it's either a parachain which is always scheduled anyway or
 	/// has been removed/swapped.
@@ -102,8 +101,7 @@ pub trait ActiveParas {
 }
 
 /// Description of how often/when this parachain is scheduled for progression.
-#[derive(Encode, Decode, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
 pub enum Scheduling {
 	/// Scheduled every block.
 	Always,
@@ -112,8 +110,7 @@ pub enum Scheduling {
 }
 
 /// Information regarding a deployed parachain/thread.
-#[derive(Encode, Decode, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
 pub struct Info {
 	/// Scheduling info.
 	pub scheduling: Scheduling,
@@ -140,8 +137,7 @@ pub trait SwapAux {
 }
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
-#[derive(Copy, Clone, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Copy, Clone, PartialEq, Encode, Decode, Debug)]
 pub enum Chain {
 	/// The relay chain.
 	Relay,
@@ -150,16 +146,16 @@ pub enum Chain {
 }
 
 /// The duty roster specifying what jobs each validator must do.
-#[derive(Clone, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Default, Debug))]
+#[derive(Clone, PartialEq, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct DutyRoster {
 	/// Lookup from validator index to chain on which that validator has a duty to validate.
 	pub validator_duty: Vec<Chain>,
 }
 
 /// A message targeted to a specific parachain.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]
 pub struct TargetedMessage {
@@ -191,8 +187,8 @@ impl Ord for TargetedMessage {
 ///
 /// This is data produced by evaluating the candidate. It contains
 /// full records of all outgoing messages to other parachains.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]
 pub struct OutgoingMessages {
@@ -229,8 +225,7 @@ impl OutgoingMessages {
 }
 
 /// Candidate receipt type.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, Debug)]
 pub struct CandidateReceipt {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
@@ -286,8 +281,8 @@ impl Ord for CandidateReceipt {
 }
 
 /// A full collation.
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
+#[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "std", derive(Encode, Decode))]
 pub struct Collation {
 	/// Candidate receipt itself.
 	pub receipt: CandidateReceipt,
@@ -296,8 +291,8 @@ pub struct Collation {
 }
 
 /// A Proof-of-Validation block.
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
+#[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "std", derive(Encode, Decode))]
 pub struct PoVBlock {
 	/// Block data.
 	pub block_data: BlockData,
@@ -306,8 +301,8 @@ pub struct PoVBlock {
 }
 
 /// Parachain ingress queue message.
-#[derive(PartialEq, Eq, Clone, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
+#[derive(PartialEq, Eq, Clone, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode))]
 pub struct Message(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 impl AsRef<[u8]> for Message {
@@ -326,15 +321,15 @@ impl From<TargetedMessage> for Message {
 ///
 /// This is an ordered vector of other parachain's egress queue roots from a specific block.
 /// empty roots are omitted. Each parachain may appear once at most.
-#[derive(Default, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
+#[derive(Default, PartialEq, Eq, Clone, Encode, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Decode))]
 pub struct BlockIngressRoots(pub Vec<(Id, Hash)>);
 
 /// All ingress roots, grouped by block number (ascending). To properly
 /// interpret this struct, the user must have knowledge of which fork of the relay
 /// chain all block numbers correspond to.
-#[derive(Default, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
+#[derive(Default, PartialEq, Eq, Clone, Encode, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Decode))]
 pub struct StructuredUnroutedIngress(pub Vec<(BlockNumber, BlockIngressRoots)>);
 
 #[cfg(feature = "std")]
@@ -359,15 +354,15 @@ impl StructuredUnroutedIngress {
 /// This is just an ordered vector of other parachains' egress queues,
 /// obtained according to the routing rules. The same parachain may appear
 /// more than once.
-#[derive(Default, PartialEq, Eq, Clone, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
+#[derive(Default, PartialEq, Eq, Clone, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode))]
 pub struct ConsolidatedIngress(pub Vec<(Id, Vec<Message>)>);
 
 /// Parachain block data.
 ///
 /// contains everything required to validate para-block, may contain block and witness data
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 impl BlockData {
@@ -379,28 +374,27 @@ impl BlockData {
 	}
 }
 /// Parachain header raw bytes wrapper type.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct Header(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Parachain head data included in the chain.
-#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Parachain validation code.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Activity bit field
-#[derive(PartialEq, Eq, Clone, Default, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(PartialEq, Eq, Clone, Default, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Statements which can be made about parachain candidates.
-#[derive(Clone, PartialEq, Eq, Encode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, PartialEq, Eq, Encode, Debug)]
 pub enum Statement {
 	/// Proposal of a parachain candidate.
 	#[codec(index = "1")]
@@ -415,8 +409,7 @@ pub enum Statement {
 
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
-#[derive(Clone, PartialEq, Decode, Encode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, PartialEq, Decode, Encode, Debug)]
 pub enum ValidityAttestation {
 	/// implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
@@ -429,8 +422,7 @@ pub enum ValidityAttestation {
 }
 
 /// An attested candidate.
-#[derive(Clone, PartialEq, Decode, Encode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, PartialEq, Decode, Encode, Debug)]
 pub struct AttestedCandidate {
 	/// The candidate data.
 	pub candidate: CandidateReceipt,
@@ -453,8 +445,8 @@ impl AttestedCandidate {
 }
 
 /// A fee schedule for messages. This is a linear function in the number of bytes of a message.
-#[derive(PartialEq, Eq, PartialOrd, Hash, Default, Clone, Copy, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(PartialEq, Eq, PartialOrd, Hash, Default, Clone, Copy, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct FeeSchedule {
 	/// The base fee charged for all messages.
 	pub base: Balance,
@@ -474,8 +466,8 @@ impl FeeSchedule {
 }
 
 /// Current Status of a parachain.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct Status {
 	/// The head of the parachain.
 	pub head_data: HeadData,

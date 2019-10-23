@@ -53,8 +53,7 @@ pub struct BlockAttestations<T: Trait> {
 }
 
 /// Additional attestations on a parachain block, after it was included.
-#[derive(Encode, Decode, Clone, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, Debug)]
 pub struct MoreAttestations;
 
 /// Something which processes rewards for received attestations.

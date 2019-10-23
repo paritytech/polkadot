@@ -109,16 +109,14 @@ pub trait Trait: slots::Trait {
 /// Simple index for identifying a fund.
 pub type FundIndex = u32;
 
-#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, Debug)]
 pub enum LastContribution<BlockNumber> {
 	Never,
 	PreEnding(slots::AuctionIndex),
 	Ending(BlockNumber),
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
 pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// The parachain that this fund has funded, if there is one. As long as this is `Some`, then
 	/// the funds may not be withdrawn and the fund cannot be dissolved.

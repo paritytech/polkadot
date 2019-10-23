@@ -16,7 +16,7 @@
 
 //! Module to process claims from Ethereum addresses.
 
-use rstd::prelude::*;
+use rstd::{prelude::*, fmt};
 use sr_io::{keccak_256, secp256k1_ecdsa_recover};
 use srml_support::{decl_event, decl_storage, decl_module};
 use srml_support::traits::{Currency, Get};
@@ -48,8 +48,7 @@ pub trait Trait: system::Trait {
 /// An Ethereum address (i.e. 20 bytes, used to represent an Ethereum account).
 ///
 /// This gets serialized to the 0x-prefixed hex representation.
-#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default, Debug)]
 pub struct EthereumAddress([u8; 20]);
 
 #[cfg(feature = "std")]
@@ -86,11 +85,10 @@ impl PartialEq for EcdsaSignature {
 	}
 }
 
-#[cfg(feature = "std")]
-impl std::fmt::Debug for EcdsaSignature {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", &self.0[..])
-    }
+impl fmt::Debug for EcdsaSignature {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{:?}", &self.0[..])
+	}
 }
 
 decl_event!(

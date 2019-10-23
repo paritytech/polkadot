@@ -18,7 +18,7 @@
 //! registered and which are scheduled. Doesn't manage any of the actual execution/validation logic
 //! which is left to `parachains.rs`.
 
-use rstd::{prelude::*, result};
+use rstd::{prelude::*, result, fmt::Debug};
 #[cfg(any(feature = "std", test))]
 use rstd::marker::PhantomData;
 use codec::{Encode, Decode};
@@ -484,7 +484,6 @@ impl<T: Trait> ActiveParas for Module<T> {
 pub struct LimitParathreadCommits<T: Trait + Send + Sync>(rstd::marker::PhantomData<T>) where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
 
-#[cfg(feature = "std")]
 impl<T: Trait + Send + Sync> rstd::fmt::Debug for LimitParathreadCommits<T> where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>
 {

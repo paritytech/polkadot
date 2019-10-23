@@ -51,15 +51,15 @@ pub mod wasm_executor;
 #[cfg(feature = "wasm-api")]
 pub mod wasm_api;
 
-use rstd::vec::Vec;
+use rstd::{vec::Vec, fmt::Debug};
 
 use codec::{Encode, Decode, CompactAs};
 use substrate_primitives::TypeId;
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
-#[derive(PartialEq, Eq, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Encode))]
+#[derive(PartialEq, Eq, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Encode))]
 pub struct ValidationParams {
 	/// The collation body.
 	pub block_data: Vec<u8>,
@@ -71,16 +71,16 @@ pub struct ValidationParams {
 
 /// The result of parachain validation.
 // TODO: egress and balance uploads (https://github.com/paritytech/polkadot/issues/220)
-#[derive(PartialEq, Eq, Encode)]
-#[cfg_attr(feature = "std", derive(Debug, Decode))]
+#[derive(PartialEq, Eq, Encode, Debug)]
+#[cfg_attr(feature = "std", derive(Decode))]
 pub struct ValidationResult {
 	/// New head data that should be included in the relay chain state.
 	pub head_data: Vec<u8>,
 }
 
 /// Unique identifier of a parachain.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Default, Clone, Copy, Encode, Decode, CompactAs)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, Debug))]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Default, Clone, Copy, Encode, Decode, CompactAs, Debug)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Id(u32);
 
 impl TypeId for Id {
@@ -175,8 +175,8 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 }
 
 /// An incoming message.
-#[derive(PartialEq, Eq, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Encode))]
+#[derive(PartialEq, Eq, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(Encode))]
 pub struct IncomingMessage {
 	/// The source parachain.
 	pub source: Id,
@@ -193,8 +193,7 @@ pub struct MessageRef<'a> {
 }
 
 /// Which origin a parachain's message to the relay chain should be dispatched from.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
 #[repr(u8)]
 pub enum ParachainDispatchOrigin {
 	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
@@ -230,8 +229,7 @@ pub struct UpwardMessageRef<'a> {
 }
 
 /// A message from a parachain to its Relay Chain.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
 pub struct UpwardMessage {
 	/// The origin for the message to be sent from.
 	pub origin: ParachainDispatchOrigin,
