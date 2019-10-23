@@ -259,8 +259,8 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		};
 
 		let babe = start_babe(babe_config)?;
-		let select = babe.select(service.on_exit()).then(|_| Ok(()));
-		service.spawn_essential_task(Box::new(select));
+		let babe = babe.select(service.on_exit()).then(|_| Ok(()));
+		service.spawn_essential_task(babe);
 	}
 
 	let keystore = if is_authority {
@@ -293,7 +293,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 			voting_rule: grandpa::VotingRulesBuilder::default().build(),
 		};
-		service.spawn_essential_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
+		service.spawn_essential_task(grandpa::run_grandpa_voter(grandpa_config)?);
 	} else {
 		grandpa::setup_disabled_grandpa(
 			service.client(),
