@@ -40,7 +40,8 @@ use client::{
 	runtime_api as client_api, impl_runtime_apis,
 };
 use sr_primitives::{
-	ApplyResult, generic, Permill, Perbill, impl_opaque_keys, create_runtime_str, key_types,
+	create_runtime_str, generic, impl_opaque_keys,  key_types,
+	ApplyResult, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	weights::{Weight, DispatchInfo}, curve::PiecewiseLinear,
 	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension},
@@ -118,8 +119,7 @@ pub fn native_version() -> NativeVersion {
 ///
 /// RELEASE: This is only relevant for the initial PoA run-in period and may be removed
 /// from the release runtime.
-#[derive(Default, Encode, Decode, Clone, Eq, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Default, Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug)]
 pub struct OnlyStakingAndClaims;
 impl SignedExtension for OnlyStakingAndClaims {
 	type AccountId = AccountId;

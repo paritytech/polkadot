@@ -24,6 +24,7 @@ use codec::{Encode, Decode};
 use srml_support::{decl_storage, decl_module, ensure, dispatch::Result, traits::Get};
 
 use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};
+use sr_primitives::RuntimeDebug;
 use sr_staking_primitives::SessionIndex;
 
 use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
@@ -53,8 +54,7 @@ pub struct BlockAttestations<T: Trait> {
 }
 
 /// Additional attestations on a parachain block, after it was included.
-#[derive(Encode, Decode, Clone, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub struct MoreAttestations;
 
 /// Something which processes rewards for received attestations.

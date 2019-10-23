@@ -27,6 +27,7 @@ use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
+use primitives::RuntimeDebug;
 use application_crypto::KeyTypeId;
 
 pub use polkadot_parachain::{
@@ -102,8 +103,7 @@ pub trait ActiveParas {
 }
 
 /// Description of how often/when this parachain is scheduled for progression.
-#[derive(Encode, Decode, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 pub enum Scheduling {
 	/// Scheduled every block.
 	Always,
@@ -112,8 +112,7 @@ pub enum Scheduling {
 }
 
 /// Information regarding a deployed parachain/thread.
-#[derive(Encode, Decode, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct Info {
 	/// Scheduling info.
 	pub scheduling: Scheduling,
@@ -429,8 +428,7 @@ pub enum ValidityAttestation {
 }
 
 /// An attested candidate.
-#[derive(Clone, PartialEq, Decode, Encode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, PartialEq, Decode, Encode, RuntimeDebug)]
 pub struct AttestedCandidate {
 	/// The candidate data.
 	pub candidate: CandidateReceipt,
