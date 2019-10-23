@@ -50,6 +50,7 @@ staking = { package = "srml-staking", git = "https://github.com/paritytech/subst
 srml-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sudo = { package = "srml-sudo", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 system = { package = "srml-system", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+system_rpc_runtime_api = { package = "srml-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 timestamp = { package = "srml-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 treasury = { package = "srml-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
@@ -106,6 +107,7 @@ std = [
 	"staking/std",
 	"sudo/std",
 	"system/std",
+	"system_rpc_runtime_api/std",
 	"timestamp/std",
 	"treasury/std",
 	"version/std",

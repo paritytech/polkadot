@@ -759,4 +759,10 @@ impl_runtime_apis! {
 			SessionKeys::generate(seed)
 		}
 	}
+
+	impl system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
+		fn account_nonce(account: AccountId) -> Nonce {
+			System::account_nonce(account)
+		}
+	}
 }

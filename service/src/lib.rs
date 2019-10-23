@@ -117,6 +117,9 @@ macro_rules! new_full_start {
 
 				import_setup = Some((block_import, grandpa_link, babe_link));
 				Ok(import_queue)
+			})?
+			.with_rpc_extensions(|client, pool| -> polkadot_rpc::RpcExtension {
+				polkadot_rpc::create(client, pool)
 			})?;
 
 		(builder, import_setup, inherent_data_providers)
@@ -369,5 +372,8 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
+		.with_rpc_extensions(|client, pool| -> polkadot_rpc::RpcExtension {
+			polkadot_rpc::create(client, pool)
+		})?
 		.build()
 }
