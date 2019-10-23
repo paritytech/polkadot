@@ -263,44 +263,43 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		service.spawn_essential_task(Box::new(select));
 	}
 
+	let keystore = if is_authority {
+		Some(service.keystore())
+	} else {
+		None
+	};
+
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
 		gossip_duration: Duration::from_millis(333),
 		justification_period: 512,
 		name: Some(name),
-		keystore: Some(service.keystore()),
+		keystore,
 	};
 
-	match (is_authority, disable_grandpa) {
-		(false, false) => {
-			// start the lightweight GRANDPA observer
-			service.spawn_task(Box::new(grandpa::run_grandpa_observer(
-				config,
-				link_half,
-				service.network(),
-				service.on_exit(),
-			)?));
-		},
-		(true, false) => {
-			// start the full GRANDPA voter
-			let grandpa_config = grandpa::GrandpaParams {
-				config: config,
-				link: link_half,
-				network: service.network(),
-				inherent_data_providers: inherent_data_providers.clone(),
-				on_exit: service.on_exit(),
-				telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
-				voting_rule: grandpa::VotingRulesBuilder::default().build(),
-			};
-			service.spawn_essential_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
-		},
-		(_, true) => {
-			grandpa::setup_disabled_grandpa(
-				service.client(),
-				&inherent_data_providers,
-				service.network(),
-			)?;
-		},
+	if !disable_grandpa {
+		// start the full GRANDPA voter
+		// NOTE: unlike in polkadot/master we are currently running the full
+		// GRANDPA voter protocol for all full nodes (regardless of whether
+		// they're validators or not). at this point the full voter should
+		// provide better guarantees of block and vote data availability than
+		// the observer.
+		let grandpa_config = grandpa::GrandpaParams {
+			config: config,
+			link: link_half,
+			network: service.network(),
+			inherent_data_providers: inherent_data_providers.clone(),
+			on_exit: service.on_exit(),
+			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
+			voting_rule: grandpa::VotingRulesBuilder::default().build(),
+		};
+		service.spawn_essential_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
+	} else {
+		grandpa::setup_disabled_grandpa(
+			service.client(),
+			&inherent_data_providers,
+			service.network(),
+		)?;
 	}
 
 	Ok(service)
