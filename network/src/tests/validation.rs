@@ -148,7 +148,7 @@ impl NetworkService for TestNetwork {
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
-		GossipMessageStream::new(rx)
+		GossipMessageStream::new(Box::new(rx))
 	}
 
 	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
