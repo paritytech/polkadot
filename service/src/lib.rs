@@ -27,7 +27,6 @@ use polkadot_runtime::GenesisConfig;
 use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
 use service::{error::{Error as ServiceError}, Configuration, ServiceBuilder};
 use transaction_pool::txpool::{Pool as TransactionPool};
-use babe::{import_queue, start_babe};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use log::info;
@@ -98,20 +97,20 @@ macro_rules! new_full_start {
 				let justification_import = grandpa_block_import.clone();
 
 				let (block_import, babe_link) = babe::block_import(
-						babe::Config::get_or_compute(&*client)?,
-						grandpa_block_import,
-						client.clone(),
-						client.clone(),
+					babe::Config::get_or_compute(&*client)?,
+					grandpa_block_import,
+					client.clone(),
+					client.clone(),
 				)?;
 
 				let import_queue = babe::import_queue(
-						babe_link.clone(),
-						block_import.clone(),
-						Some(Box::new(justification_import)),
-						None,
-						client.clone(),
-						client,
-						inherent_data_providers.clone(),
+					babe_link.clone(),
+					block_import.clone(),
+					Some(Box::new(justification_import)),
+					None,
+					client.clone(),
+					client,
+					inherent_data_providers.clone(),
 				)?;
 
 				import_setup = Some((block_import, grandpa_link, babe_link));
@@ -258,7 +257,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			babe_link,
 		};
 
-		let babe = start_babe(babe_config)?;
+		let babe = babe::start_babe(babe_config)?;
 		let babe = babe.select(service.on_exit()).then(|_| Ok(()));
 		service.spawn_essential_task(babe);
 	}
@@ -335,7 +334,6 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 			let finality_proof_request_builder =
 				finality_proof_import.create_finality_proof_request_builder();
 
-
 			let (babe_block_import, babe_link) = babe::block_import(
 				babe::Config::get_or_compute(&*client)?,
 				grandpa_block_import,
@@ -344,7 +342,7 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 			)?;
 
 			// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
-			let import_queue = import_queue(
+			let import_queue = babe::import_queue(
 				babe_link,
 				babe_block_import,
 				None,
