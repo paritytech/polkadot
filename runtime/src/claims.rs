@@ -86,11 +86,10 @@ impl PartialEq for EcdsaSignature {
 	}
 }
 
-#[cfg(feature = "std")]
-impl std::fmt::Debug for EcdsaSignature {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", &self.0[..])
-    }
+impl rstd::fmt::Debug for EcdsaSignature {
+	fn fmt(&self, f: &mut rstd::fmt::Formatter<'_>) -> rstd::fmt::Result {
+		write!(f, "EcdsaSignature({:?})", &self.0[..])
+	}
 }
 
 decl_event!(

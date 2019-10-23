@@ -27,6 +27,7 @@ use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
+use primitives::RuntimeDebug;
 use application_crypto::KeyTypeId;
 
 pub use polkadot_parachain::{
@@ -368,8 +369,7 @@ pub enum ValidityAttestation {
 }
 
 /// An attested candidate.
-#[derive(Clone, PartialEq, Decode, Encode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, PartialEq, Decode, Encode, RuntimeDebug)]
 pub struct AttestedCandidate {
 	/// The candidate data.
 	pub candidate: CandidateReceipt,

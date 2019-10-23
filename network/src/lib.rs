@@ -26,8 +26,9 @@ pub mod validation;
 pub mod gossip;
 
 use codec::{Decode, Encode};
-use futures::sync::{oneshot, mpsc};
+use futures::sync::oneshot;
 use futures::prelude::*;
+use futures03::{channel::mpsc, compat::Compat, StreamExt};
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
@@ -108,7 +109,7 @@ impl NetworkService for PolkadotNetworkService {
 			Err(_) => mpsc::unbounded().1, // return empty channel.
 		};
 
-		GossipMessageStream::new(topic_stream)
+		GossipMessageStream::new(Box::new(Compat::new(topic_stream.map(Ok))))
 	}
 
 	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
@@ -151,14 +152,14 @@ impl GossipService for consensus_gossip::ConsensusGossip<Block> {
 
 /// A stream of gossip messages and an optional sender for a topic.
 pub struct GossipMessageStream {
-	topic_stream: mpsc::UnboundedReceiver<TopicNotification>,
+	topic_stream: Box<dyn Stream<Item = TopicNotification, Error = ()> + Send>,
 }
 
 impl GossipMessageStream {
 	/// Create a new instance with the given topic stream.
-	pub fn new(topic_stream: mpsc::UnboundedReceiver<TopicNotification>) -> Self {
+	pub fn new(topic_stream: Box<dyn Stream<Item = TopicNotification, Error = ()> + Send>) -> Self {
 		Self {
-			topic_stream
+			topic_stream,
 		}
 	}
 }
