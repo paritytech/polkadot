@@ -255,6 +255,9 @@ parameter_types! {
 	pub const Offset: BlockNumber = 0;
 }
 
+// !!!!!!!!!!!!!
+// WARNING!!!!!!  SEE NOTE BELOW BEFORE TOUCHING THIS CODE
+// !!!!!!!!!!!!!
 type SessionHandlers = (Grandpa, Babe, ImOnline, AuthorityDiscovery, Parachains);
 impl_opaque_keys! {
 	pub struct SessionKeys {
@@ -268,7 +271,6 @@ impl_opaque_keys! {
 		pub parachain_validator: parachain::ValidatorId,
 	}
 }
-
 // NOTE: `SessionHandler` and `SessionKeys` are co-dependent: One key will be used for each handler.
 // The number and order of items in `SessionHandler` *MUST* be the same number and order of keys in
 // `SessionKeys`.
