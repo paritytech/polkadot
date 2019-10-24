@@ -258,7 +258,6 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		};
 
 		let babe = babe::start_babe(babe_config)?;
-		let babe = babe.select(service.on_exit()).then(|_| Ok(()));
 		service.spawn_essential_task(babe);
 	}
 
