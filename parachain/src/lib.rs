@@ -54,7 +54,7 @@ pub mod wasm_api;
 use rstd::vec::Vec;
 
 use codec::{Encode, Decode, CompactAs};
-use substrate_primitives::TypeId;
+use substrate_primitives::{RuntimeDebug, TypeId};
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
@@ -79,8 +79,11 @@ pub struct ValidationResult {
 }
 
 /// Unique identifier of a parachain.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Default, Clone, Copy, Encode, Decode, CompactAs)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, Debug))]
+#[derive(
+	Clone, CompactAs, Copy, Decode, Default, Encode, Eq,
+	Hash, Ord, PartialEq, PartialOrd, RuntimeDebug
+)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Id(u32);
 
 impl TypeId for Id {
