@@ -159,7 +159,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	// event per authority within the current authority set. This estimates the
 	// authority set size to be somewhere below 10 000 thereby setting the channel
 	// buffer size to 10 000.
-	let (dht_event_tx, dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
+	let (dht_event_tx, _dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
 
 	let service = builder
 		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
@@ -265,13 +265,6 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		let babe = start_babe(babe_config)?;
 		let select = babe.select(service.on_exit()).then(|_| Ok(()));
 		service.spawn_essential_task(Box::new(select));
-
-		let authority_discovery = authority_discovery::AuthorityDiscovery::new(
-			service.client(),
-			service.network(),
-			dht_event_rx,
-		);
-		service.spawn_task(authority_discovery);
 	}
 
 	let config = grandpa::Config {
