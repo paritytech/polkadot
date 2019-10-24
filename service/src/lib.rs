@@ -265,13 +265,6 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		let babe = start_babe(babe_config)?;
 		let select = babe.select(service.on_exit()).then(|_| Ok(()));
 		service.spawn_essential_task(Box::new(select));
-
-/*		let authority_discovery = authority_discovery::AuthorityDiscovery::new(
-			service.client(),
-			service.network(),
-			dht_event_rx,
-		);
-		service.spawn_task(authority_discovery);*/
 	}
 
 	let config = grandpa::Config {
