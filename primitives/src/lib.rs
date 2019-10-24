@@ -34,12 +34,17 @@ pub type BlockNumber = u32;
 /// An instant or duration in time.
 pub type Moment = u64;
 
-/// Alias to 512-bit hash when used in the context of a signature on the relay chain.
-/// Equipped with logic for possibly "unsigned" messages.
+/// Alias to type for a signature for a transaction on the relay chain. This allows one of several
+/// kinds of underlying crypto to be used, so isn't a fixed size when encoded.
 pub type Signature = MultiSignature;
 
-/// Alias to an sr25519 or ed25519 key.
-pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
+/// Alias to the public key used for this chain, actually a `MultiSigner`. Like the signature, this
+/// also isn't a fixed size when encoded, as different cryptos have different size public keys.
+pub type AccountPublic = <Signature as Verify>::Signer;
+
+/// Alias to the opaque account ID type for this chain, actually a `AccountId32`. This is always
+/// 32 bytes.
+pub type AccountId = <AccountPublic as IdentifyAccount>::AccountId;
 
 /// The type for looking up accounts. We don't expect more than 4 billion of them.
 pub type AccountIndex = u32;

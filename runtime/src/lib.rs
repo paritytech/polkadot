@@ -71,7 +71,7 @@ pub use parachains::{Call as ParachainsCall, NEW_HEADS_IDENTIFIER};
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
-use impls::{CurrencyToVoteHandler, FeeMultiplierUpdateHandler, ToAuthor, WeightToFee};
+use impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor, WeightToFee};
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -130,7 +130,9 @@ impl SignedExtension for OnlyStakingAndClaims {
 		-> TransactionValidity
 	{
 		match call {
-			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_) | Call::Elections(_) =>
+			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_)
+				| Call::ElectionsPhragmen(_)
+			=>
 				Ok(Default::default()),
 			_ => Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
 		}
@@ -214,6 +216,8 @@ impl balances::Trait for Runtime {
 parameter_types! {
 	pub const TransactionBaseFee: Balance = 1 * CENTS;
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
+	// for a sane configuration, this should always be less than `AvailableBlockRatio`.
+	pub const TargetBlockFullness: Perbill = Perbill::from_percent(25);
 }
 
 impl transaction_payment::Trait for Runtime {
@@ -222,7 +226,7 @@ impl transaction_payment::Trait for Runtime {
 	type TransactionBaseFee = TransactionBaseFee;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
-	type FeeMultiplierUpdate = FeeMultiplierUpdateHandler;
+	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness>;
 }
 
 parameter_types! {
@@ -556,7 +560,7 @@ construct_runtime!(
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		Elections: elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>},
+		ElectionsPhragmen: elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>},
 		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
 
