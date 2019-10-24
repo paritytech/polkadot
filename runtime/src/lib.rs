@@ -48,7 +48,7 @@ use sr_primitives::{
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
-use babe_primitives::{AuthorityId as BabeId, AuthoritySignature as BabeSignature};
+use babe_primitives::{AuthorityId as BabeId};
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
