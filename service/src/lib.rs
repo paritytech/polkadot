@@ -18,7 +18,7 @@
 
 pub mod chain_spec;
 
-use futures::prelude::*;
+use futures::sync::mpsc;
 use client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
@@ -141,8 +141,10 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
 	>, ServiceError>
 {
-	let is_authority = config.roles.is_authority();
+	use substrate_network::DhtEvent;
+
 	let is_collator = config.custom.collating_for.is_some();
+	let is_authority = config.roles.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = config.custom.max_block_data_size;
 	let db_path = config.database_path.clone();
@@ -151,22 +153,23 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config);
 
+	// Dht event channel from the network to the authority discovery module. Use
+	// bounded channel to ensure back-pressure. Authority discovery is triggering one
+	// event per authority within the current authority set. This estimates the
+	// authority set size to be somewhere below 10 000 thereby setting the channel
+	// buffer size to 10 000.
+	let (dht_event_tx, _dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
+
 	let service = builder
 		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
+		.with_dht_event_tx(dht_event_tx)?
 		.build()?;
 
 	let (block_import, link_half, babe_link) = import_setup.take()
 		.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
-
-	if is_collator {
-		info!(
-			"The node cannot start as an authority because it is also configured to run as a collator."
-		);
-		return Ok(service);
-	}
 
 	let client = service.client();
 	let known_oracle = client.clone();
@@ -259,8 +262,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		};
 
 		let babe = start_babe(babe_config)?;
-		let select = babe.select(service.on_exit()).then(|_| Ok(()));
-		service.spawn_essential_task(Box::new(select));
+		service.spawn_essential_task(babe);
 	}
 
 	let config = grandpa::Config {
@@ -274,12 +276,12 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	match (is_authority, disable_grandpa) {
 		(false, false) => {
 			// start the lightweight GRANDPA observer
-			service.spawn_task(Box::new(grandpa::run_grandpa_observer(
+			service.spawn_task(grandpa::run_grandpa_observer(
 				config,
 				link_half,
 				service.network(),
 				service.on_exit(),
-			)?));
+			)?);
 		},
 		(true, false) => {
 			// start the full GRANDPA voter
@@ -292,7 +294,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 				telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 				voting_rule: grandpa::VotingRulesBuilder::default().build(),
 			};
-			service.spawn_essential_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
+			service.spawn_essential_task(grandpa::run_grandpa_voter(grandpa_config)?);
 		},
 		(_, true) => {
 			grandpa::setup_disabled_grandpa(
