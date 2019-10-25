@@ -373,32 +373,35 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 			Ok((outgoing_targeted, our_chunk)) => {
 				let outgoing_queues = outgoing_targeted.clone().into();
 
-				let chunks = erasure::obtain_chunks(
+				if let Ok(chunks) = erasure::obtain_chunks(
 					self.inner.n_validators,
 					&pov_block.block_data,
-					Some(&outgoing_queues)).unwrap();
+					Some(&outgoing_queues)) {
+					let mut branches = erasure::branches(&chunks.as_ref());
+					let local_index: usize = self.inner.local_index;
 
-				let mut branches = erasure::branches(&chunks.as_ref());
-				let local_index: usize = self.inner.local_index;
+					let proof = branches.nth(self.inner.local_index)
+						.expect("`Branches` yeids a proof for each chunk provided; qed").0;
 
-				let proof = branches.nth(self.inner.local_index).unwrap().0;
+					let chunk = ErasureChunk {
+						relay_parent: self.inner.relay_parent,
+						chunk: chunks[self.inner.local_index].clone(),
+						block_data_hash: pov_block.block_data.hash(),
+						index: local_index as u32,
+						parachain_id: work.candidate_receipt.parachain_index,
+						n_validators: self.inner.n_validators as u32,
+						proof,
+					};
 
-				let chunk = ErasureChunk {
-					relay_parent: self.inner.relay_parent,
-					chunk: chunks[self.inner.local_index].clone(),
-					block_data_hash: pov_block.block_data.hash(),
-					index: local_index as u32,
-					parachain_id: work.candidate_receipt.parachain_index,
-					n_validators: self.inner.n_validators as u32,
-					proof,
-				};
+					self.inner.availability_store.add_erasure_chunk(chunk.parachain_id, our_chunk)?;
 
-				self.inner.availability_store.add_erasure_chunk(chunk.parachain_id, our_chunk)?;
-
-				(
-					GenericStatement::Valid(candidate_hash),
-					Validation::Valid(pov_block, outgoing_targeted)
-				)
+					(
+						GenericStatement::Valid(candidate_hash),
+						Validation::Valid(pov_block, outgoing_targeted)
+					)
+				} else {
+					return Err(std::io::Error::new(std::io::ErrorKind::Other, "failed to obtain chunks").into());
+				}
 			}
 		};
 
