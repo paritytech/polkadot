@@ -29,7 +29,7 @@ mod slots;
 mod crowdfund;
 
 use rstd::prelude::*;
-use substrate_primitives::u32_trait::{_1, _2, _3, _4};
+use substrate_primitives::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
@@ -130,7 +130,8 @@ impl SignedExtension for OnlyStakingAndClaims {
 	{
 		match call {
 			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_)
-				| Call::ElectionsPhragmen(_)
+				| Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_)
+				| Call::TechnicalCommittee(_)
 			=>
 				Ok(Default::default()),
 			_ => Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
@@ -312,7 +313,8 @@ parameter_types! {
 	// Six sessions in an era (24 hours).
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (28 days).
-	pub const BondingDuration: staking::EraIndex = 28;
+	// KUSAMA: This value is 1/4 of what we expect for the mainnet.
+	pub const BondingDuration: staking::EraIndex = 7;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 }
 
@@ -331,12 +333,13 @@ impl staking::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const LaunchPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
-	pub const VotingPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
-	pub const EmergencyVotingPeriod: BlockNumber = 3 * 24 * 60 * MINUTES;
+	// KUSAMA: These values are 1/4 of what we expect for the mainnet.
+	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
+	pub const VotingPeriod: BlockNumber = 7 * DAYS;
+	pub const EmergencyVotingPeriod: BlockNumber = 3 * HOURS;
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
-	pub const EnactmentPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
-	pub const CooloffPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
+	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
+	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
 }
 
 impl democracy::Trait for Runtime {
@@ -410,17 +413,18 @@ impl membership::Trait<membership::Instance1> for Runtime {
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
 	pub const ProposalBondMinimum: Balance = 100 * DOLLARS;
-	pub const SpendPeriod: BlockNumber = 24 * DAYS;
-	pub const Burn: Permill = Permill::from_percent(5);
+	// KUSAMA: This value is 1/4 of that expected for mainnet
+	pub const SpendPeriod: BlockNumber = 6 * DAYS;
+	// KUSAMA: This value is 1/5 of that expected for mainnet
+	pub const Burn: Permill = Permill::from_percent(1);
 }
 
 impl treasury::Trait for Runtime {
 	type Currency = Balances;
-	type ApproveOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>;
+	type ApproveOrigin = collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
 	type RejectOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 	type Event = Event;
-	type MintedForSpending = ();
-	type ProposalRejection = ();
+	type ProposalRejection = Treasury;
 	type ProposalBond = ProposalBond;
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
