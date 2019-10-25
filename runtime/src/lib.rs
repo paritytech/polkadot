@@ -424,7 +424,6 @@ impl treasury::Trait for Runtime {
 	type ApproveOrigin = collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
 	type RejectOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 	type Event = Event;
-	type MintedForSpending = ();
 	type ProposalRejection = Treasury;
 	type ProposalBond = ProposalBond;
 	type ProposalBondMinimum = ProposalBondMinimum;
