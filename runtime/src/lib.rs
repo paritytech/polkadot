@@ -24,15 +24,16 @@ mod attestations;
 mod claims;
 mod parachains;
 mod slot_range;
+mod registrar;
 mod slots;
 mod crowdfund;
 
 use rstd::prelude::*;
-use codec::{Encode, Decode};
 use substrate_primitives::u32_trait::{_1, _2, _3, _4};
+use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain, ValidityError,
+	parachain::{self, ActiveParas}, ValidityError,
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
@@ -47,8 +48,7 @@ use sr_primitives::{
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
-use babe_primitives::AuthorityId as BabeId;
-use elections::VoteIndex;
+use babe_primitives::{AuthorityId as BabeId};
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
@@ -56,7 +56,7 @@ use sr_staking_primitives::SessionIndex;
 use srml_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness}
 };
-use im_online::sr25519::{AuthorityId as ImOnlineId};
+use im_online::sr25519::AuthorityId as ImOnlineId;
 use system::offchain::TransactionSubmitter;
 
 #[cfg(feature = "std")]
@@ -67,11 +67,10 @@ pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
 pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
 pub use parachains::{Call as ParachainsCall, NEW_HEADS_IDENTIFIER};
-pub use srml_support::StorageValue;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
-use impls::{CurrencyToVoteHandler, FeeMultiplierUpdateHandler, ToAuthor, WeightToFee};
+use impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor, WeightToFee};
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -130,7 +129,9 @@ impl SignedExtension for OnlyStakingAndClaims {
 		-> TransactionValidity
 	{
 		match call {
-			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_) =>
+			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_)
+				| Call::ElectionsPhragmen(_)
+			=>
 				Ok(Default::default()),
 			_ => Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
 		}
@@ -186,7 +187,7 @@ impl indices::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: Balance = 10 * CENTS;
+	pub const ExistentialDeposit: Balance = 100 * CENTS;
 	pub const TransferFee: Balance = 1 * CENTS;
 	pub const CreationFee: Balance = 1 * CENTS;
 }
@@ -214,6 +215,8 @@ impl balances::Trait for Runtime {
 parameter_types! {
 	pub const TransactionBaseFee: Balance = 1 * CENTS;
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
+	// for a sane configuration, this should always be less than `AvailableBlockRatio`.
+	pub const TargetBlockFullness: Perbill = Perbill::from_percent(25);
 }
 
 impl transaction_payment::Trait for Runtime {
@@ -222,13 +225,12 @@ impl transaction_payment::Trait for Runtime {
 	type TransactionBaseFee = TransactionBaseFee;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
-	type FeeMultiplierUpdate = FeeMultiplierUpdateHandler;
+	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness>;
 }
 
 parameter_types! {
 	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
 }
-
 impl timestamp::Trait for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Babe;
@@ -252,6 +254,9 @@ parameter_types! {
 	pub const Offset: BlockNumber = 0;
 }
 
+// !!!!!!!!!!!!!
+// WARNING!!!!!!  SEE NOTE BELOW BEFORE TOUCHING THIS CODE
+// !!!!!!!!!!!!!
 type SessionHandlers = (Grandpa, Babe, ImOnline, Parachains);
 impl_opaque_keys! {
 	pub struct SessionKeys {
@@ -265,7 +270,6 @@ impl_opaque_keys! {
 		pub parachain_validator: parachain::ValidatorId,
 	}
 }
-
 // NOTE: `SessionHandler` and `SessionKeys` are co-dependent: One key will be used for each handler.
 // The number and order of items in `SessionHandler` *MUST* be the same number and order of keys in
 // `SessionKeys`.
@@ -282,15 +286,15 @@ impl session::Trait for Runtime {
 	type ShouldEndSession = Babe;
 	type Event = Event;
 	type Keys = SessionKeys;
-	type SelectInitialValidators = Staking;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = staking::StashOf<Self>;
+	type SelectInitialValidators = Staking;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 }
 
 impl session::historical::Trait for Runtime {
 	type FullIdentification = staking::Exposure<AccountId, Balance>;
-	type FullIdentificationOf = staking::ExposureOf<Self>;
+	type FullIdentificationOf = staking::ExposureOf<Runtime>;
 }
 
 srml_staking_reward_curve::build! {
@@ -370,35 +374,20 @@ impl collective::Trait<CouncilCollective> for Runtime {
 }
 
 parameter_types! {
-	pub const CandidacyBond: Balance = 10 * DOLLARS;
-	pub const VotingBond: Balance = 1 * DOLLARS;
-	pub const VotingFee: Balance = 2 * DOLLARS;
-	pub const MinimumVotingLock: Balance = 1 * DOLLARS;
-	pub const PresentSlashPerVoter: Balance = 1 * CENTS;
-	pub const CarryCount: u32 = 6;
-	// one additional vote should go by before an inactive voter can be reaped.
-	pub const InactiveGracePeriod: VoteIndex = 1;
-	pub const ElectionsVotingPeriod: BlockNumber = 2 * DAYS;
-	pub const DecayRatio: u32 = 0;
+	pub const CandidacyBond: Balance = 100 * DOLLARS;
+	pub const VotingBond: Balance = 5 * DOLLARS;
 }
 
-impl elections::Trait for Runtime {
+impl elections_phragmen::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
-	type BadPresentation = ();
-	type BadReaper = ();
-	type BadVoterIndex = ();
-	type LoserCandidate = ();
 	type ChangeMembers = Council;
+	type CurrencyToVote = CurrencyToVoteHandler;
 	type CandidacyBond = CandidacyBond;
 	type VotingBond = VotingBond;
-	type VotingFee = VotingFee;
-	type MinimumVotingLock = MinimumVotingLock;
-	type PresentSlashPerVoter = PresentSlashPerVoter;
-	type CarryCount = CarryCount;
-	type InactiveGracePeriod = InactiveGracePeriod;
-	type VotingPeriod = ElectionsVotingPeriod;
-	type DecayRatio = DecayRatio;
+	type LoserCandidate = Treasury;
+	type BadReport = Treasury;
+	type KickedMember = Treasury;
 }
 
 type TechnicalCollective = collective::Instance2;
@@ -484,6 +473,24 @@ impl parachains::Trait for Runtime {
 	type Call = Call;
 	type ParachainCurrency = Balances;
 	type Randomness = RandomnessCollectiveFlip;
+	type ActiveParachains = Registrar;
+	type Registrar = Registrar;
+}
+
+parameter_types! {
+	pub const ParathreadDeposit: Balance = 500 * DOLLARS;
+	pub const QueueSize: usize = 2;
+	pub const MaxRetries: u32 = 3;
+}
+
+impl registrar::Trait for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type Currency = Balances;
+	type ParathreadDeposit = ParathreadDeposit;
+	type SwapAux = Slots;
+	type QueueSize = QueueSize;
+	type MaxRetries = MaxRetries;
 }
 
 parameter_types!{
@@ -493,8 +500,8 @@ parameter_types!{
 
 impl slots::Trait for Runtime {
 	type Event = Event;
-	type Currency = balances::Module<Self>;
-	type Parachains = parachains::Module<Self>;
+	type Currency = Balances;
+	type Parachains = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type EndingPeriod = EndingPeriod;
 	type Randomness = RandomnessCollectiveFlip;
@@ -549,7 +556,7 @@ construct_runtime!(
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		Elections: elections::{Module, Call, Storage, Event<T>, Config<T>},
+		ElectionsPhragmen: elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>},
 		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
 
@@ -558,9 +565,10 @@ construct_runtime!(
 
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
 		// have no public dispatchables.
-		Parachains: parachains::{Module, Call, Storage, Config<T>, Inherent, Origin},
+		Parachains: parachains::{Module, Call, Storage, Config, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
+		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
 
 		// Sudo. Usable initially.
 		// RELEASE: remove this for release build.
@@ -588,6 +596,7 @@ pub type SignedExtra = (
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
 	transaction_payment::ChargeTransactionPayment::<Runtime>,
+	registrar::LimitParathreadCommits<Runtime>
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
@@ -658,8 +667,8 @@ impl_runtime_apis! {
 		fn duty_roster() -> parachain::DutyRoster {
 			Parachains::calculate_duty_roster().0
 		}
-		fn active_parachains() -> Vec<parachain::Id> {
-			Parachains::active_parachains()
+		fn active_parachains() -> Vec<(parachain::Id, Option<(parachain::CollatorId, parachain::Retriable)>)> {
+			Registrar::active_paras()
 		}
 		fn parachain_status(id: parachain::Id) -> Option<parachain::Status> {
 			Parachains::parachain_status(&id)

@@ -54,7 +54,7 @@ pub mod wasm_api;
 use rstd::vec::Vec;
 
 use codec::{Encode, Decode, CompactAs};
-use substrate_primitives::RuntimeDebug;
+use substrate_primitives::{RuntimeDebug, TypeId};
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
@@ -86,6 +86,16 @@ pub struct ValidationResult {
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Id(u32);
 
+impl TypeId for Id {
+	const TYPE_ID: [u8; 4] = *b"para";
+}
+
+/// Type for determining the active set of parachains.
+pub trait ActiveThreads {
+	/// Return the current ordered set of `Id`s of active parathreads.
+	fn active_threads() -> Vec<Id>;
+}
+
 impl From<Id> for u32 {
 	fn from(x: Id) -> Self { x.0 }
 }
@@ -94,10 +104,26 @@ impl From<u32> for Id {
 	fn from(x: u32) -> Self { Id(x) }
 }
 
+const USER_INDEX_START: u32 = 1000;
+
+/// The ID of the first user (non-system) parachain.
+pub const LOWEST_USER_ID: Id = Id(USER_INDEX_START);
+
 impl Id {
-	/// Convert this Id into its inner representation.
-	pub fn into_inner(self) -> u32 {
-		self.0
+	/// Create an `Id`.
+	pub const fn new(id: u32) -> Self {
+		Self(id)
+	}
+
+	/// Returns `true` if this parachain runs with system-level privileges.
+	pub fn is_system(&self) -> bool { self.0 < USER_INDEX_START }
+}
+
+impl rstd::ops::Add<u32> for Id {
+	type Output = Self;
+
+	fn add(self, other: u32) -> Self {
+		Self(self.0 + other)
 	}
 }
 
@@ -180,6 +206,9 @@ pub enum ParachainDispatchOrigin {
 	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with parachain-
 	/// aware modules which need to succinctly verify that the origin is a parachain.
 	Parachain,
+	/// As the simple, superuser `Origin::Root`. This can only be done on specially permissioned
+	/// parachains.
+	Root,
 }
 
 impl rstd::convert::TryFrom<u8> for ParachainDispatchOrigin {

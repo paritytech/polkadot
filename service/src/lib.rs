@@ -18,7 +18,7 @@
 
 pub mod chain_spec;
 
-use futures::prelude::*;
+use futures::sync::mpsc;
 use client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
@@ -140,8 +140,10 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
 	>, ServiceError>
 {
-	let is_authority = config.roles.is_authority();
+	use substrate_network::DhtEvent;
+
 	let is_collator = config.custom.collating_for.is_some();
+	let is_authority = config.roles.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = config.custom.max_block_data_size;
 	let db_path = config.database_path.clone();
@@ -150,22 +152,23 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config);
 
+	// Dht event channel from the network to the authority discovery module. Use
+	// bounded channel to ensure back-pressure. Authority discovery is triggering one
+	// event per authority within the current authority set. This estimates the
+	// authority set size to be somewhere below 10 000 thereby setting the channel
+	// buffer size to 10 000.
+	let (dht_event_tx, _dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
+
 	let service = builder
 		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
+		.with_dht_event_tx(dht_event_tx)?
 		.build()?;
 
 	let (block_import, link_half, babe_link) = import_setup.take()
 		.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
-
-	if is_collator {
-		info!(
-			"The node cannot start as an authority because it is also configured to run as a collator."
-		);
-		return Ok(service);
-	}
 
 	let client = service.client();
 	let known_oracle = client.clone();
@@ -278,7 +281,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	let enable_grandpa = !disable_grandpa;
 	if enable_grandpa {
 		// start the full GRANDPA voter
-		// NOTE: unlike in polkadot/master we are currently running the full
+		// NOTE: unlike in substrate we are currently running the full
 		// GRANDPA voter protocol for all full nodes (regardless of whether
 		// they're validators or not). at this point the full voter should
 		// provide better guarantees of block and vote data availability than
