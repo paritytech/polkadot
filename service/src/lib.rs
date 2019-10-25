@@ -281,7 +281,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	let enable_grandpa = !disable_grandpa;
 	if enable_grandpa {
 		// start the full GRANDPA voter
-		// NOTE: unlike in polkadot/master we are currently running the full
+		// NOTE: unlike in substrate we are currently running the full
 		// GRANDPA voter protocol for all full nodes (regardless of whether
 		// they're validators or not). at this point the full voter should
 		// provide better guarantees of block and vote data availability than
