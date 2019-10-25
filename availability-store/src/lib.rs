@@ -158,8 +158,8 @@ impl Store {
 
 	/// Adds an erasure chunk to storage.
 	///
-	/// The chunk should be checked for validness against the root of encoding
-	/// and it's proof prior to calling this.
+	/// The chunk should be checked for validity against the root of encoding
+	/// and its proof prior to calling this.
 	pub fn add_erasure_chunk(&self, parachain_id: ParaId, chunk: ErasureChunk) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
 		let relay_parent = chunk.relay_parent;
@@ -178,7 +178,7 @@ impl Store {
 
 		v.push(chunk);
 
-		// If therea are no block data and messages in the store at this point,
+		// If there are no block data and messages in the store at this point,
 		// check that they can be reconstructed now and add them to store if they can.
 		if let Ok(None) = self.inner.get(columns::DATA, &block_data_key(&relay_parent, &block_data_hash)) {
 			if let Ok((block_data, outgoing_queues)) = erasure::reconstruct(v[0].n_validators as usize,
@@ -259,7 +259,7 @@ impl Store {
 		}
 	}
 
-	/// Queries an erasure chunk by it's block's parent and hash and index.
+	/// Queries an erasure chunk by its block's parent and hash and index.
 	pub fn get_erasure_chunk(&self, relay_parent: Hash, block_data_hash: Hash, index: usize) -> Option<ErasureChunk> {
 		let key = erasure_chunks_key(&relay_parent, &block_data_hash);
 
@@ -377,7 +377,7 @@ impl Store {
 #[cfg(test)]
 mod tests {
 	use super::*;
-    use polkadot_erasure_coding::{self as erasure};
+	use polkadot_erasure_coding::{self as erasure};
 
 	#[test]
 	fn finalization_removes_unneeded() {
@@ -528,7 +528,7 @@ mod tests {
 				proof,
 				index: index as u32,
 			})
-		.collect();
+			.collect();
 
 		let store = Store::new_in_memory();
 
