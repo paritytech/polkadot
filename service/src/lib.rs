@@ -275,7 +275,8 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		keystore,
 	};
 
-	if !disable_grandpa {
+	let enable_grandpa = !disable_grandpa;
+	if enable_grandpa {
 		// start the full GRANDPA voter
 		// NOTE: unlike in polkadot/master we are currently running the full
 		// GRANDPA voter protocol for all full nodes (regardless of whether
