@@ -18,7 +18,6 @@
 
 pub mod chain_spec;
 
-use futures::prelude::*;
 use futures::sync::mpsc;
 use client::LongestChain;
 use std::sync::Arc;
@@ -263,8 +262,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		};
 
 		let babe = start_babe(babe_config)?;
-		let select = babe.select(service.on_exit()).then(|_| Ok(()));
-		service.spawn_essential_task(Box::new(select));
+		service.spawn_essential_task(babe);
 	}
 
 	let config = grandpa::Config {
@@ -278,12 +276,12 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	match (is_authority, disable_grandpa) {
 		(false, false) => {
 			// start the lightweight GRANDPA observer
-			service.spawn_task(Box::new(grandpa::run_grandpa_observer(
+			service.spawn_task(grandpa::run_grandpa_observer(
 				config,
 				link_half,
 				service.network(),
 				service.on_exit(),
-			)?));
+			)?);
 		},
 		(true, false) => {
 			// start the full GRANDPA voter
@@ -296,7 +294,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 				telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 				voting_rule: grandpa::VotingRulesBuilder::default().build(),
 			};
-			service.spawn_essential_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
+			service.spawn_essential_task(grandpa::run_grandpa_voter(grandpa_config)?);
 		},
 		(_, true) => {
 			grandpa::setup_disabled_grandpa(
