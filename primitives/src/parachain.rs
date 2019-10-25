@@ -421,20 +421,6 @@ pub struct ErasureChunk {
 	pub proof: Vec<Vec<u8>>,
 }
 
-/// An array of erasure-encoded chunks and a number of validators (N)
-///
-/// It's likely this should not live here.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct ErasureChunks {
-	/// The number of validators used to break up the data into erasure-encoded chunks.
-	pub n_validators: u64,
-	/// The root of the Merkle tree containing the erasure-encoded chunks of data.
-	pub root: Hash,
-	/// The erasure-encoded chunks of data.
-	pub chunks: Vec<ErasureChunk>,
-}
-
 impl BlockData {
 	/// Compute hash of block data.
 	#[cfg(feature = "std")]
