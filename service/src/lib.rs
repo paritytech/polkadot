@@ -27,7 +27,6 @@ use polkadot_runtime::GenesisConfig;
 use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
 use service::{error::{Error as ServiceError}, Configuration, ServiceBuilder};
 use transaction_pool::txpool::{Pool as TransactionPool};
-use babe::{import_queue, start_babe};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use log::info;
@@ -98,20 +97,20 @@ macro_rules! new_full_start {
 				let justification_import = grandpa_block_import.clone();
 
 				let (block_import, babe_link) = babe::block_import(
-						babe::Config::get_or_compute(&*client)?,
-						grandpa_block_import,
-						client.clone(),
-						client.clone(),
+					babe::Config::get_or_compute(&*client)?,
+					grandpa_block_import,
+					client.clone(),
+					client.clone(),
 				)?;
 
 				let import_queue = babe::import_queue(
-						babe_link.clone(),
-						block_import.clone(),
-						Some(Box::new(justification_import)),
-						None,
-						client.clone(),
-						client,
-						inherent_data_providers.clone(),
+					babe_link.clone(),
+					block_import.clone(),
+					Some(Box::new(justification_import)),
+					None,
+					client.clone(),
+					client,
+					inherent_data_providers.clone(),
 				)?;
 
 				import_setup = Some((block_import, grandpa_link, babe_link));
@@ -261,48 +260,48 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			babe_link,
 		};
 
-		let babe = start_babe(babe_config)?;
+		let babe = babe::start_babe(babe_config)?;
 		service.spawn_essential_task(babe);
 	}
+
+	let keystore = if is_authority {
+		Some(service.keystore())
+	} else {
+		None
+	};
 
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
 		gossip_duration: Duration::from_millis(333),
 		justification_period: 512,
 		name: Some(name),
-		keystore: Some(service.keystore()),
+		keystore,
 	};
 
-	match (is_authority, disable_grandpa) {
-		(false, false) => {
-			// start the lightweight GRANDPA observer
-			service.spawn_task(grandpa::run_grandpa_observer(
-				config,
-				link_half,
-				service.network(),
-				service.on_exit(),
-			)?);
-		},
-		(true, false) => {
-			// start the full GRANDPA voter
-			let grandpa_config = grandpa::GrandpaParams {
-				config: config,
-				link: link_half,
-				network: service.network(),
-				inherent_data_providers: inherent_data_providers.clone(),
-				on_exit: service.on_exit(),
-				telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
-				voting_rule: grandpa::VotingRulesBuilder::default().build(),
-			};
-			service.spawn_essential_task(grandpa::run_grandpa_voter(grandpa_config)?);
-		},
-		(_, true) => {
-			grandpa::setup_disabled_grandpa(
-				service.client(),
-				&inherent_data_providers,
-				service.network(),
-			)?;
-		},
+	let enable_grandpa = !disable_grandpa;
+	if enable_grandpa {
+		// start the full GRANDPA voter
+		// NOTE: unlike in substrate we are currently running the full
+		// GRANDPA voter protocol for all full nodes (regardless of whether
+		// they're validators or not). at this point the full voter should
+		// provide better guarantees of block and vote data availability than
+		// the observer.
+		let grandpa_config = grandpa::GrandpaParams {
+			config: config,
+			link: link_half,
+			network: service.network(),
+			inherent_data_providers: inherent_data_providers.clone(),
+			on_exit: service.on_exit(),
+			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
+			voting_rule: grandpa::VotingRulesBuilder::default().build(),
+		};
+		service.spawn_essential_task(grandpa::run_grandpa_voter(grandpa_config)?);
+	} else {
+		grandpa::setup_disabled_grandpa(
+			service.client(),
+			&inherent_data_providers,
+			service.network(),
+		)?;
 	}
 
 	Ok(service)
@@ -338,7 +337,6 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 			let finality_proof_request_builder =
 				finality_proof_import.create_finality_proof_request_builder();
 
-
 			let (babe_block_import, babe_link) = babe::block_import(
 				babe::Config::get_or_compute(&*client)?,
 				grandpa_block_import,
@@ -347,7 +345,7 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 			)?;
 
 			// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
-			let import_queue = import_queue(
+			let import_queue = babe::import_queue(
 				babe_link,
 				babe_block_import,
 				None,
