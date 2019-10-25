@@ -35,7 +35,7 @@ balances = { package = "srml-balances", git = "https://github.com/paritytech/sub
 transaction-payment = { package = "srml-transaction-payment", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 collective = { package = "srml-collective", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 democracy = { package = "srml-democracy", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-elections = { package = "srml-elections", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+elections-phragmen = { package = "srml-elections-phragmen", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 executive = { package = "srml-executive", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 finality-tracker = { package = "srml-finality-tracker", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -92,7 +92,7 @@ std = [
 	"balances/std",
 	"transaction-payment/std",
 	"collective/std",
-	"elections/std",
+	"elections-phragmen/std",
 	"democracy/std",
 	"executive/std",
 	"finality-tracker/std",
