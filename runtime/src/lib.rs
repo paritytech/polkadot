@@ -99,7 +99,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 1,
-	spec_version: 1005,
+	spec_version: 1006,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -131,7 +131,7 @@ impl SignedExtension for OnlyStakingAndClaims {
 		match call {
 			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_)
 				| Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_)
-				| Call::TechnicalCommittee(_)
+				| Call::TechnicalCommittee(_) | Call::Nicks(_)
 			=>
 				Ok(Default::default()),
 			_ => Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
@@ -529,6 +529,22 @@ impl sudo::Trait for Runtime {
 	type Proposal = Call;
 }
 
+parameter_types! {
+	pub const ReservationFee: Balance = 1 * DOLLARS;
+	pub const MinLength: usize = 3;
+	pub const MaxLength: usize = 16;
+}
+
+impl nicks::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type ReservationFee = ReservationFee;
+	type Slashed = Treasury;
+	type KillOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
+	type MinLength = MinLength;
+	type MaxLength = MaxLength;
+}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -577,6 +593,9 @@ construct_runtime!(
 		// Sudo. Usable initially.
 		// RELEASE: remove this for release build.
 		Sudo: sudo,
+
+		// Simple nicknames module.
+		Nicks: nicks::{Module, Call, Storage, Event<T>},
 	}
 );
 
