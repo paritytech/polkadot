@@ -529,6 +529,22 @@ impl sudo::Trait for Runtime {
 	type Proposal = Call;
 }
 
+parameter_types! {
+	pub const ReservationFee: Balance = 1 * DOLLARS;
+	pub const MinLength: usize = 3;
+	pub const MaxLength: usize = 16;
+}
+
+impl nicks::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type ReservationFee = ReservationFee;
+	type Slashed = Treasury;
+	type KillOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
+	type MinLength = MinLength;
+	type MaxLength = MaxLength;
+}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -577,6 +593,9 @@ construct_runtime!(
 		// Sudo. Usable initially.
 		// RELEASE: remove this for release build.
 		Sudo: sudo,
+
+		// Simple nicknames module.
+		Nicks: nicks::{Module, Call, Storage, Event<T>},
 	}
 );
 

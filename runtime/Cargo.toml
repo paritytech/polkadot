@@ -42,6 +42,7 @@ grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/subst
 im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 indices = { package = "srml-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 membership = { package = "srml-membership", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+nicks = { package = "srml-nicks", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 offences = { package = "srml-offences", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 randomness-collective-flip = { package = "srml-randomness-collective-flip", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 session = { package = "srml-session", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -100,6 +101,7 @@ std = [
 	"im-online/std",
 	"indices/std",
 	"membership/std",
+	"nicks/std",
 	"offences/std",
 	"sr-primitives/std",
 	"sr-staking-primitives/std",
