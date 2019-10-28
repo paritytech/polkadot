@@ -94,7 +94,7 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 		let _ = T::withdraw(
 			&para_account,
 			amount.into(),
-			WithdrawReason::Fee.into(),
+			WithdrawReason::Fee,
 			ExistenceRequirement::KeepAlive,
 		)?;
 

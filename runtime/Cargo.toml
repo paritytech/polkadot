@@ -14,47 +14,46 @@ safe-mix = { version = "1.0", default-features = false}
 serde = { version = "1.0", default-features = false }
 serde_derive = { version = "1.0", optional = true }
 
-authority-discovery-primitives = { package = "substrate-authority-discovery-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-offchain-primitives = { package = "substrate-offchain-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-sr-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-sr-staking-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-substrate-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-substrate-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-version = { package = "sr-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
+authority-discovery-primitives = { package = "substrate-authority-discovery-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+offchain-primitives = { package = "substrate-offchain-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sr-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sr-staking-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+substrate-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+substrate-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+version = { package = "sr-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
-authority-discovery = { package = "srml-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-authorship = { package = "srml-authorship", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-transaction-payment = { package = "srml-transaction-payment", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-srml-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-collective = { package = "srml-collective", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-democracy = { package = "srml-democracy", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-elections-phragmen = { package = "srml-elections-phragmen", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-executive = { package = "srml-executive", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-finality-tracker = { package = "srml-finality-tracker", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-indices = { package = "srml-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-membership = { package = "srml-membership", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-nicks = { package = "srml-nicks", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-offences = { package = "srml-offences", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-randomness-collective-flip = { package = "srml-randomness-collective-flip", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-session = { package = "srml-session", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-srml-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-staking = { package = "srml-staking", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-srml-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
-sudo = { package = "srml-sudo", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-system = { package = "srml-system", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-system_rpc_runtime_api = { package = "srml-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-timestamp = { package = "srml-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
-treasury = { package = "srml-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
+authority-discovery = { package = "srml-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+authorship = { package = "srml-authorship", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+transaction-payment = { package = "srml-transaction-payment", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+collective = { package = "srml-collective", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+democracy = { package = "srml-democracy", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+elections-phragmen = { package = "srml-elections-phragmen", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+executive = { package = "srml-executive", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+finality-tracker = { package = "srml-finality-tracker", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+indices = { package = "srml-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+membership = { package = "srml-membership", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+nicks = { package = "srml-nicks", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+offences = { package = "srml-offences", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+randomness-collective-flip = { package = "srml-randomness-collective-flip", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+session = { package = "srml-session", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+srml-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+staking = { package = "srml-staking", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+srml-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sudo = { package = "srml-sudo", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+system = { package = "srml-system", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+system_rpc_runtime_api = { package = "srml-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+timestamp = { package = "srml-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+treasury = { package = "srml-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 primitives = { package = "polkadot-primitives", path = "../primitives", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
@@ -63,8 +62,8 @@ polkadot-parachain = { path = "../parachain", default-features = false }
 hex-literal = "0.2.0"
 libsecp256k1 = "0.3.1"
 tiny-keccak = "1.4.2"
-keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
-substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 trie-db = "0.15"
 serde_json = "1.0"
 
@@ -93,7 +92,6 @@ std = [
 	"authorship/std",
 	"balances/std",
 	"transaction-payment/std",
-	"srml-transaction-payment-rpc-runtime-api/std",
 	"collective/std",
 	"elections-phragmen/std",
 	"democracy/std",
