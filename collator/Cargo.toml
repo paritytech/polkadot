@@ -8,10 +8,10 @@ edition = "2018"
 [dependencies]
 futures = "0.1.17"
 futures03 = { package = "futures-preview", version = "0.3.0-alpha.18", features = ["compat"] }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+substrate-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-cli = { path = "../cli" }
@@ -22,4 +22,4 @@ log = "0.4"
 tokio = "0.1.7"
 
 [dev-dependencies]
-keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }

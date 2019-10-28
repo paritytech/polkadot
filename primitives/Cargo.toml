@@ -7,18 +7,18 @@ edition = "2018"
 [dependencies]
 serde = { version = "1.0", optional = true, features = ["derive"] }
 parity-scale-codec = { version = "1.0.5", default-features = false, features = ["bit-vec", "derive"] }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-application-crypto = { package = "substrate-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sr-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
+application-crypto = { package = "substrate-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
+substrate-client = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
+sr-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
+rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
+runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
 polkadot-parachain = { path = "../parachain", default-features = false }
 bitvec = { version = "0.14.0", default-features = false, features = ["alloc"] }
-babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "kiz-rpc-for-fee-stuff" }
 
 [dev-dependencies]
-substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
 pretty_assertions = "0.5.1"
 
 [features]

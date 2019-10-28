@@ -12,14 +12,14 @@ av_store = { package = "polkadot-availability-store", path = "../availability-st
 polkadot-validation = { path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
 codec = { package = "parity-scale-codec", version = "~1.0.0", default-features = false, features = ["derive"] }
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
 futures = "0.1"
 futures03 = { package = "futures-preview", version = "0.3.0-alpha.19", features = ["compat"] }
 log = "0.4"
 exit-future = "0.1.4"
-substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-client = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
