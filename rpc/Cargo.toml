@@ -12,4 +12,6 @@ sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "kiz
 substrate-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff"  }
 srml-system-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff"  }
+srml-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+polkadot-runtime = { path = "../runtime" }
 
