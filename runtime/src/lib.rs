@@ -379,6 +379,9 @@ impl collective::Trait<CouncilCollective> for Runtime {
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
+	pub const TermDuration: BlockNumber = 10 * MINUTES;
+	pub const DesiredMembers: u32 = 13;
+	pub const DesiredRunnersUp: u32 = 0;
 }
 
 impl elections_phragmen::Trait for Runtime {
@@ -388,6 +391,9 @@ impl elections_phragmen::Trait for Runtime {
 	type CurrencyToVote = CurrencyToVoteHandler;
 	type CandidacyBond = CandidacyBond;
 	type VotingBond = VotingBond;
+	type TermDuration = TermDuration;
+	type DesiredMembers = DesiredMembers;
+	type DesiredRunnersUp = DesiredRunnersUp;
 	type LoserCandidate = Treasury;
 	type BadReport = Treasury;
 	type KickedMember = Treasury;
@@ -540,7 +546,7 @@ impl nicks::Trait for Runtime {
 	type Currency = Balances;
 	type ReservationFee = ReservationFee;
 	type Slashed = Treasury;
-	type KillOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
+	type ForceOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 	type MinLength = MinLength;
 	type MaxLength = MaxLength;
 }
