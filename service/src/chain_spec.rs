@@ -23,7 +23,7 @@ use polkadot_runtime::{
 	BalancesConfig, SessionKeys, TechnicalCommitteeConfig, SudoConfig, IndicesConfig, StakerStatus,
 	WASM_BINARY, ClaimsConfig, ParachainsConfig, RegistrarConfig
 };
-use polkadot_runtime::constants::{currency::DOTS, time::*};
+use polkadot_runtime::constants::currency::DOTS;
 use sr_primitives::{traits::IdentifyAccount, Perbill};
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
@@ -231,8 +231,6 @@ pub fn testnet_genesis(
 
 	const ENDOWMENT: u128 = 1_000_000 * DOTS;
 	const STASH: u128 = 100 * DOTS;
-
-	let desired_members = (endowed_accounts.len() / 2 - initial_authorities.len()) as u32;
 
 	GenesisConfig {
 		system: Some(SystemConfig {
