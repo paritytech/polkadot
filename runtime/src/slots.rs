@@ -506,7 +506,7 @@ impl<T: Trait> Module<T> {
 					if T::Currency::withdraw(
 						&bidder.who,
 						amount,
-						WithdrawReason::Fee.into(),
+						WithdrawReason::Fee,
 						ExistenceRequirement::AllowDeath
 					).is_err() {
 						continue;
@@ -543,7 +543,7 @@ impl<T: Trait> Module<T> {
 						if T::Currency::withdraw(
 							&para_id.into_account(),
 							additional,
-							WithdrawReason::Fee.into(),
+							WithdrawReason::Fee,
 							ExistenceRequirement::AllowDeath
 						).is_err() {
 							continue;

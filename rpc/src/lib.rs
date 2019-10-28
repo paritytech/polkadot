@@ -20,10 +20,9 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::{Block, AccountId, Nonce, Balance};
+use polkadot_primitives::{Block, AccountId, Nonce};
 use sr_primitives::traits::ProvideRuntimeApi;
 use transaction_pool::txpool::{ChainApi, Pool};
-use polkadot_runtime::UncheckedExtrinsic;
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<substrate_rpc::Metadata>;
@@ -34,18 +33,13 @@ pub fn create<C, P>(client: Arc<C>, pool: Arc<Pool<P>>) -> RpcExtension where
 	C: client::blockchain::HeaderBackend<Block>,
 	C: Send + Sync + 'static,
 	C::Api: srml_system_rpc::AccountNonceApi<Block, AccountId, Nonce>,
-	C::Api: srml_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UncheckedExtrinsic>,
 	P: ChainApi + Sync + Send + 'static,
 {
 	use srml_system_rpc::{System, SystemApi};
-	use srml_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
 
 	let mut io = jsonrpc_core::IoHandler::default();
 	io.extend_with(
 		SystemApi::to_delegate(System::new(client.clone(), pool))
-	);
-	io.extend_with(
-		TransactionPaymentApi::to_delegate(TransactionPayment::new(client))
 	);
 	io
 }

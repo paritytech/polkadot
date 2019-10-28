@@ -19,18 +19,18 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
-inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
-consensus = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
-transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
-trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
-runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+consensus = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 bitvec = { version = "0.14.0", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
-babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
-keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+runtime_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

@@ -207,7 +207,7 @@ decl_module! {
 			let imb = T::Currency::withdraw(
 				&owner,
 				deposit,
-				WithdrawReason::Transfer.into(),
+				WithdrawReason::Transfer,
 				ExistenceRequirement::AllowDeath,
 			)?;
 
@@ -378,7 +378,7 @@ decl_module! {
 			let _ = T::Currency::resolve_into_existing(&who, T::Currency::withdraw(
 				&Self::fund_account_id(index),
 				balance,
-				WithdrawReason::Transfer.into(),
+				WithdrawReason::Transfer,
 				ExistenceRequirement::AllowDeath
 			)?);
 
@@ -407,14 +407,14 @@ decl_module! {
 			let _ = T::Currency::resolve_into_existing(&fund.owner, T::Currency::withdraw(
 				&account,
 				fund.deposit,
-				WithdrawReason::Transfer.into(),
+				WithdrawReason::Transfer,
 				ExistenceRequirement::AllowDeath
 			)?);
 
 			T::OrphanedFunds::on_unbalanced(T::Currency::withdraw(
 				&account,
 				fund.raised,
-				WithdrawReason::Transfer.into(),
+				WithdrawReason::Transfer,
 				ExistenceRequirement::AllowDeath
 			)?);
 
