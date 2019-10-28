@@ -19,10 +19,9 @@
 use primitives::{Pair, Public, crypto::UncheckedInto, sr25519};
 use polkadot_primitives::{AccountId, AccountPublic, parachain::ValidatorId};
 use polkadot_runtime::{
-	GenesisConfig, CouncilConfig, ElectionsPhragmenConfig, DemocracyConfig, SystemConfig,
-	SessionConfig, StakingConfig, BalancesConfig, SessionKeys, TechnicalCommitteeConfig,
-	SudoConfig, IndicesConfig, StakerStatus, WASM_BINARY,
-	ClaimsConfig, ParachainsConfig, RegistrarConfig
+	GenesisConfig, CouncilConfig, DemocracyConfig, SystemConfig, SessionConfig, StakingConfig,
+	BalancesConfig, SessionKeys, TechnicalCommitteeConfig, SudoConfig, IndicesConfig, StakerStatus,
+	WASM_BINARY, ClaimsConfig, ParachainsConfig, RegistrarConfig
 };
 use polkadot_runtime::constants::{currency::DOTS, time::*};
 use sr_primitives::{traits::IdentifyAccount, Perbill};
@@ -137,12 +136,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		collective_Instance2: Some(TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),
-		}),
-		elections_phragmen: Some(ElectionsPhragmenConfig {
-			members: vec![],
-			term_duration: 49 * DAYS,
-			desired_members: 7,
-			desired_runners_up: 3,
 		}),
 		membership_Instance1: Some(Default::default()),
 		babe: Some(Default::default()),
@@ -279,17 +272,6 @@ pub fn testnet_genesis(
 		collective_Instance2: Some(TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),
-		}),
-		elections_phragmen: Some(ElectionsPhragmenConfig {
-			members: endowed_accounts.iter()
-				.filter(|&endowed| initial_authorities.iter()
-					.find(|&(_, controller, _, _, _, _)| controller == endowed)
-					.is_none()
-				).cloned()
-				.collect(),
-			term_duration: 1 * DAYS,
-			desired_runners_up: desired_members / 2,
-			desired_members,
 		}),
 		membership_Instance1: Some(Default::default()),
 		babe: Some(Default::default()),
