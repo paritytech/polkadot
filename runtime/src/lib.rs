@@ -382,7 +382,7 @@ parameter_types! {
 	pub const VotingBond: Balance = 5 * DOLLARS;
 	pub const TermDuration: BlockNumber = 10 * MINUTES;
 	pub const DesiredMembers: u32 = 13;
-	pub const DesiredRunnersUp: u32 = 0;
+	pub const DesiredRunnersUp: u32 = 7;
 }
 
 impl elections_phragmen::Trait for Runtime {
