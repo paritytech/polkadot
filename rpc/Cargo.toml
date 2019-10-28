@@ -5,11 +5,13 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
 jsonrpc-core = "13.2.0"
 polkadot-primitives = { path = "../primitives" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
-substrate-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
-srml-system-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff"  }
+substrate-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff"  }
+srml-system-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff"  }
+srml-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-rpc-for-fee-stuff" }
+polkadot-runtime = { path = "../runtime" }
 
