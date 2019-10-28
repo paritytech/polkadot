@@ -179,8 +179,8 @@ pub enum Error {
 	#[display(fmt = "Parachain validation produced wrong relay-chain fees (expected: {:?}, got {:?})", expected, got)]
 	FeesChargedInvalid { expected: Balance, got: Balance },
 	/// Candidate block has an erasure-encoded root that mismatches the actual erasure-encoded root of block data and extrinsics.
-	#[display(fmt = "Got unexpected erasure root for block {:?}. (expected: {:?}, got {:?})", block_data_hash, expected, got)]
-	ErasureRootMismatch { block_data_hash: Hash, expected: Hash, got: Hash },
+	#[display(fmt = "Got unexpected erasure root (expected: {:?}, got {:?})", expected, got)]
+	ErasureRootMismatch { expected: Hash, got: Hash },
 	/// Candidate block collation info doesn't match candidate receipt.
 	#[display(fmt = "Got receipt mismatch for candidate {:?}", candidate)]
 	CandidateReceiptMismatch { candidate: Hash },
@@ -372,7 +372,6 @@ pub fn validate_chunk(
 
 	if expected != got {
 		return Err(Error::ErasureRootMismatch {
-			block_data_hash: chunk.block_data_hash,
 			expected,
 			got,
 		})
@@ -522,12 +521,8 @@ pub fn produce_receipt_and_chunks(
 			.zip(branches.map(|(proof, _)| proof))
 			.enumerate()
 			.map(|(index, (chunk, proof))| ErasureChunk {
-				relay_parent: relay_parent_hash.clone(),
 				chunk: chunk.clone(), // branches borrows the original chunks, but this clone could probably be dodged.
-				block_data_hash: pov.block_data.hash(),
 				index: index as u32,
-				parachain_id: info.parachain_index,
-				n_validators: n_validators as u32,
 				proof,
 			})
 			.collect();
@@ -589,7 +584,6 @@ pub fn validate_receipt<P>(
 
 	if validated_receipt.erasure_root != receipt.erasure_root {
 		return Err(Error::ErasureRootMismatch {
-			block_data_hash: pov_block.block_data.hash(),
 			expected: validated_receipt.erasure_root,
 			got: receipt.erasure_root,
 		});

@@ -405,18 +405,10 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u
 #[derive(PartialEq, Eq, Clone, Encode, Decode, Default)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct ErasureChunk {
-	/// The relay chain parent block hash of the candidate block hash that this erasure-encoded chunk of data belongs to.
-	pub relay_parent: Hash,
 	/// The erasure-encoded chunk of data belonging to the candidate block.
 	pub chunk: Vec<u8>,
-	/// The hash of the block data this chunk belongs to.
-	pub block_data_hash: Hash,
 	/// The index of this erasure-encoded chunk of data.
 	pub index: u32,
-	/// Parachain ID
-	pub parachain_id: Id,
-	/// Number of validators that was used for erasure coding.
-	pub n_validators: u32,
 	/// Proof for this chunk's branch in the Merkle tree.
 	pub proof: Vec<Vec<u8>>,
 }

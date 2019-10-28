@@ -384,16 +384,17 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 						.expect("`Branches` yeids a proof for each chunk provided; qed").0;
 
 					let chunk = ErasureChunk {
-						relay_parent: self.inner.relay_parent,
 						chunk: chunks[self.inner.local_index].clone(),
-						block_data_hash: pov_block.block_data.hash(),
 						index: local_index as u32,
-						parachain_id: work.candidate_receipt.parachain_index,
-						n_validators: self.inner.n_validators as u32,
 						proof,
 					};
 
-					self.inner.availability_store.add_erasure_chunk(chunk.parachain_id, our_chunk)?;
+					self.inner.availability_store.add_erasure_chunk(
+						self.inner.n_validators,
+						&self.inner.relay_parent,
+						&candidate,
+						our_chunk
+					)?;
 
 					(
 						GenericStatement::Valid(candidate_hash),
@@ -530,7 +531,7 @@ impl SharedTable {
 	/// Only imports `i`-th erasure-encoded chunk of data where `i` is the `local_index`.
 	pub fn import_erasure_chunk(&self, chunk: ErasureChunk) {
 		if Some(chunk.index) == self.context.local_index() {
-			let _ = self.inner.lock().availability_store.add_erasure_chunk(chunk.parachain_id, chunk);
+			// let _ = self.inner.lock().availability_store.add_erasure_chunk(chunk.parachain_id, chunk);
 		}
 	}
 
@@ -806,12 +807,8 @@ mod tests {
 		let validated = producer.prime_with(|_, _, _| Ok((
 				OutgoingMessages { outgoing_messages: Vec::new() },
 				ErasureChunk {
-					relay_parent,
 					chunk: vec![1, 2, 3],
-					block_data_hash,
 					index: local_index as u32,
-					parachain_id: para_id,
-					n_validators: n_validators as u32,
 					proof: vec![],
 				},
 			)))
@@ -873,12 +870,8 @@ mod tests {
 		let validated = producer.prime_with(|_, _, _| Ok((
 				OutgoingMessages { outgoing_messages: Vec::new() },
 				ErasureChunk {
-					relay_parent,
 					chunk: chunks[local_index].clone(),
-					block_data_hash,
 					index: local_index as u32,
-					parachain_id: para_id,
-					n_validators: n_validators as u32,
 					proof: vec![],
 				},
 			)))

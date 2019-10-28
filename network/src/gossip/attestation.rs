@@ -235,14 +235,14 @@ impl View {
 		-> (GossipValidationResult<Hash>, i32)
 	{
 		// A chunk should reference one of our chain heads.
-		match self.leaf_view(&chunk.chunk.relay_parent) {
+		match self.leaf_view(&chunk.relay_parent) {
 			None =>  {
-				let cost = match chain.is_known(&chunk.chunk.relay_parent) {
+				let cost = match chain.is_known(&chunk.relay_parent) {
 					Some(Known::Leaf) => {
 						warn!(
 							target: "network",
 							"Leaf block {} not considered live for attestation",
-							chunk.chunk.relay_parent,
+							chunk.relay_parent,
 						);
 
 						0
@@ -254,7 +254,7 @@ impl View {
 				(GossipValidationResult::Discard, cost)
 			}
 			Some(view) => {
-				let res = view.validation_data.check_chunk(&chunk.chunk.relay_parent, &chunk);
+				let res = view.validation_data.check_chunk(&chunk.relay_parent, &chunk);
 				match res {
 					Ok(()) => (GossipValidationResult::ProcessAndKeep(Hash::default()), benefit::NEW_ERASURE_CHUNK),
 					Err(()) => (GossipValidationResult::Discard, cost::BAD_SIGNATURE),

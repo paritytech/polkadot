@@ -57,7 +57,7 @@ use substrate_network::consensus_gossip::{
 	ValidatorContext, MessageIntent, ConsensusMessage,
 };
 use polkadot_validation::{SignedStatement};
-use polkadot_primitives::{Block, Hash, parachain::ValidatorSignature, parachain::ValidatorIndex};
+use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
 	ParachainHost, ValidatorId, Message as ParachainMessage, ErasureChunk as PrimitiveChunk
 };
@@ -195,10 +195,10 @@ impl GossipStatement {
 pub struct ErasureChunkMessage {
 	/// The chunk itself.
 	pub chunk: PrimitiveChunk,
-	/// The validator that has sent this message.
-	pub sender: ValidatorIndex,
-	/// The signature of the validator.
-	pub signature: ValidatorSignature,
+	/// The relay parent of the block this chunk belongs to.
+	pub relay_parent: Hash,
+	/// The hash of the candidate receipt of the block this chunk belongs to.
+	pub candidate_hash: Hash,
 }
 
 impl From<ErasureChunkMessage> for GossipMessage {
@@ -486,25 +486,9 @@ impl MessageValidationData {
 		}
 	}
 
-	fn check_chunk(&self, relay_chain_leaf: &Hash, msg: &ErasureChunkMessage) -> Result<(), ()> {
-		let sender = match self.authorities.get(msg.sender as usize) {
-			Some(val) => val,
-			None => return Err(()),
-		};
-
-		let good = self.authorities.contains(&sender) &&
-			polkadot_validation::check_chunk(
-				&msg.chunk,
-				&msg.signature,
-				sender.clone(),
-				relay_chain_leaf,
-			);
-
-		if good {
-			Ok(())
-		} else {
-			Err(())
-		}
+	fn check_chunk(&self, _relay_chain_leaf: &Hash, _msg: &ErasureChunkMessage) -> Result<(), ()> {
+		// TODO: implementation
+		Ok(())
 	}
 }
 

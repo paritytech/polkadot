@@ -386,7 +386,12 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 						&collation.info,
 					) {
 						Ok((receipt, chunks)) => {
-							let res = availability_store.add_erasure_chunks(chunks.clone());
+							let res = availability_store.add_erasure_chunks(
+								authorities_num,
+								&relay_parent,
+								&receipt,
+								chunks.clone()
+							);
 
 							match res {
 								Ok(()) => {

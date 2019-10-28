@@ -292,15 +292,13 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 		self.network().gossip_message(self.attestation_topic, statement.into());
 
 		for chunk in chunks.1 {
-			if let Some(signature) = self.table.sign_chunk(chunk, chunks.0) {
-				let message = ErasureChunkMessage {
-					chunk: chunk.clone(),
-					sender: chunks.0,
-					signature
-				};
+			let message = ErasureChunkMessage {
+				chunk: chunk.clone(),
+				relay_parent: self.parent_hash(),
+				candidate_hash: hash,
+			};
 
-				self.network().gossip_message(self.erasure_chunks_topic, message.into());
-			}
+			self.network().gossip_message(self.erasure_chunks_topic, message.into());
 		}
 	}
 
