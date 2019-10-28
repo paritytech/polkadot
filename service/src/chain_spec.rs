@@ -19,12 +19,11 @@
 use primitives::{Pair, Public, crypto::UncheckedInto, sr25519};
 use polkadot_primitives::{AccountId, AccountPublic, parachain::ValidatorId};
 use polkadot_runtime::{
-	GenesisConfig, CouncilConfig, ElectionsPhragmenConfig, DemocracyConfig, SystemConfig,
-	SessionConfig, StakingConfig, BalancesConfig, SessionKeys, TechnicalCommitteeConfig,
-	SudoConfig, IndicesConfig, StakerStatus, WASM_BINARY,
-	ClaimsConfig, ParachainsConfig, RegistrarConfig
+	GenesisConfig, CouncilConfig, DemocracyConfig, SystemConfig, SessionConfig, StakingConfig,
+	BalancesConfig, SessionKeys, TechnicalCommitteeConfig, SudoConfig, IndicesConfig, StakerStatus,
+	WASM_BINARY, ClaimsConfig, ParachainsConfig, RegistrarConfig
 };
-use polkadot_runtime::constants::{currency::DOTS, time::*};
+use polkadot_runtime::constants::currency::DOTS;
 use sr_primitives::{traits::IdentifyAccount, Perbill};
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
@@ -138,12 +137,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		elections_phragmen: Some(ElectionsPhragmenConfig {
-			members: vec![],
-			term_duration: 49 * DAYS,
-			desired_members: 7,
-			desired_runners_up: 3,
-		}),
 		membership_Instance1: Some(Default::default()),
 		babe: Some(Default::default()),
 		grandpa: Some(Default::default()),
@@ -239,8 +232,6 @@ pub fn testnet_genesis(
 	const ENDOWMENT: u128 = 1_000_000 * DOTS;
 	const STASH: u128 = 100 * DOTS;
 
-	let desired_members = (endowed_accounts.len() / 2 - initial_authorities.len()) as u32;
-
 	GenesisConfig {
 		system: Some(SystemConfig {
 			code: WASM_BINARY.to_vec(),
@@ -279,17 +270,6 @@ pub fn testnet_genesis(
 		collective_Instance2: Some(TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),
-		}),
-		elections_phragmen: Some(ElectionsPhragmenConfig {
-			members: endowed_accounts.iter()
-				.filter(|&endowed| initial_authorities.iter()
-					.find(|&(_, controller, _, _, _, _)| controller == endowed)
-					.is_none()
-				).cloned()
-				.collect(),
-			term_duration: 1 * DAYS,
-			desired_runners_up: desired_members / 2,
-			desired_members,
 		}),
 		membership_Instance1: Some(Default::default()),
 		babe: Some(Default::default()),

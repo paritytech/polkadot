@@ -33,6 +33,7 @@ authorship = { package = "srml-authorship", git = "https://github.com/paritytech
 babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 transaction-payment = { package = "srml-transaction-payment", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+srml-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 collective = { package = "srml-collective", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 democracy = { package = "srml-democracy", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 elections-phragmen = { package = "srml-elections-phragmen", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -92,6 +93,7 @@ std = [
 	"authorship/std",
 	"balances/std",
 	"transaction-payment/std",
+	"srml-transaction-payment-rpc-runtime-api/std",
 	"collective/std",
 	"elections-phragmen/std",
 	"democracy/std",
