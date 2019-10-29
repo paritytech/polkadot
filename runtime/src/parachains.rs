@@ -842,6 +842,10 @@ impl<T: Trait> Module<T> {
 */
 }
 
+impl<T: Trait> sr_primitives::BoundToRuntimeAppPublic for Module<T> {
+	type Public = ValidatorId;
+}
+
 impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
