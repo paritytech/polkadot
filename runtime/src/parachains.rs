@@ -842,6 +842,10 @@ impl<T: Trait> Module<T> {
 */
 }
 
+impl<T: Trait> sr_primitives::BoundToRuntimeAppPublic for Module<T> {
+	type Public = ValidatorId;
+}
+
 impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
@@ -902,13 +906,14 @@ mod tests {
 	use substrate_primitives::{H256, Blake2Hasher};
 	use substrate_trie::NodeCodec;
 	use sr_primitives::{
-		Perbill,
+		Perbill, curve::PiecewiseLinear, testing::{UintAuthorityId, Header},
 		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},
-		testing::{UintAuthorityId, Header},
-		curve::PiecewiseLinear,
 	};
 	use primitives::{
-		parachain::{CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo, Scheduling},
+		parachain::{
+			CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo,
+			Scheduling,
+		},
 		BlockNumber,
 	};
 	use crate::constants::time::*;
@@ -940,6 +945,7 @@ mod tests {
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
+
 	impl system::Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
@@ -968,7 +974,7 @@ mod tests {
 		type OnSessionEnding = ();
 		type Keys = UintAuthorityId;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
-		type SessionHandler = ();
+		type SessionHandler = session::TestSessionHandler;
 		type Event = ();
 		type SelectInitialValidators = staking::Module<Self>;
 		type ValidatorId = u64;
