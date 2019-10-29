@@ -67,16 +67,16 @@ fn block_data_key(relay_parent: &Hash, block_data_hash: &Hash) -> Vec<u8> {
 	(relay_parent, block_data_hash, 0i8).encode()
 }
 
-fn candidate_to_block_key(candidate_hash: &Hash) -> Vec<u8> {
-	(candidate_hash, 0i8).encode()
-}
-
 fn block_to_candidate_key(block_data_hash: &Hash) -> Vec<u8> {
 	(block_data_hash, 1i8).encode()
 }
 
 fn erasure_chunks_key(relay_parent: &Hash, block_data_hash: &Hash) -> Vec<u8> {
 	(relay_parent, block_data_hash, 1i8).encode()
+}
+
+fn candidate_key(candidate_hash: &Hash) -> Vec<u8> {
+	(candidate_hash, 1i8).encode()
 }
 
 /// Handle to the availability store.
@@ -269,14 +269,32 @@ impl Store {
 			.map(|chunk| chunk.clone())
 	}
 
-	/// Adds a mapping from candidate's receipt hash to block data hash.
-	pub fn add_candidate_for_block(&self, candidate_hash: Hash, block_data_hash: Hash) -> io::Result<()> {
+	/// Stores a candidate receipt.
+	pub fn add_candidate(&self, receipt: &CandidateReceipt) -> io::Result<()> {
+		let dbkey = candidate_key(&receipt.hash());
 		let mut tx = DBTransaction::new();
 
-		tx.put_vec(columns::META, &block_to_candidate_key(&block_data_hash), candidate_hash.encode());
-		tx.put_vec(columns::META, &candidate_to_block_key(&candidate_hash), block_data_hash.encode());
+		tx.put_vec(columns::DATA, &dbkey, receipt.encode());
+
+		tx.put_vec(columns::META, &block_to_candidate_key(&receipt.block_data_hash), receipt.hash().encode());
 
 		self.inner.write(tx)
+	}
+
+	/// Queries a candidate receipt by it's hash.
+	pub fn get_candidate(&self, candidate_hash: &Hash) -> Option<CandidateReceipt> {
+		let dbkey = candidate_key(candidate_hash);
+
+		match self.inner.get(columns::DATA, &dbkey[..]) {
+			Ok(Some(raw)) => Some(
+				CandidateReceipt::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")
+			),
+			Ok(None) => None,
+			Err(e) => {
+				warn!(target: "availability", "Error reading from availbility store: {:?}", e);
+				None
+			}
+		}
 	}
 
 	/// Note that a set of candidates have been included in a finalized block with given hash and parent hash.
@@ -298,8 +316,8 @@ impl Store {
 				if !finalized_candidates.contains(&candidate_hash) {
 					tx.delete(columns::DATA, block_data_key(&parent, &block_data_hash).as_slice());
 					tx.delete(columns::DATA, &erasure_chunks_key(&parent, &block_data_hash));
+					tx.delete(columns::DATA, &candidate_key(&candidate_hash));
 					tx.delete(columns::META, &block_to_candidate_key(&block_data_hash));
-					tx.delete(columns::META, &candidate_to_block_key(&candidate_hash));
 				}
 			}
 		}
@@ -324,9 +342,20 @@ impl Store {
 
 	/// Query block data by corresponding candidate receipt's hash.
 	pub fn block_data_by_candidate(&self, relay_parent: Hash, candidate_hash: Hash) -> Option<BlockData> {
-		let block_data_hash = self.candidate_hash_to_block_hash(candidate_hash)?;
+		let receipt_key = candidate_key(&candidate_hash);
 
-		self.block_data(relay_parent, block_data_hash)
+		match self.inner.get(columns::DATA, &receipt_key[..]) {
+			Ok(Some(raw)) => {
+				let receipt = CandidateReceipt::decode(&mut &raw[..]).expect("all stored data serialized correctly; qued");
+				self.block_data(relay_parent, receipt.block_data_hash)
+			},
+			Ok(None) => None,
+			Err(e) => {
+				warn!(target: "availability", "Error reading from availability store: {:?}", e);
+				None
+			}
+		}
+
 	}
 
 	/// Query message queue data by message queue root hash.
@@ -335,17 +364,6 @@ impl Store {
 			Ok(Some(raw)) => Some(
 				<_>::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")
 			),
-			Ok(None) => None,
-			Err(e) => {
-				warn!(target: "availability", "Error reading from availability store: {:?}", e);
-				None
-			}
-		}
-	}
-
-	fn candidate_hash_to_block_hash(&self, candidate_hash: Hash) -> Option<Hash> {
-		match self.inner.get(columns::META, &candidate_to_block_key(&candidate_hash)) {
-			Ok(Some(raw)) => Some(Hash::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")),
 			Ok(None) => None,
 			Err(e) => {
 				warn!(target: "availability", "Error reading from availability store: {:?}", e);
@@ -443,8 +461,12 @@ mod tests {
 		assert!(store.block_data_by_candidate(relay_parent, candidate_1.hash()).is_none());
 		assert!(store.block_data_by_candidate(relay_parent, candidate_2.hash()).is_none());
 
-		store.add_candidate_for_block(candidate_1.hash(), block_data_1.hash()).unwrap();
-		store.add_candidate_for_block(candidate_2.hash(), block_data_2.hash()).unwrap();
+		store.add_candidate(&candidate_1).unwrap();
+		store.add_candidate(&candidate_2).unwrap();
+
+		assert_eq!(store.get_candidate(&candidate_1.hash()), Some(candidate_1.clone()));
+		assert_eq!(store.get_candidate(&candidate_2.hash()), Some(candidate_2.clone()));
+
 
 		assert_eq!(store.block_data_by_candidate(relay_parent, candidate_1.hash()).unwrap(), block_data_1);
 		assert_eq!(store.block_data_by_candidate(relay_parent, candidate_2.hash()).unwrap(), block_data_2);
@@ -453,6 +475,9 @@ mod tests {
 
 		assert_eq!(store.get_erasure_chunk(relay_parent, block_data_1.hash(), 1).as_ref(), Some(&erasure_chunk_1));
 		assert!(store.get_erasure_chunk(relay_parent, block_data_2.hash(), 1).is_none());
+
+		assert_eq!(store.get_candidate(&candidate_1.hash()), Some(candidate_1));
+		assert_eq!(store.get_candidate(&candidate_2.hash()), None);
 
 		assert_eq!(store.block_data(relay_parent, block_data_1.hash()).unwrap(), block_data_1);
 		assert!(store.block_data(relay_parent, block_data_2.hash()).is_none());
