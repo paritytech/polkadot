@@ -150,6 +150,11 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
 
+	// sentry nodes announce themselves as authorities to the network
+	// and should run the same protocols authorities do, but it should
+	// never actively participate in any consensus process.
+	let participates_in_consensus = is_authority && !config.sentry_mode;
+
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config);
 
 	// Dht event channel from the network to the authority discovery module. Use
@@ -204,7 +209,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		(is_known, client.clone()),
 	);
 
-	if is_authority {
+	if participates_in_consensus {
 		let availability_store = {
 			use std::path::PathBuf;
 
@@ -264,7 +269,9 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		service.spawn_essential_task(babe);
 	}
 
-	let keystore = if is_authority {
+	// if the node isn't actively participating in consensus then it doesn't
+	// need a keystore, regardless of which protocol we use below.
+	let keystore = if participates_in_consensus {
 		Some(service.keystore())
 	} else {
 		None
@@ -275,7 +282,9 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		gossip_duration: Duration::from_millis(333),
 		justification_period: 512,
 		name: Some(name),
+		observer_enabled: false,
 		keystore,
+		is_authority,
 	};
 
 	let enable_grandpa = !disable_grandpa;

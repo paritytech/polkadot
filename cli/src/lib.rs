@@ -34,7 +34,7 @@ pub use service::{
 };
 
 pub use cli::{VersionInfo, IntoExit, NoCustom};
-pub use cli::error;
+pub use cli::{display_role, error};
 
 /// Abstraction over an executor that lets you spawn tasks in the background.
 pub type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
@@ -98,7 +98,7 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 			info!("  by {}, 2017-2019", version.author);
 			info!("Chain specification: {}", config.chain_spec.name());
 			info!("Node name: {}", config.name);
-			info!("Roles: {:?}", config.roles);
+			info!("Roles: {}", display_role(&config));
 			config.custom = worker.configuration();
 			let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
 			match config.roles {
