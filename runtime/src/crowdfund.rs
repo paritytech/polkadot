@@ -249,8 +249,8 @@ decl_module! {
 			let now = <system::Module<T>>::block_number();
 			ensure!(fund.end > now, "contribution period ended");
 
-			// Make sure the proposed contribution won't cause fund to exceed its cap (if accepted)
-			ensure!(fund.raised + value < fund.cap, "contributions exceed cap");
+			// Make sure the proposed contribution won't cause fund to exceed its cap
+			ensure!(fund.raised + value <= fund.cap, "contributions exceed cap");
 			T::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
 			fund.raised += value;
 
