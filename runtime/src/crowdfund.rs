@@ -241,16 +241,18 @@ decl_module! {
 		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>) {
 			let who = ensure_signed(origin)?;
 
+			// Make sure contribution exceeds minimum contribution before getting fund information
 			ensure!(value >= T::MinContribution::get(), "contribution too small");
 			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
-			fund.raised  = fund.raised.checked_add(&value).ok_or("overflow when adding new funds")?;
-			ensure!(fund.raised <= fund.cap, "contributions exceed cap");
 
 			// Make sure crowdfund has not ended
 			let now = <system::Module<T>>::block_number();
 			ensure!(fund.end > now, "contribution period ended");
 
+			// Make sure the proposed contribution won't cause fund to exceed its cap (if accepted)
+			ensure!(fund.raised + value < fund.cap, "contributions exceed cap");
 			T::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
+			fund.raised += value;
 
 			let balance = Self::contribution_get(index, &who);
 			let balance = balance.saturating_add(value);
