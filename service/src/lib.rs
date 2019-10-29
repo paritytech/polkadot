@@ -276,6 +276,8 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		justification_period: 512,
 		name: Some(name),
 		keystore,
+		observer_enabled: true,
+		is_authority,
 	};
 
 	let enable_grandpa = !disable_grandpa;
