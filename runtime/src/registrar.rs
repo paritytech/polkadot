@@ -688,7 +688,7 @@ mod tests {
 		type OnSessionEnding = ();
 		type Keys = UintAuthorityId;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
-		type SessionHandler = ();
+		type SessionHandler = session::TestSessionHandler;
 		type Event = ();
 		type SelectInitialValidators = ();
 		type ValidatorId = u64;
