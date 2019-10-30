@@ -77,21 +77,6 @@ pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
 		})
 }
 
-/// Create a `Stream` of erasure chunk messages.
-///
-/// The returned stream will not terminate, so it is required to make sure that the stream is
-/// dropped when it is not required anymore. Otherwise, it will stick around in memory
-/// infinitely.
-pub(crate) fn erasure_chunks<N: NetworkService>(network: &N, topic: Hash) ->
-	impl Stream<Item=ErasureChunk, Error=()> {
-
-	network.gossip_messages_for(topic)
-		.filter_map(|msg| match msg.0 {
-			GossipMessage::ErasureChunk(msg) => Some(msg.chunk),
-			_ => None
-		})
-}
-
 /// Table routing implementation.
 pub struct Router<P, E, N: NetworkService, T> {
 	table: Arc<SharedTable>,
@@ -127,16 +112,6 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	/// infinitely.
 	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement, Error=()> {
 		checked_statements(&**self.network(), self.attestation_topic)
-	}
-
-	/// Return a `Stream` of erasure chunk messages. These should be imported into the router
-	/// with `import_erasure_chunk`.
-	///
-	/// The returned stream will not terminate, so it is required to make sure that the stream is
-	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
-	/// infinitely.
-	pub(crate) fn erasure_chunks(&self) -> impl Stream<Item=ErasureChunk, Error=()> {
-		erasure_chunks(&**self.network(), self.erasure_chunks_topic)
 	}
 
 	fn parent_hash(&self) -> Hash {
@@ -214,14 +189,6 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 				}
 			}
 		}
-	}
-	/// Import a given erasure chunk.
-	pub(crate) fn import_erasure_chunk(&self, chunk: ErasureChunk) {
-		trace!(target: "p_net", "importing erasure chunk {:?}", chunk);
-
-		let table = self.table.clone();
-
-		table.import_erasure_chunk(chunk);
 	}
 
 	fn create_work<D>(&self, candidate_hash: Hash, producer: ParachainWork<D>)

@@ -76,7 +76,11 @@ fn erasure_chunks_key(relay_parent: &Hash, block_data_hash: &Hash) -> Vec<u8> {
 }
 
 fn candidate_key(candidate_hash: &Hash) -> Vec<u8> {
-	(candidate_hash, 1i8).encode()
+	(candidate_hash, 2i8).encode()
+}
+
+fn validator_index_and_n_validators_key(relay_parent: &Hash) -> Vec<u8> {
+	(relay_parent, 3i8).encode()
 }
 
 /// Handle to the availability store.
@@ -158,13 +162,46 @@ impl Store {
 		self.inner.write(tx)
 	}
 
+	/// Make a validator's index and a number of validators at a relay parent available.
+	// TODO: The tuple of two value is used here because for the most part thay are used together,
+	// however, maybe they should be stored/queried by separate methods.
+	pub fn add_validator_index_and_n_validators(
+		&self,
+		relay_parent: &Hash,
+		validator_index: u32,
+		n_validators: u32
+	) -> io::Result<()> {
+		let mut tx = DBTransaction::new();
+		let dbkey = validator_index_and_n_validators_key(relay_parent);
+
+		tx.put_vec(columns::META, &dbkey, (validator_index, n_validators).encode());
+
+		self.inner.write(tx)
+	}
+
+	/// Query a validator's index and n_validators by relay parent.
+	pub fn get_validator_index_and_n_validators(&self, relay_parent: &Hash) -> Option<(u32, u32)> {
+		let dbkey = validator_index_and_n_validators_key(relay_parent);
+
+		match self.inner.get(columns::META, &dbkey) {
+			Ok(Some(raw)) => Some(<(u32, u32)>::decode(&mut &raw[..])
+				.expect("all stored data serialized correctly; qed")
+			),
+			Ok(None) => None,
+			Err(e) => {
+				warn!(target: "availability", "Error reading from availability store: {:?}", e);
+				None
+			}
+		}
+	}
+
 	/// Adds an erasure chunk to storage.
 	///
 	/// The chunk should be checked for validity against the root of encoding
 	/// and its proof prior to calling this.
 	pub fn add_erasure_chunk(
 		&self,
-		n_validators: usize,
+		n_validators: u32,
 		relay_parent: &Hash,
 		receipt: &CandidateReceipt,
 		chunk: ErasureChunk
@@ -571,12 +608,21 @@ mod tests {
 
 		let store = Store::new_in_memory();
 
-		store.add_erasure_chunk(n_validators, &relay_parent, &candidate, chunks[0].clone()).unwrap();
+		store.add_erasure_chunk(n_validators as u32, &relay_parent, &candidate, chunks[0].clone()).unwrap();
 		assert_eq!(store.get_erasure_chunk(relay_parent, block_data_hash, 0), Some(chunks[0].clone()));
 
 		assert!(store.block_data(relay_parent, block_data_hash).is_none());
 
 		store.add_erasure_chunks(n_validators, &relay_parent, &candidate, chunks).unwrap();
 		assert_eq!(store.block_data(relay_parent, block_data_hash), Some(block_data));
+	}
+
+	#[test]
+	fn add_validator_index_works() {
+		let relay_parent = [42; 32].into();
+		let store = Store::new_in_memory();
+
+		store.add_validator_index_and_n_validators(&relay_parent, 42, 24).unwrap();
+		assert_eq!(store.get_validator_index_and_n_validators(&relay_parent).unwrap(), (42, 24));
 	}
 }

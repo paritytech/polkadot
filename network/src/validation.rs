@@ -200,10 +200,6 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=SignedStatement, Error=()> {
 		crate::router::checked_statements(&*self.network, crate::router::attestation_topic(relay_parent))
 	}
-
-	pub fn erasure_chunks(&self, block_hash: Hash) -> impl Stream<Item=ErasureChunk, Error=()> {
-		crate::router::erasure_chunks(&*self.network, crate::router::erasure_chunks_topic(block_hash))
-	}
 }
 
 /// A long-lived network which can create parachain statement  routing processes on demand.
@@ -248,11 +244,6 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 				let work = table_router.checked_statements()
 					.for_each(move |msg| { table_router_clone.import_statement(msg); Ok(()) });
 				executor.spawn(work.select(exit.clone()).map(|_| ()).map_err(|_| ()));
-
-				let table_router_clone = table_router.clone();
-				let chunks = table_router.erasure_chunks()
-					.for_each(move |msg| { table_router_clone.import_erasure_chunk(msg); Ok(()) });
-				executor.spawn(chunks.select(exit).map(|_| ()).map_err(|_| ()));
 
 				table_router
 			});

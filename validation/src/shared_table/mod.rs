@@ -25,9 +25,8 @@ use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
 	Id as ParaId, OutgoingMessages, CandidateReceipt, ValidatorPair, ValidatorId,
-	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, ErasureChunk, ValidatorSignature,
+	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, ErasureChunk,
 };
-use polkadot_erasure_coding::{self as erasure};
 
 use parking_lot::Mutex;
 use futures::prelude::*;
@@ -92,10 +91,6 @@ impl TableContext {
 				.map(|key| crate::sign_table_statement(&statement, key, &self.parent_hash).into())
 				.map(move |signature| table::SignedStatement { statement, signature, sender })
 		)
-	}
-
-	fn sign_chunk(&self, chunk: &ErasureChunk, sender: ValidatorIndex) -> Option<ValidatorSignature> {
-		self.key.as_ref().map(|key| crate::sign_chunk(chunk, key, &self.parent_hash))
 	}
 }
 
@@ -371,38 +366,17 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 				Validation::Invalid(pov_block),
 			),
 			Ok((outgoing_targeted, our_chunk)) => {
-				let outgoing_queues = outgoing_targeted.clone().into();
+				self.inner.availability_store.add_erasure_chunk(
+					self.inner.n_validators as u32,
+					&self.inner.relay_parent,
+					&candidate,
+					our_chunk
+				)?;
 
-				if let Ok(chunks) = erasure::obtain_chunks(
-					self.inner.n_validators,
-					&pov_block.block_data,
-					Some(&outgoing_queues)) {
-					let mut branches = erasure::branches(&chunks.as_ref());
-					let local_index: usize = self.inner.local_index;
-
-					let proof = branches.nth(self.inner.local_index)
-						.expect("`Branches` yeids a proof for each chunk provided; qed").0;
-
-					let chunk = ErasureChunk {
-						chunk: chunks[self.inner.local_index].clone(),
-						index: local_index as u32,
-						proof,
-					};
-
-					self.inner.availability_store.add_erasure_chunk(
-						self.inner.n_validators,
-						&self.inner.relay_parent,
-						&candidate,
-						our_chunk
-					)?;
-
-					(
-						GenericStatement::Valid(candidate_hash),
-						Validation::Valid(pov_block, outgoing_targeted)
-					)
-				} else {
-					return Err(std::io::Error::new(std::io::ErrorKind::Other, "failed to obtain chunks").into());
-				}
+				(
+					GenericStatement::Valid(candidate_hash),
+					Validation::Valid(pov_block, outgoing_targeted)
+				)
 			}
 		};
 
@@ -524,20 +498,6 @@ impl SharedTable {
 		}
 
 		signed_statement
-	}
-
-	/// Import the erasure-encoded chunk of data.
-	///
-	/// Only imports `i`-th erasure-encoded chunk of data where `i` is the `local_index`.
-	pub fn import_erasure_chunk(&self, chunk: ErasureChunk) {
-		if Some(chunk.index) == self.context.local_index() {
-			// let _ = self.inner.lock().availability_store.add_erasure_chunk(chunk.parachain_id, chunk);
-		}
-	}
-
-	/// Sign the erasure-encoded chunk of data with a validator's signature.
-	pub fn sign_chunk(&self, chunk: &ErasureChunk, sender: ValidatorIndex) -> Option<ValidatorSignature> {
-		self.context.sign_chunk(chunk, sender)
 	}
 
 	/// Execute a closure using a specific candidate.
@@ -852,8 +812,6 @@ mod tests {
 		};
 
 		let chunks = erasure::obtain_chunks(n_validators, &pov_block.block_data, ex.as_ref()).unwrap();
-
-		let hash = candidate.hash();
 
 		let producer = ParachainWork {
 			work: Work {

@@ -158,22 +158,6 @@ pub fn check_statement(statement: &Statement, signature: &ValidatorSignature, si
 	signature.verify(&encoded[..], &signer)
 }
 
-/// Sign an erasure chunk message.
-pub fn sign_chunk(chunk: &ErasureChunk, key: &ValidatorPair, parent_hash: &Hash) -> ValidatorSignature {
-	let mut encoded = chunk.encode();
-	encoded.extend(parent_hash.as_ref());
-
-	key.sign(&encoded)
-}
-
-/// Check the signature of a chunk message.
-pub fn check_chunk(chunk: &ErasureChunk, signature: &ValidatorSignature, signer: ValidatorId, parent_hash: &Hash) -> bool {
-	let mut encoded = chunk.encode();
-	encoded.extend(parent_hash.as_ref());
-
-	signature.verify(&encoded[..], &signer)
-}
-
 /// Compute group info out of a duty roster and a local authority set.
 pub fn make_group_info(
 	roster: DutyRoster,
@@ -313,6 +297,21 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
 
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
+
+		// If we are a validator, we need to store our index in this round in availability store.
+		// This will tell which erasure chunk we should store.
+		if let Some(ref local_duty) = local_duty {
+			if let Err(e) = self.availability_store.add_validator_index_and_n_validators(
+				&parent_hash,
+				local_duty.index,
+				validators.len() as u32
+			) {
+				warn!(
+					target: "validation",
+					"Failed to add validator index and n_validators to the availability-store: {:?}", e
+				)
+			}
+		}
 
 		let table = Arc::new(SharedTable::new(
 			validators.clone(),

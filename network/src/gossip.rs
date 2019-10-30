@@ -49,7 +49,7 @@
 //! Peers who send information which was not allowed under a recent neighbor packet
 //! will be noted as non-beneficial to Substrate's peer-set management utility.
 
-use sr_primitives::{generic::BlockId, traits::ProvideRuntimeApi};
+use sr_primitives::{generic::BlockId, traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT}};
 use substrate_client::error::Error as ClientError;
 use substrate_network::{config::Roles, PeerId};
 use substrate_network::consensus_gossip::{
@@ -61,6 +61,7 @@ use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
 	ParachainHost, ValidatorId, Message as ParachainMessage, ErasureChunk as PrimitiveChunk
 };
+use polkadot_erasure_coding::{self as erasure};
 use codec::{Decode, Encode};
 
 use std::collections::HashMap;
@@ -114,6 +115,10 @@ mod cost {
 	pub const BAD_NEIGHBOR_PACKET: i32 = -300;
 	/// A peer sent us an ICMP queue we haven't advertised a need for.
 	pub const UNNEEDED_ICMP_MESSAGES: i32 = -100;
+	/// A peer sent us an erasure chunk referring to a candidate that we are not aware of.
+	pub const ORPHANED_ERASURE_CHUNK: i32 = -10;
+	/// A peer sent us an erasure chunk that does not match candidate's erasure root.
+	pub const ERASURE_CHUNK_WRONG_ROOT: i32 = -100;
 
 	/// A peer sent us an ICMP queue with a bad root.
 	pub fn icmp_messages_root_mismatch(n_messages: usize) -> i32 {
@@ -320,6 +325,7 @@ pub fn register_validator<C: ChainContext + 'static>(
 			peers: HashMap::new(),
 			attestation_view: Default::default(),
 			message_routing_view: Default::default(),
+			availability_store: None,
 			chain,
 		})
 	});
@@ -393,6 +399,10 @@ impl RegisteredMessageValidator {
 		let validator = Arc::new(MessageValidator::new_test(chain, report_handle));
 
 		RegisteredMessageValidator { inner: validator as _ }
+	}
+
+	pub fn register_availability_store(&mut self, availability_store: av_store::Store) {
+		self.inner.inner.write().availability_store = Some(availability_store);
 	}
 
 	/// Note that we perceive a new leaf of the block-DAG. We will notify our neighbors that
@@ -485,11 +495,6 @@ impl MessageValidationData {
 			Err(())
 		}
 	}
-
-	fn check_chunk(&self, _relay_chain_leaf: &Hash, _msg: &ErasureChunkMessage) -> Result<(), ()> {
-		// TODO: implementation
-		Ok(())
-	}
 }
 
 #[derive(Default)]
@@ -507,6 +512,7 @@ struct Inner<C: ?Sized> {
 	peers: HashMap<PeerId, PeerData>,
 	attestation_view: AttestationView,
 	message_routing_view: MessageRoutingView,
+	availability_store: Option<av_store::Store>,
 	chain: C,
 }
 
@@ -533,6 +539,48 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 			};
 
 			(GossipValidationResult::Discard, 0, new_topics)
+		}
+	}
+
+	fn validate_erasure_chunk_packet(&mut self, msg: ErasureChunkMessage)
+		-> (GossipValidationResult<Hash>, i32)
+	{
+		if let Some(store) = &self.availability_store {
+			if let Some(receipt) = store.get_candidate(&msg.candidate_hash) {
+				let chunk_hash = erasure::branch_hash(
+					&receipt.erasure_root,
+					&msg.chunk.proof,
+					msg.chunk.index as usize
+				);
+
+				if chunk_hash != Ok(BlakeTwo256::hash(&msg.chunk.chunk)) {
+					(
+						GossipValidationResult::Discard,
+						cost::ERASURE_CHUNK_WRONG_ROOT
+					)
+				} else {
+					if let Some((index, n_validators)) = store.get_validator_index_and_n_validators(&msg.relay_parent) {
+						if index == msg.chunk.index {
+							if let Err(e) = store.add_erasure_chunk(
+								n_validators as u32,
+								&msg.relay_parent,
+								&receipt,
+								msg.chunk
+							) {
+								warn!("Failed to add erasure chunk to the availability-store: {:?}", e);
+							}
+						}
+					}
+					(
+						GossipValidationResult::ProcessAndKeep(Default::default()),
+						benefit::NEW_ERASURE_CHUNK,
+					)
+				}
+			} else {
+				(GossipValidationResult::Discard, cost::ORPHANED_ERASURE_CHUNK)
+			}
+		} else {
+			(GossipValidationResult::Discard, 0)
 		}
 	}
 
@@ -568,6 +616,7 @@ impl<C: ChainContext + ?Sized> MessageValidator<C> {
 				peers: HashMap::new(),
 				attestation_view: Default::default(),
 				message_routing_view: Default::default(),
+				availability_store: None,
 				chain,
 			}),
 		}
@@ -627,13 +676,7 @@ impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValid
 				(res, cb)
 			}
 			Ok(GossipMessage::ErasureChunk(chunk)) => {
-				let (res, cb) = {
-					let mut inner = self.inner.write();
-					let inner = &mut *inner;
-					inner.attestation_view.validate_block_chunk(chunk, &inner.chain)
-				};
-
-				(res, cb)
+				self.inner.write().validate_erasure_chunk_packet(chunk)
 			}
 		};
 

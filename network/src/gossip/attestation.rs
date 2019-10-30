@@ -39,9 +39,7 @@ use std::collections::{HashMap, HashSet};
 use log::warn;
 use crate::router::attestation_topic;
 
-use super::{cost, benefit, MAX_CHAIN_HEADS, LeavesVec, ChainContext, Known, MessageValidationData, GossipStatement,
-	ErasureChunkMessage
-};
+use super::{cost, benefit, MAX_CHAIN_HEADS, LeavesVec, ChainContext, Known, MessageValidationData, GossipStatement};
 
 // knowledge about attestations on a single parent-hash.
 #[derive(Default)]
@@ -226,41 +224,6 @@ impl View {
 			}
 		}
 	}
-
-	pub(super) fn validate_block_chunk<C: ChainContext + ?Sized>(
-		&mut self,
-		chunk: ErasureChunkMessage,
-		chain: &C,
-	)
-		-> (GossipValidationResult<Hash>, i32)
-	{
-		// A chunk should reference one of our chain heads.
-		match self.leaf_view(&chunk.relay_parent) {
-			None =>  {
-				let cost = match chain.is_known(&chunk.relay_parent) {
-					Some(Known::Leaf) => {
-						warn!(
-							target: "network",
-							"Leaf block {} not considered live for attestation",
-							chunk.relay_parent,
-						);
-
-						0
-					}
-					Some(Known::Old) => cost::PAST_MESSAGE,
-					_ => cost::FUTURE_MESSAGE,
-				};
-
-				(GossipValidationResult::Discard, cost)
-			}
-			Some(view) => {
-				let res = view.validation_data.check_chunk(&chunk.relay_parent, &chunk);
-				match res {
-					Ok(()) => (GossipValidationResult::ProcessAndKeep(Hash::default()), benefit::NEW_ERASURE_CHUNK),
-					Err(()) => (GossipValidationResult::Discard, cost::BAD_SIGNATURE),
-				}
-			}
-		}}
 
 	/// whether it's allowed to send a statement to a peer with given knowledge
 	/// about the relay parent the statement refers to.

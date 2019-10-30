@@ -205,7 +205,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		}
 	};
 
-	let gossip_validator = network_gossip::register_validator(
+	let mut gossip_validator = network_gossip::register_validator(
 		service.network(),
 		(is_known, client.clone()),
 	);
@@ -228,6 +228,11 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			service.network().with_spec(
 				|spec, _ctx| spec.register_availability_store(availability_store)
 			);
+		}
+
+		{
+			let availability_store = availability_store.clone();
+			gossip_validator.register_availability_store(availability_store);
 		}
 
 		// collator connections and validation network both fulfilled by this
