@@ -39,7 +39,7 @@ variables:
 
 .docker-env:                       &docker-env
   retry:
-    max: 5
+    max: 2
     when: 
       - runner_system_failure
       - unknown_failure
