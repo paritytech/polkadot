@@ -72,7 +72,7 @@ use parking_lot::RwLock;
 use log::warn;
 
 use super::PolkadotNetworkService;
-use crate::router::attestation_topic;
+use crate::router::{attestation_topic, erasure_coding_topic};
 
 use attestation::{View as AttestationView, PeerData as AttestationPeerData};
 use message_routing::{View as MessageRoutingView};
@@ -571,8 +571,10 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 							}
 						}
 					}
+					let topic = erasure_coding_topic(msg.relay_parent, receipt.erasure_root);
+
 					(
-						GossipValidationResult::ProcessAndKeep(Default::default()),
+						GossipValidationResult::ProcessAndKeep(topic),
 						benefit::NEW_ERASURE_CHUNK,
 					)
 				}

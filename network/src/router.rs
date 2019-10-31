@@ -53,9 +53,10 @@ pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 }
 
 /// Compute the gossip topic for erasure chunks of the given block hash.
-pub(crate) fn erasure_chunks_topic(parent_hash: Hash) -> Hash {
-	let mut v = parent_hash.as_ref().to_vec();
-	v.extend(b"erasure_encoding");
+pub(crate) fn erasure_coding_topic(relay_parent: Hash, erasure_root: Hash) -> Hash {
+	let mut v = relay_parent.as_ref().to_vec();
+	v.extend(erasure_root.as_ref());
+	v.extend(b"erasure_chunks");
 
 	BlakeTwo256::hash(&v[..])
 }
@@ -81,7 +82,6 @@ pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
 pub struct Router<P, E, N: NetworkService, T> {
 	table: Arc<SharedTable>,
 	attestation_topic: Hash,
-	erasure_chunks_topic: Hash,
 	fetcher: LeafWorkDataFetcher<P, E, N, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 	message_validator: RegisteredMessageValidator,
@@ -98,7 +98,6 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 			table,
 			fetcher,
 			attestation_topic: attestation_topic(parent_hash),
-			erasure_chunks_topic: erasure_chunks_topic(parent_hash),
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
 			message_validator,
 		}
@@ -129,7 +128,6 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 			table: self.table.clone(),
 			fetcher: self.fetcher.clone(),
 			attestation_topic: self.attestation_topic,
-			erasure_chunks_topic: self.erasure_chunks_topic,
 			deferred_statements: self.deferred_statements.clone(),
 			message_validator: self.message_validator.clone(),
 		}
@@ -240,6 +238,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	fn local_collation(&self, collation: Collation, receipt: CandidateReceipt, outgoing: OutgoingMessages, chunks: (ValidatorIndex, &Vec<ErasureChunk>)) {
 		// produce a signed statement
 		let hash = receipt.hash();
+		let erasure_root = receipt.erasure_root;
 		let validated = Validated::collated_local(
 			receipt,
 			collation.pov.clone(),
@@ -259,13 +258,14 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 		self.network().gossip_message(self.attestation_topic, statement.into());
 
 		for chunk in chunks.1 {
+			let relay_parent = self.parent_hash();
 			let message = ErasureChunkMessage {
 				chunk: chunk.clone(),
-				relay_parent: self.parent_hash(),
+				relay_parent,
 				candidate_hash: hash,
 			};
 
-			self.network().gossip_message(self.erasure_chunks_topic, message.into());
+			self.network().gossip_message(erasure_coding_topic(relay_parent, erasure_root), message.into());
 		}
 	}
 
