@@ -19,24 +19,24 @@ polkadot-runtime = { path = "../runtime" }
 polkadot-executor = { path = "../executor" }
 polkadot-network = { path = "../network"  }
 polkadot-rpc = { path = "../rpc" }
-sr-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-db = { package = "substrate-client-db", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-srml-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-authority-discovery = { package = "substrate-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sr-io = { git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+client-db = { package = "substrate-client-db", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+substrate-executor = { git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+substrate-network = { git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+srml-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ben-make-config-path-usage-reusable-for-services" }
+srml-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ben-make-config-path-usage-reusable-for-services" }
+im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ben-make-config-path-usage-reusable-for-services" }
+authority-discovery = { package = "substrate-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ben-make-config-path-usage-reusable-for-services" }
+babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ben-make-config-path-usage-reusable-for-services" }
