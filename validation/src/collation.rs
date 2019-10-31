@@ -500,7 +500,6 @@ fn do_validation<P>(
 /// encoding's root returning both for re-use.
 pub fn produce_receipt_and_chunks(
 	n_validators: usize,
-	relay_parent_hash: &Hash,
 	pov: &PoVBlock,
 	messages: &OutgoingMessages,
 	fees: Balance,
@@ -549,7 +548,6 @@ pub fn produce_receipt_and_chunks(
 pub fn validate_receipt<P>(
 	client: &P,
 	relay_parent: &BlockId,
-	relay_parent_hash: &Hash,
 	pov_block: &PoVBlock,
 	receipt: &CandidateReceipt,
 	max_block_data_size: Option<u64>,
@@ -575,7 +573,6 @@ pub fn validate_receipt<P>(
 
 	let (validated_receipt, chunks) = produce_receipt_and_chunks(
 		n_validators,
-		relay_parent_hash,
 		pov_block,
 		&messages,
 		receipt.fees,

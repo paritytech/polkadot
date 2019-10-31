@@ -378,7 +378,6 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				Ok((collation, outgoing_targeted, fees_charged)) => {
 					match produce_receipt_and_chunks(
 						authorities_num,
-						&relay_parent,
 						&collation.pov,
 						&outgoing_targeted,
 						fees_charged,

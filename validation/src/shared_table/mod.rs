@@ -289,14 +289,12 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 			P::Api: ParachainHost<Block>,
 	{
 		let max_block_data_size = self.max_block_data_size;
-		let relay_parent = self.relay_parent.clone();
 		let local_index = self.local_index;
 
 		let validate = move |id: &_, pov_block: &_, receipt: &_| {
 			let res = crate::collation::validate_receipt(
 				&*api,
 				id,
-				&relay_parent,
 				pov_block,
 				receipt,
 				max_block_data_size,
