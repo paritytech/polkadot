@@ -38,6 +38,12 @@ variables:
     name: parity-build
 
 .docker-env:                       &docker-env
+  retry:
+    max: 2
+    when: 
+      - runner_system_failure
+      - unknown_failure
+      - api_failure
   tags:
     - linux-docker
 

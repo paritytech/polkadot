@@ -34,7 +34,7 @@ use polkadot_primitives::parachain::{
 };
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
-use substrate_client::runtime_api::{Core, RuntimeVersion, ApiExt};
+use substrate_client::runtime_api::{Core, RuntimeVersion, StorageProof, ApiExt};
 use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 
 use std::collections::HashMap;
@@ -244,7 +244,7 @@ impl ApiExt<Block> for RuntimeApi {
 
 	fn record_proof(&mut self) { }
 
-	fn extract_proof(&mut self) -> Option<Vec<Vec<u8>>> {
+	fn extract_proof(&mut self) -> Option<StorageProof> {
 		None
 	}
 }
