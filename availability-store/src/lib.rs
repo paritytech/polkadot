@@ -129,15 +129,7 @@ impl Store {
 		let mut tx = DBTransaction::new();
 
 		// note the meta key.
-		let mut v = match self.inner.get(columns::META, data.relay_parent.as_ref()) {
-			Ok(Some(raw)) => Vec::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed"),
-			Ok(None) => Vec::new(),
-			Err(e) => {
-				warn!(target: "availability", "Error reading from availability store: {:?}", e);
-				Vec::new()
-			}
-		};
-
+		let mut v = self.query_inner(columns::META, data.relay_parent.as_ref()).unwrap_or(Vec::new());
 		v.push(data.block_data.hash());
 		tx.put_vec(columns::META, &data.relay_parent[..], v.encode());
 
@@ -183,16 +175,7 @@ impl Store {
 	pub fn get_validator_index_and_n_validators(&self, relay_parent: &Hash) -> Option<(u32, u32)> {
 		let dbkey = validator_index_and_n_validators_key(relay_parent);
 
-		match self.inner.get(columns::META, &dbkey) {
-			Ok(Some(raw)) => Some(<(u32, u32)>::decode(&mut &raw[..])
-				.expect("all stored data serialized correctly; qed")
-			),
-			Ok(None) => None,
-			Err(e) => {
-				warn!(target: "availability", "Error reading from availability store: {:?}", e);
-				None
-			}
-		}
+		self.query_inner(columns::META, &dbkey)
 	}
 
 	/// Adds an erasure chunk to storage.
@@ -209,17 +192,8 @@ impl Store {
 		let mut tx = DBTransaction::new();
 		let block_data_hash = &receipt.block_data_hash;
 
-		let key = erasure_chunks_key(relay_parent, block_data_hash);
-
-		let mut v = match self.inner.get(columns::DATA, &key) {
-			Ok(Some(raw)) => Vec::decode(&mut &raw[..]).expect("all sorted data serialized correctly; qed"),
-			Ok(None) => Vec::new(),
-			Err(e) => {
-				warn!(target: "availability", "Error reading from availability store: {:?}", e);
-				Vec::new()
-			}
-		};
-
+		let dbkey = erasure_chunks_key(relay_parent, block_data_hash);
+		let mut v = self.query_inner(columns::DATA, &dbkey).unwrap_or(Vec::new());
 		v.push(chunk);
 
 		// If there are no block data and messages in the store at this point,
@@ -236,7 +210,7 @@ impl Store {
 			}
 		}
 
-		tx.put_vec(columns::DATA, &key, v.encode());
+		tx.put_vec(columns::DATA, &dbkey, v.encode());
 
 		self.inner.write(tx)
 	}
@@ -257,14 +231,7 @@ impl Store {
 		let mut tx = DBTransaction::new();
 		let dbkey = erasure_chunks_key(relay_parent, &receipt.block_data_hash);
 
-		let mut v = match self.inner.get(columns::DATA, &dbkey) {
-			Ok(Some(raw)) => Vec::decode(&mut &raw[..]).expect("all sorted data serialized correctly; qed"),
-			Ok(None) => Vec::new(),
-			Err(e) => {
-				warn!(target: "availability", "Error reading from availability store: {:?}", e);
-				Vec::new()
-			}
-		};
+		let mut v = self.query_inner(columns::DATA, &dbkey).unwrap_or(Vec::new());
 
 		for chunk in chunks.into_iter() {
 			v.push(chunk);
@@ -290,20 +257,12 @@ impl Store {
 
 	/// Queries an erasure chunk by its block's parent and hash and index.
 	pub fn get_erasure_chunk(&self, relay_parent: Hash, block_data_hash: Hash, index: usize) -> Option<ErasureChunk> {
-		let key = erasure_chunks_key(&relay_parent, &block_data_hash);
-
-		let v = match self.inner.get(columns::DATA, &key) {
-			Ok(Some(raw)) => Vec::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed"),
-			Ok(None) => return None,
-			Err(e) => {
-				warn!(target: "availability", "Error reading from availability store: {:?}", e);
-				return None;
-			}
-		};
-
-		v.iter()
-			.find(|chunk: &&ErasureChunk| chunk.index == index as u32)
-			.map(|chunk| chunk.clone())
+		self.query_inner(columns::DATA, &erasure_chunks_key(&relay_parent, &block_data_hash))
+			.and_then(|chunks: Vec<ErasureChunk>| {
+				chunks.iter()
+				.find(|chunk: &&ErasureChunk| chunk.index == index as u32)
+				.map(|chunk| chunk.clone())
+			})
 	}
 
 	/// Stores a candidate receipt.
@@ -312,7 +271,6 @@ impl Store {
 		let mut tx = DBTransaction::new();
 
 		tx.put_vec(columns::DATA, &dbkey, receipt.encode());
-
 		tx.put_vec(columns::META, &block_to_candidate_key(&receipt.block_data_hash), receipt.hash().encode());
 
 		self.inner.write(tx)
@@ -320,32 +278,14 @@ impl Store {
 
 	/// Queries a candidate receipt by it's hash.
 	pub fn get_candidate(&self, candidate_hash: &Hash) -> Option<CandidateReceipt> {
-		let dbkey = candidate_key(candidate_hash);
-
-		match self.inner.get(columns::DATA, &dbkey[..]) {
-			Ok(Some(raw)) => Some(
-				CandidateReceipt::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")
-			),
-			Ok(None) => None,
-			Err(e) => {
-				warn!(target: "availability", "Error reading from availbility store: {:?}", e);
-				None
-			}
-		}
+		self.query_inner(columns::DATA, &candidate_key(candidate_hash))
 	}
 
 	/// Note that a set of candidates have been included in a finalized block with given hash and parent hash.
 	pub fn candidates_finalized(&self, parent: Hash, finalized_candidates: HashSet<Hash>) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
 
-		let v = match self.inner.get(columns::META, &parent[..]) {
-			Ok(Some(raw)) => Vec::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed"),
-			Ok(None) => Vec::new(),
-			Err(e) => {
-				warn!(target: "availability", "Error reading from availability store: {:?}", e);
-				Vec::new()
-			}
-		};
+		let v = self.query_inner(columns::META, &parent[..]).unwrap_or(Vec::new());
 		tx.delete(columns::META, &parent[..]);
 
 		for block_data_hash in v {
@@ -364,57 +304,36 @@ impl Store {
 
 	/// Query block data.
 	pub fn block_data(&self, relay_parent: Hash, block_data_hash: Hash) -> Option<BlockData> {
-		let encoded_key = block_data_key(&relay_parent, &block_data_hash);
-		match self.inner.get(columns::DATA, &encoded_key[..]) {
-			Ok(Some(raw)) => Some(
-				BlockData::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")
-			),
-			Ok(None) => None,
-			Err(e) => {
-				warn!(target: "availability", "Error reading from availability store: {:?}", e);
-				None
-			}
-		}
+		self.query_inner(columns::DATA, &block_data_key(&relay_parent, &block_data_hash))
 	}
 
 	/// Query block data by corresponding candidate receipt's hash.
 	pub fn block_data_by_candidate(&self, relay_parent: Hash, candidate_hash: Hash) -> Option<BlockData> {
 		let receipt_key = candidate_key(&candidate_hash);
 
-		match self.inner.get(columns::DATA, &receipt_key[..]) {
-			Ok(Some(raw)) => {
-				let receipt = CandidateReceipt::decode(&mut &raw[..]).expect("all stored data serialized correctly; qued");
-				self.block_data(relay_parent, receipt.block_data_hash)
-			},
-			Ok(None) => None,
-			Err(e) => {
-				warn!(target: "availability", "Error reading from availability store: {:?}", e);
-				None
-			}
-		}
-
+		self.query_inner(columns::DATA, &receipt_key[..]).and_then(|receipt: CandidateReceipt| {
+			self.block_data(relay_parent, receipt.block_data_hash)
+		})
 	}
 
 	/// Query message queue data by message queue root hash.
 	pub fn queue_by_root(&self, queue_root: &Hash) -> Option<Vec<Message>> {
-		match self.inner.get(columns::DATA, queue_root.as_ref()) {
-			Ok(Some(raw)) => Some(
-				<_>::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")
-			),
-			Ok(None) => None,
-			Err(e) => {
-				warn!(target: "availability", "Error reading from availability store: {:?}", e);
-				None
-			}
-		}
+		self.query_inner(columns::DATA, queue_root.as_ref())
 	}
 
 	fn block_hash_to_candidate_hash(&self, block_hash: Hash) -> Option<Hash> {
-		match self.inner.get(columns::META, &block_to_candidate_key(&block_hash)) {
-			Ok(Some(raw)) => Some(Hash::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed")),
-				Ok(None) => None,
-				Err(e) => {
-					warn!(target: "availability", "Error reading from availability store: {:?}", e);
+		self.query_inner(columns::META, &block_to_candidate_key(&block_hash))
+	}
+
+	fn query_inner<T: Decode>(&self, column: Option<u32>, key: &[u8]) -> Option<T> {
+		match self.inner.get(column, key) {
+			Ok(Some(raw)) => {
+				let res = T::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed");
+				Some(res)
+			}
+			Ok(None) => None,
+			Err(e) => {
+				warn!(target: "availability", "Error reading from the availability store: {:?}", e);
 				None
 			}
 		}
