@@ -437,7 +437,7 @@ impl im_online::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type SubmitTransaction = SubmitTransaction;
-	type ReportUnresponsiveness = ();
+	type ReportUnresponsiveness = Offences;
 }
 
 impl grandpa::Trait for Runtime {
