@@ -32,7 +32,7 @@ use inherents::InherentDataProviders;
 use log::info;
 pub use service::{AbstractService, Roles, PruningMode, TransactionPoolOptions, Error};
 pub use service::{ServiceBuilderExport, ServiceBuilderImport, ServiceBuilderRevert};
-pub use service::config::full_version_from_strs;
+pub use service::config::{DatabaseConfig, full_version_from_strs};
 pub use client::{backend::Backend, runtime_api::{Core as CoreApi, ConstructRuntimeApi}, ExecutionStrategy, CallExecutor};
 pub use consensus_common::SelectChain;
 pub use polkadot_network::{PolkadotProtocol};
@@ -116,7 +116,7 @@ macro_rules! new_full_start {
 				import_setup = Some((block_import, grandpa_link, babe_link));
 				Ok(import_queue)
 			})?
-			.with_rpc_extensions(|client, pool| -> polkadot_rpc::RpcExtension {
+			.with_rpc_extensions(|client, pool, _backend| -> polkadot_rpc::RpcExtension {
 				polkadot_rpc::create(client, pool)
 			})?;
 
@@ -146,9 +146,18 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	let is_authority = config.roles.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = config.custom.max_block_data_size;
-	let db_path = config.database_path.clone();
+	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.database {
+		path.clone()
+	} else {
+		return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into());
+	};
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
+
+	// sentry nodes announce themselves as authorities to the network
+	// and should run the same protocols authorities do, but it should
+	// never actively participate in any consensus process.
+	let participates_in_consensus = is_authority && !config.sentry_mode;
 
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config);
 
@@ -204,7 +213,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		(is_known, client.clone()),
 	);
 
-	if is_authority {
+	if participates_in_consensus {
 		let availability_store = {
 			use std::path::PathBuf;
 
@@ -264,7 +273,9 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		service.spawn_essential_task(babe);
 	}
 
-	let keystore = if is_authority {
+	// if the node isn't actively participating in consensus then it doesn't
+	// need a keystore, regardless of which protocol we use below.
+	let keystore = if participates_in_consensus {
 		Some(service.keystore())
 	} else {
 		None
@@ -275,7 +286,9 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		gossip_duration: Duration::from_millis(333),
 		justification_period: 512,
 		name: Some(name),
+		observer_enabled: false,
 		keystore,
+		is_authority,
 	};
 
 	let enable_grandpa = !disable_grandpa;
@@ -361,7 +374,7 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
-		.with_rpc_extensions(|client, pool| -> polkadot_rpc::RpcExtension {
+		.with_rpc_extensions(|client, pool, _backend| -> polkadot_rpc::RpcExtension {
 			polkadot_rpc::create(client, pool)
 		})?
 		.build()

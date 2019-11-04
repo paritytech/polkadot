@@ -40,15 +40,14 @@ use client::{
 	runtime_api as client_api, impl_runtime_apis,
 };
 use sr_primitives::{
-	create_runtime_str, generic, impl_opaque_keys,  key_types,
+	create_runtime_str, generic, impl_opaque_keys,
 	ApplyResult, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	weights::{Weight, DispatchInfo}, curve::PiecewiseLinear,
-	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension},
+	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys},
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
-use babe_primitives::{AuthorityId as BabeId};
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
@@ -58,6 +57,7 @@ use srml_support::{
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use system::offchain::TransactionSubmitter;
+use srml_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -99,7 +99,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 1,
-	spec_version: 1006,
+	spec_version: 1012,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -247,7 +247,7 @@ impl authorship::Trait for Runtime {
 	type FindAuthor = session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
-	type EventHandler = Staking;
+	type EventHandler = (Staking, ImOnline);
 }
 
 parameter_types! {
@@ -255,27 +255,14 @@ parameter_types! {
 	pub const Offset: BlockNumber = 0;
 }
 
-// !!!!!!!!!!!!!
-// WARNING!!!!!!  SEE NOTE BELOW BEFORE TOUCHING THIS CODE
-// !!!!!!!!!!!!!
-type SessionHandlers = (Grandpa, Babe, ImOnline, Parachains);
 impl_opaque_keys! {
 	pub struct SessionKeys {
-		#[id(key_types::GRANDPA)]
-		pub grandpa: GrandpaId,
-		#[id(key_types::BABE)]
-		pub babe: BabeId,
-		#[id(key_types::IM_ONLINE)]
-		pub im_online: ImOnlineId,
-		#[id(parachain::PARACHAIN_KEY_TYPE_ID)]
-		pub parachain_validator: parachain::ValidatorId,
+		pub grandpa: Grandpa,
+		pub babe: Babe,
+		pub im_online: ImOnline,
+		pub parachain_validator: Parachains,
 	}
 }
-// NOTE: `SessionHandler` and `SessionKeys` are co-dependent: One key will be used for each handler.
-// The number and order of items in `SessionHandler` *MUST* be the same number and order of keys in
-// `SessionKeys`.
-// TODO: Introduce some structure to tie these together to make it a bit less of a footgun. This
-// should be easy, since OneSessionHandler trait provides the `Key` as an associated type. #2858
 
 parameter_types! {
 	pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
@@ -283,7 +270,7 @@ parameter_types! {
 
 impl session::Trait for Runtime {
 	type OnSessionEnding = Staking;
-	type SessionHandler = SessionHandlers;
+	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type ShouldEndSession = Babe;
 	type Event = Event;
 	type Keys = SessionKeys;
@@ -379,6 +366,9 @@ impl collective::Trait<CouncilCollective> for Runtime {
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
+	pub const TermDuration: BlockNumber = 10 * MINUTES;
+	pub const DesiredMembers: u32 = 13;
+	pub const DesiredRunnersUp: u32 = 7;
 }
 
 impl elections_phragmen::Trait for Runtime {
@@ -388,6 +378,9 @@ impl elections_phragmen::Trait for Runtime {
 	type CurrencyToVote = CurrencyToVoteHandler;
 	type CandidacyBond = CandidacyBond;
 	type VotingBond = VotingBond;
+	type TermDuration = TermDuration;
+	type DesiredMembers = DesiredMembers;
+	type DesiredRunnersUp = DesiredRunnersUp;
 	type LoserCandidate = Treasury;
 	type BadReport = Treasury;
 	type KickedMember = Treasury;
@@ -444,7 +437,7 @@ impl im_online::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type SubmitTransaction = SubmitTransaction;
-	type ReportUnresponsiveness = ();
+	type ReportUnresponsiveness = Offences;
 }
 
 impl grandpa::Trait for Runtime {
@@ -540,7 +533,7 @@ impl nicks::Trait for Runtime {
 	type Currency = Balances;
 	type ReservationFee = ReservationFee;
 	type Slashed = Treasury;
-	type KillOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
+	type ForceOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 	type MinLength = MinLength;
 	type MaxLength = MaxLength;
 }
@@ -576,7 +569,7 @@ construct_runtime!(
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		ElectionsPhragmen: elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>},
+		ElectionsPhragmen: elections_phragmen::{Module, Call, Storage, Event<T>},
 		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
 
@@ -740,6 +733,16 @@ impl_runtime_apis! {
 	impl system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
 		fn account_nonce(account: AccountId) -> Nonce {
 			System::account_nonce(account)
+		}
+	}
+
+	impl srml_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
+		Block,
+		Balance,
+		UncheckedExtrinsic,
+	> for Runtime {
+		fn query_info(uxt: UncheckedExtrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
+			TransactionPayment::query_info(uxt, len)
 		}
 	}
 }
