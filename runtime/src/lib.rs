@@ -129,12 +129,9 @@ impl SignedExtension for OnlyStakingAndClaims {
 		-> TransactionValidity
 	{
 		match call {
-			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_)
-				| Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_)
-				| Call::TechnicalCommittee(_) | Call::Nicks(_)
-			=>
-				Ok(Default::default()),
-			_ => Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
+			Call::Balances(_) | Call::Slots(_) | Call::Registrar(_)
+				=> Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
+			_ => Ok(Default::default()),
 		}
 	}
 }
