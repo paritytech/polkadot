@@ -212,6 +212,7 @@ decl_event!(
 		/// Someone won the right to deploy a parachain. Balance amount is deducted for deposit.
 		WonDeploy(NewBidder<AccountId>, SlotRange, ParaId, Balance),
 		/// An existing parachain won the right to continue.
+		/// First balance is the total amount reseved. Second is the extra amount reserved.
 		WonRenewal(ParaId, SlotRange, Balance, Balance),
 		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
 		/// Second is the total.
