@@ -67,13 +67,22 @@ fn block_data_key(relay_parent: &Hash, block_data_hash: &Hash) -> Vec<u8> {
 	(relay_parent, block_data_hash, 0i8).encode()
 }
 
+fn erasure_chunks_key(relay_parent: &Hash, block_data_hash: &Hash) -> Vec<u8> {
+	(relay_parent, block_data_hash, 1i8).encode()
+}
+
+fn awaited_chunks_key() -> Vec<u8> {
+	"awaited_chunks_key".encode()
+}
+
+fn available_chunks_key(relay_parent: &Hash, erasure_root: &Hash) -> Vec<u8> {
+	(relay_parent, erasure_root, 2i8).encode()
+}
+
 fn block_to_candidate_key(block_data_hash: &Hash) -> Vec<u8> {
 	(block_data_hash, 1i8).encode()
 }
 
-fn erasure_chunks_key(relay_parent: &Hash, block_data_hash: &Hash) -> Vec<u8> {
-	(relay_parent, block_data_hash, 1i8).encode()
-}
 
 fn candidate_key(candidate_hash: &Hash) -> Vec<u8> {
 	(candidate_hash, 2i8).encode()
@@ -81,6 +90,14 @@ fn candidate_key(candidate_hash: &Hash) -> Vec<u8> {
 
 fn validator_index_and_n_validators_key(relay_parent: &Hash) -> Vec<u8> {
 	(relay_parent, 3i8).encode()
+}
+
+fn candidates_in_relay_chain_block_key(relay_block: &Hash) -> Vec<u8> {
+	(relay_block, 4i8).encode()
+}
+
+fn erasure_roots_in_relay_chain_block_key(relay_block: &Hash) -> Vec<u8> {
+	(relay_block, 5i8).encode()
 }
 
 /// Handle to the availability store.
@@ -154,6 +171,64 @@ impl Store {
 		self.inner.write(tx)
 	}
 
+	/// Get a set of all chunks we are waiting for grouped by (relay_parent, candidate_hash, our_id).
+	pub fn awaited_chunks(&self) -> Option<HashSet<(Hash, Hash, u32)>> {
+		use std::iter::FromIterator;
+		self.query_inner(columns::META, &awaited_chunks_key()).map(|vec: Vec<(Hash, Hash, u32)>| {
+			HashSet::from_iter(vec.into_iter())
+		})
+	}
+
+	/// Adds a set of candidates hashes that were included in a relay block by the block's parent.
+	pub fn add_candidates_in_relay_block(&self, relay_parent: &Hash, candidates: Vec<Hash>) -> io::Result<()> {
+		use std::iter::FromIterator;
+
+		let mut tx = DBTransaction::new();
+		let dbkey = candidates_in_relay_chain_block_key(relay_parent);
+
+		if let Some((validator_index, _)) = self.get_validator_index_and_n_validators(relay_parent) {
+			let candidates = candidates.clone();
+			let awaited_frontier: Vec<(Hash, Hash, u32)> = self
+				.query_inner(columns::META, &awaited_chunks_key())
+				.unwrap_or_else(|| Vec::new());
+
+			let mut awaited_frontier: HashSet<(Hash, Hash, u32)> = HashSet::from_iter(awaited_frontier.into_iter());
+
+			awaited_frontier.extend(candidates.into_iter().map(|candidate| {
+				(relay_parent.clone(), candidate, validator_index)
+			}));
+			let awaited_frontier = Vec::from_iter(awaited_frontier.into_iter());
+			tx.put_vec(columns::META, &awaited_chunks_key(), awaited_frontier.encode());
+		}
+		tx.put_vec(columns::DATA, &dbkey, candidates.encode());
+
+		self.inner.write(tx)
+	}
+
+	/// Qery which candidates were included in the relay chain block by block's parent.
+	pub fn get_candidates_in_relay_block(&self, relay_block: &Hash) -> Option<Vec<Hash>> {
+		let dbkey = candidates_in_relay_chain_block_key(relay_block);
+
+		self.query_inner(columns::DATA, &dbkey)
+	}
+
+	/// Adds a set of erasure chunk roots that were included in a relay block by block's parent.
+	pub fn add_erasure_roots_in_relay_block(&self, relay_parent: &Hash, erasure_roots: Vec<Hash>) -> io::Result<()> {
+		let mut tx = DBTransaction::new();
+		let dbkey = erasure_roots_in_relay_chain_block_key(relay_parent);
+
+		tx.put_vec(columns::DATA, &dbkey, erasure_roots.encode());
+
+		self.inner.write(tx)
+	}
+
+	/// Query erasure roots included in the relay chain block by block's parent.
+	pub fn get_erasure_roots_in_relay_block(&self, relay_parent: &Hash) -> Option<Vec<Hash>> {
+		let dbkey = erasure_roots_in_relay_chain_block_key(relay_parent);
+
+		self.query_inner(columns::DATA, &dbkey)
+	}
+
 	/// Make a validator's index and a number of validators at a relay parent available.
 	// TODO: The tuple of two value is used here because for the most part thay are used together,
 	// however, maybe they should be stored/queried by separate methods.
@@ -191,6 +266,7 @@ impl Store {
 	) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
 		let block_data_hash = &receipt.block_data_hash;
+		let chunk_index = chunk.index;
 
 		let dbkey = erasure_chunks_key(relay_parent, block_data_hash);
 		let mut v = self.query_inner(columns::DATA, &dbkey).unwrap_or(Vec::new());
@@ -210,7 +286,23 @@ impl Store {
 			}
 		}
 
+		let av_chunks_key = available_chunks_key(relay_parent, &receipt.erasure_root);
+		let mut have_chunks = self.query_inner(columns::META, &av_chunks_key).unwrap_or(Vec::new());
+		if !have_chunks.contains(&chunk_index) {
+			have_chunks.push(chunk_index);
+		}
+
+		let awaited_frontier: Option<Vec<(Hash, Hash, u32)>> = self.query_inner(columns::META, &awaited_chunks_key());
+
+		if let Some(mut awaited_frontier) = awaited_frontier {
+			awaited_frontier.retain(|&(p, c, index)| {
+				!(*relay_parent == p && c == receipt.hash() && index == chunk_index)
+			});
+			tx.put_vec(columns::META, &awaited_chunks_key(), awaited_frontier.encode());
+		}
+
 		tx.put_vec(columns::DATA, &dbkey, v.encode());
+		tx.put_vec(columns::META, &av_chunks_key, have_chunks.encode());
 
 		self.inner.write(tx)
 	}
@@ -233,7 +325,13 @@ impl Store {
 
 		let mut v = self.query_inner(columns::DATA, &dbkey).unwrap_or(Vec::new());
 
+		let av_chunks_key = available_chunks_key(relay_parent, &receipt.erasure_root);
+		let mut have_chunks = self.query_inner(columns::META, &av_chunks_key).unwrap_or(Vec::new());
+
 		for chunk in chunks.into_iter() {
+			if !have_chunks.contains(&chunk.index) {
+				have_chunks.push(chunk.index);
+			}
 			v.push(chunk);
 		}
 
@@ -252,11 +350,13 @@ impl Store {
 		}
 
 		tx.put_vec(columns::DATA, &dbkey, v.encode());
+		tx.put_vec(columns::META, &av_chunks_key, have_chunks.encode());
+
 		self.inner.write(tx)
 	}
 
 	/// Queries an erasure chunk by its block's parent and hash and index.
-	pub fn get_erasure_chunk(&self, relay_parent: Hash, block_data_hash: Hash, index: usize) -> Option<ErasureChunk> {
+	pub fn get_erasure_chunk(&self, relay_parent: &Hash, block_data_hash: Hash, index: usize) -> Option<ErasureChunk> {
 		self.query_inner(columns::DATA, &erasure_chunks_key(&relay_parent, &block_data_hash))
 			.and_then(|chunks: Vec<ErasureChunk>| {
 				chunks.iter()
@@ -287,6 +387,13 @@ impl Store {
 
 		let v = self.query_inner(columns::META, &parent[..]).unwrap_or(Vec::new());
 		tx.delete(columns::META, &parent[..]);
+
+		let awaited_frontier: Option<Vec<(Hash, Hash, u32)>> = self.query_inner(columns::META, &awaited_chunks_key());
+
+		if let Some(mut awaited_frontier) = awaited_frontier {
+			awaited_frontier.retain(|&(p, c, _)| (p != parent && !finalized_candidates.contains(&c)));
+			tx.put_vec(columns::META, &awaited_chunks_key(), awaited_frontier.encode());
+		}
 
 		for block_data_hash in v {
 			if let Some(candidate_hash) = self.block_hash_to_candidate_hash(block_data_hash) {
@@ -411,8 +518,8 @@ mod tests {
 		assert_eq!(store.block_data(relay_parent, block_data_1.hash()).unwrap(), block_data_1);
 		assert_eq!(store.block_data(relay_parent, block_data_2.hash()).unwrap(), block_data_2);
 
-		assert_eq!(store.get_erasure_chunk(relay_parent, block_data_1.hash(), 1).as_ref(), Some(&erasure_chunk_1));
-		assert_eq!(store.get_erasure_chunk(relay_parent, block_data_2.hash(), 1), Some(erasure_chunk_2));
+		assert_eq!(store.get_erasure_chunk(&relay_parent, block_data_1.hash(), 1).as_ref(), Some(&erasure_chunk_1));
+		assert_eq!(store.get_erasure_chunk(&relay_parent, block_data_2.hash(), 1), Some(erasure_chunk_2));
 
 		assert!(store.block_data_by_candidate(relay_parent, candidate_1.hash()).is_none());
 		assert!(store.block_data_by_candidate(relay_parent, candidate_2.hash()).is_none());
@@ -429,8 +536,8 @@ mod tests {
 
 		store.candidates_finalized(relay_parent, [candidate_1.hash()].iter().cloned().collect()).unwrap();
 
-		assert_eq!(store.get_erasure_chunk(relay_parent, block_data_1.hash(), 1).as_ref(), Some(&erasure_chunk_1));
-		assert!(store.get_erasure_chunk(relay_parent, block_data_2.hash(), 1).is_none());
+		assert_eq!(store.get_erasure_chunk(&relay_parent, block_data_1.hash(), 1).as_ref(), Some(&erasure_chunk_1));
+		assert!(store.get_erasure_chunk(&relay_parent, block_data_2.hash(), 1).is_none());
 
 		assert_eq!(store.get_candidate(&candidate_1.hash()), Some(candidate_1));
 		assert_eq!(store.get_candidate(&candidate_2.hash()), None);
@@ -513,7 +620,6 @@ mod tests {
 			erasure_root: [6; 32].into(),
 		};
 
-
 		let chunks: Vec<_> = erasure_chunks
 			.iter()
 			.zip(branches.map(|(proof, _)| proof))
@@ -528,7 +634,7 @@ mod tests {
 		let store = Store::new_in_memory();
 
 		store.add_erasure_chunk(n_validators as u32, &relay_parent, &candidate, chunks[0].clone()).unwrap();
-		assert_eq!(store.get_erasure_chunk(relay_parent, block_data_hash, 0), Some(chunks[0].clone()));
+		assert_eq!(store.get_erasure_chunk(&relay_parent, block_data_hash, 0), Some(chunks[0].clone()));
 
 		assert!(store.block_data(relay_parent, block_data_hash).is_none());
 
@@ -543,5 +649,85 @@ mod tests {
 
 		store.add_validator_index_and_n_validators(&relay_parent, 42, 24).unwrap();
 		assert_eq!(store.get_validator_index_and_n_validators(&relay_parent).unwrap(), (42, 24));
+	}
+
+	#[test]
+	fn add_candidates_in_relay_block_works() {
+		let relay_parent = [42; 32].into();
+		let store = Store::new_in_memory();
+
+		let candidates = vec![[1; 32].into(), [2; 32].into(), [3; 32].into()];
+
+		store.add_candidates_in_relay_block(&relay_parent, candidates.clone()).unwrap();
+		assert_eq!(store.get_candidates_in_relay_block(&relay_parent).unwrap(), candidates);
+	}
+
+	#[test]
+	fn add_erasure_roots_in_relay_block_works() {
+		let relay_parent = [42; 32].into();
+		let store = Store::new_in_memory();
+
+		let erasure_roots = vec![[1; 32].into(), [2; 32].into(), [3; 32].into()];
+
+		store.add_erasure_roots_in_relay_block(&relay_parent, erasure_roots.clone()).unwrap();
+		assert_eq!(store.get_erasure_roots_in_relay_block(&relay_parent).unwrap(), erasure_roots);
+	}
+
+	#[test]
+	fn awaited_chunks_works() {
+		use std::iter::FromIterator;
+		let validator_index = 3;
+		let n_validators = 10;
+		let relay_parent = [42; 32].into();
+		let erasure_root = [11; 32].into();
+		let receipt = CandidateReceipt {
+			parachain_index: 1.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: Default::default(),
+			egress_queue_roots: vec![],
+			fees: 0,
+			block_data_hash: Hash::default(),
+			upward_messages: vec![],
+			erasure_root,
+		};
+		let chunk = ErasureChunk {
+			chunk: vec![1, 2, 3],
+			index: validator_index,
+			proof: Vec::new(),
+		};
+		let candidates = vec![receipt.hash(), [2; 32].into()];
+
+		let store = Store::new_in_memory();
+
+		store.add_validator_index_and_n_validators(
+			&relay_parent,
+			validator_index,
+			n_validators
+		).unwrap();
+
+		// We are waiting for chunks from two candidates.
+		store.add_candidates_in_relay_block(&relay_parent, candidates.clone()).unwrap();
+
+		let awaited_frontier = store.awaited_chunks().unwrap();
+		let expected: HashSet<_> = candidates
+			.clone()
+			.into_iter()
+			.map(|c| (relay_parent, c, validator_index))
+			.collect();
+		assert_eq!(awaited_frontier, expected);
+
+		// We add chunk from one of the candidates.
+		store.add_erasure_chunk(n_validators, &relay_parent, &receipt, chunk).unwrap();
+
+		let awaited_frontier = store.awaited_chunks().unwrap();
+		// Now we wait for the other chunk that we haven't received yet.
+		let expected: HashSet<_> = vec![(relay_parent, candidates[1], validator_index)].into_iter().collect();
+		assert_eq!(awaited_frontier, expected);
+
+		// Finalizing removes awaited candidates from frontier.
+		store.candidates_finalized(relay_parent, HashSet::from_iter(candidates.into_iter())).unwrap();
+
+		assert_eq!(store.awaited_chunks().unwrap().len(), 0);
 	}
 }
