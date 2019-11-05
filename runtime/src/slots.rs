@@ -212,6 +212,7 @@ decl_event!(
 		/// Someone won the right to deploy a parachain. Balance amount is deducted for deposit.
 		WonDeploy(NewBidder<AccountId>, SlotRange, ParaId, Balance),
 		/// An existing parachain won the right to continue.
+		/// First balance is the extra amount reseved. Second is the total amount reserved.
 		WonRenewal(ParaId, SlotRange, Balance, Balance),
 		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
 		/// Second is the total.
@@ -552,7 +553,7 @@ impl<T: Trait> Module<T> {
 					} else {
 						Default::default()
 					};
-					Self::deposit_event(RawEvent::WonRenewal(para_id, range, amount, extra));
+					Self::deposit_event(RawEvent::WonRenewal(para_id, range, extra, amount));
 				}
 			}
 
