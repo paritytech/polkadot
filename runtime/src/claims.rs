@@ -426,7 +426,9 @@ mod tests {
 
 	#[test]
 	fn validate_unsigned_works() {
+		#![allow(deprecated)] // Allow `ValidateUnsigned`
 		use sr_primitives::traits::ValidateUnsigned;
+
 		new_test_ext().execute_with(|| {
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(1, alice_sig(&1u64.encode()))),
