@@ -27,7 +27,7 @@ use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
 #[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
 use sr_primitives::{
-	weights::SimpleDispatchInfo, traits::ValidateUnsigned,
+	weights::SimpleDispatchInfo,
 	transaction_validity::{
 		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction
 	},
@@ -191,7 +191,8 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-impl<T: Trait> ValidateUnsigned for Module<T> {
+#[allow(deprecated)] // Allow `ValidateUnsigned`
+impl<T: Trait> sr_primitives::traits::ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
 	fn validate_unsigned(call: &Self::Call) -> TransactionValidity {
@@ -425,6 +426,9 @@ mod tests {
 
 	#[test]
 	fn validate_unsigned_works() {
+		#![allow(deprecated)] // Allow `ValidateUnsigned`
+		use sr_primitives::traits::ValidateUnsigned;
+
 		new_test_ext().execute_with(|| {
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(1, alice_sig(&1u64.encode()))),
