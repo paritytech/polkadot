@@ -1043,10 +1043,11 @@ mod tests {
 		pub const BondingDuration: staking::EraIndex = 28;
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
+		pub const MaxReward: Perbill = Perbill::from_percent(10);
 	}
 
 	impl staking::Trait for Test {
-		type OnRewardMinted = ();
+		type RewardRemainder = ();
 		type CurrencyToVote = ();
 		type Event = ();
 		type Currency = balances::Module<Test>;
@@ -1057,6 +1058,7 @@ mod tests {
 		type SessionInterface = Self;
 		type Time = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
+		type MaxPossibleReward = MaxReward;
 	}
 
 	impl attestations::Trait for Test {
