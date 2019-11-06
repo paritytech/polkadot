@@ -17,12 +17,11 @@
 //! Auxillary struct/enums for polkadot runtime.
 
 use primitives::Balance;
-use sr_primitives::weights::{Weight, WeightMultiplier};
+use sr_primitives::weights::Weight;
 use sr_primitives::traits::{Convert, Saturating};
-use sr_primitives::Fixed64;
-use srml_support::traits::{OnUnbalanced, Currency};
-use crate::{Balances, Authorship, MaximumBlockWeight, NegativeImbalance};
-use crate::constants::fee::TARGET_BLOCK_FULLNESS;
+use sr_primitives::{Fixed64, Perbill};
+use srml_support::traits::{OnUnbalanced, Currency, Get};
+use crate::{Balances, System, Authorship, MaximumBlockWeight, NegativeImbalance};
 
 /// Logic for the author to get a portion of fees.
 pub struct ToAuthor;
@@ -67,27 +66,21 @@ impl Convert<Weight, Balance> for WeightToFee {
 	}
 }
 
-/// A struct that updates the weight multiplier based on the saturation level of the previous block.
-/// This should typically be called once per-block.
+/// Update the given multiplier based on the following formula
 ///
-/// This assumes that weight is a numeric value in the u32 range.
-///
-/// Given `TARGET_BLOCK_FULLNESS = 1/2`, a block saturation greater than 1/2 will cause the system
-/// fees to slightly grow and the opposite for block saturations less than 1/2.
-///
-/// Formula:
-///   diff = (target_weight - current_block_weight)
+///   diff = (target_weight - previous_block_weight)
 ///   v = 0.00004
 ///   next_weight = weight * (1 + (v . diff) + (v . diff)^2 / 2)
 ///
+/// Where `target_weight` must be given as the `Get` implementation of the `T` generic type.
 /// https://research.web3.foundation/en/latest/polkadot/Token%20Economics/#relay-chain-transaction-fees
-pub struct WeightMultiplierUpdateHandler;
+pub struct TargetedFeeAdjustment<T>(rstd::marker::PhantomData<T>);
 
-impl Convert<(Weight, WeightMultiplier), WeightMultiplier> for WeightMultiplierUpdateHandler {
-	fn convert(previous_state: (Weight, WeightMultiplier)) -> WeightMultiplier {
-		let (block_weight, multiplier) = previous_state;
+impl<T: Get<Perbill>> Convert<Fixed64, Fixed64> for TargetedFeeAdjustment<T> {
+	fn convert(multiplier: Fixed64) -> Fixed64 {
+		let block_weight = System::all_extrinsics_weight();
 		let max_weight = MaximumBlockWeight::get();
-		let target_weight = (TARGET_BLOCK_FULLNESS * max_weight) as u128;
+		let target_weight = (T::get() * max_weight) as u128;
 		let block_weight = block_weight as u128;
 
 		// determines if the first_term is positive
@@ -99,8 +92,8 @@ impl Convert<(Weight, WeightMultiplier), WeightMultiplier> for WeightMultiplierU
 
 		// 0.00004 = 4/100_000 = 40_000/10^9
 		let v = Fixed64::from_rational(4, 100_000);
-		// 0.00004^2 = 16/10^10 ~= 2/10^9. Taking the future /2 into account, then it is just 1 parts
-		// from a billionth.
+		// 0.00004^2 = 16/10^10 ~= 2/10^9. Taking the future /2 into account, then it is just 1
+		// parts from a billionth.
 		let v_squared_2 = Fixed64::from_rational(1, 1_000_000_000);
 
 		let first_term = v.saturating_mul(diff);
@@ -112,17 +105,17 @@ impl Convert<(Weight, WeightMultiplier), WeightMultiplier> for WeightMultiplierU
 			// Note: this is merely bounded by how big the multiplier and the inner value can go,
 			// not by any economical reasoning.
 			let excess = first_term.saturating_add(second_term);
-			multiplier.saturating_add(WeightMultiplier::from_fixed(excess))
+			multiplier.saturating_add(excess)
 		} else {
-			// first_term > second_term
+			// Proof: first_term > second_term. Safe subtraction.
 			let negative = first_term - second_term;
-			multiplier.saturating_sub(WeightMultiplier::from_fixed(negative))
+			multiplier.saturating_sub(negative)
 				// despite the fact that apply_to saturates weight (final fee cannot go below 0)
 				// it is crucially important to stop here and don't further reduce the weight fee
 				// multiplier. While at -1, it means that the network is so un-congested that all
 				// transactions have no weight fee. We stop here and only increase if the network
 				// became more busy.
-				.max(WeightMultiplier::from_rational(-1, 1))
+				.max(Fixed64::from_rational(-1, 1))
 		}
 	}
 }

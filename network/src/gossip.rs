@@ -294,7 +294,8 @@ impl<F, P> ChainContext for (F, P) where
 		let leaf_id = BlockId::Hash(leaf);
 		let active_parachains = api.active_parachains(&leaf_id)?;
 
-		for para_id in active_parachains {
+		// TODO: https://github.com/paritytech/polkadot/issues/467
+		for (para_id, _) in active_parachains {
 			if let Some(ingress) = api.ingress(&leaf_id, para_id, None)? {
 				for (_height, _from, queue_root) in ingress.iter() {
 					with_queue_root(queue_root);
@@ -370,16 +371,6 @@ impl NewLeafActions {
 			}
 		}
 	}
-}
-
-/// Register a gossip validator for a non-authority node.
-pub fn register_non_authority_validator(service: Arc<PolkadotNetworkService>) {
-	service.with_gossip(|gossip, ctx|
-		gossip.register_validator(
-			ctx,
-			POLKADOT_ENGINE_ID,
-			Arc::new(substrate_network::consensus_gossip::DiscardAll)),
-	);
 }
 
 /// A registered message validator.

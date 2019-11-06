@@ -34,7 +34,7 @@ pub use service::{
 };
 
 pub use cli::{VersionInfo, IntoExit, NoCustom};
-pub use cli::error;
+pub use cli::{display_role, error};
 
 /// Abstraction over an executor that lets you spawn tasks in the background.
 pub type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
@@ -72,7 +72,7 @@ pub trait Worker: IntoExit {
 
 #[derive(Debug, StructOpt, Clone)]
 enum PolkadotSubCommands {
-	#[structopt(name = "validation-worker", raw(setting = "structopt::clap::AppSettings::Hidden"))]
+	#[structopt(name = "validation-worker", setting = structopt::clap::AppSettings::Hidden)]
 	ValidationWorker(ValidationWorkerCommand),
 }
 
@@ -98,7 +98,7 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 			info!("  by {}, 2017-2019", version.author);
 			info!("Chain specification: {}", config.chain_spec.name());
 			info!("Node name: {}", config.name);
-			info!("Roles: {:?}", config.roles);
+			info!("Roles: {}", display_role(&config));
 			config.custom = worker.configuration();
 			let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
 			match config.roles {
@@ -115,13 +115,13 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 					),
 			}.map_err(|e| format!("{:?}", e))
 		}),
-		cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run(load_spec),
-		cli::ParseAndPrepare::ExportBlocks(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
+		cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(load_spec),
+		cli::ParseAndPrepare::ExportBlocks(cmd) => cmd.run_with_builder::<(), _, _, _, _, _, _>(|config|
 			Ok(service::new_chain_ops(config)?), load_spec, worker),
-		cli::ParseAndPrepare::ImportBlocks(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
+		cli::ParseAndPrepare::ImportBlocks(cmd) => cmd.run_with_builder::<(), _, _, _, _, _, _>(|config|
 			Ok(service::new_chain_ops(config)?), load_spec, worker),
 		cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
-		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<(), _, _, _, _>(|config|
+		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
 			Ok(service::new_chain_ops(config)?), load_spec),
 		cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
 			service::run_validation_worker(&args.mem_id)?;

@@ -30,11 +30,11 @@ use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, TargetedMessage,
 	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
-	FeeSchedule, HeadData,
+	FeeSchedule, HeadData, Retriable, CollatorId
 };
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
-use substrate_client::runtime_api::{Core, RuntimeVersion, ApiExt};
+use substrate_client::runtime_api::{Core, RuntimeVersion, StorageProof, ApiExt};
 use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 
 use std::collections::HashMap;
@@ -148,7 +148,7 @@ impl NetworkService for TestNetwork {
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
-		GossipMessageStream::new(rx)
+		GossipMessageStream::new(Box::new(rx))
 	}
 
 	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
@@ -177,7 +177,7 @@ impl NetworkService for TestNetwork {
 struct ApiData {
 	validators: Vec<ValidatorId>,
 	duties: Vec<Chain>,
-	active_parachains: Vec<ParaId>,
+	active_parachains: Vec<(ParaId, Option<(CollatorId, Retriable)>)>,
 	ingress: HashMap<ParaId, StructuredUnroutedIngress>,
 }
 
@@ -244,7 +244,7 @@ impl ApiExt<Block> for RuntimeApi {
 
 	fn record_proof(&mut self) { }
 
-	fn extract_proof(&mut self) -> Option<Vec<Vec<u8>>> {
+	fn extract_proof(&mut self) -> Option<StorageProof> {
 		None
 	}
 }
@@ -279,7 +279,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: ExecutionContext,
 		_: Option<()>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Vec<ParaId>>> {
+	) -> ClientResult<NativeOrEncoded<Vec<(ParaId, Option<(CollatorId, Retriable)>)>>> {
 		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
 	}
 

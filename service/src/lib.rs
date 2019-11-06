@@ -18,7 +18,6 @@
 
 pub mod chain_spec;
 
-use futures::prelude::*;
 use futures::sync::mpsc;
 use client::LongestChain;
 use std::sync::Arc;
@@ -28,13 +27,12 @@ use polkadot_runtime::GenesisConfig;
 use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
 use service::{error::{Error as ServiceError}, Configuration, ServiceBuilder};
 use transaction_pool::txpool::{Pool as TransactionPool};
-use babe::{import_queue, start_babe};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use log::info;
 pub use service::{AbstractService, Roles, PruningMode, TransactionPoolOptions, Error};
 pub use service::{ServiceBuilderExport, ServiceBuilderImport, ServiceBuilderRevert};
-pub use service::config::full_version_from_strs;
+pub use service::config::{DatabaseConfig, full_version_from_strs};
 pub use client::{backend::Backend, runtime_api::{Core as CoreApi, ConstructRuntimeApi}, ExecutionStrategy, CallExecutor};
 pub use consensus_common::SelectChain;
 pub use polkadot_network::{PolkadotProtocol};
@@ -67,7 +65,7 @@ impl Default for CustomConfiguration {
 }
 
 /// Chain API type for the transaction pool.
-pub type TxChainApi<Backend, Executor> = transaction_pool::ChainApi<
+pub type TxChainApi<Backend, Executor> = transaction_pool::FullChainApi<
 	client::Client<Backend, Executor, Block, RuntimeApi>,
 	Block,
 >;
@@ -87,7 +85,7 @@ macro_rules! new_full_start {
 				Ok(client::LongestChain::new(backend.clone()))
 			})?
 			.with_transaction_pool(|config, client|
-				Ok(transaction_pool::txpool::Pool::new(config, transaction_pool::ChainApi::new(client)))
+				Ok(transaction_pool::txpool::Pool::new(config, transaction_pool::FullChainApi::new(client)))
 			)?
 			.with_import_queue(|_config, client, mut select_chain, _| {
 				let select_chain = select_chain.take()
@@ -99,24 +97,27 @@ macro_rules! new_full_start {
 				let justification_import = grandpa_block_import.clone();
 
 				let (block_import, babe_link) = babe::block_import(
-						babe::Config::get_or_compute(&*client)?,
-						grandpa_block_import,
-						client.clone(),
-						client.clone(),
+					babe::Config::get_or_compute(&*client)?,
+					grandpa_block_import,
+					client.clone(),
+					client.clone(),
 				)?;
 
 				let import_queue = babe::import_queue(
-						babe_link.clone(),
-						block_import.clone(),
-						Some(Box::new(justification_import)),
-						None,
-						client.clone(),
-						client,
-						inherent_data_providers.clone(),
+					babe_link.clone(),
+					block_import.clone(),
+					Some(Box::new(justification_import)),
+					None,
+					client.clone(),
+					client,
+					inherent_data_providers.clone(),
 				)?;
 
 				import_setup = Some((block_import, grandpa_link, babe_link));
 				Ok(import_queue)
+			})?
+			.with_rpc_extensions(|client, pool, _backend| -> polkadot_rpc::RpcExtension {
+				polkadot_rpc::create(client, pool)
 			})?;
 
 		(builder, import_setup, inherent_data_providers)
@@ -141,13 +142,22 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 {
 	use substrate_network::DhtEvent;
 
-	let is_authority = config.roles.is_authority();
 	let is_collator = config.custom.collating_for.is_some();
+	let is_authority = config.roles.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = config.custom.max_block_data_size;
-	let db_path = config.database_path.clone();
+	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.database {
+		path.clone()
+	} else {
+		return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into());
+	};
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
+
+	// sentry nodes announce themselves as authorities to the network
+	// and should run the same protocols authorities do, but it should
+	// never actively participate in any consensus process.
+	let participates_in_consensus = is_authority && !config.sentry_mode;
 
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config);
 
@@ -156,7 +166,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	// event per authority within the current authority set. This estimates the
 	// authority set size to be somewhere below 10 000 thereby setting the channel
 	// buffer size to 10 000.
-	let (dht_event_tx, dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
+	let (dht_event_tx, _dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
 
 	let service = builder
 		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
@@ -168,13 +178,6 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 
 	let (block_import, link_half, babe_link) = import_setup.take()
 		.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
-
-	if is_collator {
-		info!(
-			"The node cannot start as an authority because it is also configured to run as a collator."
-		);
-		return Ok(service);
-	}
 
 	let client = service.client();
 	let known_oracle = client.clone();
@@ -210,7 +213,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		(is_known, client.clone()),
 	);
 
-	if is_authority {
+	if participates_in_consensus {
 		let availability_store = {
 			use std::path::PathBuf;
 
@@ -271,57 +274,52 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			babe_link,
 		};
 
-		let babe = start_babe(babe_config)?;
-		let select = babe.select(service.on_exit()).then(|_| Ok(()));
-		service.spawn_essential_task(Box::new(select));
-
-		let authority_discovery = authority_discovery::AuthorityDiscovery::new(
-			service.client(),
-			service.network(),
-			dht_event_rx,
-		);
-		service.spawn_task(authority_discovery);
-	} else {
-		network_gossip::register_non_authority_validator(service.network());
+		let babe = babe::start_babe(babe_config)?;
+		service.spawn_essential_task(babe);
 	}
+
+	// if the node isn't actively participating in consensus then it doesn't
+	// need a keystore, regardless of which protocol we use below.
+	let keystore = if participates_in_consensus {
+		Some(service.keystore())
+	} else {
+		None
+	};
 
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
 		gossip_duration: Duration::from_millis(333),
 		justification_period: 512,
 		name: Some(name),
-		keystore: Some(service.keystore()),
+		observer_enabled: false,
+		keystore,
+		is_authority,
 	};
 
-	match (is_authority, disable_grandpa) {
-		(false, false) => {
-			// start the lightweight GRANDPA observer
-			service.spawn_task(Box::new(grandpa::run_grandpa_observer(
-				config,
-				link_half,
-				service.network(),
-				service.on_exit(),
-			)?));
-		},
-		(true, false) => {
-			// start the full GRANDPA voter
-			let grandpa_config = grandpa::GrandpaParams {
-				config: config,
-				link: link_half,
-				network: service.network(),
-				inherent_data_providers: inherent_data_providers.clone(),
-				on_exit: service.on_exit(),
-				telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
-			};
-			service.spawn_essential_task(Box::new(grandpa::run_grandpa_voter(grandpa_config)?));
-		},
-		(_, true) => {
-			grandpa::setup_disabled_grandpa(
-				service.client(),
-				&inherent_data_providers,
-				service.network(),
-			)?;
-		},
+	let enable_grandpa = !disable_grandpa;
+	if enable_grandpa {
+		// start the full GRANDPA voter
+		// NOTE: unlike in substrate we are currently running the full
+		// GRANDPA voter protocol for all full nodes (regardless of whether
+		// they're validators or not). at this point the full voter should
+		// provide better guarantees of block and vote data availability than
+		// the observer.
+		let grandpa_config = grandpa::GrandpaParams {
+			config: config,
+			link: link_half,
+			network: service.network(),
+			inherent_data_providers: inherent_data_providers.clone(),
+			on_exit: service.on_exit(),
+			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
+			voting_rule: grandpa::VotingRulesBuilder::default().build(),
+		};
+		service.spawn_essential_task(grandpa::run_grandpa_voter(grandpa_config)?);
+	} else {
+		grandpa::setup_disabled_grandpa(
+			service.client(),
+			&inherent_data_providers,
+			service.network(),
+		)?;
 	}
 
 	Ok(service)
@@ -343,7 +341,7 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 			Ok(LongestChain::new(backend.clone()))
 		})?
 		.with_transaction_pool(|config, client|
-			Ok(TransactionPool::new(config, transaction_pool::ChainApi::new(client)))
+			Ok(TransactionPool::new(config, transaction_pool::FullChainApi::new(client)))
 		)?
 		.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _| {
 			let fetch_checker = fetcher
@@ -357,7 +355,6 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 			let finality_proof_request_builder =
 				finality_proof_import.create_finality_proof_request_builder();
 
-
 			let (babe_block_import, babe_link) = babe::block_import(
 				babe::Config::get_or_compute(&*client)?,
 				grandpa_block_import,
@@ -366,7 +363,7 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 			)?;
 
 			// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
-			let import_queue = import_queue(
+			let import_queue = babe::import_queue(
 				babe_link,
 				babe_block_import,
 				None,
@@ -382,5 +379,8 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
+		.with_rpc_extensions(|client, pool, _backend| -> polkadot_rpc::RpcExtension {
+			polkadot_rpc::create(client, pool)
+		})?
 		.build()
 }

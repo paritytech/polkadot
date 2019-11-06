@@ -28,7 +28,6 @@ use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
 use sr_primitives::traits::Zero;
 use sr_primitives::{
 	weights::SimpleDispatchInfo,
-	traits::ValidateUnsigned,
 	transaction_validity::{
 		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction
 	},
@@ -87,11 +86,10 @@ impl PartialEq for EcdsaSignature {
 	}
 }
 
-#[cfg(feature = "std")]
-impl std::fmt::Debug for EcdsaSignature {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", &self.0[..])
-    }
+impl rstd::fmt::Debug for EcdsaSignature {
+	fn fmt(&self, f: &mut rstd::fmt::Formatter<'_>) -> rstd::fmt::Result {
+		write!(f, "EcdsaSignature({:?})", &self.0[..])
+	}
 }
 
 decl_event!(
@@ -193,7 +191,8 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-impl<T: Trait> ValidateUnsigned for Module<T> {
+#[allow(deprecated)] // Allow `ValidateUnsigned`
+impl<T: Trait> sr_primitives::traits::ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
 	fn validate_unsigned(call: &Self::Call) -> TransactionValidity {
@@ -237,12 +236,11 @@ mod tests {
 	use hex_literal::hex;
 	use super::*;
 
-	use sr_io::with_externalities;
-	use substrate_primitives::{H256, Blake2Hasher};
+	use substrate_primitives::H256;
 	use codec::Encode;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
-	use sr_primitives::{Perbill, traits::{BlakeTwo256, IdentityLookup, ConvertInto}, testing::Header};
+	use sr_primitives::{Perbill, traits::{BlakeTwo256, IdentityLookup}, testing::Header};
 	use balances;
 	use srml_support::{impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types};
 
@@ -269,7 +267,6 @@ mod tests {
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
-		type WeightMultiplierUpdate = ();
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
@@ -283,8 +280,6 @@ mod tests {
 		pub const ExistentialDeposit: u64 = 0;
 		pub const TransferFee: u64 = 0;
 		pub const CreationFee: u64 = 0;
-		pub const TransactionBaseFee: u64 = 0;
-		pub const TransactionByteFee: u64 = 0;
 	}
 
 	impl balances::Trait for Test {
@@ -292,15 +287,11 @@ mod tests {
 		type OnFreeBalanceZero = ();
 		type OnNewAccount = ();
 		type Event = ();
-		type TransactionPayment = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
-		type TransactionBaseFee = TransactionBaseFee;
-		type TransactionByteFee = TransactionByteFee;
-		type WeightToFee = ConvertInto;
 	}
 
 	parameter_types!{
@@ -328,7 +319,7 @@ mod tests {
 	}
 	fn alice_sig(what: &[u8]) -> EcdsaSignature {
 		let msg = keccak256(&Claims::ethereum_signable_message(&to_ascii_hex(what)[..]));
-		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &alice_secret()).unwrap();
+		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &alice_secret());
 		let mut r = [0u8; 65];
 		r[0..64].copy_from_slice(&sig.serialize()[..]);
 		r[64] = recovery_id.serialize();
@@ -339,7 +330,7 @@ mod tests {
 	}
 	fn bob_sig(what: &[u8]) -> EcdsaSignature {
 		let msg = keccak256(&Claims::ethereum_signable_message(&to_ascii_hex(what)[..]));
-		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &bob_secret()).unwrap();
+		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &bob_secret());
 		let mut r = [0u8; 65];
 		r[0..64].copy_from_slice(&sig.serialize()[..]);
 		r[64] = recovery_id.serialize();
@@ -348,7 +339,7 @@ mod tests {
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
-	fn new_test_ext() -> sr_io::TestExternalities<Blake2Hasher> {
+	fn new_test_ext() -> sr_io::TestExternalities {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		// We use default for brevity, but you can configure as desired if needed.
 		balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
@@ -360,10 +351,10 @@ mod tests {
 
 	#[test]
 	fn basic_setup_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			assert_eq!(Claims::total(), 100);
 			assert_eq!(Claims::claims(&alice_eth()), Some(100));
-			assert_eq!(Claims::claims(&Default::default()), None);
+			assert_eq!(Claims::claims(&EthereumAddress::default()), None);
 		});
 	}
 
@@ -378,7 +369,7 @@ mod tests {
 
 	#[test]
 	fn claiming_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, alice_sig(&42u64.encode())));
 			assert_eq!(Balances::free_balance(&42), 100);
@@ -387,7 +378,7 @@ mod tests {
 
 	#[test]
 	fn origin_signed_claiming_fail() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_err!(
 				Claims::claim(Origin::signed(42), 42, alice_sig(&42u64.encode())),
@@ -398,7 +389,7 @@ mod tests {
 
 	#[test]
 	fn double_claiming_doesnt_work() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, alice_sig(&42u64.encode())));
 			assert_noop!(Claims::claim(Origin::NONE, 42, alice_sig(&42u64.encode())), "Ethereum address has no claim");
@@ -407,7 +398,7 @@ mod tests {
 
 	#[test]
 	fn non_sender_sig_doesnt_work() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_noop!(Claims::claim(Origin::NONE, 42, alice_sig(&69u64.encode())), "Ethereum address has no claim");
 		});
@@ -415,7 +406,7 @@ mod tests {
 
 	#[test]
 	fn non_claimant_doesnt_work() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_noop!(Claims::claim(Origin::NONE, 42, bob_sig(&69u64.encode())), "Ethereum address has no claim");
 		});
@@ -423,7 +414,7 @@ mod tests {
 
 	#[test]
 	fn real_eth_sig_works() {
-		with_externalities(&mut new_test_ext(), || {
+		new_test_ext().execute_with(|| {
 			// "Pay RUSTs to the TEST account:2a00000000000000"
 			let sig = hex!["444023e89b67e67c0562ed0305d252a5dd12b2af5ac51d6d3cb69a0b486bc4b3191401802dc29d26d586221f7256cd3329fe82174bdf659baea149a40e1c495d1c"];
 			let sig = EcdsaSignature(sig);
@@ -435,7 +426,10 @@ mod tests {
 
 	#[test]
 	fn validate_unsigned_works() {
-		with_externalities(&mut new_test_ext(), || {
+		#![allow(deprecated)] // Allow `ValidateUnsigned`
+		use sr_primitives::traits::ValidateUnsigned;
+
+		new_test_ext().execute_with(|| {
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(&Call::claim(1, alice_sig(&1u64.encode()))),
 				Ok(ValidTransaction {
