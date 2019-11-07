@@ -67,8 +67,9 @@
 //! funds ultimately end up in module's fund sub-account.
 
 use srml_support::{
-	decl_module, decl_storage, decl_event, storage::child, ensure,
-	traits::{Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement}
+	decl_module, decl_storage, decl_event, storage::child, ensure, traits::{
+		Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement::AllowDeath
+	}
 };
 use system::ensure_signed;
 use sr_primitives::{ModuleId, weights::SimpleDispatchInfo,
@@ -204,12 +205,8 @@ decl_module! {
 			ensure!(end > <system::Module<T>>::block_number(), "end must be in the future");
 
 			let deposit = T::SubmissionDeposit::get();
-			let imb = T::Currency::withdraw(
-				&owner,
-				deposit,
-				WithdrawReason::Transfer.into(),
-				ExistenceRequirement::AllowDeath,
-			)?;
+			let transfer = WithdrawReason::Transfer.into();
+			let imb = T::Currency::withdraw(&owner, deposit, transfer, AllowDeath)?;
 
 			let index = FundCount::get();
 			let next_index = index.checked_add(1).ok_or("overflow when adding fund")?;
@@ -250,7 +247,7 @@ decl_module! {
 			let now = <system::Module<T>>::block_number();
 			ensure!(fund.end > now, "contribution period ended");
 
-			T::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
+			T::Currency::transfer(&who, &Self::fund_account_id(index), value, AllowDeath)?;
 
 			let balance = Self::contribution_get(index, &who);
 			let balance = balance.saturating_add(value);
@@ -375,12 +372,10 @@ decl_module! {
 			ensure!(balance > Zero::zero(), "no contributions stored");
 
 			// Avoid using transfer to ensure we don't pay any fees.
-			let _ = T::Currency::resolve_into_existing(&who, T::Currency::withdraw(
-				&Self::fund_account_id(index),
-				balance,
-				WithdrawReason::Transfer.into(),
-				ExistenceRequirement::AllowDeath
-			)?);
+			let fund_account = &Self::fund_account_id(index);
+			let transfer = WithdrawReason::Transfer.into();
+			let imbalance = T::Currency::withdraw(fund_account, balance, transfer, AllowDeath)?;
+			let _ = T::Currency::resolve_into_existing(&who, imbalance);
 
 			Self::contribution_kill(index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
@@ -404,19 +399,12 @@ decl_module! {
 			let account = Self::fund_account_id(index);
 
 			// Avoid using transfer to ensure we don't pay any fees.
-			let _ = T::Currency::resolve_into_existing(&fund.owner, T::Currency::withdraw(
-				&account,
-				fund.deposit,
-				WithdrawReason::Transfer.into(),
-				ExistenceRequirement::AllowDeath
-			)?);
+			let transfer = WithdrawReason::Transfer.into();
+			let imbalance = T::Currency::withdraw(&account, fund.deposit, transfer, AllowDeath)?;
+			let _ = T::Currency::resolve_into_existing(&fund.owner, imbalance);
 
-			T::OrphanedFunds::on_unbalanced(T::Currency::withdraw(
-				&account,
-				fund.raised,
-				WithdrawReason::Transfer.into(),
-				ExistenceRequirement::AllowDeath
-			)?);
+			let imbalance = T::Currency::withdraw(&account, fund.raised, transfer, AllowDeath)?;
+			T::OrphanedFunds::on_unbalanced(imbalance);
 
 			Self::crowdfund_kill(index);
 			<Funds<T>>::remove(index);
