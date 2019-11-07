@@ -67,8 +67,9 @@
 //! funds ultimately end up in module's fund sub-account.
 
 use srml_support::{
-	decl_module, decl_storage, decl_event, storage::child, ensure,
-	traits::{Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement}
+	decl_module, decl_storage, decl_event, storage::child, ensure, traits::{
+		Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement::AllowDeath
+	}
 };
 use system::ensure_signed;
 use sr_primitives::{ModuleId, weights::SimpleDispatchInfo,
@@ -208,7 +209,7 @@ decl_module! {
 				&owner,
 				deposit,
 				WithdrawReason::Transfer.into(),
-				ExistenceRequirement::AllowDeath,
+				AllowDeath,
 			)?;
 
 			let index = FundCount::get();
@@ -250,7 +251,7 @@ decl_module! {
 			let now = <system::Module<T>>::block_number();
 			ensure!(fund.end > now, "contribution period ended");
 
-			T::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
+			T::Currency::transfer(&who, &Self::fund_account_id(index), value, AllowDeath)?;
 
 			let balance = Self::contribution_get(index, &who);
 			let balance = balance.saturating_add(value);
@@ -379,7 +380,7 @@ decl_module! {
 				&Self::fund_account_id(index),
 				balance,
 				WithdrawReason::Transfer.into(),
-				ExistenceRequirement::AllowDeath
+				AllowDeath
 			)?);
 
 			Self::contribution_kill(index, &who);
@@ -408,14 +409,14 @@ decl_module! {
 				&account,
 				fund.deposit,
 				WithdrawReason::Transfer.into(),
-				ExistenceRequirement::AllowDeath
+				AllowDeath
 			)?);
 
 			T::OrphanedFunds::on_unbalanced(T::Currency::withdraw(
 				&account,
 				fund.raised,
 				WithdrawReason::Transfer.into(),
-				ExistenceRequirement::AllowDeath
+				AllowDeath
 			)?);
 
 			Self::crowdfund_kill(index);
