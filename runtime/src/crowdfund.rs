@@ -250,7 +250,12 @@ decl_module! {
 			let now = <system::Module<T>>::block_number();
 			ensure!(fund.end > now, "contribution period ended");
 
-			T::Currency::transfer(&who, &Self::fund_account_id(index), value)?;
+			T::Currency::transfer(
+				&who,
+				&Self::fund_account_id(index),
+				value,
+				ExistenceRequirement::AllowDeath,
+			)?;
 
 			let balance = Self::contribution_get(index, &who);
 			let balance = balance.saturating_add(value);
