@@ -99,7 +99,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 1,
-	spec_version: 1015,
+	spec_version: 1016,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -285,7 +285,7 @@ impl session::historical::Trait for Runtime {
 srml_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
-		max_inflation: 0_100_000,   // 10% - must be equal to MaxReward below.
+		max_inflation: 0_100_000,
 		ideal_stake: 0_500_000,
 		falloff: 0_050_000,
 		max_piece_count: 40,
@@ -300,8 +300,6 @@ parameter_types! {
 	// KUSAMA: This value is 1/4 of what we expect for the mainnet.
 	pub const BondingDuration: staking::EraIndex = 7;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-	pub const MaxReward: Perbill = Perbill::from_percent(10);
-	// ^^^ 10% - must be equal to max_inflation, above.
 }
 
 impl staking::Trait for Runtime {
@@ -316,7 +314,6 @@ impl staking::Trait for Runtime {
 	type SessionInterface = Self;
 	type Time = Timestamp;
 	type RewardCurve = RewardCurve;
-	type MaxPossibleReward = MaxReward;
 }
 
 parameter_types! {
