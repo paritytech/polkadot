@@ -36,7 +36,7 @@ use polkadot_primitives::parachain::{
 };
 use substrate_network::{
 	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
-	specialization::{Event, NetworkSpecialization as Specialization},
+	specialization::NetworkSpecialization as Specialization,
 };
 use substrate_network::consensus_gossip::{
 	self, TopicNotification, MessageRecipient as GossipMessageRecipient, ConsensusMessage,
@@ -693,10 +693,6 @@ impl Specialization<Block> for PolkadotProtocol {
 			}
 		}
 	}
-
-	fn on_event(&mut self, _event: Event) { }
-
-	fn on_abort(&mut self) { }
 
 	fn maintain_peers(&mut self, ctx: &mut dyn Context<Block>) {
 		self.collators.collect_garbage(None);
