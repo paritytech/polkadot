@@ -91,7 +91,7 @@ macro_rules! new_full_start {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 				let (grandpa_block_import, grandpa_link) =
-					grandpa::block_import::<_, _, _, RuntimeApi, _, _>(
+					grandpa::block_import::<_, _, _, RuntimeApi, _>(
 						client.clone(), &*client, select_chain
 					)?;
 				let justification_import = grandpa_block_import.clone();
@@ -342,8 +342,8 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 			let fetch_checker = fetcher
 				.map(|fetcher| fetcher.checker().clone())
 				.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
-			let grandpa_block_import = grandpa::light_block_import::<_, _, _, RuntimeApi, _>(
-				client.clone(), backend, Arc::new(fetch_checker), client.clone()
+			let grandpa_block_import = grandpa::light_block_import::<_, _, _, RuntimeApi>(
+				client.clone(), backend, &*client, Arc::new(fetch_checker)
 			)?;
 
 			let finality_proof_import = grandpa_block_import.clone();

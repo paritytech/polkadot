@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.6.6"
+version = "0.6.10"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -39,7 +39,7 @@ democracy = { package = "srml-democracy", git = "https://github.com/paritytech/s
 elections-phragmen = { package = "srml-elections-phragmen", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 executive = { package = "srml-executive", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 finality-tracker = { package = "srml-finality-tracker", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/substrate", default-features = false, features = ["migrate-authorities"], branch = "polkadot-master" }
 im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 indices = { package = "srml-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 membership = { package = "srml-membership", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
