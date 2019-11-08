@@ -676,6 +676,22 @@ impl_runtime_apis! {
 		}
 	}
 
+	impl parachain::ExtrinsicsQuerying<Block> for Runtime {
+		fn get_erasure_roots(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<Hash>> {
+			extrinsics
+				.into_iter()
+				.find_map(|ex| match UncheckedExtrinsic::decode(&mut ex.encode().as_slice()) {
+					Ok(ex) => match ex.function {
+						Call::Parachains(ParachainsCall::set_heads(heads)) => {
+							Some(heads.into_iter().map(|c| c.candidate.erasure_root).collect())
+						}
+						_ => None,
+					}
+					Err(_) => None,
+				})
+		}
+	}
+
 	impl parachain::ParachainHost<Block> for Runtime {
 		fn validators() -> Vec<parachain::ValidatorId> {
 			Parachains::authorities()

@@ -587,6 +587,8 @@ pub struct Status {
 	pub fee_schedule: FeeSchedule,
 }
 
+use runtime_primitives::traits::{Block as BlockT};
+
 substrate_client::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost {
@@ -606,6 +608,12 @@ substrate_client::decl_runtime_apis! {
 		/// If `since` is provided, only messages since (including those in) that block
 		/// will be included.
 		fn ingress(to: Id, since: Option<BlockNumber>) -> Option<StructuredUnroutedIngress>;
+	}
+
+	/// The api to get information out of the raw extrinsics.
+	pub trait ExtrinsicsQuerying {
+		/// Extract the information about erasure roots in the chain heads from raw extrinsics.
+		fn get_erasure_roots(txs: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<Hash>>;
 	}
 }
 
