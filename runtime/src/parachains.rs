@@ -1046,7 +1046,7 @@ mod tests {
 	}
 
 	impl staking::Trait for Test {
-		type OnRewardMinted = ();
+		type RewardRemainder = ();
 		type CurrencyToVote = ();
 		type Event = ();
 		type Currency = balances::Module<Test>;

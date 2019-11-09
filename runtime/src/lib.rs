@@ -99,7 +99,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 1,
-	spec_version: 1012,
+	spec_version: 1017,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -129,12 +129,9 @@ impl SignedExtension for OnlyStakingAndClaims {
 		-> TransactionValidity
 	{
 		match call {
-			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_)
-				| Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_)
-				| Call::TechnicalCommittee(_) | Call::Nicks(_)
-			=>
-				Ok(Default::default()),
-			_ => Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
+			Call::Balances(_) | Call::Slots(_) | Call::Registrar(_) | Call::Democracy(_)
+				=> Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
+			_ => Ok(Default::default()),
 		}
 	}
 }
@@ -306,7 +303,7 @@ parameter_types! {
 }
 
 impl staking::Trait for Runtime {
-	type OnRewardMinted = Treasury;
+	type RewardRemainder = Treasury;
 	type CurrencyToVote = CurrencyToVoteHandler;
 	type Event = Event;
 	type Currency = Balances;
@@ -323,7 +320,8 @@ parameter_types! {
 	// KUSAMA: These values are 1/4 of what we expect for the mainnet.
 	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
 	pub const VotingPeriod: BlockNumber = 7 * DAYS;
-	pub const EmergencyVotingPeriod: BlockNumber = 3 * HOURS;
+	// KUSAMA: This is a bit short; should be increased to 3 hours.
+	pub const EmergencyVotingPeriod: BlockNumber = 1 * HOURS;
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
 	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
 	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
@@ -341,7 +339,8 @@ impl democracy::Trait for Runtime {
 	/// A straight majority of the council can decide what their next motion is.
 	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
 	/// A super-majority can have the next scheduled referendum be a straight majority-carries vote.
-	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	// KUSAMA: A majority can have the next scheduled legislation be majority-carries.
+	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
 	/// A unanimous council can have the next scheduled referendum be a straight default-carries
 	/// (NTB) vote.
 	type ExternalDefaultOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>;
@@ -366,7 +365,7 @@ impl collective::Trait<CouncilCollective> for Runtime {
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
-	pub const TermDuration: BlockNumber = 10 * MINUTES;
+	pub const TermDuration: BlockNumber = 2 * HOURS;
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 7;
 }
@@ -432,12 +431,17 @@ impl offences::Trait for Runtime {
 
 type SubmitTransaction = TransactionSubmitter<ImOnlineId, Runtime, UncheckedExtrinsic>;
 
+parameter_types! {
+	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
+}
+
 impl im_online::Trait for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
 	type Call = Call;
 	type SubmitTransaction = SubmitTransaction;
 	type ReportUnresponsiveness = Offences;
+	type SessionDuration = SessionDuration;
 }
 
 impl grandpa::Trait for Runtime {
