@@ -19,24 +19,24 @@ polkadot-runtime = { path = "../runtime" }
 polkadot-executor = { path = "../executor" }
 polkadot-network = { path = "../network"  }
 polkadot-rpc = { path = "../rpc" }
-sr-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-db = { package = "substrate-client-db", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-srml-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-authority-discovery = { package = "substrate-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sr-io = { git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+client-db = { package = "substrate-client-db", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+substrate-executor = { git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+substrate-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+srml-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-generate-host-functions" }
+srml-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-generate-host-functions" }
+im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-generate-host-functions" }
+authority-discovery = { package = "substrate-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-generate-host-functions" }
+babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-generate-host-functions" }
