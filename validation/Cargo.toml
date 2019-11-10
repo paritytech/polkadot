@@ -30,9 +30,9 @@ block-builder = { package = "substrate-block-builder", git = "https://github.com
 trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 bitvec = { version = "0.14.0", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+runtime_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.6.15" }
+babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.6.15" }
+keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.6.15" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.6.15" }
