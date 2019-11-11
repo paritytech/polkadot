@@ -16,7 +16,6 @@
 
 //! Errors that can occur during the validation process.
 
-use runtime_primitives::RuntimeString;
 use polkadot_primitives::parachain::ValidatorId;
 
 /// Error type for validation
@@ -38,7 +37,7 @@ pub enum Error {
 	NotValidator(ValidatorId),
 	/// Unexpected error checking inherents
 	#[display(fmt = "Unexpected error while checking inherents: {}", _0)]
-	InherentError(RuntimeString),
+	InherentError(inherents::Error),
 	/// Proposer destroyed before finishing proposing or evaluating
 	#[display(fmt = "Proposer destroyed before finishing proposing or evaluating")]
 	PrematureDestruction,

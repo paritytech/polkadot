@@ -23,3 +23,4 @@ substrate-client = { git = "https://github.com/paritytech/substrate", branch = "
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sr-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

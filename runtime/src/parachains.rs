@@ -39,7 +39,7 @@ use srml_support::{
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
 
-use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
+use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
 
 use system::ensure_none;
 use crate::attestations::{self, IncludedBlocks};
@@ -874,7 +874,7 @@ pub type InherentType = Vec<AttestedCandidate>;
 
 impl<T: Trait> ProvideInherent for Module<T> {
 	type Call = Call<T>;
-	type Error = MakeFatalError<RuntimeString>;
+	type Error = MakeFatalError<inherents::Error>;
 	const INHERENT_IDENTIFIER: InherentIdentifier = NEW_HEADS_IDENTIFIER;
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {

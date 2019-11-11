@@ -483,7 +483,7 @@ pub struct Status {
 	pub fee_schedule: FeeSchedule,
 }
 
-substrate_client::decl_runtime_apis! {
+sr_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost {
 		/// Get the current validators.
