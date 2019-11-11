@@ -154,7 +154,7 @@ pub trait BuildParachainContext {
 /// This is expected to be a lightweight, shared type like an Arc.
 pub trait ParachainContext: Clone {
 	type ProduceCandidate: IntoFuture<Item=(BlockData, HeadData, OutgoingMessages), Error=InvalidHead>;
-	type OnCandidateMessage: IntoFuture;
+	// type OnCandidateMessage: IntoFuture;
 
 	/// Produce a candidate, given the relay parent hash, the latest ingress queue information
 	/// and the last parachain head.
