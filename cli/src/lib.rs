@@ -158,5 +158,8 @@ fn run_until_exit<T, SC, B, CE, W>(
 	let _ = runtime.block_on(service.select(work));
 	exit_send.fire();
 
+	// TODO [andre]: timeout this future substrate/#1318
+	let _ = runtime.shutdown_on_idle().wait();
+
 	Ok(())
 }
