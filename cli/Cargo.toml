@@ -11,7 +11,7 @@ tokio = "0.1.7"
 futures = "0.1.17"
 exit-future = "0.1"
 structopt = "0.3.3"
-cli = { package = "substrate-cli", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.6.15" }
+cli = { package = "substrate-cli", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 service = { package = "polkadot-service", path = "../service" }
 
 [features]
