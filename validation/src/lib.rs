@@ -34,7 +34,7 @@ use std::{collections::{HashMap, HashSet}, pin::Pin, sync::Arc, time::{self, Dur
 use babe_primitives::BabeApi;
 use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
-use client::block_builder::api::BlockBuilder as BlockBuilderApi;
+use block_builder::BlockBuilderApi;
 use client::error as client_error;
 use codec::Encode;
 use consensus::SelectChain;
@@ -60,6 +60,7 @@ use inherents::InherentData;
 use runtime_babe::timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace, error};
 use keystore::KeyStorePtr;
+use sr_api::ApiExt;
 
 type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
@@ -249,7 +250,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -433,7 +434,10 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
+	P::Api: ParachainHost<Block> +
+		BlockBuilderApi<Block> +
+		BabeApi<Block> +
+		ApiExt<Block, Error = client_error::Error>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -489,7 +493,10 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
+	P::Api: ParachainHost<Block> +
+		BlockBuilderApi<Block> +
+		BabeApi<Block> +
+		ApiExt<Block, Error = client_error::Error>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -545,7 +552,7 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
 {
 	type Error = Error;
 	type Create = Either<CreateProposal<C, TxApi>, future::Ready<Result<Block, Error>>>;
@@ -688,10 +695,10 @@ pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 impl<C, TxApi> CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
 {
 	fn propose_with(&mut self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
-		use client::block_builder::BlockBuilder;
+		use block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
 		const MAX_TRANSACTIONS: usize = 40;
@@ -699,11 +706,18 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let mut inherent_data = self.inherent_data
 			.take()
 			.expect("CreateProposal is not polled after finishing; qed");
-		inherent_data.put_data(polkadot_runtime::NEW_HEADS_IDENTIFIER, &candidates).map_err(Error::InherentError)?;
+		inherent_data.put_data(polkadot_runtime::NEW_HEADS_IDENTIFIER, &candidates)
+			.map_err(Error::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
 
-		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false, self.inherent_digests.clone())?;
+		let mut block_builder = BlockBuilder::new(
+			&*self.client,
+			self.client.expect_block_hash_from_id(&self.parent_id)?,
+			self.client.expect_block_number_from_id(&self.parent_id)?,
+			false,
+			self.inherent_digests.clone(),
+		)?;
 
 		{
 			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
@@ -773,7 +787,7 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 impl<C, TxApi> futures03::Future for CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
 {
 	type Output = Result<Block, Error>;
 

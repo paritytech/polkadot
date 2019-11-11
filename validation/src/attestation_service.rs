@@ -26,7 +26,7 @@
 use std::{thread, time::{Duration, Instant}, sync::Arc};
 
 use client::{error::Result as ClientResult, BlockchainEvents, BlockBody};
-use client::block_builder::api::BlockBuilder;
+use block_builder::BlockBuilderApi;
 use client::blockchain::HeaderBackend;
 use consensus::SelectChain;
 use availability_store::Store as AvailabilityStore;
@@ -38,6 +38,7 @@ use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use runtime_primitives::traits::{ProvideRuntimeApi};
 use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
+use sr_api::ApiExt;
 
 use tokio::{timer::Interval, runtime::current_thread::Runtime as LocalRuntime};
 use log::{warn, debug};
@@ -123,7 +124,10 @@ pub(crate) fn start<C, N, P, SC>(
 		<C::Collation as IntoFuture>::Future: Send + 'static,
 		P: BlockchainEvents<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> + BlockBuilder<Block> + BabeApi<Block>,
+		P::Api: ParachainHost<Block> +
+			BlockBuilderApi<Block> +
+			BabeApi<Block> +
+			ApiExt<Block, Error = client::error::Error>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
 		<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
