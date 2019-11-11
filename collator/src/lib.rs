@@ -88,7 +88,7 @@ pub trait Network: Send + Sync {
 	/// The returned stream will not terminate, so it is required to make sure that the stream is
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
-	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement, Error=()>>;
+	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement, Error=()> + Send>;
 }
 
 impl<P, E> Network for ValidationNetwork<P, E, PolkadotNetworkService, TaskExecutor> where
@@ -101,7 +101,7 @@ impl<P, E> Network for ValidationNetwork<P, E, PolkadotNetworkService, TaskExecu
 		Box::new(Self::collator_id_to_peer_id(self, collator_id))
 	}
 
-	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement, Error=()>> {
+	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement, Error=()> + Send> {
 		Box::new(Self::checked_statements(self, relay_parent))
 	}
 }
@@ -445,10 +445,11 @@ impl<P, E> Worker for CollationNode<P, E> where
 						});
 
 		// // // TODO TODO: after having send a candidate listen for the attestation of this candidate
-						validation_network.checked_statements(relay_parent)
-							.for_each(|_| {
-								future::empty()
-							});
+		// TODO TODO OR maybe better to do this stuff in cumulus as not all collator needs this.
+						// validation_network.checked_statements(relay_parent)
+						// 	.for_each(|_| {
+						// 		future::empty()
+						// 	});
 					});
 
 
