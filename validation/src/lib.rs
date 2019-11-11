@@ -374,6 +374,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 					match res {
 						Ok(()) => {
+							// TODO TODO: here we gossip the collation with router
 							// TODO: https://github.com/paritytech/polkadot/issues/51
 							// Erasure-code and provide merkle branches.
 							router.local_collation(collation, outgoing_targeted);

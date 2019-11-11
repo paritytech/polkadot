@@ -154,6 +154,7 @@ pub trait BuildParachainContext {
 /// This is expected to be a lightweight, shared type like an Arc.
 pub trait ParachainContext: Clone {
 	type ProduceCandidate: IntoFuture<Item=(BlockData, HeadData, OutgoingMessages), Error=InvalidHead>;
+	type OnCandidateMessage: IntoFuture;
 
 	/// Produce a candidate, given the relay parent hash, the latest ingress queue information
 	/// and the last parachain head.
@@ -163,6 +164,13 @@ pub trait ParachainContext: Clone {
 		status: ParachainStatus,
 		ingress: I,
 	) -> Self::ProduceCandidate;
+
+	// TODO TODO: either here or there is a way to add some method on the network handling ?
+	// fn on_candidate_statement(relay_chain_leaf, statement: GossipStatement);
+
+	// TODO TODO: await here ?
+	// responsability:
+	// * if on_gossip_statement_received then responsibility is to 
 }
 
 /// Relay chain context needed to collate.
@@ -409,7 +417,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 					);
 
 					let context = ApiContext {
-						network: validation_network,
+						network: validation_network.clone(),
 						parent_hash: relay_parent,
 						validators,
 					};
@@ -434,8 +442,15 @@ impl<P, E> Worker for CollationNode<P, E> where
 							if let Err(e) = res {
 								warn!("Unable to broadcast local collation: {:?}", e);
 							}
-						})
+						});
+
+		// // // TODO TODO: after having send a candidate listen for the attestation of this candidate
+						validation_network.checked_statements(relay_parent)
+							.for_each(|_| {
+								future::empty()
+							});
 					});
+
 
 					future::Either::B(collation_work)
 				});

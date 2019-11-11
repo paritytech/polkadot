@@ -81,6 +81,7 @@ pub type PolkadotNetworkService = substrate_network::NetworkService<Block, Polka
 pub trait NetworkService: Send + Sync + 'static {
 	/// Get a stream of gossip messages for a given hash.
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream;
+	// TODO TODO: this is probably the stream we want to spawn on
 
 	/// Gossip a message on given topic.
 	fn gossip_message(&self, topic: Hash, message: GossipMessage);

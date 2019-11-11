@@ -44,6 +44,7 @@ use std::sync::Arc;
 use crate::validation::{self, LeafWorkDataFetcher, Executor};
 use crate::NetworkService;
 
+// TODO TODO: how to get the attestation topic: probably through PolkadotSpecialization
 /// Compute the gossip topic for attestations on the given parent hash.
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 	let mut v = parent_hash.as_ref().to_vec();
