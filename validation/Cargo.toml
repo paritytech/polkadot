@@ -19,19 +19,19 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-consensus = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
+inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
+consensus = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
+transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
+trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
+runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
 bitvec = { version = "0.14.0", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-state-machine = { package = "substrate-state-machine", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+runtime_babe = { package = "srml-babe", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
+babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
+keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
+state-machine = { package = "substrate-state-machine", git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "gui-bkch-cumulus-branch" }
