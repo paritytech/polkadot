@@ -98,7 +98,7 @@ impl<C: Collators, P> CollationFetch<C, P> {
 }
 
 impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
-	where P::Api: ParachainHost<Block>,
+	where P::Api: ParachainHost<Block, Error = client::error::Error>,
 {
 	type Item = (Collation, OutgoingMessages);
 	type Error = C::Error;
@@ -115,7 +115,12 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 				futures::try_ready!(poll)
 			};
 
-			let res = validate_collation(&*self.client, &self.relay_parent, &collation, self.max_block_data_size);
+			let res = validate_collation(
+				&*self.client,
+				&self.relay_parent,
+				&collation,
+				self.max_block_data_size,
+			);
 
 			match res {
 				Ok(e) => {
@@ -388,7 +393,7 @@ pub fn validate_collation<P>(
 	max_block_data_size: Option<u64>,
 ) -> Result<OutgoingMessages, Error> where
 	P: ProvideRuntimeApi,
-	P::Api: ParachainHost<Block>,
+	P::Api: ParachainHost<Block, Error = client::error::Error>,
 {
 	use parachain::{IncomingMessage, ValidationParams};
 
