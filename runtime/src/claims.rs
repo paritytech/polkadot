@@ -20,15 +20,14 @@ use rstd::prelude::*;
 use sr_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use srml_support::{decl_event, decl_storage, decl_module};
 use srml_support::traits::{Currency, Get};
-use system::ensure_none;
+use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
 #[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
 use sr_primitives::{
-	weights::SimpleDispatchInfo,
-	transaction_validity::{
+	RuntimeDebug, weights::SimpleDispatchInfo, transaction_validity::{
 		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction
 	},
 };
@@ -48,8 +47,7 @@ pub trait Trait: system::Trait {
 /// An Ethereum address (i.e. 20 bytes, used to represent an Ethereum account).
 ///
 /// This gets serialized to the 0x-prefixed hex representation.
-#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default, RuntimeDebug)]
 pub struct EthereumAddress([u8; 20]);
 
 #[cfg(feature = "std")]
@@ -149,6 +147,15 @@ decl_module! {
 
 			// Let's deposit an event to let the outside world know this happened.
 			Self::deposit_event(RawEvent::Claimed(dest, signer, balance_due));
+		}
+
+		/// Add a new claim, if you are root.
+		#[weight = SimpleDispatchInfo::FreeOperational]
+		fn mint_claim(origin, who: EthereumAddress, value: BalanceOf<T>) {
+			ensure_root(origin)?;
+
+			<Total<T>>::mutate(|t| *t += value);
+			<Claims<T>>::insert(who, value);
 		}
 	}
 }
@@ -306,31 +313,23 @@ mod tests {
 	type Balances = balances::Module<Test>;
 	type Claims = Module<Test>;
 
-	fn alice_secret() -> secp256k1::SecretKey {
+	fn alice() -> secp256k1::SecretKey {
 		secp256k1::SecretKey::parse(&keccak256(b"Alice")).unwrap()
 	}
-	fn alice_public() -> secp256k1::PublicKey {
-		secp256k1::PublicKey::from_secret_key(&alice_secret())
-	}
-	fn alice_eth() -> EthereumAddress {
-		let mut res = EthereumAddress::default();
-		res.0.copy_from_slice(&keccak256(&alice_public().serialize()[1..65])[12..]);
-		res
-	}
-	fn alice_sig(what: &[u8]) -> EcdsaSignature {
-		let msg = keccak256(&Claims::ethereum_signable_message(&to_ascii_hex(what)[..]));
-		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &alice_secret());
-		let mut r = [0u8; 65];
-		r[0..64].copy_from_slice(&sig.serialize()[..]);
-		r[64] = recovery_id.serialize();
-		EcdsaSignature(r)
-	}
-	fn bob_secret() -> secp256k1::SecretKey {
+	fn bob() -> secp256k1::SecretKey {
 		secp256k1::SecretKey::parse(&keccak256(b"Bob")).unwrap()
 	}
-	fn bob_sig(what: &[u8]) -> EcdsaSignature {
+	fn public(secret: &secp256k1::SecretKey) -> secp256k1::PublicKey {
+		secp256k1::PublicKey::from_secret_key(secret)
+	}
+	fn eth(secret: &secp256k1::SecretKey) -> EthereumAddress {
+		let mut res = EthereumAddress::default();
+		res.0.copy_from_slice(&keccak256(&public(secret).serialize()[1..65])[12..]);
+		res
+	}
+	fn sig(secret: &secp256k1::SecretKey, what: &[u8]) -> EcdsaSignature {
 		let msg = keccak256(&Claims::ethereum_signable_message(&to_ascii_hex(what)[..]));
-		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), &bob_secret());
+		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), secret);
 		let mut r = [0u8; 65];
 		r[0..64].copy_from_slice(&sig.serialize()[..]);
 		r[64] = recovery_id.serialize();
@@ -344,7 +343,7 @@ mod tests {
 		// We use default for brevity, but you can configure as desired if needed.
 		balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
 		GenesisConfig::<Test>{
-			claims: vec![(alice_eth(), 100)],
+			claims: vec![(eth(&alice()), 100)],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
@@ -353,7 +352,7 @@ mod tests {
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Claims::total(), 100);
-			assert_eq!(Claims::claims(&alice_eth()), Some(100));
+			assert_eq!(Claims::claims(&eth(&alice())), Some(100));
 			assert_eq!(Claims::claims(&EthereumAddress::default()), None);
 		});
 	}
@@ -371,8 +370,23 @@ mod tests {
 	fn claiming_works() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_ok!(Claims::claim(Origin::NONE, 42, alice_sig(&42u64.encode())));
+			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
 			assert_eq!(Balances::free_balance(&42), 100);
+		});
+	}
+
+	#[test]
+	fn add_claim_works() {
+		new_test_ext().execute_with(|| {
+			assert_noop!(Claims::mint_claim(Origin::signed(42), eth(&bob()), 200), "RequireRootOrigin");
+			assert_eq!(Balances::free_balance(&42), 0);
+			assert_noop!(
+				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
+				"Ethereum address has no claim"
+			);
+			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200));
+			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
+			assert_eq!(Balances::free_balance(&69), 200);
 		});
 	}
 
@@ -381,7 +395,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_err!(
-				Claims::claim(Origin::signed(42), 42, alice_sig(&42u64.encode())),
+				Claims::claim(Origin::signed(42), 42, sig(&alice(), &42u64.encode())),
 				"RequireNoOrigin",
 			);
 		});
@@ -391,8 +405,8 @@ mod tests {
 	fn double_claiming_doesnt_work() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_ok!(Claims::claim(Origin::NONE, 42, alice_sig(&42u64.encode())));
-			assert_noop!(Claims::claim(Origin::NONE, 42, alice_sig(&42u64.encode())), "Ethereum address has no claim");
+			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
+			assert_noop!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())), "Ethereum address has no claim");
 		});
 	}
 
@@ -400,7 +414,7 @@ mod tests {
 	fn non_sender_sig_doesnt_work() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_noop!(Claims::claim(Origin::NONE, 42, alice_sig(&69u64.encode())), "Ethereum address has no claim");
+			assert_noop!(Claims::claim(Origin::NONE, 42, sig(&alice(), &69u64.encode())), "Ethereum address has no claim");
 		});
 	}
 
@@ -408,7 +422,7 @@ mod tests {
 	fn non_claimant_doesnt_work() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_noop!(Claims::claim(Origin::NONE, 42, bob_sig(&69u64.encode())), "Ethereum address has no claim");
+			assert_noop!(Claims::claim(Origin::NONE, 42, sig(&bob(), &69u64.encode())), "Ethereum address has no claim");
 		});
 	}
 
@@ -431,11 +445,11 @@ mod tests {
 
 		new_test_ext().execute_with(|| {
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(1, alice_sig(&1u64.encode()))),
+				<Module<Test>>::validate_unsigned(&Call::claim(1, sig(&alice(), &1u64.encode()))),
 				Ok(ValidTransaction {
 					priority: 100,
 					requires: vec![],
-					provides: vec![("claims", alice_eth()).encode()],
+					provides: vec![("claims", eth(&alice())).encode()],
 					longevity: TransactionLongevity::max_value(),
 					propagate: true,
 				})
@@ -445,11 +459,11 @@ mod tests {
 				InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()).into(),
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(1, bob_sig(&1u64.encode()))),
+				<Module<Test>>::validate_unsigned(&Call::claim(1, sig(&bob(), &1u64.encode()))),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(0, bob_sig(&1u64.encode()))),
+				<Module<Test>>::validate_unsigned(&Call::claim(0, sig(&bob(), &1u64.encode()))),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 		});
