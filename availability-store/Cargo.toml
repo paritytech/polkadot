@@ -8,10 +8,18 @@ edition = "2018"
 [dependencies]
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
+polkadot-runtime = { path = "../runtime" }
 parking_lot = "0.9.0"
 log = "0.4.6"
+futures = "0.1.17"
+tokio = "0.1.7"
+exit-future = "0.1"
 codec = { package = "parity-scale-codec", version = "~1.0.0", default-features = false, features = ["derive"] }
+consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 kvdb = { git = "https://github.com/paritytech/parity-common", rev="616b40150ded71f57f650067fcbc5c99d7c343e6" }
 kvdb-rocksdb = { git = "https://github.com/paritytech/parity-common", rev="616b40150ded71f57f650067fcbc5c99d7c343e6" }
 kvdb-memorydb = { git = "https://github.com/paritytech/parity-common", rev="616b40150ded71f57f650067fcbc5c99d7c343e6" }
+keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

@@ -30,6 +30,10 @@ use polkadot_primitives::parachain::{
 use polkadot_erasure_coding::{self as erasure};
 use log::warn;
 
+mod worker;
+
+pub use worker::{block_import, AvailabilityBlockImport};
+
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -82,7 +86,6 @@ fn available_chunks_key(relay_parent: &Hash, erasure_root: &Hash) -> Vec<u8> {
 fn block_to_candidate_key(block_data_hash: &Hash) -> Vec<u8> {
 	(block_data_hash, 1i8).encode()
 }
-
 
 fn candidate_key(candidate_hash: &Hash) -> Vec<u8> {
 	(candidate_hash, 2i8).encode()

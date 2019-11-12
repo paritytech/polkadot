@@ -254,13 +254,21 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			service.transaction_pool(),
 			Arc::new(service.spawn_task_handle()),
 			service.keystore(),
-			availability_store,
+			availability_store.clone(),
 			polkadot_runtime::constants::time::SLOT_DURATION,
 			max_block_data_size,
 		);
 
 		let client = service.client();
 		let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
+
+		let block_import = av_store::block_import(
+			availability_store,
+			block_import,
+			client.clone(),
+			client.clone(),
+			service.keystore(),
+		)?;
 
 		let babe_config = babe::BabeParams {
 			keystore: service.keystore(),
