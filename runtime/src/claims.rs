@@ -378,6 +378,7 @@ mod tests {
 	#[test]
 	fn add_claim_works() {
 		new_test_ext().execute_with(|| {
+			assert_noop!(Claims::mint_claim(Origin::signed(42), eth(&bob()), 200), "RequireRootOrigin");
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
