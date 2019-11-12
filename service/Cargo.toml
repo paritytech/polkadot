@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.6.10"
+version = "0.6.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -20,6 +20,7 @@ polkadot-executor = { path = "../executor" }
 polkadot-network = { path = "../network"  }
 polkadot-rpc = { path = "../rpc" }
 sr-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sr-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

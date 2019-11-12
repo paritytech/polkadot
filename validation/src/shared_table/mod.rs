@@ -276,7 +276,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 		>
 		where
 			P: Send + Sync + 'static,
-			P::Api: ParachainHost<Block>,
+			P::Api: ParachainHost<Block, Error = client::error::Error>,
 	{
 		let max_block_data_size = self.max_block_data_size;
 		let validate = move |id: &_, collation: &_| {

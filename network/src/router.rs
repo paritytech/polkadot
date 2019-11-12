@@ -126,7 +126,7 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 }
 
 impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> where
-	P::Api: ParachainHost<Block>,
+	P::Api: ParachainHost<Block, Error = substrate_client::error::Error>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,
