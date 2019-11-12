@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-network"
-version = "0.6.10"
+version = "0.6.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot-specific networking protocol"
 edition = "2018"
@@ -23,3 +23,4 @@ substrate-client = { git = "https://github.com/paritytech/substrate", branch = "
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sr-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

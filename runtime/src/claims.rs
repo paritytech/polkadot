@@ -17,7 +17,7 @@
 //! Module to process claims from Ethereum addresses.
 
 use rstd::prelude::*;
-use sr_io::{keccak_256, secp256k1_ecdsa_recover};
+use sr_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use srml_support::{decl_event, decl_storage, decl_module};
 use srml_support::traits::{Currency, Get};
 use system::ensure_none;

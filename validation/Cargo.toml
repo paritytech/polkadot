@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-validation"
-version = "0.6.10"
+version = "0.6.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -25,6 +25,8 @@ consensus = { package = "substrate-consensus-common", git = "https://github.com/
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sr-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+block-builder = { package = "substrate-block-builder", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 bitvec = { version = "0.14.0", default-features = false, features = ["alloc"] }

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.6.10"
+version = "0.6.16"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -16,7 +16,7 @@ serde_derive = { version = "1.0", optional = true }
 
 authority-discovery-primitives = { package = "substrate-authority-discovery-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sr-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 offchain-primitives = { package = "substrate-offchain-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -27,6 +27,8 @@ substrate-primitives = { git = "https://github.com/paritytech/substrate", defaul
 substrate-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 substrate-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 version = { package = "sr-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+tx-pool-api = { package = "substrate-transaction-pool-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+block-builder-api = { package = "substrate-block-builder-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 authority-discovery = { package = "srml-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 authorship = { package = "srml-authorship", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -85,7 +87,9 @@ std = [
 	"inherents/std",
 	"substrate-primitives/std",
 	"polkadot-parachain/std",
-	"client/std",
+	"sr-api/std",
+	"tx-pool-api/std",
+	"block-builder-api/std",
 	"offchain-primitives/std",
 	"rstd/std",
 	"sr-io/std",

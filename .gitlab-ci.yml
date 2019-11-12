@@ -80,6 +80,33 @@ variables:
 
 
 
+#### stage:                        test
+
+check-runtime:
+  stage:                           test
+  image:                           parity/tools:latest
+  <<:                              *kubernetes-env
+  only:
+    - /^[0-9]+$/
+  variables:
+    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
+    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
+  script:
+    - ./scripts/gitlab/check_runtime.sh
+  allow_failure:                   true
+
+
+check-line-width:
+  stage:                           test
+  image:                           parity/tools:latest
+  <<:                              *kubernetes-env
+  only:
+    - /^[0-9]+$/
+  script:
+    - ./scripts/gitlab/check_line_width.sh
+  allow_failure:                   true
+
+
 
 
 test-linux-stable:                 &test
@@ -305,6 +332,7 @@ deploy-polkasync-kusama:
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fparity-testnet"
+    GIT_STRATEGY:                  none
   allow_failure:                   true
   script:
     - |
