@@ -459,6 +459,8 @@ impl<P, E> Worker for CollationNode<P, E> where
 				let silenced = deadlined.then(|res| match res {
 					Ok(()) => Ok(()),
 					Err(_) => {
+				// TODO TODO TODO why? does the warn is this can't an error in an in between
+				// futures ?
 						warn!("Collation failure: timeout");
 						Ok(())
 					}
