@@ -13,5 +13,5 @@ substrate-primitives = { git = "https://github.com/expenses/substrate", branch =
 client = { package = "substrate-client", git = "https://github.com/expenses/substrate", branch = "futures03" }
 parking_lot = "0.9.0"
 ctrlc = { version = "3.0", features = ["termination"] }
-futures = "0.1"
+futures = "0.3.1"
 exit-future = "0.1.2"

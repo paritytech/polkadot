@@ -19,15 +19,15 @@
 #![warn(missing_docs)]
 
 use cli::{AbstractService, VersionInfo, TaskExecutor};
-use futures::sync::oneshot;
-use futures::{future, Future};
+use futures::channel::oneshot;
+use futures::{future, FutureExt};
 
 use std::cell::RefCell;
 
 // the regular polkadot worker simply does nothing until ctrl-c
 struct Worker;
 impl cli::IntoExit for Worker {
-	type Exit = future::MapErr<oneshot::Receiver<()>, fn(oneshot::Canceled) -> ()>;
+	type Exit = future::Map<oneshot::Receiver<()>, fn(Result<(), oneshot::Canceled>) -> ()>;
 	fn into_exit(self) -> Self::Exit {
 		// can't use signal directly here because CtrlC takes only `Fn`.
 		let (exit_send, exit) = oneshot::channel();
@@ -39,7 +39,7 @@ impl cli::IntoExit for Worker {
 			}
 		}).expect("Error setting Ctrl-C handler");
 
-		exit.map_err(drop)
+		exit.map(drop)
 	}
 }
 

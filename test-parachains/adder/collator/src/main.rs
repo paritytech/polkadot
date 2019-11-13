@@ -33,6 +33,7 @@ use collator::{
 	InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext, TaskExecutor,
 };
 use parking_lot::Mutex;
+use futures::future::{Ready, ok, err};
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
@@ -57,17 +58,19 @@ struct AdderContext {
 
 /// The parachain context.
 impl ParachainContext for AdderContext {
-	type ProduceCandidate = Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>;
+	type ProduceCandidate = Ready<Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>>;
 
 	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
 		&mut self,
 		_relay_parent: Hash,
 		status: ParachainStatus,
 		ingress: I,
-	) -> Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>
+	) -> Self::ProduceCandidate
 	{
-		let adder_head = AdderHead::decode(&mut &status.head_data.0[..])
-			.map_err(|_| InvalidHead)?;
+		let adder_head = match AdderHead::decode(&mut &status.head_data.0[..]) {
+			Ok(adder_head) => adder_head,
+			Err(_) => return err(InvalidHead)
+		};
 
 		let mut db = self.db.lock();
 
@@ -98,7 +101,7 @@ impl ParachainContext for AdderContext {
 			next_head.number, next_body.state.overflowing_add(next_body.add).0);
 
 		db.insert(next_head.clone(), next_body);
-		Ok((encoded_body, encoded_head, OutgoingMessages { outgoing_messages: Vec::new() }))
+		ok((encoded_body, encoded_head, OutgoingMessages { outgoing_messages: Vec::new() }))
 	}
 }
 
