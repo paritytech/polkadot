@@ -37,7 +37,8 @@ pub use cli::{VersionInfo, IntoExit, NoCustom};
 pub use cli::{display_role, error};
 
 /// Abstraction over an executor that lets you spawn tasks in the background.
-pub type TaskExecutor = Arc<dyn futures01::future::Executor<Box<dyn futures01::Future<Item = (), Error = ()> + Send>> + Send + Sync>;
+type BoxedFuture = Box<dyn futures01::Future<Item = (), Error = ()> + Send>;
+pub type TaskExecutor = Arc<dyn futures01::future::Executor<BoxedFuture> + Send + Sync>;
 
 fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
