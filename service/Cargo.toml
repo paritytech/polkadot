@@ -19,25 +19,25 @@ polkadot-runtime = { path = "../runtime" }
 polkadot-executor = { path = "../executor" }
 polkadot-network = { path = "../network"  }
 polkadot-rpc = { path = "../rpc" }
-sr-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sr-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-db = { package = "substrate-client-db", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-srml-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-srml-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-im-online = { package = "srml-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-authority-discovery = { package = "substrate-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sr-io = { git = "https://github.com/expenses/substrate", branch = "futures03" }
+sr-api = { git = "https://github.com/expenses/substrate", branch = "futures03" }
+sr-primitives = { git = "https://github.com/expenses/substrate", branch = "futures03" }
+primitives = { package = "substrate-primitives", git = "https://github.com/expenses/substrate", branch = "futures03" }
+client = { package = "substrate-client", git = "https://github.com/expenses/substrate", branch = "futures03" }
+client-db = { package = "substrate-client-db", git = "https://github.com/expenses/substrate", branch = "futures03" }
+substrate-executor = { git = "https://github.com/expenses/substrate", branch = "futures03" }
+substrate-network = { git = "https://github.com/expenses/substrate", branch = "futures03" }
+consensus_common = { package = "substrate-consensus-common", git = "https://github.com/expenses/substrate", branch = "futures03" }
+grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/expenses/substrate", branch = "futures03" }
+grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/expenses/substrate", branch = "futures03" }
+inherents = { package = "substrate-inherents", git = "https://github.com/expenses/substrate", branch = "futures03" }
+service = { package = "substrate-service", git = "https://github.com/expenses/substrate", branch = "futures03" }
+telemetry = { package = "substrate-telemetry", git = "https://github.com/expenses/substrate", branch = "futures03" }
+transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/expenses/substrate", branch = "futures03" }
+substrate-keystore = { git = "https://github.com/expenses/substrate", branch = "futures03" }
+srml-babe = { git = "https://github.com/expenses/substrate", default-features = false, branch = "futures03" }
+srml-staking = { git = "https://github.com/expenses/substrate", default-features = false, branch = "futures03" }
+im-online = { package = "srml-im-online", git = "https://github.com/expenses/substrate", default-features = false, branch = "futures03" }
+authority-discovery = { package = "substrate-authority-discovery", git = "https://github.com/expenses/substrate", branch = "futures03" }
+babe = { package = "substrate-consensus-babe", git = "https://github.com/expenses/substrate", branch = "futures03" }
+babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/expenses/substrate", default-features = false, branch = "futures03" }
