@@ -112,7 +112,7 @@ impl BuildParachainContext for AdderContext {
 		network: Arc<dyn Network>,
 	) -> Result<Self::ParachainContext, ()>
 		where
-			B: client::backend::Backend<Block, Blake2Hasher> + 'static,
+			B: client_api::backend::Backend<Block, Blake2Hasher> + 'static,
 			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static
 	{
 		Ok(Self { _network: Some(network), ..self })

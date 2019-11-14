@@ -19,10 +19,12 @@
 //! information for commissioning and decommissioning them.
 
 use rstd::{prelude::*, mem::swap, convert::TryInto};
-use sr_primitives::traits::{CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion};
+use sr_primitives::traits::{
+	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
+};
 use sr_primitives::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode, Codec};
-use srml_support::{
+use paint_support::{
 	decl_module, decl_storage, decl_event, ensure,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
 };
@@ -823,7 +825,7 @@ mod tests {
 		Perbill, testing::Header,
 		traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
 	};
-	use srml_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
+	use paint_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
 	use balances;
 	use primitives::parachain::{Id as ParaId, Info as ParaInfo};
 
