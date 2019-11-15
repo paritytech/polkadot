@@ -6,13 +6,13 @@ edition = "2018"
 build = "build.rs"
 
 [dependencies]
-bitvec = { version = "0.14.0", default-features = false, features = ["alloc"] }
-codec = { package = "parity-scale-codec", version = "~1.0.0", default-features = false, features = ["derive"] }
-log = { version = "0.3", optional = true }
+bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
+codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
+log = { version = "0.3.9", optional = true }
 rustc-hex = { version = "2.0.1", default-features = false }
-safe-mix = { version = "1.0", default-features = false}
-serde = { version = "1.0", default-features = false }
-serde_derive = { version = "1.0", optional = true }
+safe-mix = { version = "1.0.0", default-features = false }
+serde = { version = "1.0.102", default-features = false }
+serde_derive = { version = "1.0.102", optional = true }
 
 authority-discovery-primitives = { package = "substrate-authority-discovery-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -62,13 +62,13 @@ primitives = { package = "polkadot-primitives", path = "../primitives", default-
 polkadot-parachain = { path = "../parachain", default-features = false }
 
 [dev-dependencies]
-hex-literal = "0.2.0"
-libsecp256k1 = "0.3.1"
-tiny-keccak = "1.4.2"
+hex-literal = "0.2.1"
+libsecp256k1 = "0.3.2"
+tiny-keccak = "1.5.0"
 keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-trie-db = "0.15"
-serde_json = "1.0"
+trie-db = "0.15.2"
+serde_json = "1.0.41"
 
 [build-dependencies]
 wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.4" }
