@@ -11,12 +11,12 @@ edition = "2018"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
-futures = "0.1"
-ctrlc = { version = "3.0", features = ["termination"] }
+futures = "0.1.29"
+ctrlc = { version = "3.1.3", features = ["termination"] }
 service = { package = "polkadot-service", path = "service" }
 
 [build-dependencies]
-vergen = "3"
+vergen = "3.0.4"
 
 [workspace]
 members = [

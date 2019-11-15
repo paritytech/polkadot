@@ -6,18 +6,18 @@ description = "Polkadot-specific networking protocol"
 edition = "2018"
 
 [dependencies]
-arrayvec = "0.4"
+arrayvec = "0.4.12"
 parking_lot = "0.9.0"
 av_store = { package = "polkadot-availability-store", path = "../availability-store" }
 polkadot-validation = { path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
-codec = { package = "parity-scale-codec", version = "~1.0.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-futures = "0.1"
+futures = "0.1.29"
 futures03 = { package = "futures-preview", version = "0.3.0-alpha.19", features = ["compat"] }
-log = "0.4"
+log = "0.4.8"
 exit-future = "0.1.4"
 substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
