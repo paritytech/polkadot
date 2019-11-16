@@ -144,7 +144,7 @@ pub trait BuildParachainContext {
 		network: Arc<dyn Network>,
 	) -> Result<Self::ParachainContext, ()>
 		where
-			B: client::backend::Backend<Block, Blake2Hasher> + 'static,
+			B: client_api::backend::Backend<Block, Blake2Hasher> + 'static,
 			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static;
 }
 
@@ -310,7 +310,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 			CallExecutor = CE,
 		>,
 		SC: polkadot_service::SelectChain<Block> + 'static,
-		B: client::backend::Backend<Block, Blake2Hasher> + 'static,
+		B: client_api::backend::Backend<Block, Blake2Hasher> + 'static,
 		CE: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static
 	{
 		let CollationNode { build_parachain_context, exit, para_id, key } = self;

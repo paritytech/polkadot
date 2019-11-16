@@ -29,7 +29,7 @@ use sr_primitives::{
 	traits::{Hash as HashT, SignedExtension}
 };
 
-use srml_support::{
+use paint_support::{
 	decl_storage, decl_module, decl_event, ensure,
 	dispatch::{Result, IsSubType}, traits::{Get, Currency, ReservableCurrency}
 };
@@ -588,7 +588,7 @@ mod tests {
 		},
 		Balance, BlockNumber,
 	};
-	use srml_support::{
+	use paint_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
 	};
 	use keyring::Sr25519Keyring;

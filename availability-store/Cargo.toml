@@ -8,8 +8,8 @@ edition = "2018"
 [dependencies]
 polkadot-primitives = { path = "../primitives" }
 parking_lot = "0.9.0"
-log = "0.4.6"
-codec = { package = "parity-scale-codec", version = "~1.0.0", default-features = false, features = ["derive"] }
+log = "0.4.8"
+codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 kvdb = { git = "https://github.com/paritytech/parity-common", rev="616b40150ded71f57f650067fcbc5c99d7c343e6" }
 kvdb-rocksdb = { git = "https://github.com/paritytech/parity-common", rev="616b40150ded71f57f650067fcbc5c99d7c343e6" }
