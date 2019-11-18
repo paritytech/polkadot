@@ -295,6 +295,8 @@ parameter_types! {
 	// 28 eras for unbonding (28 days).
 	// KUSAMA: This value is 1/4 of what we expect for the mainnet.
 	pub const BondingDuration: staking::EraIndex = 7;
+	// 5 eras for governance to intervene and revert slashes.
+	pub const SlashDeferDuration:  staking::EraIndex = 5;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 }
 
@@ -307,6 +309,7 @@ impl staking::Trait for Runtime {
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
+	type SlashDeferDuration = SlashDeferDuration;
 	type SessionInterface = Self;
 	type Time = Timestamp;
 	type RewardCurve = RewardCurve;
