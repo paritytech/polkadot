@@ -37,7 +37,7 @@ use primitives::{
 };
 use sr_primitives::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyResult, Permill, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	weights::{Weight, DispatchInfo}, curve::PiecewiseLinear,
 	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys},
@@ -643,7 +643,7 @@ sr_api::impl_runtime_apis! {
 	}
 
 	impl block_builder_api::BlockBuilder<Block> for Runtime {
-		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyResult {
+		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
 			Executive::apply_extrinsic(extrinsic)
 		}
 
