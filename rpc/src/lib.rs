@@ -33,12 +33,12 @@ pub fn create<C, P>(client: Arc<C>, pool: Arc<Pool<P>>) -> RpcExtension where
 	C: ProvideRuntimeApi,
 	C: client::blockchain::HeaderBackend<Block>,
 	C: Send + Sync + 'static,
-	C::Api: srml_system_rpc::AccountNonceApi<Block, AccountId, Nonce>,
-	C::Api: srml_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UncheckedExtrinsic>,
+	C::Api: paint_system_rpc::AccountNonceApi<Block, AccountId, Nonce>,
+	C::Api: paint_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UncheckedExtrinsic>,
 	P: ChainApi + Sync + Send + 'static,
 {
-	use srml_system_rpc::{System, SystemApi};
-	use srml_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
+	use paint_system_rpc::{System, SystemApi};
+	use paint_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
 
 	let mut io = jsonrpc_core::IoHandler::default();
 	io.extend_with(
