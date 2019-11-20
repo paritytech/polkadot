@@ -5,13 +5,13 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 jsonrpc-core = "14.0.3"
 polkadot-primitives = { path = "../primitives" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
-substrate-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
-paint-system-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
-paint-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets"  }
+substrate-rpc = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
+transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets"  }
+paint-system-rpc = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets"  }
+paint-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 polkadot-runtime = { path = "../runtime" }
 
