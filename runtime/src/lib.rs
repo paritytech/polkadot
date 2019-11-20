@@ -52,6 +52,7 @@ use paint_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness}
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
+use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use system::offchain::TransactionSubmitter;
 use paint_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 
@@ -253,6 +254,7 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
+		pub authority_discovery: AuthorityDiscovery,
 		pub parachain_validator: Parachains,
 	}
 }
@@ -425,6 +427,8 @@ impl offences::Trait for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
+impl authority_discovery::Trait for Runtime {}
+
 type SubmitTransaction = TransactionSubmitter<ImOnlineId, Runtime, UncheckedExtrinsic>;
 
 parameter_types! {
@@ -564,6 +568,7 @@ construct_runtime!(
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
+		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
 		// Governance stuff; uncallable initially.
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
@@ -723,6 +728,12 @@ sr_api::impl_runtime_apis! {
 				randomness: Babe::randomness(),
 				secondary_slots: true,
 			}
+		}
+	}
+
+	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
+		fn authorities() -> Vec<AuthorityDiscoveryId> {
+			AuthorityDiscovery::authorities()
 		}
 	}
 
