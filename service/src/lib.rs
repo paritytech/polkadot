@@ -147,6 +147,11 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	>, ServiceError>
 {
 	use substrate_network::DhtEvent;
+	use futures03::{
+		compat::Stream01CompatExt,
+		stream::StreamExt,
+		future::{FutureExt, TryFutureExt},
+	};
 
 	let is_collator = config.custom.collating_for.is_some();
 	let is_authority = config.roles.is_authority() && !is_collator;
@@ -172,7 +177,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	// event per authority within the current authority set. This estimates the
 	// authority set size to be somewhere below 10 000 thereby setting the channel
 	// buffer size to 10 000.
-	let (dht_event_tx, _dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
+	let (dht_event_tx, dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
 
 	let service = builder
 		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
@@ -277,6 +282,19 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 
 		let babe = babe::start_babe(babe_config)?;
 		service.spawn_essential_task(babe);
+
+		let future03_dht_event_rx = dht_event_rx.compat()
+			.map(|x| x.expect("<mpsc::channel::Receiver as Stream> never returns an error; qed"))
+			.boxed();
+		let authority_discovery = authority_discovery::AuthorityDiscovery::new(
+			service.client(),
+			service.network(),
+			service.keystore(),
+			future03_dht_event_rx,
+		);
+		let future01_authority_discovery = authority_discovery.map(|x| Ok(x)).compat();
+
+		service.spawn_task(future01_authority_discovery);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't

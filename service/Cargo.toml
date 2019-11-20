@@ -9,6 +9,7 @@ parking_lot = "0.9.0"
 lazy_static = "1.4.0"
 log = "0.4.8"
 futures = "0.1.29"
+futures03 = { package = "futures", version = "0.3.1", features = ["compat"] }
 exit-future = "0.1.4"
 slog = "2.5.2"
 hex-literal = "0.2.1"
@@ -41,5 +42,6 @@ pallet-babe = { git = "https://github.com/paritytech/substrate", default-feature
 pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 authority-discovery = { package = "substrate-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+authority-discovery-primitives = { package = "substrate-authority-discovery-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
