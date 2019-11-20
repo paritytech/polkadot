@@ -24,7 +24,7 @@ use sr_primitives::traits::{
 };
 use sr_primitives::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode, Codec};
-use paint_support::{
+use palette_support::{
 	decl_module, decl_storage, decl_event, ensure,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
 };
@@ -825,7 +825,7 @@ mod tests {
 		Perbill, testing::Header,
 		traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
 	};
-	use paint_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
+	use palette_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
 	use balances;
 	use primitives::parachain::{Id as ParaId, Info as ParaInfo};
 

@@ -36,9 +36,9 @@ service = { package = "substrate-service", git = "https://github.com/paritytech/
 telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-paint-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "joe-a-palette-of-pallets" }
-paint-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "joe-a-palette-of-pallets" }
-im-online = { package = "paint-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "joe-a-palette-of-pallets" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "joe-a-palette-of-pallets" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "joe-a-palette-of-pallets" }
+im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "joe-a-palette-of-pallets" }
 authority-discovery = { package = "substrate-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "joe-a-palette-of-pallets" }

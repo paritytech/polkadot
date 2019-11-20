@@ -11,7 +11,7 @@ polkadot-primitives = { path = "../primitives" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets"  }
 substrate-rpc = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets"  }
-paint-system-rpc = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets"  }
-paint-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
+palette-system-rpc = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets"  }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 polkadot-runtime = { path = "../runtime" }
 

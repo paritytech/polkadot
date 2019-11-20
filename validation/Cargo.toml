@@ -30,7 +30,7 @@ block-builder = { package = "substrate-block-builder", git = "https://github.com
 trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "paint-babe", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 

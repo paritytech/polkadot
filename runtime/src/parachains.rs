@@ -33,7 +33,7 @@ use primitives::{
 		UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId, Retriable
 	},
 };
-use paint_support::{
+use palette_support::{
 	Parameter, dispatch::Result, decl_storage, decl_module, ensure,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
@@ -917,7 +917,7 @@ mod tests {
 	};
 	use crate::constants::time::*;
 	use keyring::Sr25519Keyring;
-	use paint_support::{
+	use palette_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
 	use crate::parachains;
@@ -1026,7 +1026,7 @@ mod tests {
 		type CreationFee = CreationFee;
 	}
 
-	paint_staking_reward_curve::build! {
+	pallet_staking_reward_curve::build! {
 		const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 			min_inflation: 0_025_000,
 			max_inflation: 0_100_000,
