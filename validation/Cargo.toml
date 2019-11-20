@@ -26,6 +26,7 @@ primitives = { package = "substrate-primitives", git = "https://github.com/parit
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 sr-api = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 block-builder = { package = "substrate-block-builder", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
 runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }

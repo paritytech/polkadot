@@ -57,7 +57,7 @@ use futures03::{future::{self, Either, FutureExt}, task::Context, stream::Stream
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
-use runtime_babe::timestamp::TimestampInherentData;
+use sp_timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace, error};
 use keystore::KeyStorePtr;
 use sr_api::ApiExt;
