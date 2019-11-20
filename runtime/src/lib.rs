@@ -48,12 +48,12 @@ use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
 use sr_staking_primitives::SessionIndex;
-use srml_support::{
+use paint_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness}
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use system::offchain::TransactionSubmitter;
-use srml_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use paint_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -278,7 +278,7 @@ impl session::historical::Trait for Runtime {
 	type FullIdentificationOf = staking::ExposureOf<Runtime>;
 }
 
-srml_staking_reward_curve::build! {
+paint_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
 		max_inflation: 0_100_000,
@@ -738,7 +738,7 @@ sr_api::impl_runtime_apis! {
 		}
 	}
 
-	impl srml_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
+	impl paint_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
 		Block,
 		Balance,
 		UncheckedExtrinsic,

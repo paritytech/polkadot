@@ -6,11 +6,11 @@ description = "Polkadot node implementation in Rust."
 edition = "2018"
 
 [dependencies]
-log = "0.4.6"
-tokio = "0.1.7"
+log = "0.4.8"
+tokio = "0.1.22"
 futures = { version = "0.3.1", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
-structopt = "0.3.3"
+structopt = "0.3.4"
 cli = { package = "substrate-cli", git = "https://github.com/expenses/substrate", branch = "futures03" }
 service = { package = "polkadot-service", path = "../service" }
 

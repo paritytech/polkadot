@@ -11,7 +11,7 @@ polkadot-primitives = { path = "../primitives" }
 sr-primitives = { git = "https://github.com/expenses/substrate", branch = "futures03"  }
 substrate-rpc = { git = "https://github.com/expenses/substrate", branch = "futures03" }
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/expenses/substrate", branch = "futures03"  }
-srml-system-rpc = { git = "https://github.com/expenses/substrate", branch = "futures03"  }
-srml-transaction-payment-rpc = { git = "https://github.com/expenses/substrate", branch = "futures03" }
+paint-system-rpc = { git = "https://github.com/expenses/substrate", branch = "futures03"  }
+paint-transaction-payment-rpc = { git = "https://github.com/expenses/substrate", branch = "futures03" }
 polkadot-runtime = { path = "../runtime" }
 

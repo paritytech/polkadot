@@ -10,11 +10,11 @@ futures03 = { package = "futures", version = "0.3.1", features = ["compat"] }
 futures-timer = "2.0"
 async-std = { version = "1.0.1", features = ["unstable"] }
 parking_lot = "0.9.0"
-tokio = "0.1.7"
-derive_more = "0.14.0"
-log = "0.4.6"
-exit-future = "0.1"
-codec = { package = "parity-scale-codec", version = "~1.0.0", default-features = false, features = ["derive"] }
+tokio = "0.1.22"
+derive_more = "0.14.1"
+log = "0.4.8"
+exit-future = "0.1.4"
+codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 availability_store = { package = "polkadot-availability-store", path = "../availability-store" }
 parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
@@ -30,8 +30,8 @@ sr-api = { git = "https://github.com/expenses/substrate", branch = "futures03" }
 block-builder = { package = "substrate-block-builder", git = "https://github.com/expenses/substrate", branch = "futures03" }
 trie = { package = "substrate-trie", git = "https://github.com/expenses/substrate", branch = "futures03" }
 runtime_primitives = { package = "sr-primitives", git = "https://github.com/expenses/substrate", branch = "futures03" }
-bitvec = { version = "0.14.0", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "srml-babe", git = "https://github.com/expenses/substrate", branch = "futures03" }
+bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
+runtime_babe = { package = "paint-babe", git = "https://github.com/expenses/substrate", branch = "futures03" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/expenses/substrate", branch = "futures03" }
 keystore = { package = "substrate-keystore", git = "https://github.com/expenses/substrate", branch = "futures03" }
 
