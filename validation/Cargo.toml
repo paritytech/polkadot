@@ -19,21 +19,21 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-consensus = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-sr-api = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-block-builder = { package = "substrate-block-builder", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
+grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+consensus = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sr-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+block-builder = { package = "substrate-block-builder", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
-keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "joe-a-palette-of-pallets" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
