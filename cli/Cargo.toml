@@ -8,8 +8,8 @@ edition = "2018"
 [dependencies]
 log = "0.4.8"
 tokio = "0.1.22"
-futures = "0.1.29"
-exit-future = "0.1.4"
+futures = { version = "0.3.1", features = ["compat"] }
+futures01 = { package = "futures", version = "0.1.29" }
 structopt = "0.3.4"
 cli = { package = "substrate-cli", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 service = { package = "polkadot-service", path = "../service" }
