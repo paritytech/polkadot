@@ -48,7 +48,7 @@ use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
 use sr_staking_primitives::SessionIndex;
-use palette_support::{
+use frame_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness}
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
