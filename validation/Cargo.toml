@@ -5,9 +5,10 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.1.29"
-futures03 = { package = "futures-preview", version = "0.3.0-alpha.19", features = ["compat"] }
-futures-timer = "0.4.0"
+futures = "0.1.17"
+futures03 = { package = "futures", version = "0.3.1", features = ["compat"] }
+futures-timer = "2.0"
+async-std = { version = "1.0.1", features = ["unstable"] }
 parking_lot = "0.9.0"
 tokio = "0.1.22"
 derive_more = "0.14.1"
@@ -26,11 +27,12 @@ primitives = { package = "substrate-primitives", git = "https://github.com/parit
 transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sr-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 block-builder = { package = "substrate-block-builder", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "paint-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 

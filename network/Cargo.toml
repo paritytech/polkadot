@@ -15,8 +15,8 @@ codec = { package = "parity-scale-codec", version = "1.1.0", default-features = 
 substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-futures = "0.1.29"
-futures03 = { package = "futures-preview", version = "0.3.0-alpha.19", features = ["compat"] }
+futures = "0.1"
+futures03 = { package = "futures", version = "0.3.1", features = ["compat"] }
 log = "0.4.8"
 exit-future = "0.1.4"
 substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

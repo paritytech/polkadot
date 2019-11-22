@@ -22,7 +22,7 @@
 mod chain_spec;
 
 use chain_spec::ChainSpec;
-use futures::Future;
+use futures::{Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Future01CompatExt};
 use tokio::runtime::Runtime;
 use std::sync::Arc;
 use log::{info, error};
@@ -36,8 +36,9 @@ pub use service::{
 pub use cli::{VersionInfo, IntoExit, NoCustom};
 pub use cli::{display_role, error};
 
+type BoxedFuture = Box<dyn futures01::Future<Item = (), Error = ()> + Send>;
 /// Abstraction over an executor that lets you spawn tasks in the background.
-pub type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
+pub type TaskExecutor = Arc<dyn futures01::future::Executor<BoxedFuture> + Send + Sync>;
 
 fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
@@ -53,7 +54,7 @@ fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
 pub trait Worker: IntoExit {
 	/// A future that resolves when the work is done or the node should exit.
 	/// This will be run on a tokio runtime.
-	type Work: Future<Item=(),Error=()> + Send + 'static;
+	type Work: Future<Output=()> + Unpin + Send + 'static;
 
 	/// Return configuration for the polkadot node.
 	// TODO: make this the full configuration, so embedded nodes don't need
@@ -143,20 +144,31 @@ fn run_until_exit<T, SC, B, CE, W>(
 		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static,
 		W: Worker,
 {
-	let (exit_send, exit) = exit_future::signal();
+	let (exit_send, exit) = oneshot::channel();
 
 	let executor = runtime.executor();
 	let informant = cli::informant::build(&service);
-	executor.spawn(exit.until(informant).map(|_| ()));
+	let future = select(exit, informant)
+		.map(|_| Ok(()))
+		.compat();
+
+	executor.spawn(future);
 
 	// we eagerly drop the service so that the internal exit future is fired,
 	// but we need to keep holding a reference to the global telemetry guard
 	let _telemetry = service.telemetry();
 
 	let work = worker.work(&service, Arc::new(executor));
-	let service = service.map_err(|err| error!("Error while running Service: {}", err));
-	let _ = runtime.block_on(service.select(work));
-	exit_send.fire();
+	let service = service
+		.map_err(|err| error!("Error while running Service: {}", err))
+		.compat();
+	let future = select(service, work)
+		.map(|_| Ok::<_, ()>(()))
+		.compat();
+	let _ = runtime.block_on(future);
+	let _ = exit_send.send(());
+
+	use futures01::Future;
 
 	// TODO [andre]: timeout this future substrate/#1318
 	let _ = runtime.shutdown_on_idle().wait();

@@ -15,7 +15,7 @@ rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", de
 runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 polkadot-parachain = { path = "../parachain", default-features = false }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-babe = { package = "paint-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 [dev-dependencies]
 substrate-serializer = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

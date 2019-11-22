@@ -37,9 +37,9 @@ use primitives::{
 };
 use sr_primitives::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyResult, Permill, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
-	weights::{Weight, DispatchInfo}, curve::PiecewiseLinear,
+	curve::PiecewiseLinear,
 	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys},
 };
 use version::RuntimeVersion;
@@ -48,12 +48,13 @@ use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
 use sr_staking_primitives::SessionIndex;
-use paint_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness}
+use frame_support::{
+	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness},
+	weights::{Weight, DispatchInfo},
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use system::offchain::TransactionSubmitter;
-use paint_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -94,8 +95,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
-	authoring_version: 1,
-	spec_version: 1018,
+	authoring_version: 2,
+	spec_version: 1019,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -120,7 +121,10 @@ impl SignedExtension for OnlyStakingAndClaims {
 	type Call = Call;
 	type AdditionalSigned = ();
 	type Pre = ();
+	type DispatchInfo = DispatchInfo;
+
 	fn additional_signed(&self) -> rstd::result::Result<(), TransactionValidityError> { Ok(()) }
+
 	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
 		-> TransactionValidity
 	{
@@ -278,7 +282,7 @@ impl session::historical::Trait for Runtime {
 	type FullIdentificationOf = staking::ExposureOf<Runtime>;
 }
 
-paint_staking_reward_curve::build! {
+pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
 		max_inflation: 0_100_000,
@@ -643,7 +647,7 @@ sr_api::impl_runtime_apis! {
 	}
 
 	impl block_builder_api::BlockBuilder<Block> for Runtime {
-		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyResult {
+		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
 			Executive::apply_extrinsic(extrinsic)
 		}
 
@@ -738,7 +742,7 @@ sr_api::impl_runtime_apis! {
 		}
 	}
 
-	impl paint_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
+	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
 		Block,
 		Balance,
 		UncheckedExtrinsic,

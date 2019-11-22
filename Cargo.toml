@@ -11,7 +11,7 @@ edition = "2018"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
-futures = "0.1.29"
+futures = "0.3.1"
 ctrlc = { version = "3.1.3", features = ["termination"] }
 service = { package = "polkadot-service", path = "service" }
 
@@ -47,3 +47,6 @@ maintenance = { status = "actively-developed" }
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
+
+[patch.crates-io]
+zstd-sys = { git = "https://github.com/bkchr/zstd-rs.git", branch = "bkchr-export-include-paths2" }
