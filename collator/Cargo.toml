@@ -6,13 +6,13 @@ description = "Collator node implementation"
 edition = "2018"
 
 [dependencies]
-futures = "0.1.29"
-futures03 = { package = "futures-preview", version = "0.3.0-alpha.19", features = ["compat"] }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-api = { package = "substrate-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+futures01 = { package = "futures", version = "0.1.17" }
+futures = { version = "0.3.1", features = ["compat"] }
+client = { package = "substrate-client", git = "https://github.com/expenses/substrate", branch = "futures03" }
+client-api = { package = "substrate-client-api", git = "https://github.com/expenses/substrate", branch = "futures03" }
+primitives = { package = "substrate-primitives", git = "https://github.com/expenses/substrate", branch = "futures03" }
+substrate-network = { git = "https://github.com/expenses/substrate", branch = "futures03" }
+consensus_common = { package = "substrate-consensus-common", git = "https://github.com/expenses/substrate", branch = "futures03" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-cli = { path = "../cli" }
@@ -21,6 +21,7 @@ polkadot-validation = { path = "../validation" }
 polkadot-service = { path = "../service" }
 log = "0.4.8"
 tokio = "0.1.22"
+futures-timer = "1.0"
 
 [dev-dependencies]
-keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+keyring = { package = "substrate-keyring", git = "https://github.com/expenses/substrate", branch = "futures03" }
