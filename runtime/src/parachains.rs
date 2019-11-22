@@ -2035,7 +2035,7 @@ mod tests {
 
 	#[test]
 	fn empty_trie_root_const_is_blake2_hashed_null_node() {
-		let hashed_null_node =  <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node();
+		let hashed_null_node =  <NodeCodec<Blake2Hasher> as trie_db::NodeCodec>::hashed_null_node();
 		assert_eq!(hashed_null_node, EMPTY_TRIE_ROOT.into())
 	}
 }
