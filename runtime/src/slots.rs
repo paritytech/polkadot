@@ -22,7 +22,7 @@ use rstd::{prelude::*, mem::swap, convert::TryInto};
 use sr_primitives::traits::{
 	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
 };
-use sr_primitives::weights::SimpleDispatchInfo;
+use frame_support::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode, Codec};
 use frame_support::{
 	decl_module, decl_storage, decl_event, ensure,

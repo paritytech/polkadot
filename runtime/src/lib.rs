@@ -37,9 +37,9 @@ use primitives::{
 };
 use sr_primitives::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyResult, Permill, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
-	weights::{Weight, DispatchInfo}, curve::PiecewiseLinear,
+	curve::PiecewiseLinear,
 	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys},
 };
 use version::RuntimeVersion;
@@ -49,7 +49,8 @@ use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
 use sr_staking_primitives::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness}
+	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness},
+	weights::{Weight, DispatchInfo},
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use system::offchain::TransactionSubmitter;
@@ -94,7 +95,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
-	authoring_version: 1,
+	authoring_version: 2,
 	spec_version: 1019,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
@@ -120,7 +121,10 @@ impl SignedExtension for OnlyStakingAndClaims {
 	type Call = Call;
 	type AdditionalSigned = ();
 	type Pre = ();
+	type DispatchInfo = ();
+
 	fn additional_signed(&self) -> rstd::result::Result<(), TransactionValidityError> { Ok(()) }
+	
 	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
 		-> TransactionValidity
 	{
@@ -643,7 +647,7 @@ sr_api::impl_runtime_apis! {
 	}
 
 	impl block_builder_api::BlockBuilder<Block> for Runtime {
-		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyResult {
+		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
 			Executive::apply_extrinsic(extrinsic)
 		}
 

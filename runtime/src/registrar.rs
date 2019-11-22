@@ -24,14 +24,14 @@ use rstd::marker::PhantomData;
 use codec::{Encode, Decode};
 
 use sr_primitives::{
-	weights::{SimpleDispatchInfo, DispatchInfo},
 	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
 	traits::{Hash as HashT, SignedExtension}
 };
 
 use frame_support::{
 	decl_storage, decl_module, decl_event, ensure,
-	dispatch::{Result, IsSubType}, traits::{Get, Currency, ReservableCurrency}
+	dispatch::{Result, IsSubType}, traits::{Get, Currency, ReservableCurrency},
+	weights::{SimpleDispatchInfo, DispatchInfo},
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{

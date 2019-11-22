@@ -72,9 +72,10 @@ use frame_support::{
 	}
 };
 use system::ensure_signed;
-use sr_primitives::{ModuleId, weights::SimpleDispatchInfo,
+use sr_primitives::{ModuleId,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd}
 };
+use frame_support::weights::SimpleDispatchInfo;
 use crate::slots;
 use codec::{Encode, Decode};
 use rstd::vec::Vec;

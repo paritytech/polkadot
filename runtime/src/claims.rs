@@ -19,6 +19,7 @@
 use rstd::prelude::*;
 use sr_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module};
+use frame_support::weights::SimpleDispatchInfo;
 use frame_support::traits::{Currency, Get};
 use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
@@ -27,7 +28,7 @@ use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
 #[cfg(feature = "std")]
 use sr_primitives::traits::Zero;
 use sr_primitives::{
-	RuntimeDebug, weights::SimpleDispatchInfo, transaction_validity::{
+	RuntimeDebug, transaction_validity::{
 		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction
 	},
 };
