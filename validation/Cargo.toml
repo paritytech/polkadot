@@ -37,4 +37,4 @@ babe-primitives = { package = "substrate-consensus-babe-primitives", git = "http
 keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/expenses/substrate", branch = "futures03" }
+substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
