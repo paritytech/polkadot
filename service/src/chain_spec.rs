@@ -47,10 +47,10 @@ fn session_keys(
 	babe: BabeId,
 	grandpa: GrandpaId,
 	im_online: ImOnlineId,
-	authority_discovery: AuthorityDiscoveryId,
-	parachain_validator: ValidatorId
+	parachain_validator: ValidatorId,
+	authority_discovery: AuthorityDiscoveryId
 ) -> SessionKeys {
-	SessionKeys { babe, grandpa, im_online, authority_discovery, parachain_validator }
+	SessionKeys { babe, grandpa, im_online, parachain_validator, authority_discovery }
 }
 
 fn staging_testnet_config_genesis() -> GenesisConfig {
@@ -64,7 +64,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 	// for i in 1 2 3 4; do for j in grandpa; do subkey --ed25519 inspect "$SECRET//$i//$j"; done; done
 	// for i in 1 2 3 4; do for j in im_online; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
 	// for i in 1 2 3 4; do for j in parachains; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
-	let initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, AuthorityDiscoveryId, ValidatorId)> = vec![(
+	let initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)> = vec![(
 		hex!["32a5718e87d16071756d4b1370c411bbbb947eb62f0e6e0b937d5cbfc0ea633b"].into(), // 5DD7Q4VEfPTLEdn11CnThoHT5f9xKCrnofWJL5SsvpTghaAT
 		hex!["bee39fe862c85c91aaf343e130d30b643c6ea0b4406a980206f1df8331f7093b"].into(), // 5GNzaEqhrZAtUQhbMe2gn9jBuNWfamWFZHULryFwBUXyd1cG
 		hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"].unchecked_into(), // 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
@@ -203,8 +203,8 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (
 	BabeId,
 	GrandpaId,
 	ImOnlineId,
-	AuthorityDiscoveryId,
-	ValidatorId
+	ValidatorId,
+	AuthorityDiscoveryId
 ) {
 	(
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
@@ -212,14 +212,14 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (
 		get_from_seed::<BabeId>(seed),
 		get_from_seed::<GrandpaId>(seed),
 		get_from_seed::<ImOnlineId>(seed),
-		get_from_seed::<AuthorityDiscoveryId>(seed),
 		get_from_seed::<ValidatorId>(seed),
+		get_from_seed::<AuthorityDiscoveryId>(seed),
 	)
 }
 
 /// Helper function to create GenesisConfig for testing
 pub fn testnet_genesis(
-	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, AuthorityDiscoveryId, ValidatorId)>,
+	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> GenesisConfig {
