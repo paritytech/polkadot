@@ -311,14 +311,24 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 			}
 		};
 
-		PrimedParachainWork { inner: self, validate }
+		PrimedParachainWork {
+			state: State::Fetch(FetchAndValidate {
+				inner: self,
+				validate,
+			})
+		}
 	}
 
 	/// Prime the parachain work with a custom validation function.
 	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<Fetch, F>
 		where F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>
 	{
-		PrimedParachainWork { inner: self, validate }
+		PrimedParachainWork {
+			state: State::Fetch(FetchAndValidate {
+				inner: self,
+				validate,
+			})
+		}
 	}
 }
 
@@ -329,8 +339,22 @@ struct Work<Fetch> {
 
 /// Primed statement producer.
 pub struct PrimedParachainWork<Fetch, F> {
+	state: State<Fetch, F>,
+}
+
+enum State<Fetch, F> {
+	Fetch(FetchAndValidate<Fetch, F>),
+	Write(WriteToStore),
+}
+
+struct FetchAndValidate<Fetch, F> {
 	inner: ParachainWork<Fetch>,
 	validate: F,
+}
+
+struct WriteToStore {
+	validation_result: Option<Validated>,
+	future: Box<dyn Future<Item=(), Error=std::io::Error> + Send + 'static>,
 }
 
 impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
@@ -342,7 +366,68 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 	type Item = Validated;
 	type Error = Err;
 
-	fn poll(&mut self) -> Poll<Validated, Err> {
+	fn poll(&mut self) -> Poll<Self::Item, Err> {
+		use self::State::*;
+
+		loop {
+			let (
+				(validation_result, chunk),
+				candidate_receipt,
+				relay_parent,
+				_n_validators,
+				availability_store
+			) = match self.state {
+				Fetch(ref mut fetch) => {
+					(futures::try_ready!(fetch.poll()),
+					fetch.inner.work.candidate_receipt.clone(),
+					fetch.inner.relay_parent,
+					fetch.inner.n_validators,
+					fetch.inner.availability_store.clone())
+				}
+				Write(ref mut write) => {
+					futures::try_ready!(write.future.poll());
+					return Ok(Async::Ready(write.validation_result
+							.take()
+							.expect("Should be a validation result here; qed")
+							)
+					);
+				}
+			};
+
+			if let Some(chunk) = chunk {
+				let add_candidate = availability_store.add_candidate(
+					relay_parent,
+					candidate_receipt.clone(),
+				);
+				let add_erasure_chunk = availability_store.add_erasure_chunk(
+					relay_parent,
+					candidate_receipt,
+					chunk,
+				);
+
+				let fut = add_candidate.then(|_| add_erasure_chunk);
+
+				self.state = State::Write(WriteToStore {
+					validation_result: Some(validation_result),
+					future: Box::new(fut),
+				});
+			} else {
+				return Ok(Async::Ready(validation_result));
+			}
+		}
+	}
+}
+
+impl<Fetch, F, Err> Future for FetchAndValidate<Fetch, F>
+	where
+		Fetch: Future<Item=PoVBlock,Error=Err>,
+		F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>,
+		Err: From<::std::io::Error>,
+{
+	type Item = (Validated, Option<ErasureChunk>);
+	type Error = Err;
+
+	fn poll(&mut self) -> Poll<Self::Item, Err> {
 		let work = &mut self.inner.work;
 		let candidate = &work.candidate_receipt;
 
@@ -358,30 +443,31 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 		debug!(target: "validation", "Making validity statement about candidate {}: is_good? {:?}",
 			candidate_hash, validation_res.is_ok());
 
-		let (validity_statement, result) = match validation_res {
+		let (validity_statement, result, chunk) = match validation_res {
 			Err(()) => (
 				GenericStatement::Invalid(candidate_hash),
 				Validation::Invalid(pov_block),
+				None,
 			),
 			Ok((outgoing_targeted, our_chunk)) => {
-				self.inner.availability_store.add_erasure_chunk(
-					self.inner.n_validators as u32,
-					&self.inner.relay_parent,
-					&candidate,
-					our_chunk
-				)?;
-
 				(
 					GenericStatement::Valid(candidate_hash),
-					Validation::Valid(pov_block, outgoing_targeted)
+					Validation::Valid(pov_block, outgoing_targeted),
+					Some(our_chunk),
 				)
 			}
 		};
 
-		Ok(Async::Ready(Validated {
-			statement: validity_statement,
-			result,
-		}))
+		Ok(Async::Ready(
+				(
+					Validated {
+						statement: validity_statement,
+						result,
+					},
+					chunk,
+				)
+			)
+		)
 	}
 }
 
@@ -586,13 +672,35 @@ mod tests {
 	use primitives::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{AvailableMessages, BlockData, ConsolidatedIngress, Collation};
 	use polkadot_erasure_coding::{self as erasure};
-	use futures::future;
+	use availability_store::ProvideGossipMessages;
+
+	use futures::{future, stream};
 
 	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
 		PoVBlock {
 			block_data: BlockData(data),
 			ingress: ConsolidatedIngress(Vec::new()),
 		}
+	}
+
+	#[derive(Clone)]
+	struct DummyGossipMessages;
+
+	impl ProvideGossipMessages for DummyGossipMessages {
+		fn gossip_messages_for(
+			&self,
+			_topic: Hash
+		) -> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk), Error = ()> + Send> {
+			Box::new(stream::empty())
+		}
+
+		fn gossip_erasure_chunk(
+			&self,
+			_relay_parent: Hash,
+			_candidate_hash: Hash,
+			_erasure_root: Hash,
+			_chunk: ErasureChunk,
+		) {}
 	}
 
 	#[derive(Clone)]
@@ -613,6 +721,8 @@ mod tests {
 			future::ok(pov_block_with_data(vec![1, 2, 3, 4, 5]))
 		}
 	}
+
+
 
 	#[test]
 	fn statement_triggers_fetch_and_evaluate() {
@@ -639,7 +749,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			AvailabilityStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(DummyGossipMessages),
 			None,
 		);
 
@@ -695,7 +805,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			AvailabilityStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(DummyGossipMessages),
 			None,
 		);
 
@@ -728,7 +838,8 @@ mod tests {
 
 	#[test]
 	fn evaluate_makes_block_data_available() {
-		let store = AvailabilityStore::new_in_memory();
+		env_logger::init();
+		let store = AvailabilityStore::new_in_memory(DummyGossipMessages);
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
@@ -749,6 +860,8 @@ mod tests {
 		};
 
 		let hash = candidate.hash();
+
+		store.add_validator_index_and_n_validators(&relay_parent, local_index as u32, n_validators as u32).unwrap();
 
 		let producer: ParachainWork<future::FutureResult<_, ::std::io::Error>> = ParachainWork {
 			work: Work {
@@ -782,13 +895,13 @@ mod tests {
 				assert_eq!(store.queue_by_root(&root), Some(queue));
 			}
 		}
-		assert!(store.get_erasure_chunk(relay_parent, block_data_hash, local_index).is_some());
-		assert!(store.get_erasure_chunk(relay_parent, block_data_hash, local_index + 1).is_none());
+		assert!(store.get_erasure_chunk(&relay_parent, block_data_hash, local_index).is_some());
+		assert!(store.get_erasure_chunk(&relay_parent, block_data_hash, local_index + 1).is_none());
 	}
 
 	#[test]
 	fn full_availability() {
-		let store = AvailabilityStore::new_in_memory();
+		let store = AvailabilityStore::new_in_memory(DummyGossipMessages);
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
@@ -810,6 +923,8 @@ mod tests {
 		};
 
 		let chunks = erasure::obtain_chunks(n_validators, &pov_block.block_data, ex.as_ref()).unwrap();
+
+		store.add_validator_index_and_n_validators(&relay_parent, local_index as u32, n_validators as u32).unwrap();
 
 		let producer = ParachainWork {
 			work: Work {
@@ -873,7 +988,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			AvailabilityStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(DummyGossipMessages),
 			None,
 		);
 
@@ -940,7 +1055,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			AvailabilityStore::new_in_memory(),
+			AvailabilityStore::new_in_memory(DummyGossipMessages),
 			None,
 		);
 

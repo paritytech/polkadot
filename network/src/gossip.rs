@@ -72,7 +72,7 @@ use parking_lot::RwLock;
 use log::warn;
 
 use super::PolkadotNetworkService;
-use crate::router::{attestation_topic, erasure_coding_topic};
+use crate::router::attestation_topic;
 
 use attestation::{View as AttestationView, PeerData as AttestationPeerData};
 use message_routing::{View as MessageRoutingView};
@@ -550,24 +550,21 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 						cost::ERASURE_CHUNK_WRONG_ROOT
 					)
 				} else {
-					if let Some((index, n_validators)) = store.get_validator_index_and_n_validators(&msg.relay_parent) {
-						if index == msg.chunk.index {
-							if let Err(e) = store.add_erasure_chunk(
-								n_validators as u32,
-								&msg.relay_parent,
-								&receipt,
-								msg.chunk
-							) {
-								warn!("Failed to add erasure chunk to the availability-store: {:?}", e);
-							}
+					if let Some(awaited_chunks) = store.awaited_chunks() {
+						if awaited_chunks.contains(&(msg.relay_parent, receipt.erasure_root, receipt.hash(), msg.chunk.index)) {
+							let topic = av_store::erasure_coding_topic(
+								msg.relay_parent,
+								receipt.erasure_root,
+								msg.chunk.index,
+							);
+
+							return (
+								GossipValidationResult::ProcessAndKeep(topic),
+								benefit::NEW_ERASURE_CHUNK,
+							);
 						}
 					}
-					let topic = erasure_coding_topic(msg.relay_parent, receipt.erasure_root);
-
-					(
-						GossipValidationResult::ProcessAndKeep(topic),
-						benefit::NEW_ERASURE_CHUNK,
-					)
+					(GossipValidationResult::Discard, 0)
 				}
 			} else {
 				(GossipValidationResult::Discard, cost::ORPHANED_ERASURE_CHUNK)

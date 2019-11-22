@@ -390,6 +390,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 				let key = key.clone();
 				let parachain_context = parachain_context.clone();
 				let validation_network = validation_network.clone();
+				let inner_exit_2 = inner_exit.clone();
 
 				let work = future::lazy(move || {
 					let api = client.runtime_api();
@@ -427,11 +428,9 @@ impl<P, E> Worker for CollationNode<P, E> where
 								targets,
 								collation,
 								outgoing,
-							);
+							).map_err(|e| warn!("Collation failure availability store: {}", e));
 
-							if let Err(e) = res {
-								warn!("Unable to broadcast local collation: {:?}", e);
-							}
+							tokio::spawn(res.select(inner_exit_2.clone()).then(|_| Ok(())));
 						})
 					});
 

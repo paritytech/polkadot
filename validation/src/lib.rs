@@ -385,34 +385,27 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 					) {
 						Ok((receipt, chunks)) => {
 							let res = availability_store.add_erasure_chunks(
-								authorities_num,
-								&relay_parent,
-								&receipt,
+								relay_parent,
+								receipt.clone(),
 								chunks.clone()
-							);
+							)
+							.map_err(|e| warn!(target: "validation", "Failed to make collation available {:?}", e))
+							.and_then(move |_| {
+								router.local_collation(collation, receipt, outgoing_targeted, (local_id, &chunks));
+								Ok(())
+							});
 
-							match res {
-								Ok(()) => {
-									router.local_collation(collation, receipt, outgoing_targeted, (local_id, &chunks));
-								}
-								Err(e) => warn!(
-									target: "validation",
-									"Failed to make collation data available: {:?}",
-									e,
-								),
-							}
-
-							Ok(())
+							Some(res)
 						}
 						Err(e) => {
 							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
-							Ok(())
+							None
 						}
 					}
 				}
 				Err(e) => {
 					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
-					Ok(())
+					None
 				}
 			})
 		};
@@ -423,6 +416,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				warn!(target: "validation" , "Failed to build table router: {:?}", e);
 			})
 			.and_then(with_router)
+			.then(|_| Ok(()))
 			.select(exit)
 			.then(|_| Ok(()));
 
@@ -491,7 +485,6 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 			parachain_validation.clone(),
 			thread_pool,
 			keystore.clone(),
-			availability_store,
 			max_block_data_size,
 		);
 

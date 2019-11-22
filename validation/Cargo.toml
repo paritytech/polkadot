@@ -34,4 +34,5 @@ babe-primitives = { package = "substrate-consensus-babe-primitives", git = "http
 keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [dev-dependencies]
+env_logger = "0.7.1"
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

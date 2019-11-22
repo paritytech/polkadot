@@ -33,7 +33,7 @@ use substrate_primitives::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas}, ValidityError,
+	parachain::{self, ActiveParas, CandidateReceipt}, ValidityError,
 };
 use client::{
 	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
@@ -676,14 +676,15 @@ impl_runtime_apis! {
 		}
 	}
 
+	// TODO: What if we have multiple `set_heads` calls in the block?
 	impl parachain::ExtrinsicsQuerying<Block> for Runtime {
-		fn get_erasure_roots(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<Hash>> {
+		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>> {
 			extrinsics
 				.into_iter()
 				.find_map(|ex| match UncheckedExtrinsic::decode(&mut ex.encode().as_slice()) {
 					Ok(ex) => match ex.function {
 						Call::Parachains(ParachainsCall::set_heads(heads)) => {
-							Some(heads.into_iter().map(|c| c.candidate.erasure_root).collect())
+							Some(heads.into_iter().map(|c| c.candidate).collect())
 						}
 						_ => None,
 					}

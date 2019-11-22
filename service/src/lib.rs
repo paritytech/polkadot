@@ -223,7 +223,9 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			av_store::Store::new(::av_store::Config {
 				cache_size: None,
 				path,
-			})?
+			},
+			polkadot_network::AvailabilityNetworkShim(service.network()),
+			)?
 		};
 
 		{
@@ -262,11 +264,11 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		let client = service.client();
 		let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
 
-		let block_import = av_store::block_import(
-			availability_store,
+
+		let block_import = availability_store.block_import(
 			block_import,
 			client.clone(),
-			client.clone(),
+			Arc::new(service.spawn_task_handle()),
 			service.keystore(),
 		)?;
 

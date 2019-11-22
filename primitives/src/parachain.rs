@@ -612,8 +612,8 @@ substrate_client::decl_runtime_apis! {
 
 	/// The api to get information out of the raw extrinsics.
 	pub trait ExtrinsicsQuerying {
-		/// Extract the information about erasure roots in the chain heads from raw extrinsics.
-		fn get_erasure_roots(txs: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<Hash>>;
+		/// Extract the heads that were set by this set of extrinsics.
+		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>>;
 	}
 }
 

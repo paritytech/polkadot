@@ -52,15 +52,6 @@ pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 	BlakeTwo256::hash(&v[..])
 }
 
-/// Compute the gossip topic for erasure chunks of the given block hash.
-pub(crate) fn erasure_coding_topic(relay_parent: Hash, erasure_root: Hash) -> Hash {
-	let mut v = relay_parent.as_ref().to_vec();
-	v.extend(erasure_root.as_ref());
-	v.extend(b"erasure_chunks");
-
-	BlakeTwo256::hash(&v[..])
-}
-
 /// Create a `Stream` of checked messages.
 ///
 /// The returned stream will not terminate, so it is required to make sure that the stream is
@@ -265,7 +256,10 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 				candidate_hash: hash,
 			};
 
-			self.network().gossip_message(erasure_coding_topic(relay_parent, erasure_root), message.into());
+			self.network().gossip_message(
+				av_store::erasure_coding_topic(relay_parent, erasure_root, chunk.index),
+				message.into()
+			);
 		}
 	}
 
