@@ -121,10 +121,10 @@ impl SignedExtension for OnlyStakingAndClaims {
 	type Call = Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	type DispatchInfo = ();
+	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self) -> rstd::result::Result<(), TransactionValidityError> { Ok(()) }
-	
+
 	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
 		-> TransactionValidity
 	{

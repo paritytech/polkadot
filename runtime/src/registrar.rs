@@ -508,6 +508,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	type Call = <T as system::Trait>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
+	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self)
 		-> rstd::result::Result<Self::AdditionalSigned, TransactionValidityError>
