@@ -662,7 +662,7 @@ mod tests {
 			System::on_initialize(System::block_number());
 			Balances::on_initialize(System::block_number());
 			Slots::on_initialize(System::block_number());
-			Treasury::on_finalize(System::block_number());
+			Treasury::on_initialize(System::block_number());
 			Crowdfund::on_initialize(System::block_number());
 		}
 	}
