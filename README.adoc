@@ -32,6 +32,12 @@ one. First, get Rust (1.32.0 or later) and the support software if you don't alr
 [source, shell]
 ----
 curl https://sh.rustup.rs -sSf | sh
+----
+
+You may need to add Cargo's bin directoy to your PATH environment variable. Restarting your computer will do this for you automatically. Once done, finish installing the support software: 
+
+[source, shell]
+----
 sudo apt install make clang pkg-config libssl-dev
 ----
 
@@ -56,7 +62,7 @@ cargo build --release
 Connect to the global Kusama canary network by default by running:
 
 ```bash
-./target/release/polkadot
+./target/release/polkadot --name "hello world!"
 ```
 
 You can see your node on link:https://telemetry.polkadot.io/#list/Kusama%20CC2[telemetry].
@@ -146,6 +152,12 @@ If you'd actually like hack on Polkadot, you can just grab the source code and b
 [source, shell]
 ----
 curl https://sh.rustup.rs -sSf | sh
+----
+
+You may need to add Cargo's bin directoy to your PATH environment variable. Restarting your computer will do this for you automatically. Once done, finish installing the support software: 
+
+[source, shell]
+----
 sudo apt install cmake pkg-config libssl-dev git clang
 ----
 
