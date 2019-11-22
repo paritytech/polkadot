@@ -25,7 +25,7 @@ use sr_primitives::traits::{
 	Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
 	AccountIdConversion,
 };
-use sr_primitives::weights::SimpleDispatchInfo;
+use paint_support::weights::SimpleDispatchInfo;
 use primitives::{
 	Hash, Balance,
 	parachain::{

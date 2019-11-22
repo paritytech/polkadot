@@ -17,7 +17,7 @@
 //! Auxillary struct/enums for polkadot runtime.
 
 use primitives::Balance;
-use sr_primitives::weights::Weight;
+use paint_support::weights::Weight;
 use sr_primitives::traits::{Convert, Saturating};
 use sr_primitives::{Fixed64, Perbill};
 use paint_support::traits::{OnUnbalanced, Currency, Get};

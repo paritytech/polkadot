@@ -22,7 +22,7 @@ use rstd::{prelude::*, mem::swap, convert::TryInto};
 use sr_primitives::traits::{
 	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
 };
-use sr_primitives::weights::SimpleDispatchInfo;
+use paint_support::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode, Codec};
 use paint_support::{
 	decl_module, decl_storage, decl_event, ensure,
