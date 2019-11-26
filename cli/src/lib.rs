@@ -175,7 +175,5 @@ fn run_until_exit<T, SC, B, CE, W>(
 	let _ = runtime.block_on(future);
 	let _ = exit_send.send(());
 
-	use futures01::Future;
-
 	Ok(())
 }
