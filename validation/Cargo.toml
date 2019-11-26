@@ -25,7 +25,7 @@ grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/pa
 inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
 consensus = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "master" }
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "master" }
-transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
+transaction_pool = { package = "sc-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
 client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "master" }
 sr-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -33,11 +33,11 @@ pub fn create<C, P>(client: Arc<C>, pool: Arc<Pool<P>>) -> RpcExtension where
 	C: ProvideRuntimeApi,
 	C: client::blockchain::HeaderBackend<Block>,
 	C: Send + Sync + 'static,
-	C::Api: frame_system_rpc::AccountNonceApi<Block, AccountId, Nonce>,
+	C::Api: substrate_frame_rcp_system::AccountNonceApi<Block, AccountId, Nonce>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UncheckedExtrinsic>,
 	P: ChainApi + Sync + Send + 'static,
 {
-	use frame_system_rpc::{System, SystemApi};
+	use substrate_frame_rcp_system::{System, SystemApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
 
 	let mut io = jsonrpc_core::IoHandler::default();
