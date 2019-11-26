@@ -98,6 +98,13 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 			info!("  version {}", config.full_version());
 			info!("  by {}, 2017-2019", version.author);
 			info!("Chain specification: {}", config.chain_spec.name());
+			if config.chain_spec.name().starts_with("Kusama") {
+				info!("----------------------------");
+				info!("This chain is not in any way");
+				info!("      endorsed by the       ");
+				info!("     KUSAMA FOUNDATION      ");
+				info!("----------------------------");
+			}
 			info!("Node name: {}", config.name);
 			info!("Roles: {}", display_role(&config));
 			config.custom = worker.configuration();
