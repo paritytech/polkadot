@@ -67,7 +67,7 @@ libsecp256k1 = "0.3.2"
 tiny-keccak = "1.5.0"
 keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-trie-db = "0.16.0"
+trie-db = "0.15.2"
 serde_json = "1.0.41"
 
 [build-dependencies]
