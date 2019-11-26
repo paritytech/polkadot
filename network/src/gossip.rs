@@ -278,7 +278,7 @@ impl<F, P> ChainContext for (F, P) where
 	F: Fn(&Hash) -> Option<Known> + Send + Sync,
 	P: Send + Sync + std::ops::Deref,
 	P::Target: ProvideRuntimeApi,
-	<P::Target as ProvideRuntimeApi>::Api: ParachainHost<Block>,
+	<P::Target as ProvideRuntimeApi>::Api: ParachainHost<Block, Error = ClientError>,
 {
 	fn is_known(&self, block_hash: &Hash) -> Option<Known> {
 		(self.0)(block_hash)
@@ -873,9 +873,9 @@ mod tests {
 
 		{
 			let mut message_allowed = validator.message_allowed();
-			assert!(message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded));
-			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast, &topic_b, &encoded));
-			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast, &topic_c, &encoded));
+			assert!(message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_a, &encoded));
+			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_b, &encoded));
+			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_c, &encoded));
 		}
 	}
 
@@ -981,7 +981,7 @@ mod tests {
 
 		{
 			let mut message_allowed = validator.message_allowed();
-			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded[..]));
+			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_a, &encoded[..]));
 		}
 
 		validator
@@ -994,7 +994,7 @@ mod tests {
 			.note_aware_under_leaf(&hash_a, c_hash);
 		{
 			let mut message_allowed = validator.message_allowed();
-			assert!(message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded[..]));
+			assert!(message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_a, &encoded[..]));
 		}
 	}
 
@@ -1087,8 +1087,8 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			assert!(allowed(&peer_a, MessageIntent::Broadcast, &root_a_topic, &message[..]));
-			assert!(!allowed(&peer_b, MessageIntent::Broadcast, &root_a_topic, &message[..]));
+			assert!(allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
 		}
 	}
 
@@ -1158,8 +1158,8 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			assert!(!allowed(&peer_a, MessageIntent::Broadcast, &root_a_topic, &message[..]));
-			assert!(!allowed(&peer_b, MessageIntent::Broadcast, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
 		}
 
 		// peer A gets updated to the chain head. now we'll attempt to broadcast
@@ -1196,8 +1196,8 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			assert!(allowed(&peer_a, MessageIntent::Broadcast, &root_a_topic, &message[..]));
-			assert!(!allowed(&peer_b, MessageIntent::Broadcast, &root_a_topic, &message[..]));
+			assert!(allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
 		}
 	}
 

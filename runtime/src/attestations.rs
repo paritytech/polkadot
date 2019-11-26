@@ -21,13 +21,13 @@
 
 use rstd::prelude::*;
 use codec::{Encode, Decode};
-use srml_support::{decl_storage, decl_module, ensure, dispatch::Result, traits::Get};
+use frame_support::{decl_storage, decl_module, ensure, dispatch::Result, traits::Get};
 
 use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};
 use sr_primitives::RuntimeDebug;
 use sr_staking_primitives::SessionIndex;
 
-use inherents::{ProvideInherent, InherentData, RuntimeString, MakeFatalError, InherentIdentifier};
+use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
 use system::ensure_none;
 
 /// Parachain blocks included in a recent relay-chain block.
@@ -178,7 +178,7 @@ pub type InherentType = MoreAttestations;
 
 impl<T: Trait> ProvideInherent for Module<T> {
 	type Call = Call<T>;
-	type Error = MakeFatalError<RuntimeString>;
+	type Error = MakeFatalError<inherents::Error>;
 	const INHERENT_IDENTIFIER: InherentIdentifier = MORE_ATTESTATIONS_IDENTIFIER;
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {

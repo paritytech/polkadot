@@ -29,12 +29,18 @@
 //!
 //! Groups themselves may be compromised by malicious authorities.
 
-use std::{collections::{HashMap, HashSet}, pin::Pin, sync::Arc, time::{self, Duration, Instant}};
+use std::{
+	collections::{HashMap, HashSet},
+	pin::Pin,
+	sync::Arc,
+	time::{self, Duration, Instant},
+	task::{Poll, Context}
+};
 
 use babe_primitives::BabeApi;
 use client::{BlockchainEvents, BlockBody};
 use client::blockchain::HeaderBackend;
-use client::block_builder::api::BlockBuilder as BlockBuilderApi;
+use block_builder::BlockBuilderApi;
 use client::error as client_error;
 use codec::Encode;
 use consensus::SelectChain;
@@ -48,19 +54,21 @@ use polkadot_primitives::parachain::{
 	ValidatorPair, ValidatorId,
 };
 use primitives::Pair;
-use runtime_primitives::traits::{AppVerify, ProvideRuntimeApi, DigestFor};
-use futures_timer::{Delay, Interval};
+use runtime_primitives::traits::{ProvideRuntimeApi, DigestFor};
+use futures_timer::Delay;
+use async_std::stream::{interval, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
-use futures03::{future::{self, Either, FutureExt}, task::Context, stream::StreamExt};
+use futures03::{future::{self, Either}, FutureExt, StreamExt};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
-use runtime_babe::timestamp::TimestampInherentData;
+use sp_timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace, error};
 use keystore::KeyStorePtr;
+use sr_api::ApiExt;
 
 type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
@@ -250,7 +258,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -450,7 +458,10 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
+	P::Api: ParachainHost<Block> +
+		BlockBuilderApi<Block> +
+		BabeApi<Block> +
+		ApiExt<Block, Error = client_error::Error>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -505,7 +516,10 @@ impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N,
 	N: Network,
 	TxApi: PoolChainApi<Block=Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + BabeApi<Block>,
+	P::Api: ParachainHost<Block> +
+		BlockBuilderApi<Block> +
+		BabeApi<Block> +
+		ApiExt<Block, Error = client_error::Error>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -562,7 +576,7 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
 {
 	type Error = Error;
 	type Create = Either<CreateProposal<C, TxApi>, future::Ready<Result<Block, Error>>>;
@@ -604,7 +618,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 
 		let timing = ProposalTiming {
 			minimum: delay_future,
-			attempt_propose: Interval::new(ATTEMPT_PROPOSE_EVERY),
+			attempt_propose: interval(ATTEMPT_PROPOSE_EVERY),
 			enough_candidates: Delay::new(enough_candidates),
 			dynamic_inclusion,
 			last_included: initial_included,
@@ -652,26 +666,26 @@ struct ProposalTiming {
 impl ProposalTiming {
 	// whether it's time to attempt a proposal.
 	// shouldn't be called outside of the context of a task.
-	fn poll(&mut self, cx: &mut Context, included: usize) -> futures03::Poll<Result<(), Error>> {
+	fn poll(&mut self, cx: &mut Context, included: usize) -> Poll<()> {
 		// first drain from the interval so when the minimum delay is up
 		// we don't have any notifications built up.
 		//
 		// this interval is just meant to produce periodic task wakeups
 		// that lead to the `dynamic_inclusion` getting updated as necessary.
-		while let futures03::Poll::Ready(x) = self.attempt_propose.poll_next_unpin(cx) {
+		while let Poll::Ready(x) = self.attempt_propose.poll_next_unpin(cx) {
 			x.expect("timer still alive; intervals never end; qed");
 		}
 
 		// wait until the minimum time has passed.
 		if let Some(mut minimum) = self.minimum.take() {
-			if let futures03::Poll::Pending = minimum.poll_unpin(cx) {
+			if let Poll::Pending = minimum.poll_unpin(cx) {
 				self.minimum = Some(minimum);
-				return futures03::Poll::Pending;
+				return Poll::Pending;
 			}
 		}
 
 		if included == self.last_included {
-			return self.enough_candidates.poll_unpin(cx).map_err(Error::Timer);
+			return self.enough_candidates.poll_unpin(cx);
 		}
 
 		// the amount of includable candidates has changed. schedule a wakeup
@@ -679,10 +693,10 @@ impl ProposalTiming {
 		match self.dynamic_inclusion.acceptable_in(Instant::now(), included) {
 			Some(instant) => {
 				self.last_included = included;
-				self.enough_candidates.reset(instant);
-				self.enough_candidates.poll_unpin(cx).map_err(Error::Timer)
+				self.enough_candidates.reset(Instant::now() + instant);
+				self.enough_candidates.poll_unpin(cx)
 			}
-			None => futures03::Poll::Ready(Ok(())),
+			None => Poll::Ready(()),
 		}
 	}
 }
@@ -705,10 +719,10 @@ pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 impl<C, TxApi> CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
 {
 	fn propose_with(&mut self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
-		use client::block_builder::BlockBuilder;
+		use block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
 		const MAX_TRANSACTIONS: usize = 40;
@@ -716,11 +730,18 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 		let mut inherent_data = self.inherent_data
 			.take()
 			.expect("CreateProposal is not polled after finishing; qed");
-		inherent_data.put_data(polkadot_runtime::NEW_HEADS_IDENTIFIER, &candidates).map_err(Error::InherentError)?;
+		inherent_data.put_data(polkadot_runtime::NEW_HEADS_IDENTIFIER, &candidates)
+			.map_err(Error::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
 
-		let mut block_builder = BlockBuilder::at_block(&self.parent_id, &*self.client, false, self.inherent_digests.clone())?;
+		let mut block_builder = BlockBuilder::new(
+			&*self.client,
+			self.client.expect_block_hash_from_id(&self.parent_id)?,
+			self.client.expect_block_number_from_id(&self.parent_id)?,
+			false,
+			self.inherent_digests.clone(),
+		)?;
 
 		{
 			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
@@ -790,20 +811,20 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 impl<C, TxApi> futures03::Future for CreateProposal<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
 {
 	type Output = Result<Block, Error>;
 
-	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> futures03::Poll<Self::Output> {
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
 		// 1. try to propose if we have enough includable candidates and other
 		// delays have concluded.
 		let included = self.table.includable_count();
-		futures03::ready!(self.timing.poll(cx, included))?;
+		futures03::ready!(self.timing.poll(cx, included));
 
 		// 2. propose
 		let proposed_candidates = self.table.proposed_set();
 
-		futures03::Poll::Ready(self.propose_with(proposed_candidates))
+		Poll::Ready(self.propose_with(proposed_candidates))
 	}
 }
 

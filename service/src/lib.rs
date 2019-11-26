@@ -33,7 +33,9 @@ use log::info;
 pub use service::{AbstractService, Roles, PruningMode, TransactionPoolOptions, Error};
 pub use service::{ServiceBuilderExport, ServiceBuilderImport, ServiceBuilderRevert};
 pub use service::config::{DatabaseConfig, full_version_from_strs};
-pub use client::{backend::Backend, runtime_api::{Core as CoreApi, ConstructRuntimeApi}, ExecutionStrategy, CallExecutor};
+pub use client::{ExecutionStrategy, CallExecutor};
+pub use client_api::backend::Backend;
+pub use sr_api::{Core as CoreApi, ConstructRuntimeApi};
 pub use consensus_common::SelectChain;
 pub use polkadot_network::{PolkadotProtocol};
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
@@ -91,7 +93,7 @@ macro_rules! new_full_start {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 				let (grandpa_block_import, grandpa_link) =
-					grandpa::block_import::<_, _, _, RuntimeApi, _, _>(
+					grandpa::block_import::<_, _, _, RuntimeApi, _>(
 						client.clone(), &*client, select_chain
 					)?;
 				let justification_import = grandpa_block_import.clone();
@@ -357,8 +359,8 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 			let fetch_checker = fetcher
 				.map(|fetcher| fetcher.checker().clone())
 				.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
-			let grandpa_block_import = grandpa::light_block_import::<_, _, _, RuntimeApi, _>(
-				client.clone(), backend, Arc::new(fetch_checker), client.clone()
+			let grandpa_block_import = grandpa::light_block_import::<_, _, _, RuntimeApi>(
+				client.clone(), backend, &*client, Arc::new(fetch_checker)
 			)?;
 
 			let finality_proof_import = grandpa_block_import.clone();

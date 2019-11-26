@@ -35,15 +35,11 @@ use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	parachain::{self, ActiveParas, CandidateReceipt}, ValidityError,
 };
-use client::{
-	block_builder::api::{self as block_builder_api, InherentData, CheckInherentsResult},
-	runtime_api as client_api, impl_runtime_apis,
-};
 use sr_primitives::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyResult, Permill, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
-	weights::{Weight, DispatchInfo}, curve::PiecewiseLinear,
+	curve::PiecewiseLinear,
 	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys},
 };
 use version::RuntimeVersion;
@@ -52,12 +48,13 @@ use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use version::NativeVersion;
 use substrate_primitives::OpaqueMetadata;
 use sr_staking_primitives::SessionIndex;
-use srml_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness}
+use frame_support::{
+	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness},
+	weights::{Weight, DispatchInfo},
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use system::offchain::TransactionSubmitter;
-use srml_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -98,8 +95,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
-	authoring_version: 1,
-	spec_version: 1012,
+	authoring_version: 2,
+	spec_version: 1019,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -124,17 +121,17 @@ impl SignedExtension for OnlyStakingAndClaims {
 	type Call = Call;
 	type AdditionalSigned = ();
 	type Pre = ();
+	type DispatchInfo = DispatchInfo;
+
 	fn additional_signed(&self) -> rstd::result::Result<(), TransactionValidityError> { Ok(()) }
+
 	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
 		-> TransactionValidity
 	{
 		match call {
-			Call::Staking(_) | Call::Claims(_) | Call::Sudo(_) | Call::Session(_)
-				| Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_)
-				| Call::TechnicalCommittee(_) | Call::Nicks(_)
-			=>
-				Ok(Default::default()),
-			_ => Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
+			Call::Balances(_) | Call::Slots(_) | Call::Registrar(_) | Call::Democracy(_)
+				=> Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
+			_ => Ok(Default::default()),
 		}
 	}
 }
@@ -285,7 +282,7 @@ impl session::historical::Trait for Runtime {
 	type FullIdentificationOf = staking::ExposureOf<Runtime>;
 }
 
-srml_staking_reward_curve::build! {
+pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
 		max_inflation: 0_100_000,
@@ -306,7 +303,7 @@ parameter_types! {
 }
 
 impl staking::Trait for Runtime {
-	type OnRewardMinted = Treasury;
+	type RewardRemainder = Treasury;
 	type CurrencyToVote = CurrencyToVoteHandler;
 	type Event = Event;
 	type Currency = Balances;
@@ -323,7 +320,8 @@ parameter_types! {
 	// KUSAMA: These values are 1/4 of what we expect for the mainnet.
 	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
 	pub const VotingPeriod: BlockNumber = 7 * DAYS;
-	pub const EmergencyVotingPeriod: BlockNumber = 3 * HOURS;
+	// KUSAMA: This is a bit short; should be increased to 3 hours.
+	pub const EmergencyVotingPeriod: BlockNumber = 1 * HOURS;
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
 	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
 	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
@@ -341,7 +339,8 @@ impl democracy::Trait for Runtime {
 	/// A straight majority of the council can decide what their next motion is.
 	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
 	/// A super-majority can have the next scheduled referendum be a straight majority-carries vote.
-	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	// KUSAMA: A majority can have the next scheduled legislation be majority-carries.
+	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
 	/// A unanimous council can have the next scheduled referendum be a straight default-carries
 	/// (NTB) vote.
 	type ExternalDefaultOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>;
@@ -366,7 +365,7 @@ impl collective::Trait<CouncilCollective> for Runtime {
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
-	pub const TermDuration: BlockNumber = 10 * MINUTES;
+	pub const TermDuration: BlockNumber = 2 * HOURS;
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 7;
 }
@@ -432,12 +431,17 @@ impl offences::Trait for Runtime {
 
 type SubmitTransaction = TransactionSubmitter<ImOnlineId, Runtime, UncheckedExtrinsic>;
 
+parameter_types! {
+	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
+}
+
 impl im_online::Trait for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
 	type Call = Call;
 	type SubmitTransaction = SubmitTransaction;
 	type ReportUnresponsiveness = Offences;
+	type SessionDuration = SessionDuration;
 }
 
 impl grandpa::Trait for Runtime {
@@ -621,8 +625,8 @@ pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
 
-impl_runtime_apis! {
-	impl client_api::Core<Block> for Runtime {
+sr_api::impl_runtime_apis! {
+	impl sr_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION
 		}
@@ -636,14 +640,14 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl client_api::Metadata<Block> for Runtime {
+	impl sr_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
 			Runtime::metadata().into()
 		}
 	}
 
 	impl block_builder_api::BlockBuilder<Block> for Runtime {
-		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyResult {
+		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
 			Executive::apply_extrinsic(extrinsic)
 		}
 
@@ -651,11 +655,14 @@ impl_runtime_apis! {
 			Executive::finalize_block()
 		}
 
-		fn inherent_extrinsics(data: InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
+		fn inherent_extrinsics(data: inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
 			data.create_extrinsics()
 		}
 
-		fn check_inherents(block: Block, data: InherentData) -> CheckInherentsResult {
+		fn check_inherents(
+			block: Block,
+			data: inherents::InherentData,
+		) -> inherents::CheckInherentsResult {
 			data.check_extrinsics(&block)
 		}
 
@@ -664,7 +671,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl client_api::TaggedTransactionQueue<Block> for Runtime {
+	impl tx_pool_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(tx: <Block as BlockT>::Extrinsic) -> TransactionValidity {
 			Executive::validate_transaction(tx)
 		}
@@ -742,7 +749,6 @@ impl_runtime_apis! {
 
 	impl substrate_session::SessionKeys<Block> for Runtime {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
-			let seed = seed.as_ref().map(|s| rstd::str::from_utf8(&s).expect("Seed is an utf8 string"));
 			SessionKeys::generate(seed)
 		}
 	}
@@ -753,7 +759,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl srml_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
+	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
 		Block,
 		Balance,
 		UncheckedExtrinsic,

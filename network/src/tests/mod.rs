@@ -57,7 +57,7 @@ impl Context<Block> for TestContext {
 		}
 	}
 
-	fn send_consensus(&mut self, _who: PeerId, _consensus: ConsensusMessage) {
+	fn send_consensus(&mut self, _who: PeerId, _consensus: Vec<ConsensusMessage>) {
 		unimplemented!()
 	}
 

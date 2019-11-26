@@ -34,7 +34,7 @@ use polkadot_primitives::parachain::{
 };
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
-use substrate_client::runtime_api::{Core, RuntimeVersion, StorageProof, ApiExt};
+use sr_api::{Core, RuntimeVersion, StorageProof, ApiExt};
 use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 
 use std::collections::HashMap;
@@ -231,6 +231,8 @@ impl Core<Block> for RuntimeApi {
 }
 
 impl ApiExt<Block> for RuntimeApi {
+	type Error = substrate_client::error::Error;
+
 	fn map_api_result<F: FnOnce(&Self) -> Result<R, E>, R, E>(
 		&self,
 		_: F
