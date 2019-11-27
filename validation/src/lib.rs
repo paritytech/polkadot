@@ -836,10 +836,12 @@ impl<C, TxApi> futures03::Future for CreateProposal<C, TxApi> where
 				data
 			},
 			CreateProposalState::Switching =>
-				unreachable!("State Switching are only created on call, \
-                              and immediately swapped out; \
-                              the data being read is from state; \
-                              thus Switching will never be reachable here; qed"),
+				unreachable!(
+					"State Switching are only created on call, \
+					and immediately swapped out; \
+					the data being read is from state; \
+					thus Switching will never be reachable here; qed"
+				),
 			CreateProposalState::Fired(mut future) => {
 				let ret = Pin::new(&mut future).poll(cx);
 				self.state = CreateProposalState::Fired(future);
