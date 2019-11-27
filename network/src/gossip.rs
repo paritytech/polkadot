@@ -792,7 +792,7 @@ mod tests {
 
 		{
 			let mut message_allowed = validator.message_allowed();
-			let intent = MessageIntent::Broadcast { previous_attempts: 0 };
+			let intent = MessageIntent::Broadcast;
 			assert!(message_allowed(&peer_a, intent, &topic_a, &encoded));
 			assert!(!message_allowed(&peer_a, intent, &topic_b, &encoded));
 			assert!(!message_allowed(&peer_a, intent, &topic_c, &encoded));
@@ -897,7 +897,7 @@ mod tests {
 			}
 		});
 		let encoded = statement.encode();
-		let intent = MessageIntent::Broadcast { previous_attempts: 0 };
+		let intent = MessageIntent::Broadcast;
 		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
 
 		{
@@ -1008,7 +1008,7 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			let intent = MessageIntent::Broadcast { previous_attempts: 0 };
+			let intent = MessageIntent::Broadcast;
 			assert!(allowed(&peer_a, intent, &root_a_topic, &message[..]));
 			assert!(!allowed(&peer_b, intent, &root_a_topic, &message[..]));
 		}
@@ -1080,7 +1080,7 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			let intent = MessageIntent::Broadcast { previous_attempts: 0 };
+			let intent = MessageIntent::Broadcast;
 			assert!(!allowed(&peer_a, intent, &root_a_topic, &message[..]));
 			assert!(!allowed(&peer_b, intent, &root_a_topic, &message[..]));
 		}
@@ -1119,7 +1119,7 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			let intent = MessageIntent::Broadcast { previous_attempts: 0 };
+			let intent = MessageIntent::Broadcast;
 			assert!(allowed(&peer_a, intent, &root_a_topic, &message[..]));
 			assert!(!allowed(&peer_b, intent, &root_a_topic, &message[..]));
 		}
