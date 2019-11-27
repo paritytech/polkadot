@@ -23,7 +23,7 @@
 #![warn(missing_docs)]
 
 use futures::prelude::*;
-use futures::sync::{mpsc, oneshot};
+use futures::channel::{mpsc, oneshot};
 use keystore::KeyStorePtr;
 use polkadot_primitives::{
 	Hash, Block,
@@ -58,7 +58,7 @@ use worker::{
 use store::{Store as InnerStore};
 
 /// Abstraction over an executor that lets you spawn tasks in the background.
-pub(crate) type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
+pub(crate) type TaskExecutor = Arc<dyn futures01::future::Executor<Box<dyn futures01::Future<Item = (), Error = ()> + Send>> + Send + Sync>;
 
 const LOG_TARGET: &str = "availability";
 
@@ -104,7 +104,7 @@ pub trait ProvideGossipMessages {
 	fn gossip_messages_for(
 		&self,
 		topic: Hash
-	) -> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk), Error = ()> + Send>;
+	) -> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin>;
 
 	/// Gossip an erasure chunk message.
 	fn gossip_erasure_chunk(
@@ -226,7 +226,7 @@ impl Store {
 	///
 	/// This method will send the `Data` to the background worker, allowing caller to
 	/// asynchrounously wait for the result.
-	pub fn make_available(&self, data: Data) -> impl Future<Item=(), Error=io::Error> {
+	pub async fn make_available(&self, data: Data) -> io::Result<()> {
 		let (s, r) = oneshot::channel();
 		let msg = WorkerMsg::ParachainBlocks(ParachainBlocks {
 			relay_parent: data.relay_parent,
@@ -235,12 +235,13 @@ impl Store {
 		});
 
 		let _ = self.to_worker.unbounded_send(msg);
-		r.then(|res| match res {
-			Ok(Ok(())) => Ok(()),
-			Ok(Err(_)) | Err(_) => Err(io::Error::new(
-					io::ErrorKind::Other, format!("adding erasure chunks failed")
-				)),
-		})
+
+		if let Ok(Ok(())) = r.await {
+			Ok(())
+		} else {
+			Err(io::Error::new(io::ErrorKind::Other, format!("adding erasure chunks failed")))
+		}
+		
 	}
 
 	/// Get a set of all chunks we are waiting for grouped by
@@ -280,13 +281,13 @@ impl Store {
 	///
 	/// This method will send the chunk to the background worker, allowing caller to
 	/// asynchrounously wait for the result.
-	pub fn add_erasure_chunk(
+	pub async fn add_erasure_chunk(
 		&self,
 		relay_parent: Hash,
 		receipt: CandidateReceipt,
 		chunk: ErasureChunk
-	) -> impl Future<Item=(), Error=io::Error> {
-		self.add_erasure_chunks(relay_parent, receipt, vec![chunk])
+	) -> io::Result<()> {
+		self.add_erasure_chunks(relay_parent, receipt, vec![chunk]).await
 	}
 
 	/// Adds a set of erasure chunks to storage.
@@ -296,14 +297,15 @@ impl Store {
 	///
 	/// This method will send the chunks to the background worker, allowing caller to
 	/// asynchrounously waiting for the result.
-	pub fn add_erasure_chunks<I>(
+	pub async fn add_erasure_chunks<I>(
 		&self,
 		relay_parent: Hash,
 		receipt: CandidateReceipt,
 		chunks: I,
-	) -> impl Future<Item=(), Error=io::Error>
+	) -> io::Result<()>
 		where I: IntoIterator<Item = ErasureChunk>
 	{
+		self.add_candidate(relay_parent, receipt.clone()).await?;
 		let (s, r) = oneshot::channel();
 		let chunks = chunks.into_iter().collect();
 		let candidate_hash = receipt.hash();
@@ -316,12 +318,11 @@ impl Store {
 
 		let _ = self.to_worker.unbounded_send(msg);
 
-		r.then(|res| match res {
-			Ok(Ok(())) => Ok(()),
-			Ok(Err(_)) | Err(_) => Err(io::Error::new(
-					io::ErrorKind::Other, format!("adding erasure chunks failed")
-				)),
-		})
+		if let Ok(Ok(())) = r.await {
+			Ok(())
+		} else {
+			Err(io::Error::new(io::ErrorKind::Other, format!("adding erasure chunks failed")))
+		}
 	}
 
 	/// Queries an erasure chunk by its block's parent and hash and index.
@@ -335,11 +336,11 @@ impl Store {
 	}
 
 	/// Stores a candidate receipt.
-	pub fn add_candidate(
+	pub async fn add_candidate(
 		&self,
 		relay_parent: Hash,
 		receipt: CandidateReceipt
-	) -> impl Future<Item = (), Error=io::Error> {
+	) -> io::Result<()> {
 		let (s, r) = oneshot::channel();
 
 		let msg = WorkerMsg::ParachainBlocks(ParachainBlocks {
@@ -350,12 +351,11 @@ impl Store {
 
 		let _ = self.to_worker.unbounded_send(msg);
 
-		r.then(|res| match res {
-			Ok(Ok(())) => Ok(()),
-			Ok(Err(_)) | Err(_) => Err(io::Error::new(
-					io::ErrorKind::Other, format!("adding erasure chunks failed")
-				)),
-		})
+		if let Ok(Ok(())) = r.await {
+			Ok(())
+		} else {
+			Err(io::Error::new(io::ErrorKind::Other, format!("adding erasure chunks failed")))
+		}
 	}
 
 	/// Queries a candidate receipt by it's hash.

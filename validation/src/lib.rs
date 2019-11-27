@@ -61,7 +61,7 @@ use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
-use futures03::{future::{self, Either}, FutureExt, StreamExt};
+use futures03::{future::{self, Either}, FutureExt, StreamExt, TryFutureExt};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
@@ -394,16 +394,29 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 						&collation.info,
 					) {
 						Ok((receipt, chunks)) => {
-							let res = availability_store.add_erasure_chunks(
-								relay_parent,
-								receipt.clone(),
-								chunks.clone()
-							)
-							.map_err(|e| warn!(target: "validation", "Failed to make collation available {:?}", e))
-							.and_then(move |_| {
+							// Apparently the `async move` block is the only way to convince
+							// the compiler that we are not moving values out of borrowed context.
+							let av_clone = availability_store.clone();
+							let chunks_clone = chunks.clone();
+							let receipt_clone = receipt.clone();
+
+							let res = async move {
+								if let Err(e) = av_clone.clone().add_erasure_chunks(
+									relay_parent.clone(),
+									receipt_clone,
+									chunks_clone,
+								).await {
+									warn!(target: "validation", "Failed to add erasure chunks: {}", e);
+								}
+							}
+							.unit_error()
+							.boxed()
+							.compat()
+							.then(move |_| {
 								router.local_collation(collation, receipt, outgoing_targeted, (local_id, &chunks));
 								Ok(())
 							});
+
 
 							Some(res)
 						}

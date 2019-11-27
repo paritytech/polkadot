@@ -53,6 +53,7 @@ use futures::{
 	future, Future, Stream, FutureExt, TryFutureExt, StreamExt,
 	compat::{Compat01As03, Future01CompatExt, Stream01CompatExt}
 };
+use futures01::{Future as _};
 use log::{warn, error};
 use client::BlockchainEvents;
 use primitives::{Pair, Blake2Hasher};
@@ -227,7 +228,7 @@ pub async fn collate<R, P>(
 	};
 
 	let collation = parachain::Collation {
-		receipt,
+		info,
 		pov: PoVBlock {
 			block_data,
 			ingress,
@@ -430,7 +431,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 								targets,
 								collation,
 								outgoing,
-							).map_err(|e| warn!("Collation failure availability store: {}", e));
+							);
 
 							tokio::spawn(res.select(inner_exit_2.clone()).then(|_| Ok(())));
 						})

@@ -21,7 +21,9 @@ use std::thread;
 
 use log::{error, info, trace, warn};
 use sr_primitives::traits::{Header as HeaderT, ProvideRuntimeApi};
+use sr_api::ApiExt;
 use substrate_client::{
+	error as client_error,
 	error::Result as ClientResult,
 	BlockchainEvents, BlockBody,
 	blockchain::ProvideCache,
@@ -36,11 +38,9 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, ParachainHost, ExtrinsicsQuerying, ValidatorId,
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
-use sr_api::ApiExt;
-use futures::prelude::*;
-use futures::future::Either;
-use futures::sync::{mpsc, oneshot};
-use futures03::{StreamExt, TryStreamExt as _};
+use futures01::Future;
+use futures::channel::{mpsc, oneshot};
+use futures::{FutureExt, Sink, SinkExt, TryFutureExt, StreamExt};
 use keystore::KeyStorePtr;
 
 use tokio::runtime::current_thread::{Handle, Runtime as LocalRuntime};
@@ -169,21 +169,20 @@ impl Drop for WorkerHandle {
 	}
 }
 
-fn listen_for_chunks<PGM, S>(
+async fn listen_for_chunks<PGM, S>(
 	p: PGM,
 	topic: Hash,
-	exit: exit_future::Exit,
-	sender: S
-) -> impl Future<Item=(), Error=()>
+	mut sender: S
+)
 where
 	PGM: ProvideGossipMessages,
-	S: Sink<SinkItem = WorkerMsg> + Clone,
+	S: Sink<WorkerMsg> + Clone + Unpin,
 {
 	trace!(target: LOG_TARGET, "Registering gossip listener for topic {}", topic);
-	let chunks_stream = p.gossip_messages_for(topic);
+	let mut chunks_stream = p.gossip_messages_for(topic);
 
-	chunks_stream.for_each(move |item| {
-		let (s, r) = oneshot::channel();
+	while let Some(item) = chunks_stream.next().await {
+		let (s, _) = oneshot::channel();
 		trace!(target: LOG_TARGET, "Received for {:?}", item);
 		let chunks = Chunks {
 			relay_parent: item.0,
@@ -192,19 +191,10 @@ where
 			result: s,
 		};
 
-		sender
-			.clone()
-			.send(WorkerMsg::Chunks(chunks))
-			.then(|_| r)
-			.map_err(|e| warn!(target: LOG_TARGET, "Failed to store chunks {}", e))
-			.map(|_| ())
-	})
-	.map_err(|e| warn!(target: LOG_TARGET, "Gossip receiving error: {:?}", e))
-	.select(exit.clone())
-	.then(move |_| {
-		trace!(target: LOG_TARGET, "Deregistering gossip listener for {}", topic);
-		Ok(())
-	})
+		if let Err(_) = sender.send(WorkerMsg::Chunks(chunks)).await {
+			break;
+		}
+	}
 }
 
 
@@ -217,59 +207,55 @@ where
 	let extrinsics = client.block_body(block)?;
 	Ok(match extrinsics {
 		Some(extrinsics) => client.runtime_api()
-			.get_heads(&parent, extrinsics)?
+			.get_heads(&parent, extrinsics).map_err(|_| ConsensusError::ChainLookup("".into()))?
 			.and_then(|v| Some(v.into_iter())),
 		None => None,
 	})
 }
 
 /// Creates a task to prune entries in availability store upon block finalization.
-fn prune_unneded_availability<P, S>(client: Arc<P>, sender: S) -> impl Future<Item=(), Error=()> + Send
+async fn prune_unneded_availability<P, S>(client: Arc<P>, mut sender: S)
 where
 	P: ProvideRuntimeApi + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ExtrinsicsQuerying<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
-	S: Sink<SinkItem = WorkerMsg> + Clone + Send + Sync,
+	S: Sink<WorkerMsg> + Clone + Send + Sync + Unpin,
 {
-	client.finality_notification_stream()
-		.map(|v| Ok::<_, ()>(v))
-		.compat()
-		.for_each(move |notification| {
-			let hash = notification.hash;
-			let parent_hash = notification.header.parent_hash;
-			let candidate_hashes = match fetch_candidates(
-				&*client,
-				&BlockId::hash(hash),
-				&BlockId::hash(parent_hash)
-			) {
-				Ok(Some(candidates)) => candidates.map(|c| c.hash()).collect(),
-				Ok(None) => {
-					warn!(
-						target: LOG_TARGET,
-						"Failed to extract candidates from block body of imported block {:?}", hash
-					);
-					return Either::A(futures::future::ok::<(), ()>(()));
-				}
-				Err(e) => {
-					warn!(
-						target: LOG_TARGET,
-						"Failed to fetch block body for imported block {:?}: {:?}", hash, e
-					);
-					return Either::A(futures::future::ok::<(), ()>(()));
-				}
-			};
+	let mut finality_notification_stream = client.finality_notification_stream();
 
-			let msg = WorkerMsg::CandidatesFinalized(CandidatesFinalized {
-				relay_parent: parent_hash,
-				candidate_hashes
-			});
+	while let Some(notification) = finality_notification_stream.next().await {
+		let hash = notification.hash;
+		let parent_hash = notification.header.parent_hash;
+		let candidate_hashes = match fetch_candidates(
+			&*client,
+			&BlockId::hash(hash),
+			&BlockId::hash(parent_hash)
+		) {
+			Ok(Some(candidates)) => candidates.map(|c| c.hash()).collect(),
+			Ok(None) => {
+				warn!(
+					target: LOG_TARGET,
+					"Failed to extract candidates from block body of imported block {:?}", hash
+				);
+				continue;
+			}
+			Err(e) => {
+				warn!(
+					target: LOG_TARGET,
+					"Failed to fetch block body for imported block {:?}: {:?}", hash, e
+				);
+				continue;
+			}
+		};
 
-			Either::B(sender
-				.clone()
-				.send(msg)
-				.map_err(|_| warn!(target: LOG_TARGET, "Failed to send finalized candidates to worker"))
-				.map(|_| ())
-			)
-		})
+		let msg = WorkerMsg::CandidatesFinalized(CandidatesFinalized {
+			relay_parent: parent_hash,
+			candidate_hashes
+		});
+
+		if let Err(_) = sender.send(msg).await {
+			break;
+		}
+	}
 }
 
 impl<PGM> Drop for Worker<PGM> {
@@ -334,13 +320,19 @@ where
 		let fut = listen_for_chunks(
 			self.provide_gossip_messages.clone(),
 			topic,
-			exit,
 			sender.clone(),
 		);
 
 		self.registered_gossip_streams.insert(topic, signal);
 
-		let _ = runtime_handle.spawn(fut);
+		let _ = runtime_handle.spawn(
+			fut
+				.unit_error()
+				.boxed()
+				.compat()
+				.select(exit)
+				.then(|_| Ok(()))
+			);
 
 		Ok(())
 	}
@@ -450,7 +442,7 @@ where
 
 	pub fn start(mut self) -> WorkerHandle {
 		let sender = self.sender.clone();
-		let receiver = self.receiver.take().expect("Should start a worker with a receiver side; qed");
+		let mut receiver = self.receiver.take().expect("Should start a worker with a receiver side; qed");
 
 		let (signal, exit) = exit_future::signal();
 
@@ -464,74 +456,76 @@ where
 			// in the awaited frontier.
 			self.register_listeners(&mut runtime_handle, &mut sender);
 
-			let process_notification = {
-				receiver
-					.for_each(move |msg| {
-						trace!(target: LOG_TARGET, "Received message {:?}", msg);
+			let process_notification = async move {
+				while let Some(msg) = receiver.next().await {
+					trace!(target: LOG_TARGET, "Received message {:?}", msg);
 
-						let res = match msg {
-							WorkerMsg::ErasureRoots(msg) => {
-								let ErasureRoots { relay_parent, erasure_roots, result} = msg;
-								let res = self.on_erasure_roots_received(relay_parent, erasure_roots);
-								let _ = result.send(res);
-								Ok(())
-							}
-							WorkerMsg::ListenForChunks(msg) => {
-								let ListenForChunks { relay_parent, candidate_hash, index, result } = msg;
-								let res = self.on_listen_for_chunks_received(
-									&mut runtime_handle,
-									&mut sender,
-									relay_parent,
-									candidate_hash,
-									index as usize
-								);
-
-								if let Some(result) = result {
-									let _ = result.send(res);
-								}
-								Ok(())
-							}
-							WorkerMsg::ParachainBlocks(msg) => {
-								let ParachainBlocks { relay_parent, blocks, result } = msg;
-								let res = self.on_parachain_blocks_received(
-									&mut runtime_handle,
-									&mut sender,
-									relay_parent,
-									blocks,
-								);
-
-								let _ = result.send(res);
-								Ok(())
-							}
-							WorkerMsg::Chunks(msg) => {
-								let Chunks { relay_parent, candidate_hash, chunks, result } = msg;
-								let res = self.on_chunks_received(relay_parent, candidate_hash, chunks);
-
-								let _ = result.send(res);
-								Ok(())
-							}
-							WorkerMsg::CandidatesFinalized(msg) => {
-								let CandidatesFinalized { relay_parent, candidate_hashes } = msg;
-
-								self.availability_store.candidates_finalized(
-									relay_parent,
-									candidate_hashes.into_iter().collect()
-								)
-							}
-						};
-
-						if let Err(_) = res {
-							warn!(target: LOG_TARGET, "An error occured while processing a message");
+					let res = match msg {
+						WorkerMsg::ErasureRoots(msg) => {
+							let ErasureRoots { relay_parent, erasure_roots, result} = msg;
+							let res = self.on_erasure_roots_received(relay_parent, erasure_roots);
+							let _ = result.send(res);
+							Ok(())
 						}
+						WorkerMsg::ListenForChunks(msg) => {
+							let ListenForChunks { relay_parent, candidate_hash, index, result } = msg;
+							let res = self.on_listen_for_chunks_received(
+								&mut runtime_handle,
+								&mut sender,
+								relay_parent,
+								candidate_hash,
+								index as usize
+							);
 
-						Ok(())
-					})
-					.map_err(|e| warn!(target: LOG_TARGET, "Availability worker error {:?}", e))
+							if let Some(result) = result {
+								let _ = result.send(res);
+							}
+							Ok(())
+						}
+						WorkerMsg::ParachainBlocks(msg) => {
+							let ParachainBlocks { relay_parent, blocks, result } = msg;
+							let res = self.on_parachain_blocks_received(
+								&mut runtime_handle,
+								&mut sender,
+								relay_parent,
+								blocks,
+							);
+
+							let _ = result.send(res);
+							Ok(())
+						}
+						WorkerMsg::Chunks(msg) => {
+							let Chunks { relay_parent, candidate_hash, chunks, result } = msg;
+							let res = self.on_chunks_received(relay_parent, candidate_hash, chunks);
+
+							let _ = result.send(res);
+							Ok(())
+						}
+						WorkerMsg::CandidatesFinalized(msg) => {
+							let CandidatesFinalized { relay_parent, candidate_hashes } = msg;
+
+							self.availability_store.candidates_finalized(
+								relay_parent,
+								candidate_hashes.into_iter().collect()
+							)
+						}
+					};
+
+					if let Err(_) = res {
+						warn!(target: LOG_TARGET, "An error occured while processing a message");
+					}
+
+				}
+			};
+
+			runtime.spawn(
+				process_notification
+					.unit_error()
+					.boxed()
+					.compat()
 					.select(exit.clone())
 					.then(|_| Ok(()))
-				};
-
-			runtime.spawn(process_notification);
+			);
 
 			if let Err(e) = runtime.block_on(exit) {
 				warn!(target: LOG_TARGET, "Availbility worker error {:?}", e);
@@ -574,7 +568,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 	I: BlockImport<Block> + Send + Sync,
 	I::Error: Into<ConsensusError>,
 	P: ProvideRuntimeApi + ProvideCache<Block>,
-	P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
+	P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block> + ApiExt<Block, Error = client_error::Error>,
 {
 	type Error = ConsensusError;
 
@@ -698,6 +692,9 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 		// not not so handy in the testing code.
 		let mut exit_signal = Some(signal);
 		let prune_available = prune_unneded_availability(client.clone(), to_worker.clone())
+			.unit_error()
+			.boxed()
+			.compat()
 			.select(exit.clone())
 			.then(|_| Ok(()));
 
@@ -732,20 +729,20 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 mod tests {
 	use super::*;
 	use std::time::Duration;
-	use futures::{stream, sync::mpsc};
+	use futures::{stream, channel::mpsc, Stream};
 	use std::sync::{Arc, Mutex};
 	use tokio::runtime::Runtime;
 
 	// Just contains topic->channel mapping to give to outer code on `gossip_messages_for` calls.
 	struct TestGossipMessages {
-		messages: Arc<Mutex<HashMap<Hash, mpsc::Receiver<(Hash, Hash, ErasureChunk)>>>>,
+		messages: Arc<Mutex<HashMap<Hash, mpsc::UnboundedReceiver<(Hash, Hash, ErasureChunk)>>>>,
 	}
 
 	impl ProvideGossipMessages for TestGossipMessages {
-		fn gossip_messages_for(&self, topic: Hash) -> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk), Error = ()> + Send> {
+		fn gossip_messages_for(&self, topic: Hash) -> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin> {
 			match self.messages.lock().unwrap().remove(&topic) {
 				Some(receiver) => Box::new(receiver),
-				None => Box::new(stream::iter_ok::<_, ()>(vec![])),
+				None => Box::new(stream::iter(vec![])),
 			}
 		}
 
@@ -782,7 +779,7 @@ mod tests {
 		// Tell the store our validator's position and the number of validators at given point.
 		store.add_validator_index_and_n_validators(&relay_parent, local_id, n_validators).unwrap();
 
-		let (gossip_sender, gossip_receiver) = mpsc::channel(64);
+		let (gossip_sender, gossip_receiver) = mpsc::unbounded();
 
 		let topic = erasure_coding_topic(relay_parent, erasure_root, local_id);
 
@@ -814,9 +811,9 @@ mod tests {
 		// Tell the worker that the new blocks have been included into the relay chain.
 		// This should trigger the registration of gossip message listeners for the
 		// chunk topics.
-		runtime.block_on(handle.sender.clone().send(msg)).unwrap();
+		handle.sender.unbounded_send(msg).unwrap();
 
-		runtime.block_on(r.map(|_| ()).map_err(|_| ())).unwrap();
+		runtime.block_on(r.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
 
 		// Make sure that at this point we are waiting for the appropriate chunk.
 		assert_eq!(
@@ -835,11 +832,12 @@ mod tests {
 		);
 
 		// Send a gossip message with an awaited chunk
-		runtime.block_on(gossip_sender.clone().send(msg)).unwrap();
+		gossip_sender.unbounded_send(msg).unwrap();
 
 		// At the point the needed piece is received, the gossip listener for this topic is deregistered and it's
 		// receiver side is dropped. Wait for the sender side to become closed.
 		while !gossip_sender.is_closed() {
+			println!("sleep");
 			thread::sleep(Duration::from_millis(100));
 		}
 
@@ -889,8 +887,8 @@ mod tests {
 			}],
 		).unwrap();
 
-		let (_, gossip_receiver_1) = mpsc::channel(64);
-		let (_, gossip_receiver_2) = mpsc::channel(64);
+		let (_, gossip_receiver_1) = mpsc::unbounded();
+		let (_, gossip_receiver_2) = mpsc::unbounded();
 
 		let topic_1 = erasure_coding_topic(relay_parent, erasure_root_1, local_id);
 		let topic_2 = erasure_coding_topic(relay_parent, erasure_root_2, local_id);
@@ -915,9 +913,9 @@ mod tests {
 			result: Some(s2),
 		});
 
-		runtime.block_on(handle.sender.clone().send(listen_msg_2)).unwrap();
+		handle.sender.unbounded_send(listen_msg_2).unwrap();
 
-		runtime.block_on(r2.map(|_| ()).map_err(|_| ())).unwrap();
+		runtime.block_on(r2.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
 		// The gossip sender for this topic left intact => listener not registered.
 		assert!(messages.messages.lock().unwrap().contains_key(&topic_2));
 
@@ -931,8 +929,8 @@ mod tests {
 			result: Some(s1),
 		});
 
-		runtime.block_on(handle.sender.clone().send(listen_msg_1)).unwrap();
-		runtime.block_on(r1.map(|_| ()).map_err(|_| ())).unwrap();
+		handle.sender.unbounded_send(listen_msg_1).unwrap();
+		runtime.block_on(r1.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
 
 		// The gossip sender taken => listener registered.
 		assert!(!messages.messages.lock().unwrap().contains_key(&topic_1));

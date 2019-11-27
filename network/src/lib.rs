@@ -29,7 +29,7 @@ use codec::{Decode, Encode};
 use futures::sync::oneshot;
 use futures::future::Either;
 use futures::prelude::*;
-use futures03::{channel::mpsc, compat::Compat, StreamExt};
+use futures03::{channel::mpsc, compat::{Compat, Stream01CompatExt}, FutureExt, StreamExt, TryFutureExt};
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock,
@@ -48,7 +48,6 @@ use self::local_collations::LocalCollations;
 use log::{trace, debug, warn};
 
 use std::collections::{HashMap, HashSet};
-use std::io;
 
 use crate::gossip::{POLKADOT_ENGINE_ID, GossipMessage, ErasureChunkMessage};
 
@@ -103,12 +102,20 @@ pub struct AvailabilityNetworkShim<T>(pub std::sync::Arc<T>);
 impl<T> av_store::ProvideGossipMessages for AvailabilityNetworkShim<T>
 	where T: NetworkService
 {
-	fn gossip_messages_for(&self, topic: Hash) -> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk), Error = ()> + Send> {
+	fn gossip_messages_for(&self, topic: Hash) -> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send> {
 		Box::new(self.0.gossip_messages_for(topic)
-			.filter_map(|msg| match msg.0 {
-				GossipMessage::ErasureChunk(chunk) => Some((chunk.relay_parent, chunk.candidate_hash, chunk.chunk)),
-				_ => None,
-			}))
+			.compat()
+			.filter_map(|msg| async move {
+				match msg {
+					Ok(msg) => match msg.0 {
+						GossipMessage::ErasureChunk(chunk) => Some((chunk.relay_parent, chunk.candidate_hash, chunk.chunk)),
+						_ => None,
+					}
+					_ => None,
+				}
+			})
+			.boxed()
+		)
 	}
 
 	fn gossip_erasure_chunk(&self, relay_parent: Hash, candidate_hash: Hash, erasure_root: Hash, chunk: ErasureChunk) {
@@ -809,20 +816,30 @@ impl PolkadotProtocol {
 		targets: HashSet<ValidatorId>,
 		collation: Collation,
 		outgoing_targeted: OutgoingMessages,
-	) -> impl Future<Item=(), Error=io::Error> {
+	) -> impl futures::future::Future<Item = (), Error=()> {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",
 			relay_parent, collation.info.parachain_index);
 
-		let write_to_store = match self.availability_store {
+		let res = match self.availability_store {
 			Some(ref availability_store) => {
-				Either::A(availability_store.make_available(av_store::Data {
-					relay_parent,
-					parachain_id: collation.info.parachain_index,
-					block_data: collation.pov.block_data.clone(),
-					outgoing_queues: Some(outgoing_targeted.clone().into()),
-				}))
+				let availability_store_cloned = availability_store.clone();
+				let collation_cloned = collation.clone();
+				Either::A((async move {
+						let _ = availability_store_cloned.make_available(av_store::Data {
+							relay_parent,
+							parachain_id: collation_cloned.info.parachain_index,
+							block_data: collation_cloned.pov.block_data.clone(),
+							outgoing_queues: Some(outgoing_targeted.clone().into()),
+						}).await;
+					}
+				)
+					.unit_error()
+					.boxed()
+					.compat()
+					.then(|_| Ok(()))
+				)
 			}
-			None => Either::B(futures::future::ok::<(), io::Error>(())),
+			None => Either::B(futures::future::ok::<(), ()>(())),
 		};
 
 		for (primary, cloned_collation) in self.local_collations.add_collation(relay_parent, targets, collation.clone()) {
@@ -840,7 +857,7 @@ impl PolkadotProtocol {
 			}
 		}
 
-		write_to_store
+		res
 	}
 
 	/// Give the network protocol a handle to an availability store, used for

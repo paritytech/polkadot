@@ -34,6 +34,7 @@ use polkadot_primitives::parachain::{
 use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
 
 use futures::prelude::*;
+use futures03::{future::FutureExt, TryFutureExt};
 use parking_lot::Mutex;
 use log::{debug, trace};
 
@@ -192,19 +193,22 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		let parent_hash = self.parent_hash();
 
 		producer.prime(self.fetcher.api().clone())
+			.validate()
+			.boxed()
+			.compat()
 			.map(move |validated| {
 				// store the data before broadcasting statements, so other peers can fetch.
 				knowledge.lock().note_candidate(
 					candidate_hash,
-					Some(validated.pov_block().clone()),
-					validated.outgoing_messages().cloned(),
+					Some(validated.0.pov_block().clone()),
+					validated.0.outgoing_messages().cloned(),
 				);
 
 				// propagate the statement.
 				// consider something more targeted than gossip in the future.
 				let statement = GossipStatement::new(
 					parent_hash,
-					match table.import_validated(validated) {
+					match table.import_validated(validated.0) {
 						None => return,
 						Some(s) => s,
 					}
