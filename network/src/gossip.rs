@@ -792,9 +792,10 @@ mod tests {
 
 		{
 			let mut message_allowed = validator.message_allowed();
-			assert!(message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_a, &encoded));
-			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_b, &encoded));
-			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_c, &encoded));
+			let intent = MessageIntent::Broadcast;
+			assert!(message_allowed(&peer_a, intent, &topic_a, &encoded));
+			assert!(!message_allowed(&peer_a, intent, &topic_b, &encoded));
+			assert!(!message_allowed(&peer_a, intent, &topic_c, &encoded));
 		}
 	}
 
@@ -896,6 +897,7 @@ mod tests {
 			}
 		});
 		let encoded = statement.encode();
+		let intent = MessageIntent::Broadcast;
 		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
 
 		{
@@ -1006,8 +1008,9 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			assert!(allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
-			assert!(!allowed(&peer_b, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
+			let intent = MessageIntent::Broadcast;
+			assert!(allowed(&peer_a, intent, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, intent, &root_a_topic, &message[..]));
 		}
 	}
 
@@ -1077,8 +1080,9 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			assert!(!allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
-			assert!(!allowed(&peer_b, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
+			let intent = MessageIntent::Broadcast;
+			assert!(!allowed(&peer_a, intent, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, intent, &root_a_topic, &message[..]));
 		}
 
 		// peer A gets updated to the chain head. now we'll attempt to broadcast
@@ -1115,8 +1119,9 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			assert!(allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
-			assert!(!allowed(&peer_b, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
+			let intent = MessageIntent::Broadcast;
+			assert!(allowed(&peer_a, intent, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, intent, &root_a_topic, &message[..]));
 		}
 	}
 
