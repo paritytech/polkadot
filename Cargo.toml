@@ -4,14 +4,14 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-version = "0.6.17"
+version = "0.6.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 build = "build.rs"
 edition = "2018"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
-futures = "0.1.29"
+futures = "0.3.1"
 ctrlc = { version = "3.1.3", features = ["termination"] }
 service = { package = "polkadot-service", path = "service" }
 

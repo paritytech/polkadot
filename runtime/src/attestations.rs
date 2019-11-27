@@ -21,7 +21,7 @@
 
 use rstd::prelude::*;
 use codec::{Encode, Decode};
-use paint_support::{decl_storage, decl_module, ensure, dispatch::Result, traits::Get};
+use frame_support::{decl_storage, decl_module, ensure, dispatch::Result, traits::Get};
 
 use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};
 use sr_primitives::RuntimeDebug;
