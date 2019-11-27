@@ -554,7 +554,7 @@ pub fn validate_receipt<P>(
 	max_block_data_size: Option<u64>,
 ) -> Result<(OutgoingMessages, Vec<ErasureChunk>), Error> where
 	P: ProvideRuntimeApi,
-	P::Api: ParachainHost<Block>,
+	P::Api: ParachainHost<Block, Error = client::error::Error>,
 {
 	let (messages, _fees) = do_validation(
 		client,
@@ -601,7 +601,7 @@ pub fn validate_collation<P>(
 	max_block_data_size: Option<u64>,
 ) -> Result<(OutgoingMessages, Balance), Error> where
 	P: ProvideRuntimeApi,
-	P::Api: ParachainHost<Block>,
+	P::Api: ParachainHost<Block, Error = client::error::Error>,
 {
 	let para_id = collation.info.parachain_index;
 

@@ -160,6 +160,8 @@ pub fn sign_table_statement(statement: &Statement, key: &ValidatorPair, parent_h
 
 /// Check signature on table statement.
 pub fn check_statement(statement: &Statement, signature: &ValidatorSignature, signer: ValidatorId, parent_hash: &Hash) -> bool {
+	use runtime_primitives::traits::AppVerify;
+
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
 	encoded.extend(parent_hash.as_ref());
 

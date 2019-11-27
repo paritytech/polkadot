@@ -27,7 +27,6 @@ default = ["std"]
 std = [
 	"parity-scale-codec/std",
 	"primitives/std",
-	"substrate-client/std",
 	"trie/std",
 	"sr-api/std",
 	"rstd/std",

@@ -36,10 +36,11 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, ParachainHost, ExtrinsicsQuerying, ValidatorId,
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
+use sr_api::ApiExt;
 use futures::prelude::*;
 use futures::future::Either;
 use futures::sync::{mpsc, oneshot};
-use futures03::{StreamExt as _, TryStreamExt as _};
+use futures03::{StreamExt, TryStreamExt as _};
 use keystore::KeyStorePtr;
 
 use tokio::runtime::current_thread::{Handle, Runtime as LocalRuntime};
@@ -211,7 +212,7 @@ fn fetch_candidates<P>(client: &P, block: &BlockId, parent: &BlockId)
 	-> ClientResult<Option<impl Iterator<Item=CandidateReceipt>>>
 where
 	P: BlockBody<Block> + ProvideRuntimeApi,
-	P::Api: ExtrinsicsQuerying<Block>,
+	P::Api: ExtrinsicsQuerying<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
 {
 	let extrinsics = client.block_body(block)?;
 	Ok(match extrinsics {
@@ -226,11 +227,12 @@ where
 fn prune_unneded_availability<P, S>(client: Arc<P>, sender: S) -> impl Future<Item=(), Error=()> + Send
 where
 	P: ProvideRuntimeApi + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ExtrinsicsQuerying<Block>,
+	P::Api: ExtrinsicsQuerying<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
 	S: Sink<SinkItem = WorkerMsg> + Clone + Send + Sync,
 {
 	client.finality_notification_stream()
-		.map(|v| Ok::<_, ()>(v)).compat()
+		.map(|v| Ok::<_, ()>(v))
+		.compat()
 		.for_each(move |notification| {
 			let hash = notification.hash;
 			let parent_hash = notification.header.parent_hash;
@@ -572,7 +574,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 	I: BlockImport<Block> + Send + Sync,
 	I::Error: Into<ConsensusError>,
 	P: ProvideRuntimeApi + ProvideCache<Block>,
-	P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block>,
+	P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
 {
 	type Error = ConsensusError;
 
@@ -685,7 +687,7 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 	) -> Self
 	where
 		P: ProvideRuntimeApi + BlockBody<Block> + BlockchainEvents<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block>,
+		P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block> + ApiExt<Block, Error = substrate_client::error::Error>,
 	{
 		let (signal, exit) = exit_future::signal();
 

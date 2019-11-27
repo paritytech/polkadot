@@ -25,7 +25,7 @@
 
 use std::{thread, time::{Duration, Instant}, sync::Arc};
 
-use client::{error::Result as ClientResult, BlockchainEvents, BlockBody};
+use client::{BlockchainEvents, BlockBody};
 use block_builder::BlockBuilderApi;
 use client::blockchain::HeaderBackend;
 use consensus::SelectChain;

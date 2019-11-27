@@ -37,6 +37,8 @@ use substrate_client::{
 	error::Result as ClientResult,
 	BlockchainEvents, BlockBody,
 };
+use sr_api::ApiExt;
+
 use log::warn;
 
 use std::sync::Arc;
@@ -194,7 +196,7 @@ impl Store {
 	) -> ClientResult<(AvailabilityBlockImport<I, P>)>
 	where
 		P: ProvideRuntimeApi + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
-		P::Api: ExtrinsicsQuerying<Block> + ParachainHost<Block>,
+		P::Api: ExtrinsicsQuerying<Block> + ParachainHost<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
 	{
 		let to_worker = self.to_worker.clone();
 
