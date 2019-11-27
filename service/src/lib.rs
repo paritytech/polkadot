@@ -54,6 +54,9 @@ pub struct CustomConfiguration {
 
 	/// Maximal `block_data` size.
 	pub max_block_data_size: Option<u64>,
+
+	/// Whether to enable or disable the authority discovery module.
+	pub authority_discovery_enabled: bool,
 }
 
 impl Default for CustomConfiguration {
@@ -61,6 +64,7 @@ impl Default for CustomConfiguration {
 		Self {
 			collating_for: None,
 			max_block_data_size: None,
+			authority_discovery_enabled: false,
 		}
 	}
 }
@@ -164,6 +168,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	};
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
+	let authority_discovery_enabled = config.custom.authority_discovery_enabled;
 
 	// sentry nodes announce themselves as authorities to the network
 	// and should run the same protocols authorities do, but it should
@@ -283,18 +288,20 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		let babe = babe::start_babe(babe_config)?;
 		service.spawn_essential_task(babe);
 
-		let future03_dht_event_rx = dht_event_rx.compat()
-			.map(|x| x.expect("<mpsc::channel::Receiver as Stream> never returns an error; qed"))
-			.boxed();
-		let authority_discovery = authority_discovery::AuthorityDiscovery::new(
-			service.client(),
-			service.network(),
-			service.keystore(),
-			future03_dht_event_rx,
-		);
-		let future01_authority_discovery = authority_discovery.map(|x| Ok(x)).compat();
+		if authority_discovery_enabled {
+			let future03_dht_event_rx = dht_event_rx.compat()
+				.map(|x| x.expect("<mpsc::channel::Receiver as Stream> never returns an error; qed"))
+				.boxed();
+			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
+				service.client(),
+				service.network(),
+				service.keystore(),
+				future03_dht_event_rx,
+			);
+			let future01_authority_discovery = authority_discovery.map(|x| Ok(x)).compat();
 
-		service.spawn_task(future01_authority_discovery);
+			service.spawn_task(future01_authority_discovery);
+		}
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
