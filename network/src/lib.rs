@@ -102,13 +102,17 @@ pub struct AvailabilityNetworkShim<T>(pub std::sync::Arc<T>);
 impl<T> av_store::ProvideGossipMessages for AvailabilityNetworkShim<T>
 	where T: NetworkService
 {
-	fn gossip_messages_for(&self, topic: Hash) -> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send> {
+	fn gossip_messages_for(&self, topic: Hash)
+		-> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send>
+	{
 		Box::new(self.0.gossip_messages_for(topic)
 			.compat()
 			.filter_map(|msg| async move {
 				match msg {
 					Ok(msg) => match msg.0 {
-						GossipMessage::ErasureChunk(chunk) => Some((chunk.relay_parent, chunk.candidate_hash, chunk.chunk)),
+						GossipMessage::ErasureChunk(chunk) => {
+							Some((chunk.relay_parent, chunk.candidate_hash, chunk.chunk))
+						},
 						_ => None,
 					}
 					_ => None,
@@ -118,7 +122,13 @@ impl<T> av_store::ProvideGossipMessages for AvailabilityNetworkShim<T>
 		)
 	}
 
-	fn gossip_erasure_chunk(&self, relay_parent: Hash, candidate_hash: Hash, erasure_root: Hash, chunk: ErasureChunk) {
+	fn gossip_erasure_chunk(
+		&self,
+		relay_parent: Hash,
+		candidate_hash: Hash,
+		erasure_root: Hash,
+		chunk: ErasureChunk
+	) {
 		let topic = av_store::erasure_coding_topic(relay_parent, erasure_root, chunk.index);
 		self.0.gossip_message(
 			topic,

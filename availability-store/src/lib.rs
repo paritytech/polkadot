@@ -58,7 +58,10 @@ use worker::{
 use store::{Store as InnerStore};
 
 /// Abstraction over an executor that lets you spawn tasks in the background.
-pub(crate) type TaskExecutor = Arc<dyn futures01::future::Executor<Box<dyn futures01::Future<Item = (), Error = ()> + Send>> + Send + Sync>;
+pub(crate) type TaskExecutor =
+	Arc<dyn futures01::future::Executor<
+		Box<dyn futures01::Future<Item = (), Error = ()> + Send>
+	> + Send + Sync>;
 
 const LOG_TARGET: &str = "availability";
 
@@ -70,7 +73,8 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
-/// Compute gossip topic for the erasure chunk messages given the relay parent, root and the chunk index.
+/// Compute gossip topic for the erasure chunk messages given the relay parent,
+/// root and the chunk index.
 ///
 /// Since at this point we are not able to use [`network`] directly, but both
 /// of them need to compute these topics, this lives here and not there.
@@ -133,8 +137,8 @@ pub struct Data {
 /// Handle to the availability store.
 ///
 /// This provides a proxying API that
-///   * in case of write operations provides async methods
-///     that send data to the background worker and resolve when that data is processed by the worker
+///   * in case of write operations provides async methods that send data to
+///     the background worker and resolve when that data is processed by the worker
 ///   * in case of read opeartions queries the underlying storage synchronously.
 #[derive(Clone)]
 pub struct Store {
@@ -196,7 +200,8 @@ impl Store {
 	) -> ClientResult<(AvailabilityBlockImport<I, P>)>
 	where
 		P: ProvideRuntimeApi + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
-		P::Api: ExtrinsicsQuerying<Block> + ParachainHost<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
+		P::Api: ExtrinsicsQuerying<Block> + ParachainHost<Block>,
+		P::Api: ApiExt<Block, Error=substrate_client::error::Error>,
 	{
 		let to_worker = self.to_worker.clone();
 
@@ -369,7 +374,9 @@ impl Store {
 	}
 
 	/// Query block data by corresponding candidate receipt's hash.
-	pub fn block_data_by_candidate(&self, relay_parent: Hash, candidate_hash: Hash) -> Option<BlockData> {
+	pub fn block_data_by_candidate(&self, relay_parent: Hash, candidate_hash: Hash)
+		-> Option<BlockData>
+	{
 		self.inner.block_data_by_candidate(relay_parent, candidate_hash)
 	}
 

@@ -675,7 +675,10 @@ mod tests {
 
 		let awaited_frontier = store.awaited_chunks().unwrap();
 		// Now we wait for the other chunk that we haven't received yet.
-		let expected: HashSet<_> = vec![(relay_parent, erasure_roots[1], candidates[1], validator_index)].into_iter().collect();
+		let expected: HashSet<_> = vec![
+			(relay_parent, erasure_roots[1], candidates[1], validator_index)
+		].into_iter().collect();
+
 		assert_eq!(awaited_frontier, expected);
 
 		// Finalizing removes awaited candidates from frontier.

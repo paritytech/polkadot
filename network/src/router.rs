@@ -230,7 +230,13 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	type FetchValidationProof = validation::PoVReceiver;
 
 	// We have fetched from a collator and here the receipt should have been already formed.
-	fn local_collation(&self, collation: Collation, receipt: CandidateReceipt, outgoing: OutgoingMessages, chunks: (ValidatorIndex, &Vec<ErasureChunk>)) {
+	fn local_collation(
+		&self,
+		collation: Collation,
+		receipt: CandidateReceipt,
+		outgoing: OutgoingMessages,
+		chunks: (ValidatorIndex, &Vec<ErasureChunk>)
+	) {
 		// produce a signed statement
 		let hash = receipt.hash();
 		let erasure_root = receipt.erasure_root;

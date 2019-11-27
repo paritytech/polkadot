@@ -179,7 +179,8 @@ pub enum Error {
 	/// Parachain validation produced wrong fees to charge to parachain.
 	#[display(fmt = "Parachain validation produced wrong relay-chain fees (expected: {:?}, got {:?})", expected, got)]
 	FeesChargedInvalid { expected: Balance, got: Balance },
-	/// Candidate block has an erasure-encoded root that mismatches the actual erasure-encoded root of block data and extrinsics.
+	/// Candidate block has an erasure-encoded root that mismatches the actual
+	/// erasure-encoded root of block data and extrinsics.
 	#[display(fmt = "Got unexpected erasure root (expected: {:?}, got {:?})", expected, got)]
 	ErasureRootMismatch { expected: Hash, got: Hash },
 	/// Candidate block collation info doesn't match candidate receipt.

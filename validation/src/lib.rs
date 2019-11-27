@@ -107,7 +107,13 @@ pub trait TableRouter: Clone {
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
-	fn local_collation(&self, collation: Collation, receipt: CandidateReceipt, outgoing: OutgoingMessages, chunks: (ValidatorIndex, &Vec<ErasureChunk>));
+	fn local_collation(
+		&self,
+		collation: Collation,
+		receipt: CandidateReceipt,
+		outgoing: OutgoingMessages,
+		chunks: (ValidatorIndex, &Vec<ErasureChunk>)
+	);
 
 	/// Fetch validation proof for a specific candidate.
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
@@ -159,7 +165,12 @@ pub fn sign_table_statement(statement: &Statement, key: &ValidatorPair, parent_h
 }
 
 /// Check signature on table statement.
-pub fn check_statement(statement: &Statement, signature: &ValidatorSignature, signer: ValidatorId, parent_hash: &Hash) -> bool {
+pub fn check_statement(
+	statement: &Statement,
+	signature: &ValidatorSignature,
+	signer: ValidatorId,
+	parent_hash: &Hash
+) -> bool {
 	use runtime_primitives::traits::AppVerify;
 
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();

@@ -287,10 +287,19 @@ where
 	}
 
 	// Called on startup of the worker to register listeners for all awaited chunks.
-	fn register_listeners(&mut self, runtime_handle: &mut Handle, sender: &mut mpsc::UnboundedSender<WorkerMsg>) {
+	fn register_listeners(
+		&mut self,
+		runtime_handle: &mut Handle,
+		sender: &mut mpsc::UnboundedSender<WorkerMsg>
+	) {
 		if let Some(awaited_chunks) = self.availability_store.awaited_chunks() {
 			for chunk in awaited_chunks {
-				if let Err(e) = self.register_chunks_listener(runtime_handle, sender, chunk.0, chunk.1) {
+				if let Err(e) = self.register_chunks_listener(
+					runtime_handle,
+					sender,
+					chunk.0,
+					chunk.1
+				) {
 					warn!(target: LOG_TARGET, "Failed to register gossip listener: {}", e);
 				}
 			}
@@ -304,7 +313,8 @@ where
 		relay_parent: Hash,
 		erasure_root: Hash
 	) -> Result<(), Error> {
-		let (local_id, _) = self.availability_store.get_validator_index_and_n_validators(&relay_parent)
+		let (local_id, _) = self.availability_store
+			.get_validator_index_and_n_validators(&relay_parent)
 			.ok_or(Error::IdAndNValidatorsNotFound { relay_parent })?;
 		let topic = erasure_coding_topic(relay_parent, erasure_root, local_id);
 		trace!(
@@ -344,7 +354,8 @@ where
 		relay_parent: Hash,
 		blocks: Vec<(CandidateReceipt, Option<(BlockData, AvailableMessages)>)>,
 	) -> Result<(), Error> {
-		let (_, _n_validators) = self.availability_store.get_validator_index_and_n_validators(&relay_parent)
+		let (_, _n_validators) = self.availability_store
+			.get_validator_index_and_n_validators(&relay_parent)
 			.ok_or(Error::IdAndNValidatorsNotFound { relay_parent })?;
 
 		let hashes: Vec<_> = blocks.iter().map(|(c, _)| c.hash()).collect();
@@ -379,8 +390,14 @@ where
 	//
 	// When an awaited item is received, it is placed into the availability store
 	// and removed from the frontier. Listener de-registered.
-	fn on_chunks_received(&mut self, relay_parent: Hash, candidate_hash: Hash, chunks: Vec<ErasureChunk>) -> Result<(), Error> {
-		let (_, n_validators) = self.availability_store.get_validator_index_and_n_validators(&relay_parent)
+	fn on_chunks_received(
+		&mut self,
+		relay_parent: Hash,
+		candidate_hash: Hash,
+		chunks: Vec<ErasureChunk>
+	) -> Result<(), Error> {
+		let (_, n_validators) = self.availability_store
+			.get_validator_index_and_n_validators(&relay_parent)
 			.ok_or(Error::IdAndNValidatorsNotFound { relay_parent })?;
 
 		let receipt = self.availability_store.get_candidate(&candidate_hash)
@@ -405,7 +422,11 @@ where
 	}
 
 	// Adds the erasure roots into the store.
-	fn on_erasure_roots_received(&mut self, relay_parent: Hash, erasure_roots: Vec<Hash>) -> Result<(), Error> {
+	fn on_erasure_roots_received(
+		&mut self,
+		relay_parent: Hash,
+		erasure_roots: Vec<Hash>
+	) -> Result<(), Error> {
 		self.availability_store.add_erasure_roots_in_relay_block(&relay_parent, erasure_roots)?;
 
 		Ok(())
@@ -426,7 +447,9 @@ where
 		let candidate = self.availability_store.get_candidate(&candidate_hash)
 			.ok_or(Error::CandidateNotFound { candidate_hash })?;
 
-		if self.availability_store.get_erasure_chunk(&relay_parent, candidate.block_data_hash, id).is_none() {
+		if self.availability_store
+			.get_erasure_chunk(&relay_parent, candidate.block_data_hash, id)
+			.is_none() {
 			if let Err(e) = self.register_chunks_listener(
 				runtime_handle,
 				sender,
@@ -442,7 +465,8 @@ where
 
 	pub fn start(mut self) -> WorkerHandle {
 		let sender = self.sender.clone();
-		let mut receiver = self.receiver.take().expect("Should start a worker with a receiver side; qed");
+		let mut receiver = self.receiver.take()
+			.expect("Should start a worker with a receiver side; qed");
 
 		let (signal, exit) = exit_future::signal();
 
@@ -452,8 +476,8 @@ where
 
 			let mut runtime_handle = runtime.handle();
 
-			// On startup, registers listeners (gossip streams) for all (relay_parent, erasure-root, i)
-			// in the awaited frontier.
+			// On startup, registers listeners (gossip streams) for all
+			// (relay_parent, erasure-root, i) in the awaited frontier.
 			self.register_listeners(&mut runtime_handle, &mut sender);
 
 			let process_notification = async move {
@@ -468,7 +492,12 @@ where
 							Ok(())
 						}
 						WorkerMsg::ListenForChunks(msg) => {
-							let ListenForChunks { relay_parent, candidate_hash, index, result } = msg;
+							let ListenForChunks {
+								relay_parent,
+								candidate_hash,
+								index, result
+							} = msg;
+
 							let res = self.on_listen_for_chunks_received(
 								&mut runtime_handle,
 								&mut sender,
@@ -496,7 +525,11 @@ where
 						}
 						WorkerMsg::Chunks(msg) => {
 							let Chunks { relay_parent, candidate_hash, chunks, result } = msg;
-							let res = self.on_chunks_received(relay_parent, candidate_hash, chunks);
+							let res = self.on_chunks_received(
+								relay_parent,
+								candidate_hash,
+								chunks
+							);
 
 							let _ = result.send(res);
 							Ok(())
@@ -568,7 +601,8 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 	I: BlockImport<Block> + Send + Sync,
 	I::Error: Into<ConsensusError>,
 	P: ProvideRuntimeApi + ProvideCache<Block>,
-	P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block> + ApiExt<Block, Error = client_error::Error>,
+	P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block>,
+	P::Api: ApiExt<Block, Error = client_error::Error>,
 {
 	type Error = ConsensusError;
 
@@ -603,7 +637,8 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 						Some(our_id) => {
 							trace!(
 								target: LOG_TARGET,
-								"Our validator id is {}, the candidates included are {:?}", our_id, candidates
+								"Our validator id is {}, the candidates included are {:?}",
+								our_id, candidates
 							);
 
 							for candidate in &candidates {
@@ -625,7 +660,10 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 								}
 							}
 
-							let erasure_roots: Vec<_> = candidates.iter().map(|c| c.erasure_root).collect();
+							let erasure_roots: Vec<_> = candidates
+								.iter()
+								.map(|c| c.erasure_root)
+								.collect();
 
 							// Inform the worker about new (relay_parent, erasure_roots) pairs
 							let (s, _) = oneshot::channel();
@@ -649,12 +687,18 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 							let _ = self.to_worker.unbounded_send(msg);
 						}
 						None => {
-							trace!(target: LOG_TARGET, "Not in the validator set at parent block {}", parent_id);
+							trace!(
+								target: LOG_TARGET,
+								"Not in the validator set at parent block {}", parent_id
+							);
 						}
 					}
 				}
 				None => {
-					trace!(target: LOG_TARGET, "No parachain heads were included in block {}", block.header.hash());
+					trace!(
+						target: LOG_TARGET,
+						"No parachain heads were included in block {}", block.header.hash()
+					);
 				},
 			}
 		}
@@ -681,7 +725,8 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 	) -> Self
 	where
 		P: ProvideRuntimeApi + BlockBody<Block> + BlockchainEvents<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block> + ApiExt<Block, Error = substrate_client::error::Error>,
+		P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block>,
+		P::Api: ApiExt<Block, Error = substrate_client::error::Error>,
 	{
 		let (signal, exit) = exit_future::signal();
 
@@ -739,7 +784,9 @@ mod tests {
 	}
 
 	impl ProvideGossipMessages for TestGossipMessages {
-		fn gossip_messages_for(&self, topic: Hash) -> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin> {
+		fn gossip_messages_for(&self, topic: Hash)
+			-> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin>
+		{
 			match self.messages.lock().unwrap().remove(&topic) {
 				Some(receiver) => Box::new(receiver),
 				None => Box::new(stream::iter(vec![])),
@@ -763,9 +810,10 @@ mod tests {
 		}
 	}
 
-	// This test tests that as soon as the worker receives info about new parachain blocks included
-	// it registers gossip listeners for it's own chunks. Upon receiving the awaited chunk messages
-	// the corresponding listeners are deregistered and these chunks are removed from the awaited chunks set.
+	// This test tests that as soon as the worker receives info about new parachain blocks
+	// included it registers gossip listeners for it's own chunks. Upon receiving the awaited
+	// chunk messages the corresponding listeners are deregistered and these chunks are removed
+	// from the awaited chunks set.
 	#[test]
 	fn receiving_gossip_chunk_removes_from_frontier() {
 		let mut runtime = Runtime::new().unwrap();
@@ -834,10 +882,11 @@ mod tests {
 		// Send a gossip message with an awaited chunk
 		gossip_sender.unbounded_send(msg).unwrap();
 
-		// At the point the needed piece is received, the gossip listener for this topic is deregistered and it's
-		// receiver side is dropped. Wait for the sender side to become closed.
+		// At the point the needed piece is received, the gossip listener for
+		// this topic is deregistered and it's receiver side is dropped.
+		// Wait for the sender side to become closed.
 		while !gossip_sender.is_closed() {
-			println!("sleep");
+			// Probably we can just .wait this somehow?
 			thread::sleep(Duration::from_millis(100));
 		}
 
@@ -894,7 +943,8 @@ mod tests {
 		let topic_2 = erasure_coding_topic(relay_parent, erasure_root_2, local_id);
 
 		let messages = TestGossipMessages {
-			messages: Arc::new(Mutex::new(vec![
+			messages: Arc::new(Mutex::new(
+			vec![
 				(topic_1, gossip_receiver_1),
 				(topic_2, gossip_receiver_2),
 			].into_iter().collect()))
@@ -921,7 +971,8 @@ mod tests {
 
 		let (s1, r1) = oneshot::channel();
 
-		// Tell the worker to listen for chunks from candidate 1 (we don't have a chunk from it yet).
+		// Tell the worker to listen for chunks from candidate 1.
+		// (we don't have a chunk from it yet).
 		let listen_msg_1 = WorkerMsg::ListenForChunks(ListenForChunks {
 			relay_parent,
 			candidate_hash: candidate_1_hash,
