@@ -15,6 +15,5 @@ cli = { package = "substrate-cli", git = "https://github.com/paritytech/substrat
 service = { package = "polkadot-service", path = "../service" }
 
 [features]
-# default = [ "wasmtime" ]
-default = [ ]
+default = [ "wasmtime" ]
 wasmtime = [ "cli/wasmtime" ]
