@@ -88,7 +88,7 @@ struct ValidationWorkerCommand {
 }
 
 #[derive(Debug, StructOpt, Clone)]
-pub struct PolkadotSubParams {
+struct PolkadotSubParams {
 	#[structopt(long = "enable-authority-discovery")]
 	pub authority_discovery_enabled: bool,
 }
@@ -101,7 +101,7 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 {
 	match cli::parse_and_prepare::<PolkadotSubCommands, PolkadotSubParams, _>(&version, "parity-polkadot", std::env::args()) {
 		cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, worker,
-		|worker, cli_args, custom_args, mut config| {
+		|worker, _cli_args, custom_args, mut config| {
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
 			info!("  by {}, 2017-2019", version.author);
