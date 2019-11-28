@@ -87,20 +87,40 @@ struct ValidationWorkerCommand {
 	pub mem_id: String,
 }
 
+#[derive(Debug, StructOpt, Clone)]
+struct PolkadotSubParams {
+	#[structopt(long = "enable-authority-discovery")]
+	pub authority_discovery_enabled: bool,
+}
+
+cli::impl_augment_clap!(PolkadotSubParams);
+
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	W: Worker,
 {
-	match cli::parse_and_prepare::<PolkadotSubCommands, NoCustom, _>(&version, "parity-polkadot", std::env::args()) {
+	match cli::parse_and_prepare::<PolkadotSubCommands, PolkadotSubParams, _>(
+		&version,
+		"parity-polkadot",
+		std::env::args(),
+	) {
 		cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, worker,
-		|worker, _cli_args, _custom_args, mut config| {
+		|worker, _cli_args, custom_args, mut config| {
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
 			info!("  by {}, 2017-2019", version.author);
 			info!("Chain specification: {}", config.chain_spec.name());
+			if config.chain_spec.name().starts_with("Kusama") {
+				info!("----------------------------");
+				info!("This chain is not in any way");
+				info!("      endorsed by the       ");
+				info!("     KUSAMA FOUNDATION      ");
+				info!("----------------------------");
+			}
 			info!("Node name: {}", config.name);
 			info!("Roles: {}", display_role(&config));
 			config.custom = worker.configuration();
+			config.custom.authority_discovery_enabled = custom_args.authority_discovery_enabled;
 			let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
 			match config.roles {
 				service::Roles::LIGHT =>

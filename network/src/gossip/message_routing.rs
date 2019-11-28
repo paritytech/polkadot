@@ -63,7 +63,7 @@
 use sr_primitives::traits::{BlakeTwo256, Hash as HashT};
 use polkadot_primitives::Hash;
 use std::collections::{HashMap, HashSet};
-use substrate_client::error::Error as ClientError;
+use sp_blockchain::Error as ClientError;
 use super::{MAX_CHAIN_HEADS, GossipValidationResult, LeavesVec, ChainContext};
 
 /// Construct a topic for a message queue root deterministically.

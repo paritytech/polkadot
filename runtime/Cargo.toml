@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.6.17"
+version = "0.7.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -27,7 +27,7 @@ substrate-primitives = { git = "https://github.com/paritytech/substrate", defaul
 substrate-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 substrate-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 version = { package = "sr-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-tx-pool-api = { package = "substrate-transaction-pool-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+tx-pool-api = { package = "sp-transaction-pool-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 block-builder-api = { package = "substrate-block-builder-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 authority-discovery = { package = "pallet-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }

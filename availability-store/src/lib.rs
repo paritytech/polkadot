@@ -77,7 +77,15 @@ impl Store {
 	pub fn new(config: Config) -> io::Result<Self> {
 		use kvdb_rocksdb::{Database, DatabaseConfig};
 		let mut db_config = DatabaseConfig::with_columns(Some(columns::NUM_COLUMNS));
-		db_config.memory_budget = config.cache_size;
+
+		if let Some(cache_size) = config.cache_size {
+			let mut memory_budget = std::collections::HashMap::new();
+			for i in 0..columns::NUM_COLUMNS {
+				memory_budget.insert(Some(i), cache_size / columns::NUM_COLUMNS as usize);
+			}
+
+			db_config.memory_budget = memory_budget;
+		}
 
 		let path = config.path.to_str().ok_or_else(|| io::Error::new(
 			io::ErrorKind::Other,

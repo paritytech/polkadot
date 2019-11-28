@@ -33,7 +33,7 @@ use polkadot_primitives::parachain::{
 	FeeSchedule, HeadData, Retriable, CollatorId
 };
 use parking_lot::Mutex;
-use substrate_client::error::Result as ClientResult;
+use sp_blockchain::Result as ClientResult;
 use sr_api::{Core, RuntimeVersion, StorageProof, ApiExt};
 use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 
@@ -231,7 +231,7 @@ impl Core<Block> for RuntimeApi {
 }
 
 impl ApiExt<Block> for RuntimeApi {
-	type Error = substrate_client::error::Error;
+	type Error = sp_blockchain::Error;
 
 	fn map_api_result<F: FnOnce(&Self) -> Result<R, E>, R, E>(
 		&self,
