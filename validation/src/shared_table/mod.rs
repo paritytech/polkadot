@@ -310,7 +310,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 				}
 			}
 		};
-		
+
 		PrimedParachainWork { inner: self, validate }
 	}
 
@@ -638,8 +638,6 @@ mod tests {
 			future::ok(pov_block_with_data(vec![1, 2, 3, 4, 5]))
 		}
 	}
-
-
 
 	#[test]
 	fn statement_triggers_fetch_and_evaluate() {

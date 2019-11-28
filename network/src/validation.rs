@@ -27,7 +27,7 @@ use polkadot_validation::{
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Collation, OutgoingMessages, ParachainHost, CandidateReceipt, CollatorId,
-	ValidatorId, PoVBlock, ErasureChunk,
+	ValidatorId, PoVBlock,
 };
 
 use futures::prelude::*;
@@ -606,35 +606,6 @@ impl Future for PoVReceiver {
 			}
 			Async::NotReady => Ok(Async::NotReady),
 		}
-	}
-}
-
-pub struct ChunkReceiver {
-	outer: Receiver<Receiver<ErasureChunk>>,
-	inner: Option<Receiver<ErasureChunk>>
-}
-
-impl Future for ChunkReceiver {
-	type Item = ErasureChunk;
-	type Error = io::Error;
-
-	fn poll(&mut self) -> Poll<ErasureChunk, io::Error> {
-		let map_err = |_| io::Error::new(
-			io::ErrorKind::Other,
-			"Sending end of channel hung up",
-		);
-
-		if let Some(ref mut inner) = self.inner {
-			return inner.poll().map_err(map_err);
-		}
-		match self.outer.poll().map_err(map_err)? {
-			Async::Ready(inner) => {
-				self.inner = Some(inner);
-				self.poll()
-			}
-			Async::NotReady => Ok(Async::NotReady),
-		}
-
 	}
 }
 

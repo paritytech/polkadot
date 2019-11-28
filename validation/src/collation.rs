@@ -522,7 +522,8 @@ pub fn produce_receipt_and_chunks(
 			.zip(branches.map(|(proof, _)| proof))
 			.enumerate()
 			.map(|(index, (chunk, proof))| ErasureChunk {
-				chunk: chunk.clone(), // branches borrows the original chunks, but this clone could probably be dodged.
+				// branches borrows the original chunks, but this clone could probably be dodged.
+				chunk: chunk.clone(),
 				index: index as u32,
 				proof,
 			})

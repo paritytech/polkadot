@@ -176,7 +176,7 @@ async fn listen_for_chunks<PGM, S>(
 )
 where
 	PGM: ProvideGossipMessages,
-	S: Sink<WorkerMsg> + Clone + Unpin,
+	S: Sink<WorkerMsg> + Unpin,
 {
 	trace!(target: LOG_TARGET, "Registering gossip listener for topic {}", topic);
 	let mut chunks_stream = p.gossip_messages_for(topic);

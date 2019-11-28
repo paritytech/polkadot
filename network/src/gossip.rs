@@ -551,7 +551,12 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 					)
 				} else {
 					if let Some(awaited_chunks) = store.awaited_chunks() {
-						if awaited_chunks.contains(&(msg.relay_parent, receipt.erasure_root, receipt.hash(), msg.chunk.index)) {
+						if awaited_chunks.contains(&(
+								msg.relay_parent,
+								receipt.erasure_root,
+								receipt.hash(),
+								msg.chunk.index,
+							)) {
 							let topic = av_store::erasure_coding_topic(
 								msg.relay_parent,
 								receipt.erasure_root,

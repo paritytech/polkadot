@@ -70,10 +70,14 @@ use log::{info, debug, warn, trace, error};
 use keystore::KeyStorePtr;
 use sr_api::ApiExt;
 
-type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
+type TaskExecutor =
+	Arc<
+		dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>>
+	+ Send + Sync>;
 
 pub use self::collation::{
-	validate_collation, validate_incoming, message_queue_root, egress_roots, produce_receipt_and_chunks, Collators,
+	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
+	produce_receipt_and_chunks,
 };
 pub use self::error::Error;
 pub use self::shared_table::{
@@ -217,6 +221,7 @@ pub fn make_group_info(
 		let validity_len = live_group.validity_guarantors.len();
 		live_group.needed_validity = validity_len / 2 + validity_len % 2;
 	}
+
 
 	let local_duty = local_validation.map(|v| LocalDuty {
 		validation: v,
