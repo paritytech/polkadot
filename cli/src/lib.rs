@@ -141,6 +141,8 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 			Ok(service::new_chain_ops(config)?), load_spec, worker),
 		cli::ParseAndPrepare::ImportBlocks(cmd) => cmd.run_with_builder::<(), _, _, _, _, _, _>(|config|
 			Ok(service::new_chain_ops(config)?), load_spec, worker),
+		cli::ParseAndPrepare::CheckBlock(cmd) => cmd.run_with_builder::<(), _, _, _, _, _, _>(|config|
+			Ok(service::new_chain_ops(config)?), load_spec, worker),
 		cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
 		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
 			Ok(service::new_chain_ops(config)?), load_spec),

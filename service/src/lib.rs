@@ -30,7 +30,7 @@ use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use log::info;
 pub use service::{AbstractService, Roles, PruningMode, TransactionPoolOptions, Error};
-pub use service::{ServiceBuilderExport, ServiceBuilderImport, ServiceBuilderRevert};
+pub use service::ServiceBuilderCommand;
 pub use service::config::{DatabaseConfig, full_version_from_strs};
 pub use client::{ExecutionStrategy, CallExecutor};
 pub use client_api::backend::Backend;
@@ -136,7 +136,7 @@ macro_rules! new_full_start {
 
 /// Builds a new object suitable for chain operations.
 pub fn new_chain_ops(config: Configuration<impl Send + Default + 'static, GenesisConfig>)
-	-> Result<impl ServiceBuilderExport + ServiceBuilderImport + ServiceBuilderRevert, ServiceError>
+	-> Result<impl ServiceBuilderCommand<Block=Block>, ServiceError>
 {
 	Ok(new_full_start!(config).0)
 }
