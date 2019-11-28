@@ -30,7 +30,7 @@ use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use log::info;
 pub use service::{AbstractService, Roles, PruningMode, TransactionPoolOptions, Error};
-pub use service::{ServiceBuilderCommand};
+pub use service::ServiceBuilderCommand;
 pub use service::config::{DatabaseConfig, full_version_from_strs};
 pub use client::{ExecutionStrategy, CallExecutor};
 pub use client_api::backend::Backend;
