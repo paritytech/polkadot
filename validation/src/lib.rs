@@ -29,7 +29,14 @@
 //!
 //! Groups themselves may be compromised by malicious authorities.
 
-use std::{collections::{HashMap, HashSet}, pin::Pin, sync::Arc, time::{self, Duration, Instant}};
+use std::{
+	collections::{HashMap, HashSet},
+	pin::Pin,
+	sync::Arc,
+	time::{self, Duration, Instant},
+	task::{Poll, Context},
+	mem,
+};
 
 use babe_primitives::BabeApi;
 use client::{BlockchainEvents, BlockBody};
@@ -48,16 +55,17 @@ use polkadot_primitives::parachain::{
 };
 use primitives::Pair;
 use runtime_primitives::traits::{ProvideRuntimeApi, DigestFor};
-use futures_timer::{Delay, Interval};
+use futures_timer::Delay;
+use async_std::stream::{interval, Interval};
 use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
-use futures03::{future::{self, Either, FutureExt}, task::Context, stream::StreamExt};
+use futures03::{future::{self, Either}, FutureExt, StreamExt};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
-use runtime_babe::timestamp::TimestampInherentData;
+use sp_timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace, error};
 use keystore::KeyStorePtr;
 use sr_api::ApiExt;
@@ -491,7 +499,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxApi> where
 	C: Collators + Send + 'static,
 	N: Network,
-	TxApi: PoolChainApi<Block=Block>,
+	TxApi: PoolChainApi<Block=Block> + 'static,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> +
 		BlockBuilderApi<Block> +
@@ -550,8 +558,8 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 }
 
 impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
-	TxApi: PoolChainApi<Block=Block>,
-	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
+	TxApi: PoolChainApi<Block=Block> + 'static,
+	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
 {
 	type Error = Error;
@@ -594,7 +602,7 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 
 		let timing = ProposalTiming {
 			minimum: delay_future,
-			attempt_propose: Interval::new(ATTEMPT_PROPOSE_EVERY),
+			attempt_propose: interval(ATTEMPT_PROPOSE_EVERY),
 			enough_candidates: Delay::new(enough_candidates),
 			dynamic_inclusion,
 			last_included: initial_included,
@@ -609,18 +617,20 @@ impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
 		};
 
 		Either::Left(CreateProposal {
-			parent_hash: self.parent_hash.clone(),
-			parent_number: self.parent_number.clone(),
-			parent_id: self.parent_id.clone(),
-			client: self.client.clone(),
-			transaction_pool: self.transaction_pool.clone(),
-			table: self.tracker.table.clone(),
-			believed_minimum_timestamp: believed_timestamp,
-			timing,
-			inherent_data: Some(inherent_data),
-			inherent_digests,
-			// leave some time for the proposal finalisation
-			deadline,
+			state: CreateProposalState::Pending(CreateProposalData {
+				parent_hash: self.parent_hash.clone(),
+				parent_number: self.parent_number.clone(),
+				parent_id: self.parent_id.clone(),
+				client: self.client.clone(),
+				transaction_pool: self.transaction_pool.clone(),
+				table: self.tracker.table.clone(),
+				believed_minimum_timestamp: believed_timestamp,
+				timing,
+				inherent_data: Some(inherent_data),
+				inherent_digests,
+				// leave some time for the proposal finalisation
+				deadline,
+			})
 		})
 	}
 }
@@ -642,26 +652,26 @@ struct ProposalTiming {
 impl ProposalTiming {
 	// whether it's time to attempt a proposal.
 	// shouldn't be called outside of the context of a task.
-	fn poll(&mut self, cx: &mut Context, included: usize) -> futures03::Poll<Result<(), Error>> {
+	fn poll(&mut self, cx: &mut Context, included: usize) -> Poll<()> {
 		// first drain from the interval so when the minimum delay is up
 		// we don't have any notifications built up.
 		//
 		// this interval is just meant to produce periodic task wakeups
 		// that lead to the `dynamic_inclusion` getting updated as necessary.
-		while let futures03::Poll::Ready(x) = self.attempt_propose.poll_next_unpin(cx) {
+		while let Poll::Ready(x) = self.attempt_propose.poll_next_unpin(cx) {
 			x.expect("timer still alive; intervals never end; qed");
 		}
 
 		// wait until the minimum time has passed.
 		if let Some(mut minimum) = self.minimum.take() {
-			if let futures03::Poll::Pending = minimum.poll_unpin(cx) {
+			if let Poll::Pending = minimum.poll_unpin(cx) {
 				self.minimum = Some(minimum);
-				return futures03::Poll::Pending;
+				return Poll::Pending;
 			}
 		}
 
 		if included == self.last_included {
-			return self.enough_candidates.poll_unpin(cx).map_err(Error::Timer);
+			return self.enough_candidates.poll_unpin(cx);
 		}
 
 		// the amount of includable candidates has changed. schedule a wakeup
@@ -669,16 +679,31 @@ impl ProposalTiming {
 		match self.dynamic_inclusion.acceptable_in(Instant::now(), included) {
 			Some(instant) => {
 				self.last_included = included;
-				self.enough_candidates.reset(instant);
-				self.enough_candidates.poll_unpin(cx).map_err(Error::Timer)
+				self.enough_candidates.reset(Instant::now() + instant);
+				self.enough_candidates.poll_unpin(cx)
 			}
-			None => futures03::Poll::Ready(Ok(())),
+			None => Poll::Ready(()),
 		}
 	}
 }
 
 /// Future which resolves upon the creation of a proposal.
 pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
+	state: CreateProposalState<C, TxApi>,
+}
+
+/// Current status of the proposal future.
+enum CreateProposalState<C: Send + Sync, TxApi: PoolChainApi> {
+	/// Pending inclusion, with given proposal data.
+	Pending(CreateProposalData<C, TxApi>),
+	/// Represents the state when we switch from pending to fired.
+	Switching,
+	/// Block proposing has fired.
+	Fired(tokio_executor::blocking::Blocking<Result<Block, Error>>),
+}
+
+/// Inner data of the create proposal.
+struct CreateProposalData<C: Send + Sync, TxApi: PoolChainApi> {
 	parent_hash: Hash,
 	parent_number: BlockNumber,
 	parent_id: BlockId,
@@ -692,12 +717,12 @@ pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
 	deadline: Instant,
 }
 
-impl<C, TxApi> CreateProposal<C, TxApi> where
+impl<C, TxApi> CreateProposalData<C, TxApi> where
 	TxApi: PoolChainApi<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
 {
-	fn propose_with(&mut self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
+	fn propose_with(mut self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
 		use block_builder::BlockBuilder;
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
@@ -785,22 +810,54 @@ impl<C, TxApi> CreateProposal<C, TxApi> where
 }
 
 impl<C, TxApi> futures03::Future for CreateProposal<C, TxApi> where
-	TxApi: PoolChainApi<Block=Block>,
-	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
+	TxApi: PoolChainApi<Block=Block> + 'static,
+	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
 {
 	type Output = Result<Block, Error>;
 
-	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> futures03::Poll<Self::Output> {
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+		let mut state = CreateProposalState::Switching;
+		mem::swap(&mut state, &mut self.state);
+
 		// 1. try to propose if we have enough includable candidates and other
 		// delays have concluded.
-		let included = self.table.includable_count();
-		futures03::ready!(self.timing.poll(cx, included))?;
+		let data = match state {
+			CreateProposalState::Pending(mut data) => {
+				let included = data.table.includable_count();
+				match data.timing.poll(cx, included) {
+					Poll::Pending => {
+						self.state = CreateProposalState::Pending(data);
+						return Poll::Pending
+					},
+					Poll::Ready(()) => (),
+				}
+
+				data
+			},
+			CreateProposalState::Switching =>
+				unreachable!(
+					"State Switching are only created on call, \
+					and immediately swapped out; \
+					the data being read is from state; \
+					thus Switching will never be reachable here; qed"
+				),
+			CreateProposalState::Fired(mut future) => {
+				let ret = Pin::new(&mut future).poll(cx);
+				self.state = CreateProposalState::Fired(future);
+				return ret
+			},
+		};
 
 		// 2. propose
-		let proposed_candidates = self.table.proposed_set();
+		let mut future = tokio_executor::blocking::run(move || {
+			let proposed_candidates = data.table.proposed_set();
+			data.propose_with(proposed_candidates)
+		});
+		let polled = Pin::new(&mut future).poll(cx);
+		self.state = CreateProposalState::Fired(future);
 
-		futures03::Poll::Ready(self.propose_with(proposed_candidates))
+		polled
 	}
 }
 

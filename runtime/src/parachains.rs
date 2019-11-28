@@ -20,13 +20,12 @@ use rstd::prelude::*;
 use rstd::result;
 use rstd::collections::btree_map::BTreeMap;
 use codec::{Encode, Decode};
-use srml_support::{decl_storage, decl_module, ensure};
 
 use sr_primitives::traits::{
 	Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
 	AccountIdConversion,
 };
-use sr_primitives::weights::SimpleDispatchInfo;
+use frame_support::weights::SimpleDispatchInfo;
 use primitives::{
 	Hash, Balance,
 	parachain::{
@@ -34,8 +33,8 @@ use primitives::{
 		UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId, Retriable
 	},
 };
-use srml_support::{
-	Parameter, dispatch::Result,
+use frame_support::{
+	Parameter, dispatch::Result, decl_storage, decl_module, ensure,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
 
@@ -918,7 +917,7 @@ mod tests {
 	};
 	use crate::constants::time::*;
 	use keyring::Sr25519Keyring;
-	use srml_support::{
+	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
 	use crate::parachains;
@@ -1027,7 +1026,7 @@ mod tests {
 		type CreationFee = CreationFee;
 	}
 
-	srml_staking_reward_curve::build! {
+	pallet_staking_reward_curve::build! {
 		const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 			min_inflation: 0_025_000,
 			max_inflation: 0_100_000,
@@ -2036,7 +2035,7 @@ mod tests {
 
 	#[test]
 	fn empty_trie_root_const_is_blake2_hashed_null_node() {
-		let hashed_null_node =  <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node();
+		let hashed_null_node =  <NodeCodec<Blake2Hasher> as trie_db::NodeCodec>::hashed_null_node();
 		assert_eq!(hashed_null_node, EMPTY_TRIE_ROOT.into())
 	}
 }
