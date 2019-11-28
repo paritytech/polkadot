@@ -54,6 +54,9 @@ pub struct CustomConfiguration {
 
 	/// Maximal `block_data` size.
 	pub max_block_data_size: Option<u64>,
+
+	/// Whether to enable or disable the authority discovery module.
+	pub authority_discovery_enabled: bool,
 }
 
 impl Default for CustomConfiguration {
@@ -61,6 +64,7 @@ impl Default for CustomConfiguration {
 		Self {
 			collating_for: None,
 			max_block_data_size: None,
+			authority_discovery_enabled: false,
 		}
 	}
 }
@@ -147,6 +151,11 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	>, ServiceError>
 {
 	use substrate_network::DhtEvent;
+	use futures03::{
+		compat::Stream01CompatExt,
+		stream::StreamExt,
+		future::{FutureExt, TryFutureExt},
+	};
 
 	let is_collator = config.custom.collating_for.is_some();
 	let is_authority = config.roles.is_authority() && !is_collator;
@@ -159,6 +168,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	};
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
+	let authority_discovery_enabled = config.custom.authority_discovery_enabled;
 
 	// sentry nodes announce themselves as authorities to the network
 	// and should run the same protocols authorities do, but it should
@@ -172,7 +182,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	// event per authority within the current authority set. This estimates the
 	// authority set size to be somewhere below 10 000 thereby setting the channel
 	// buffer size to 10 000.
-	let (dht_event_tx, _dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
+	let (dht_event_tx, dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
 
 	let service = builder
 		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
@@ -277,6 +287,21 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 
 		let babe = babe::start_babe(babe_config)?;
 		service.spawn_essential_task(babe);
+
+		if authority_discovery_enabled {
+			let future03_dht_event_rx = dht_event_rx.compat()
+				.map(|x| x.expect("<mpsc::channel::Receiver as Stream> never returns an error; qed"))
+				.boxed();
+			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
+				service.client(),
+				service.network(),
+				service.keystore(),
+				future03_dht_event_rx,
+			);
+			let future01_authority_discovery = authority_discovery.map(|x| Ok(x)).compat();
+
+			service.spawn_task(future01_authority_discovery);
+		}
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
