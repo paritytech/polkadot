@@ -298,7 +298,8 @@ parameter_types! {
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (28 days).
 	// KUSAMA: This value is 1/4 of what we expect for the mainnet.
-	pub const BondingDuration: staking::EraIndex = 7;
+	// KUSAMA-launch: 0 for managing the spooning injection.
+	pub const BondingDuration: staking::EraIndex = 0;
 	pub const SlashDeferDuration: staking::EraIndex = 7;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 }
@@ -313,8 +314,10 @@ impl staking::Trait for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	/// A super-majority of the council can cancel the slash.
-	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	// A super-majority of the council can cancel the slash.
+	// KUSAMA-launch: Any council member can remove a slash.
+//	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	type SlashCancelOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 	type SessionInterface = Self;
 	type Time = Timestamp;
 	type RewardCurve = RewardCurve;
