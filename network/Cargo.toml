@@ -20,6 +20,7 @@ futures03 = { package = "futures", version = "0.3.1", features = ["compat"] }
 log = "0.4.8"
 exit-future = "0.1.4"
 substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [dev-dependencies]
 substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

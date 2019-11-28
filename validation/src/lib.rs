@@ -40,9 +40,8 @@ use std::{
 
 use babe_primitives::BabeApi;
 use client::{BlockchainEvents, BlockBody};
-use client::blockchain::HeaderBackend;
+use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
-use client::error as client_error;
 use codec::Encode;
 use consensus::SelectChain;
 use availability_store::Store as AvailabilityStore;
@@ -57,7 +56,7 @@ use primitives::Pair;
 use runtime_primitives::traits::{ProvideRuntimeApi, DigestFor};
 use futures_timer::Delay;
 use async_std::stream::{interval, Interval};
-use transaction_pool::txpool::{Pool, ChainApi as PoolChainApi};
+use txpool_api::{TransactionPool, InPoolTransaction};
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
@@ -258,7 +257,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
+	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
@@ -427,9 +426,9 @@ struct AttestationTracker {
 }
 
 /// Polkadot proposer factory.
-pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
+pub struct ProposerFactory<C, N, P, SC, TxPool: TransactionPool> {
 	parachain_validation: Arc<ParachainValidation<C, N, P>>,
-	transaction_pool: Arc<Pool<TxApi>>,
+	transaction_pool: Arc<TxPool>,
 	keystore: KeyStorePtr,
 	_service_handle: ServiceHandle,
 	babe_slot_duration: u64,
@@ -437,7 +436,7 @@ pub struct ProposerFactory<C, N, P, SC, TxApi: PoolChainApi> {
 	max_block_data_size: Option<u64>,
 }
 
-impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
+impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
 	C: Collators + Send + Sync + 'static,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
@@ -445,11 +444,11 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	P::Api: ParachainHost<Block> +
 		BlockBuilderApi<Block> +
 		BabeApi<Block> +
-		ApiExt<Block, Error = client_error::Error>,
+		ApiExt<Block, Error = sp_blockchain::Error>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
-	TxApi: PoolChainApi,
+	TxPool: TransactionPool,
 	SC: SelectChain<Block> + 'static,
 {
 	/// Create a new proposer factory.
@@ -458,7 +457,7 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 		_select_chain: SC,
 		network: N,
 		collators: C,
-		transaction_pool: Arc<Pool<TxApi>>,
+		transaction_pool: Arc<TxPool>,
 		thread_pool: TaskExecutor,
 		keystore: KeyStorePtr,
 		availability_store: AvailabilityStore,
@@ -496,21 +495,21 @@ impl<C, N, P, SC, TxApi> ProposerFactory<C, N, P, SC, TxApi> where
 	}
 }
 
-impl<C, N, P, SC, TxApi> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxApi> where
+impl<C, N, P, SC, TxPool> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxPool> where
 	C: Collators + Send + 'static,
 	N: Network,
-	TxApi: PoolChainApi<Block=Block> + 'static,
+	TxPool: TransactionPool<Block=Block> + 'static,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> +
 		BlockBuilderApi<Block> +
 		BabeApi<Block> +
-		ApiExt<Block, Error = client_error::Error>,
+		ApiExt<Block, Error = sp_blockchain::Error>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
 	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
 	SC: SelectChain<Block>,
 {
-	type Proposer = Proposer<P, TxApi>;
+	type Proposer = Proposer<P, TxPool>;
 	type Error = Error;
 
 	fn init(
@@ -545,7 +544,7 @@ pub struct LocalDuty {
 }
 
 /// The Polkadot proposer logic.
-pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
+pub struct Proposer<C: Send + Sync, TxPool: TransactionPool> where
 	C: ProvideRuntimeApi + HeaderBackend<Block>,
 {
 	client: Arc<C>,
@@ -553,17 +552,17 @@ pub struct Proposer<C: Send + Sync, TxApi: PoolChainApi> where
 	parent_id: BlockId,
 	parent_number: BlockNumber,
 	tracker: Arc<AttestationTracker>,
-	transaction_pool: Arc<Pool<TxApi>>,
+	transaction_pool: Arc<TxPool>,
 	slot_duration: u64,
 }
 
-impl<C, TxApi> consensus::Proposer<Block> for Proposer<C, TxApi> where
-	TxApi: PoolChainApi<Block=Block> + 'static,
+impl<C, TxPool> consensus::Proposer<Block> for Proposer<C, TxPool> where
+	TxPool: TransactionPool<Block=Block> + 'static,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 {
 	type Error = Error;
-	type Create = Either<CreateProposal<C, TxApi>, future::Ready<Result<Block, Error>>>;
+	type Create = Either<CreateProposal<C, TxPool>, future::Ready<Result<Block, Error>>>;
 
 	fn propose(&mut self,
 		inherent_data: InherentData,
@@ -688,14 +687,14 @@ impl ProposalTiming {
 }
 
 /// Future which resolves upon the creation of a proposal.
-pub struct CreateProposal<C: Send + Sync, TxApi: PoolChainApi> {
-	state: CreateProposalState<C, TxApi>,
+pub struct CreateProposal<C: Send + Sync, TxPool> {
+	state: CreateProposalState<C, TxPool>,
 }
 
 /// Current status of the proposal future.
-enum CreateProposalState<C: Send + Sync, TxApi: PoolChainApi> {
+enum CreateProposalState<C: Send + Sync, TxPool> {
 	/// Pending inclusion, with given proposal data.
-	Pending(CreateProposalData<C, TxApi>),
+	Pending(CreateProposalData<C, TxPool>),
 	/// Represents the state when we switch from pending to fired.
 	Switching,
 	/// Block proposing has fired.
@@ -703,12 +702,12 @@ enum CreateProposalState<C: Send + Sync, TxApi: PoolChainApi> {
 }
 
 /// Inner data of the create proposal.
-struct CreateProposalData<C: Send + Sync, TxApi: PoolChainApi> {
+struct CreateProposalData<C: Send + Sync, TxPool> {
 	parent_hash: Hash,
 	parent_number: BlockNumber,
 	parent_id: BlockId,
 	client: Arc<C>,
-	transaction_pool: Arc<Pool<TxApi>>,
+	transaction_pool: Arc<TxPool>,
 	table: Arc<SharedTable>,
 	timing: ProposalTiming,
 	believed_minimum_timestamp: u64,
@@ -717,10 +716,10 @@ struct CreateProposalData<C: Send + Sync, TxApi: PoolChainApi> {
 	deadline: Instant,
 }
 
-impl<C, TxApi> CreateProposalData<C, TxApi> where
-	TxApi: PoolChainApi<Block=Block>,
+impl<C, TxPool> CreateProposalData<C, TxPool> where
+	TxPool: TransactionPool<Block=Block>,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 {
 	fn propose_with(mut self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
 		use block_builder::BlockBuilder;
@@ -755,7 +754,7 @@ impl<C, TxApi> CreateProposalData<C, TxApi> where
 
 			let ready_iter = self.transaction_pool.ready();
 			for ready in ready_iter.take(MAX_TRANSACTIONS) {
-				let encoded_size = ready.data.encode().len();
+				let encoded_size = ready.data().encode().len();
 				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
 					break;
 				}
@@ -764,18 +763,20 @@ impl<C, TxApi> CreateProposalData<C, TxApi> where
 					break;
 				}
 
-				match block_builder.push(ready.data.clone()) {
+				match block_builder.push(ready.data().clone()) {
 					Ok(()) => {
-						debug!("[{:?}] Pushed to the block.", ready.hash);
+						debug!("[{:?}] Pushed to the block.", ready.hash());
 						pending_size += encoded_size;
 					}
-					Err(client_error::Error::ApplyExtrinsicFailed(e)) if e.exhausted_resources() => {
+					Err(sp_blockchain::Error::ApplyExtrinsicFailed(sp_blockchain::ApplyExtrinsicFailed::Validity(e)))
+						if e.exhausted_resources() =>
+					{
 						debug!("Block is full, proceed with proposing.");
 						break;
 					}
 					Err(e) => {
 						trace!(target: "transaction-pool", "Invalid transaction: {}", e);
-						unqueue_invalid.push(ready.hash.clone());
+						unqueue_invalid.push(ready.hash().clone());
 					}
 				}
 			}
@@ -809,10 +810,10 @@ impl<C, TxApi> CreateProposalData<C, TxApi> where
 	}
 }
 
-impl<C, TxApi> futures03::Future for CreateProposal<C, TxApi> where
-	TxApi: PoolChainApi<Block=Block> + 'static,
+impl<C, TxPool> futures03::Future for CreateProposal<C, TxPool> where
+	TxPool: TransactionPool<Block=Block> + 'static,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = client_error::Error>,
+	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 {
 	type Output = Result<Block, Error>;
 

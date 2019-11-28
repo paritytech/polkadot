@@ -50,7 +50,7 @@
 //! will be noted as non-beneficial to Substrate's peer-set management utility.
 
 use sr_primitives::{generic::BlockId, traits::ProvideRuntimeApi};
-use substrate_client::error::Error as ClientError;
+use sp_blockchain::Error as ClientError;
 use substrate_network::{config::Roles, PeerId};
 use substrate_network::consensus_gossip::{
 	self as network_gossip, ValidationResult as GossipValidationResult,
@@ -897,12 +897,11 @@ mod tests {
 			}
 		});
 		let encoded = statement.encode();
-		let intent = MessageIntent::Broadcast;
 		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
 
 		{
 			let mut message_allowed = validator.message_allowed();
-			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_a, &encoded[..]));
+			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded[..]));
 		}
 
 		validator
@@ -915,7 +914,7 @@ mod tests {
 			.note_aware_under_leaf(&hash_a, c_hash);
 		{
 			let mut message_allowed = validator.message_allowed();
-			assert!(message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_a, &encoded[..]));
+			assert!(message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded[..]));
 		}
 	}
 

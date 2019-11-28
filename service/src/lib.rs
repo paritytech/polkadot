@@ -26,7 +26,6 @@ use polkadot_primitives::{parachain, Hash, BlockId};
 use polkadot_runtime::GenesisConfig;
 use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
 use service::{error::{Error as ServiceError}, Configuration, ServiceBuilder};
-use transaction_pool::txpool::{Pool as TransactionPool};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use log::info;
@@ -67,7 +66,7 @@ impl Default for CustomConfiguration {
 }
 
 /// Chain API type for the transaction pool.
-pub type TxChainApi<Backend, Executor> = transaction_pool::FullChainApi<
+pub type TxChainApi<Backend, Executor> = txpool::FullChainApi<
 	client::Client<Backend, Executor, Block, RuntimeApi>,
 	Block,
 >;
@@ -86,9 +85,13 @@ macro_rules! new_full_start {
 			.with_select_chain(|_, backend| {
 				Ok(client::LongestChain::new(backend.clone()))
 			})?
-			.with_transaction_pool(|config, client|
-				Ok(transaction_pool::txpool::Pool::new(config, transaction_pool::FullChainApi::new(client)))
-			)?
+			.with_transaction_pool(|config, client, _fetcher| {
+				let pool_api = txpool::FullChainApi::new(client.clone());
+				let pool = txpool::BasicPool::new(config, pool_api);
+				let maintainer = txpool::FullBasicPoolMaintainer::new(pool.pool().clone(), client);
+				let maintainable_pool = txpool_api::MaintainableTransactionPool::new(pool, maintainer);
+				Ok(maintainable_pool)
+			})?
 			.with_import_queue(|_config, client, mut select_chain, _| {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
@@ -118,8 +121,9 @@ macro_rules! new_full_start {
 				import_setup = Some((block_import, grandpa_link, babe_link));
 				Ok(import_queue)
 			})?
-			.with_rpc_extensions(|client, pool, _backend| -> polkadot_rpc::RpcExtension {
-				polkadot_rpc::create(client, pool)
+			.with_rpc_extensions(|client, pool, _backend, _fetcher, _remote_blockchain|
+				-> Result<polkadot_rpc::RpcExtension, _> {
+				Ok(polkadot_rpc::create_full(client, pool))
 			})?;
 
 		(builder, import_setup, inherent_data_providers)
@@ -337,9 +341,15 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 		.with_select_chain(|_, backend| {
 			Ok(LongestChain::new(backend.clone()))
 		})?
-		.with_transaction_pool(|config, client|
-			Ok(TransactionPool::new(config, transaction_pool::FullChainApi::new(client)))
-		)?
+		.with_transaction_pool(|config, client, fetcher| {
+			let fetcher = fetcher
+				.ok_or_else(|| "Trying to start light transaction pool without active fetcher")?;
+			let pool_api = txpool::LightChainApi::new(client.clone(), fetcher.clone());
+			let pool = txpool::BasicPool::new(config, pool_api);
+			let maintainer = txpool::LightBasicPoolMaintainer::with_defaults(pool.pool().clone(), client, fetcher);
+			let maintainable_pool = txpool_api::MaintainableTransactionPool::new(pool, maintainer);
+			Ok(maintainable_pool)
+		})?
 		.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _| {
 			let fetch_checker = fetcher
 				.map(|fetcher| fetcher.checker().clone())
@@ -376,8 +386,13 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
-		.with_rpc_extensions(|client, pool, _backend| -> polkadot_rpc::RpcExtension {
-			polkadot_rpc::create(client, pool)
+		.with_rpc_extensions(|client, pool, _backend, fetcher, remote_blockchain|
+			-> Result<polkadot_rpc::RpcExtension, _> {
+			let fetcher = fetcher
+				.ok_or_else(|| "Trying to start node RPC without active fetcher")?;
+			let remote_blockchain = remote_blockchain
+				.ok_or_else(|| "Trying to start node RPC without active remote blockchain")?;
+			Ok(polkadot_rpc::create_light(client, remote_blockchain, fetcher, pool))
 		})?
 		.build()
 }

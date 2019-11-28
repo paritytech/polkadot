@@ -34,7 +34,8 @@ grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = 
 inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-transaction_pool = { package = "sc-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+txpool = { package = "sc-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
