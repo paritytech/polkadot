@@ -99,7 +99,11 @@ cli::impl_augment_clap!(PolkadotSubParams);
 pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	W: Worker,
 {
-	match cli::parse_and_prepare::<PolkadotSubCommands, PolkadotSubParams, _>(&version, "parity-polkadot", std::env::args()) {
+	match cli::parse_and_prepare::<PolkadotSubCommands, PolkadotSubParams, _>(
+		&version,
+		"parity-polkadot",
+		std::env::args(),
+	) {
 		cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, worker,
 		|worker, _cli_args, custom_args, mut config| {
 			info!("{}", version.name);
