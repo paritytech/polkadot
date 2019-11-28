@@ -139,14 +139,14 @@ check-web-wasm:                    &test
   script:
     # WASM support is in progress. As more and more crates support WASM, we
     # should add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - time cargo build --locked --target=wasm32-unknown-unknown -p polkadot-availability-store
-    - time cargo build --locked --target=wasm32-unknown-unknown -p polkadot-executor
-    - time cargo build --locked --target=wasm32-unknown-unknown -p polkadot-erasure-coding
-    - time cargo build --locked --target=wasm32-unknown-unknown -p polkadot-parachain
-    - time cargo build --locked --target=wasm32-unknown-unknown -p polkadot-primitives
-    - time cargo build --locked --target=wasm32-unknown-unknown -p polkadot-rpc
-    - time cargo build --locked --target=wasm32-unknown-unknown -p polkadot-runtime
-    - time cargo build --locked --target=wasm32-unknown-unknown -p polkadot-statement-table
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path availability-store/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path executor/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path erasure-coding/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path parachain/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path primitives/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path rpc/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path statement-table/Cargo.toml
     - sccache -s
 
 
