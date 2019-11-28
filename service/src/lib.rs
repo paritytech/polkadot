@@ -26,7 +26,6 @@ use polkadot_primitives::{parachain, Hash, BlockId};
 use polkadot_runtime::GenesisConfig;
 use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
 use service::{error::{Error as ServiceError}, Configuration, ServiceBuilder};
-use transaction_pool::txpool::{Pool as TransactionPool};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use log::info;
@@ -55,6 +54,9 @@ pub struct CustomConfiguration {
 
 	/// Maximal `block_data` size.
 	pub max_block_data_size: Option<u64>,
+
+	/// Whether to enable or disable the authority discovery module.
+	pub authority_discovery_enabled: bool,
 }
 
 impl Default for CustomConfiguration {
@@ -62,12 +64,13 @@ impl Default for CustomConfiguration {
 		Self {
 			collating_for: None,
 			max_block_data_size: None,
+			authority_discovery_enabled: false,
 		}
 	}
 }
 
 /// Chain API type for the transaction pool.
-pub type TxChainApi<Backend, Executor> = transaction_pool::FullChainApi<
+pub type TxChainApi<Backend, Executor> = txpool::FullChainApi<
 	client::Client<Backend, Executor, Block, RuntimeApi>,
 	Block,
 >;
@@ -86,9 +89,13 @@ macro_rules! new_full_start {
 			.with_select_chain(|_, backend| {
 				Ok(client::LongestChain::new(backend.clone()))
 			})?
-			.with_transaction_pool(|config, client|
-				Ok(transaction_pool::txpool::Pool::new(config, transaction_pool::FullChainApi::new(client)))
-			)?
+			.with_transaction_pool(|config, client, _fetcher| {
+				let pool_api = txpool::FullChainApi::new(client.clone());
+				let pool = txpool::BasicPool::new(config, pool_api);
+				let maintainer = txpool::FullBasicPoolMaintainer::new(pool.pool().clone(), client);
+				let maintainable_pool = txpool_api::MaintainableTransactionPool::new(pool, maintainer);
+				Ok(maintainable_pool)
+			})?
 			.with_import_queue(|_config, client, mut select_chain, _| {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
@@ -118,8 +125,9 @@ macro_rules! new_full_start {
 				import_setup = Some((block_import, grandpa_link, babe_link));
 				Ok(import_queue)
 			})?
-			.with_rpc_extensions(|client, pool, _backend| -> polkadot_rpc::RpcExtension {
-				polkadot_rpc::create(client, pool)
+			.with_rpc_extensions(|client, pool, _backend, _fetcher, _remote_blockchain|
+				-> Result<polkadot_rpc::RpcExtension, _> {
+				Ok(polkadot_rpc::create_full(client, pool))
 			})?;
 
 		(builder, import_setup, inherent_data_providers)
@@ -143,6 +151,11 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	>, ServiceError>
 {
 	use substrate_network::DhtEvent;
+	use futures03::{
+		compat::Stream01CompatExt,
+		stream::StreamExt,
+		future::{FutureExt, TryFutureExt},
+	};
 
 	let is_collator = config.custom.collating_for.is_some();
 	let is_authority = config.roles.is_authority() && !is_collator;
@@ -155,6 +168,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	};
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
+	let authority_discovery_enabled = config.custom.authority_discovery_enabled;
 
 	// sentry nodes announce themselves as authorities to the network
 	// and should run the same protocols authorities do, but it should
@@ -168,7 +182,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	// event per authority within the current authority set. This estimates the
 	// authority set size to be somewhere below 10 000 thereby setting the channel
 	// buffer size to 10 000.
-	let (dht_event_tx, _dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
+	let (dht_event_tx, dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
 
 	let service = builder
 		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
@@ -273,6 +287,21 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 
 		let babe = babe::start_babe(babe_config)?;
 		service.spawn_essential_task(babe);
+
+		if authority_discovery_enabled {
+			let future03_dht_event_rx = dht_event_rx.compat()
+				.map(|x| x.expect("<mpsc::channel::Receiver as Stream> never returns an error; qed"))
+				.boxed();
+			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
+				service.client(),
+				service.network(),
+				service.keystore(),
+				future03_dht_event_rx,
+			);
+			let future01_authority_discovery = authority_discovery.map(|x| Ok(x)).compat();
+
+			service.spawn_task(future01_authority_discovery);
+		}
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
@@ -337,9 +366,15 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 		.with_select_chain(|_, backend| {
 			Ok(LongestChain::new(backend.clone()))
 		})?
-		.with_transaction_pool(|config, client|
-			Ok(TransactionPool::new(config, transaction_pool::FullChainApi::new(client)))
-		)?
+		.with_transaction_pool(|config, client, fetcher| {
+			let fetcher = fetcher
+				.ok_or_else(|| "Trying to start light transaction pool without active fetcher")?;
+			let pool_api = txpool::LightChainApi::new(client.clone(), fetcher.clone());
+			let pool = txpool::BasicPool::new(config, pool_api);
+			let maintainer = txpool::LightBasicPoolMaintainer::with_defaults(pool.pool().clone(), client, fetcher);
+			let maintainable_pool = txpool_api::MaintainableTransactionPool::new(pool, maintainer);
+			Ok(maintainable_pool)
+		})?
 		.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _| {
 			let fetch_checker = fetcher
 				.map(|fetcher| fetcher.checker().clone())
@@ -376,8 +411,13 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
-		.with_rpc_extensions(|client, pool, _backend| -> polkadot_rpc::RpcExtension {
-			polkadot_rpc::create(client, pool)
+		.with_rpc_extensions(|client, pool, _backend, fetcher, remote_blockchain|
+			-> Result<polkadot_rpc::RpcExtension, _> {
+			let fetcher = fetcher
+				.ok_or_else(|| "Trying to start node RPC without active fetcher")?;
+			let remote_blockchain = remote_blockchain
+				.ok_or_else(|| "Trying to start node RPC without active remote blockchain")?;
+			Ok(polkadot_rpc::create_light(client, remote_blockchain, fetcher, pool))
 		})?
 		.build()
 }

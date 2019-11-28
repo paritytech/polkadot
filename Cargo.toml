@@ -4,7 +4,7 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-version = "0.6.17"
+version = "0.7.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 build = "build.rs"
 edition = "2018"
@@ -47,6 +47,3 @@ maintenance = { status = "actively-developed" }
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
-
-[patch.crates-io]
-zstd-sys = { git = "https://github.com/bkchr/zstd-rs.git", branch = "bkchr-export-include-paths2" }

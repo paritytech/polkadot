@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-erasure-coding"
-version = "0.6.17"
+version = "0.7.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 

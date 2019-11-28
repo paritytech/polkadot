@@ -98,7 +98,7 @@ impl<C: Collators, P> CollationFetch<C, P> {
 }
 
 impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
-	where P::Api: ParachainHost<Block, Error = client::error::Error>,
+	where P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	type Item = (Collation, OutgoingMessages);
 	type Error = C::Error;
@@ -142,7 +142,7 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
 	/// Client error
-	Client(client::error::Error),
+	Client(sp_blockchain::Error),
 	/// Wasm validation error
 	WasmValidation(wasm_executor::Error),
 	/// Collated for inactive parachain
@@ -393,7 +393,7 @@ pub fn validate_collation<P>(
 	max_block_data_size: Option<u64>,
 ) -> Result<OutgoingMessages, Error> where
 	P: ProvideRuntimeApi,
-	P::Api: ParachainHost<Block, Error = client::error::Error>,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	use parachain::{IncomingMessage, ValidationParams};
 

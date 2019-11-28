@@ -205,7 +205,7 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 /// A long-lived network which can create parachain statement  routing processes on demand.
 impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
-	P::Api: ParachainHost<Block, Error = substrate_client::error::Error>,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	E: Clone + Future<Item=(),Error=()> + Send + Sync + 'static,
 	N: NetworkService,
 	T: Clone + Executor + Send + Sync + 'static,

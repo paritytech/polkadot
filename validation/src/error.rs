@@ -22,7 +22,7 @@ use polkadot_primitives::parachain::ValidatorId;
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
 	/// Client error
-	Client(client::error::Error),
+	Client(sp_blockchain::Error),
 	/// Consensus error
 	Consensus(consensus::error::Error),
 	#[display(fmt = "Invalid duty roster length: expected {}, got {}", expected, got)]
