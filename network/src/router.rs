@@ -32,8 +32,9 @@ use polkadot_primitives::parachain::{
 	OutgoingMessages, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock,
 };
 use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement};
-
-use futures::prelude::*;
+use futures03::task::SpawnExt;
+use futures03::TryFutureExt;
+use futures03::FutureExt;
 use parking_lot::Mutex;
 use log::{debug, trace};
 
@@ -58,14 +59,16 @@ pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 /// dropped when it is not required anymore. Otherwise, it will stick around in memory
 /// infinitely.
 pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
-	impl Stream<Item=SignedStatement, Error=()> {
+	impl futures03::Stream<Item=SignedStatement> {
 	// spin up a task in the background that processes all incoming statements
 	// validation has been done already by the gossip validator.
 	// this will block internally until the gossip messages stream is obtained.
+	use futures03::StreamExt;
+
 	network.gossip_messages_for(topic)
 		.filter_map(|msg| match msg.0 {
-			GossipMessage::Statement(s) => Some(s.signed_statement),
-			_ => None
+			GossipMessage::Statement(s) => futures03::future::ready(Some(s.signed_statement)),
+			_ => futures03::future::ready(None)
 		})
 }
 
@@ -100,7 +103,7 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	/// The returned stream will not terminate, so it is required to make sure that the stream is
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
-	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement, Error=()> {
+	pub(crate) fn checked_statements(&self) -> impl futures03::Stream<Item=SignedStatement> {
 		checked_statements(&**self.network(), self.attestation_topic)
 	}
 
@@ -129,7 +132,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
-	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+	E: futures03::Future<Output=()> + Clone + Send + Unpin + 'static,
 {
 	/// Import a statement whose signature has been checked already.
 	pub(crate) fn import_statement(&self, statement: SignedStatement) {
@@ -173,17 +176,22 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 
 				if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
 					trace!(target: "validation", "driving statement work to completion");
-					let work = work.select2(self.fetcher.exit().clone()).then(|_| Ok(()));
-					self.fetcher.executor().spawn(work);
+
+					let work = futures03::future::select(
+						work,
+						self.fetcher.exit().clone()
+					)
+						.map(|_| ());
+					let _ = self.fetcher.executor().spawn(work);
 				}
 			}
 		}
 	}
 
 	fn create_work<D>(&self, candidate_hash: Hash, producer: ParachainWork<D>)
-		-> impl Future<Item=(),Error=()> + Send + 'static
+		-> impl futures03::Future<Output=()> + Send + 'static
 		where
-		D: Future<Item=PoVBlock,Error=io::Error> + Send + 'static,
+			D: futures03::Future<Output=Result<PoVBlock,io::Error>> + Send + Unpin + 'static,
 	{
 		let table = self.table.clone();
 		let network = self.network().clone();
@@ -192,7 +200,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		let parent_hash = self.parent_hash();
 
 		producer.prime(self.fetcher.api().clone())
-			.map(move |validated| {
+			.map_ok(move |validated| {
 				// store the data before broadcasting statements, so other peers can fetch.
 				knowledge.lock().note_candidate(
 					candidate_hash,
@@ -212,7 +220,11 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 
 				network.gossip_message(attestation_topic, statement.into());
 			})
-			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
+			.map(|res| {
+				if let Err(e) = res {
+					debug!(target: "p_net", "Failed to produce statements: {:?}", e);
+				}
+			})
 	}
 }
 
@@ -220,7 +232,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
-	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+	E: futures03::Future<Output=()> + Clone + Send + 'static,
 {
 	type Error = io::Error;
 	type FetchValidationProof = validation::PoVReceiver;

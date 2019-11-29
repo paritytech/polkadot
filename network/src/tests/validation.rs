@@ -39,22 +39,23 @@ use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use futures::{prelude::*, sync::mpsc};
+use std::pin::Pin;
+use std::task::{Poll, Context};
+use futures03::{prelude::*, channel::mpsc};
 use codec::Encode;
 
 use super::{TestContext, TestChainContext};
 
-type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
+type TaskExecutor = Arc<dyn futures03::task::Spawn + Send + Sync>;
 
 #[derive(Clone, Copy)]
 struct NeverExit;
 
 impl Future for NeverExit {
-	type Item = ();
-	type Error = ();
+	type Output = ();
 
-	fn poll(&mut self) -> Poll<(), ()> {
-		Ok(Async::NotReady)
+	fn poll(self: Pin<&mut Self>, _: &mut Context) -> Poll<Self::Output> {
+		Poll::Pending
 	}
 }
 
@@ -93,27 +94,28 @@ impl GossipRouter {
 }
 
 impl Future for GossipRouter {
-	type Item = ();
-	type Error = ();
+	type Output = ();
 
-	fn poll(&mut self) -> Poll<(), ()> {
+	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+		let this = Pin::into_inner(self);
+
 		loop {
-			match self.incoming_messages.poll().unwrap() {
-				Async::Ready(Some((topic, message))) => self.add_message(topic, message),
-				Async::Ready(None) => panic!("ended early."),
-				Async::NotReady => break,
+			match Pin::new(&mut this.incoming_messages).poll_next(cx) {
+				Poll::Ready(Some((topic, message))) => this.add_message(topic, message),
+				Poll::Ready(None) => panic!("ended early."),
+				Poll::Pending => break,
 			}
 		}
 
 		loop {
-			match self.incoming_streams.poll().unwrap() {
-				Async::Ready(Some((topic, sender))) => self.add_outgoing(topic, sender),
-				Async::Ready(None) => panic!("ended early."),
-				Async::NotReady => break,
+			match Pin::new(&mut this.incoming_streams).poll_next(cx) {
+				Poll::Ready(Some((topic, sender))) => this.add_outgoing(topic, sender),
+				Poll::Ready(None) => panic!("ended early."),
+				Poll::Pending => break,
 			}
 		}
 
-		Ok(Async::NotReady)
+		Poll::Pending
 	}
 }
 

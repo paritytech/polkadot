@@ -20,7 +20,7 @@ use codec::{Encode, Decode};
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{CollatorId, Id as ParaId, Collation};
 use substrate_network::PeerId;
-use futures::sync::oneshot;
+use futures03::channel::oneshot;
 
 use std::collections::hash_map::{HashMap, Entry};
 use std::time::{Duration, Instant};
@@ -196,7 +196,7 @@ impl CollatorPool {
 	}
 
 	/// Wait for a collation from a parachain.
-	pub fn await_collation(&mut self, relay_parent: Hash, para_id: ParaId, sender: oneshot::Sender<Collation>) {
+	pub fn await_collation(&mut self, relay_parent: Hash, para_id: ParaId, sender: futures03::channel::oneshot::Sender<Collation>) {
 		self.collations.entry((relay_parent, para_id))
 			.or_insert_with(CollationSlot::blank_now)
 			.entries
@@ -230,7 +230,7 @@ mod tests {
 	use polkadot_primitives::parachain::{
 		CandidateReceipt, BlockData, PoVBlock, HeadData, ConsolidatedIngress,
 	};
-	use futures::Future;
+	use futures03::executor::block_on;
 
 	fn make_pov(block_data: Vec<u8>) -> PoVBlock {
 		PoVBlock {
@@ -292,8 +292,8 @@ mod tests {
 			pov: make_pov(vec![4, 5, 6]),
 		});
 
-		rx1.wait().unwrap();
-		rx2.wait().unwrap();
+		block_on(rx1).unwrap();
+		block_on(rx2).unwrap();
 		assert_eq!(pool.collators.get(&primary).map(|ids| &ids.1).unwrap(), &peer_id);
 	}
 
@@ -322,7 +322,7 @@ mod tests {
 
 		let (tx, rx) = oneshot::channel();
 		pool.await_collation(relay_parent, para_id, tx);
-		rx.wait().unwrap();
+		block_on(rx).unwrap();
 	}
 
 	#[test]

@@ -18,7 +18,7 @@ sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "pol
 futures = "0.1"
 futures03 = { package = "futures", version = "0.3.1", features = ["compat"] }
 log = "0.4.8"
-exit-future = "0.1.4"
+exit-future = { git = "https://github.com/expenses/exit-future", branch = "modernize" }
 substrate-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
