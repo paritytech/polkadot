@@ -272,6 +272,8 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 
 		let client = service.client();
 		let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
+		let can_author_with =
+			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
 		let babe_config = babe::BabeParams {
 			keystore: service.keystore(),
@@ -283,6 +285,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			inherent_data_providers: inherent_data_providers.clone(),
 			force_authoring: force_authoring,
 			babe_link,
+			can_author_with,
 		};
 
 		let babe = babe::start_babe(babe_config)?;
