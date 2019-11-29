@@ -17,9 +17,10 @@
 //! Implements a future which resolves when all of the candidates referenced are includable.
 
 use std::collections::HashMap;
+use std::pin::Pin;
+use std::task::{Poll, Context};
 
-use futures01::prelude::*;
-use futures01::sync::oneshot;
+use futures::channel::oneshot;
 
 use polkadot_primitives::Hash;
 
@@ -94,12 +95,11 @@ impl IncludabilitySender {
 /// Future that resolves when all the candidates within are includable.
 pub struct Includable(oneshot::Receiver<()>);
 
-impl Future for Includable {
-	type Item = ();
-	type Error = oneshot::Canceled;
+impl futures::Future for Includable {
+	type Output = Result<(), oneshot::Canceled>;
 
-	fn poll(&mut self) -> Poll<(), oneshot::Canceled> {
-		self.0.poll()
+	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+		Pin::new(&mut Pin::into_inner(self).0).poll(cx)
 	}
 }
 
@@ -132,6 +132,6 @@ mod tests {
 		sender.update_candidate(hash1, true);
 		assert!(sender.is_complete());
 
-		recv.wait().unwrap();
+		futures::executor::block_on(recv).unwrap();
 	}
 }

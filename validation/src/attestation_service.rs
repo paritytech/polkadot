@@ -30,7 +30,6 @@ use sp_blockchain::{HeaderBackend, Result as ClientResult};
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
 use availability_store::Store as AvailabilityStore;
-use futures01::prelude::*;
 use futures::{StreamExt, FutureExt, Future, future::{ready, select}, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
@@ -118,8 +117,8 @@ pub(crate) fn start<C, N, P, SC>(
 	max_block_data_size: Option<u64>,
 ) -> ServiceHandle
 	where
-		C: Collators + Send + Sync + 'static,
-		<C::Collation as IntoFuture>::Future: Send + 'static,
+		C: Collators + Send + Sync + Unpin + 'static,
+		C::Collation: Send + Unpin + 'static,
 		P: BlockchainEvents<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block> +
@@ -128,7 +127,7 @@ pub(crate) fn start<C, N, P, SC>(
 			ApiExt<Block, Error = sp_blockchain::Error>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
-		<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+		N::BuildTableRouter: Send + Unpin + 'static,
 		SC: SelectChain<Block> + 'static,
 {
 	const TIMER_INTERVAL: Duration = Duration::from_secs(30);

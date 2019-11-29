@@ -58,10 +58,9 @@ use futures_timer::Delay;
 use txpool_api::{TransactionPool, InPoolTransaction};
 
 use attestation_service::ServiceHandle;
-use futures01::prelude::*;
 use futures::{
-	future::{self, Either, select}, FutureExt, StreamExt, compat::Future01CompatExt, Stream,
-	stream::unfold, task::{Spawn, SpawnExt}
+	future::{self, Either, select}, FutureExt, StreamExt, Stream,
+	stream::unfold, task::{Spawn, SpawnExt},
 };
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
@@ -111,7 +110,7 @@ pub trait TableRouter: Clone {
 	/// Errors when fetching data from the network.
 	type Error: std::fmt::Debug;
 	/// Future that resolves when candidate data is fetched.
-	type FetchValidationProof: IntoFuture<Item=PoVBlock,Error=Self::Error>;
+	type FetchValidationProof: futures::Future<Output=Result<PoVBlock, Self::Error>>;
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
@@ -123,16 +122,13 @@ pub trait TableRouter: Clone {
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.
 pub trait Network {
-	/// The error type of asynchronously building the table router.
-	type Error: std::fmt::Debug;
-
 	/// The table router type. This should handle importing of any statements,
 	/// routing statements to peers, and driving completion of any `StatementProducers`.
 	type TableRouter: TableRouter;
 
 	/// The future used for asynchronously building the table router.
 	/// This should not fail.
-	type BuildTableRouter: IntoFuture<Item=Self::TableRouter,Error=Self::Error>;
+	type BuildTableRouter: futures::Future<Output=Self::TableRouter>;
 
 	/// Instantiate a table router using the given shared table.
 	/// Also pass through any outgoing messages to be broadcast to peers.
@@ -263,13 +259,13 @@ struct ParachainValidation<C, N, P> {
 }
 
 impl<C, N, P> ParachainValidation<C, N, P> where
-	C: Collators + Send + 'static,
+	C: Collators + Send + Unpin + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
-	<C::Collation as IntoFuture>::Future: Send + 'static,
+	C::Collation: Send + Unpin + 'static,
 	N::TableRouter: Send + 'static,
-	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	N::BuildTableRouter: Unpin + Send + 'static,
 {
 	/// Get an attestation table for given parent hash.
 	///
@@ -401,23 +397,16 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 							e,
 						),
 					}
-
-					Ok(())
+					futures::future::ready(())
 				}
 				Err(e) => {
 					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
-					Ok(())
+					futures::future::ready(())
 				}
 			})
 		};
 
-		let router = build_router
-			.into_future()
-			.map_err(|e| {
-				warn!(target: "validation" , "Failed to build table router: {:?}", e);
-			})
-			.and_then(with_router)
-			.compat();
+		let router = build_router.map(with_router);
 
 		let cancellable_work = select(exit, router).map(|_| ());
 
@@ -447,8 +436,8 @@ pub struct ProposerFactory<C, N, P, SC, TxPool: TransactionPool> {
 }
 
 impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
-	C: Collators + Send + Sync + 'static,
-	<C::Collation as IntoFuture>::Future: Send + 'static,
+	C: Collators + Send + Sync + Unpin + 'static,
+	C::Collation: Send + Unpin + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> +
@@ -457,7 +446,7 @@ impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
 		ApiExt<Block, Error = sp_blockchain::Error>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
-	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	N::BuildTableRouter: Send + Unpin + 'static,
 	TxPool: TransactionPool,
 	SC: SelectChain<Block> + 'static,
 {
@@ -506,7 +495,7 @@ impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
 }
 
 impl<C, N, P, SC, TxPool> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxPool> where
-	C: Collators + Send + 'static,
+	C: Collators + Send + Unpin + 'static,
 	N: Network,
 	TxPool: TransactionPool<Block=Block> + 'static,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
@@ -514,9 +503,9 @@ impl<C, N, P, SC, TxPool> consensus::Environment<Block> for ProposerFactory<C, N
 		BlockBuilderApi<Block> +
 		BabeApi<Block> +
 		ApiExt<Block, Error = sp_blockchain::Error>,
-	<C::Collation as IntoFuture>::Future: Send + 'static,
+	C::Collation: Send + Unpin + 'static,
 	N::TableRouter: Send + 'static,
-	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	N::BuildTableRouter: Send + Unpin + 'static,
 	SC: SelectChain<Block>,
 {
 	type Proposer = Proposer<P, TxPool>;

@@ -19,6 +19,8 @@
 
 use std::collections::hash_map::{HashMap, Entry};
 use std::sync::Arc;
+use std::pin::Pin;
+use std::task::{Poll, Context};
 
 use availability_store::{Data, Store as AvailabilityStore};
 use table::{self, Table, Context as TableContextTrait};
@@ -29,7 +31,6 @@ use polkadot_primitives::parachain::{
 };
 
 use parking_lot::Mutex;
-use futures01::prelude::*;
 use log::{warn, debug};
 use bitvec::bitvec;
 
@@ -139,7 +140,7 @@ impl SharedTableInner {
 		statement: table::SignedStatement,
 		max_block_data_size: Option<u64>,
 	) -> Option<ParachainWork<
-		<R::FetchValidationProof as IntoFuture>::Future,
+		R::FetchValidationProof
 	>> {
 		let summary = self.table.import_statement(context, statement)?;
 		self.update_trackers(&summary.candidate, context);
@@ -173,7 +174,7 @@ impl SharedTableInner {
 					None
 				}
 				Some(candidate) => {
-					let fetch = router.fetch_pov_block(candidate).into_future();
+					let fetch = router.fetch_pov_block(candidate);
 
 					Some(Work {
 						candidate_receipt: candidate.clone(),
@@ -266,7 +267,7 @@ pub struct ParachainWork<Fetch> {
 	max_block_data_size: Option<u64>,
 }
 
-impl<Fetch: Future> ParachainWork<Fetch> {
+impl<Fetch: futures::Future> ParachainWork<Fetch> {
 	/// Prime the parachain work with an API reference for extracting
 	/// chain information.
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
@@ -318,22 +319,27 @@ pub struct PrimedParachainWork<Fetch, F> {
 	validate: F,
 }
 
-impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
+impl<Fetch, F, Err> futures::Future for PrimedParachainWork<Fetch, F>
 	where
-		Fetch: Future<Item=PoVBlock,Error=Err>,
-		F: FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()>,
+		Fetch: futures::Future<Output=Result<PoVBlock,Err>> + Unpin,
+		F: FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()> + Unpin,
 		Err: From<::std::io::Error>,
 {
-	type Item = Validated;
-	type Error = Err;
+	type Output = Result<Validated, Err>;
 
-	fn poll(&mut self) -> Poll<Validated, Err> {
-		let work = &mut self.inner.work;
+	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+		let this = Pin::into_inner(self);
+		let work = &mut this.inner.work;
 		let candidate = &work.candidate_receipt;
 
-		let pov_block = futures01::try_ready!(work.fetch.poll());
-		let validation_res = (self.validate)(
-			&BlockId::hash(self.inner.relay_parent),
+		let pov_block = match Pin::new(&mut work.fetch).poll(cx) {
+			Poll::Ready(Ok(block)) => block,
+			Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
+			Poll::Pending => return Poll::Pending,
+		};
+
+		let validation_res = (this.validate)(
+			&BlockId::hash(this.inner.relay_parent),
 			&Collation { pov: pov_block.clone(), receipt: candidate.clone() },
 		);
 
@@ -352,8 +358,8 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 					.map(|(_target, root, data)| (root, data))
 					.collect();
 
-				self.inner.availability_store.make_available(Data {
-					relay_parent: self.inner.relay_parent,
+				this.inner.availability_store.make_available(Data {
+					relay_parent: this.inner.relay_parent,
 					parachain_id: work.candidate_receipt.parachain_index,
 					candidate_hash,
 					block_data: pov_block.block_data.clone(),
@@ -367,7 +373,7 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 			}
 		};
 
-		Ok(Async::Ready(Validated {
+		Poll::Ready(Ok(Validated {
 			statement: validity_statement,
 			result,
 		}))
@@ -440,7 +446,7 @@ impl SharedTable {
 		router: &R,
 		statement: table::SignedStatement,
 	) -> Option<ParachainWork<
-		<R::FetchValidationProof as IntoFuture>::Future,
+		R::FetchValidationProof,
 	>> {
 		self.inner.lock().import_remote_statement(&*self.context, router, statement, self.max_block_data_size)
 	}
@@ -456,7 +462,7 @@ impl SharedTable {
 			R: TableRouter,
 			I: IntoIterator<Item=table::SignedStatement>,
 			U: ::std::iter::FromIterator<Option<ParachainWork<
-				<R::FetchValidationProof as IntoFuture>::Future,
+				R::FetchValidationProof,
 			>>>,
 	{
 		let mut inner = self.inner.lock();
@@ -574,7 +580,8 @@ mod tests {
 	use substrate_keyring::Sr25519Keyring;
 	use primitives::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{BlockData, ConsolidatedIngress};
-	use futures01::future;
+	use futures::future;
+	use futures::executor::block_on;
 
 	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
 		PoVBlock {
@@ -587,7 +594,7 @@ mod tests {
 	struct DummyRouter;
 	impl TableRouter for DummyRouter {
 		type Error = ::std::io::Error;
-		type FetchValidationProof = future::FutureResult<PoVBlock,Self::Error>;
+		type FetchValidationProof = future::Ready<Result<PoVBlock,Self::Error>>;
 
 		fn local_collation(&self, _collation: Collation, _outgoing: OutgoingMessages) {
 		}
@@ -727,7 +734,7 @@ mod tests {
 
 		let hash = candidate.hash();
 
-		let producer: ParachainWork<future::FutureResult<_, ::std::io::Error>> = ParachainWork {
+		let producer: ParachainWork<future::Ready<Result<_, ::std::io::Error>>> = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
 				fetch: future::ok(pov_block.clone()),
@@ -737,8 +744,7 @@ mod tests {
 			max_block_data_size: None,
 		};
 
-		let validated = producer.prime_with(|_, _| Ok(OutgoingMessages { outgoing_messages: Vec::new() }))
-			.wait()
+		let validated = block_on(producer.prime_with(|_, _| Ok(OutgoingMessages { outgoing_messages: Vec::new() })))
 			.unwrap();
 
 		assert_eq!(validated.pov_block(), &pov_block);
@@ -778,8 +784,7 @@ mod tests {
 			max_block_data_size: None,
 		};
 
-		let validated = producer.prime_with(|_, _| Ok(OutgoingMessages { outgoing_messages: Vec::new() }))
-			.wait()
+		let validated = block_on(producer.prime_with(|_, _| Ok(OutgoingMessages { outgoing_messages: Vec::new() })))
 			.unwrap();
 
 		assert_eq!(validated.pov_block(), &pov_block);
