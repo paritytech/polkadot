@@ -25,9 +25,9 @@
 
 use std::{thread, time::{Duration, Instant}, sync::Arc};
 
-use client::{error::Result as ClientResult, BlockchainEvents, BlockBody};
+use client::{BlockchainEvents, BlockBody};
+use sp_blockchain::{HeaderBackend, Result as ClientResult};
 use block_builder::BlockBuilderApi;
-use client::blockchain::HeaderBackend;
 use consensus::SelectChain;
 use availability_store::Store as AvailabilityStore;
 use futures::prelude::*;
@@ -127,7 +127,7 @@ pub(crate) fn start<C, N, P, SC>(
 		P::Api: ParachainHost<Block> +
 			BlockBuilderApi<Block> +
 			BabeApi<Block> +
-			ApiExt<Block, Error = client::error::Error>,
+			ApiExt<Block, Error = sp_blockchain::Error>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
 		<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,

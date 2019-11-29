@@ -1040,6 +1040,7 @@ mod tests {
 	parameter_types! {
 		pub const SessionsPerEra: sr_staking_primitives::SessionIndex = 6;
 		pub const BondingDuration: staking::EraIndex = 28;
+		pub const SlashDeferDuration: staking::EraIndex = 7;
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	}
@@ -1053,6 +1054,8 @@ mod tests {
 		type Reward = ();
 		type SessionsPerEra = SessionsPerEra;
 		type BondingDuration = BondingDuration;
+		type SlashDeferDuration = SlashDeferDuration;
+		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
 		type SessionInterface = Self;
 		type Time = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
@@ -2035,7 +2038,7 @@ mod tests {
 
 	#[test]
 	fn empty_trie_root_const_is_blake2_hashed_null_node() {
-		let hashed_null_node =  <NodeCodec<Blake2Hasher> as trie_db::NodeCodec>::hashed_null_node();
+		let hashed_null_node = <NodeCodec<Blake2Hasher> as trie_db::NodeCodec>::hashed_null_node();
 		assert_eq!(hashed_null_node, EMPTY_TRIE_ROOT.into())
 	}
 }

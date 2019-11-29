@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-validation"
-version = "0.6.17"
+version = "0.7.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -25,8 +25,9 @@ grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/pa
 inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 consensus = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-transaction_pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+client = { package = "substrate-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sr-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 block-builder = { package = "substrate-block-builder", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

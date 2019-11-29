@@ -89,7 +89,7 @@ impl crate::gossip::ChainContext for TestChainContext {
 	}
 
 	fn leaf_unrouted_roots(&self, leaf: &Hash, with_queue_root: &mut dyn FnMut(&Hash))
-		-> Result<(), substrate_client::error::Error>
+		-> Result<(), sp_blockchain::Error>
 	{
 		for root in self.ingress_roots.get(leaf).into_iter().flat_map(|roots| roots) {
 			with_queue_root(root)

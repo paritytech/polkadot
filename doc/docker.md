@@ -1,69 +1,75 @@
-
-=== The easiest way
+### The easiest way
 
 The easiest/faster option is to use the latest image.
 
 Let´s first check the version we have. The first time you run this command, the polkadot docker image will be downloaded. This takes a bit of time and bandwidth, be patient:
 
-[source, shell]
+```bash
 docker run --rm -it chevdor/polkadot:0.3.14 polkadot --version
+```
 
 You can also pass any argument/flag that polkadot supports:
 
-[source, shell]
+```bash
 docker run --rm -it chevdor/polkadot:0.3.14 polkadot --chain alex --name "PolkaDocker"
+```
 
 Once you are done experimenting and picking the best node name :) you can start polkadot as daemon, exposes the polkadot ports and mount a volume that will keep your blockchain data locally:
 
-[source, shell]
+```bash
 docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.14 polkadot --chain alex
+```
 
 Additionally if you want to have custom node name you can add the `--name "YourName"` at the end
 
-[source, shell]
-docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.14 polkadot --chain alex --name "PolkaDocker" 
+```bash
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.14 polkadot --chain alex --name "PolkaDocker"
+```
 
+```bash
 docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:0.3.14 polkadot --rpc-external --chain alex
+```
 
-if you want to connect to rpc port 9933, then must add polkadot startup parameter: --rpc-external.
+if you want to connect to rpc port 9933, then must add polkadot startup parameter: `--rpc-external`.
 
 **Note:** The `--chain alex` argument is important and you need to add it to the command line. If you are running older node versions (pre 0.3) you don't need it.
 
-=== Limiting Resources
+### Limiting Resources
 
-Chain syncing will utilise all available memory and CPU power your server has to offer, which can lead to crashing. 
+Chain syncing will utilise all available memory and CPU power your server has to offer, which can lead to crashing.
 
-If running on a low resource VPS, use `--memory` and `--cpus` to limit the resources used. E.g. To allow a maximum of 512MB memory and 50% of 1 CPU, use  `--cpus=".5" --memory="512m"`. Read more about limiting a container's resources [here](https://docs.docker.com/config/containers/resource_constraints). 
+If running on a low resource VPS, use `--memory` and `--cpus` to limit the resources used. E.g. To allow a maximum of 512MB memory and 50% of 1 CPU, use `--cpus=".5" --memory="512m"`. Read more about limiting a container's resources [here](https://docs.docker.com/config/containers/resource_constraints).
 
 Start a shell session with the daemon:
 
-[source, shell]
+```bash
 docker exec -it $(docker ps -q) bash;
+```
 
 Check the current version:
 
-[source, shell]
+```bash
 polkadot --version
+```
 
-
-=== Build your own image
+### Build your own image
 
 To get up and running with the smallest footprint on your system, you may use the Polkadot Docker image.
 You can build it yourself (it takes a while...) in the shell session of the daemon:
 
-[source, shell]
-----
+```bash
 cd docker
 ./build.sh
-----
+```
 
-=== Reporting issues
+### Reporting issues
 
 If you run into issues with polkadot when using docker, please run the following command
 (replace the tag with the appropriate one if you do not use latest):
 
-[source, shell]
+```bash
 docker run --rm -it chevdor/polkadot:latest polkadot version
+```
 
 This will show you the polkadot version as well as the git commit ref that was used to build your container.
 Just paste that in the issue you create.

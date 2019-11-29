@@ -32,8 +32,10 @@ pub mod time {
 	// Testnet
 //	pub const MILLISECS_PER_BLOCK: Moment = 1000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-	// Kusama & mainnet
-	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 4 * HOURS;
+	// Kusama
+	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 1 * HOURS;
+	// Mainnet
+//	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 4 * HOURS;
 	// Testnet
 //	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 10 * MINUTES;
 

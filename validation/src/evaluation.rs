@@ -29,7 +29,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
 	/// Client error
-	Client(client::error::Error),
+	Client(sp_blockchain::Error),
 	/// Too many parachain candidates in proposal
 	#[display(fmt = "Proposal included {} candidates for {} parachains", expected, got)]
 	TooManyCandidates { expected: usize, got: usize },

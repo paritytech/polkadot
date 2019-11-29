@@ -22,30 +22,55 @@ use std::sync::Arc;
 
 use polkadot_primitives::{Block, AccountId, Nonce, Balance};
 use sr_primitives::traits::ProvideRuntimeApi;
-use transaction_pool::txpool::{ChainApi, Pool};
+use txpool_api::TransactionPool;
 use polkadot_runtime::UncheckedExtrinsic;
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<substrate_rpc::Metadata>;
 
 /// Instantiate all RPC extensions.
-pub fn create<C, P>(client: Arc<C>, pool: Arc<Pool<P>>) -> RpcExtension where
+pub fn create_full<C, P>(client: Arc<C>, pool: Arc<P>) -> RpcExtension where
 	C: ProvideRuntimeApi,
 	C: client::blockchain::HeaderBackend<Block>,
 	C: Send + Sync + 'static,
-	C::Api: frame_system_rpc::AccountNonceApi<Block, AccountId, Nonce>,
+	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UncheckedExtrinsic>,
-	P: ChainApi + Sync + Send + 'static,
+	P: TransactionPool + Sync + Send + 'static,
 {
-	use frame_system_rpc::{System, SystemApi};
+	use frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
 
 	let mut io = jsonrpc_core::IoHandler::default();
 	io.extend_with(
-		SystemApi::to_delegate(System::new(client.clone(), pool))
+		SystemApi::to_delegate(FullSystem::new(client.clone(), pool))
 	);
 	io.extend_with(
 		TransactionPaymentApi::to_delegate(TransactionPayment::new(client))
+	);
+	io
+}
+
+/// Instantiate all RPC extensions for light node.
+pub fn create_light<C, P, F>(
+	client: Arc<C>,
+	remote_blockchain: Arc<dyn client::light::blockchain::RemoteBlockchain<Block>>,
+	fetcher: Arc<F>,
+	pool: Arc<P>,
+) -> RpcExtension
+	where
+		C: ProvideRuntimeApi,
+		C: client::blockchain::HeaderBackend<Block>,
+		C: Send + Sync + 'static,
+		C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
+		C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UncheckedExtrinsic>,
+		P: TransactionPool + Sync + Send + 'static,
+		F: client::light::fetcher::Fetcher<Block> + 'static,
+{
+	use frame_rpc_system::{LightSystem, SystemApi};
+
+	let mut io = jsonrpc_core::IoHandler::default();
+	io.extend_with(
+		SystemApi::<AccountId, Nonce>::to_delegate(LightSystem::new(client, remote_blockchain, fetcher, pool))
 	);
 	io
 }

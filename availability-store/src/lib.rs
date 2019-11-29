@@ -22,7 +22,6 @@
 
 use codec::{Encode, Decode};
 use kvdb::{KeyValueDB, DBTransaction};
-use kvdb_rocksdb::{Database, DatabaseConfig};
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{Id as ParaId, BlockData, Message};
 use log::warn;
@@ -74,9 +73,19 @@ pub struct Store {
 
 impl Store {
 	/// Create a new `Store` with given config on disk.
+	#[cfg(not(target_os = "unknown"))]
 	pub fn new(config: Config) -> io::Result<Self> {
+		use kvdb_rocksdb::{Database, DatabaseConfig};
 		let mut db_config = DatabaseConfig::with_columns(Some(columns::NUM_COLUMNS));
-		db_config.memory_budget = config.cache_size;
+
+		if let Some(cache_size) = config.cache_size {
+			let mut memory_budget = std::collections::HashMap::new();
+			for i in 0..columns::NUM_COLUMNS {
+				memory_budget.insert(Some(i), cache_size / columns::NUM_COLUMNS as usize);
+			}
+
+			db_config.memory_budget = memory_budget;
+		}
 
 		let path = config.path.to_str().ok_or_else(|| io::Error::new(
 			io::ErrorKind::Other,
