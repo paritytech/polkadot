@@ -12,5 +12,7 @@ log = "0.4.8"
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 kvdb = "0.1.1"
-kvdb-rocksdb = "0.2"
 kvdb-memorydb = "0.1.2"
+
+[target.'cfg(not(target_os = "unknown"))'.dependencies]
+kvdb-rocksdb = "0.2"
