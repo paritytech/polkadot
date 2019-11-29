@@ -28,7 +28,7 @@ use polkadot_primitives::{Block, Hash, BlockId, Balance, parachain::{
 use runtime_primitives::traits::ProvideRuntimeApi;
 use parachain::{wasm_executor::{self, ExternalitiesError, ExecutionMode}, MessageRef, UpwardMessageRef};
 use trie::TrieConfiguration;
-use futures::prelude::*;
+use futures01::prelude::*;
 use log::debug;
 
 /// Encapsulates connections to collators and allows collation on any parachain.
@@ -112,7 +112,7 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 					.get_or_insert_with(move || c.collate(parachain, r).into_future())
 					.poll();
 
-				futures::try_ready!(poll)
+				futures01::try_ready!(poll)
 			};
 
 			let res = validate_collation(

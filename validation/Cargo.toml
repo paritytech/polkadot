@@ -5,16 +5,15 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.1.17"
-futures03 = { package = "futures", version = "0.3.1", features = ["compat"] }
+futures01 = { package = "futures", version = "0.1.17" }
+futures = { version = "0.3.1", features = ["compat"] }
 futures-timer = "2.0"
-async-std = { version = "1.0.1", features = ["unstable"] }
+
 parking_lot = "0.9.0"
-tokio = "0.1.22"
+tokio = { version = "0.2.1", features = ["rt-core", "blocking"] }
 derive_more = "0.14.1"
 log = "0.4.8"
-exit-future = "0.1.4"
-tokio-executor = { version = "0.2.0-alpha.6", features = ["blocking"] }
+exit-future = { git = "https://github.com/expenses/exit-future", branch = "modernize" }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 availability_store = { package = "polkadot-availability-store", path = "../availability-store" }
 parachain = { package = "polkadot-parachain", path = "../parachain" }

@@ -29,7 +29,7 @@ use polkadot_primitives::parachain::{
 };
 
 use parking_lot::Mutex;
-use futures::prelude::*;
+use futures01::prelude::*;
 use log::{warn, debug};
 use bitvec::bitvec;
 
@@ -331,7 +331,7 @@ impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 		let work = &mut self.inner.work;
 		let candidate = &work.candidate_receipt;
 
-		let pov_block = futures::try_ready!(work.fetch.poll());
+		let pov_block = futures01::try_ready!(work.fetch.poll());
 		let validation_res = (self.validate)(
 			&BlockId::hash(self.inner.relay_parent),
 			&Collation { pov: pov_block.clone(), receipt: candidate.clone() },
@@ -574,7 +574,7 @@ mod tests {
 	use substrate_keyring::Sr25519Keyring;
 	use primitives::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{BlockData, ConsolidatedIngress};
-	use futures::future;
+	use futures01::future;
 
 	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
 		PoVBlock {

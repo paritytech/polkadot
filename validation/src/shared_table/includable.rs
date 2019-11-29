@@ -18,8 +18,8 @@
 
 use std::collections::HashMap;
 
-use futures::prelude::*;
-use futures::sync::oneshot;
+use futures01::prelude::*;
+use futures01::sync::oneshot;
 
 use polkadot_primitives::Hash;
 
