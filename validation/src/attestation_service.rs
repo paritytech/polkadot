@@ -31,7 +31,7 @@ use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
 use availability_store::Store as AvailabilityStore;
 use futures01::prelude::*;
-use futures::{StreamExt, FutureExt, Future, future::{ready, select}};
+use futures::{StreamExt, FutureExt, Future, future::{ready, select}, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use runtime_primitives::traits::{ProvideRuntimeApi};
@@ -40,11 +40,11 @@ use keystore::KeyStorePtr;
 use sr_api::ApiExt;
 
 use tokio::{runtime::Runtime as LocalRuntime};
-use log::warn;
+use log::{warn, error};
 
 use super::{Network, Collators};
 
-type TaskExecutor = futures::executor::ThreadPool;
+type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 
 /// Gets a list of the candidates in a block.
 pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
@@ -183,7 +183,9 @@ pub(crate) fn start<C, N, P, SC>(
 		};
 
 		runtime.spawn(notifications);
-		thread_pool.spawn_ok(prune_old_sessions);
+		if let Err(_) = thread_pool.spawn(prune_old_sessions) {
+			error!("Failed to spawn old sessions pruning task");
+		}
 
 		let prune_available = futures::future::select(
 			prune_unneeded_availability(client, availability_store),
@@ -192,7 +194,9 @@ pub(crate) fn start<C, N, P, SC>(
 			.map(|_| ());
 
 		// spawn this on the tokio executor since it's fine on a thread pool.
-		thread_pool.spawn_ok(prune_available);
+		if let Err(_) = thread_pool.spawn(prune_available) {
+			error!("Failed to spawn available pruning task");
+		}
 
 		runtime.block_on(exit);
 	});

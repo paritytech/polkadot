@@ -61,23 +61,22 @@ use attestation_service::ServiceHandle;
 use futures01::prelude::*;
 use futures::{
 	future::{self, Either, select}, FutureExt, StreamExt, compat::Future01CompatExt, Stream,
-	stream::unfold
+	stream::unfold, task::{Spawn, SpawnExt}
 };
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use sp_timestamp::TimestampInherentData;
-use log::{info, debug, warn, trace};
+use log::{info, debug, warn, trace, error};
 use keystore::KeyStorePtr;
 use sr_api::ApiExt;
 
+type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 fn interval(duration: Duration) -> impl Stream<Item=()> + Send + Unpin {
 	unfold((), move |_| {
 		futures_timer::Delay::new(duration).map(|_| Some(((), ())))
 	}).map(drop)
 }
-
-type TaskExecutor = futures::executor::ThreadPool;
 
 pub use self::collation::{
 	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
@@ -423,7 +422,9 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		let cancellable_work = select(exit, router).map(|_| ());
 
 		// spawn onto thread pool.
-		self.handle.spawn_ok(cancellable_work)
+		if self.handle.spawn(cancellable_work).is_err() {
+			error!("Failed to spawn cancellable work task");
+		}
 	}
 }
 
