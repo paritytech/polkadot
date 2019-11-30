@@ -267,13 +267,13 @@ pub struct ParachainWork<Fetch> {
 	max_block_data_size: Option<u64>,
 }
 
-impl<Fetch: futures::Future> ParachainWork<Fetch> {
+impl<Fetch: futures::Future + Unpin> ParachainWork<Fetch> {
 	/// Prime the parachain work with an API reference for extracting
 	/// chain information.
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			Fetch,
-			impl Send + FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()>,
+			impl Send + FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()> + Unpin,
 		>
 		where
 			P: Send + Sync + 'static,
