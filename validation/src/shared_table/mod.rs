@@ -31,6 +31,7 @@ use polkadot_primitives::parachain::{
 };
 
 use parking_lot::Mutex;
+use futures::prelude::*;
 use log::{warn, debug};
 use bitvec::bitvec;
 
@@ -267,7 +268,7 @@ pub struct ParachainWork<Fetch> {
 	max_block_data_size: Option<u64>,
 }
 
-impl<Fetch: futures::Future + Unpin> ParachainWork<Fetch> {
+impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 	/// Prime the parachain work with an API reference for extracting
 	/// chain information.
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
@@ -319,9 +320,9 @@ pub struct PrimedParachainWork<Fetch, F> {
 	validate: F,
 }
 
-impl<Fetch, F, Err> futures::Future for PrimedParachainWork<Fetch, F>
+impl<Fetch, F, Err> Future for PrimedParachainWork<Fetch, F>
 	where
-		Fetch: futures::Future<Output=Result<PoVBlock,Err>> + Unpin,
+		Fetch: Future<Output=Result<PoVBlock,Err>> + Unpin,
 		F: FnMut(&BlockId, &Collation) -> Result<OutgoingMessages, ()> + Unpin,
 		Err: From<::std::io::Error>,
 {

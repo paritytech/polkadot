@@ -30,7 +30,8 @@ use sp_blockchain::{HeaderBackend, Result as ClientResult};
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
 use availability_store::Store as AvailabilityStore;
-use futures::{StreamExt, FutureExt, Future, future::{ready, select}, task::{Spawn, SpawnExt}};
+use futures::prelude::*;
+use futures::{future::{ready, select}, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, BlockId};
 use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use runtime_primitives::traits::{ProvideRuntimeApi};
@@ -186,7 +187,7 @@ pub(crate) fn start<C, N, P, SC>(
 			error!("Failed to spawn old sessions pruning task");
 		}
 
-		let prune_available = futures::future::select(
+		let prune_available = select(
 			prune_unneeded_availability(client, availability_store),
 			exit.clone()
 		)

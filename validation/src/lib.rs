@@ -58,10 +58,8 @@ use futures_timer::Delay;
 use txpool_api::{TransactionPool, InPoolTransaction};
 
 use attestation_service::ServiceHandle;
-use futures::{
-	future::{self, Either, select}, FutureExt, StreamExt, Stream, TryFutureExt, stream::unfold,
-	task::{Spawn, SpawnExt},
-};
+use futures::prelude::*;
+use futures::{future::{self, Either, select, ready}, stream::unfold, task::{Spawn, SpawnExt}};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
@@ -110,7 +108,7 @@ pub trait TableRouter: Clone {
 	/// Errors when fetching data from the network.
 	type Error: std::fmt::Debug;
 	/// Future that resolves when candidate data is fetched.
-	type FetchValidationProof: futures::Future<Output=Result<PoVBlock, Self::Error>>;
+	type FetchValidationProof: Future<Output=Result<PoVBlock, Self::Error>>;
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
@@ -131,7 +129,7 @@ pub trait Network {
 
 	/// The future used for asynchronously building the table router.
 	/// This should not fail.
-	type BuildTableRouter: futures::Future<Output=Result<Self::TableRouter,Self::Error>>;
+	type BuildTableRouter: Future<Output=Result<Self::TableRouter,Self::Error>>;
 
 	/// Instantiate a table router using the given shared table.
 	/// Also pass through any outgoing messages to be broadcast to peers.
@@ -400,11 +398,11 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 							e,
 						),
 					}
-					futures::future::ready(())
+					ready(())
 				}
 				Err(e) => {
 					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
-					futures::future::ready(())
+					ready(())
 				}
 			})
 		};
@@ -644,7 +642,7 @@ fn current_timestamp() -> u64 {
 
 struct ProposalTiming {
 	minimum: Option<Delay>,
-	attempt_propose: Box<dyn futures::Stream<Item=()> + Send + Unpin>,
+	attempt_propose: Box<dyn Stream<Item=()> + Send + Unpin>,
 	dynamic_inclusion: DynamicInclusion,
 	enough_candidates: Delay,
 	last_included: usize,
@@ -812,7 +810,7 @@ impl<C, TxPool> CreateProposalData<C, TxPool> where
 	}
 }
 
-impl<C, TxPool> futures::Future for CreateProposal<C, TxPool> where
+impl<C, TxPool> Future for CreateProposal<C, TxPool> where
 	TxPool: TransactionPool<Block=Block> + 'static,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,

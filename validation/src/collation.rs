@@ -28,6 +28,7 @@ use polkadot_primitives::{Block, Hash, BlockId, Balance, parachain::{
 use runtime_primitives::traits::ProvideRuntimeApi;
 use parachain::{wasm_executor::{self, ExternalitiesError, ExecutionMode}, MessageRef, UpwardMessageRef};
 use trie::TrieConfiguration;
+use futures::prelude::*;
 use log::debug;
 use std::task::{Poll, Context};
 use std::pin::Pin;
@@ -38,9 +39,8 @@ use std::pin::Pin;
 pub trait Collators: Clone {
 	/// Errors when producing collations.
 	type Error: std::fmt::Debug;
-
 	/// A full collation.
-	type Collation: futures::Future<Output=Result<Collation,Self::Error>>;
+	type Collation: Future<Output=Result<Collation,Self::Error>>;
 
 	/// Collate on a specific parachain, building on a given relay chain parent hash.
 	///
@@ -99,7 +99,7 @@ impl<C: Collators, P> CollationFetch<C, P> {
 	}
 }
 
-impl<C, P> futures::Future for CollationFetch<C, P>
+impl<C, P> Future for CollationFetch<C, P>
 	where
 		P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 		C: Collators + Unpin,
