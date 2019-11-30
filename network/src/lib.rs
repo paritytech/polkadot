@@ -26,7 +26,8 @@ pub mod validation;
 pub mod gossip;
 
 use codec::{Decode, Encode};
-use futures03::channel::mpsc;
+use futures::channel::{oneshot, mpsc};
+use futures::prelude::*;
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
@@ -152,19 +153,19 @@ impl GossipService for consensus_gossip::ConsensusGossip<Block> {
 
 /// A stream of gossip messages and an optional sender for a topic.
 pub struct GossipMessageStream {
-	topic_stream: Box<dyn futures03::Stream<Item = TopicNotification> + Unpin + Send>,
+	topic_stream: Box<dyn Stream<Item = TopicNotification> + Unpin + Send>,
 }
 
 impl GossipMessageStream {
 	/// Create a new instance with the given topic stream.
-	pub fn new(topic_stream: Box<dyn futures03::Stream<Item = TopicNotification> + Unpin + Send>) -> Self {
+	pub fn new(topic_stream: Box<dyn Stream<Item = TopicNotification> + Unpin + Send>) -> Self {
 		Self {
 			topic_stream,
 		}
 	}
 }
 
-impl futures03::Stream for GossipMessageStream {
+impl Stream for GossipMessageStream {
 	type Item = (GossipMessage, Option<PeerId>);
 
 	fn poll_next(self: Pin<&mut Self>, cx: &mut PollContext) -> Poll<Option<Self::Item>> {
@@ -196,7 +197,7 @@ struct PoVBlockRequest {
 	validation_leaf: Hash,
 	candidate_hash: Hash,
 	block_data_hash: Hash,
-	sender: futures03::channel::oneshot::Sender<PoVBlock>,
+	sender: oneshot::Sender<PoVBlock>,
 	canon_roots: StructuredUnroutedIngress,
 }
 
@@ -333,8 +334,8 @@ impl PolkadotProtocol {
 		candidate: &CandidateReceipt,
 		relay_parent: Hash,
 		canon_roots: StructuredUnroutedIngress,
-	) -> futures03::channel::oneshot::Receiver<PoVBlock> {
-		let (tx, rx) = futures03::channel::oneshot::channel();
+	) -> oneshot::Receiver<PoVBlock> {
+		let (tx, rx) = oneshot::channel();
 
 		self.pending.push(PoVBlockRequest {
 			attempted_peers: Default::default(),
@@ -660,7 +661,7 @@ impl Specialization<Block> for PolkadotProtocol {
 					let retain = peer != &who;
 					if !retain {
 						// swap with a dummy value which will be dropped immediately.
-						let (sender, _) = futures03::channel::oneshot::channel();
+						let (sender, _) = oneshot::channel();
 						pending.push(::std::mem::replace(val, PoVBlockRequest {
 							attempted_peers: Default::default(),
 							validation_leaf: Default::default(),
@@ -755,8 +756,8 @@ impl PolkadotProtocol {
 		}
 	}
 
-	fn await_collation(&mut self, relay_parent: Hash, para_id: ParaId) -> futures03::channel::oneshot::Receiver<Collation> {
-		let (tx, rx) = futures03::channel::oneshot::channel();
+	fn await_collation(&mut self, relay_parent: Hash, para_id: ParaId) -> oneshot::Receiver<Collation> {
+		let (tx, rx) = oneshot::channel();
 		debug!(target: "p_net", "Attempting to get collation for parachain {:?} on relay parent {:?}", para_id, relay_parent);
 		self.collators.await_collation(relay_parent, para_id, tx);
 		rx

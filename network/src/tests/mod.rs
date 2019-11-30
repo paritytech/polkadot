@@ -33,7 +33,7 @@ use substrate_network::{
 	specialization::NetworkSpecialization,
 };
 
-use futures03::executor::block_on;
+use futures::executor::block_on;
 
 mod validation;
 

@@ -41,12 +41,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::pin::Pin;
 use std::task::{Poll, Context};
-use futures03::{prelude::*, channel::mpsc};
+use futures::{prelude::*, channel::mpsc};
 use codec::Encode;
 
 use super::{TestContext, TestChainContext};
 
-type TaskExecutor = Arc<dyn futures03::task::Spawn + Send + Sync>;
+type TaskExecutor = Arc<dyn futures::task::Spawn + Send + Sync>;
 
 #[derive(Clone, Copy)]
 struct NeverExit;
