@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1020,
+	spec_version: 1021,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -540,7 +540,7 @@ impl sudo::Trait for Runtime {
 parameter_types! {
 	pub const ReservationFee: Balance = 1 * DOLLARS;
 	pub const MinLength: usize = 3;
-	pub const MaxLength: usize = 16;
+	pub const MaxLength: usize = 32;
 }
 
 impl nicks::Trait for Runtime {
