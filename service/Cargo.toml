@@ -20,28 +20,28 @@ polkadot-runtime = { path = "../runtime" }
 polkadot-executor = { path = "../executor" }
 polkadot-network = { path = "../network"  }
 polkadot-rpc = { path = "../rpc" }
-sr-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sr-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-api = { package = "substrate-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-db = { package = "substrate-client-db", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-txpool = { package = "sc-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-authority-discovery = { package = "substrate-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-authority-discovery-primitives = { package = "substrate-authority-discovery-primitives", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sr-io = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+sr-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+client-api = { package = "substrate-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+client-db = { package = "substrate-client-db", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+substrate-executor = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+substrate-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+txpool = { package = "sc-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+substrate-keystore = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-update-exit-future" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-update-exit-future" }
+im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-update-exit-future" }
+authority-discovery = { package = "substrate-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+authority-discovery-primitives = { package = "substrate-authority-discovery-primitives", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-update-exit-future" }
