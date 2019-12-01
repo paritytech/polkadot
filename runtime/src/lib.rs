@@ -544,7 +544,7 @@ impl sudo::Trait for Runtime {
 parameter_types! {
 	pub const ReservationFee: Balance = 1 * DOLLARS;
 	pub const MinLength: usize = 3;
-	pub const MaxLength: usize = 16;
+	pub const MaxLength: usize = 32;
 }
 
 impl nicks::Trait for Runtime {
