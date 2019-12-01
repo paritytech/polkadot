@@ -18,7 +18,8 @@
 
 pub mod chain_spec;
 
-use futures::sync::mpsc;
+use futures01::sync::mpsc;
+use futures::{FutureExt, TryFutureExt, task::{Spawn, SpawnError, FutureObj}};
 use client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
@@ -44,8 +45,21 @@ pub use primitives::Blake2Hasher;
 pub use sr_primitives::traits::ProvideRuntimeApi;
 pub use substrate_network::specialization::NetworkSpecialization;
 pub use chain_spec::ChainSpec;
+#[cfg(not(target_os = "unknown"))]
 pub use consensus::run_validation_worker;
 
+/// A wrapped futures01::future::Executor.
+#[derive(Clone)]
+struct WrappedExecutor<T>(pub T);
+
+impl<T> Spawn for WrappedExecutor<T>
+	where T: futures01::future::Executor<Box<dyn futures01::Future<Item=(),Error=()> + Send + 'static>>
+{
+	fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
+		self.0.execute(Box::new(future.map(Ok).compat()))
+			.map_err(|_| SpawnError::shutdown())
+	}
+}
 /// Polkadot-specific configuration.
 pub struct CustomConfiguration {
 	/// Set to `Some` with a collator `CollatorId` and desired parachain
@@ -151,11 +165,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	>, ServiceError>
 {
 	use substrate_network::DhtEvent;
-	use futures03::{
-		compat::Stream01CompatExt,
-		stream::StreamExt,
-		future::{FutureExt, TryFutureExt},
-	};
+	use futures::{compat::Stream01CompatExt, stream::StreamExt};
 
 	let is_collator = config.custom.collating_for.is_some();
 	let is_authority = config.roles.is_authority() && !is_collator;
@@ -236,10 +246,16 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			let mut path = PathBuf::from(db_path);
 			path.push("availability");
 
-			av_store::Store::new(::av_store::Config {
-				cache_size: None,
-				path,
-			})?
+			#[cfg(not(target_os = "unknown"))]
+			{
+				av_store::Store::new(::av_store::Config {
+					cache_size: None,
+					path,
+				})?
+			}
+
+			#[cfg(target_os = "unknown")]
+			av_store::Store::new_in_memory()
 		};
 
 		{
@@ -255,7 +271,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			service.on_exit(),
 			gossip_validator,
 			service.client(),
-			polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
+			WrappedExecutor(service.spawn_task_handle()),
 		);
 		let proposer = consensus::ProposerFactory::new(
 			client.clone(),
@@ -263,7 +279,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			validation_network.clone(),
 			validation_network,
 			service.transaction_pool(),
-			Arc::new(service.spawn_task_handle()),
+			Arc::new(WrappedExecutor(service.spawn_task_handle())),
 			service.keystore(),
 			availability_store,
 			polkadot_runtime::constants::time::SLOT_DURATION,

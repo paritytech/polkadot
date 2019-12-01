@@ -8,9 +8,8 @@ edition = "2018"
 parking_lot = "0.9.0"
 lazy_static = "1.4.0"
 log = "0.4.8"
-futures = "0.1.29"
-futures03 = { package = "futures", version = "0.3.1", features = ["compat"] }
-exit-future = "0.1.4"
+futures = "0.3.1"
+futures01 = { package = "futures", version = "0.1.29" }
 slog = "2.5.2"
 hex-literal = "0.2.1"
 av_store = { package = "polkadot-availability-store", path = "../availability-store" }
@@ -33,7 +32,7 @@ consensus_common = { package = "substrate-consensus-common", git = "https://gith
 grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
 grandpa_primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
 inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+service = { package = "substrate-service", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future", default-features = false }
 telemetry = { package = "substrate-telemetry", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
 txpool = { package = "sc-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
 txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
@@ -45,3 +44,7 @@ authority-discovery = { package = "substrate-authority-discovery", git = "https:
 authority-discovery-primitives = { package = "substrate-authority-discovery-primitives", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
 babe = { package = "substrate-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
 babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-update-exit-future" }
+
+[features]
+default = ["rocksdb"]
+rocksdb = ["service/rocksdb"]
