@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1021,
+	spec_version: 1022,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -334,6 +334,8 @@ parameter_types! {
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
 	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
 	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
+	// One cent: $10,000 / MB
+	pub const PreimageByteDeposit: Balance = 1 * CENTS;
 }
 
 impl democracy::Trait for Runtime {
@@ -362,6 +364,8 @@ impl democracy::Trait for Runtime {
 	// only do it once and it lasts only for the cooloff period.
 	type VetoOrigin = collective::EnsureMember<AccountId, TechnicalCollective>;
 	type CooloffPeriod = CooloffPeriod;
+	type PreimageByteDeposit = PreimageByteDeposit;
+	type Slash = Treasury;
 }
 
 type CouncilCollective = collective::Instance1;
@@ -505,7 +509,7 @@ impl registrar::Trait for Runtime {
 	type MaxRetries = MaxRetries;
 }
 
-parameter_types!{
+parameter_types! {
 	pub const LeasePeriod: BlockNumber = 100_000;
 	pub const EndingPeriod: BlockNumber = 1000;
 }
@@ -519,7 +523,7 @@ impl slots::Trait for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 }
 
-parameter_types!{
+parameter_types! {
 	// KUSAMA: for mainnet this should be removed.
 	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
 	// KUSAMA: for mainnet this should be uncommented.
@@ -553,7 +557,7 @@ impl nicks::Trait for Runtime {
 	type MaxLength = MaxLength;
 }
 
-construct_runtime!(
+construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
 		NodeBlock = primitives::Block,
@@ -606,7 +610,7 @@ construct_runtime!(
 		// Simple nicknames module.
 		Nicks: nicks::{Module, Call, Storage, Event<T>},
 	}
-);
+}
 
 /// The address format for describing accounts.
 pub type Address = <Indices as StaticLookup>::Source;
