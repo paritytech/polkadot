@@ -11,11 +11,11 @@ dependencies = [
 
 [[package]]
 name = "adder"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "dlmalloc 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-parachain 0.7.0",
+ "polkadot-parachain 0.7.1",
  "sr-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "substrate-wasm-builder-runner 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -25,14 +25,14 @@ dependencies = [
 name = "adder-collator"
 version = "0.1.0"
 dependencies = [
- "adder 0.7.0",
+ "adder 0.7.1",
  "ctrlc 3.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "exit-future 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-collator 0.7.0",
- "polkadot-parachain 0.7.0",
- "polkadot-primitives 0.7.0",
+ "polkadot-collator 0.7.1",
+ "polkadot-parachain 0.7.1",
+ "polkadot-primitives 0.7.1",
  "substrate-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "substrate-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -1082,7 +1082,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "fork-tree"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -1090,7 +1090,7 @@ dependencies = [
 [[package]]
 name = "frame-executive"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -1104,7 +1104,7 @@ dependencies = [
 [[package]]
 name = "frame-metadata"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1115,7 +1115,7 @@ dependencies = [
 [[package]]
 name = "frame-support"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "bitmask 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "frame-metadata 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -1139,7 +1139,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support-procedural-tools 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1150,7 +1150,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support-procedural-tools-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1162,7 +1162,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools-derive"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1172,7 +1172,7 @@ dependencies = [
 [[package]]
 name = "frame-system"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1189,7 +1189,7 @@ dependencies = [
 [[package]]
 name = "frame-system-rpc-runtime-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -1379,14 +1379,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "futures01"
-version = "0.1.29"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "fxhash"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1479,7 +1471,7 @@ dependencies = [
 [[package]]
 name = "grafana-data-source"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1536,7 +1528,7 @@ dependencies = [
 
 [[package]]
 name = "halt"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "substrate-wasm-builder-runner 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -2825,7 +2817,7 @@ dependencies = [
 [[package]]
 name = "pallet-authority-discovery"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -2843,7 +2835,7 @@ dependencies = [
 [[package]]
 name = "pallet-authorship"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -2860,7 +2852,7 @@ dependencies = [
 [[package]]
 name = "pallet-babe"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -2881,7 +2873,7 @@ dependencies = [
 [[package]]
 name = "pallet-balances"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -2895,7 +2887,7 @@ dependencies = [
 [[package]]
 name = "pallet-collective"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -2911,7 +2903,7 @@ dependencies = [
 [[package]]
 name = "pallet-democracy"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -2926,7 +2918,7 @@ dependencies = [
 [[package]]
 name = "pallet-elections-phragmen"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -2939,7 +2931,7 @@ dependencies = [
 [[package]]
 name = "pallet-finality-tracker"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -2955,7 +2947,7 @@ dependencies = [
 [[package]]
 name = "pallet-grandpa"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -2973,7 +2965,7 @@ dependencies = [
 [[package]]
 name = "pallet-im-online"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -2992,7 +2984,7 @@ dependencies = [
 [[package]]
 name = "pallet-indices"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3009,7 +3001,7 @@ dependencies = [
 [[package]]
 name = "pallet-membership"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3023,7 +3015,7 @@ dependencies = [
 [[package]]
 name = "pallet-nicks"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3037,7 +3029,7 @@ dependencies = [
 [[package]]
 name = "pallet-offences"
 version = "1.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3052,7 +3044,7 @@ dependencies = [
 [[package]]
 name = "pallet-randomness-collective-flip"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3065,7 +3057,7 @@ dependencies = [
 [[package]]
 name = "pallet-session"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3084,7 +3076,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3104,7 +3096,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking-reward-curve"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3115,7 +3107,7 @@ dependencies = [
 [[package]]
 name = "pallet-sudo"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3129,7 +3121,7 @@ dependencies = [
 [[package]]
 name = "pallet-timestamp"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3145,7 +3137,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3158,7 +3150,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "jsonrpc-core 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core-client 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3175,7 +3167,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc-runtime-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3188,7 +3180,7 @@ dependencies = [
 [[package]]
 name = "pallet-treasury"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3484,18 +3476,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "polkadot"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "ctrlc 3.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-cli 0.7.0",
- "polkadot-service 0.7.0",
+ "polkadot-cli 0.7.1",
+ "polkadot-service 0.7.1",
  "vergen 3.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "polkadot-availability-store"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "kvdb 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3503,37 +3495,37 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-primitives 0.7.0",
+ "polkadot-primitives 0.7.1",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
 ]
 
 [[package]]
 name = "polkadot-cli"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-service 0.7.0",
+ "polkadot-service 0.7.1",
  "structopt 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "substrate-cli 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
- "tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "polkadot-collator"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-timer 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-cli 0.7.0",
- "polkadot-network 0.7.0",
- "polkadot-primitives 0.7.0",
- "polkadot-runtime 0.7.0",
- "polkadot-service 0.7.0",
- "polkadot-validation 0.7.0",
+ "polkadot-cli 0.7.1",
+ "polkadot-network 0.7.1",
+ "polkadot-primitives 0.7.1",
+ "polkadot-runtime 0.7.1",
+ "polkadot-service 0.7.1",
+ "polkadot-validation 0.7.1",
  "substrate-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "substrate-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "substrate-consensus-common 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3545,10 +3537,10 @@ dependencies = [
 
 [[package]]
 name = "polkadot-erasure-coding"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-primitives 0.7.0",
+ "polkadot-primitives 0.7.1",
  "reed-solomon-erasure 4.0.0 (git+https://github.com/paritytech/reed-solomon-erasure)",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "substrate-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3556,15 +3548,15 @@ dependencies = [
 
 [[package]]
 name = "polkadot-executor"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
- "polkadot-runtime 0.7.0",
+ "polkadot-runtime 0.7.1",
  "substrate-executor 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
 ]
 
 [[package]]
 name = "polkadot-network"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "arrayvec 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "exit-future 0.2.0 (git+https://github.com/expenses/exit-future?branch=broadcast)",
@@ -3572,9 +3564,9 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-availability-store 0.7.0",
- "polkadot-primitives 0.7.0",
- "polkadot-validation 0.7.0",
+ "polkadot-availability-store 0.7.1",
+ "polkadot-primitives 0.7.1",
+ "polkadot-validation 0.7.1",
  "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "sr-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3586,11 +3578,11 @@ dependencies = [
 
 [[package]]
 name = "polkadot-parachain"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
- "adder 0.7.0",
+ "adder 0.7.1",
  "derive_more 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "halt 0.7.0",
+ "halt 0.7.1",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3605,12 +3597,12 @@ dependencies = [
 
 [[package]]
 name = "polkadot-primitives"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "bitvec 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-parachain 0.7.0",
+ "polkadot-parachain 0.7.1",
  "pretty_assertions 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3624,12 +3616,12 @@ dependencies = [
 
 [[package]]
 name = "polkadot-rpc"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "jsonrpc-core 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "pallet-transaction-payment-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
- "polkadot-primitives 0.7.0",
- "polkadot-runtime 0.7.0",
+ "polkadot-primitives 0.7.1",
+ "polkadot-runtime 0.7.1",
  "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "substrate-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3639,7 +3631,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "bitvec 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "frame-executive 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3673,8 +3665,8 @@ dependencies = [
  "pallet-transaction-payment-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "pallet-treasury 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-parachain 0.7.0",
- "polkadot-primitives 0.7.0",
+ "polkadot-parachain 0.7.1",
+ "polkadot-primitives 0.7.1",
  "rustc-hex 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3704,7 +3696,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-service"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "exit-future 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3716,13 +3708,13 @@ dependencies = [
  "pallet-im-online 0.1.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-availability-store 0.7.0",
- "polkadot-executor 0.7.0",
- "polkadot-network 0.7.0",
- "polkadot-primitives 0.7.0",
- "polkadot-rpc 0.7.0",
- "polkadot-runtime 0.7.0",
- "polkadot-validation 0.7.0",
+ "polkadot-availability-store 0.7.1",
+ "polkadot-executor 0.7.1",
+ "polkadot-network 0.7.1",
+ "polkadot-primitives 0.7.1",
+ "polkadot-rpc 0.7.1",
+ "polkadot-runtime 0.7.1",
+ "polkadot-validation 0.7.1",
  "sc-transaction-pool 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "slog 2.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -3750,16 +3742,16 @@ dependencies = [
 
 [[package]]
 name = "polkadot-statement-table"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-primitives 0.7.0",
+ "polkadot-primitives 0.7.1",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
 ]
 
 [[package]]
 name = "polkadot-validation"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "bitvec 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive_more 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3770,11 +3762,11 @@ dependencies = [
  "pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "polkadot-availability-store 0.7.0",
- "polkadot-parachain 0.7.0",
- "polkadot-primitives 0.7.0",
- "polkadot-runtime 0.7.0",
- "polkadot-statement-table 0.7.0",
+ "polkadot-availability-store 0.7.1",
+ "polkadot-parachain 0.7.1",
+ "polkadot-primitives 0.7.1",
+ "polkadot-runtime 0.7.1",
+ "polkadot-statement-table 0.7.1",
  "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -4297,7 +4289,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4319,7 +4311,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-graph"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4334,7 +4326,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4626,7 +4618,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "sp-authorship"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -4636,7 +4628,7 @@ dependencies = [
 [[package]]
 name = "sp-blockchain"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4652,7 +4644,7 @@ dependencies = [
 [[package]]
 name = "sp-finality-tracker"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -4662,7 +4654,7 @@ dependencies = [
 [[package]]
 name = "sp-timestamp"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4675,7 +4667,7 @@ dependencies = [
 [[package]]
 name = "sp-transaction-pool-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4689,7 +4681,7 @@ dependencies = [
 [[package]]
 name = "sp-transaction-pool-runtime-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "sr-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -4704,7 +4696,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "sr-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-api-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -4718,7 +4710,7 @@ dependencies = [
 [[package]]
 name = "sr-api-proc-macro"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4730,7 +4722,7 @@ dependencies = [
 [[package]]
 name = "sr-arithmetic"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "integer-sqrt 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4743,7 +4735,7 @@ dependencies = [
 [[package]]
 name = "sr-io"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libsecp256k1 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4760,7 +4752,7 @@ dependencies = [
 [[package]]
 name = "sr-primitives"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4779,7 +4771,7 @@ dependencies = [
 [[package]]
 name = "sr-staking-primitives"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -4789,12 +4781,12 @@ dependencies = [
 [[package]]
 name = "sr-std"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 
 [[package]]
 name = "sr-version"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "impl-serde 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4885,7 +4877,7 @@ dependencies = [
 [[package]]
 name = "substrate-application-crypto"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4897,7 +4889,7 @@ dependencies = [
 [[package]]
 name = "substrate-authority-discovery"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4921,7 +4913,7 @@ dependencies = [
 [[package]]
 name = "substrate-authority-discovery-primitives"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -4944,7 +4936,7 @@ dependencies = [
 [[package]]
 name = "substrate-block-builder"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -4958,7 +4950,7 @@ dependencies = [
 [[package]]
 name = "substrate-block-builder-runtime-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -4970,7 +4962,7 @@ dependencies = [
 [[package]]
 name = "substrate-chain-spec"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4985,7 +4977,7 @@ dependencies = [
 [[package]]
 name = "substrate-chain-spec-derive"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4996,7 +4988,7 @@ dependencies = [
 [[package]]
 name = "substrate-cli"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "ansi_term 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "app_dirs 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5006,7 +4998,6 @@ dependencies = [
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "fdlimit 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures01 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "names 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5026,13 +5017,13 @@ dependencies = [
  "substrate-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "substrate-tracing 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-client"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5059,12 +5050,13 @@ dependencies = [
  "substrate-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "substrate-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "substrate-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
+ "tracing 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-client-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5096,7 +5088,7 @@ dependencies = [
 [[package]]
 name = "substrate-client-db"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5121,7 +5113,7 @@ dependencies = [
 [[package]]
 name = "substrate-consensus-babe"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "fork-tree 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -5161,7 +5153,7 @@ dependencies = [
 [[package]]
 name = "substrate-consensus-babe-primitives"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "schnorrkel 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5177,7 +5169,7 @@ dependencies = [
 [[package]]
 name = "substrate-consensus-common"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5196,7 +5188,7 @@ dependencies = [
 [[package]]
 name = "substrate-consensus-slots"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-timer 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5215,7 +5207,7 @@ dependencies = [
 [[package]]
 name = "substrate-consensus-uncles"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-authorship 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -5229,7 +5221,7 @@ dependencies = [
 [[package]]
 name = "substrate-debug-derive"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5239,7 +5231,7 @@ dependencies = [
 [[package]]
 name = "substrate-executor"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "cranelift-codegen 0.50.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cranelift-entity 0.50.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5271,7 +5263,7 @@ dependencies = [
 [[package]]
 name = "substrate-externalities"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "environmental 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -5281,7 +5273,7 @@ dependencies = [
 [[package]]
 name = "substrate-finality-grandpa"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "finality-grandpa 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "fork-tree 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -5311,7 +5303,7 @@ dependencies = [
 [[package]]
 name = "substrate-finality-grandpa-primitives"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5324,7 +5316,7 @@ dependencies = [
 [[package]]
 name = "substrate-frame-rpc-system"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "frame-system-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5344,7 +5336,7 @@ dependencies = [
 [[package]]
 name = "substrate-inherents"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5356,7 +5348,7 @@ dependencies = [
 [[package]]
 name = "substrate-keyring"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -5367,7 +5359,7 @@ dependencies = [
 [[package]]
 name = "substrate-keystore"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5382,7 +5374,7 @@ dependencies = [
 [[package]]
 name = "substrate-network"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5427,7 +5419,7 @@ dependencies = [
 [[package]]
 name = "substrate-offchain"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5454,7 +5446,7 @@ dependencies = [
 [[package]]
 name = "substrate-offchain-primitives"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "sr-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -5463,7 +5455,7 @@ dependencies = [
 [[package]]
 name = "substrate-panic-handler"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "backtrace 0.3.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5472,7 +5464,7 @@ dependencies = [
 [[package]]
 name = "substrate-peerset"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5483,7 +5475,7 @@ dependencies = [
 [[package]]
 name = "substrate-phragmen"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -5493,7 +5485,7 @@ dependencies = [
 [[package]]
 name = "substrate-primitives"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5532,7 +5524,7 @@ dependencies = [
 [[package]]
 name = "substrate-primitives-storage"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "impl-serde 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5543,7 +5535,7 @@ dependencies = [
 [[package]]
 name = "substrate-rpc"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5572,7 +5564,7 @@ dependencies = [
 [[package]]
 name = "substrate-rpc-primitives"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "substrate-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -5581,7 +5573,7 @@ dependencies = [
 [[package]]
 name = "substrate-rpc-servers"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "jsonrpc-core 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-http-server 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5596,7 +5588,7 @@ dependencies = [
 [[package]]
 name = "substrate-runtime-interface"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "environmental 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5611,7 +5603,7 @@ dependencies = [
 [[package]]
 name = "substrate-runtime-interface-proc-macro"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "Inflector 0.11.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5623,7 +5615,7 @@ dependencies = [
 [[package]]
 name = "substrate-serializer"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5632,7 +5624,7 @@ dependencies = [
 [[package]]
 name = "substrate-service"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "exit-future 0.2.0 (git+https://github.com/expenses/exit-future?branch=broadcast)",
@@ -5680,7 +5672,7 @@ dependencies = [
 [[package]]
 name = "substrate-session"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "sr-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
@@ -5690,7 +5682,7 @@ dependencies = [
 [[package]]
 name = "substrate-state-db"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5701,7 +5693,7 @@ dependencies = [
 [[package]]
 name = "substrate-state-machine"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5720,7 +5712,7 @@ dependencies = [
 [[package]]
 name = "substrate-telemetry"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5742,11 +5734,15 @@ dependencies = [
 [[package]]
 name = "substrate-tracing"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
+ "erased-serde 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "grafana-data-source 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slog 2.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "substrate-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future)",
  "tracing-core 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -5754,7 +5750,7 @@ dependencies = [
 [[package]]
 name = "substrate-trie"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "memory-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5773,7 +5769,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "substrate-wasm-interface"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#dc9782865fd99ee0a6b24272d566f4dd4319a892"
+source = "git+https://github.com/paritytech/substrate?branch=ashley-update-exit-future#aec8ec7575e4a262e96f2de74ae3ccf174db3b2e"
 dependencies = [
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmi 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -7029,7 +7025,6 @@ dependencies = [
 "checksum futures-timer 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a1de7508b218029b0f01662ed8f61b1c964b3ae99d6f25462d0f55a595109df6"
 "checksum futures-util 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "c0d66274fb76985d3c62c886d1da7ac4c0903a8c9f754e8fe0f35a6a6cc39e76"
 "checksum futures-util-preview 0.3.0-alpha.19 (registry+https://github.com/rust-lang/crates.io-index)" = "5ce968633c17e5f97936bd2797b6e38fb56cf16a7422319f7ec2e30d3c470e8d"
-"checksum futures01 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)" = "7ef8cbbf52909170053540c6c05a62433ddb60662dabee714e2a882caa864f22"
 "checksum fxhash 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "c31b6d751ae2c7f11320402d34e41349dd1016f8d5d45e48c4312bc8625af50c"
 "checksum gcc 0.3.55 (registry+https://github.com/rust-lang/crates.io-index)" = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
 "checksum generic-array 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)" = "c68f0274ae0e023facc3c97b2e00f076be70e254bc851d972503b328db79b2ec"
