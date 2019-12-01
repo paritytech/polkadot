@@ -18,7 +18,7 @@
 
 #![warn(missing_docs)]
 
-use cli::{AbstractService, VersionInfo, TaskExecutor};
+use cli::{AbstractService, VersionInfo, Runtime};
 use futures::channel::oneshot;
 use futures::{future, FutureExt};
 
@@ -33,6 +33,7 @@ impl cli::IntoExit for Worker {
 		let (exit_send, exit) = oneshot::channel();
 
 		let exit_send_cell = RefCell::new(Some(exit_send));
+		#[cfg(not(target_os = "unknown"))]
 		ctrlc::set_handler(move || {
 			if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
 				exit_send.send(()).expect("Error sending exit notification");
@@ -45,7 +46,7 @@ impl cli::IntoExit for Worker {
 
 impl cli::Worker for Worker {
 	type Work = <Self as cli::IntoExit>::Exit;
-	fn work<S, SC, B, CE>(self, _: &S, _: TaskExecutor) -> Self::Work
+	fn work<S, SC, B, CE>(self, _: &S, _: &Runtime) -> Self::Work
 	where S: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
 		Backend = B, SelectChain = SC,
 		NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,

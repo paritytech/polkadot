@@ -23,7 +23,7 @@ mod chain_spec;
 
 use chain_spec::ChainSpec;
 use futures::{Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Future01CompatExt};
-use tokio::runtime::Runtime;
+pub use tokio::runtime::Runtime;
 use std::sync::Arc;
 use log::{info, error};
 use structopt::StructOpt;
@@ -37,8 +37,6 @@ pub use cli::{VersionInfo, IntoExit, NoCustom};
 pub use cli::{display_role, error};
 
 type BoxedFuture = Box<dyn futures01::Future<Item = (), Error = ()> + Send>;
-/// Abstraction over an executor that lets you spawn tasks in the background.
-pub type TaskExecutor = Arc<dyn futures01::future::Executor<BoxedFuture> + Send + Sync>;
 
 fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
@@ -62,7 +60,7 @@ pub trait Worker: IntoExit {
 	fn configuration(&self) -> service::CustomConfiguration { Default::default() }
 
 	/// Do work and schedule exit.
-	fn work<S, SC, B, CE>(self, service: &S, executor: TaskExecutor) -> Self::Work
+	fn work<S, SC, B, CE>(self, service: &S, executor: &Runtime) -> Self::Work
 	where S: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
 		Backend = B, SelectChain = SC,
 		NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
@@ -147,6 +145,7 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
 			Ok(service::new_chain_ops(config)?), load_spec),
 		cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
+			#[cfg(not(target_os = "unknown"))]
 			service::run_validation_worker(&args.mem_id)?;
 			Ok(())
 		}
@@ -168,32 +167,24 @@ fn run_until_exit<T, SC, B, CE, W>(
 {
 	let (exit_send, exit) = oneshot::channel();
 
-	let executor = runtime.executor();
 	let informant = cli::informant::build(&service);
-	let future = select(exit, informant)
-		.map(|_| Ok(()))
-		.compat();
+	let future = select(exit, informant);
 
-	executor.spawn(future);
+	let informant_handle = runtime.spawn(future);
 
 	// we eagerly drop the service so that the internal exit future is fired,
 	// but we need to keep holding a reference to the global telemetry guard
 	let _telemetry = service.telemetry();
 
-	let work = worker.work(&service, Arc::new(executor));
+	let work = worker.work(&service, &runtime);
 	let service = service
 		.map_err(|err| error!("Error while running Service: {}", err))
 		.compat();
-	let future = select(service, work)
-		.map(|_| Ok::<_, ()>(()))
-		.compat();
+	let future = select(service, work);;
 	let _ = runtime.block_on(future);
 	let _ = exit_send.send(());
 
-	use futures01::Future;
-
-	// TODO [andre]: timeout this future substrate/#1318
-	let _ = runtime.shutdown_on_idle().wait();
+	let _ = runtime.block_on(informant_handle);
 
 	Ok(())
 }

@@ -10,10 +10,10 @@ build = "build.rs"
 edition = "2018"
 
 [dependencies]
-cli = { package = "polkadot-cli", path = "cli" }
+cli = { package = "polkadot-cli", path = "cli", default-features = false }
 futures = "0.3.1"
-ctrlc = { version = "3.1.3", features = ["termination"] }
-service = { package = "polkadot-service", path = "service" }
+ctrlc = { version = "3.1.3", features = ["termination"], optional = true }
+service = { package = "polkadot-service", path = "service", default-features = false }
 
 [build-dependencies]
 vergen = "3.0.4"
@@ -47,3 +47,7 @@ maintenance = { status = "actively-developed" }
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
+
+[features]
+default = ["rocksdb", "ctrlc"]
+rocksdb = ["cli/rocksdb", "service/rocksdb"]

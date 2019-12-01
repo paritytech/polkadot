@@ -12,8 +12,9 @@ futures = { version = "0.3.1", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
 structopt = "0.3.4"
 cli = { package = "substrate-cli", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-service = { package = "polkadot-service", path = "../service" }
+service = { package = "polkadot-service", path = "../service", default-features = false }
 
 [features]
-default = [ "wasmtime" ]
+default = [ "wasmtime", "rocksdb" ]
 wasmtime = [ "cli/wasmtime" ]
+rocksdb = [ "service/rocksdb" ]
