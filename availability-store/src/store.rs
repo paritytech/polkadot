@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 use codec::{Encode, Decode};
@@ -107,7 +106,7 @@ impl Store {
 	}
 
 	/// Make some data available provisionally.
-	pub(super) fn make_available(&self, data: Data) -> io::Result<()> {
+	pub(crate) fn make_available(&self, data: Data) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
 
 		// note the meta key.
@@ -148,12 +147,17 @@ impl Store {
 	///
 	/// If we already possess the receipts for these candidates _and_ our position at the specified
 	/// relay chain the awaited frontier of the erasure chunks will also be extended.
+	///
+	/// This method modifies the erasure chunks awaited frontier by adding this validator's
+	/// chunks from `candidates` to it. In order to do so the information about this validator's
+	/// position at parent `relay_parent` should be known to the store prior to calling this
+	/// method, in other words `add_validator_index_and_n_validators` should be called for
+	/// the given `relay_parent` before calling this function.
 	pub(crate) fn add_candidates_in_relay_block(
 		&self,
 		relay_parent: &Hash,
 		candidates: Vec<Hash>,
 	) -> io::Result<()> {
-
 		let mut tx = DBTransaction::new();
 		let dbkey = candidates_in_relay_chain_block_key(relay_parent);
 
@@ -178,6 +182,7 @@ impl Store {
 		self.inner.write(tx)
 	}
 
+	/// Qery which candidates were included in the relay chain block by block's parent.
 	pub fn get_candidates_in_relay_block(&self, relay_block: &Hash) -> Option<Vec<Hash>> {
 		let dbkey = candidates_in_relay_chain_block_key(relay_block);
 
@@ -198,16 +203,8 @@ impl Store {
 		self.inner.write(tx)
 	}
 
-	#[cfg(test)]
-	/// Query erasure roots included in the relay chain block by block's parent.
-	// TODO: Atm this is only used in a test, probably this whole api should be removed because of reduncandcy.
-	fn get_erasure_roots_in_relay_block(&self, relay_parent: &Hash) -> Option<Vec<Hash>> {
-		let dbkey = erasure_roots_in_relay_chain_block_key(relay_parent);
-
-		self.query_inner(columns::DATA, &dbkey)
-	}
-
-	pub fn add_validator_index_and_n_validators(
+	/// Make a validator's index and a number of validators at a relay parent available.
+	pub(crate) fn add_validator_index_and_n_validators(
 		&self,
 		relay_parent: &Hash,
 		validator_index: u32,
@@ -221,6 +218,7 @@ impl Store {
 		self.inner.write(tx)
 	}
 
+	/// Query a validator's index and n_validators by relay parent.
 	pub fn get_validator_index_and_n_validators(&self, relay_parent: &Hash) -> Option<(u32, u32)> {
 		let dbkey = validator_index_and_n_validators_key(relay_parent);
 
@@ -279,7 +277,8 @@ impl Store {
 				columns::DATA,
 				&block_data_key(&relay_parent, &receipt.block_data_hash)
 			) {
-				if let Ok((block_data, outgoing_queues)) = erasure::reconstruct(n_validators as usize,
+				if let Ok((block_data, outgoing_queues)) = erasure::reconstruct(
+					n_validators as usize,
 					v.iter().map(|chunk| (chunk.chunk.as_ref(), chunk.index as usize))) {
 					self.make_available(Data {
 						relay_parent: *relay_parent,
@@ -395,7 +394,7 @@ impl Store {
 			}
 			Ok(None) => None,
 			Err(e) => {
-				warn!(target: "availability", "Error reading from the availability store: {:?}", e);
+				warn!(target: LOG_TARGET, "Error reading from the availability store: {:?}", e);
 				None
 			}
 		}
@@ -614,17 +613,6 @@ mod tests {
 
 		store.add_candidates_in_relay_block(&relay_parent, candidates.clone()).unwrap();
 		assert_eq!(store.get_candidates_in_relay_block(&relay_parent).unwrap(), candidates);
-	}
-
-	#[test]
-	fn add_erasure_roots_in_relay_block_works() {
-		let relay_parent = [42; 32].into();
-		let store = Store::new_in_memory();
-
-		let erasure_roots = vec![[1; 32].into(), [2; 32].into(), [3; 32].into()];
-
-		store.add_erasure_roots_in_relay_block(&relay_parent, erasure_roots.clone()).unwrap();
-		assert_eq!(store.get_erasure_roots_in_relay_block(&relay_parent).unwrap(), erasure_roots);
 	}
 
 	#[test]

@@ -683,23 +683,6 @@ sr_api::impl_runtime_apis! {
 		}
 	}
 
-	// TODO: What if we have multiple `set_heads` calls in the block?
-	impl parachain::ExtrinsicsQuerying<Block> for Runtime {
-		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>> {
-			extrinsics
-				.into_iter()
-				.find_map(|ex| match UncheckedExtrinsic::decode(&mut ex.encode().as_slice()) {
-					Ok(ex) => match ex.function {
-						Call::Parachains(ParachainsCall::set_heads(heads)) => {
-							Some(heads.into_iter().map(|c| c.candidate).collect())
-						}
-						_ => None,
-					}
-					Err(_) => None,
-				})
-		}
-	}
-
 	impl parachain::ParachainHost<Block> for Runtime {
 		fn validators() -> Vec<parachain::ValidatorId> {
 			Parachains::authorities()
@@ -720,6 +703,19 @@ sr_api::impl_runtime_apis! {
 			-> Option<parachain::StructuredUnroutedIngress>
 		{
 			Parachains::ingress(to, since).map(parachain::StructuredUnroutedIngress)
+		}
+		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>> {
+			extrinsics
+				.into_iter()
+				.find_map(|ex| match UncheckedExtrinsic::decode(&mut ex.encode().as_slice()) {
+					Ok(ex) => match ex.function {
+						Call::Parachains(ParachainsCall::set_heads(heads)) => {
+							Some(heads.into_iter().map(|c| c.candidate).collect())
+						}
+						_ => None,
+					}
+					Err(_) => None,
+				})
 		}
 	}
 

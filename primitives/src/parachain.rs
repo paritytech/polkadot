@@ -608,10 +608,6 @@ sr_api::decl_runtime_apis! {
 		/// If `since` is provided, only messages since (including those in) that block
 		/// will be included.
 		fn ingress(to: Id, since: Option<BlockNumber>) -> Option<StructuredUnroutedIngress>;
-	}
-
-	/// The api to get information out of the raw extrinsics.
-	pub trait ExtrinsicsQuerying {
 		/// Extract the heads that were set by this set of extrinsics.
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>>;
 	}

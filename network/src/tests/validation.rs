@@ -30,12 +30,12 @@ use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, TargetedMessage,
 	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
-	FeeSchedule, HeadData, Retriable, CollatorId, ErasureChunk,
+	FeeSchedule, HeadData, Retriable, CollatorId, ErasureChunk, CandidateReceipt,
 };
 use parking_lot::Mutex;
 use substrate_client::error::Result as ClientResult;
 use sr_api::{Core, RuntimeVersion, StorageProof, ApiExt};
-use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
+use sr_primitives::traits::{ApiRef, {Block as BlockT}, ProvideRuntimeApi};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -321,6 +321,16 @@ impl ParachainHost<Block> for RuntimeApi {
 	) -> ClientResult<NativeOrEncoded<Option<StructuredUnroutedIngress>>> {
 		let (id, _) = id.unwrap();
 		Ok(NativeOrEncoded::Native(self.data.lock().ingress.get(&id).cloned()))
+	}
+
+	fn ParachainHost_get_heads_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_extrinsics: Option<Vec<<Block as BlockT>::Extrinsic>>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<Option<Vec<CandidateReceipt>>>> {
+		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 }
 

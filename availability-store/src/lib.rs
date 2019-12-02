@@ -29,7 +29,7 @@ use polkadot_primitives::{
 	Hash, Block,
 	parachain::{
 		Id as ParaId, BlockData, CandidateReceipt, Message, AvailableMessages, ErasureChunk,
-		ExtrinsicsQuerying, ParachainHost,
+		ParachainHost,
 	},
 };
 use sr_primitives::traits::{BlakeTwo256, Hash as HashT, ProvideRuntimeApi};
@@ -52,7 +52,7 @@ mod store;
 pub use worker::AvailabilityBlockImport;
 
 use worker::{
-	Worker, WorkerHandle, Chunks, ParachainBlocks, WorkerMsg,
+	Worker, WorkerHandle, Chunks, ParachainBlocks, WorkerMsg, MakeAvailable,
 };
 
 use store::{Store as InnerStore};
@@ -123,6 +123,7 @@ pub trait ProvideGossipMessages {
 }
 
 /// Some data to keep available about a parachain block candidate.
+#[derive(Debug)]
 pub struct Data {
 	/// The relay chain parent hash this should be localized to.
 	pub relay_parent: Hash,
@@ -158,7 +159,7 @@ impl Store {
 		where PGM: ProvideGossipMessages + Send + Sync + Clone + 'static
 	{
 		let inner = InnerStore::new(config)?;
-		let worker = Arc::new(Worker::new(inner.clone(), gossip).start());
+		let worker = Arc::new(Worker::start(inner.clone(), gossip));
 		let to_worker = worker.to_worker().clone();
 
 		Ok(Self {
@@ -176,7 +177,7 @@ impl Store {
 		where PGM: ProvideGossipMessages + Send + Sync + Clone + 'static
 	{
 		let inner = InnerStore::new_in_memory();
-		let worker = Arc::new(Worker::new(inner.clone(), gossip).start());
+		let worker = Arc::new(Worker::start(inner.clone(), gossip));
 		let to_worker = worker.to_worker().clone();
 
 		Self {
@@ -202,7 +203,7 @@ impl Store {
 	) -> ClientResult<(AvailabilityBlockImport<I, P>)>
 	where
 		P: ProvideRuntimeApi + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
-		P::Api: ExtrinsicsQuerying<Block> + ParachainHost<Block>,
+		P::Api: ParachainHost<Block>,
 		P::Api: ApiExt<Block, Error=substrate_client::error::Error>,
 	{
 		let to_worker = self.to_worker.clone();
@@ -235,9 +236,8 @@ impl Store {
 	/// asynchrounously wait for the result.
 	pub async fn make_available(&self, data: Data) -> io::Result<()> {
 		let (s, r) = oneshot::channel();
-		let msg = WorkerMsg::ParachainBlocks(ParachainBlocks {
-			relay_parent: data.relay_parent,
-			blocks: vec![],
+		let msg = WorkerMsg::MakeAvailable(MakeAvailable {
+			data,
 			result: s,
 		});
 
@@ -263,6 +263,11 @@ impl Store {
 	}
 
 	/// Make a validator's index and a number of validators at a relay parent available.
+	///
+	/// This information is needed before the `add_candidates_in_relay_block` is called
+	/// since that call forms the awaited frontier of chunks.
+	/// In the current implementation this function is called in the `get_or_instantiate` at
+	/// the start of the parachain agreement process on top of some parent hash.
 	pub fn add_validator_index_and_n_validators(
 		&self,
 		relay_parent: &Hash,
@@ -346,7 +351,7 @@ impl Store {
 	pub async fn add_candidate(
 		&self,
 		relay_parent: Hash,
-		receipt: CandidateReceipt
+		receipt: CandidateReceipt,
 	) -> io::Result<()> {
 		let (s, r) = oneshot::channel();
 

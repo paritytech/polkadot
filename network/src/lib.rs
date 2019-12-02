@@ -96,7 +96,13 @@ pub trait NetworkService: Send + Sync + 'static {
 		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>);
 }
 
-// Let's add a hack.
+/// This is a newtype that implements a [`ProvideGossipMessages`] shim trait.
+///
+/// For any wrapped [`NetworkService`] type it implements a [`ProvideGossipMessages`].
+/// For more details see documentation of [`ProvideGossipMessages`].
+///
+/// [`NetworkService`]: ./trait.NetworkService.html
+/// [`ProvideGossipMessages`]: ../polkadot_availability_store/trait.ProvideGossipMessages.html
 pub struct AvailabilityNetworkShim<T>(pub std::sync::Arc<T>);
 
 impl<T> av_store::ProvideGossipMessages for AvailabilityNetworkShim<T>

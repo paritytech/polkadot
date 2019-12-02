@@ -336,13 +336,13 @@ impl Externalities {
 	// Performs final checks of validity, producing the outgoing message data.
 	fn final_checks(
 		self,
-		upward_messages: &Vec<UpwardMessage>,
-		egress_queue_roots: &Vec<(ParaId, Hash)>,
+		upward_messages: &[UpwardMessage],
+		egress_queue_roots: &[(ParaId, Hash)],
 		fees_charged: Option<Balance>,
 	) -> Result<(OutgoingMessages, Balance), Error> {
-		if &self.upward != upward_messages {
+		if self.upward != upward_messages {
 			return Err(Error::UpwardMessagesInvalid {
-				expected: upward_messages.clone(),
+				expected: upward_messages.to_vec(),
 				got: self.upward.clone(),
 			});
 		}
@@ -365,6 +365,7 @@ impl Externalities {
 	}
 }
 
+/// Validate an erasure chunk against an expected root.
 pub fn validate_chunk(
 	root: &Hash,
 	chunk: &ErasureChunk,
@@ -480,7 +481,11 @@ fn do_validation<P>(
 	match wasm_executor::validate_candidate(&validation_code, params, &mut ext, ExecutionMode::Remote) {
 		Ok(result) => {
 			if result.head_data == head_data.0 {
-				let (messages, fees) = ext.final_checks(upward_messages, queue_roots, fees_charged)?;
+				let (messages, fees) = ext.final_checks(
+					upward_messages,
+					queue_roots,
+					fees_charged
+				)?;
 
 				Ok((messages, fees))
 			} else {

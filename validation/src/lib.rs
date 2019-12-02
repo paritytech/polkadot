@@ -330,7 +330,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			if let Err(e) = self.availability_store.add_validator_index_and_n_validators(
 				&parent_hash,
 				local_duty.index,
-				validators.len() as u32
+				validators.len() as u32,
 			) {
 				warn!(
 					target: "validation",

@@ -35,7 +35,7 @@ use consensus_common::{
 };
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
-	CandidateReceipt, ParachainHost, ExtrinsicsQuerying, ValidatorId,
+	CandidateReceipt, ParachainHost, ValidatorId,
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
 use futures01::Future;
@@ -45,7 +45,7 @@ use keystore::KeyStorePtr;
 
 use tokio::runtime::current_thread::{Handle, Runtime as LocalRuntime};
 
-use crate::{LOG_TARGET, TaskExecutor, ProvideGossipMessages, erasure_coding_topic};
+use crate::{LOG_TARGET, Data, TaskExecutor, ProvideGossipMessages, erasure_coding_topic};
 use crate::store::Store;
 
 /// Errors that may occur.
@@ -73,6 +73,7 @@ pub(crate) enum WorkerMsg {
 	ListenForChunks(ListenForChunks),
 	Chunks(Chunks),
 	CandidatesFinalized(CandidatesFinalized),
+	MakeAvailable(MakeAvailable),
 }
 
 /// The erasure roots of the heads included in the block with a given parent.
@@ -132,6 +133,15 @@ pub(crate) struct CandidatesFinalized {
 	candidate_hashes: Vec<Hash>,
 }
 
+/// The message that corresponds to `make_available` call of the crate API.
+#[derive(Debug)]
+pub(crate) struct MakeAvailable {
+	/// The data being made available.
+	pub data: Data,
+	/// A sender to signal the result asynchronously.
+	pub result: oneshot::Sender<Result<(), Error>>,
+}
+
 /// An availability worker with it's inner state.
 pub(super) struct Worker<PGM> {
 	availability_store: Store,
@@ -139,13 +149,12 @@ pub(super) struct Worker<PGM> {
 	registered_gossip_streams: HashMap<Hash, exit_future::Signal>,
 
 	sender: mpsc::UnboundedSender<WorkerMsg>,
-	receiver: Option<mpsc::UnboundedReceiver<WorkerMsg>>,
 }
 
 /// The handle to the `Worker`.
 pub(super) struct WorkerHandle {
 	exit_signal: Option<exit_future::Signal>,
-	thread: Option<thread::JoinHandle<()>>,
+	thread: Option<thread::JoinHandle<io::Result<()>>>,
 	sender: mpsc::UnboundedSender<WorkerMsg>,
 }
 
@@ -202,7 +211,7 @@ fn fetch_candidates<P>(client: &P, block: &BlockId, parent: &BlockId)
 	-> ClientResult<Option<impl Iterator<Item=CandidateReceipt>>>
 where
 	P: BlockBody<Block> + ProvideRuntimeApi,
-	P::Api: ExtrinsicsQuerying<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
+	P::Api: ParachainHost<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
 {
 	let extrinsics = client.block_body(block)?;
 	Ok(match extrinsics {
@@ -217,7 +226,7 @@ where
 async fn prune_unneeded_availability<P, S>(client: Arc<P>, mut sender: S)
 where
 	P: ProvideRuntimeApi + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ExtrinsicsQuerying<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
+	P::Api: ParachainHost<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
 	S: Sink<WorkerMsg> + Clone + Send + Sync + Unpin,
 {
 	let mut finality_notification_stream = client.finality_notification_stream();
@@ -270,21 +279,6 @@ impl<PGM> Worker<PGM>
 where
 	PGM: ProvideGossipMessages + Clone + Send + 'static,
 {
-	pub fn new(
-		availability_store: Store,
-		provide_gossip_messages: PGM,
-	) -> Self {
-		let (sender, receiver) = mpsc::unbounded();
-
-		Self {
-			availability_store,
-			provide_gossip_messages,
-			registered_gossip_streams: HashMap::new(),
-
-			sender,
-			receiver: Some(receiver),
-		}
-	}
 
 	// Called on startup of the worker to register listeners for all awaited chunks.
 	fn register_listeners(
@@ -354,10 +348,6 @@ where
 		relay_parent: Hash,
 		blocks: Vec<(CandidateReceipt, Option<(BlockData, AvailableMessages)>)>,
 	) -> Result<(), Error> {
-		let (_, _n_validators) = self.availability_store
-			.get_validator_index_and_n_validators(&relay_parent)
-			.ok_or(Error::IdAndNValidatorsNotFound { relay_parent })?;
-
 		let hashes: Vec<_> = blocks.iter().map(|(c, _)| c.hash()).collect();
 
 		// First we have to add the receipts themselves.
@@ -463,22 +453,32 @@ where
 		Ok(())
 	}
 
-	pub fn start(mut self) -> WorkerHandle {
-		let sender = self.sender.clone();
-		let mut receiver = self.receiver.take()
-			.expect("Should start a worker with a receiver side; qed");
+	/// Starts a worker with a given availability store and a gossip messages provider.
+	pub fn start(
+		availability_store: Store,
+		provide_gossip_messages: PGM,
+	) -> WorkerHandle {
+		let (sender, mut receiver) = mpsc::unbounded();
 
+		let mut worker = Self {
+			availability_store,
+			provide_gossip_messages,
+			registered_gossip_streams: HashMap::new(),
+			sender: sender.clone(),
+		};
+
+		let sender = sender.clone();
 		let (signal, exit) = exit_future::signal();
 
-		let handle = thread::spawn(move || {
-			let mut sender = self.sender.clone();
-			let mut runtime = LocalRuntime::new().expect("Could not create local runtime");
+		let handle = thread::spawn(move || -> io::Result<()> {
+			let mut runtime = LocalRuntime::new()?;
+			let mut sender = worker.sender.clone();
 
 			let mut runtime_handle = runtime.handle();
 
 			// On startup, registers listeners (gossip streams) for all
 			// (relay_parent, erasure-root, i) in the awaited frontier.
-			self.register_listeners(&mut runtime_handle, &mut sender);
+			worker.register_listeners(&mut runtime_handle, &mut sender);
 
 			let process_notification = async move {
 				while let Some(msg) = receiver.next().await {
@@ -487,7 +487,10 @@ where
 					let res = match msg {
 						WorkerMsg::ErasureRoots(msg) => {
 							let ErasureRoots { relay_parent, erasure_roots, result} = msg;
-							let res = self.on_erasure_roots_received(relay_parent, erasure_roots);
+							let res = worker.on_erasure_roots_received(
+								relay_parent,
+								erasure_roots,
+							);
 							let _ = result.send(res);
 							Ok(())
 						}
@@ -499,7 +502,7 @@ where
 								result,
 							} = msg;
 
-							let res = self.on_listen_for_chunks_received(
+							let res = worker.on_listen_for_chunks_received(
 								&mut runtime_handle,
 								&mut sender,
 								relay_parent,
@@ -513,8 +516,13 @@ where
 							Ok(())
 						}
 						WorkerMsg::ParachainBlocks(msg) => {
-							let ParachainBlocks { relay_parent, blocks, result } = msg;
-							let res = self.on_parachain_blocks_received(
+							let ParachainBlocks {
+								relay_parent,
+								blocks,
+								result,
+							} = msg;
+
+							let res = worker.on_parachain_blocks_received(
 								&mut runtime_handle,
 								&mut sender,
 								relay_parent,
@@ -526,7 +534,7 @@ where
 						}
 						WorkerMsg::Chunks(msg) => {
 							let Chunks { relay_parent, candidate_hash, chunks, result } = msg;
-							let res = self.on_chunks_received(
+							let res = worker.on_chunks_received(
 								relay_parent,
 								candidate_hash,
 								chunks,
@@ -538,18 +546,25 @@ where
 						WorkerMsg::CandidatesFinalized(msg) => {
 							let CandidatesFinalized { relay_parent, candidate_hashes } = msg;
 
-							self.availability_store.candidates_finalized(
+							worker.availability_store.candidates_finalized(
 								relay_parent,
 								candidate_hashes.into_iter().collect(),
 							)
+						}
+						WorkerMsg::MakeAvailable(msg) => {
+							let MakeAvailable { data, result } = msg;
+							let res = worker.availability_store.make_available(data)
+								.map_err(|e| e.into());
+							let _ = result.send(res);
+							Ok(())
 						}
 					};
 
 					if let Err(_) = res {
 						warn!(target: LOG_TARGET, "An error occured while processing a message");
 					}
-
 				}
+
 			};
 
 			runtime.spawn(
@@ -566,6 +581,8 @@ where
 			}
 
 			info!(target: LOG_TARGET, "Availability worker exiting");
+
+			Ok(())
 		});
 
 		WorkerHandle {
@@ -602,7 +619,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 	I: BlockImport<Block> + Send + Sync,
 	I::Error: Into<ConsensusError>,
 	P: ProvideRuntimeApi + ProvideCache<Block>,
-	P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block>,
+	P::Api: ParachainHost<Block>,
 	P::Api: ApiExt<Block, Error = client_error::Error>,
 {
 	type Error = ConsensusError;
@@ -687,12 +704,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 
 							let _ = self.to_worker.unbounded_send(msg);
 						}
-						None => {
-							trace!(
-								target: LOG_TARGET,
-								"Not in the validator set at parent block {}", parent_id
-							);
-						}
+						None => (),
 					}
 				}
 				None => {
@@ -726,7 +738,7 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 	) -> Self
 	where
 		P: ProvideRuntimeApi + BlockBody<Block> + BlockchainEvents<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> + ExtrinsicsQuerying<Block>,
+		P::Api: ParachainHost<Block>,
 		P::Api: ApiExt<Block, Error = substrate_client::error::Error>,
 	{
 		let (signal, exit) = exit_future::signal();
@@ -851,11 +863,10 @@ mod tests {
 		let msg = WorkerMsg::ParachainBlocks(ParachainBlocks {
 			relay_parent,
 			blocks: vec![(candidate, None)],
-			result: s
+			result: s,
 		});
 
-		let worker = Worker::new(store.clone(), messages);
-		let handle = worker.start();
+		let handle = Worker::start(store.clone(), messages);
 
 		// Tell the worker that the new blocks have been included into the relay chain.
 		// This should trigger the registration of gossip message listeners for the
@@ -951,9 +962,7 @@ mod tests {
 			].into_iter().collect()))
 		};
 
-
-		let worker = Worker::new(store.clone(), messages.clone());
-		let handle = worker.start();
+		let handle = Worker::start(store.clone(), messages.clone());
 
 		let (s2, r2) = oneshot::channel();
 		// Tell the worker to listen for chunks from candidate 2 (we alredy have a chunk from it).

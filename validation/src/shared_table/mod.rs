@@ -71,10 +71,6 @@ impl TableContext {
 		self.key.as_ref().map(|k| k.public())
 	}
 
-	fn validators_num(&self) -> usize {
-		self.groups.iter().fold(0, |acc, (_, v)| acc + v.validity_guarantors.len())
-	}
-
 	fn local_index(&self) -> Option<ValidatorIndex> {
 		self.local_id().and_then(|id|
 			self.validators
@@ -150,9 +146,6 @@ impl SharedTableInner {
 
 		let local_index = context.local_index()?;
 		let para_member = context.is_member_of(local_index, &summary.group_id);
-
-		let n_validators = context.validators_num();
-
 		let digest = &summary.candidate;
 
 		// TODO: consider a strategy based on the number of candidate votes as well.
@@ -195,7 +188,6 @@ impl SharedTableInner {
 			availability_store: self.availability_store.clone(),
 			relay_parent: context.parent_hash.clone(),
 			work,
-			n_validators,
 			local_index: local_index as usize,
 			max_block_data_size,
 		})
@@ -270,7 +262,6 @@ impl Validated {
 pub struct ParachainWork<Fetch> {
 	work: Work<Fetch>,
 	relay_parent: Hash,
-	n_validators: usize,
 	local_index: usize,
 	availability_store: AvailabilityStore,
 	max_block_data_size: Option<u64>,
@@ -364,12 +355,6 @@ impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 				None,
 			)),
 			Ok((outgoing_targeted, our_chunk)) => {
-				self.inner.availability_store.add_validator_index_and_n_validators(
-					&self.inner.relay_parent,
-					self.inner.local_index as u32,
-					self.inner.n_validators as u32,
-				)?;
-
 				self.inner.availability_store.add_erasure_chunk(
 					self.inner.relay_parent,
 					candidate.clone(),
@@ -775,13 +760,18 @@ mod tests {
 
 		let hash = candidate.hash();
 
+		store.add_validator_index_and_n_validators(
+			&relay_parent,
+			local_index as u32,
+			n_validators as u32,
+		).unwrap();
+
 		let producer: ParachainWork<future::FutureResult<_, ::std::io::Error>> = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
 				fetch: future::ok(pov_block.clone()),
 			},
 			local_index,
-			n_validators,
 			relay_parent,
 			availability_store: store.clone(),
 			max_block_data_size: None,
@@ -834,13 +824,18 @@ mod tests {
 
 		let chunks = erasure::obtain_chunks(n_validators, &pov_block.block_data, ex.as_ref()).unwrap();
 
+		store.add_validator_index_and_n_validators(
+			&relay_parent,
+			local_index as u32,
+			n_validators as u32,
+		).unwrap();
+
 		let producer = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
 				fetch: future::ok::<_, ::std::io::Error>(pov_block.clone()),
 			},
 			local_index,
-			n_validators,
 			relay_parent,
 			availability_store: store.clone(),
 			max_block_data_size: None,
