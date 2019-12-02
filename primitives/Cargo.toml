@@ -7,18 +7,18 @@ edition = "2018"
 [dependencies]
 serde = { version = "1.0.102", optional = true, features = ["derive"] }
 parity-scale-codec = { version = "1.1.0", default-features = false, features = ["bit-vec", "derive"] }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-application-crypto = { package = "sc-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+application-crypto = { package = "sc-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 polkadot-parachain = { path = "../parachain", default-features = false }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 [dev-dependencies]
-sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 pretty_assertions = "0.5.1"
 
 [features]
