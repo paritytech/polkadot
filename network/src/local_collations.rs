@@ -128,7 +128,7 @@ impl<C: Clone> LocalCollations<C> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_primitives::crypto::UncheckedInto;
+	use sp_core::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::ValidatorId;
 
 	#[test]

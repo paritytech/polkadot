@@ -34,15 +34,15 @@ pub use service::ServiceBuilderCommand;
 pub use service::config::{DatabaseConfig, full_version_from_strs};
 pub use client::{ExecutionStrategy, CallExecutor};
 pub use client_api::backend::Backend;
-pub use sr_api::{Core as CoreApi, ConstructRuntimeApi};
+pub use sp_api::{Core as CoreApi, ConstructRuntimeApi};
 pub use consensus_common::SelectChain;
 pub use polkadot_network::{PolkadotProtocol};
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use polkadot_runtime::RuntimeApi;
 pub use primitives::Blake2Hasher;
-pub use sr_primitives::traits::ProvideRuntimeApi;
-pub use substrate_network::specialization::NetworkSpecialization;
+pub use sp_runtime::traits::ProvideRuntimeApi;
+pub use sc_network::specialization::NetworkSpecialization;
 pub use chain_spec::ChainSpec;
 pub use consensus::run_validation_worker;
 
@@ -150,7 +150,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
 	>, ServiceError>
 {
-	use substrate_network::DhtEvent;
+	use sc_network::DhtEvent;
 	use futures03::{
 		compat::Stream01CompatExt,
 		stream::StreamExt,

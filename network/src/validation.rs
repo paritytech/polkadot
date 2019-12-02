@@ -19,8 +19,8 @@
 //! This fulfills the `polkadot_validation::Network` trait, providing a hook to be called
 //! each time validation leaf work begins on a new chain head.
 
-use sr_primitives::traits::ProvideRuntimeApi;
-use substrate_network::PeerId;
+use sp_runtime::traits::ProvideRuntimeApi;
+use sc_network::PeerId;
 use polkadot_validation::{
 	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, SignedStatement,
 };
@@ -706,7 +706,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> LeafWorkDataFetcher<P, E, N, T> where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_primitives::crypto::UncheckedInto;
+	use sp_core::crypto::UncheckedInto;
 
 	#[test]
 	fn last_keys_works() {

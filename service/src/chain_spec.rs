@@ -24,7 +24,7 @@ use polkadot_runtime::{
 	IndicesConfig, StakerStatus, WASM_BINARY, ClaimsConfig, ParachainsConfig, RegistrarConfig
 };
 use polkadot_runtime::constants::currency::DOTS;
-use sr_primitives::{traits::IdentifyAccount, Perbill};
+use sp_runtime::{traits::IdentifyAccount, Perbill};
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
 use babe_primitives::AuthorityId as BabeId;

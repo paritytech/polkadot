@@ -34,11 +34,11 @@ use polkadot_primitives::parachain::{
 	Id as ParaId, BlockData, CollatorId, CandidateReceipt, Collation, PoVBlock,
 	StructuredUnroutedIngress, ValidatorId, OutgoingMessages,
 };
-use substrate_network::{
+use sc_network::{
 	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
 	specialization::NetworkSpecialization as Specialization,
 };
-use substrate_network::consensus_gossip::{
+use sc_network::consensus_gossip::{
 	self, TopicNotification, MessageRecipient as GossipMessageRecipient, ConsensusMessage,
 };
 use self::validation::{LiveValidationLeaves, RecentValidatorIds, InsertedRecentKey};
@@ -76,7 +76,7 @@ mod benefit {
 type FullStatus = GenericFullStatus<Block>;
 
 /// Specialization of the network service for the polkadot protocol.
-pub type PolkadotNetworkService = substrate_network::NetworkService<Block, PolkadotProtocol, Hash>;
+pub type PolkadotNetworkService = sc_network::NetworkService<Block, PolkadotProtocol, Hash>;
 
 /// Basic functionality that a network has to fulfill.
 pub trait NetworkService: Send + Sync + 'static {
@@ -588,7 +588,7 @@ impl Specialization<Block> for PolkadotProtocol {
 		let local_status = Status::decode(&mut &status.chain_status[..])
 			.unwrap_or_else(|_| Status { collating_for: None });
 
-		let validator = status.roles.contains(substrate_network::config::Roles::AUTHORITY);
+		let validator = status.roles.contains(sc_network::config::Roles::AUTHORITY);
 
 		let mut peer_info = PeerInfo {
 			collating_for: local_status.collating_for.clone(),

@@ -19,10 +19,10 @@
 #![allow(unused)]
 
 use crate::gossip::GossipMessage;
-use substrate_network::Context as NetContext;
-use substrate_network::consensus_gossip::TopicNotification;
-use substrate_primitives::{NativeOrEncoded, ExecutionContext};
-use substrate_keyring::Sr25519Keyring;
+use sc_network::Context as NetContext;
+use sc_network::consensus_gossip::TopicNotification;
+use sp_core::{NativeOrEncoded, ExecutionContext};
+use sp_keyring::Sr25519Keyring;
 use crate::{GossipService, PolkadotProtocol, NetworkService, GossipMessageStream};
 
 use polkadot_validation::{SharedTable, Network};
@@ -34,8 +34,8 @@ use polkadot_primitives::parachain::{
 };
 use parking_lot::Mutex;
 use sp_blockchain::Result as ClientResult;
-use sr_api::{Core, RuntimeVersion, StorageProof, ApiExt};
-use sr_primitives::traits::{ApiRef, ProvideRuntimeApi};
+use sp_api::{Core, RuntimeVersion, StorageProof, ApiExt};
+use sp_runtime::traits::{ApiRef, ProvideRuntimeApi};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -401,7 +401,7 @@ impl IngressBuilder {
 
 fn make_table(data: &ApiData, local_key: &Sr25519Keyring, parent_hash: Hash) -> Arc<SharedTable> {
 	use av_store::Store;
-	use substrate_primitives::crypto::Pair;
+	use sp_core::crypto::Pair;
 
 	let sr_pair = local_key.pair();
 	let local_key = polkadot_primitives::parachain::ValidatorPair::from(local_key.pair());

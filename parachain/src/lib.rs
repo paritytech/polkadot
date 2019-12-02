@@ -54,7 +54,7 @@ pub mod wasm_api;
 use rstd::vec::Vec;
 
 use codec::{Encode, Decode, CompactAs};
-use substrate_primitives::{RuntimeDebug, TypeId};
+use sp_core::{RuntimeDebug, TypeId};
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
@@ -127,7 +127,7 @@ impl rstd::ops::Add<u32> for Id {
 	}
 }
 
-// TODO: Remove all of this, move sr-primitives::AccountIdConversion to own crate and and use that.
+// TODO: Remove all of this, move sp-runtime::AccountIdConversion to own crate and and use that.
 // #360
 struct TrailingZeroInput<'a>(&'a [u8]);
 impl<'a> codec::Input for TrailingZeroInput<'a> {
