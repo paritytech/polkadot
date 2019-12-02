@@ -5,6 +5,9 @@ authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 edition = "2018"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 log = "0.4.8"
 tokio = "0.2.1"
@@ -18,3 +21,4 @@ service = { package = "polkadot-service", path = "../service", default-features 
 default = [ "wasmtime", "rocksdb" ]
 wasmtime = [ "cli/wasmtime" ]
 rocksdb = [ "service/rocksdb" ]
+browser = []
