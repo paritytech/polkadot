@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.7.2"
+version = "0.7.3"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -25,7 +25,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", default-features
 sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sp-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sp-sesssion = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 version = { package = "sp-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 tx-pool-api = { package = "sp-transaction-pool-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -125,6 +125,6 @@ std = [
 	"safe-mix/std",
 	"babe/std",
 	"babe-primitives/std",
-	"sp-sesssion/std",
+	"sp-session/std",
 	"randomness-collective-flip/std",
 ]

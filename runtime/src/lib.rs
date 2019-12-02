@@ -752,7 +752,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl sp_sesssion::SessionKeys<Block> for Runtime {
+	impl sp_session::SessionKeys<Block> for Runtime {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
 			SessionKeys::generate(seed)
 		}
