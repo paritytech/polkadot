@@ -74,7 +74,7 @@ pub use polkadot_cli::{VersionInfo, TaskExecutor};
 pub use polkadot_network::validation::Incoming;
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
-pub use substrate_network::PeerId;
+pub use sc_network::PeerId;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 

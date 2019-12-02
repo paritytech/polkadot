@@ -17,7 +17,7 @@
 //! Module to process claims from Ethereum addresses.
 
 use rstd::prelude::*;
-use sr_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
+use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module};
 use frame_support::weights::SimpleDispatchInfo;
 use frame_support::traits::{Currency, Get};
@@ -26,8 +26,8 @@ use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
 #[cfg(feature = "std")]
-use sr_primitives::traits::Zero;
-use sr_primitives::{
+use sp_runtime::traits::Zero;
+use sp_runtime::{
 	RuntimeDebug, transaction_validity::{
 		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction
 	},
@@ -200,7 +200,7 @@ impl<T: Trait> Module<T> {
 }
 
 #[allow(deprecated)] // Allow `ValidateUnsigned`
-impl<T: Trait> sr_primitives::traits::ValidateUnsigned for Module<T> {
+impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
 	fn validate_unsigned(call: &Self::Call) -> TransactionValidity {
@@ -244,11 +244,11 @@ mod tests {
 	use hex_literal::hex;
 	use super::*;
 
-	use substrate_primitives::H256;
+	use sp_core::H256;
 	use codec::Encode;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
-	use sr_primitives::{Perbill, traits::{BlakeTwo256, IdentityLookup}, testing::Header};
+	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup}, testing::Header};
 	use balances;
 	use frame_support::{impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types};
 
@@ -339,7 +339,7 @@ mod tests {
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
-	fn new_test_ext() -> sr_io::TestExternalities {
+	fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		// We use default for brevity, but you can configure as desired if needed.
 		balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
@@ -442,7 +442,7 @@ mod tests {
 	#[test]
 	fn validate_unsigned_works() {
 		#![allow(deprecated)] // Allow `ValidateUnsigned`
-		use sr_primitives::traits::ValidateUnsigned;
+		use sp_runtime::traits::ValidateUnsigned;
 
 		new_test_ext().execute_with(|| {
 			assert_eq!(

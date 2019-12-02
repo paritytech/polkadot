@@ -571,7 +571,7 @@ impl SharedTable {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::Sr25519Keyring;
+	use sp_keyring::Sr25519Keyring;
 	use primitives::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{BlockData, ConsolidatedIngress};
 	use futures::future;

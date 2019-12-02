@@ -26,9 +26,9 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, HeadData, PoVBlock, BlockData, CollatorId, ValidatorId,
 	StructuredUnroutedIngress
 };
-use substrate_primitives::crypto::UncheckedInto;
+use sp_core::crypto::UncheckedInto;
 use codec::Encode;
-use substrate_network::{
+use sc_network::{
 	PeerId, Context, config::Roles, message::generic::ConsensusMessage,
 	specialization::NetworkSpecialization,
 };

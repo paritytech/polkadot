@@ -23,7 +23,7 @@
 //! the `TableRouter` trait from `polkadot-validation`, which is expected to call into a shared statement table
 //! and dispatch evaluation work as necessary when new statements come in.
 
-use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
+use sp_runtime::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
 use polkadot_validation::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Validated
 };
