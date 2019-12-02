@@ -16,7 +16,7 @@ dependencies = [
  "dlmalloc 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-parachain 0.7.2",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-wasm-builder-runner 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -33,9 +33,9 @@ dependencies = [
  "polkadot-collator 0.7.2",
  "polkadot-parachain 0.7.2",
  "polkadot-primitives 0.7.2",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -1054,7 +1054,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "fork-tree"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -1062,58 +1062,58 @@ dependencies = [
 [[package]]
 name = "frame-executive"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "frame-metadata"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "frame-support"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "bitmask 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "frame-metadata 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-support-procedural 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-metadata 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-support-procedural 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "once_cell 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "paste 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "tracing 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "frame-support-procedural"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support-procedural-tools 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support-procedural-tools 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1122,9 +1122,9 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support-procedural-tools-derive 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support-procedural-tools-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1134,7 +1134,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools-derive"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1144,27 +1144,27 @@ dependencies = [
 [[package]]
 name = "frame-system"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "frame-system-rpc-runtime-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -1451,7 +1451,7 @@ dependencies = [
 [[package]]
 name = "grafana-data-source"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2797,286 +2797,286 @@ dependencies = [
 [[package]]
 name = "pallet-authority-discovery"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-authorship"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-authorship 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-authorship 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-babe"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "hex-literal 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-balances"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-collective"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-democracy"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-elections-phragmen"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-phragmen 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-phragmen 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-finality-tracker"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-grandpa"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-finality-granpda 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-finality-granpda 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-im-online"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-authorship 0.1.0 (git+https://github.com/paritytech/substrate)",
- "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-authorship 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-indices"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-membership"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-nicks"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-offences"
 version = "1.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-balances 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-balances 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-randomness-collective-flip"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-session"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-staking"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-authorship 0.1.0 (git+https://github.com/paritytech/substrate)",
- "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-authorship 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-phragmen 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-phragmen 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-staking-reward-curve"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3087,88 +3087,88 @@ dependencies = [
 [[package]]
 name = "pallet-sudo"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-timestamp"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-transaction-payment"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-transaction-payment-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-transaction-payment-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-transaction-payment-rpc"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "jsonrpc-core 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core-client 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-derive 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "pallet-transaction-payment-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "pallet-transaction-payment-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-rpc 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-transaction-payment-rpc-runtime-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "pallet-treasury"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-balances 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-balances 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -3476,7 +3476,7 @@ dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-primitives 0.7.2",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -3487,7 +3487,7 @@ dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-service 0.7.2",
- "sc-cli 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-cli 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "structopt 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -3506,12 +3506,12 @@ dependencies = [
  "polkadot-runtime 0.7.2",
  "polkadot-service 0.7.2",
  "polkadot-validation 0.7.2",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-network 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -3522,8 +3522,8 @@ dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-primitives 0.7.2",
  "reed-solomon-erasure 4.0.0 (git+https://github.com/paritytech/reed-solomon-erasure)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -3531,7 +3531,7 @@ name = "polkadot-executor"
 version = "0.7.2"
 dependencies = [
  "polkadot-runtime 0.7.2",
- "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -3548,13 +3548,13 @@ dependencies = [
  "polkadot-availability-store 0.7.2",
  "polkadot-primitives 0.7.2",
  "polkadot-validation 0.7.2",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-network 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -3570,8 +3570,8 @@ dependencies = [
  "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "shared_memory 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmi 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -3581,18 +3581,18 @@ name = "polkadot-primitives"
 version = "0.7.2"
 dependencies = [
  "bitvec 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-parachain 0.7.2",
  "pretty_assertions 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-serializer 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-serializer 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -3600,14 +3600,14 @@ name = "polkadot-rpc"
 version = "0.7.2"
 dependencies = [
  "jsonrpc-core 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "pallet-transaction-payment-rpc 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "pallet-transaction-payment-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "polkadot-primitives 0.7.2",
  "polkadot-runtime 0.7.2",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-rpc 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "substrate-frame-rpc-system 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "substrate-frame-rpc-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -3615,36 +3615,36 @@ name = "polkadot-runtime"
 version = "0.7.2"
 dependencies = [
  "bitvec 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "frame-executive 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-executive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "frame-system-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "hex-literal 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libsecp256k1 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "pallet-authority-discovery 0.1.0 (git+https://github.com/paritytech/substrate)",
- "pallet-authorship 0.1.0 (git+https://github.com/paritytech/substrate)",
- "pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-balances 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-collective 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-democracy 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-elections-phragmen 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-grandpa 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-im-online 0.1.0 (git+https://github.com/paritytech/substrate)",
- "pallet-indices 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-membership 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-nicks 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-offences 1.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-randomness-collective-flip 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-staking-reward-curve 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-sudo 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-transaction-payment 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-transaction-payment-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-treasury 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "pallet-authority-discovery 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-authorship 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-balances 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-collective 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-democracy 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-elections-phragmen 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-grandpa 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-im-online 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-indices 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-membership 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-nicks 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-offences 1.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-randomness-collective-flip 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-staking-reward-curve 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-sudo 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-transaction-payment 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-transaction-payment-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-treasury 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-parachain 0.7.2",
  "polkadot-primitives 0.7.2",
@@ -3653,23 +3653,23 @@ dependencies = [
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-block-builder 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-offchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-serializer 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-sesssion 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-offchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-serializer 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-sesssion 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-wasm-builder-runner 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "trie-db 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3685,9 +3685,9 @@ dependencies = [
  "hex-literal 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-im-online 0.1.0 (git+https://github.com/paritytech/substrate)",
- "pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-im-online 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-availability-store 0.7.2",
  "polkadot-executor 0.7.2",
@@ -3696,29 +3696,29 @@ dependencies = [
  "polkadot-rpc 0.7.2",
  "polkadot-runtime 0.7.2",
  "polkadot-validation 0.7.2",
- "sc-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-db 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-finality-grandpa 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-network 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-service 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-transaction-pool 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-db 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-finality-grandpa 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-service 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-transaction-pool 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "slog 2.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-finality-granpda 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-finality-granpda 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -3727,7 +3727,7 @@ version = "0.7.2"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-primitives 0.7.2",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -3742,7 +3742,7 @@ dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-timer 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-availability-store 0.7.2",
@@ -3750,21 +3750,21 @@ dependencies = [
  "polkadot-primitives 0.7.2",
  "polkadot-runtime 0.7.2",
  "polkadot-statement-table 0.7.2",
- "sc-block-builder 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-finality-grandpa 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-finality-grandpa 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-executor 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -4273,19 +4273,19 @@ dependencies = [
 [[package]]
 name = "sc-application-crypto"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-authority-discovery"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4296,49 +4296,49 @@ dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost-build 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-network 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-block-builder"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-block-builder 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-chain-spec"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-chain-spec-derive 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-network 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-chain-spec-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-chain-spec-derive"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4349,7 +4349,7 @@ dependencies = [
 [[package]]
 name = "sc-cli"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "ansi_term 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "app_dirs 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4365,18 +4365,18 @@ dependencies = [
  "names 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rpassword 4.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-network 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-service 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-tracing 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-service 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-tracing 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-panic-handler 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-panic-handler 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "structopt 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4385,7 +4385,7 @@ dependencies = [
 [[package]]
 name = "sc-client"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4396,29 +4396,29 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-block-builder 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "tracing 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "sc-client-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4429,28 +4429,28 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-block-builder 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-client-db"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4460,25 +4460,25 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-state-db 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-state-db 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-consensus-babe"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "fork-tree 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "fork-tree 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-timer 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4491,64 +4491,64 @@ dependencies = [
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pdqselect 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-consensus-slots 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-consensus-uncles 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-consensus-slots 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-consensus-uncles 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "schnorrkel 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-block-builder 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-consensus-slots"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-timer 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-consensus-uncles"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-authorship 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-authorship 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-executor"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "cranelift-codegen 0.50.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cranelift-entity 0.50.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4562,15 +4562,15 @@ dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-wasm 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-panic-handler 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-serializer 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-panic-handler 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-serializer 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-wasm-interface 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "wasmi 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmtime-environ 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmtime-jit 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4580,29 +4580,29 @@ dependencies = [
 [[package]]
 name = "sc-finality-grandpa"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "finality-grandpa 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "fork-tree 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "fork-tree 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-network 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-finality-granpda 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-finality-granpda 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "tokio-executor 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-timer 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -4610,22 +4610,22 @@ dependencies = [
 [[package]]
 name = "sc-keystore"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "subtle 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "sc-network"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4633,7 +4633,7 @@ dependencies = [
  "either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "erased-serde 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "fork-tree 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "fork-tree 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-timer 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4646,21 +4646,21 @@ dependencies = [
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-hex 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-block-builder 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-peerset 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-peerset 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog 2.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog_derive 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 0.6.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "unsigned-varint 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "void 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4670,7 +4670,7 @@ dependencies = [
 [[package]]
 name = "sc-offchain"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4684,20 +4684,20 @@ dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-network 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-offchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-offchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "threadpool 1.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "sc-peerset"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4708,7 +4708,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4717,27 +4717,27 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-rpc-api 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-rpc-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-rpc 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-sesssion 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-sesssion 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-rpc-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4750,16 +4750,16 @@ dependencies = [
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-rpc 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-rpc-server"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "jsonrpc-core 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-http-server 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4768,50 +4768,50 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-service"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "exit-future 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "grafana-data-source 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "grafana-data-source 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-multiaddr 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-chain-spec 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-db 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-network 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-offchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-rpc 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-rpc-server 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-tracing 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-transaction-pool 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-chain-spec 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-client-db 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-executor 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-offchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-rpc-server 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-tracing 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-transaction-pool 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog 2.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-sesssion 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-sesssion 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sysinfo 0.9.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "target_info 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-executor 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4822,18 +4822,18 @@ dependencies = [
 [[package]]
 name = "sc-state-db"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-telemetry"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4855,13 +4855,13 @@ dependencies = [
 [[package]]
 name = "sc-tracing"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "erased-serde 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "grafana-data-source 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "grafana-data-source 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog 2.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4871,36 +4871,36 @@ dependencies = [
 [[package]]
 name = "sc-transaction-graph"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sc-transaction-pool"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-transaction-graph 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-transaction-graph 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -5178,21 +5178,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "sp-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-api-proc-macro"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5204,70 +5204,70 @@ dependencies = [
 [[package]]
 name = "sp-arithmetic"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "integer-sqrt 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-authority-discovery"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-authorship"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-block-builder"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-blockchain"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lru 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-block-builder 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-consensus"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5276,33 +5276,33 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-consensus-babe"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-consensus-slots 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-consensus-slots 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "schnorrkel 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-core"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5325,11 +5325,11 @@ dependencies = [
  "schnorrkel 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core-storage 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core-storage 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-bip39 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-bip39 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5341,18 +5341,18 @@ dependencies = [
 [[package]]
 name = "sp-core-storage"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "impl-serde 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-debug-derive"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5362,89 +5362,89 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "environmental 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core-storage 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core-storage 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-finality-granpda"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-finality-tracker"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-inherents"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-io"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libsecp256k1 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-keyring"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "strum 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "sp-offchain"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-panic-handler"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "backtrace 0.3.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5453,60 +5453,60 @@ dependencies = [
 [[package]]
 name = "sp-phragmen"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-rpc"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-runtime"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "paste 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-runtime-interface"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "environmental 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "primitive-types 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime-interface-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-wasm-interface 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "static_assertions 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "Inflector 0.11.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5518,7 +5518,7 @@ dependencies = [
 [[package]]
 name = "sp-serializer"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5527,27 +5527,27 @@ dependencies = [
 [[package]]
 name = "sp-sesssion"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-staking"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-state-machine"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5555,10 +5555,10 @@ dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-panic-handler 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-panic-handler 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "trie-db 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "trie-root 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -5566,55 +5566,55 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 
 [[package]]
 name = "sp-timestamp"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-transaction-pool-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-transaction-pool-runtime-api"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "sp-api 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-trie"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "memory-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "trie-db 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "trie-root 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -5622,19 +5622,19 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "impl-serde 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
 name = "sp-wasm-interface"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmi 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5738,21 +5738,21 @@ dependencies = [
 [[package]]
 name = "substrate-frame-rpc-system"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#8091a0e5360c7d26a03c099e703c832c81ee2e4d"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#ee3a1f1413ee2b712613a052848df5da4cfb7d47"
 dependencies = [
- "frame-system-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-system-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core-client 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-derive 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sc-client 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
 ]
 
 [[package]]
@@ -6969,15 +6969,15 @@ dependencies = [
 "checksum fixedbitset 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)" = "86d4de0081402f5e88cdac65c8dcdcc73118c1a7a465e2a05f0da05843a8ea33"
 "checksum flate2 1.0.13 (registry+https://github.com/rust-lang/crates.io-index)" = "6bd6d6f4752952feb71363cffc9ebac9411b75b87c6ab6058c40c8900cf43c0f"
 "checksum fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)" = "2fad85553e09a6f881f739c29f0b00b0f01357c743266d478b68951ce23285f3"
-"checksum fork-tree 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum frame-executive 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum frame-metadata 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum frame-support 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum frame-support-procedural 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum frame-support-procedural-tools 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum frame-support-procedural-tools-derive 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum frame-system 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum frame-system-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
+"checksum fork-tree 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum frame-executive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum frame-metadata 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum frame-support-procedural 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum frame-support-procedural-tools 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum frame-support-procedural-tools-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum frame-system-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum fs-swap 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "921d332c89b3b61a826de38c61ee5b6e02c56806cade1b0e5d81bd71f57a71bb"
 "checksum fuchsia-cprng 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
 "checksum fuchsia-zircon 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "2e9763c69ebaae630ba35f74888db465e49e259ba1bc0eda7d06f4a067615d82"
@@ -7011,7 +7011,7 @@ dependencies = [
 "checksum glob 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 "checksum globset 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)" = "925aa2cac82d8834e2b2a4415b6f6879757fb5c0928fc445ae76461a12eed8f2"
 "checksum goblin 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "5e6040506480da04a63de51a478e8021892d65d8411f29b2a422c2648bdd8bcb"
-"checksum grafana-data-source 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
+"checksum grafana-data-source 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum h2 0.1.26 (registry+https://github.com/rust-lang/crates.io-index)" = "a5b34c246847f938a410a03c5458c7fee2274436675e76d8b903c08efc29c462"
 "checksum h2 0.2.0-alpha.3 (registry+https://github.com/rust-lang/crates.io-index)" = "0f107db1419ef8271686187b1a5d47c6431af4a7f4d98b495e7b7fc249bb0a78"
 "checksum hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d23bd4e7b5eda0d0f3a307e8b381fdc8ba9000f26fbe912250c0a4cc3956364a"
@@ -7134,30 +7134,30 @@ dependencies = [
 "checksum once_cell 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "891f486f630e5c5a4916c7e16c4b24a53e78c860b646e9f8e005e4f16847bfed"
 "checksum opaque-debug 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
 "checksum owning_ref 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "49a4b8ea2179e6a2e27411d3bca09ca6dd630821cf6894c6c7c8467a8ee7ef13"
-"checksum pallet-authority-discovery 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-authorship 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-balances 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-collective 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-democracy 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-elections-phragmen 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-grandpa 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-im-online 0.1.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-indices 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-membership 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-nicks 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-offences 1.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-randomness-collective-flip 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-session 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-staking-reward-curve 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-sudo 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-transaction-payment 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-transaction-payment-rpc 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-transaction-payment-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum pallet-treasury 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
+"checksum pallet-authority-discovery 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-authorship 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-balances 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-collective 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-democracy 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-elections-phragmen 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-grandpa 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-im-online 0.1.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-indices 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-membership 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-nicks 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-offences 1.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-randomness-collective-flip 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-staking-reward-curve 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-sudo 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-transaction-payment 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-transaction-payment-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-transaction-payment-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum pallet-treasury 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum parity-bytes 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0c276d76c5333b8c2579e02d49a06733a55b8282d2d9b13e8d53b6406bd7e30a"
 "checksum parity-multiaddr 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "045b3c7af871285146300da35b1932bb6e4639b66c7c98e85d06a32cbc4e8fa7"
 "checksum parity-multiaddr 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "82afcb7461eae5d122543d8be1c57d306ed89af2d6ff7f8b0f5a3cc8f7e511bc"
@@ -7245,33 +7245,33 @@ dependencies = [
 "checksum rw-stream-sink 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "2f9cbe61c20455d3015b2bb7be39e1872310283b8e5a52f5b242b0ac7581fe78"
 "checksum ryu 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "bfa8506c1de11c9c4e4c38863ccbe02a305c8188e85a05a784c9e11e1c3910c8"
 "checksum safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7f7bf422d23a88c16d5090d455f182bc99c60af4df6a345c63428acf5129e347"
-"checksum sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-block-builder 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-chain-spec 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-chain-spec-derive 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-cli 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-client 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-client-db 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-consensus-slots 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-consensus-uncles 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-executor 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-finality-grandpa 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-network 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-offchain 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-peerset 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-rpc 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-rpc-api 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-rpc-server 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-service 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-state-db 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-tracing 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-transaction-graph 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sc-transaction-pool 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
+"checksum sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-chain-spec 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-chain-spec-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-cli 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-client-db 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-consensus-slots 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-consensus-uncles 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-executor 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-finality-grandpa 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-offchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-peerset 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-rpc-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-rpc-server 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-service 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-state-db 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-tracing 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-transaction-graph 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-transaction-pool 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum schnorrkel 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)" = "eacd8381b3c37840c9c9f40472af529e49975bdcbc24f83c31059fd6539023d3"
 "checksum scopeguard 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "94258f53601af11e6a49f722422f6e3425c52b06245a5cf9bc09908b174f5e27"
 "checksum scopeguard 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b42e15e59b18a828bbf5c58ea01debb36b9b096346de35d941dcb89009f24a0d"
@@ -7302,42 +7302,42 @@ dependencies = [
 "checksum snow 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)" = "91eecae35b461ed26bda7a76bea2cc5bda2bf4b8dd06761879f19e6fdd50c2dd"
 "checksum soketto 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "bceb1a3a15232d013d9a3b7cac9e5ce8e2313f348f01d4bc1097e5e53aa07095"
 "checksum sourcefile 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "4bf77cb82ba8453b42b6ae1d692e4cdc92f9a47beaf89a847c8be83f4e328ad3"
-"checksum sp-api 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-api-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-authorship 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-block-builder 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-core 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-core-storage 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-finality-granpda 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-io 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-offchain 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-panic-handler 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-phragmen 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-rpc 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-runtime-interface-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-serializer 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-sesssion 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-staking 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-std 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-transaction-pool-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-version 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
-"checksum sp-wasm-interface 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
+"checksum sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-api-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-authorship 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-core-storage 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-finality-granpda 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-offchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-panic-handler 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-phragmen 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-runtime-interface-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-serializer 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-sesssion 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-transaction-pool-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-wasm-interface 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum spin 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 "checksum stable_deref_trait 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
 "checksum static_assertions 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
@@ -7350,7 +7350,7 @@ dependencies = [
 "checksum strum 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6138f8f88a16d90134763314e3fc76fa3ed6a7db4725d6acf9a3ef95a3188d22"
 "checksum strum_macros 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0054a7df764039a6cd8592b9de84be4bec368ff081d203a7d5371cbfa8e65c81"
 "checksum substrate-bip39 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "3be511be555a3633e71739a79e4ddff6a6aaa6579fa6114182a51d72c3eb93c5"
-"checksum substrate-frame-rpc-system 2.0.0 (git+https://github.com/paritytech/substrate)" = "<none>"
+"checksum substrate-frame-rpc-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum substrate-wasm-builder-runner 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "bd48273fe9d7f92c1f7d6c1c537bb01c8068f925b47ad2cd8367e11dc32f8550"
 "checksum subtle 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2d67a5a62ba6e01cb2192ff309324cb4875d0c451d55fe2319433abe7a05a8ee"
 "checksum subtle 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ab3af2eb31c42e8f0ccf43548232556c42737e01a96db6e1777b0be108e79799"
