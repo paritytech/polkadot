@@ -105,9 +105,11 @@ pub fn erasure_coding_topic(relay_parent: Hash, erasure_root: Hash, index: u32) 
 /// [`network`]: ../polkadot_network/index.html
 pub trait ProvideGossipMessages {
 	/// Get a stream of gossip erasure chunk messages for a given topic.
+	///
+	/// Each item is a tuple (relay_parent, candidate_hash, erasure_chunk)
 	fn gossip_messages_for(
 		&self,
-		topic: Hash
+		topic: Hash,
 	) -> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin>;
 
 	/// Gossip an erasure chunk message.
@@ -116,7 +118,7 @@ pub trait ProvideGossipMessages {
 		relay_parent: Hash,
 		candidate_hash: Hash,
 		erasure_root: Hash,
-		chunk: ErasureChunk
+		chunk: ErasureChunk,
 	);
 }
 
@@ -236,7 +238,7 @@ impl Store {
 		let msg = WorkerMsg::ParachainBlocks(ParachainBlocks {
 			relay_parent: data.relay_parent,
 			blocks: vec![],
-			result: s
+			result: s,
 		});
 
 		let _ = self.to_worker.unbounded_send(msg);
@@ -246,7 +248,7 @@ impl Store {
 		} else {
 			Err(io::Error::new(io::ErrorKind::Other, format!("adding erasure chunks failed")))
 		}
-		
+
 	}
 
 	/// Get a set of all chunks we are waiting for grouped by
@@ -265,7 +267,7 @@ impl Store {
 		&self,
 		relay_parent: &Hash,
 		validator_index: u32,
-		n_validators: u32
+		n_validators: u32,
 	) -> io::Result<()> {
 		self.inner.add_validator_index_and_n_validators(
 			relay_parent,
@@ -290,7 +292,7 @@ impl Store {
 		&self,
 		relay_parent: Hash,
 		receipt: CandidateReceipt,
-		chunk: ErasureChunk
+		chunk: ErasureChunk,
 	) -> io::Result<()> {
 		self.add_erasure_chunks(relay_parent, receipt, vec![chunk]).await
 	}
@@ -335,7 +337,7 @@ impl Store {
 		&self,
 		relay_parent: &Hash,
 		block_data_hash: Hash,
-		index: usize
+		index: usize,
 	) -> Option<ErasureChunk> {
 		self.inner.get_erasure_chunk(relay_parent, block_data_hash, index)
 	}

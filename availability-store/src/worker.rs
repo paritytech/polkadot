@@ -214,7 +214,7 @@ where
 }
 
 /// Creates a task to prune entries in availability store upon block finalization.
-async fn prune_unneded_availability<P, S>(client: Arc<P>, mut sender: S)
+async fn prune_unneeded_availability<P, S>(client: Arc<P>, mut sender: S)
 where
 	P: ProvideRuntimeApi + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ExtrinsicsQuerying<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
@@ -290,7 +290,7 @@ where
 	fn register_listeners(
 		&mut self,
 		runtime_handle: &mut Handle,
-		sender: &mut mpsc::UnboundedSender<WorkerMsg>
+		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 	) {
 		if let Some(awaited_chunks) = self.availability_store.awaited_chunks() {
 			for chunk in awaited_chunks {
@@ -298,7 +298,7 @@ where
 					runtime_handle,
 					sender,
 					chunk.0,
-					chunk.1
+					chunk.1,
 				) {
 					warn!(target: LOG_TARGET, "Failed to register gossip listener: {}", e);
 				}
@@ -311,7 +311,7 @@ where
 		runtime_handle: &mut Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 		relay_parent: Hash,
-		erasure_root: Hash
+		erasure_root: Hash,
 	) -> Result<(), Error> {
 		let (local_id, _) = self.availability_store
 			.get_validator_index_and_n_validators(&relay_parent)
@@ -394,7 +394,7 @@ where
 		&mut self,
 		relay_parent: Hash,
 		candidate_hash: Hash,
-		chunks: Vec<ErasureChunk>
+		chunks: Vec<ErasureChunk>,
 	) -> Result<(), Error> {
 		let (_, n_validators) = self.availability_store
 			.get_validator_index_and_n_validators(&relay_parent)
@@ -495,7 +495,8 @@ where
 							let ListenForChunks {
 								relay_parent,
 								candidate_hash,
-								index, result
+								index,
+								result,
 							} = msg;
 
 							let res = self.on_listen_for_chunks_received(
@@ -503,7 +504,7 @@ where
 								&mut sender,
 								relay_parent,
 								candidate_hash,
-								index as usize
+								index as usize,
 							);
 
 							if let Some(result) = result {
@@ -528,7 +529,7 @@ where
 							let res = self.on_chunks_received(
 								relay_parent,
 								candidate_hash,
-								chunks
+								chunks,
 							);
 
 							let _ = result.send(res);
@@ -539,7 +540,7 @@ where
 
 							self.availability_store.candidates_finalized(
 								relay_parent,
-								candidate_hashes.into_iter().collect()
+								candidate_hashes.into_iter().collect(),
 							)
 						}
 					};
@@ -561,7 +562,7 @@ where
 			);
 
 			if let Err(e) = runtime.block_on(exit) {
-				warn!(target: LOG_TARGET, "Availbility worker error {:?}", e);
+				warn!(target: LOG_TARGET, "Availability worker error {:?}", e);
 			}
 
 			info!(target: LOG_TARGET, "Availability worker exiting");
@@ -736,7 +737,7 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 		// dependent on the types of client and executor, which would prove
 		// not not so handy in the testing code.
 		let mut exit_signal = Some(signal);
-		let prune_available = prune_unneded_availability(client.clone(), to_worker.clone())
+		let prune_available = prune_unneeded_availability(client.clone(), to_worker.clone())
 			.unit_error()
 			.boxed()
 			.compat()

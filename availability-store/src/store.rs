@@ -151,7 +151,7 @@ impl Store {
 	pub(crate) fn add_candidates_in_relay_block(
 		&self,
 		relay_parent: &Hash,
-		candidates: Vec<Hash>
+		candidates: Vec<Hash>,
 	) -> io::Result<()> {
 
 		let mut tx = DBTransaction::new();
@@ -188,7 +188,7 @@ impl Store {
 	pub(crate) fn add_erasure_roots_in_relay_block(
 		&self,
 		relay_parent: &Hash,
-		erasure_roots: Vec<Hash>
+		erasure_roots: Vec<Hash>,
 	) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
 		let dbkey = erasure_roots_in_relay_chain_block_key(relay_parent);
@@ -211,7 +211,7 @@ impl Store {
 		&self,
 		relay_parent: &Hash,
 		validator_index: u32,
-		n_validators: u32
+		n_validators: u32,
 	) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
 		let dbkey = validator_index_and_n_validators_key(relay_parent);
@@ -236,8 +236,8 @@ impl Store {
 		n_validators: u32,
 		relay_parent: &Hash,
 		candidate_hash: &Hash,
-		chunks: I)
-	-> io::Result<()>
+		chunks: I,
+	) -> io::Result<()>
 		where I: IntoIterator<Item = ErasureChunk>
 	{
 		if let Some(receipt) = self.get_candidate(candidate_hash) {
@@ -305,7 +305,7 @@ impl Store {
 		&self,
 		relay_parent: &Hash,
 		block_data_hash: Hash,
-		index: usize
+		index: usize,
 	) -> Option<ErasureChunk> {
 		self.query_inner(columns::DATA, &erasure_chunks_key(&relay_parent, &block_data_hash))
 			.and_then(|chunks: Vec<ErasureChunk>| {
@@ -332,7 +332,11 @@ impl Store {
 	}
 
 	/// Note that a set of candidates have been included in a finalized block with given hash and parent hash.
-	pub fn candidates_finalized(&self, parent: Hash, finalized_candidates: HashSet<Hash>) -> io::Result<()> {
+	pub fn candidates_finalized(
+		&self,
+		parent: Hash,
+		finalized_candidates: HashSet<Hash>,
+) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
 
 		let v = self.query_inner(columns::META, &parent[..]).unwrap_or(Vec::new());
