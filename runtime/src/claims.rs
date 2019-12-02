@@ -113,7 +113,7 @@ decl_storage! {
 		Total get(total) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().fold(Zero::zero(), |acc: BalanceOf<T>, &(_, n)| acc + n)
 		}): BalanceOf<T>;
-		/// Vesting schedule for a user.
+		/// Vesting schedule for a claim.
 		/// First balance is the total amount that should be held for vesting.
 		/// Second balance is how much should be unlocked per block.
 		/// The block number is when the vesting should start.
