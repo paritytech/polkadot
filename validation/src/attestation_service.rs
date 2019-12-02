@@ -37,7 +37,7 @@ use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
 use runtime_primitives::traits::{ProvideRuntimeApi};
 use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
-use sr_api::ApiExt;
+use sp_api::ApiExt;
 
 use tokio::{runtime::Runtime as LocalRuntime};
 use log::{warn, error};

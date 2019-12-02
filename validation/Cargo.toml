@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-validation"
-version = "0.7.1"
+version = "0.7.2"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -19,22 +19,22 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-consensus = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-client = { package = "substrate-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-sr-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-block-builder = { package = "substrate-block-builder", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-runtime_primitives = { package = "sr-primitives", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-babe-primitives = { package = "substrate-consensus-babe-primitives", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-keystore = { package = "substrate-keystore", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }

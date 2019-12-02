@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-network"
-version = "0.7.1"
+version = "0.7.2"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot-specific networking protocol"
 edition = "2018"
@@ -12,15 +12,15 @@ av_store = { package = "polkadot-availability-store", path = "../availability-st
 polkadot-validation = { path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-sr-primitives = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
 futures = { version = "0.3.1", features = ["compat"] }
 log = "0.4.8"
 exit-future = { git = "https://github.com/expenses/exit-future", branch = "broadcast" }
-substrate-client = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
 
 [dev-dependencies]
-substrate-keyring = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-sr-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }

@@ -66,7 +66,7 @@ use inherents::InherentData;
 use sp_timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace, error};
 use keystore::KeyStorePtr;
-use sr_api::ApiExt;
+use sp_api::ApiExt;
 
 type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 fn interval(duration: Duration) -> impl Stream<Item=()> + Send + Unpin {
@@ -875,7 +875,7 @@ impl<C, TxPool> Future for CreateProposal<C, TxPool> where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::Sr25519Keyring;
+	use sp_keyring::Sr25519Keyring;
 
 	#[test]
 	fn sign_and_check_statement() {

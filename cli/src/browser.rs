@@ -53,6 +53,7 @@ fn start_inner(wasm_ext: wasm_ext::ffi::Transport) -> Result<Client, Box<dyn std
 			let db = Arc::new(kvdb_memorydb::create(10));
 			DatabaseConfig::Custom(db)
 		};
+		config.keystore_path = Some(std::path::PathBuf::from("/"));
 		config
 	};
 

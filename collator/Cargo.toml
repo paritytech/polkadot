@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-collator"
-version = "0.7.1"
+version = "0.7.2"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator node implementation"
 edition = "2018"
@@ -8,11 +8,11 @@ edition = "2018"
 [dependencies]
 futures01 = { package = "futures", version = "0.1.17" }
 futures = { version = "0.3.1", features = ["compat"] }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-client-api = { package = "substrate-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-substrate-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
-consensus_common = { package = "substrate-consensus-common", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
 polkadot-runtime = { path = "../runtime" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-cli = { path = "../cli" }
@@ -24,4 +24,5 @@ tokio = "0.1.22"
 futures-timer = "1.0"
 
 [dev-dependencies]
-keyring = { package = "substrate-keyring", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+
