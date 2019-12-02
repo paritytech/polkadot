@@ -21,12 +21,12 @@
 use std::sync::Arc;
 
 use polkadot_primitives::{Block, AccountId, Nonce, Balance};
-use sr_primitives::traits::ProvideRuntimeApi;
+use sp_runtime::traits::ProvideRuntimeApi;
 use txpool_api::TransactionPool;
 use polkadot_runtime::UncheckedExtrinsic;
 
 /// A type representing all RPC extensions.
-pub type RpcExtension = jsonrpc_core::IoHandler<substrate_rpc::Metadata>;
+pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
 
 /// Instantiate all RPC extensions.
 pub fn create_full<C, P>(client: Arc<C>, pool: Arc<P>) -> RpcExtension where

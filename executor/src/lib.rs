@@ -17,7 +17,7 @@
 //! A `CodeExecutor` specialisation which uses natively compiled runtime when the wasm to be
 //! executed is equivalent to the natively compiled code.
 
-use substrate_executor::native_executor_instance;
+use sc_executor::native_executor_instance;
 
 native_executor_instance!(
     pub Executor,

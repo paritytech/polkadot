@@ -9,9 +9,9 @@ adder = { path = ".." }
 parachain = { package = "polkadot-parachain", path = "../../../parachain" }
 collator = { package = "polkadot-collator", path = "../../../collator" }
 primitives = { package = "polkadot-primitives", path = "../../../primitives" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-api = { package = "substrate-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "master" }
+client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 parking_lot = "0.9.0"
 ctrlc = { version = "3.1.3", features = ["termination"] }
 futures = "0.3.1"

@@ -19,7 +19,7 @@
 use codec::{Encode, Decode};
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{CollatorId, Id as ParaId, Collation};
-use substrate_network::PeerId;
+use sc_network::PeerId;
 use futures::sync::oneshot;
 
 use std::collections::hash_map::{HashMap, Entry};
@@ -226,7 +226,7 @@ impl CollatorPool {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_primitives::crypto::UncheckedInto;
+	use sp_core::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{
 		CandidateReceipt, BlockData, PoVBlock, HeadData, ConsolidatedIngress,
 	};

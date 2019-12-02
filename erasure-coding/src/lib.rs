@@ -28,7 +28,7 @@ use codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::{Hash as H256, BlakeTwo256, HashT};
 use primitives::parachain::{BlockData, OutgoingMessages};
-use substrate_primitives::Blake2Hasher;
+use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 
 use self::wrapped_shard::WrappedShard;

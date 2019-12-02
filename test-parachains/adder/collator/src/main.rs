@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
-use substrate_primitives::{Pair, Blake2Hasher};
+use sp_core::{Pair, Blake2Hasher};
 use parachain::codec::{Encode, Decode};
 use primitives::{
 	Hash, Block,
