@@ -140,14 +140,14 @@ decl_module! {
 			let data = dest.using_encoded(to_ascii_hex);
 			let signer = Self::eth_recover(&ethereum_signature, &data)
 				.ok_or("Invalid Ethereum signature")?;
-			
+
 			let balance_due = <Claims<T>>::get(&signer)
 				.ok_or("Ethereum address has no claim")?;
-			
-			// Check if this account should have a vesting schedule.
+
+			// Check if this claim should have a vesting schedule.
 			if let Some(vs) = <Vesting<T>>::get(&signer) {
-				// If this fails, account already has a vesting schedule
-				// and the claim should not be processed.
+				// If this fails, destination account already has a vesting schedule
+				// applied to it, and this claim should not be processed.
 				T::Currency::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)?;
 			}
 

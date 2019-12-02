@@ -199,6 +199,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		}),
 		claims: Some(ClaimsConfig {
 			claims: vec![],
+			vesting: vec![],
 		})
 	}
 }
@@ -338,6 +339,7 @@ pub fn testnet_genesis(
 		}),
 		claims: Some(ClaimsConfig {
 			claims: vec![],
+			vesting: vec![],
 		})
 	}
 }
