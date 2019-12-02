@@ -13,9 +13,13 @@ In 2017 we split our implementation of "Polkadot" from its platform-level compon
 
 We are actively building both Substrate and Polkadot, but things will be a little odd for a while.  If you see "substrate" and are wondering why you need it for Polkadot, now you know.
 
-To connect on the "Kusama" canary network, you will want the `v0.6` code, which is in this **Polkadot** repo. To play on the ("Alexander") testnet, you'll want the PoC-4 code instead.  Note that PoC-3 uses the Alexander testnet, but will not be able to sync to the latest block.
+To connect on the "Kusama" canary network, you will want the `v0.7` code, which is in this **Polkadot** repo. To play on the ("Alexander") testnet, you'll want the PoC-4 code instead.  Note that PoC-3 uses the Alexander testnet, but will not be able to sync to the latest block.
 
-* **Kusama** is in this [**Polkadot**][polkadot-v0.6] repo branch `v0.6`.
+* **Kusama CC-3** is in this [**Polkadot**][polkadot-v0.7] repo branch `v0.7`.
+
+* **Kusama CC-2** is in this [**Polkadot**][polkadot-v0.6] repo branch `v0.6`.
+
+* **Kusama CC-1** is in this [**Polkadot**][polkadot-v0.5] repo branch `v0.5`.
 
 * **Polkadot PoC-4 "Alexander"** is in this [**Polkadot**][polkadot-v0.4] repo branch `v0.4`.
 
@@ -24,7 +28,9 @@ To connect on the "Kusama" canary network, you will want the `v0.6` code, which 
 * **Polkadot PoC-2 "Krumme Lanke"** is in the [**Substrate**][substrate-v0.2] repo branch `v0.2`.
 
 [substrate-repo]: https://github.com/paritytech/substrate
+[polkadot-v0.7]: https://github.com/paritytech/polkadot/tree/v0.7
 [polkadot-v0.6]: https://github.com/paritytech/polkadot/tree/v0.6
+[polkadot-v0.5]: https://github.com/paritytech/polkadot/tree/v0.5
 [polkadot-v0.4]: https://github.com/paritytech/polkadot/tree/v0.4
 [polkadot-v0.3]: https://github.com/paritytech/polkadot/tree/v0.3
 [substrate-v0.2]: https://github.com/paritytech/substrate/tree/v0.2
@@ -33,7 +39,7 @@ To connect on the "Kusama" canary network, you will want the `v0.6` code, which 
 
 ### Install Rust
 If you'd like to play with Polkadot, you'll need to install a client like this
-one. First, get Rust (1.32.0 or later) and the support software if you don't already have it:
+one. First, get Rust (1.39.0 or later) and the support software if you don't already have it:
 
 
 ```bash
@@ -53,12 +59,12 @@ If you already have Rust installed, make sure you're using the latest version by
 rustup update
 ```
 
-### Install "Kusama" Canary Network
+### Install "Kusama CC-3" Canary Network
 
 Build Kusama by cloning this repository and running the following commands from the root directory of the repo:
 
 ```bash
-git checkout v0.6
+git checkout v0.7
 ./scripts/init.sh
 cargo build --release
 ```
@@ -71,7 +77,7 @@ Connect to the global Kusama canary network by default by running:
 
 You can see your node on [telemetry].
 
-[telemetry]: https://telemetry.polkadot.io/#list/Kusama%20CC2
+[telemetry]: https://telemetry.polkadot.io/#list/Kusama%20CC3
 
 ### Install PoC-4 on "Alexander" Testnet
 
@@ -94,22 +100,6 @@ Finally, connect to the global "Alexander" testnet by default by running:
 
 ```bash
 ./target/release/polkadot
-```
-
-### Install PoC-3 "Alexander" Testnet
-
-_Note: Connecting to the current Alexander testnet with this version will not allow synchronization._
-
-Install Polkadot PoC-3 and have a `polkadot` binary installed to your `PATH` with:
-
-```bash
-cargo install --git https://github.com/paritytech/polkadot.git --branch v0.3 polkadot
-```
-
-Connect to the global "Alexander" testnet by default by running:
-
-```bash
-polkadot
 ```
 
 ### Install PoC-2 "Krumme Lanke" Testnet
