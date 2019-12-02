@@ -51,7 +51,7 @@
 
 use sp_runtime::{generic::BlockId, traits::ProvideRuntimeApi};
 use sp_blockchain::Error as ClientError;
-use sc_network::{config::Roles, PeerId};
+use sc_network::{config::Roles, PeerId, ReputationChange};
 use sc_network::consensus_gossip::{
 	self as network_gossip, ValidationResult as GossipValidationResult,
 	ValidatorContext, MessageIntent, ConsensusMessage,
@@ -87,35 +87,39 @@ pub(crate) const MAX_CHAIN_HEADS: usize = 5;
 pub type LeavesVec = ArrayVec<[Hash; MAX_CHAIN_HEADS]>;
 
 mod benefit {
+	use sc_network::ReputationChange as Rep;
 	/// When a peer sends us a previously-unknown candidate statement.
-	pub const NEW_CANDIDATE: i32 = 100;
+	pub const NEW_CANDIDATE: Rep = Rep::new(100, "Polkadot: New candidate");
 	/// When a peer sends us a previously-unknown attestation.
-	pub const NEW_ATTESTATION: i32 = 50;
+	pub const NEW_ATTESTATION: Rep = Rep::new(50, "Polkadot: New attestation");
 	/// When a peer sends us a previously-unknown message packet.
-	pub const NEW_ICMP_MESSAGES: i32 = 50;
+	pub const NEW_ICMP_MESSAGES: Rep = Rep::new(50, "Polkadot: New ICMP messages");
 }
 
 mod cost {
+	use sc_network::ReputationChange as Rep;
+	/// No cost. This will not be reported.
+	pub const NONE: Rep = Rep::new(0, "");
 	/// A peer sent us an attestation and we don't know the candidate.
-	pub const ATTESTATION_NO_CANDIDATE: i32 = -100;
+	pub const ATTESTATION_NO_CANDIDATE: Rep = Rep::new(-100, "Polkadot: No candidate");
 	/// A peer sent us a statement we consider in the future.
-	pub const FUTURE_MESSAGE: i32 = -100;
+	pub const FUTURE_MESSAGE: Rep = Rep::new(-100, "Polkadot: Future message");
 	/// A peer sent us a statement from the past.
-	pub const PAST_MESSAGE: i32 = -30;
+	pub const PAST_MESSAGE: Rep = Rep::new(-30, "Polkadot: Past message");
 	/// A peer sent us a malformed message.
-	pub const MALFORMED_MESSAGE: i32 = -500;
+	pub const MALFORMED_MESSAGE: Rep = Rep::new(-500, "Polkadot: Malformed message");
 	/// A peer sent us a wrongly signed message.
-	pub const BAD_SIGNATURE: i32 = -500;
+	pub const BAD_SIGNATURE: Rep = Rep::new(-500, "Polkadot: Bad signature");
 	/// A peer sent us a bad neighbor packet.
-	pub const BAD_NEIGHBOR_PACKET: i32 = -300;
+	pub const BAD_NEIGHBOR_PACKET: Rep = Rep::new(-300, "Polkadot: Bad neighbor");
 	/// A peer sent us an ICMP queue we haven't advertised a need for.
-	pub const UNNEEDED_ICMP_MESSAGES: i32 = -100;
+	pub const UNNEEDED_ICMP_MESSAGES: Rep = Rep::new(-100, "Polkadot: Unexpected ICMP message");
 
 	/// A peer sent us an ICMP queue with a bad root.
-	pub fn icmp_messages_root_mismatch(n_messages: usize) -> i32 {
+	pub fn icmp_messages_root_mismatch(n_messages: usize) -> Rep {
 		const PER_MESSAGE: i32 = -150;
 
-		(0..n_messages).map(|_| PER_MESSAGE).sum()
+		Rep::new((0..n_messages).map(|_| PER_MESSAGE).sum(), "Polkadot: ICMP root mismatch")
 	}
 }
 
@@ -288,8 +292,10 @@ pub fn register_validator<C: ChainContext + 'static>(
 ) -> RegisteredMessageValidator
 {
 	let s = service.clone();
-	let report_handle = Box::new(move |peer: &PeerId, cost_benefit| {
-		s.report_peer(peer.clone(), cost_benefit);
+	let report_handle = Box::new(move |peer: &PeerId, cost_benefit: ReputationChange| {
+		if cost_benefit.value != 0 {
+			s.report_peer(peer.clone(), cost_benefit);
+		}
 	});
 	let validator = Arc::new(MessageValidator {
 		report_handle,
@@ -355,7 +361,7 @@ impl RegisteredMessageValidator {
 	#[cfg(test)]
 	pub(crate) fn new_test<C: ChainContext + 'static>(
 		chain: C,
-		report_handle: Box<dyn Fn(&PeerId, i32) + Send + Sync>,
+		report_handle: Box<dyn Fn(&PeerId, ReputationChange) + Send + Sync>,
 	) -> Self {
 		let validator = Arc::new(MessageValidator::new_test(chain, report_handle));
 
@@ -474,7 +480,7 @@ struct Inner<C: ?Sized> {
 
 impl<C: ?Sized + ChainContext> Inner<C> {
 	fn validate_neighbor_packet(&mut self, sender: &PeerId, packet: NeighborPacket)
-		-> (GossipValidationResult<Hash>, i32, Vec<Hash>)
+		-> (GossipValidationResult<Hash>, ReputationChange, Vec<Hash>)
 	{
 		let chain_heads = packet.chain_heads;
 		if chain_heads.len() > MAX_CHAIN_HEADS {
@@ -494,7 +500,7 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 				Vec::new()
 			};
 
-			(GossipValidationResult::Discard, 0, new_topics)
+			(GossipValidationResult::Discard, cost::NONE, new_topics)
 		}
 	}
 
@@ -514,7 +520,7 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 
 /// An unregistered message validator. Register this with `register_validator`.
 pub struct MessageValidator<C: ?Sized> {
-	report_handle: Box<dyn Fn(&PeerId, i32) + Send + Sync>,
+	report_handle: Box<dyn Fn(&PeerId, ReputationChange) + Send + Sync>,
 	inner: RwLock<Inner<C>>,
 }
 
@@ -522,7 +528,7 @@ impl<C: ChainContext + ?Sized> MessageValidator<C> {
 	#[cfg(test)]
 	fn new_test(
 		chain: C,
-		report_handle: Box<dyn Fn(&PeerId, i32) + Send + Sync>,
+		report_handle: Box<dyn Fn(&PeerId, ReputationChange) + Send + Sync>,
 	) -> Self where C: Sized {
 		MessageValidator {
 			report_handle,
@@ -535,7 +541,7 @@ impl<C: ChainContext + ?Sized> MessageValidator<C> {
 		}
 	}
 
-	fn report(&self, who: &PeerId, cost_benefit: i32) {
+	fn report(&self, who: &PeerId, cost_benefit: ReputationChange) {
 		(self.report_handle)(who, cost_benefit)
 	}
 }
@@ -720,7 +726,7 @@ mod tests {
 	fn message_allowed() {
 		let (tx, _rx) = mpsc::channel();
 		let tx = Mutex::new(tx);
-		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+		let report_handle = Box::new(move |peer: &PeerId, cb: ReputationChange| tx.lock().send((peer.clone(), cb)).unwrap());
 		let validator = MessageValidator::new_test(
 			TestChainContext::default(),
 			report_handle,
@@ -803,7 +809,7 @@ mod tests {
 	fn too_many_chain_heads_is_report() {
 		let (tx, rx) = mpsc::channel();
 		let tx = Mutex::new(tx);
-		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+		let report_handle = Box::new(move |peer: &PeerId, cb: ReputationChange| tx.lock().send((peer.clone(), cb)).unwrap());
 		let validator = MessageValidator::new_test(
 			TestChainContext::default(),
 			report_handle,
@@ -845,7 +851,7 @@ mod tests {
 	fn statement_only_sent_when_candidate_known() {
 		let (tx, _rx) = mpsc::channel();
 		let tx = Mutex::new(tx);
-		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+		let report_handle = Box::new(move |peer: &PeerId, cb: ReputationChange| tx.lock().send((peer.clone(), cb)).unwrap());
 		let validator = MessageValidator::new_test(
 			TestChainContext::default(),
 			report_handle,
@@ -922,7 +928,7 @@ mod tests {
 	fn multicasts_icmp_queues_when_building_on_new_leaf() {
 		let (tx, _rx) = mpsc::channel();
 		let tx = Mutex::new(tx);
-		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+		let report_handle = Box::new(move |peer: &PeerId, cb: ReputationChange| tx.lock().send((peer.clone(), cb)).unwrap());
 
 		let hash_a = [1u8; 32].into();
 		let root_a = [11u8; 32].into();
@@ -1017,7 +1023,7 @@ mod tests {
 	fn multicasts_icmp_queues_on_neighbor_update() {
 		let (tx, _rx) = mpsc::channel();
 		let tx = Mutex::new(tx);
-		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+		let report_handle = Box::new(move |peer: &PeerId, cb: ReputationChange| tx.lock().send((peer.clone(), cb)).unwrap());
 
 		let hash_a = [1u8; 32].into();
 		let root_a = [11u8; 32].into();
@@ -1128,7 +1134,7 @@ mod tests {
 	fn accepts_needed_unknown_icmp_message_queue() {
 		let (tx, _rx) = mpsc::channel();
 		let tx = Mutex::new(tx);
-		let report_handle = Box::new(move |peer: &PeerId, cb: i32| tx.lock().send((peer.clone(), cb)).unwrap());
+		let report_handle = Box::new(move |peer: &PeerId, cb: ReputationChange| tx.lock().send((peer.clone(), cb)).unwrap());
 
 		let hash_a = [1u8; 32].into();
 		let root_a_messages = vec![
