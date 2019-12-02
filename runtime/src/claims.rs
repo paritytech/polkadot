@@ -171,7 +171,7 @@ decl_module! {
 		fn mint_claim(origin,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
-			vesting_schedule: Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>
+			vesting_schedule: Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>,
 		) {
 			ensure_root(origin)?;
 
