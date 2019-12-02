@@ -20,11 +20,12 @@
 #![warn(unused_extern_crates)]
 
 mod chain_spec;
+#[cfg(feature = "browser")]
+mod browser;
 
 use chain_spec::ChainSpec;
-use futures::{Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Future01CompatExt};
+use futures::{Future, future::select, channel::oneshot, compat::Future01CompatExt};
 pub use tokio::runtime::Runtime;
-use std::sync::Arc;
 use log::{info, error};
 use structopt::StructOpt;
 
@@ -35,8 +36,6 @@ pub use service::{
 
 pub use cli::{VersionInfo, IntoExit, NoCustom};
 pub use cli::{display_role, error};
-
-type BoxedFuture = Box<dyn futures01::Future<Item = (), Error = ()> + Send>;
 
 fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
@@ -180,7 +179,7 @@ fn run_until_exit<T, SC, B, CE, W>(
 	let service = service
 		.map_err(|err| error!("Error while running Service: {}", err))
 		.compat();
-	let future = select(service, work);;
+	let future = select(service, work);
 	let _ = runtime.block_on(future);
 	let _ = exit_send.send(());
 
