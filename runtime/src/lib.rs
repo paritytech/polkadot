@@ -603,10 +603,6 @@ construct_runtime! {
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
 
-		// Sudo. Usable initially.
-		// RELEASE: remove this for release build.
-		Sudo: sudo,
-
 		// Simple nicknames module.
 		Nicks: nicks::{Module, Call, Storage, Event<T>},
 	}
