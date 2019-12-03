@@ -536,11 +536,6 @@ impl claims::Trait for Runtime {
 	type Prefix = Prefix;
 }
 
-impl sudo::Trait for Runtime {
-	type Event = Event;
-	type Proposal = Call;
-}
-
 parameter_types! {
 	pub const ReservationFee: Balance = 1 * DOLLARS;
 	pub const MinLength: usize = 3;
