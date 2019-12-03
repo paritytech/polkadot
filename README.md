@@ -1,6 +1,6 @@
 ---
 author: Polkadot developers
-revision: 0.3.0
+revision: 0.3.1
 ---
 
 # Polkadot
@@ -15,7 +15,7 @@ We are actively building both Substrate and Polkadot, but things will be a littl
 
 To connect on the "Kusama" canary network, you will want the `v0.7` code, which is in this **Polkadot** repo. To play on the ("Alexander") testnet, you'll want the PoC-4 code instead.  Note that PoC-3 uses the Alexander testnet, but will not be able to sync to the latest block.
 
-* **Kusama CC-3** is in this [**Polkadot**][polkadot-v0.7] repo branch `v0.7`.
+* **Kusama CC-3** is in this [**Polkadot**] repo `master` branch.
 
 * **Kusama CC-2** is in this [**Polkadot**][polkadot-v0.6] repo branch `v0.6`.
 
@@ -28,7 +28,6 @@ To connect on the "Kusama" canary network, you will want the `v0.7` code, which 
 * **Polkadot PoC-2 "Krumme Lanke"** is in the [**Substrate**][substrate-v0.2] repo branch `v0.2`.
 
 [substrate-repo]: https://github.com/paritytech/substrate
-[polkadot-v0.7]: https://github.com/paritytech/polkadot/tree/v0.7
 [polkadot-v0.6]: https://github.com/paritytech/polkadot/tree/v0.6
 [polkadot-v0.5]: https://github.com/paritytech/polkadot/tree/v0.5
 [polkadot-v0.4]: https://github.com/paritytech/polkadot/tree/v0.4
@@ -64,7 +63,7 @@ rustup update
 Build Kusama by cloning this repository and running the following commands from the root directory of the repo:
 
 ```bash
-git checkout v0.7
+git checkout master
 ./scripts/init.sh
 cargo build --release
 ```
