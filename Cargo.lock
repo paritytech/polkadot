@@ -3085,20 +3085,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-sudo"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#042dc459f3875d65bec412068ba1939172c5e8c2"
-dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
- "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
- "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
-]
-
-[[package]]
 name = "pallet-timestamp"
 version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#042dc459f3875d65bec412068ba1939172c5e8c2"
@@ -3640,7 +3626,6 @@ dependencies = [
  "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-staking-reward-curve 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
- "pallet-sudo 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-transaction-payment 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-transaction-payment-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
@@ -7152,7 +7137,6 @@ dependencies = [
 "checksum pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum pallet-staking-reward-curve 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
-"checksum pallet-sudo 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum pallet-transaction-payment 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum pallet-transaction-payment-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
