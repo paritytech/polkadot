@@ -26,8 +26,8 @@
 use std::{thread, time::{Duration, Instant}, sync::Arc};
 
 use client::{BlockchainEvents, BlockBody};
+use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
-use client::blockchain::HeaderBackend;
 use consensus::SelectChain;
 use futures::prelude::*;
 use futures03::{TryStreamExt as _, StreamExt as _};
@@ -37,7 +37,7 @@ use polkadot_primitives::parachain::ParachainHost;
 use runtime_primitives::traits::{ProvideRuntimeApi};
 use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
-use sr_api::ApiExt;
+use sp_api::ApiExt;
 
 use tokio::{timer::Interval, runtime::current_thread::Runtime as LocalRuntime};
 use log::{warn, debug};
@@ -69,7 +69,7 @@ pub(crate) fn start<C, N, P, SC>(
 		P::Api: ParachainHost<Block> +
 			BlockBuilderApi<Block> +
 			BabeApi<Block> +
-			ApiExt<Block, Error = client::error::Error>,
+			ApiExt<Block, Error = sp_blockchain::Error>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
 		<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,

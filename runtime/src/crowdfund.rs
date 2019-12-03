@@ -72,14 +72,14 @@ use frame_support::{
 	}
 };
 use system::ensure_signed;
-use sr_primitives::{ModuleId,
+use sp_runtime::{ModuleId,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd}
 };
 use frame_support::weights::SimpleDispatchInfo;
 use crate::slots;
 use codec::{Encode, Decode};
 use rstd::vec::Vec;
-use substrate_primitives::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
+use sp_core::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
 use primitives::parachain::Id as ParaId;
 
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
@@ -491,11 +491,11 @@ mod tests {
 
 	use std::{collections::HashMap, cell::RefCell};
 	use frame_support::{impl_outer_origin, assert_ok, assert_noop, parameter_types};
-	use substrate_primitives::H256;
+	use sp_core::H256;
 	use primitives::parachain::{Info as ParaInfo, Id as ParaId};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
-	use sr_primitives::{
+	use sp_runtime::{
 		Perbill, Permill, testing::Header,
 		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup},
 	};
@@ -643,7 +643,7 @@ mod tests {
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
-	fn new_test_ext() -> sr_io::TestExternalities {
+	fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],

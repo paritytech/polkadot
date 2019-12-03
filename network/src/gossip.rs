@@ -49,10 +49,10 @@
 //! Peers who send information which was not allowed under a recent neighbor packet
 //! will be noted as non-beneficial to Substrate's peer-set management utility.
 
-use sr_primitives::{generic::BlockId, traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT}};
-use substrate_client::error::Error as ClientError;
-use substrate_network::{config::Roles, PeerId};
-use substrate_network::consensus_gossip::{
+use sp_runtime::{generic::BlockId, traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT}};
+use sp_blockchain::Error as ClientError;
+use sc_network::{config::Roles, PeerId};
+use sc_network::consensus_gossip::{
 	self as network_gossip, ValidationResult as GossipValidationResult,
 	ValidatorContext, MessageIntent, ConsensusMessage,
 };
@@ -81,7 +81,7 @@ mod attestation;
 mod message_routing;
 
 /// The engine ID of the polkadot attestation system.
-pub const POLKADOT_ENGINE_ID: sr_primitives::ConsensusEngineId = *b"dot1";
+pub const POLKADOT_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"dot1";
 
 // arbitrary; in practice this should not be more than 2.
 pub(crate) const MAX_CHAIN_HEADS: usize = 5;
@@ -360,7 +360,7 @@ impl NewLeafActions {
 	pub fn perform(
 		self,
 		gossip: &mut dyn crate::GossipService,
-		ctx: &mut dyn substrate_network::Context<Block>,
+		ctx: &mut dyn sc_network::Context<Block>,
 	) {
 		for action in self.actions {
 			match action {
@@ -740,12 +740,12 @@ impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValid
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_network::consensus_gossip::Validator as ValidatorT;
+	use sc_network::consensus_gossip::Validator as ValidatorT;
 	use std::sync::mpsc;
 	use parking_lot::Mutex;
 	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
-	use substrate_primitives::crypto::UncheckedInto;
-	use substrate_primitives::sr25519::{Public as Sr25519Public, Signature as Sr25519Signature};
+	use sp_core::crypto::UncheckedInto;
+	use sp_core::sr25519::{Public as Sr25519Public, Signature as Sr25519Signature};
 	use polkadot_validation::GenericStatement;
 	use super::message_routing::queue_topic;
 
@@ -878,9 +878,10 @@ mod tests {
 
 		{
 			let mut message_allowed = validator.message_allowed();
-			assert!(message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_a, &encoded));
-			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_b, &encoded));
-			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_c, &encoded));
+			let intent = MessageIntent::Broadcast;
+			assert!(message_allowed(&peer_a, intent, &topic_a, &encoded));
+			assert!(!message_allowed(&peer_a, intent, &topic_b, &encoded));
+			assert!(!message_allowed(&peer_a, intent, &topic_c, &encoded));
 		}
 	}
 
@@ -986,7 +987,7 @@ mod tests {
 
 		{
 			let mut message_allowed = validator.message_allowed();
-			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_a, &encoded[..]));
+			assert!(!message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded[..]));
 		}
 
 		validator
@@ -999,7 +1000,7 @@ mod tests {
 			.note_aware_under_leaf(&hash_a, c_hash);
 		{
 			let mut message_allowed = validator.message_allowed();
-			assert!(message_allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &topic_a, &encoded[..]));
+			assert!(message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded[..]));
 		}
 	}
 
@@ -1092,8 +1093,9 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			assert!(allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
-			assert!(!allowed(&peer_b, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
+			let intent = MessageIntent::Broadcast;
+			assert!(allowed(&peer_a, intent, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, intent, &root_a_topic, &message[..]));
 		}
 	}
 
@@ -1163,8 +1165,9 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			assert!(!allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
-			assert!(!allowed(&peer_b, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
+			let intent = MessageIntent::Broadcast;
+			assert!(!allowed(&peer_a, intent, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, intent, &root_a_topic, &message[..]));
 		}
 
 		// peer A gets updated to the chain head. now we'll attempt to broadcast
@@ -1201,8 +1204,9 @@ mod tests {
 			}).encode();
 
 			let mut allowed = validator.inner.message_allowed();
-			assert!(allowed(&peer_a, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
-			assert!(!allowed(&peer_b, MessageIntent::Broadcast { previous_attempts: 0 }, &root_a_topic, &message[..]));
+			let intent = MessageIntent::Broadcast;
+			assert!(allowed(&peer_a, intent, &root_a_topic, &message[..]));
+			assert!(!allowed(&peer_b, intent, &root_a_topic, &message[..]));
 		}
 	}
 

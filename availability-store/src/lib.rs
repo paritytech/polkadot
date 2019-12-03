@@ -32,12 +32,12 @@ use polkadot_primitives::{
 		ParachainHost,
 	},
 };
-use sr_primitives::traits::{BlakeTwo256, Hash as HashT, ProvideRuntimeApi};
-use substrate_client::{
-	error::Result as ClientResult,
+use sp_runtime::traits::{BlakeTwo256, Hash as HashT, ProvideRuntimeApi};
+use sp_blockchain::{Result as ClientResult};
+use client::{
 	BlockchainEvents, BlockBody,
 };
-use sr_api::ApiExt;
+use sp_api::ApiExt;
 
 use log::warn;
 
@@ -204,7 +204,7 @@ impl Store {
 	where
 		P: ProvideRuntimeApi + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block>,
-		P::Api: ApiExt<Block, Error=substrate_client::error::Error>,
+		P::Api: ApiExt<Block, Error=sp_blockchain::Error>,
 	{
 		let to_worker = self.to_worker.clone();
 

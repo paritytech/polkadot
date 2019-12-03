@@ -20,11 +20,10 @@ use std::sync::Arc;
 use std::thread;
 
 use log::{error, info, trace, warn};
-use sr_primitives::traits::{Header as HeaderT, ProvideRuntimeApi};
-use sr_api::ApiExt;
-use substrate_client::{
-	error as client_error,
-	error::Result as ClientResult,
+use sp_blockchain::{Result as ClientResult};
+use sp_runtime::traits::{Header as HeaderT, ProvideRuntimeApi};
+use sp_api::ApiExt;
+use client::{
 	BlockchainEvents, BlockBody,
 	blockchain::ProvideCache,
 };
@@ -211,7 +210,7 @@ fn fetch_candidates<P>(client: &P, block: &BlockId, parent: &BlockId)
 	-> ClientResult<Option<impl Iterator<Item=CandidateReceipt>>>
 where
 	P: BlockBody<Block> + ProvideRuntimeApi,
-	P::Api: ParachainHost<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
+	P::Api: ParachainHost<Block> + ApiExt<Block, Error=sp_blockchain::Error>,
 {
 	let extrinsics = client.block_body(block)?;
 	Ok(match extrinsics {
@@ -226,7 +225,7 @@ where
 async fn prune_unneeded_availability<P, S>(client: Arc<P>, mut sender: S)
 where
 	P: ProvideRuntimeApi + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + ApiExt<Block, Error=substrate_client::error::Error>,
+	P::Api: ParachainHost<Block> + ApiExt<Block, Error=sp_blockchain::Error>,
 	S: Sink<WorkerMsg> + Clone + Send + Sync + Unpin,
 {
 	let mut finality_notification_stream = client.finality_notification_stream();
@@ -620,7 +619,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 	I::Error: Into<ConsensusError>,
 	P: ProvideRuntimeApi + ProvideCache<Block>,
 	P::Api: ParachainHost<Block>,
-	P::Api: ApiExt<Block, Error = client_error::Error>,
+	P::Api: ApiExt<Block, Error = sp_blockchain::Error>,
 {
 	type Error = ConsensusError;
 
@@ -739,7 +738,7 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 	where
 		P: ProvideRuntimeApi + BlockBody<Block> + BlockchainEvents<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block>,
-		P::Api: ApiExt<Block, Error = substrate_client::error::Error>,
+		P::Api: ApiExt<Block, Error = sp_blockchain::Error>,
 	{
 		let (signal, exit) = exit_future::signal();
 

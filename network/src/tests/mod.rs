@@ -26,9 +26,9 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, HeadData, PoVBlock, BlockData, CollatorId, ValidatorId,
 	StructuredUnroutedIngress,
 };
-use substrate_primitives::crypto::UncheckedInto;
+use sp_core::crypto::UncheckedInto;
 use codec::Encode;
-use substrate_network::{
+use sc_network::{
 	PeerId, Context, config::Roles, message::generic::ConsensusMessage,
 	specialization::NetworkSpecialization,
 };
@@ -89,7 +89,7 @@ impl crate::gossip::ChainContext for TestChainContext {
 	}
 
 	fn leaf_unrouted_roots(&self, leaf: &Hash, with_queue_root: &mut dyn FnMut(&Hash))
-		-> Result<(), substrate_client::error::Error>
+		-> Result<(), sp_blockchain::Error>
 	{
 		for root in self.ingress_roots.get(leaf).into_iter().flat_map(|roots| roots) {
 			with_queue_root(root)

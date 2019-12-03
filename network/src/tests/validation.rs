@@ -19,10 +19,10 @@
 #![allow(unused)]
 
 use crate::gossip::GossipMessage;
-use substrate_network::Context as NetContext;
-use substrate_network::consensus_gossip::TopicNotification;
-use substrate_primitives::{NativeOrEncoded, ExecutionContext};
-use substrate_keyring::Sr25519Keyring;
+use sc_network::Context as NetContext;
+use sc_network::consensus_gossip::TopicNotification;
+use sp_core::{NativeOrEncoded, ExecutionContext};
+use sp_keyring::Sr25519Keyring;
 use crate::{GossipService, PolkadotProtocol, NetworkService, GossipMessageStream};
 
 use polkadot_validation::{SharedTable, Network};
@@ -33,9 +33,9 @@ use polkadot_primitives::parachain::{
 	FeeSchedule, HeadData, Retriable, CollatorId, ErasureChunk, CandidateReceipt,
 };
 use parking_lot::Mutex;
-use substrate_client::error::Result as ClientResult;
-use sr_api::{Core, RuntimeVersion, StorageProof, ApiExt};
-use sr_primitives::traits::{ApiRef, {Block as BlockT}, ProvideRuntimeApi};
+use sp_blockchain::Result as ClientResult;
+use sp_api::{Core, RuntimeVersion, StorageProof, ApiExt};
+use sp_runtime::traits::{ApiRef, {Block as BlockT}, ProvideRuntimeApi};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -231,7 +231,7 @@ impl Core<Block> for RuntimeApi {
 }
 
 impl ApiExt<Block> for RuntimeApi {
-	type Error = substrate_client::error::Error;
+	type Error = sp_blockchain::Error;
 
 	fn map_api_result<F: FnOnce(&Self) -> Result<R, E>, R, E>(
 		&self,
@@ -432,7 +432,7 @@ impl av_store::ProvideGossipMessages for DummyGossipMessages {
 
 fn make_table(data: &ApiData, local_key: &Sr25519Keyring, parent_hash: Hash) -> Arc<SharedTable> {
 	use av_store::Store;
-	use substrate_primitives::crypto::Pair;
+	use sp_core::crypto::Pair;
 
 	let sr_pair = local_key.pair();
 	let local_key = polkadot_primitives::parachain::ValidatorPair::from(local_key.pair());

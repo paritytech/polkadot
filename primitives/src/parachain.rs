@@ -589,7 +589,7 @@ pub struct Status {
 
 use runtime_primitives::traits::{Block as BlockT};
 
-sr_api::decl_runtime_apis! {
+sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost {
 		/// Get the current validators.
@@ -615,7 +615,7 @@ sr_api::decl_runtime_apis! {
 
 /// Runtime ID module.
 pub mod id {
-	use sr_version::ApiId;
+	use sp_version::ApiId;
 
 	/// Parachain host runtime API id.
 	pub const PARACHAIN_HOST: ApiId = *b"parahost";

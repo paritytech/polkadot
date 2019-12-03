@@ -23,7 +23,7 @@
 //! the `TableRouter` trait from `polkadot-validation`, which is expected to call into a shared statement table
 //! and dispatch evaluation work as necessary when new statements come in.
 
-use sr_primitives::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
+use sp_runtime::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
 use polkadot_validation::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Validated
 };
@@ -127,7 +127,7 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 }
 
 impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> where
-	P::Api: ParachainHost<Block, Error = substrate_client::error::Error>,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
 	E: Future<Item=(),Error=()> + Clone + Send + 'static,

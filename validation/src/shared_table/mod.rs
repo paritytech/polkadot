@@ -277,7 +277,7 @@ impl<Fetch: Future> ParachainWork<Fetch> {
 		>
 		where
 			P: Send + Sync + 'static,
-			P::Api: ParachainHost<Block, Error = client::error::Error>,
+			P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	{
 		let max_block_data_size = self.max_block_data_size;
 		let local_index = self.local_index;
@@ -570,7 +570,7 @@ impl SharedTable {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_keyring::Sr25519Keyring;
+	use sp_keyring::Sr25519Keyring;
 	use primitives::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{AvailableMessages, BlockData, ConsolidatedIngress, Collation};
 	use polkadot_erasure_coding::{self as erasure};

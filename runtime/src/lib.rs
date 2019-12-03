@@ -29,13 +29,13 @@ mod slots;
 mod crowdfund;
 
 use rstd::prelude::*;
-use substrate_primitives::u32_trait::{_1, _2, _3, _4, _5};
+use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	parachain::{self, ActiveParas, CandidateReceipt}, ValidityError,
 };
-use sr_primitives::{
+use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
@@ -46,20 +46,21 @@ use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
-use substrate_primitives::OpaqueMetadata;
-use sr_staking_primitives::SessionIndex;
+use sp_core::OpaqueMetadata;
+use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness},
 	weights::{Weight, DispatchInfo},
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
+use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use system::offchain::TransactionSubmitter;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
 #[cfg(any(feature = "std", test))]
-pub use sr_primitives::BuildStorage;
+pub use sp_runtime::BuildStorage;
 pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
 pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
@@ -96,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1020,
+	spec_version: 1025,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -129,7 +130,7 @@ impl SignedExtension for OnlyStakingAndClaims {
 		-> TransactionValidity
 	{
 		match call {
-			Call::Balances(_) | Call::Slots(_) | Call::Registrar(_) | Call::Democracy(_)
+			Call::Balances(_) | Call::Slots(_) | Call::Registrar(_)
 				=> Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
 			_ => Ok(Default::default()),
 		}
@@ -258,6 +259,7 @@ impl_opaque_keys! {
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub parachain_validator: Parachains,
+		pub authority_discovery: AuthorityDiscovery,
 	}
 }
 
@@ -298,7 +300,9 @@ parameter_types! {
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (28 days).
 	// KUSAMA: This value is 1/4 of what we expect for the mainnet.
-	pub const BondingDuration: staking::EraIndex = 7;
+	// KUSAMA-launch: 0 for managing the spooning injection.
+	pub const BondingDuration: staking::EraIndex = 0;
+	pub const SlashDeferDuration: staking::EraIndex = 7;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 }
 
@@ -311,6 +315,11 @@ impl staking::Trait for Runtime {
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
+	type SlashDeferDuration = SlashDeferDuration;
+	// A super-majority of the council can cancel the slash.
+	// KUSAMA-launch: Any council member can remove a slash.
+//	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	type SlashCancelOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 	type SessionInterface = Self;
 	type Time = Timestamp;
 	type RewardCurve = RewardCurve;
@@ -325,6 +334,8 @@ parameter_types! {
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
 	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
 	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
+	// One cent: $10,000 / MB
+	pub const PreimageByteDeposit: Balance = 1 * CENTS;
 }
 
 impl democracy::Trait for Runtime {
@@ -353,6 +364,8 @@ impl democracy::Trait for Runtime {
 	// only do it once and it lasts only for the cooloff period.
 	type VetoOrigin = collective::EnsureMember<AccountId, TechnicalCollective>;
 	type CooloffPeriod = CooloffPeriod;
+	type PreimageByteDeposit = PreimageByteDeposit;
+	type Slash = Treasury;
 }
 
 type CouncilCollective = collective::Instance1;
@@ -429,6 +442,8 @@ impl offences::Trait for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
+impl authority_discovery::Trait for Runtime {}
+
 type SubmitTransaction = TransactionSubmitter<ImOnlineId, Runtime, UncheckedExtrinsic>;
 
 parameter_types! {
@@ -494,7 +509,7 @@ impl registrar::Trait for Runtime {
 	type MaxRetries = MaxRetries;
 }
 
-parameter_types!{
+parameter_types! {
 	pub const LeasePeriod: BlockNumber = 100_000;
 	pub const EndingPeriod: BlockNumber = 1000;
 }
@@ -508,7 +523,7 @@ impl slots::Trait for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 }
 
-parameter_types!{
+parameter_types! {
 	// KUSAMA: for mainnet this should be removed.
 	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
 	// KUSAMA: for mainnet this should be uncommented.
@@ -529,7 +544,7 @@ impl sudo::Trait for Runtime {
 parameter_types! {
 	pub const ReservationFee: Balance = 1 * DOLLARS;
 	pub const MinLength: usize = 3;
-	pub const MaxLength: usize = 16;
+	pub const MaxLength: usize = 32;
 }
 
 impl nicks::Trait for Runtime {
@@ -542,7 +557,7 @@ impl nicks::Trait for Runtime {
 	type MaxLength = MaxLength;
 }
 
-construct_runtime!(
+construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
 		NodeBlock = primitives::Block,
@@ -568,6 +583,7 @@ construct_runtime!(
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
+		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
 		// Governance stuff; uncallable initially.
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
@@ -594,7 +610,7 @@ construct_runtime!(
 		// Simple nicknames module.
 		Nicks: nicks::{Module, Call, Storage, Event<T>},
 	}
-);
+}
 
 /// The address format for describing accounts.
 pub type Address = <Indices as StaticLookup>::Source;
@@ -625,8 +641,8 @@ pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
 
-sr_api::impl_runtime_apis! {
-	impl sr_api::Core<Block> for Runtime {
+sp_api::impl_runtime_apis! {
+	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION
 		}
@@ -640,7 +656,7 @@ sr_api::impl_runtime_apis! {
 		}
 	}
 
-	impl sr_api::Metadata<Block> for Runtime {
+	impl sp_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
 			Runtime::metadata().into()
 		}
@@ -678,7 +694,7 @@ sr_api::impl_runtime_apis! {
 	}
 
 	impl offchain_primitives::OffchainWorkerApi<Block> for Runtime {
-		fn offchain_worker(number: sr_primitives::traits::NumberFor<Block>) {
+		fn offchain_worker(number: sp_runtime::traits::NumberFor<Block>) {
 			Executive::offchain_worker(number)
 		}
 	}
@@ -743,7 +759,13 @@ sr_api::impl_runtime_apis! {
 		}
 	}
 
-	impl substrate_session::SessionKeys<Block> for Runtime {
+	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
+		fn authorities() -> Vec<AuthorityDiscoveryId> {
+			AuthorityDiscovery::authorities()
+		}
+	}
+
+	impl sp_sesssion::SessionKeys<Block> for Runtime {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
 			SessionKeys::generate(seed)
 		}

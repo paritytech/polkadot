@@ -100,7 +100,7 @@ impl<C: Collators, P> CollationFetch<C, P> {
 }
 
 impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
-	where P::Api: ParachainHost<Block, Error = client::error::Error>,
+	where P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	type Item = (Collation, OutgoingMessages, Balance);
 	type Error = C::Error;
@@ -144,7 +144,7 @@ impl<C: Collators, P: ProvideRuntimeApi> Future for CollationFetch<C, P>
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
 	/// Client error
-	Client(client::error::Error),
+	Client(sp_blockchain::Error),
 	/// Wasm validation error
 	WasmValidation(wasm_executor::Error),
 	/// Erasure-encoding error.
@@ -433,7 +433,7 @@ fn do_validation<P>(
 	upward_messages: &Vec<UpwardMessage>,
 ) -> Result<(OutgoingMessages, Balance), Error> where
 	P: ProvideRuntimeApi,
-	P::Api: ParachainHost<Block, Error = client::error::Error>,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	use parachain::{IncomingMessage, ValidationParams};
 
@@ -561,7 +561,7 @@ pub fn validate_receipt<P>(
 	max_block_data_size: Option<u64>,
 ) -> Result<(OutgoingMessages, Vec<ErasureChunk>), Error> where
 	P: ProvideRuntimeApi,
-	P::Api: ParachainHost<Block, Error = client::error::Error>,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	let (messages, _fees) = do_validation(
 		client,
@@ -608,7 +608,7 @@ pub fn validate_collation<P>(
 	max_block_data_size: Option<u64>,
 ) -> Result<(OutgoingMessages, Balance), Error> where
 	P: ProvideRuntimeApi,
-	P::Api: ParachainHost<Block, Error = client::error::Error>,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	let para_id = collation.info.parachain_index;
 
