@@ -116,7 +116,7 @@ pub trait TableRouter: Clone {
 		collation: Collation,
 		receipt: CandidateReceipt,
 		outgoing: OutgoingMessages,
-		chunks: (ValidatorIndex, &Vec<ErasureChunk>)
+		chunks: (ValidatorIndex, &[ErasureChunk])
 	);
 
 	/// Fetch validation proof for a specific candidate.

@@ -235,7 +235,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 		collation: Collation,
 		receipt: CandidateReceipt,
 		outgoing: OutgoingMessages,
-		chunks: (ValidatorIndex, &Vec<ErasureChunk>)
+		chunks: (ValidatorIndex, &[ErasureChunk])
 	) {
 		// produce a signed statement
 		let hash = receipt.hash();

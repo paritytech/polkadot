@@ -616,7 +616,7 @@ mod tests {
 			_collation: Collation,
 			_candidate: CandidateReceipt,
 			_outgoing: OutgoingMessages,
-			_chunks: (ValidatorIndex, &Vec<ErasureChunk>)
+			_chunks: (ValidatorIndex, &[ErasureChunk])
 		) {}
 
 		fn fetch_pov_block(&self, _candidate: &CandidateReceipt) -> Self::FetchValidationProof {
