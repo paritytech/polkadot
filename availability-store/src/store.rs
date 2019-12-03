@@ -343,7 +343,7 @@ impl Store {
 		&self,
 		parent: Hash,
 		finalized_candidates: HashSet<Hash>,
-) -> io::Result<()> {
+	) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
 
 		let v = self.query_inner(columns::META, &parent[..]).unwrap_or(Vec::new());
