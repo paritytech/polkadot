@@ -29,7 +29,7 @@ use polkadot_primitives::parachain::{
 use sp_core::crypto::UncheckedInto;
 use codec::Encode;
 use sc_network::{
-	PeerId, Context, config::Roles, message::generic::ConsensusMessage,
+	PeerId, Context, ReputationChange, config::Roles, message::generic::ConsensusMessage,
 	specialization::NetworkSpecialization,
 };
 
@@ -46,8 +46,8 @@ struct TestContext {
 }
 
 impl Context<Block> for TestContext {
-	fn report_peer(&mut self, peer: PeerId, reputation: i32) {
-        let reputation = self.reputations.get(&peer).map_or(reputation, |v| v + reputation);
+	fn report_peer(&mut self, peer: PeerId, reputation: ReputationChange) {
+        let reputation = self.reputations.get(&peer).map_or(reputation.value, |v| v + reputation.value);
         self.reputations.insert(peer.clone(), reputation);
 
 		match reputation {
