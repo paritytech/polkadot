@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.7.5"
+version = "0.7.6"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 edition = "2018"
@@ -15,6 +15,5 @@ cli = { package = "sc-cli", git = "https://github.com/paritytech/substrate", bra
 service = { package = "polkadot-service", path = "../service" }
 
 [features]
-# default = [ "wasmtime" ]
-default = []
+default = [ "wasmtime" ]
 wasmtime = [ "cli/wasmtime" ]
