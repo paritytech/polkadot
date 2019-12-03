@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1025,
+	spec_version: 1026,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -536,11 +536,6 @@ impl claims::Trait for Runtime {
 	type Prefix = Prefix;
 }
 
-impl sudo::Trait for Runtime {
-	type Event = Event;
-	type Proposal = Call;
-}
-
 parameter_types! {
 	pub const ReservationFee: Balance = 1 * DOLLARS;
 	pub const MinLength: usize = 3;
@@ -602,10 +597,6 @@ construct_runtime! {
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
-
-		// Sudo. Usable initially.
-		// RELEASE: remove this for release build.
-		Sudo: sudo,
 
 		// Simple nicknames module.
 		Nicks: nicks::{Module, Call, Storage, Event<T>},

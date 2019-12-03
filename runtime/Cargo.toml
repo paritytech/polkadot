@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.7.4"
+version = "0.7.5"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -52,7 +52,6 @@ session = { package = "pallet-session", git = "https://github.com/paritytech/sub
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 system = { package = "frame-system", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -113,7 +112,6 @@ std = [
 	"sp-staking/std",
 	"session/std",
 	"staking/std",
-	"sudo/std",
 	"system/std",
 	"system_rpc_runtime_api/std",
 	"timestamp/std",

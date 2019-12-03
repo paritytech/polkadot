@@ -20,7 +20,7 @@ use primitives::{Pair, Public, crypto::UncheckedInto, sr25519};
 use polkadot_primitives::{AccountId, AccountPublic, parachain::ValidatorId};
 use polkadot_runtime::{
 	AuthorityDiscoveryConfig, GenesisConfig, CouncilConfig, DemocracyConfig, SystemConfig,
-	SessionConfig, StakingConfig, BalancesConfig, SessionKeys, TechnicalCommitteeConfig, SudoConfig,
+	SessionConfig, StakingConfig, BalancesConfig, SessionKeys, TechnicalCommitteeConfig,
 	IndicesConfig, StakerStatus, WASM_BINARY, ClaimsConfig, ParachainsConfig, RegistrarConfig
 };
 use polkadot_runtime::constants::currency::DOTS;
@@ -194,9 +194,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
-		sudo: Some(SudoConfig {
-			key: endowed_accounts[0].clone(),
-		}),
 		claims: Some(ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
@@ -333,9 +330,6 @@ pub fn testnet_genesis(
 		registrar: Some(RegistrarConfig{
 			parachains: vec![],
 			_phdata: Default::default(),
-		}),
-		sudo: Some(SudoConfig {
-			key: root_key,
 		}),
 		claims: Some(ClaimsConfig {
 			claims: vec![],
