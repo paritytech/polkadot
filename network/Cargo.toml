@@ -12,15 +12,15 @@ av_store = { package = "polkadot-availability-store", path = "../availability-st
 polkadot-validation = { path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.1", features = ["compat"] }
 log = "0.4.8"
 exit-future = { git = "https://github.com/expenses/exit-future", branch = "broadcast" }
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }

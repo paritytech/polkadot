@@ -19,22 +19,22 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
+consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
+txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "master" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "ashley-update-exit-future-test" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
