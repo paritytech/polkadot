@@ -27,7 +27,7 @@ use polkadot_validation::{
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Collation, OutgoingMessages, ParachainHost, CandidateReceipt, CollatorId,
-	ValidatorId, PoVBlock
+	ValidatorId, PoVBlock,
 };
 
 use futures::prelude::*;
@@ -243,7 +243,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 				let table_router_clone = table_router.clone();
 				let work = table_router.checked_statements()
 					.for_each(move |msg| { table_router_clone.import_statement(msg); Ok(()) });
-				executor.spawn(work.select(exit).map(|_| ()).map_err(|_| ()));
+				executor.spawn(work.select(exit.clone()).map(|_| ()).map_err(|_| ()));
 
 				table_router
 			});

@@ -15,5 +15,6 @@ cli = { package = "sc-cli", git = "https://github.com/paritytech/substrate", bra
 service = { package = "polkadot-service", path = "../service" }
 
 [features]
-default = [ "wasmtime" ]
+# default = [ "wasmtime" ]
+default = []
 wasmtime = [ "cli/wasmtime" ]

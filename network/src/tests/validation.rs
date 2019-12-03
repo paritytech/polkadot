@@ -30,12 +30,12 @@ use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, TargetedMessage,
 	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
-	FeeSchedule, HeadData, Retriable, CollatorId
+	FeeSchedule, HeadData, Retriable, CollatorId, ErasureChunk, CandidateReceipt,
 };
 use parking_lot::Mutex;
 use sp_blockchain::Result as ClientResult;
 use sp_api::{Core, RuntimeVersion, StorageProof, ApiExt};
-use sp_runtime::traits::{ApiRef, ProvideRuntimeApi};
+use sp_runtime::traits::{ApiRef, {Block as BlockT}, ProvideRuntimeApi};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -322,6 +322,16 @@ impl ParachainHost<Block> for RuntimeApi {
 		let (id, _) = id.unwrap();
 		Ok(NativeOrEncoded::Native(self.data.lock().ingress.get(&id).cloned()))
 	}
+
+	fn ParachainHost_get_heads_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_extrinsics: Option<Vec<<Block as BlockT>::Extrinsic>>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<Option<Vec<CandidateReceipt>>>> {
+		Ok(NativeOrEncoded::Native(Some(Vec::new())))
+	}
 }
 
 type TestValidationNetwork = crate::validation::ValidationNetwork<
@@ -399,13 +409,34 @@ impl IngressBuilder {
 	}
 }
 
+#[derive(Clone)]
+struct DummyGossipMessages;
+
+use futures::stream;
+impl av_store::ProvideGossipMessages for DummyGossipMessages {
+	fn gossip_messages_for(
+		&self,
+		_topic: Hash
+	) -> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin> {
+		Box::new(futures03::stream::empty())
+	}
+
+	fn gossip_erasure_chunk(
+		&self,
+		_relay_parent: Hash,
+		_candidate_hash: Hash,
+		_erasure_root: Hash,
+		_chunk: ErasureChunk,
+	) {}
+}
+
 fn make_table(data: &ApiData, local_key: &Sr25519Keyring, parent_hash: Hash) -> Arc<SharedTable> {
 	use av_store::Store;
 	use sp_core::crypto::Pair;
 
 	let sr_pair = local_key.pair();
 	let local_key = polkadot_primitives::parachain::ValidatorPair::from(local_key.pair());
-	let store = Store::new_in_memory();
+	let store = Store::new_in_memory(DummyGossipMessages);
 	let (group_info, _) = ::polkadot_validation::make_group_info(
 		DutyRoster { validator_duty: data.duties.clone() },
 		&data.validators, // only possible as long as parachain crypto === aura crypto

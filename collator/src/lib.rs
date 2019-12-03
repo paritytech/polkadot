@@ -53,6 +53,7 @@ use futures::{
 	future, Future, Stream, FutureExt, TryFutureExt, StreamExt,
 	compat::{Compat01As03, Future01CompatExt, Stream01CompatExt}
 };
+use futures01::{Future as _};
 use log::{warn, error};
 use client::BlockchainEvents;
 use primitives::{Pair, Blake2Hasher};
@@ -216,19 +217,18 @@ pub async fn collate<R, P>(
 	let egress_queue_roots =
 		polkadot_validation::egress_roots(&mut outgoing.outgoing_messages);
 
-	let receipt = parachain::CandidateReceipt {
+	let info = parachain::CollationInfo {
 		parachain_index: local_id,
 		collator: key.public(),
 		signature,
-		head_data,
 		egress_queue_roots,
-		fees: 0,
+		head_data,
 		block_data_hash,
 		upward_messages: Vec::new(),
 	};
 
 	let collation = parachain::Collation {
-		receipt,
+		info,
 		pov: PoVBlock {
 			block_data,
 			ingress,
@@ -393,6 +393,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 				let key = key.clone();
 				let parachain_context = parachain_context.clone();
 				let validation_network = validation_network.clone();
+				let inner_exit_2 = inner_exit.clone();
 
 				let work = future::lazy(move |_| {
 					let api = client.runtime_api();
@@ -432,9 +433,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 								outgoing,
 							);
 
-							if let Err(e) = res {
-								warn!("Unable to broadcast local collation: {:?}", e);
-							}
+							tokio::spawn(res.select(inner_exit_2.clone()).then(|_| Ok(())));
 						})
 					});
 
@@ -602,7 +601,7 @@ mod tests {
 		let collation = futures::executor::block_on(future).unwrap().0;
 
 		// ascending order by root.
-		assert_eq!(collation.receipt.egress_queue_roots, vec![(a, root_a), (b, root_b)]);
+		assert_eq!(collation.info.egress_queue_roots, vec![(a, root_a), (b, root_b)]);
 	}
 }
 

@@ -10,3 +10,4 @@ reed_solomon = { package = "reed-solomon-erasure", git = "https://github.com/par
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+derive_more = "0.15.0"

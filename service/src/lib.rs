@@ -224,7 +224,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		}
 	};
 
-	let gossip_validator = network_gossip::register_validator(
+	let mut gossip_validator = network_gossip::register_validator(
 		service.network(),
 		(is_known, client.clone()),
 	);
@@ -239,7 +239,9 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			av_store::Store::new(::av_store::Config {
 				cache_size: None,
 				path,
-			})?
+			},
+			polkadot_network::AvailabilityNetworkShim(service.network()),
+			)?
 		};
 
 		{
@@ -247,6 +249,11 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			service.network().with_spec(
 				|spec, _ctx| spec.register_availability_store(availability_store)
 			);
+		}
+
+		{
+			let availability_store = availability_store.clone();
+			gossip_validator.register_availability_store(availability_store);
 		}
 
 		// collator connections and validation network both fulfilled by this
@@ -265,7 +272,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			service.transaction_pool(),
 			Arc::new(service.spawn_task_handle()),
 			service.keystore(),
-			availability_store,
+			availability_store.clone(),
 			polkadot_runtime::constants::time::SLOT_DURATION,
 			max_block_data_size,
 		);
@@ -274,6 +281,14 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
 		let can_author_with =
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
+
+
+		let block_import = availability_store.block_import(
+			block_import,
+			client.clone(),
+			Arc::new(service.spawn_task_handle()),
+			service.keystore(),
+		)?;
 
 		let babe_config = babe::BabeParams {
 			keystore: service.keystore(),

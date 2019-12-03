@@ -29,11 +29,12 @@ use polkadot_validation::{
 };
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	OutgoingMessages, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock,
+	OutgoingMessages, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
 };
-use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement};
+use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
 
 use futures::prelude::*;
+use futures03::{future::FutureExt, TryFutureExt};
 use parking_lot::Mutex;
 use log::{debug, trace};
 
@@ -52,7 +53,7 @@ pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 	BlakeTwo256::hash(&v[..])
 }
 
-/// Create a `Stream` of checked statements.
+/// Create a `Stream` of checked messages.
 ///
 /// The returned stream will not terminate, so it is required to make sure that the stream is
 /// dropped when it is not required anymore. Otherwise, it will stick around in memory
@@ -192,19 +193,22 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		let parent_hash = self.parent_hash();
 
 		producer.prime(self.fetcher.api().clone())
+			.validate()
+			.boxed()
+			.compat()
 			.map(move |validated| {
 				// store the data before broadcasting statements, so other peers can fetch.
 				knowledge.lock().note_candidate(
 					candidate_hash,
-					Some(validated.pov_block().clone()),
-					validated.outgoing_messages().cloned(),
+					Some(validated.0.pov_block().clone()),
+					validated.0.outgoing_messages().cloned(),
 				);
 
 				// propagate the statement.
 				// consider something more targeted than gossip in the future.
 				let statement = GossipStatement::new(
 					parent_hash,
-					match table.import_validated(validated) {
+					match table.import_validated(validated.0) {
 						None => return,
 						Some(s) => s,
 					}
@@ -225,11 +229,19 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	type Error = io::Error;
 	type FetchValidationProof = validation::PoVReceiver;
 
-	fn local_collation(&self, collation: Collation, outgoing: OutgoingMessages) {
+	// We have fetched from a collator and here the receipt should have been already formed.
+	fn local_collation(
+		&self,
+		collation: Collation,
+		receipt: CandidateReceipt,
+		outgoing: OutgoingMessages,
+		chunks: (ValidatorIndex, &[ErasureChunk])
+	) {
 		// produce a signed statement
-		let hash = collation.receipt.hash();
+		let hash = receipt.hash();
+		let erasure_root = receipt.erasure_root;
 		let validated = Validated::collated_local(
-			collation.receipt,
+			receipt,
 			collation.pov.clone(),
 			outgoing.clone(),
 		);
@@ -245,6 +257,20 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 		// give to network to make available.
 		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov), Some(outgoing));
 		self.network().gossip_message(self.attestation_topic, statement.into());
+
+		for chunk in chunks.1 {
+			let relay_parent = self.parent_hash();
+			let message = ErasureChunkMessage {
+				chunk: chunk.clone(),
+				relay_parent,
+				candidate_hash: hash,
+			};
+
+			self.network().gossip_message(
+				av_store::erasure_coding_topic(relay_parent, erasure_root, chunk.index),
+				message.into()
+			);
+		}
 	}
 
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof {

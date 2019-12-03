@@ -33,7 +33,7 @@ use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas}, ValidityError,
+	parachain::{self, ActiveParas, CandidateReceipt}, ValidityError,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -710,6 +710,19 @@ sp_api::impl_runtime_apis! {
 			-> Option<parachain::StructuredUnroutedIngress>
 		{
 			Parachains::ingress(to, since).map(parachain::StructuredUnroutedIngress)
+		}
+		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>> {
+			extrinsics
+				.into_iter()
+				.find_map(|ex| match UncheckedExtrinsic::decode(&mut ex.encode().as_slice()) {
+					Ok(ex) => match ex.function {
+						Call::Parachains(ParachainsCall::set_heads(heads)) => {
+							Some(heads.into_iter().map(|c| c.candidate).collect())
+						}
+						_ => None,
+					}
+					Err(_) => None,
+				})
 		}
 	}
 

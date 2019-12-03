@@ -7,9 +7,24 @@ edition = "2018"
 
 [dependencies]
 polkadot-primitives = { path = "../primitives" }
+polkadot-erasure-coding = { path = "../erasure-coding" }
+polkadot-runtime = { path = "../runtime" }
 parking_lot = "0.9.0"
+derive_more = "0.99"
 log = "0.4.8"
+futures01 = "0.1.17"
+futures = { package = "futures", version = "0.3.1", features = ["compat"] }
+tokio = "0.1.7"
+exit-future = "0.1"
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 kvdb = "0.1.1"
 kvdb-memorydb = "0.1.2"

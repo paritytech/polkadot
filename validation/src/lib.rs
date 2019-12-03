@@ -48,9 +48,10 @@ use availability_store::Store as AvailabilityStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, OutgoingMessages, CandidateReceipt,
-	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message,
-	Collation, PoVBlock, ValidatorSignature, ValidatorPair, ValidatorId
+	Id as ParaId, Chain, DutyRoster, CandidateReceipt,
+	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessages,
+	Collation, PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
+	ValidatorPair, ValidatorId,
 };
 use primitives::Pair;
 use runtime_primitives::traits::{ProvideRuntimeApi, DigestFor};
@@ -60,7 +61,7 @@ use txpool_api::{TransactionPool, InPoolTransaction};
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
-use futures03::{future::{self, Either}, FutureExt, StreamExt};
+use futures03::{future::{self, Either}, FutureExt, StreamExt, TryFutureExt};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
@@ -69,10 +70,14 @@ use log::{info, debug, warn, trace, error};
 use keystore::KeyStorePtr;
 use sp_api::ApiExt;
 
-type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
+type TaskExecutor =
+	Arc<
+		dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>>
+	+ Send + Sync>;
 
 pub use self::collation::{
 	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
+	produce_receipt_and_chunks,
 };
 pub use self::error::Error;
 pub use self::shared_table::{
@@ -106,7 +111,13 @@ pub trait TableRouter: Clone {
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
-	fn local_collation(&self, collation: Collation, outgoing: OutgoingMessages);
+	fn local_collation(
+		&self,
+		collation: Collation,
+		receipt: CandidateReceipt,
+		outgoing: OutgoingMessages,
+		chunks: (ValidatorIndex, &[ErasureChunk])
+	);
 
 	/// Fetch validation proof for a specific candidate.
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
@@ -158,7 +169,12 @@ pub fn sign_table_statement(statement: &Statement, key: &ValidatorPair, parent_h
 }
 
 /// Check signature on table statement.
-pub fn check_statement(statement: &Statement, signature: &ValidatorSignature, signer: ValidatorId, parent_hash: &Hash) -> bool {
+pub fn check_statement(
+	statement: &Statement,
+	signature: &ValidatorSignature,
+	signer: ValidatorId,
+	parent_hash: &Hash
+) -> bool {
 	use runtime_primitives::traits::AppVerify;
 
 	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
@@ -181,12 +197,14 @@ pub fn make_group_info(
 	}
 
 	let mut local_validation = None;
+	let mut local_index = 0;
 	let mut map = HashMap::new();
 
 	let duty_iter = authorities.iter().zip(&roster.validator_duty);
-	for (authority, v_duty) in duty_iter {
+	for (i, (authority, v_duty)) in duty_iter.enumerate() {
 		if Some(authority) == local_id.as_ref() {
 			local_validation = Some(v_duty.clone());
+			local_index = i;
 		}
 
 		match *v_duty {
@@ -206,7 +224,8 @@ pub fn make_group_info(
 
 
 	let local_duty = local_validation.map(|v| LocalDuty {
-		validation: v
+		validation: v,
+		index: local_index as u32,
 	});
 
 	Ok((map, local_duty))
@@ -305,6 +324,21 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
 
+		// If we are a validator, we need to store our index in this round in availability store.
+		// This will tell which erasure chunk we should store.
+		if let Some(ref local_duty) = local_duty {
+			if let Err(e) = self.availability_store.add_validator_index_and_n_validators(
+				&parent_hash,
+				local_duty.index,
+				validators.len() as u32,
+			) {
+				warn!(
+					target: "validation",
+					"Failed to add validator index and n_validators to the availability-store: {:?}", e
+				)
+			}
+		}
+
 		let table = Arc::new(SharedTable::new(
 			validators.clone(),
 			group_info,
@@ -322,8 +356,8 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			exit.clone(),
 		);
 
-		if let Some(Chain::Parachain(id)) = local_duty.as_ref().map(|d| d.validation) {
-			self.launch_work(parent_hash, id, router, max_block_data_size, exit);
+		if let Some((Chain::Parachain(id), index)) = local_duty.as_ref().map(|d| (d.validation, d.index)) {
+			self.launch_work(parent_hash, id, router, max_block_data_size, validators.len(), index, exit);
 		}
 
 		let tracker = Arc::new(AttestationTracker {
@@ -349,10 +383,10 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 		validation_para: ParaId,
 		build_router: N::BuildTableRouter,
 		max_block_data_size: Option<u64>,
+		authorities_num: usize,
+		local_id: ValidatorIndex,
 		exit: exit_future::Exit,
 	) {
-		use availability_store::Data;
-
 		let (collators, client) = (self.collators.clone(), self.client.clone());
 		let availability_store = self.availability_store.clone();
 
@@ -362,42 +396,55 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				validation_para,
 				relay_parent,
 				collators,
-				client,
+				client.clone(),
 				max_block_data_size,
 			);
 
 			collation_work.then(move |result| match result {
-				Ok((collation, outgoing_targeted)) => {
-					let outgoing_queues = crate::outgoing_queues(&outgoing_targeted)
-						.map(|(_target, root, data)| (root, data))
-						.collect();
+				Ok((collation, outgoing_targeted, fees_charged)) => {
+					match produce_receipt_and_chunks(
+						authorities_num,
+						&collation.pov,
+						&outgoing_targeted,
+						fees_charged,
+						&collation.info,
+					) {
+						Ok((receipt, chunks)) => {
+							// Apparently the `async move` block is the only way to convince
+							// the compiler that we are not moving values out of borrowed context.
+							let av_clone = availability_store.clone();
+							let chunks_clone = chunks.clone();
+							let receipt_clone = receipt.clone();
 
-					let res = availability_store.make_available(Data {
-						relay_parent,
-						parachain_id: collation.receipt.parachain_index,
-						candidate_hash: collation.receipt.hash(),
-						block_data: collation.pov.block_data.clone(),
-						outgoing_queues: Some(outgoing_queues),
-					});
+							let res = async move {
+								if let Err(e) = av_clone.clone().add_erasure_chunks(
+									relay_parent.clone(),
+									receipt_clone,
+									chunks_clone,
+								).await {
+									warn!(target: "validation", "Failed to add erasure chunks: {}", e);
+								}
+							}
+							.unit_error()
+							.boxed()
+							.compat()
+							.then(move |_| {
+								router.local_collation(collation, receipt, outgoing_targeted, (local_id, &chunks));
+								Ok(())
+							});
 
-					match res {
-						Ok(()) => {
-							// TODO: https://github.com/paritytech/polkadot/issues/51
-							// Erasure-code and provide merkle branches.
-							router.local_collation(collation, outgoing_targeted);
+
+							Some(res)
 						}
-						Err(e) => warn!(
-							target: "validation",
-							"Failed to make collation data available: {:?}",
-							e,
-						),
+						Err(e) => {
+							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
+							None
+						}
 					}
-
-					Ok(())
 				}
 				Err(e) => {
 					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
-					Ok(())
+					None
 				}
 			})
 		};
@@ -408,6 +455,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				warn!(target: "validation" , "Failed to build table router: {:?}", e);
 			})
 			.and_then(with_router)
+			.then(|_| Ok(()))
 			.select(exit)
 			.then(|_| Ok(()));
 
@@ -479,7 +527,6 @@ impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
 			parachain_validation.clone(),
 			thread_pool,
 			keystore.clone(),
-			availability_store,
 			max_block_data_size,
 		);
 
@@ -541,6 +588,7 @@ impl<C, N, P, SC, TxPool> consensus::Environment<Block> for ProposerFactory<C, N
 #[derive(Debug)]
 pub struct LocalDuty {
 	validation: Chain,
+	index: ValidatorIndex,
 }
 
 /// The Polkadot proposer logic.

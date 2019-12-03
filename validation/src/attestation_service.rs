@@ -26,15 +26,14 @@
 use std::{thread, time::{Duration, Instant}, sync::Arc};
 
 use client::{BlockchainEvents, BlockBody};
-use sp_blockchain::{HeaderBackend, Result as ClientResult};
+use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
-use availability_store::Store as AvailabilityStore;
 use futures::prelude::*;
 use futures03::{TryStreamExt as _, StreamExt as _};
 use log::error;
-use polkadot_primitives::{Block, BlockId};
-use polkadot_primitives::parachain::{CandidateReceipt, ParachainHost};
+use polkadot_primitives::Block;
+use polkadot_primitives::parachain::ParachainHost;
 use runtime_primitives::traits::{ProvideRuntimeApi};
 use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
@@ -46,62 +45,6 @@ use log::{warn, debug};
 use super::{Network, Collators};
 
 type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
-
-/// Gets a list of the candidates in a block.
-pub(crate) fn fetch_candidates<P: BlockBody<Block>>(client: &P, block: &BlockId)
-	-> ClientResult<Option<impl Iterator<Item=CandidateReceipt>>>
-{
-	use codec::{Encode, Decode};
-	use polkadot_runtime::{Call, ParachainsCall, UncheckedExtrinsic as RuntimeExtrinsic};
-
-	let extrinsics = client.block_body(block)?;
-	Ok(match extrinsics {
-		Some(extrinsics) => extrinsics
-			.into_iter()
-			.filter_map(|ex| RuntimeExtrinsic::decode(&mut ex.encode().as_slice()).ok())
-			.filter_map(|ex| match ex.function {
-				Call::Parachains(ParachainsCall::set_heads(heads)) => {
-					Some(heads.into_iter().map(|c| c.candidate))
-				}
-				_ => None,
-			})
-		.next(),
-		None => None,
-	})
-}
-
-// creates a task to prune redundant entries in availability store upon block finalization
-//
-// NOTE: this will need to be changed to finality notification rather than
-// block import notifications when the consensus switches to non-instant finality.
-fn prune_unneeded_availability<P>(client: Arc<P>, availability_store: AvailabilityStore)
-	-> impl Future<Item=(),Error=()> + Send
-	where P: Send + Sync + BlockchainEvents<Block> + BlockBody<Block> + 'static
-{
-	client.finality_notification_stream()
-		.map(|v| Ok::<_, ()>(v)).compat()
-		.for_each(move |notification| {
-			let hash = notification.hash;
-			let parent_hash = notification.header.parent_hash;
-			let candidate_hashes = match fetch_candidates(&*client, &BlockId::hash(hash)) {
-				Ok(Some(candidates)) => candidates.map(|c| c.hash()).collect(),
-				Ok(None) => {
-					warn!("Could not extract candidates from block body of imported block {:?}", hash);
-					return Ok(())
-				}
-				Err(e) => {
-					warn!("Failed to fetch block body for imported block {:?}: {:?}", hash, e);
-					return Ok(())
-				}
-			};
-
-			if let Err(e) = availability_store.candidates_finalized(parent_hash, candidate_hashes) {
-				warn!(target: "validation", "Failed to prune unneeded available data: {:?}", e);
-			}
-
-			Ok(())
-		})
-}
 
 /// Parachain candidate attestation service handle.
 pub(crate) struct ServiceHandle {
@@ -116,7 +59,6 @@ pub(crate) fn start<C, N, P, SC>(
 	parachain_validation: Arc<crate::ParachainValidation<C, N, P>>,
 	thread_pool: TaskExecutor,
 	keystore: KeyStorePtr,
-	availability_store: AvailabilityStore,
 	max_block_data_size: Option<u64>,
 ) -> ServiceHandle
 	where
@@ -195,15 +137,6 @@ pub(crate) fn start<C, N, P, SC>(
 		runtime.spawn(notifications);
 		if let Err(_) = thread_pool.execute(Box::new(prune_old_sessions)) {
 			error!("Failed to spawn old sessions pruning task");
-		}
-
-		let prune_available = prune_unneeded_availability(client, availability_store)
-			.select(exit.clone())
-			.then(|_| Ok(()));
-
-		// spawn this on the tokio executor since it's fine on a thread pool.
-		if let Err(_) = thread_pool.execute(Box::new(prune_available)) {
-			error!("Failed to spawn available pruning task");
 		}
 
 		if let Err(e) = runtime.block_on(exit) {

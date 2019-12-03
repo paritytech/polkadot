@@ -19,6 +19,7 @@ codec = { package = "parity-scale-codec", version = "1.1.0", default-features = 
 availability_store = { package = "polkadot-availability-store", path = "../availability-store" }
 parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
+polkadot-erasure-coding = { path = "../erasure-coding" }
 polkadot-runtime = { path = "../runtime" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

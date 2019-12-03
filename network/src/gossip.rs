@@ -49,16 +49,19 @@
 //! Peers who send information which was not allowed under a recent neighbor packet
 //! will be noted as non-beneficial to Substrate's peer-set management utility.
 
-use sp_runtime::{generic::BlockId, traits::ProvideRuntimeApi};
+use sp_runtime::{generic::BlockId, traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT}};
 use sp_blockchain::Error as ClientError;
 use sc_network::{config::Roles, PeerId, ReputationChange};
 use sc_network::consensus_gossip::{
 	self as network_gossip, ValidationResult as GossipValidationResult,
 	ValidatorContext, MessageIntent, ConsensusMessage,
 };
-use polkadot_validation::SignedStatement;
+use polkadot_validation::{SignedStatement};
 use polkadot_primitives::{Block, Hash};
-use polkadot_primitives::parachain::{ParachainHost, ValidatorId, Message as ParachainMessage};
+use polkadot_primitives::parachain::{
+	ParachainHost, ValidatorId, Message as ParachainMessage, ErasureChunk as PrimitiveChunk
+};
+use polkadot_erasure_coding::{self as erasure};
 use codec::{Decode, Encode};
 
 use std::collections::HashMap;
@@ -92,6 +95,8 @@ mod benefit {
 	pub const NEW_CANDIDATE: Rep = Rep::new(100, "Polkadot: New candidate");
 	/// When a peer sends us a previously-unknown attestation.
 	pub const NEW_ATTESTATION: Rep = Rep::new(50, "Polkadot: New attestation");
+	/// When a peer sends us a previously-unknown erasure chunk.
+	pub const NEW_ERASURE_CHUNK: Rep = Rep::new(10, "Polkadot: New erasure chunk");
 	/// When a peer sends us a previously-unknown message packet.
 	pub const NEW_ICMP_MESSAGES: Rep = Rep::new(50, "Polkadot: New ICMP messages");
 }
@@ -114,6 +119,10 @@ mod cost {
 	pub const BAD_NEIGHBOR_PACKET: Rep = Rep::new(-300, "Polkadot: Bad neighbor");
 	/// A peer sent us an ICMP queue we haven't advertised a need for.
 	pub const UNNEEDED_ICMP_MESSAGES: Rep = Rep::new(-100, "Polkadot: Unexpected ICMP message");
+	/// A peer sent us an erasure chunk referring to a candidate that we are not aware of.
+	pub const ORPHANED_ERASURE_CHUNK: Rep = Rep::new(-10, "An erasure chunk from unknown candidate");
+	/// A peer sent us an erasure chunk that does not match candidate's erasure root.
+	pub const ERASURE_CHUNK_WRONG_ROOT: Rep = Rep::new(-100, "Chunk doesn't match encoding root");
 
 	/// A peer sent us an ICMP queue with a bad root.
 	pub fn icmp_messages_root_mismatch(n_messages: usize) -> Rep {
@@ -137,7 +146,9 @@ pub enum GossipMessage {
 	#[codec(index = "3")]
 	ParachainMessages(GossipParachainMessages),
 	// TODO: https://github.com/paritytech/polkadot/issues/253
-	// erasure-coded chunks.
+	/// A packet containing one of the erasure-coding chunks of one candidate.
+	#[codec(index = "4")]
+	ErasureChunk(ErasureChunkMessage),
 }
 
 impl GossipMessage {
@@ -184,6 +195,24 @@ impl GossipStatement {
 			relay_chain_leaf,
 			signed_statement,
 		}
+	}
+}
+
+/// A gossip message containing one erasure chunk of a candidate block.
+/// For each chunk of block erasure encoding one of this messages is constructed.
+#[derive(Encode, Decode, Clone, Debug)]
+pub struct ErasureChunkMessage {
+	/// The chunk itself.
+	pub chunk: PrimitiveChunk,
+	/// The relay parent of the block this chunk belongs to.
+	pub relay_parent: Hash,
+	/// The hash of the candidate receipt of the block this chunk belongs to.
+	pub candidate_hash: Hash,
+}
+
+impl From<ErasureChunkMessage> for GossipMessage {
+	fn from(chk: ErasureChunkMessage) -> Self {
+		GossipMessage::ErasureChunk(chk)
 	}
 }
 
@@ -303,6 +332,7 @@ pub fn register_validator<C: ChainContext + 'static>(
 			peers: HashMap::new(),
 			attestation_view: Default::default(),
 			message_routing_view: Default::default(),
+			availability_store: None,
 			chain,
 		})
 	});
@@ -366,6 +396,10 @@ impl RegisteredMessageValidator {
 		let validator = Arc::new(MessageValidator::new_test(chain, report_handle));
 
 		RegisteredMessageValidator { inner: validator as _ }
+	}
+
+	pub fn register_availability_store(&mut self, availability_store: av_store::Store) {
+		self.inner.inner.write().availability_store = Some(availability_store);
 	}
 
 	/// Note that we perceive a new leaf of the block-DAG. We will notify our neighbors that
@@ -475,6 +509,7 @@ struct Inner<C: ?Sized> {
 	peers: HashMap<PeerId, PeerData>,
 	attestation_view: AttestationView,
 	message_routing_view: MessageRoutingView,
+	availability_store: Option<av_store::Store>,
 	chain: C,
 }
 
@@ -501,6 +536,52 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 			};
 
 			(GossipValidationResult::Discard, cost::NONE, new_topics)
+		}
+	}
+
+	fn validate_erasure_chunk_packet(&mut self, msg: ErasureChunkMessage)
+		-> (GossipValidationResult<Hash>, ReputationChange)
+	{
+		if let Some(store) = &self.availability_store {
+			if let Some(receipt) = store.get_candidate(&msg.candidate_hash) {
+				let chunk_hash = erasure::branch_hash(
+					&receipt.erasure_root,
+					&msg.chunk.proof,
+					msg.chunk.index as usize
+				);
+
+				if chunk_hash != Ok(BlakeTwo256::hash(&msg.chunk.chunk)) {
+					(
+						GossipValidationResult::Discard,
+						cost::ERASURE_CHUNK_WRONG_ROOT
+					)
+				} else {
+					if let Some(awaited_chunks) = store.awaited_chunks() {
+						if awaited_chunks.contains(&(
+								msg.relay_parent,
+								receipt.erasure_root,
+								receipt.hash(),
+								msg.chunk.index,
+							)) {
+							let topic = av_store::erasure_coding_topic(
+								msg.relay_parent,
+								receipt.erasure_root,
+								msg.chunk.index,
+							);
+
+							return (
+								GossipValidationResult::ProcessAndKeep(topic),
+								benefit::NEW_ERASURE_CHUNK,
+							);
+						}
+					}
+					(GossipValidationResult::Discard, cost::NONE)
+				}
+			} else {
+				(GossipValidationResult::Discard, cost::ORPHANED_ERASURE_CHUNK)
+			}
+		} else {
+			(GossipValidationResult::Discard, cost::NONE)
 		}
 	}
 
@@ -536,6 +617,7 @@ impl<C: ChainContext + ?Sized> MessageValidator<C> {
 				peers: HashMap::new(),
 				attestation_view: Default::default(),
 				message_routing_view: Default::default(),
+				availability_store: None,
 				chain,
 			}),
 		}
@@ -593,6 +675,9 @@ impl<C: ChainContext + ?Sized> network_gossip::Validator<Block> for MessageValid
 					context.broadcast_message(topic.clone(), data.to_vec(), false);
 				}
 				(res, cb)
+			}
+			Ok(GossipMessage::ErasureChunk(chunk)) => {
+				self.inner.write().validate_erasure_chunk_packet(chunk)
 			}
 		};
 
@@ -775,6 +860,7 @@ mod tests {
 			fees: 1_000_000,
 			block_data_hash: [20u8; 32].into(),
 			upward_messages: Vec::new(),
+			erasure_root: [1u8; 32].into(),
 		};
 
 		let statement = GossipMessage::Statement(GossipStatement {
