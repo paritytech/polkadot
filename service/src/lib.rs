@@ -169,6 +169,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
 	let authority_discovery_enabled = config.custom.authority_discovery_enabled;
+	let sentry_nodes = config.network.sentry_nodes.clone();
 
 	// sentry nodes announce themselves as authorities to the network
 	// and should run the same protocols authorities do, but it should
@@ -313,6 +314,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
 				service.client(),
 				service.network(),
+				sentry_nodes,
 				service.keystore(),
 				future03_dht_event_rx,
 			);
