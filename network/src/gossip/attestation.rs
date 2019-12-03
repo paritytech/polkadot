@@ -31,6 +31,7 @@
 //! consider an infinite amount of attestations produced by a misbehaving validator.
 
 use sc_network::consensus_gossip::{ValidationResult as GossipValidationResult};
+use sc_network::ReputationChange;
 use polkadot_validation::GenericStatement;
 use polkadot_primitives::Hash;
 
@@ -39,7 +40,9 @@ use std::collections::{HashMap, HashSet};
 use log::warn;
 use crate::router::attestation_topic;
 
-use super::{cost, benefit, MAX_CHAIN_HEADS, LeavesVec, ChainContext, Known, MessageValidationData, GossipStatement};
+use super::{cost, benefit, MAX_CHAIN_HEADS, LeavesVec,
+	ChainContext, Known, MessageValidationData, GossipStatement
+};
 
 // knowledge about attestations on a single parent-hash.
 #[derive(Default)]
@@ -170,7 +173,7 @@ impl View {
 		message: GossipStatement,
 		chain: &C,
 	)
-		-> (GossipValidationResult<Hash>, i32)
+		-> (GossipValidationResult<Hash>, ReputationChange)
 	{
 		// message must reference one of our chain heads and
 		// if message is not a `Candidate` we should have the candidate available
@@ -184,8 +187,7 @@ impl View {
 							"Leaf block {} not considered live for attestation",
 							message.relay_chain_leaf,
 						);
-
-						0
+						cost::NONE
 					}
 					Some(Known::Old) => cost::PAST_MESSAGE,
 					_ => cost::FUTURE_MESSAGE,

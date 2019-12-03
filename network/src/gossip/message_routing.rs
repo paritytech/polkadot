@@ -133,7 +133,7 @@ impl View {
 	/// Validate an incoming message queue against this view. If it is accepted
 	/// by our view of un-routed message queues, we will keep and re-propagate.
 	pub fn validate_queue_and_note_known(&mut self, messages: &super::GossipParachainMessages)
-		-> (GossipValidationResult<Hash>, i32)
+		-> (GossipValidationResult<Hash>, sc_network::ReputationChange)
 	{
 		let ostensible_topic = queue_topic(messages.queue_root);
 		match self.expected_queues.get_mut(&ostensible_topic) {

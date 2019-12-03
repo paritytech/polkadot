@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-primitives"
-version = "0.7.3"
+version = "0.7.4"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
