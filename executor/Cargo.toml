@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-executor"
-version = "0.7.3"
+version = "0.7.4"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 edition = "2018"
