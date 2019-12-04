@@ -30,7 +30,7 @@ use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
 use futures::prelude::*;
-use futures03::{TryStreamExt as _, StreamExt as _};
+use futures03::{TryStreamExt as _, StreamExt as _, FutureExt as _, TryFutureExt as _};
 use log::error;
 use polkadot_primitives::Block;
 use polkadot_primitives::parachain::ParachainHost;
@@ -107,7 +107,7 @@ pub(crate) fn start<C, N, P, SC>(
 					}
 					Ok(())
 				})
-				.select(exit.clone())
+				.select(exit.clone().unit_error().compat())
 				.then(|_| Ok(()))
 		};
 
@@ -130,7 +130,7 @@ pub(crate) fn start<C, N, P, SC>(
 					}
 				})
 				.map_err(|e| warn!("Timer error {:?}", e))
-				.select(exit.clone())
+				.select(exit.clone().unit_error().compat())
 				.then(|_| Ok(()))
 		};
 
@@ -139,7 +139,7 @@ pub(crate) fn start<C, N, P, SC>(
 			error!("Failed to spawn old sessions pruning task");
 		}
 
-		if let Err(e) = runtime.block_on(exit) {
+		if let Err(e) = runtime.block_on(exit.unit_error().compat()) {
 			debug!("BFT event loop error {:?}", e);
 		}
 	});
@@ -153,7 +153,7 @@ pub(crate) fn start<C, N, P, SC>(
 impl Drop for ServiceHandle {
 	fn drop(&mut self) {
 		if let Some(signal) = self.exit_signal.take() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 
 		if let Some(thread) = self.thread.take() {
