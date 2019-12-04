@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1027,
+	spec_version: 1028,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -297,12 +297,13 @@ pallet_staking_reward_curve::build! {
 
 parameter_types! {
 	// Six sessions in an era (24 hours).
+//	pub const SessionsPerEra: SessionIndex = 6;
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (28 days).
-	// KUSAMA: This value is 1/4 of what we expect for the mainnet.
-	// KUSAMA-launch: 0 for managing the spooning injection.
-	pub const BondingDuration: staking::EraIndex = 0;
-	pub const SlashDeferDuration: staking::EraIndex = 7;
+	// KUSAMA: This value is 1/4 of what we expect for the mainnet, however session length is also
+	// a quarter, so the figure remains the same.
+	pub const BondingDuration: staking::EraIndex = 28;
+	pub const SlashDeferDuration: staking::EraIndex = 28;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 }
 
@@ -317,9 +318,7 @@ impl staking::Trait for Runtime {
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	// A super-majority of the council can cancel the slash.
-	// KUSAMA-launch: Any council member can remove a slash.
-//	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
-	type SlashCancelOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
+	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
 	type SessionInterface = Self;
 	type Time = Timestamp;
 	type RewardCurve = RewardCurve;
@@ -329,8 +328,7 @@ parameter_types! {
 	// KUSAMA: These values are 1/4 of what we expect for the mainnet.
 	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
 	pub const VotingPeriod: BlockNumber = 7 * DAYS;
-	// KUSAMA: This is a bit short; should be increased to 3 hours.
-	pub const EmergencyVotingPeriod: BlockNumber = 1 * HOURS;
+	pub const EmergencyVotingPeriod: BlockNumber = 3 * HOURS;
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
 	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
 	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
@@ -378,7 +376,8 @@ impl collective::Trait<CouncilCollective> for Runtime {
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
-	pub const TermDuration: BlockNumber = 2 * HOURS;
+	/// Daily council elections.
+	pub const TermDuration: BlockNumber = 24 * HOURS;
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 7;
 }
@@ -420,8 +419,8 @@ parameter_types! {
 	pub const ProposalBondMinimum: Balance = 100 * DOLLARS;
 	// KUSAMA: This value is 1/4 of that expected for mainnet
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
-	// KUSAMA: This value is 1/5 of that expected for mainnet
-	pub const Burn: Permill = Permill::from_percent(1);
+	// KUSAMA: No burn - let's try to put it to use!
+	pub const Burn: Permill = Permill::from_percent(0);
 }
 
 impl treasury::Trait for Runtime {
