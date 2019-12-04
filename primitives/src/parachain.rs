@@ -591,7 +591,6 @@ use runtime_primitives::traits::{Block as BlockT};
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	#[api_version(2)]
 	pub trait ParachainHost {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
