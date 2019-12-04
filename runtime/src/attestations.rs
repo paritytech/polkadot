@@ -24,8 +24,8 @@ use codec::{Encode, Decode};
 use frame_support::{decl_storage, decl_module, ensure, dispatch::Result, traits::Get};
 
 use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};
-use sr_primitives::RuntimeDebug;
-use sr_staking_primitives::SessionIndex;
+use sp_runtime::RuntimeDebug;
+use sp_staking::SessionIndex;
 
 use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
 use system::ensure_none;

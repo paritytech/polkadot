@@ -19,7 +19,7 @@
 //! information for commissioning and decommissioning them.
 
 use rstd::{prelude::*, mem::swap, convert::TryInto};
-use sr_primitives::traits::{
+use sp_runtime::traits::{
 	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
 };
 use frame_support::weights::SimpleDispatchInfo;
@@ -820,8 +820,8 @@ mod tests {
 	use super::*;
 	use std::{result::Result, collections::HashMap, cell::RefCell};
 
-	use substrate_primitives::H256;
-	use sr_primitives::{
+	use sp_core::H256;
+	use sp_runtime::{
 		Perbill, testing::Header,
 		traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
 	};
@@ -948,7 +948,7 @@ mod tests {
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
-	fn new_test_ext() -> sr_io::TestExternalities {
+	fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],

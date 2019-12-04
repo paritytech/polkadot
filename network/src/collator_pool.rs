@@ -19,7 +19,7 @@
 use codec::{Encode, Decode};
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{CollatorId, Id as ParaId, Collation};
-use substrate_network::PeerId;
+use sc_network::PeerId;
 use futures::sync::oneshot;
 
 use std::collections::hash_map::{HashMap, Entry};
@@ -184,7 +184,7 @@ impl CollatorPool {
 	/// The collation should have been checked for integrity of signature before passing to this function.
 	pub fn on_collation(&mut self, collator_id: CollatorId, relay_parent: Hash, collation: Collation) {
 		if let Some((para_id, _)) = self.collators.get(&collator_id) {
-			debug_assert_eq!(para_id, &collation.receipt.parachain_index);
+			debug_assert_eq!(para_id, &collation.info.parachain_index);
 
 			// TODO: punish if not primary? (https://github.com/paritytech/polkadot/issues/213)
 
@@ -226,7 +226,7 @@ impl CollatorPool {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use substrate_primitives::crypto::UncheckedInto;
+	use sp_core::crypto::UncheckedInto;
 	use polkadot_primitives::parachain::{
 		CandidateReceipt, BlockData, PoVBlock, HeadData, ConsolidatedIngress,
 	};
@@ -279,7 +279,7 @@ mod tests {
 		pool.await_collation(relay_parent, para_id, tx1);
 		pool.await_collation(relay_parent, para_id, tx2);
 		pool.on_collation(primary.clone(), relay_parent, Collation {
-			receipt: CandidateReceipt {
+			info: CandidateReceipt {
 				parachain_index: para_id,
 				collator: primary.clone().into(),
 				signature: Default::default(),
@@ -288,7 +288,8 @@ mod tests {
 				fees: 0,
 				block_data_hash: [3; 32].into(),
 				upward_messages: Vec::new(),
-			},
+				erasure_root: [1u8; 32].into(),
+			}.into(),
 			pov: make_pov(vec![4, 5, 6]),
 		});
 
@@ -307,7 +308,7 @@ mod tests {
 		assert_eq!(pool.on_new_collator(primary.clone(), para_id.clone(), PeerId::random()), Role::Primary);
 
 		pool.on_collation(primary.clone(), relay_parent, Collation {
-			receipt: CandidateReceipt {
+			info: CandidateReceipt {
 				parachain_index: para_id,
 				collator: primary,
 				signature: Default::default(),
@@ -316,7 +317,8 @@ mod tests {
 				fees: 0,
 				block_data_hash: [3; 32].into(),
 				upward_messages: Vec::new(),
-			},
+				erasure_root: [1u8; 32].into(),
+			}.into(),
 			pov: make_pov(vec![4, 5, 6]),
 		});
 

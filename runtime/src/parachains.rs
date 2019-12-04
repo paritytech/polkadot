@@ -21,7 +21,7 @@ use rstd::result;
 use rstd::collections::btree_map::BTreeMap;
 use codec::{Encode, Decode};
 
-use sr_primitives::traits::{
+use sp_runtime::traits::{
 	Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
 	AccountIdConversion,
 };
@@ -455,7 +455,7 @@ impl<T: Trait> Module<T> {
 				// same.
 				ordered_needs_dispatch.insert(i, id);
 			} else {
-				sr_primitives::print("ordered_needs_dispatch contains id?!");
+				sp_runtime::print("ordered_needs_dispatch contains id?!");
 			}
 		}
 	}
@@ -657,7 +657,7 @@ impl<T: Trait> Module<T> {
 	) -> rstd::result::Result<IncludedBlocks<T>, &'static str>
 	{
 		use primitives::parachain::ValidityAttestation;
-		use sr_primitives::traits::AppVerify;
+		use sp_runtime::traits::AppVerify;
 
 		// returns groups of slices that have the same chain ID.
 		// assumes the inner slice is sorted by id.
@@ -841,7 +841,7 @@ impl<T: Trait> Module<T> {
 */
 }
 
-impl<T: Trait> sr_primitives::BoundToRuntimeAppPublic for Module<T> {
+impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = ValidatorId;
 }
 
@@ -901,10 +901,10 @@ mod tests {
 	use super::*;
 	use super::Call as ParachainsCall;
 	use bitvec::{bitvec, vec::BitVec};
-	use sr_io::TestExternalities;
-	use substrate_primitives::{H256, Blake2Hasher};
-	use substrate_trie::NodeCodec;
-	use sr_primitives::{
+	use sp_io::TestExternalities;
+	use sp_core::{H256, Blake2Hasher};
+	use sp_trie::NodeCodec;
+	use sp_runtime::{
 		Perbill, curve::PiecewiseLinear, testing::{UintAuthorityId, Header},
 		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},
 	};
@@ -1038,7 +1038,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const SessionsPerEra: sr_staking_primitives::SessionIndex = 6;
+		pub const SessionsPerEra: sp_staking::SessionIndex = 6;
 		pub const BondingDuration: staking::EraIndex = 28;
 		pub const SlashDeferDuration: staking::EraIndex = 7;
 		pub const AttestationPeriod: BlockNumber = 100;
@@ -1247,6 +1247,7 @@ mod tests {
 				fees: 0,
 				block_data_hash: Default::default(),
 				upward_messages: vec![],
+				erasure_root: [1u8; 32].into(),
 			}
 		}
 	}
@@ -1269,6 +1270,7 @@ mod tests {
 				upward_messages: upward_messages.into_iter()
 					.map(|x| UpwardMessage { origin: x.0, data: x.1 })
 					.collect(),
+				erasure_root: [1u8; 32].into(),
 			}
 		}
 	}
@@ -1676,6 +1678,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				},
 
 			};
@@ -1707,6 +1710,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				}
 			};
 
@@ -1722,6 +1726,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				}
 			};
 
@@ -1761,6 +1766,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				}
 			};
 
@@ -1798,6 +1804,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				}
 			};
 
@@ -1843,6 +1850,7 @@ mod tests {
 						fees: 0,
 						block_data_hash: Default::default(),
 						upward_messages: vec![],
+						erasure_root: [1u8; 32].into(),
 					}
 				};
 
@@ -1859,6 +1867,7 @@ mod tests {
 						fees: 0,
 						block_data_hash: Default::default(),
 						upward_messages: vec![],
+						erasure_root: [1u8; 32].into(),
 					}
 				};
 
@@ -1920,6 +1929,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				}
 			};
 			make_attestations(&mut candidate_c);

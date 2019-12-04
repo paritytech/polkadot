@@ -23,7 +23,7 @@ use rstd::{prelude::*, result};
 use rstd::marker::PhantomData;
 use codec::{Encode, Decode};
 
-use sr_primitives::{
+use sp_runtime::{
 	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
 	traits::{Hash as HashT, SignedExtension}
 };
@@ -39,7 +39,7 @@ use primitives::parachain::{
 	Retriable
 };
 use crate::parachains;
-use sr_primitives::transaction_validity::InvalidTransaction;
+use sp_runtime::transaction_validity::InvalidTransaction;
 
 /// Parachain registration API.
 pub trait Registrar<AccountId> {
@@ -178,7 +178,7 @@ decl_storage! {
 
 #[cfg(feature = "std")]
 fn build<T: Trait>(config: &GenesisConfig<T>) {
-	use sr_primitives::traits::Zero;
+	use sp_runtime::traits::Zero;
 
 	let mut p = config.parachains.clone();
 	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
@@ -574,9 +574,9 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 mod tests {
 	use super::*;
 	use bitvec::vec::BitVec;
-	use sr_io::TestExternalities;
-	use substrate_primitives::{H256, Pair};
-	use sr_primitives::{
+	use sp_io::TestExternalities;
+	use sp_core::{H256, Pair};
+	use sp_runtime::{
 		traits::{
 			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, Dispatchable,
 			AccountIdConversion,
@@ -836,6 +836,7 @@ mod tests {
 			fees: 0,
 			block_data_hash,
 			upward_messages: vec![],
+			erasure_root: [1; 32].into(),
 		};
 		let payload = (Statement::Valid(candidate.hash()), System::parent_hash()).encode();
 		let roster = Parachains::calculate_duty_roster().0.validator_duty;
