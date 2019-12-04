@@ -37,7 +37,6 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, ParachainHost, ValidatorId,
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
-use futures01::Future;
 use futures::channel::{mpsc, oneshot};
 use futures::{FutureExt, Sink, SinkExt, TryFutureExt, StreamExt, future::select};
 use keystore::KeyStorePtr;
