@@ -22,7 +22,7 @@ use std::thread;
 use log::{error, info, trace, warn};
 use sp_blockchain::{Result as ClientResult};
 use sp_runtime::traits::{Header as HeaderT, ProvideRuntimeApi};
-use sp_api::ApiExt;
+use sp_api::{ApiExt, ApiErrorFor};
 use client::{
 	BlockchainEvents, BlockBody,
 	blockchain::ProvideCache,
@@ -214,9 +214,20 @@ where
 {
 	let extrinsics = client.block_body(block)?;
 	Ok(match extrinsics {
-		Some(extrinsics) => client.runtime_api()
-			.get_heads(&parent, extrinsics).map_err(|_| ConsensusError::ChainLookup("".into()))?
-			.and_then(|v| Some(v.into_iter())),
+		Some(extrinsics) => {
+			let api = client.runtime_api();
+
+			if api.has_api_with::<dyn ParachainHost<Block, Error = ApiErrorFor<P, Block>>, _>(
+				parent,
+				|version| version >= 2,
+			).map_err(|_| ConsensusError::ChainLookup("outdated runtime API".into()))? {
+				api.get_heads(&parent, extrinsics)
+					.map_err(|_| ConsensusError::ChainLookup("".into()))?
+					.map(|v| v.into_iter())
+			} else {
+				None
+			}
+	}
 		None => None,
 	})
 }
