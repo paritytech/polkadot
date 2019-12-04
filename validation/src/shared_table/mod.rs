@@ -759,6 +759,12 @@ mod tests {
 
 		let hash = candidate.hash();
 
+		store.add_validator_index_and_n_validators(
+			&relay_parent,
+			local_index as u32,
+			n_validators as u32,
+		).unwrap();
+
 		let producer: ParachainWork<future::FutureResult<_, ::std::io::Error>> = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,

@@ -34,7 +34,7 @@ use polkadot_primitives::parachain::{
 use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
 
 use futures::prelude::*;
-use futures::task::SpawnExt;
+use futures::{task::SpawnExt, future::{ready, select}};
 use parking_lot::Mutex;
 use log::{debug, trace};
 
@@ -65,8 +65,8 @@ pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
 	// this will block internally until the gossip messages stream is obtained.
 	network.gossip_messages_for(topic)
 		.filter_map(|msg| match msg.0 {
-			GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
-			_ => future::ready(None)
+			GossipMessage::Statement(s) => ready(Some(s.signed_statement)),
+			_ => ready(None)
 		})
 }
 
@@ -175,10 +175,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 				if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
 					trace!(target: "validation", "driving statement work to completion");
 
-					let work = futures::future::select(
-						work,
-						self.fetcher.exit().clone()
-					)
+					let work = select(work, self.fetcher.exit().clone())
 						.map(|_| ());
 					let _ = self.fetcher.executor().spawn(work);
 				}

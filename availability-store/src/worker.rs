@@ -37,9 +37,8 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, ParachainHost, ValidatorId,
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
-use futures01::Future;
 use futures::channel::{mpsc, oneshot};
-use futures::{FutureExt, Sink, SinkExt, TryFutureExt, StreamExt, future::select, task::SpawnExt};
+use futures::{FutureExt, Sink, SinkExt, StreamExt, future::select, task::SpawnExt};
 use keystore::KeyStorePtr;
 
 use tokio::runtime::{Handle, Runtime as LocalRuntime};
@@ -166,7 +165,7 @@ impl WorkerHandle {
 impl Drop for WorkerHandle {
 	fn drop(&mut self) {
 		if let Some(signal) = self.exit_signal.take() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 
 		if let Some(thread) = self.thread.take() {
@@ -296,7 +295,7 @@ where
 impl<PGM> Drop for Worker<PGM> {
 	fn drop(&mut self) {
 		for (_, signal) in self.registered_gossip_streams.drain() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 	}
 }
@@ -416,7 +415,7 @@ where
 			let topic = erasure_coding_topic(relay_parent, receipt.erasure_root, chunk.index);
 			// need to remove gossip listener and stop it.
 			if let Some(signal) = self.registered_gossip_streams.remove(&topic) {
-				signal.fire();
+				let _ = signal.fire();
 			}
 		}
 
@@ -493,7 +492,7 @@ where
 			let mut runtime = LocalRuntime::new()?;
 			let mut sender = worker.sender.clone();
 
-			let mut runtime_handle = runtime.handle().clone();
+			let runtime_handle = runtime.handle().clone();
 
 			// On startup, registers listeners (gossip streams) for all
 			// (relay_parent, erasure-root, i) in the awaited frontier.
@@ -588,7 +587,7 @@ where
 
 			runtime.spawn(select(process_notification.boxed(), exit.clone()).map(drop));
 
-			exit.wait();
+			runtime.block_on(exit);
 
 			info!(target: LOG_TARGET, "Availability worker exiting");
 
@@ -620,7 +619,7 @@ pub struct AvailabilityBlockImport<I, P> {
 impl<I, P> Drop for AvailabilityBlockImport<I, P> {
 	fn drop(&mut self) {
 		if let Some(signal) = self.exit_signal.take() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 	}
 }

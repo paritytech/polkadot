@@ -34,6 +34,7 @@ use futures::prelude::*;
 use futures::task::SpawnExt;
 pub use futures::task::Spawn as Executor;
 use futures::channel::oneshot::{self, Receiver};
+use futures::future::{ready, select};
 
 use std::collections::hash_map::{HashMap, Entry};
 use std::io;
@@ -187,7 +188,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 {
 	type Error = String;
 	type TableRouter = Router<P, E, N, T>;
-	type BuildTableRouter = Box<dyn Future<Output=Result<Self::TableRouter,Self::Error>> + Send + Unpin>;
+	type BuildTableRouter = Box<dyn Future<Output=Result<Self::TableRouter, String>> + Send + Unpin>;
 
 	fn communication_for(
 		&self,
@@ -219,11 +220,10 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 				let work = table_router.checked_statements()
 					.for_each(move |msg| {
 						table_router_clone.import_statement(msg);
-						futures::future::ready(())
+						ready(())
 					});
 
-				let work = futures::future::select(work, exit)
-					.map(drop);
+				let work = select(work, exit).map(drop);
 
 				let _ = executor.spawn(work);
 

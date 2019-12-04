@@ -133,6 +133,6 @@ mod tests {
 		sender.update_candidate(hash1, true);
 		assert!(sender.is_complete());
 
-		futures::executor::block_on(recv).unwrap();
+		block_on(recv).unwrap();
 	}
 }

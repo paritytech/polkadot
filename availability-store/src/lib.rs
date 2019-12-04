@@ -23,7 +23,7 @@
 #![warn(missing_docs)]
 
 use futures::prelude::*;
-use futures::{channel::{mpsc, oneshot}, task::{Spawn, SpawnExt}};
+use futures::{channel::{mpsc, oneshot}, task::Spawn};
 use keystore::KeyStorePtr;
 use polkadot_primitives::{
 	Hash, Block,

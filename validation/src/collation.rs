@@ -42,7 +42,7 @@ pub trait Collators: Clone {
 	/// Errors when producing collations.
 	type Error: std::fmt::Debug;
 	/// A full collation.
-	type Collation: Future<Output=Result<Collation,Self::Error>>;
+	type Collation: Future<Output=Result<Collation, Self::Error>>;
 
 	/// Collate on a specific parachain, building on a given relay chain parent hash.
 	///
