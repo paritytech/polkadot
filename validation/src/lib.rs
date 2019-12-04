@@ -456,7 +456,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			})
 			.and_then(with_router)
 			.then(|_| Ok(()))
-			.select(exit)
+			.select(exit.unit_error().compat())
 			.then(|_| Ok(()));
 
 		// spawn onto thread pool.
