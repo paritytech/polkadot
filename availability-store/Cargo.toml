@@ -15,7 +15,7 @@ log = "0.4.8"
 futures01 = "0.1.17"
 futures = { package = "futures", version = "0.3.1", features = ["compat"] }
 tokio = "0.1.7"
-exit-future = "0.1"
+exit-future = "0.2.0"
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

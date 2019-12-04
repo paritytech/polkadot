@@ -37,9 +37,8 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, ParachainHost, ValidatorId,
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
-use futures01::Future;
 use futures::channel::{mpsc, oneshot};
-use futures::{FutureExt, Sink, SinkExt, TryFutureExt, StreamExt};
+use futures::{FutureExt, Sink, SinkExt, TryFutureExt, StreamExt, future::select};
 use keystore::KeyStorePtr;
 
 use tokio::runtime::current_thread::{Handle, Runtime as LocalRuntime};
@@ -166,7 +165,7 @@ impl WorkerHandle {
 impl Drop for WorkerHandle {
 	fn drop(&mut self) {
 		if let Some(signal) = self.exit_signal.take() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 
 		if let Some(thread) = self.thread.take() {
@@ -296,7 +295,7 @@ where
 impl<PGM> Drop for Worker<PGM> {
 	fn drop(&mut self) {
 		for (_, signal) in self.registered_gossip_streams.drain() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 	}
 }
@@ -356,13 +355,10 @@ where
 		self.registered_gossip_streams.insert(topic, signal);
 
 		let _ = runtime_handle.spawn(
-			fut
-				.unit_error()
-				.boxed()
+			select(fut.boxed(), exit)
+				.map(|_| Ok(()))
 				.compat()
-				.select(exit)
-				.then(|_| Ok(()))
-			);
+		);
 
 		Ok(())
 	}
@@ -423,7 +419,7 @@ where
 			let topic = erasure_coding_topic(relay_parent, receipt.erasure_root, chunk.index);
 			// need to remove gossip listener and stop it.
 			if let Some(signal) = self.registered_gossip_streams.remove(&topic) {
-				signal.fire();
+				let _ = signal.fire();
 			}
 		}
 
@@ -594,15 +590,12 @@ where
 			};
 
 			runtime.spawn(
-				process_notification
-					.unit_error()
-					.boxed()
+				futures::future::select(process_notification.boxed(), exit.clone())
+					.map(|_| Ok(()))
 					.compat()
-					.select(exit.clone())
-					.then(|_| Ok(()))
 			);
 
-			if let Err(e) = runtime.block_on(exit) {
+			if let Err(e) = runtime.block_on(exit.unit_error().compat()) {
 				warn!(target: LOG_TARGET, "Availability worker error {:?}", e);
 			}
 
@@ -636,7 +629,7 @@ pub struct AvailabilityBlockImport<I, P> {
 impl<I, P> Drop for AvailabilityBlockImport<I, P> {
 	fn drop(&mut self) {
 		if let Some(signal) = self.exit_signal.take() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 	}
 }
@@ -775,12 +768,10 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 		// dependent on the types of client and executor, which would prove
 		// not not so handy in the testing code.
 		let mut exit_signal = Some(signal);
-		let prune_available = prune_unneeded_availability(client.clone(), to_worker.clone())
-			.unit_error()
-			.boxed()
-			.compat()
-			.select(exit.clone())
-			.then(|_| Ok(()));
+		let prune_available = select(
+			prune_unneeded_availability(client.clone(), to_worker.clone()).boxed(),
+			exit.clone()
+		).map(|_| Ok(())).compat();
 
 		if let Err(_) = thread_pool.execute(Box::new(prune_available)) {
 			error!(target: LOG_TARGET, "Failed to spawn availability pruning task");
