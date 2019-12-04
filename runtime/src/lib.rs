@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1026,
+	spec_version: 1027,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -130,7 +130,7 @@ impl SignedExtension for OnlyStakingAndClaims {
 		-> TransactionValidity
 	{
 		match call {
-			Call::Balances(_) | Call::Slots(_) | Call::Registrar(_)
+			Call::Slots(_) | Call::Registrar(_)
 				=> Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
 			_ => Ok(Default::default()),
 		}
