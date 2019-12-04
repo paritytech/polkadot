@@ -51,7 +51,7 @@ use std::time::Duration;
 
 use futures::{
 	future, Future, Stream, FutureExt, TryFutureExt, StreamExt,
-	compat::{Compat01As03, Future01CompatExt, Stream01CompatExt}
+	compat::{Future01CompatExt, Stream01CompatExt}
 };
 use futures01::{Future as _};
 use log::{warn, error};
@@ -248,7 +248,7 @@ struct ApiContext<P, E> {
 impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 	P: ProvideRuntimeApi + Send + Sync,
 	P::Api: ParachainHost<Block>,
-	E: futures01::Future<Item=(),Error=()> + Clone + Send + Sync + 'static,
+	E: futures::Future<Output=()> + Clone + Send + Sync + 'static,
 {
 	type Error = String;
 	type FutureEgress = Box<dyn Future<Output=Result<ConsolidatedIngress, String>> + Unpin + Send>;
@@ -277,11 +277,11 @@ struct CollationNode<P, E> {
 }
 
 impl<P, E> IntoExit for CollationNode<P, E> where
-	E: futures01::Future<Item=(),Error=()> + Unpin + Send + 'static
+	E: futures::Future<Output=()> + Unpin + Send + 'static
 {
-	type Exit = future::Map<Compat01As03<E>, fn (Result<(), ()>) -> ()>;
+	type Exit = E;
 	fn into_exit(self) -> Self::Exit {
-		self.exit.compat().map(drop)
+		self.exit
 	}
 }
 
@@ -289,7 +289,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 	P: BuildParachainContext + Send + 'static,
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send + 'static,
-	E: futures01::Future<Item=(),Error=()> + Clone + Unpin + Send + Sync + 'static,
+	E: futures::Future<Output=()> + Clone + Unpin + Send + Sync + 'static,
 {
 	type Work = Box<dyn Future<Output=()> + Unpin + Send>;
 
@@ -433,7 +433,8 @@ impl<P, E> Worker for CollationNode<P, E> where
 								outgoing,
 							);
 
-							tokio::spawn(res.select(inner_exit_2.clone()).then(|_| Ok(())));
+							let exit = inner_exit_2.clone().unit_error().compat();
+							tokio::spawn(res.select(exit).then(|_| Ok(())));
 						})
 					});
 
@@ -454,17 +455,15 @@ impl<P, E> Worker for CollationNode<P, E> where
 
 				let future = future::select(
 					silenced,
-					inner_exit.clone().map(|_| Ok::<_, ()>(())).compat()
+					inner_exit.clone()
 				).map(|_| Ok::<_, ()>(())).compat();
 
 				tokio::spawn(future);
 				future::ready(())
 			});
 
-		let work_and_exit = future::select(
-			work,
-			exit.map(|_| Ok::<_, ()>(())).compat()
-		).map(|_| ());
+		let work_and_exit = future::select(work, exit)
+			.map(|_| ());
 
 		Box::new(work_and_exit)
 	}
@@ -495,7 +494,7 @@ pub fn run_collator<P, E>(
 	P: BuildParachainContext + Send + 'static,
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send + 'static,
-	E: futures01::Future<Item = (),Error=()> + Unpin + Send + Clone + Sync + 'static,
+	E: futures::Future<Output = ()> + Unpin + Send + Clone + Sync + 'static,
 {
 	let node_logic = CollationNode { build_parachain_context, exit, para_id, key };
 	polkadot_cli::run(node_logic, version)

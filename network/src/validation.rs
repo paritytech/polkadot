@@ -123,7 +123,7 @@ impl<P, E: Clone, N, T: Clone> Clone for ValidationNetwork<P, E, N, T> {
 impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
-	E: Clone + Future<Item=(),Error=()> + Send + Sync + 'static,
+	E: Clone + futures03::Future<Output=()> + Send + Sync + 'static,
 	N: NetworkService,
 	T: Clone + Executor + Send + Sync + 'static,
 {
@@ -206,7 +206,7 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
-	E: Clone + Future<Item=(),Error=()> + Send + Sync + 'static,
+	E: Clone + futures03::Future<Output=()> + Send + Sync + Unpin + 'static,
 	N: NetworkService,
 	T: Clone + Executor + Send + Sync + 'static,
 {
@@ -670,7 +670,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> LeafWorkDataFetcher<P, E, N, T> where
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
-	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+	E: futures03::Future<Output=()> + Clone + Send + 'static,
 {
 	/// Fetch PoV block for the given candidate receipt.
 	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> PoVReceiver {
