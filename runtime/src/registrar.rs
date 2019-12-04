@@ -836,6 +836,7 @@ mod tests {
 			fees: 0,
 			block_data_hash,
 			upward_messages: vec![],
+			erasure_root: [1; 32].into(),
 		};
 		let payload = (Statement::Valid(candidate.hash()), System::parent_hash()).encode();
 		let roster = Parachains::calculate_duty_roster().0.validator_duty;

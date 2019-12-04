@@ -179,6 +179,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
 	let authority_discovery_enabled = config.custom.authority_discovery_enabled;
+	let sentry_nodes = config.network.sentry_nodes.clone();
 
 	// sentry nodes announce themselves as authorities to the network
 	// and should run the same protocols authorities do, but it should
@@ -234,7 +235,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		}
 	};
 
-	let gossip_validator = network_gossip::register_validator(
+	let mut gossip_validator = network_gossip::register_validator(
 		service.network(),
 		(is_known, client.clone()),
 	);
@@ -246,16 +247,18 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			let mut path = PathBuf::from(db_path);
 			path.push("availability");
 
+			let gossip = polkadot_network::AvailabilityNetworkShim(service.network());
+
 			#[cfg(not(target_os = "unknown"))]
 			{
 				av_store::Store::new(::av_store::Config {
 					cache_size: None,
 					path,
-				})?
+				}, gossip)?
 			}
 
 			#[cfg(target_os = "unknown")]
-			av_store::Store::new_in_memory()
+			av_store::Store::new_in_memory(gossip)
 		};
 
 		{
@@ -263,6 +266,11 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			service.network().with_spec(
 				|spec, _ctx| spec.register_availability_store(availability_store)
 			);
+		}
+
+		{
+			let availability_store = availability_store.clone();
+			gossip_validator.register_availability_store(availability_store);
 		}
 
 		// collator connections and validation network both fulfilled by this
@@ -281,7 +289,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			service.transaction_pool(),
 			Arc::new(WrappedExecutor(service.spawn_task_handle())),
 			service.keystore(),
-			availability_store,
+			availability_store.clone(),
 			polkadot_runtime::constants::time::SLOT_DURATION,
 			max_block_data_size,
 		);
@@ -290,6 +298,14 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
 		let can_author_with =
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
+
+
+		let block_import = availability_store.block_import(
+			block_import,
+			client.clone(),
+			Arc::new(WrappedExecutor(service.spawn_task_handle())),
+			service.keystore(),
+		)?;
 
 		let babe_config = babe::BabeParams {
 			keystore: service.keystore(),
@@ -314,6 +330,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
 				service.client(),
 				service.network(),
+				sentry_nodes,
 				service.keystore(),
 				future03_dht_event_rx,
 			);

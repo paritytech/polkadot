@@ -20,7 +20,7 @@ use rstd::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module};
 use frame_support::weights::SimpleDispatchInfo;
-use frame_support::traits::{Currency, Get};
+use frame_support::traits::{Currency, Get, VestingCurrency};
 use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
@@ -41,7 +41,8 @@ type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::Ac
 pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-	type Currency: Currency<Self::AccountId>;
+	type Currency: Currency<Self::AccountId>
+		+ VestingCurrency<Self::AccountId, Moment=Self::BlockNumber>;
 	type Prefix: Get<&'static [u8]>;
 }
 
@@ -112,6 +113,11 @@ decl_storage! {
 		Total get(total) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().fold(Zero::zero(), |acc: BalanceOf<T>, &(_, n)| acc + n)
 		}): BalanceOf<T>;
+		/// Vesting schedule for a claim.
+		/// First balance is the total amount that should be held for vesting.
+		/// Second balance is how much should be unlocked per block.
+		/// The block number is when the vesting should start.
+		Vesting get(vesting) config(): map EthereumAddress => Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
 	}
 	add_extra_genesis {
 		config(claims): Vec<(EthereumAddress, BalanceOf<T>)>;
@@ -135,8 +141,18 @@ decl_module! {
 			let signer = Self::eth_recover(&ethereum_signature, &data)
 				.ok_or("Invalid Ethereum signature")?;
 
-			let balance_due = <Claims<T>>::take(&signer)
+			let balance_due = <Claims<T>>::get(&signer)
 				.ok_or("Ethereum address has no claim")?;
+
+			// Check if this claim should have a vesting schedule.
+			if let Some(vs) = <Vesting<T>>::get(&signer) {
+				// If this fails, destination account already has a vesting schedule
+				// applied to it, and this claim should not be processed.
+				T::Currency::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)?;
+			}
+
+			<Claims<T>>::remove(&signer);
+			<Vesting<T>>::remove(&signer);
 
 			<Total<T>>::mutate(|t| if *t < balance_due {
 				panic!("Logic error: Pot less than the total of claims!")
@@ -152,11 +168,18 @@ decl_module! {
 
 		/// Add a new claim, if you are root.
 		#[weight = SimpleDispatchInfo::FreeOperational]
-		fn mint_claim(origin, who: EthereumAddress, value: BalanceOf<T>) {
+		fn mint_claim(origin,
+			who: EthereumAddress,
+			value: BalanceOf<T>,
+			vesting_schedule: Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>,
+		) {
 			ensure_root(origin)?;
 
 			<Total<T>>::mutate(|t| *t += value);
 			<Claims<T>>::insert(who, value);
+			if let Some(vs) = vesting_schedule {
+				<Vesting<T>>::insert(who, vs);
+			}
 		}
 	}
 }
@@ -345,6 +368,7 @@ mod tests {
 		balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
 		GenesisConfig::<Test>{
 			claims: vec![(eth(&alice()), 100)],
+			vesting: vec![(eth(&alice()), (50, 10, 1))],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
@@ -355,6 +379,7 @@ mod tests {
 			assert_eq!(Claims::total(), 100);
 			assert_eq!(Claims::claims(&eth(&alice())), Some(100));
 			assert_eq!(Claims::claims(&EthereumAddress::default()), None);
+			assert_eq!(Claims::vesting(&eth(&alice())), Some((50, 10, 1)));
 		});
 	}
 
@@ -373,21 +398,45 @@ mod tests {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
 			assert_eq!(Balances::free_balance(&42), 100);
+			assert_eq!(Balances::vesting_balance(&42), 50);
 		});
 	}
 
 	#[test]
 	fn add_claim_works() {
 		new_test_ext().execute_with(|| {
-			assert_noop!(Claims::mint_claim(Origin::signed(42), eth(&bob()), 200), "RequireRootOrigin");
+			assert_noop!(
+				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, None),
+				"RequireRootOrigin"
+			);
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
 				"Ethereum address has no claim"
 			);
-			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200));
+			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
 			assert_eq!(Balances::free_balance(&69), 200);
+			assert_eq!(Balances::vesting_balance(&69), 0);
+		});
+	}
+
+	#[test]
+	fn add_claim_with_vesting_works() {
+		new_test_ext().execute_with(|| {
+			assert_noop!(
+				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, Some((50, 10, 1))),
+				"RequireRootOrigin"
+			);
+			assert_eq!(Balances::free_balance(&42), 0);
+			assert_noop!(
+				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
+				"Ethereum address has no claim"
+			);
+			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
+			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
+			assert_eq!(Balances::free_balance(&69), 200);
+			assert_eq!(Balances::vesting_balance(&69), 50);
 		});
 	}
 

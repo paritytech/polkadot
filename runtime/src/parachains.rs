@@ -1247,6 +1247,7 @@ mod tests {
 				fees: 0,
 				block_data_hash: Default::default(),
 				upward_messages: vec![],
+				erasure_root: [1u8; 32].into(),
 			}
 		}
 	}
@@ -1269,6 +1270,7 @@ mod tests {
 				upward_messages: upward_messages.into_iter()
 					.map(|x| UpwardMessage { origin: x.0, data: x.1 })
 					.collect(),
+				erasure_root: [1u8; 32].into(),
 			}
 		}
 	}
@@ -1676,6 +1678,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				},
 
 			};
@@ -1707,6 +1710,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				}
 			};
 
@@ -1722,6 +1726,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				}
 			};
 
@@ -1761,6 +1766,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				}
 			};
 
@@ -1798,6 +1804,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				}
 			};
 
@@ -1843,6 +1850,7 @@ mod tests {
 						fees: 0,
 						block_data_hash: Default::default(),
 						upward_messages: vec![],
+						erasure_root: [1u8; 32].into(),
 					}
 				};
 
@@ -1859,6 +1867,7 @@ mod tests {
 						fees: 0,
 						block_data_hash: Default::default(),
 						upward_messages: vec![],
+						erasure_root: [1u8; 32].into(),
 					}
 				};
 
@@ -1920,6 +1929,7 @@ mod tests {
 					fees: 0,
 					block_data_hash: Default::default(),
 					upward_messages: vec![],
+					erasure_root: [1u8; 32].into(),
 				}
 			};
 			make_attestations(&mut candidate_c);

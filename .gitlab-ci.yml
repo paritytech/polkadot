@@ -16,6 +16,7 @@ image:                             parity/rust-builder:latest
 
 variables:
   GIT_STRATEGY:                    fetch
+  GIT_DEPTH:                       3
   CARGO_HOME:                      "/ci-cache/${CI_PROJECT_NAME}/cargo/${CI_JOB_NAME}"
   SCCACHE_DIR:                     "/ci-cache/${CI_PROJECT_NAME}/sccache"
   CI_SERVER_NAME:                  "GitLab CI"
@@ -44,6 +45,8 @@ variables:
       - runner_system_failure
       - unknown_failure
       - api_failure
+  interruptible:                   true
+  dependencies:                    []
   tags:
     - linux-docker
 
@@ -93,6 +96,7 @@ check-runtime:
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
   script:
     - ./scripts/gitlab/check_runtime.sh
+  interruptible:                   true
   allow_failure:                   true
 
 
@@ -104,6 +108,7 @@ check-line-width:
     - /^[0-9]+$/
   script:
     - ./scripts/gitlab/check_line_width.sh
+  interruptible:                   true
   allow_failure:                   true
 
 
@@ -139,7 +144,6 @@ check-web-wasm:                    &test
   script:
     # WASM support is in progress. As more and more crates support WASM, we
     # should add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path availability-store/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path executor/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path erasure-coding/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path parachain/Cargo.toml

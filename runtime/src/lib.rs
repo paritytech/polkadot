@@ -33,7 +33,7 @@ use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas}, ValidityError,
+	parachain::{self, ActiveParas, CandidateReceipt}, ValidityError,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1023,
+	spec_version: 1027,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -130,7 +130,7 @@ impl SignedExtension for OnlyStakingAndClaims {
 		-> TransactionValidity
 	{
 		match call {
-			Call::Balances(_) | Call::Slots(_) | Call::Registrar(_)
+			Call::Slots(_) | Call::Registrar(_)
 				=> Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
 			_ => Ok(Default::default()),
 		}
@@ -536,11 +536,6 @@ impl claims::Trait for Runtime {
 	type Prefix = Prefix;
 }
 
-impl sudo::Trait for Runtime {
-	type Event = Event;
-	type Proposal = Call;
-}
-
 parameter_types! {
 	pub const ReservationFee: Balance = 1 * DOLLARS;
 	pub const MinLength: usize = 3;
@@ -602,10 +597,6 @@ construct_runtime! {
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
-
-		// Sudo. Usable initially.
-		// RELEASE: remove this for release build.
-		Sudo: sudo,
 
 		// Simple nicknames module.
 		Nicks: nicks::{Module, Call, Storage, Event<T>},
@@ -720,6 +711,19 @@ sp_api::impl_runtime_apis! {
 		{
 			Parachains::ingress(to, since).map(parachain::StructuredUnroutedIngress)
 		}
+		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>> {
+			extrinsics
+				.into_iter()
+				.find_map(|ex| match UncheckedExtrinsic::decode(&mut ex.encode().as_slice()) {
+					Ok(ex) => match ex.function {
+						Call::Parachains(ParachainsCall::set_heads(heads)) => {
+							Some(heads.into_iter().map(|c| c.candidate).collect())
+						}
+						_ => None,
+					}
+					Err(_) => None,
+				})
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
@@ -752,7 +756,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl sp_sesssion::SessionKeys<Block> for Runtime {
+	impl sp_session::SessionKeys<Block> for Runtime {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
 			SessionKeys::generate(seed)
 		}
