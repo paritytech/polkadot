@@ -33,6 +33,7 @@ use polkadot_primitives::parachain::{
 use futures::prelude::*;
 use futures::future::{self, Executor as FutureExecutor};
 use futures::sync::oneshot::{self, Receiver};
+use futures03::{FutureExt as _, TryFutureExt as _};
 
 use std::collections::hash_map::{HashMap, Entry};
 use std::io;
@@ -242,8 +243,12 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 
 				let table_router_clone = table_router.clone();
 				let work = table_router.checked_statements()
-					.for_each(move |msg| { table_router_clone.import_statement(msg); Ok(()) });
-				executor.spawn(work.select(exit.clone()).map(|_| ()).map_err(|_| ()));
+					.for_each(move |msg| { table_router_clone.import_statement(msg); Ok(()) })
+					.select(exit.clone().unit_error().compat())
+					.map(|_| ())
+					.map_err(|_| ());
+
+				executor.spawn(work);
 
 				table_router
 			});
