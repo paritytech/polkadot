@@ -21,8 +21,8 @@ use std::thread;
 
 use log::{error, info, trace, warn};
 use sp_blockchain::{Result as ClientResult};
-use sp_runtime::traits::{Header as HeaderT, ProvideRuntimeApi};
-use sp_api::{ApiExt, ApiErrorFor};
+use sp_runtime::traits::{Header as HeaderT, ProvideRuntimeApi, Block as BlockT};
+use sp_api::ApiExt;
 use client::{
 	BlockchainEvents, BlockBody,
 	blockchain::ProvideCache,
@@ -206,30 +206,25 @@ where
 }
 
 
-fn fetch_candidates<P>(client: &P, block: &BlockId, parent: &BlockId)
-	-> ClientResult<Option<impl Iterator<Item=CandidateReceipt>>>
+fn fetch_candidates<P>(client: &P, extrinsics: Vec<<Block as BlockT>::Extrinsic>, parent: &BlockId)
+	-> ClientResult<Option<Vec<CandidateReceipt>>>
 where
-	P: BlockBody<Block> + ProvideRuntimeApi,
-	P::Api: ParachainHost<Block> + ApiExt<Block, Error=sp_blockchain::Error>,
+	P: ProvideRuntimeApi,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
-	let extrinsics = client.block_body(block)?;
-	Ok(match extrinsics {
-		Some(extrinsics) => {
-			let api = client.runtime_api();
+	let api = client.runtime_api();
 
-			if api.has_api_with::<dyn ParachainHost<Block, Error = ApiErrorFor<P, Block>>, _>(
-				parent,
-				|version| version >= 2,
-			).map_err(|_| ConsensusError::ChainLookup("outdated runtime API".into()))? {
-				api.get_heads(&parent, extrinsics)
-					.map_err(|_| ConsensusError::ChainLookup("".into()))?
-					.map(|v| v.into_iter())
-			} else {
-				None
-			}
-	}
-		None => None,
-	})
+	let candidates = if api.has_api_with::<dyn ParachainHost<Block, Error = ()>, _>(
+		parent,
+		|version| version >= 2,
+	).map_err(|e| ConsensusError::ChainLookup(e.to_string()))? {
+		api.get_heads(&parent, extrinsics)
+			.map_err(|e| ConsensusError::ChainLookup(e.to_string()))?
+	} else {
+		None
+	};
+
+	Ok(candidates)
 }
 
 /// Creates a task to prune entries in availability store upon block finalization.
@@ -244,12 +239,33 @@ where
 	while let Some(notification) = finality_notification_stream.next().await {
 		let hash = notification.hash;
 		let parent_hash = notification.header.parent_hash;
+		let extrinsics = match client.block_body(&BlockId::hash(hash)) {
+			Ok(Some(extrinsics)) => extrinsics,
+			Ok(None) => {
+				error!(
+					target: LOG_TARGET,
+					"No block body found for imported block {:?}",
+					hash,
+				);
+				continue;
+			}
+			Err(e) => {
+				error!(
+					target: LOG_TARGET,
+					"Failed to get block body for imported block {:?}: {:?}",
+					hash,
+					e,
+				);
+				continue;
+			}
+		};
+
 		let candidate_hashes = match fetch_candidates(
 			&*client,
-			&BlockId::hash(hash),
+			extrinsics,
 			&BlockId::hash(parent_hash)
 		) {
-			Ok(Some(candidates)) => candidates.map(|c| c.hash()).collect(),
+			Ok(Some(candidates)) => candidates.into_iter().map(|c| c.hash()).collect(),
 			Ok(None) => {
 				warn!(
 					target: LOG_TARGET,
@@ -629,8 +645,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 	I: BlockImport<Block> + Send + Sync,
 	I::Error: Into<ConsensusError>,
 	P: ProvideRuntimeApi + ProvideCache<Block>,
-	P::Api: ParachainHost<Block>,
-	P::Api: ApiExt<Block, Error = sp_blockchain::Error>,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	type Error = ConsensusError;
 
@@ -656,7 +671,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 			let our_id = self.our_id(&validators);
 
 			// Use a runtime API to extract all included erasure-roots from the imported block.
-			let candidates = self.client.runtime_api().get_heads(&parent_id, extrinsics.clone())
+			let candidates = fetch_candidates(&*self.client, extrinsics.clone(), &parent_id)
 				.map_err(|e| ConsensusError::ChainLookup(e.to_string()))?;
 
 			match candidates {
@@ -666,7 +681,8 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 							trace!(
 								target: LOG_TARGET,
 								"Our validator id is {}, the candidates included are {:?}",
-								our_id, candidates
+								our_id,
+								candidates,
 							);
 
 							for candidate in &candidates {
