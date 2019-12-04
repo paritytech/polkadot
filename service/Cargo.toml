@@ -32,7 +32,7 @@ consensus_common = { package = "sp-consensus", git = "https://github.com/parityt
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 txpool = { package = "sc-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }

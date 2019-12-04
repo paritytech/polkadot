@@ -152,6 +152,7 @@ impl Store {
 	///
 	/// Creating a store among other things starts a background worker thread which
 	/// handles most of the write operations to the storage.
+	#[cfg(not(target_os = "unknown"))]
 	pub fn new<PGM>(config: Config, gossip: PGM) -> io::Result<Self>
 		where PGM: ProvideGossipMessages + Send + Sync + Clone + 'static
 	{

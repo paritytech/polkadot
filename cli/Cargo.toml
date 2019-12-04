@@ -15,7 +15,7 @@ futures = { version = "0.3.1", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
 structopt = "0.3.4"
 cli = { package = "sc-cli", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-service = { package = "polkadot-service", path = "../service" }
+service = { package = "polkadot-service", path = "../service", default-features = false }
 
 libp2p = { version = "0.13.0", default-features = false, optional = true }
 wasm-bindgen = { version = "0.2.45", optional = true }
