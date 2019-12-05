@@ -45,6 +45,7 @@ grandpa = { package = "pallet-grandpa", git = "https://github.com/paritytech/sub
 im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
 indices = { package = "pallet-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
 membership = { package = "pallet-membership", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
+sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
 nicks = { package = "pallet-nicks", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
 offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
 randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
@@ -125,4 +126,5 @@ std = [
 	"babe-primitives/std",
 	"sp-session/std",
 	"randomness-collective-flip/std",
+	"sudo/std",
 ]

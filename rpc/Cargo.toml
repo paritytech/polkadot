@@ -8,7 +8,7 @@ edition = "2018"
 client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 jsonrpc-core = "14.0.3"
 polkadot-primitives = { path = "../primitives" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch"  }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch"  }
 sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch"  }

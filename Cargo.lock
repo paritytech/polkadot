@@ -3112,6 +3112,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-sudo"
+version = "2.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch#2b93d4f40471766f3d34b2af58e11554c226e439"
+dependencies = [
+ "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
+ "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
+ "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
+ "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
+]
+
+[[package]]
 name = "pallet-timestamp"
 version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch#2b93d4f40471766f3d34b2af58e11554c226e439"
@@ -3654,7 +3668,7 @@ dependencies = [
  "polkadot-runtime 0.7.8",
  "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
  "sc-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
+ "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
  "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
  "substrate-frame-rpc-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
 ]
@@ -3689,6 +3703,7 @@ dependencies = [
  "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
  "pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
  "pallet-staking-reward-curve 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
+ "pallet-sudo 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
  "pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
  "pallet-transaction-payment 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
  "pallet-transaction-payment-rpc-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)",
@@ -7212,6 +7227,7 @@ dependencies = [
 "checksum pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)" = "<none>"
 "checksum pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)" = "<none>"
 "checksum pallet-staking-reward-curve 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)" = "<none>"
+"checksum pallet-sudo 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)" = "<none>"
 "checksum pallet-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)" = "<none>"
 "checksum pallet-transaction-payment 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)" = "<none>"
 "checksum pallet-transaction-payment-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-cumulus-branch)" = "<none>"

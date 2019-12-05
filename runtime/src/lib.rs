@@ -551,6 +551,11 @@ impl nicks::Trait for Runtime {
 	type MaxLength = MaxLength;
 }
 
+impl sudo::Trait for Runtime {
+	type Event = Event;
+	type Proposal = Call;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -599,6 +604,8 @@ construct_runtime! {
 
 		// Simple nicknames module.
 		Nicks: nicks::{Module, Call, Storage, Event<T>},
+
+		Sudo: sudo,
 	}
 }
 

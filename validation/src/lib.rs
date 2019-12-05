@@ -54,7 +54,7 @@ use polkadot_primitives::parachain::{
 	ValidatorPair, ValidatorId,
 };
 use primitives::Pair;
-use runtime_primitives::traits::{ProvideRuntimeApi, DigestFor};
+use runtime_primitives::traits::DigestFor;
 use futures_timer::Delay;
 use async_std::stream::{interval, Interval};
 use txpool_api::{TransactionPool, InPoolTransaction};
@@ -68,7 +68,7 @@ use inherents::InherentData;
 use sp_timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace, error};
 use keystore::KeyStorePtr;
-use sp_api::ApiExt;
+use sp_api::{ApiExt, ProvideRuntimeApi};
 
 type TaskExecutor =
 	Arc<
@@ -275,7 +275,7 @@ struct ParachainValidation<C, N, P> {
 impl<C, N, P> ParachainValidation<C, N, P> where
 	C: Collators + Send + 'static,
 	N: Network,
-	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
+	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	N::TableRouter: Send + 'static,
@@ -488,7 +488,7 @@ impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
 	C: Collators + Send + Sync + 'static,
 	<C::Collation as IntoFuture>::Future: Send + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
-	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> +
 		BlockBuilderApi<Block> +
 		BabeApi<Block> +
@@ -546,7 +546,7 @@ impl<C, N, P, SC, TxPool> consensus::Environment<Block> for ProposerFactory<C, N
 	C: Collators + Send + 'static,
 	N: Network,
 	TxPool: TransactionPool<Block=Block> + 'static,
-	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
+	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> +
 		BlockBuilderApi<Block> +
 		BabeApi<Block> +
@@ -593,7 +593,7 @@ pub struct LocalDuty {
 
 /// The Polkadot proposer logic.
 pub struct Proposer<C: Send + Sync, TxPool: TransactionPool> where
-	C: ProvideRuntimeApi + HeaderBackend<Block>,
+	C: ProvideRuntimeApi<Block> + HeaderBackend<Block>,
 {
 	client: Arc<C>,
 	parent_hash: Hash,
@@ -606,7 +606,7 @@ pub struct Proposer<C: Send + Sync, TxPool: TransactionPool> where
 
 impl<C, TxPool> consensus::Proposer<Block> for Proposer<C, TxPool> where
 	TxPool: TransactionPool<Block=Block> + 'static,
-	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 {
 	type Error = Error;
@@ -766,7 +766,7 @@ struct CreateProposalData<C: Send + Sync, TxPool> {
 
 impl<C, TxPool> CreateProposalData<C, TxPool> where
 	TxPool: TransactionPool<Block=Block>,
-	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync,
+	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 {
 	fn propose_with(mut self, candidates: Vec<AttestedCandidate>) -> Result<Block, Error> {
@@ -860,7 +860,7 @@ impl<C, TxPool> CreateProposalData<C, TxPool> where
 
 impl<C, TxPool> futures03::Future for CreateProposal<C, TxPool> where
 	TxPool: TransactionPool<Block=Block> + 'static,
-	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 {
 	type Output = Result<Block, Error>;

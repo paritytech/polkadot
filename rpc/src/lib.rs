@@ -21,7 +21,7 @@
 use std::sync::Arc;
 
 use polkadot_primitives::{Block, AccountId, Nonce, Balance};
-use sp_runtime::traits::ProvideRuntimeApi;
+use sp_api::ProvideRuntimeApi;
 use txpool_api::TransactionPool;
 use polkadot_runtime::UncheckedExtrinsic;
 
@@ -30,7 +30,7 @@ pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
 
 /// Instantiate all RPC extensions.
 pub fn create_full<C, P>(client: Arc<C>, pool: Arc<P>) -> RpcExtension where
-	C: ProvideRuntimeApi,
+	C: ProvideRuntimeApi<Block>,
 	C: client::blockchain::HeaderBackend<Block>,
 	C: Send + Sync + 'static,
 	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
@@ -58,7 +58,7 @@ pub fn create_light<C, P, F>(
 	pool: Arc<P>,
 ) -> RpcExtension
 	where
-		C: ProvideRuntimeApi,
+		C: ProvideRuntimeApi<Block>,
 		C: client::blockchain::HeaderBackend<Block>,
 		C: Send + Sync + 'static,
 		C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
