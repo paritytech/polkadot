@@ -18,8 +18,7 @@
 
 use polkadot_parachain as parachain;
 
-use crate::parachain::{IncomingMessage, ValidationParams};
-use crate::DummyExt;
+use crate::{DummyExt, parachain::{IncomingMessage, ValidationParams}};
 use codec::{Decode, Encode};
 
 /// Head data for this parachain.
@@ -78,7 +77,7 @@ pub fn execute_good_on_parent() {
 			block_data: block_data.encode(),
 			ingress: Vec::new(),
 		},
-		&mut DummyExt,
+		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap();
 
@@ -114,7 +113,7 @@ fn execute_good_chain_on_parent() {
 				block_data: block_data.encode(),
 				ingress: Vec::new(),
 			},
-			&mut DummyExt,
+			DummyExt,
 			parachain::wasm_executor::ExecutionMode::RemoteTest,
 		).unwrap();
 
@@ -150,7 +149,7 @@ fn execute_bad_on_parent() {
 			block_data: block_data.encode(),
 			ingress: Vec::new(),
 		},
-		&mut DummyExt,
+		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap_err();
 }
@@ -182,7 +181,7 @@ fn processes_messages() {
 				IncomingMessage { source: 3.into(), data: (AddMessage { amount: 256 }).encode() },
 			],
 		},
-		&mut DummyExt,
+		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap();
 
