@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1028,
+	spec_version: 1029,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -536,7 +536,8 @@ impl claims::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const ReservationFee: Balance = 1 * DOLLARS;
+	// KUSAMA: for mainnet this can be reduced.
+	pub const ReservationFee: Balance = 1000 * DOLLARS;
 	pub const MinLength: usize = 3;
 	pub const MaxLength: usize = 32;
 }
@@ -546,7 +547,7 @@ impl nicks::Trait for Runtime {
 	type Currency = Balances;
 	type ReservationFee = ReservationFee;
 	type Slashed = Treasury;
-	type ForceOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
+	type ForceOrigin = collective::EnsureMembers<_2, AccountId, CouncilCollective>;
 	type MinLength = MinLength;
 	type MaxLength = MaxLength;
 }
