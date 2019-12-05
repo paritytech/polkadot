@@ -21,8 +21,8 @@ use std::thread;
 
 use log::{error, info, trace, warn};
 use sp_blockchain::{Result as ClientResult};
-use sp_runtime::traits::{Header as HeaderT, ProvideRuntimeApi};
-use sp_api::{ApiExt, ApiErrorFor};
+use sp_runtime::traits::{Header as HeaderT, ProvideRuntimeApi, Block as BlockT};
+use sp_api::ApiExt;
 use client::{
 	BlockchainEvents, BlockBody,
 	blockchain::ProvideCache,
@@ -37,9 +37,8 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, ParachainHost, ValidatorId,
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
-use futures01::Future;
 use futures::channel::{mpsc, oneshot};
-use futures::{FutureExt, Sink, SinkExt, TryFutureExt, StreamExt};
+use futures::{FutureExt, Sink, SinkExt, TryFutureExt, StreamExt, future::select};
 use keystore::KeyStorePtr;
 
 use tokio::runtime::current_thread::{Handle, Runtime as LocalRuntime};
@@ -166,7 +165,7 @@ impl WorkerHandle {
 impl Drop for WorkerHandle {
 	fn drop(&mut self) {
 		if let Some(signal) = self.exit_signal.take() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 
 		if let Some(thread) = self.thread.take() {
@@ -206,30 +205,25 @@ where
 }
 
 
-fn fetch_candidates<P>(client: &P, block: &BlockId, parent: &BlockId)
-	-> ClientResult<Option<impl Iterator<Item=CandidateReceipt>>>
+fn fetch_candidates<P>(client: &P, extrinsics: Vec<<Block as BlockT>::Extrinsic>, parent: &BlockId)
+	-> ClientResult<Option<Vec<CandidateReceipt>>>
 where
-	P: BlockBody<Block> + ProvideRuntimeApi,
-	P::Api: ParachainHost<Block> + ApiExt<Block, Error=sp_blockchain::Error>,
+	P: ProvideRuntimeApi,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
-	let extrinsics = client.block_body(block)?;
-	Ok(match extrinsics {
-		Some(extrinsics) => {
-			let api = client.runtime_api();
+	let api = client.runtime_api();
 
-			if api.has_api_with::<dyn ParachainHost<Block, Error = ApiErrorFor<P, Block>>, _>(
-				parent,
-				|version| version >= 2,
-			).map_err(|_| ConsensusError::ChainLookup("outdated runtime API".into()))? {
-				api.get_heads(&parent, extrinsics)
-					.map_err(|_| ConsensusError::ChainLookup("".into()))?
-					.map(|v| v.into_iter())
-			} else {
-				None
-			}
-	}
-		None => None,
-	})
+	let candidates = if api.has_api_with::<dyn ParachainHost<Block, Error = ()>, _>(
+		parent,
+		|version| version >= 2,
+	).map_err(|e| ConsensusError::ChainLookup(e.to_string()))? {
+		api.get_heads(&parent, extrinsics)
+			.map_err(|e| ConsensusError::ChainLookup(e.to_string()))?
+	} else {
+		None
+	};
+
+	Ok(candidates)
 }
 
 /// Creates a task to prune entries in availability store upon block finalization.
@@ -244,12 +238,33 @@ where
 	while let Some(notification) = finality_notification_stream.next().await {
 		let hash = notification.hash;
 		let parent_hash = notification.header.parent_hash;
+		let extrinsics = match client.block_body(&BlockId::hash(hash)) {
+			Ok(Some(extrinsics)) => extrinsics,
+			Ok(None) => {
+				error!(
+					target: LOG_TARGET,
+					"No block body found for imported block {:?}",
+					hash,
+				);
+				continue;
+			}
+			Err(e) => {
+				error!(
+					target: LOG_TARGET,
+					"Failed to get block body for imported block {:?}: {:?}",
+					hash,
+					e,
+				);
+				continue;
+			}
+		};
+
 		let candidate_hashes = match fetch_candidates(
 			&*client,
-			&BlockId::hash(hash),
+			extrinsics,
 			&BlockId::hash(parent_hash)
 		) {
-			Ok(Some(candidates)) => candidates.map(|c| c.hash()).collect(),
+			Ok(Some(candidates)) => candidates.into_iter().map(|c| c.hash()).collect(),
 			Ok(None) => {
 				warn!(
 					target: LOG_TARGET,
@@ -280,7 +295,7 @@ where
 impl<PGM> Drop for Worker<PGM> {
 	fn drop(&mut self) {
 		for (_, signal) in self.registered_gossip_streams.drain() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 	}
 }
@@ -340,13 +355,10 @@ where
 		self.registered_gossip_streams.insert(topic, signal);
 
 		let _ = runtime_handle.spawn(
-			fut
-				.unit_error()
-				.boxed()
+			select(fut.boxed(), exit)
+				.map(|_| Ok(()))
 				.compat()
-				.select(exit)
-				.then(|_| Ok(()))
-			);
+		);
 
 		Ok(())
 	}
@@ -407,7 +419,7 @@ where
 			let topic = erasure_coding_topic(relay_parent, receipt.erasure_root, chunk.index);
 			// need to remove gossip listener and stop it.
 			if let Some(signal) = self.registered_gossip_streams.remove(&topic) {
-				signal.fire();
+				let _ = signal.fire();
 			}
 		}
 
@@ -578,15 +590,12 @@ where
 			};
 
 			runtime.spawn(
-				process_notification
-					.unit_error()
-					.boxed()
+				futures::future::select(process_notification.boxed(), exit.clone())
+					.map(|_| Ok(()))
 					.compat()
-					.select(exit.clone())
-					.then(|_| Ok(()))
 			);
 
-			if let Err(e) = runtime.block_on(exit) {
+			if let Err(e) = runtime.block_on(exit.unit_error().compat()) {
 				warn!(target: LOG_TARGET, "Availability worker error {:?}", e);
 			}
 
@@ -620,7 +629,7 @@ pub struct AvailabilityBlockImport<I, P> {
 impl<I, P> Drop for AvailabilityBlockImport<I, P> {
 	fn drop(&mut self) {
 		if let Some(signal) = self.exit_signal.take() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 	}
 }
@@ -629,8 +638,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 	I: BlockImport<Block> + Send + Sync,
 	I::Error: Into<ConsensusError>,
 	P: ProvideRuntimeApi + ProvideCache<Block>,
-	P::Api: ParachainHost<Block>,
-	P::Api: ApiExt<Block, Error = sp_blockchain::Error>,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	type Error = ConsensusError;
 
@@ -656,7 +664,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 			let our_id = self.our_id(&validators);
 
 			// Use a runtime API to extract all included erasure-roots from the imported block.
-			let candidates = self.client.runtime_api().get_heads(&parent_id, extrinsics.clone())
+			let candidates = fetch_candidates(&*self.client, extrinsics.clone(), &parent_id)
 				.map_err(|e| ConsensusError::ChainLookup(e.to_string()))?;
 
 			match candidates {
@@ -666,7 +674,8 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 							trace!(
 								target: LOG_TARGET,
 								"Our validator id is {}, the candidates included are {:?}",
-								our_id, candidates
+								our_id,
+								candidates,
 							);
 
 							for candidate in &candidates {
@@ -759,12 +768,10 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 		// dependent on the types of client and executor, which would prove
 		// not not so handy in the testing code.
 		let mut exit_signal = Some(signal);
-		let prune_available = prune_unneeded_availability(client.clone(), to_worker.clone())
-			.unit_error()
-			.boxed()
-			.compat()
-			.select(exit.clone())
-			.then(|_| Ok(()));
+		let prune_available = select(
+			prune_unneeded_availability(client.clone(), to_worker.clone()).boxed(),
+			exit.clone()
+		).map(|_| Ok(())).compat();
 
 		if let Err(_) = thread_pool.execute(Box::new(prune_available)) {
 			error!(target: LOG_TARGET, "Failed to spawn availability pruning task");
