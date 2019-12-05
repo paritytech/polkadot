@@ -130,7 +130,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
-	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+	E: futures03::Future<Output=()> + Clone + Send + Unpin + 'static,
 {
 	/// Import a statement whose signature has been checked already.
 	pub(crate) fn import_statement(&self, statement: SignedStatement) {
@@ -174,7 +174,8 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 
 				if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
 					trace!(target: "validation", "driving statement work to completion");
-					let work = work.select2(self.fetcher.exit().clone()).then(|_| Ok(()));
+					let exit = self.fetcher.exit().clone().unit_error().compat();
+					let work = work.select2(exit).then(|_| Ok(()));
 					self.fetcher.executor().spawn(work);
 				}
 			}
@@ -224,7 +225,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
-	E: Future<Item=(),Error=()> + Clone + Send + 'static,
+	E: futures03::Future<Output=()> + Clone + Send + Unpin + 'static,
 {
 	type Error = io::Error;
 	type FetchValidationProof = validation::PoVReceiver;
