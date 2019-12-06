@@ -176,7 +176,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 					trace!(target: "validation", "driving statement work to completion");
 
 					let work = select(work, self.fetcher.exit().clone())
-						.map(|_| ());
+						.map(drop);
 					let _ = self.fetcher.executor().spawn(work);
 				}
 			}

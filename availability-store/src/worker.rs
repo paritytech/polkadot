@@ -758,9 +758,10 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 		// dependent on the types of client and executor, which would prove
 		// not not so handy in the testing code.
 		let mut exit_signal = Some(signal);
-		let prune_available = prune_unneeded_availability(client.clone(), to_worker.clone())
-			.boxed();
-		let prune_available = select(prune_available, exit.clone()).map(drop);
+		let prune_available = select(
+			prune_unneeded_availability(client.clone(), to_worker.clone()).boxed(),
+			exit.clone()
+		).map(drop);
 
 		if let Err(_) = thread_pool.spawn(Box::new(prune_available)) {
 			error!(target: LOG_TARGET, "Failed to spawn availability pruning task");
