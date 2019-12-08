@@ -93,6 +93,7 @@ impl std::error::Error for Error {
 			Error::WasmExecutor(ref err) => Some(err),
 			Error::Io(ref err) => Some(err),
 			Error::System(ref err) => Some(&**err),
+			#[cfg(not(target_os = "unknown"))]
 			Error::SharedMem(ref err) => Some(err),
 			_ => None,
 		}
