@@ -38,7 +38,7 @@ use polkadot_primitives::parachain::{
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
 use futures::channel::{mpsc, oneshot};
-use futures::{FutureExt, Sink, SinkExt, StreamExt, future::select, task::SpawnExt};
+use futures::{prelude::*, future::select};
 use keystore::KeyStorePtr;
 
 use tokio::runtime::{Handle, Runtime as LocalRuntime};
