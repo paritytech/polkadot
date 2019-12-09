@@ -161,11 +161,15 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 	pub fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
 		impl Future<Output=Option<PeerId>> + Send
 	{
-		let (send, recv) = oneshot::channel();
-		self.network.with_spec(move |spec, _| {
-			let _ = send.send(spec.collator_id_to_peer_id(&collator_id).cloned());
-		});
-		recv.map(|res| res.unwrap_or(None))
+		let network = self.network.clone();
+
+		async move {
+			let (send, recv) = oneshot::channel();
+			network.with_spec(move |spec, _| {
+				let _ = send.send(spec.collator_id_to_peer_id(&collator_id).cloned());
+			});
+			recv.await.ok().and_then(|opt| opt)
+		}
 	}
 
 	/// Create a `Stream` of checked statements for the given `relay_parent`.

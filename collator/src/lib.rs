@@ -79,7 +79,7 @@ const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 pub trait Network: Send + Sync {
 	/// Convert the given `CollatorId` to a `PeerId`.
 	fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
-		Box<dyn Future<Output=Option<PeerId>> + Unpin + Send>;
+		Box<dyn Future<Output=Option<PeerId>> + Send>;
 
 	/// Create a `Stream` of checked statements for the given `relay_parent`.
 	///
@@ -95,7 +95,7 @@ impl<P, E, SP> Network for ValidationNetwork<P, E, PolkadotNetworkService, SP> w
 	SP: 'static + Spawn + Clone + Send + Sync,
 {
 	fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
-		Box<dyn Future<Output=Option<PeerId>> + Unpin + Send>
+		Box<dyn Future<Output=Option<PeerId>> + Send>
 	{
 		Box::new(Self::collator_id_to_peer_id(self, collator_id))
 	}
