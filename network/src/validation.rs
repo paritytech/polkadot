@@ -158,13 +158,14 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 
 impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 	/// Convert the given `CollatorId` to a `PeerId`.
-	pub async fn collator_id_to_peer_id(&self, collator_id: CollatorId) -> Option<PeerId> {
+	pub fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
+		impl Future<Output=Option<PeerId>> + Send
+	{
 		let (send, recv) = oneshot::channel();
 		self.network.with_spec(move |spec, _| {
 			let _ = send.send(spec.collator_id_to_peer_id(&collator_id).cloned());
 		});
-
-		recv.map(|res| res.unwrap_or(None)).await
+		recv.map(|res| res.unwrap_or(None))
 	}
 
 	/// Create a `Stream` of checked statements for the given `relay_parent`.
