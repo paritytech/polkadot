@@ -126,7 +126,7 @@ type WinnersData<T> =
 // This module's storage items.
 decl_storage! {
 	trait Store for Module<T: Trait> as Slots {
-		/// The number of auctions that been started so far.
+		/// The number of auctions that have been started so far.
 		pub AuctionCounter get(auction_counter): AuctionIndex;
 
 		/// Ordered list of all `ParaId` values that are managed by this module. This includes
