@@ -210,7 +210,7 @@ impl GossipService for consensus_gossip::ConsensusGossip<Block> {
 
 /// A stream of gossip messages and an optional sender for a topic.
 pub struct GossipMessageStream {
-	topic_stream: Box<dyn Stream<Item = TopicNotification> + Unpin + Send>,
+	topic_stream: Pin<Box<dyn Stream<Item = TopicNotification> + Send>>,
 }
 
 impl GossipMessageStream {
