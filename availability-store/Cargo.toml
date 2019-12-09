@@ -14,7 +14,7 @@ derive_more = "0.99"
 log = "0.4.8"
 futures01 = "0.1.17"
 futures = { package = "futures", version = "0.3.1", features = ["compat"] }
-tokio = { version = "0.2.1", features = ["rt-core"] }
+tokio = { version = "0.2.4", features = ["rt-core"] }
 exit-future = "0.2.0"
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

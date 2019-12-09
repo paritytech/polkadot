@@ -3512,7 +3512,7 @@ dependencies = [
  "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
- "tokio 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3809,7 +3809,7 @@ dependencies = [
  "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
- "tokio 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4421,7 +4421,7 @@ dependencies = [
  "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "structopt 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -6008,7 +6008,7 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "0.2.2"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bytes 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -7426,7 +7426,7 @@ dependencies = [
 "checksum tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1d8a021c69bb74a44ccedb824a046447e2c84a01df9e5c20779750acb38e11b2"
 "checksum tiny-keccak 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2953ca5148619bc99695c1274cb54c5275bbb913c6adad87e72eaf8db9787f69"
 "checksum tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)" = "5a09c0b5bb588872ab2f09afa13ee6e9dac11e10a0ec9e8e3ba39a5a5d530af6"
-"checksum tokio 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "2e765bf9f550bd9b8a970633ca3b56b8120c4b6c5dcbe26a93744cb02fee4b17"
+"checksum tokio 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "bcced6bb623d4bff3739c176c415f13c418f426395c169c9c3cd9a492c715b16"
 "checksum tokio-buf 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "8fb220f46c53859a4b7ec083e41dec9778ff0b1851c0942b211edb89e0ccdc46"
 "checksum tokio-codec 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "5c501eceaf96f0e1793cf26beb63da3d11c738c4a943fdf3746d81d64684c39f"
 "checksum tokio-codec 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)" = "9f5d22fd1e84bd4045d28813491cb7d7caae34d45c80517c2213f09a85e8787a"
