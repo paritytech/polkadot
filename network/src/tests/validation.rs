@@ -419,8 +419,8 @@ impl av_store::ProvideGossipMessages for DummyGossipMessages {
 	fn gossip_messages_for(
 		&self,
 		_topic: Hash
-	) -> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin> {
-		Box::new(futures03::stream::empty())
+	) -> Box<dyn futures::Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin> {
+		Box::new(stream::empty())
 	}
 
 	fn gossip_erasure_chunk(
