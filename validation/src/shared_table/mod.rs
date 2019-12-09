@@ -592,7 +592,7 @@ mod tests {
 		fn gossip_messages_for(
 			&self,
 			_topic: Hash
-		) -> Pin<Box<dyn futures::Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send>> {
+		) -> Pin<Box<dyn futures::Stream<Item = (Hash, Hash, ErasureChunk)> + Send>> {
 			futures::stream::empty().boxed()
 		}
 
