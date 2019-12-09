@@ -795,6 +795,7 @@ mod tests {
 	use std::time::Duration;
 	use futures::{stream, channel::mpsc, Stream};
 	use std::sync::{Arc, Mutex};
+	use std::pin::Pin;
 	use tokio::runtime::Runtime;
 
 	// Just contains topic->channel mapping to give to outer code on `gossip_messages_for` calls.
@@ -804,11 +805,11 @@ mod tests {
 
 	impl ProvideGossipMessages for TestGossipMessages {
 		fn gossip_messages_for(&self, topic: Hash)
-			-> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin>
+			-> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>
 		{
 			match self.messages.lock().unwrap().remove(&topic) {
-				Some(receiver) => Box::new(receiver),
-				None => Box::new(stream::iter(vec![])),
+				Some(receiver) => receiver.boxed(),
+				None => stream::iter(vec![]).boxed(),
 			}
 		}
 
