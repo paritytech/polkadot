@@ -38,7 +38,7 @@ use client::{
 	BlockchainEvents, BlockBody,
 };
 use sp_api::ApiExt;
-
+use std::pin::Pin;
 use log::warn;
 
 use std::sync::Arc;
@@ -107,7 +107,7 @@ pub trait ProvideGossipMessages {
 	fn gossip_messages_for(
 		&self,
 		topic: Hash,
-	) -> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin>;
+	) -> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>;
 
 	/// Gossip an erasure chunk message.
 	fn gossip_erasure_chunk(

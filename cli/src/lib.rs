@@ -149,9 +149,13 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
 			Ok(service::new_chain_ops(config)?), load_spec),
 		cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
-			#[cfg(not(target_os = "unknown"))]
-			service::run_validation_worker(&args.mem_id)?;
-			Ok(())
+			if cfg!(feature = "browser") {
+				Err(error::Error::Input("Cannot run validation worker in browser".into()))
+			} else {
+				#[cfg(not(feature = "browser"))]
+				service::run_validation_worker(&args.mem_id)?;
+				Ok(())
+			}
 		}
 	}
 }
