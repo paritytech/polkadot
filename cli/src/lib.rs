@@ -150,12 +150,12 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 			Ok(service::new_chain_ops(config)?), load_spec),
 		cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
 			if cfg!(feature = "browser") {
-				error!("Cannot run validation worker in browser");
+				Err(error::Error::Input("Cannot run validation worker in browser".into()))
 			} else {
 				#[cfg(not(feature = "browser"))]
 				service::run_validation_worker(&args.mem_id)?;
+				Ok(())
 			}
-			Ok(())
 		}
 	}
 }
