@@ -235,7 +235,7 @@ struct ApiContext<P, E, SP> {
 	validators: Vec<ValidatorId>,
 }
 
-impl<P: 'static, E: 'static, SP: 'staticW> RelayChainContext for ApiContext<P, E, SP> where
+impl<P: 'static, E: 'static, SP: 'static> RelayChainContext for ApiContext<P, E, SP> where
 	P: ProvideRuntimeApi + Send + Sync,
 	P::Api: ParachainHost<Block>,
 	E: futures::Future<Output=()> + Clone + Send + Sync + 'static,
