@@ -24,10 +24,10 @@ members = [
 	"cli",
 	"collator",
 	"erasure-coding",
-	"executor",
 	"network",
 	"primitives",
 	"runtime",
+	"kusama",
 	"service",
 	"statement-table",
 	"service",
@@ -38,6 +38,7 @@ members = [
 ]
 exclude = [
 	"runtime/wasm",
+	"kusama/wasm",
 	"test-parachains/adder/wasm",
 ]
 

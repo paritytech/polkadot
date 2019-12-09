@@ -45,13 +45,21 @@ impl cli::IntoExit for Worker {
 
 impl cli::Worker for Worker {
 	type Work = <Self as cli::IntoExit>::Exit;
-	fn work<S, SC, B, CE>(self, _: &S, _: TaskExecutor) -> Self::Work
-	where S: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
-		Backend = B, SelectChain = SC,
-		NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
+	fn work<S, R, SC, B, CE, E, D>(self, _: &S, _: TaskExecutor) -> Self::Work
+	where
+		R: service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>
+		+ service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>
+		+ Send + Sync + 'static,
+		<R as service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E>,
+		<R as service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E>,
+		E: service::Codec + Send + Sync + 'static,
+		S: AbstractService<Block = service::Block, SelectChain = SC,
+		Backend = B, NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE, RuntimeApi = R>,
 		SC: service::SelectChain<service::Block> + 'static,
 		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
-		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static {
+		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static,
+		D: service::NativeExecutionDispatch + 'static,
+	{
 		use cli::IntoExit;
 		self.into_exit()
 	}

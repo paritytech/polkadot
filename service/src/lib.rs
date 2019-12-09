@@ -22,29 +22,32 @@ use futures::sync::mpsc;
 use client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, Hash, BlockId};
-use polkadot_runtime::GenesisConfig;
+use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
 use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
 use service::{error::{Error as ServiceError}, Configuration, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
+use sc_executor::native_executor_instance;
 use log::info;
-pub use service::{AbstractService, Roles, PruningMode, TransactionPoolOptions, Error};
-pub use service::ServiceBuilderCommand;
+pub use service::{AbstractService, Roles, PruningMode, TransactionPoolOptions, Error, ChainSpec,
+	RuntimeGenesis, ServiceBuilderCommand, TFullClient, TLightClient};
 pub use service::config::{DatabaseConfig, full_version_from_strs};
-pub use client::{ExecutionStrategy, CallExecutor};
+pub use sc_executor::NativeExecutionDispatch;
+pub use client::{ExecutionStrategy, CallExecutor, Client};
 pub use client_api::backend::Backend;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi};
 pub use consensus_common::SelectChain;
 pub use polkadot_network::{PolkadotProtocol};
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
-pub use polkadot_runtime::RuntimeApi;
 pub use primitives::Blake2Hasher;
-pub use sp_runtime::traits::ProvideRuntimeApi;
+pub use sp_runtime::traits::{Block as BlockT, ProvideRuntimeApi, self as runtime_traits};
 pub use sc_network::specialization::NetworkSpecialization;
-pub use chain_spec::ChainSpec;
+pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec};
 pub use consensus::run_validation_worker;
+pub use codec::Codec;
+pub use polkadot_runtime;
+pub use kusama_runtime;
 
 /// Polkadot-specific configuration.
 pub struct CustomConfiguration {
@@ -57,6 +60,9 @@ pub struct CustomConfiguration {
 
 	/// Whether to enable or disable the authority discovery module.
 	pub authority_discovery_enabled: bool,
+
+	/// Milliseconds per block.
+	pub slot_duration: u64,
 }
 
 impl Default for CustomConfiguration {
@@ -65,26 +71,74 @@ impl Default for CustomConfiguration {
 			collating_for: None,
 			max_block_data_size: None,
 			authority_discovery_enabled: false,
+			slot_duration: 6000,
 		}
 	}
 }
 
-/// Chain API type for the transaction pool.
-pub type TxChainApi<Backend, Executor> = txpool::FullChainApi<
-	client::Client<Backend, Executor, Block, RuntimeApi>,
-	Block,
->;
+
+native_executor_instance!(
+	pub PolkadotExecutor,
+	polkadot_runtime::api::dispatch,
+	polkadot_runtime::native_version
+);
+
+native_executor_instance!(
+	pub KusamaExecutor,
+	kusama_runtime::api::dispatch,
+	kusama_runtime::native_version
+);
+
+/// A set of APIs that polkadot-like runtimes must implement.
+pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static> :
+tx_pool_runtime_api::TaggedTransactionQueue<Block>
++ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
++ babe_primitives::BabeApi<Block>
++ ParachainHost<Block>
++ sp_block_builder::BlockBuilder<Block>
++ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
++ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
++ sp_api::Metadata<Block>
++ sp_offchain::OffchainWorkerApi<Block>
++ sp_session::SessionKeys<Block>
++ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
+where
+	Extrinsic: RuntimeExtrinsic,
+{}
+
+impl<Api, Extrinsic> RuntimeApiCollection<Extrinsic> for Api
+where
+	Api:
+	tx_pool_runtime_api::TaggedTransactionQueue<Block>
+	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
+	+ babe_primitives::BabeApi<Block>
+	+ ParachainHost<Block>
+	+ sp_block_builder::BlockBuilder<Block>
+	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
+	+ sp_api::Metadata<Block>
+	+ sp_offchain::OffchainWorkerApi<Block>
+	+ sp_session::SessionKeys<Block>
+	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
+	Extrinsic: RuntimeExtrinsic,
+{}
+
+pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static
+{}
+
+impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static
+{}
 
 /// Starts a `ServiceBuilder` for a full service.
 ///
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
 macro_rules! new_full_start {
-	($config:expr) => {{
+	($config:expr, $runtime:ty, $executor:ty) => {{
 		let mut import_setup = None;
 		let inherent_data_providers = inherents::InherentDataProviders::new();
 		let builder = service::ServiceBuilder::new_full::<
-			Block, RuntimeApi, polkadot_executor::Executor
+			Block, $runtime, $executor
 		>($config)?
 			.with_select_chain(|_, backend| {
 				Ok(client::LongestChain::new(backend.clone()))
@@ -100,7 +154,7 @@ macro_rules! new_full_start {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 				let (grandpa_block_import, grandpa_link) =
-					grandpa::block_import::<_, _, _, RuntimeApi, _>(
+					grandpa::block_import::<_, _, _, Runtime, _>(
 						client.clone(), &*client, select_chain
 					)?;
 				let justification_import = grandpa_block_import.clone();
@@ -135,20 +189,34 @@ macro_rules! new_full_start {
 }
 
 /// Builds a new object suitable for chain operations.
-pub fn new_chain_ops(config: Configuration<impl Send + Default + 'static, GenesisConfig>)
+pub fn new_chain_ops<Runtime, Dispatch, Extrinsic, Genesis>(config: Configuration<CustomConfiguration, Genesis>)
 	-> Result<impl ServiceBuilderCommand<Block=Block>, ServiceError>
+where
+	Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
+	Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic>,
+	Dispatch: NativeExecutionDispatch + 'static,
+	Extrinsic: RuntimeExtrinsic,
+	Genesis: RuntimeGenesis,
 {
-	Ok(new_full_start!(config).0)
+	Ok(new_full_start!(config, Runtime, Dispatch).0)
 }
 
 /// Builds a new service for a full client.
-pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
+pub fn new_full<Runtime, Dispatch, Extrinsic, Genesis>(config: Configuration<CustomConfiguration, Genesis>)
 	-> Result<impl AbstractService<
-		Block = Block, RuntimeApi = RuntimeApi, NetworkSpecialization = PolkadotProtocol,
+		Block = Block,
+		RuntimeApi = Runtime,
+		NetworkSpecialization = PolkadotProtocol,
 		Backend = impl Backend<Block, Blake2Hasher> + 'static,
 		SelectChain = impl SelectChain<Block>,
 		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
 	>, ServiceError>
+	where
+		Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
+		Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic>,
+		Dispatch: NativeExecutionDispatch + 'static,
+		Extrinsic: RuntimeExtrinsic,
+		Genesis: RuntimeGenesis,
 {
 	use sc_network::DhtEvent;
 	use futures03::{
@@ -169,13 +237,14 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
 	let authority_discovery_enabled = config.custom.authority_discovery_enabled;
+	let slot_duration = config.custom.slot_duration;
 
 	// sentry nodes announce themselves as authorities to the network
 	// and should run the same protocols authorities do, but it should
 	// never actively participate in any consensus process.
 	let participates_in_consensus = is_authority && !config.sentry_mode;
 
-	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config);
+	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config, Runtime, Dispatch);
 
 	// Dht event channel from the network to the authority discovery module. Use
 	// bounded channel to ensure back-pressure. Authority discovery is triggering one
@@ -273,7 +342,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			Arc::new(service.spawn_task_handle()),
 			service.keystore(),
 			availability_store.clone(),
-			polkadot_runtime::constants::time::SLOT_DURATION,
+			slot_duration,
 			max_block_data_size,
 		);
 
@@ -370,17 +439,25 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 }
 
 /// Builds a new service for a light client.
-pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
+pub fn new_light<Runtime, Dispatch, Extrinsic, Genesis>(config: Configuration<CustomConfiguration, Genesis>)
 	-> Result<impl AbstractService<
-		Block = Block, RuntimeApi = RuntimeApi, NetworkSpecialization = PolkadotProtocol,
+		Block = Block,
+		RuntimeApi = Runtime,
+		NetworkSpecialization = PolkadotProtocol,
 		Backend = impl Backend<Block, Blake2Hasher> + 'static,
 		SelectChain = impl SelectChain<Block>,
 		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
 	>, ServiceError>
+where
+	Runtime: ConstructRuntimeApi<Block, service::TLightClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
+	Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic>,
+	Dispatch: NativeExecutionDispatch + 'static,
+	Extrinsic: RuntimeExtrinsic,
+	Genesis: RuntimeGenesis,
 {
 	let inherent_data_providers = InherentDataProviders::new();
 
-	ServiceBuilder::new_light::<Block, RuntimeApi, polkadot_executor::Executor>(config)?
+	ServiceBuilder::new_light::<Block, Runtime, Dispatch>(config)?
 		.with_select_chain(|_, backend| {
 			Ok(LongestChain::new(backend.clone()))
 		})?
@@ -397,7 +474,7 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 			let fetch_checker = fetcher
 				.map(|fetcher| fetcher.checker().clone())
 				.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
-			let grandpa_block_import = grandpa::light_block_import::<_, _, _, RuntimeApi>(
+			let grandpa_block_import = grandpa::light_block_import::<_, _, _, Runtime>(
 				client.clone(), backend, &*client, Arc::new(fetch_checker)
 			)?;
 

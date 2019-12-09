@@ -13,7 +13,6 @@ client-api = { package = "sc-client-api", git = "https://github.com/paritytech/s
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-polkadot-runtime = { path = "../runtime" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-cli = { path = "../cli" }
 polkadot-network = { path = "../network" }

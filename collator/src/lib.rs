@@ -66,10 +66,10 @@ use polkadot_primitives::{
 };
 use polkadot_cli::{
 	Worker, IntoExit, ProvideRuntimeApi, AbstractService, CustomConfiguration, ParachainHost,
+	service,
 };
 use polkadot_network::validation::{LeafWorkParams, ValidationNetwork};
 use polkadot_network::{PolkadotNetworkService, PolkadotProtocol};
-use polkadot_runtime::RuntimeApi;
 
 pub use polkadot_cli::{VersionInfo, TaskExecutor};
 pub use polkadot_network::validation::Incoming;
@@ -139,7 +139,7 @@ impl<R: fmt::Display> fmt::Display for Error<R> {
 }
 
 /// The Polkadot client type.
-pub type PolkadotClient<B, E> = client::Client<B, E, Block, RuntimeApi>;
+pub type PolkadotClient<B, E, R> = client::Client<B, E, Block, R>;
 
 /// Something that can build a `ParachainContext`.
 pub trait BuildParachainContext {
@@ -147,9 +147,9 @@ pub trait BuildParachainContext {
 	type ParachainContext: self::ParachainContext;
 
 	/// Build the `ParachainContext`.
-	fn build<B, E>(
+	fn build<B, E, R>(
 		self,
-		client: Arc<PolkadotClient<B, E>>,
+		client: Arc<PolkadotClient<B, E, R>>,
 		task_executor: TaskExecutor,
 		network: Arc<dyn Network>,
 	) -> Result<Self::ParachainContext, ()>
@@ -302,19 +302,20 @@ impl<P, E> Worker for CollationNode<P, E> where
 		config
 	}
 
-	fn work<S, SC, B, CE>(self, service: &S, task_executor: TaskExecutor) -> Self::Work
+	fn work<S, R, SC, B, CE, Ex, D>(self, service: &S, task_executor: TaskExecutor) -> Self::Work
 	where
-		S: AbstractService<
-			Block = Block,
-			RuntimeApi = RuntimeApi,
-			Backend = B,
-			SelectChain = SC,
-			NetworkSpecialization = PolkadotProtocol,
-			CallExecutor = CE,
-		>,
-		SC: polkadot_service::SelectChain<Block> + 'static,
-		B: client_api::backend::Backend<Block, Blake2Hasher> + 'static,
-		CE: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static
+		R: service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>
+		+ service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>
+		+ Send + Sync + 'static,
+		<R as service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<Ex>,
+		<R as service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<Ex>,
+		Ex: service::Codec + Send + Sync + 'static,
+		S: AbstractService<Block = service::Block, SelectChain = SC,
+		Backend = B, NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE, RuntimeApi = R>,
+		SC: service::SelectChain<service::Block> + 'static,
+		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
+		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static,
+		D: service::NativeExecutionDispatch + 'static,
 	{
 		let CollationNode { build_parachain_context, exit, para_id, key } = self;
 		let client = service.client();

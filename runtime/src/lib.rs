@@ -78,26 +78,13 @@ use constants::{time::*, currency::*};
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-/*
-// KUSAMA: Polkadot version identifier; may be uncommented for Polkadot mainnet.
+// Polkadot version identifier;
 /// Runtime version (Polkadot).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
-	authoring_version: 1,
-	spec_version: 1000,
-	impl_version: 0,
-	apis: RUNTIME_API_VERSIONS,
-};
-*/
-
-// KUSAMA: Kusama version identifier; may be removed for Polkadot mainnet.
-/// Runtime version (Kusama).
-pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("kusama"),
-	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1026,
+	spec_version: 1000,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };

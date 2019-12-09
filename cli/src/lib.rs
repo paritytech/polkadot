@@ -31,18 +31,19 @@ use structopt::StructOpt;
 pub use service::{
 	AbstractService, CustomConfiguration,
 	ProvideRuntimeApi, CoreApi, ParachainHost,
+	self,
 };
 
-pub use cli::{VersionInfo, IntoExit, NoCustom};
+pub use cli::{VersionInfo, IntoExit, NoCustom, SharedParams};
 pub use cli::{display_role, error};
 
 type BoxedFuture = Box<dyn futures01::Future<Item = (), Error = ()> + Send>;
 /// Abstraction over an executor that lets you spawn tasks in the background.
 pub type TaskExecutor = Arc<dyn futures01::future::Executor<BoxedFuture> + Send + Sync>;
 
-fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
+fn load_spec(id: &str) -> Result<Option<service::PolkadotChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
-		Some(spec) => Some(spec.load()?),
+		Some(spec) => Some(spec.load_polkadot()?),
 		None => None,
 	})
 }
@@ -62,13 +63,20 @@ pub trait Worker: IntoExit {
 	fn configuration(&self) -> service::CustomConfiguration { Default::default() }
 
 	/// Do work and schedule exit.
-	fn work<S, SC, B, CE>(self, service: &S, executor: TaskExecutor) -> Self::Work
-	where S: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
-		Backend = B, SelectChain = SC,
-		NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
+	fn work<S, R, SC, B, CE, E, D>(self, service: &S, executor: TaskExecutor) -> Self::Work
+	where
+		R: service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>
+			+ service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>
+			+ Send + Sync + 'static,
+		<R as service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E>,
+		<R as service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E>,
+		E: service::Codec + Send + Sync + 'static,
+		S: AbstractService<Block = service::Block, SelectChain = SC,
+			Backend = B, NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE, RuntimeApi = R>,
 		SC: service::SelectChain<service::Block> + 'static,
 		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
-		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static;
+		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static,
+		D: service::NativeExecutionDispatch + 'static;
 }
 
 #[derive(Debug, StructOpt, Clone)]
@@ -77,8 +85,8 @@ enum PolkadotSubCommands {
 	ValidationWorker(ValidationWorkerCommand),
 }
 
-impl cli::GetLogFilter for PolkadotSubCommands {
-	fn get_log_filter(&self) -> Option<String> { None }
+impl cli::GetSharedParams for PolkadotSubCommands {
+	fn shared_params(&self) -> Option<&SharedParams> { None }
 }
 
 #[derive(Debug, StructOpt, Clone)]
@@ -99,72 +107,121 @@ cli::impl_augment_clap!(PolkadotSubParams);
 pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	W: Worker,
 {
-	match cli::parse_and_prepare::<PolkadotSubCommands, PolkadotSubParams, _>(
+	let cmd = cli::parse_and_prepare::<PolkadotSubCommands, PolkadotSubParams, _>(
 		&version,
 		"parity-polkadot",
 		std::env::args(),
-	) {
+	);
+	if cmd
+		.shared_params()
+		.and_then(|p| p.chain.as_ref())
+		.and_then(|c| ChainSpec::from(c))
+		.map_or(false, |c| c.is_kusama())
+	{
+		run_with_runtime::<
+			service::kusama_runtime::RuntimeApi,
+			service::KusamaExecutor,
+			service::kusama_runtime::UncheckedExtrinsic,
+			_, _, _
+				>(worker, &version, cmd, &load_spec)
+	} else {
+		run_with_runtime::<
+			service::polkadot_runtime::RuntimeApi,
+			service::PolkadotExecutor,
+			service::polkadot_runtime::UncheckedExtrinsic,
+			_, _, _
+		>(worker, &version, cmd, &load_spec)
+	}
+}
+
+/// Parses polkadot specific CLI arguments and run the service.
+fn run_with_runtime<R, D, E, W, SF, G>(
+	worker: W,
+	version: &cli::VersionInfo,
+	cmd: cli::ParseAndPrepare<PolkadotSubCommands, PolkadotSubParams>,
+	load_spec: SF,
+) -> error::Result<()>
+where
+	R: service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>
+		+ service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>
+		+ Send + Sync + 'static,
+	<R as service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E>,
+	<R as service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E>,
+	W: Worker,
+	E: service::Codec + Send + Sync + 'static,
+	G: service::RuntimeGenesis + 'static,
+	D: service::NativeExecutionDispatch + 'static,
+	SF: FnOnce(&str) -> Result<Option<service::ChainSpec<G>>, String>,
+{
+	match cmd {
 		cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, worker,
-		|worker, _cli_args, custom_args, mut config| {
-			info!("{}", version.name);
-			info!("  version {}", config.full_version());
-			info!("  by {}, 2017-2019", version.author);
-			info!("Chain specification: {}", config.chain_spec.name());
-			if config.chain_spec.name().starts_with("Kusama") {
-				info!("----------------------------");
-				info!("This chain is not in any way");
-				info!("      endorsed by the       ");
-				info!("     KUSAMA FOUNDATION      ");
-				info!("----------------------------");
-			}
-			info!("Node name: {}", config.name);
-			info!("Roles: {}", display_role(&config));
-			config.custom = worker.configuration();
-			config.custom.authority_discovery_enabled = custom_args.authority_discovery_enabled;
-			let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
-			match config.roles {
-				service::Roles::LIGHT =>
-					run_until_exit(
+			|worker, _cli_args, custom_args, mut config| {
+				info!("{}", version.name);
+				info!("  version {}", config.full_version());
+				info!("  by {}, 2017-2019", version.author);
+				info!("Chain specification: {}", config.chain_spec.name());
+				if config.chain_spec.name().starts_with("Kusama") {
+					info!("----------------------------");
+					info!("This chain is not in any way");
+					info!("      endorsed by the       ");
+					info!("     KUSAMA FOUNDATION      ");
+					info!("----------------------------");
+				}
+				info!("Node name: {}", config.name);
+				info!("Roles: {}", display_role(&config));
+				config.custom = worker.configuration();
+				config.custom.authority_discovery_enabled = custom_args.authority_discovery_enabled;
+				let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
+				match config.roles {
+					service::Roles::LIGHT =>
+						run_until_exit::<R, E, _, _, _, _, _, _>(
+							runtime,
+							service::new_light::<R, D, E, _>(config).map_err(|e| format!("{:?}", e))?,
+							worker
+						),
+					_ => run_until_exit::<R, E, _, _, _, _, _, _>(
 						runtime,
-						service::new_light(config).map_err(|e| format!("{:?}", e))?,
+						service::new_full::<R, D, E, _>(config).map_err(|e| format!("{:?}", e))?,
 						worker
 					),
-				_ => run_until_exit(
-						runtime,
-						service::new_full(config).map_err(|e| format!("{:?}", e))?,
-						worker
-					),
-			}.map_err(|e| format!("{:?}", e))
-		}),
-		cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(load_spec),
-		cli::ParseAndPrepare::ExportBlocks(cmd) => cmd.run_with_builder::<(), _, _, _, _, _, _>(|config|
-			Ok(service::new_chain_ops(config)?), load_spec, worker),
-		cli::ParseAndPrepare::ImportBlocks(cmd) => cmd.run_with_builder::<(), _, _, _, _, _, _>(|config|
-			Ok(service::new_chain_ops(config)?), load_spec, worker),
-		cli::ParseAndPrepare::CheckBlock(cmd) => cmd.run_with_builder::<(), _, _, _, _, _, _>(|config|
-			Ok(service::new_chain_ops(config)?), load_spec, worker),
-		cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
-		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
-			Ok(service::new_chain_ops(config)?), load_spec),
-		cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
-			service::run_validation_worker(&args.mem_id)?;
-			Ok(())
+				}.map_err(|e| format!("{:?}", e))
+			}),
+			cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(load_spec),
+			cli::ParseAndPrepare::ExportBlocks(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
+				Ok(service::new_chain_ops::<R, D, E, G>(config)?), load_spec, worker),
+			cli::ParseAndPrepare::ImportBlocks(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
+				Ok(service::new_chain_ops::<R, D, E, G>(config)?), load_spec, worker),
+			cli::ParseAndPrepare::CheckBlock(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
+				Ok(service::new_chain_ops::<R, D, E, G>(config)?), load_spec, worker),
+			cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
+			cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<_, _, _, _, _, _>(|config|
+				Ok(service::new_chain_ops::<R, D, E, G>(config)?), load_spec),
+			cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
+				service::run_validation_worker(&args.mem_id)?;
+				Ok(())
 		}
 	}
 }
 
-fn run_until_exit<T, SC, B, CE, W>(
+fn run_until_exit<R, E, T, SC, D, B, CE, W>(
 	mut runtime: Runtime,
 	service: T,
 	worker: W,
 ) -> error::Result<()>
 	where
-		T: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
-			SelectChain = SC, Backend = B, NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
+		R: service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>
+		+ service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>
+		+ Send + Sync + 'static,
+		<R as service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E>,
+		<R as service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E>,
+		E: service::Codec + Send + Sync + 'static,
+		T: AbstractService<Block = service::Block, SelectChain = SC,
+			Backend = B, NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE, RuntimeApi = R>,
 		SC: service::SelectChain<service::Block> + 'static,
 		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
 		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static,
 		W: Worker,
+		D: service::NativeExecutionDispatch + 'static,
 {
 	let (exit_send, exit) = oneshot::channel();
 
@@ -189,7 +246,6 @@ fn run_until_exit<T, SC, B, CE, W>(
 		.compat();
 	let _ = runtime.block_on(future);
 	let _ = exit_send.send(());
-
 	use futures01::Future;
 
 	// TODO [andre]: timeout this future substrate/#1318
