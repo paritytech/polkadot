@@ -3532,7 +3532,7 @@ dependencies = [
  "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sc-service 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "structopt 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen 0.2.55 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen-futures 0.3.27 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

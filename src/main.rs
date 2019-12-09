@@ -18,7 +18,7 @@
 
 #![warn(missing_docs)]
 
-use cli::{AbstractService, VersionInfo, Runtime};
+use cli::{AbstractService, VersionInfo, TaskExecutor};
 use futures::channel::oneshot;
 use futures::{future, FutureExt};
 
@@ -46,7 +46,7 @@ impl cli::IntoExit for Worker {
 
 impl cli::Worker for Worker {
 	type Work = <Self as cli::IntoExit>::Exit;
-	fn work<S, SC, B, CE>(self, _: &S, _: &Runtime) -> Self::Work
+	fn work<S, SC, B, CE>(self, _: &S, _: TaskExecutor) -> Self::Work
 	where S: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
 		Backend = B, SelectChain = SC,
 		NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
