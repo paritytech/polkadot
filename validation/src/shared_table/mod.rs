@@ -576,6 +576,7 @@ mod tests {
 	use availability_store::ProvideGossipMessages;
 	use futures::future;
 	use futures::executor::block_on;
+	use std::pin::Pin;
 
 	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
 		PoVBlock {
@@ -591,8 +592,8 @@ mod tests {
 		fn gossip_messages_for(
 			&self,
 			_topic: Hash
-		) -> Box<dyn futures::Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send> {
-			Box::new(futures::stream::empty())
+		) -> Pin<Box<dyn futures::Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send>> {
+			futures::stream::empty().boxed()
 		}
 
 		fn gossip_erasure_chunk(
