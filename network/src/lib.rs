@@ -837,9 +837,8 @@ impl PolkadotProtocol {
 			relay_parent, collation.info.parachain_index);
 
 		if let Some(ref availability_store) = self.availability_store {
-			let availability_store_cloned = availability_store.clone();
 			let collation_cloned = collation.clone();
-			let _ = availability_store_cloned.make_available(av_store::Data {
+			let _ = availability_store.make_available(av_store::Data {
 				relay_parent,
 				parachain_id: collation_cloned.info.parachain_index,
 				block_data: collation_cloned.pov.block_data.clone(),
