@@ -145,7 +145,7 @@ pub trait BuildParachainContext {
 		where
 			B: client_api::backend::Backend<Block, Blake2Hasher> + 'static,
 			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
-			SP: Spawn + Clone;
+			SP: Spawn + Clone + Send + Sync + 'static;
 }
 
 /// Parachain context needed for collation.

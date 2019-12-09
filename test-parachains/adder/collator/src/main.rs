@@ -29,11 +29,9 @@ use primitives::{
 		HeadData, BlockData, Id as ParaId, Message, OutgoingMessages, Status as ParachainStatus,
 	},
 };
-use collator::{
-	InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext, TaskExecutor,
-};
+use collator::{InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext};
 use parking_lot::Mutex;
-use futures::future::{Ready, ok, err};
+use futures::{future::{Ready, ok, err}, task::Spawn};
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
@@ -108,15 +106,16 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build<B, E>(
+	fn build<B, E, SP>(
 		self,
 		_: Arc<collator::PolkadotClient<B, E>>,
-		_: TaskExecutor,
+		_: SP,
 		network: Arc<dyn Network>,
 	) -> Result<Self::ParachainContext, ()>
 		where
 			B: client_api::backend::Backend<Block, Blake2Hasher> + 'static,
-			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static
+			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
+			SP: Spawn + Clone + Send + Sync + 'static,
 	{
 		Ok(Self { _network: Some(network), ..self })
 	}
