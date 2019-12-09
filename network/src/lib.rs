@@ -113,7 +113,7 @@ impl<T> av_store::ProvideGossipMessages for AvailabilityNetworkShim<T>
 	where T: NetworkService
 {
 	fn gossip_messages_for(&self, topic: Hash)
-		-> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send>
+		-> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>
 	{
 		Box::new(self.0.gossip_messages_for(topic)
 			.filter_map(|(msg, _)| async move {
