@@ -29,7 +29,7 @@ use codec::{Decode, Encode};
 use futures::sync::oneshot;
 use futures::future::Either;
 use futures::prelude::*;
-use futures03::{channel::mpsc, compat::{Compat, Stream01CompatExt}, FutureExt, StreamExt, TryFutureExt};
+use futures03::{compat::Stream01CompatExt, FutureExt, StreamExt, TryFutureExt};
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock,
@@ -39,9 +39,7 @@ use sc_network::{
 	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
 	specialization::NetworkSpecialization as Specialization,
 };
-use sc_network::consensus_gossip::{
-	self, TopicNotification, MessageRecipient as GossipMessageRecipient, ConsensusMessage,
-};
+use sc_network_gossip::TopicNotification;
 use self::validation::{LiveValidationLeaves, RecentValidatorIds, InsertedRecentKey};
 use self::collator_pool::{CollatorPool, Role, Action};
 use self::local_collations::LocalCollations;
@@ -49,7 +47,7 @@ use log::{trace, debug, warn};
 
 use std::collections::{HashMap, HashSet};
 
-use crate::gossip::{POLKADOT_ENGINE_ID, GossipMessage, ErasureChunkMessage};
+use crate::gossip::{GossipMessage, ErasureChunkMessage, RegisteredMessageValidator};
 
 #[cfg(test)]
 mod tests;
@@ -90,13 +88,12 @@ pub trait NetworkService: Send + Sync + 'static {
 	/// Gossip a message on given topic.
 	fn gossip_message(&self, topic: Hash, message: GossipMessage);
 
-	/// Execute a closure with the gossip service.
-	fn with_gossip<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut dyn GossipService, &mut dyn Context<Block>);
+	/// Send a message to a specific peer we're connected to.
+	fn send_message(&self, who: PeerId, message: GossipMessage);
 
 	/// Execute a closure with the polkadot protocol.
 	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>);
+		where Self: Sized, F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>);
 }
 
 /// This is a newtype that implements a [`ProvideGossipMessages`] shim trait.
@@ -106,11 +103,10 @@ pub trait NetworkService: Send + Sync + 'static {
 ///
 /// [`NetworkService`]: ./trait.NetworkService.html
 /// [`ProvideGossipMessages`]: ../polkadot_availability_store/trait.ProvideGossipMessages.html
-pub struct AvailabilityNetworkShim<T>(pub std::sync::Arc<T>);
+#[derive(Clone)]
+pub struct AvailabilityNetworkShim(pub RegisteredMessageValidator);
 
-impl<T> av_store::ProvideGossipMessages for AvailabilityNetworkShim<T>
-	where T: NetworkService
-{
+impl av_store::ProvideGossipMessages for AvailabilityNetworkShim {
 	fn gossip_messages_for(&self, topic: Hash)
 		-> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send>
 	{
@@ -147,67 +143,6 @@ impl<T> av_store::ProvideGossipMessages for AvailabilityNetworkShim<T>
 				candidate_hash,
 			})
 		)
-	}
-}
-
-impl<T> Clone for AvailabilityNetworkShim<T> {
-	fn clone(&self) -> Self {
-		AvailabilityNetworkShim(self.0.clone())
-	}
-}
-
-impl NetworkService for PolkadotNetworkService {
-	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
-		let (tx, rx) = std::sync::mpsc::channel();
-
-		PolkadotNetworkService::with_gossip(self, move |gossip, _| {
-			let inner_rx = gossip.messages_for(POLKADOT_ENGINE_ID, topic);
-			let _ = tx.send(inner_rx);
-		});
-
-		let topic_stream = match rx.recv() {
-			Ok(rx) => rx,
-			Err(_) => mpsc::unbounded().1, // return empty channel.
-		};
-
-		GossipMessageStream::new(Box::new(Compat::new(topic_stream.map(Ok))))
-	}
-
-	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
-		self.gossip_consensus_message(
-			topic,
-			POLKADOT_ENGINE_ID,
-			message.encode(),
-			GossipMessageRecipient::BroadcastToAll,
-		);
-	}
-
-	fn with_gossip<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut dyn GossipService, &mut dyn Context<Block>)
-	{
-		PolkadotNetworkService::with_gossip(self, move |gossip, ctx| with(gossip, ctx))
-	}
-
-	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>)
-	{
-		PolkadotNetworkService::with_spec(self, with)
-	}
-}
-
-/// A gossip network subservice.
-pub trait GossipService {
-	fn send_message(&mut self, ctx: &mut dyn Context<Block>, who: &PeerId, message: ConsensusMessage);
-	fn multicast(&mut self, ctx: &mut dyn Context<Block>, topic: &Hash, message: ConsensusMessage);
-}
-
-impl GossipService for consensus_gossip::ConsensusGossip<Block> {
-	fn send_message(&mut self, ctx: &mut dyn Context<Block>, who: &PeerId, message: ConsensusMessage) {
-		consensus_gossip::ConsensusGossip::send_message(self, ctx, who, message)
-	}
-
-	fn multicast(&mut self, ctx: &mut dyn Context<Block>, topic: &Hash, message: ConsensusMessage) {
-		consensus_gossip::ConsensusGossip::multicast(self, ctx, *topic, message, false)
 	}
 }
 

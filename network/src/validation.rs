@@ -88,44 +88,40 @@ pub struct LeafWorkParams {
 }
 
 /// Wrapper around the network service
-pub struct ValidationNetwork<P, E, N, T> {
-	network: Arc<N>,
+pub struct ValidationNetwork<P, E, T> {
 	api: Arc<P>,
 	executor: T,
-	message_validator: RegisteredMessageValidator,
+	network: RegisteredMessageValidator,
 	exit: E,
 }
 
-impl<P, E, N, T> ValidationNetwork<P, E, N, T> {
+impl<P, E, T> ValidationNetwork<P, E, T> {
 	/// Create a new consensus networking object.
 	pub fn new(
-		network: Arc<N>,
+		network: RegisteredMessageValidator,
 		exit: E,
-		message_validator: RegisteredMessageValidator,
 		api: Arc<P>,
 		executor: T,
 	) -> Self {
-		ValidationNetwork { network, exit, message_validator, api, executor }
+		ValidationNetwork { network, exit, api, executor }
 	}
 }
 
-impl<P, E: Clone, N, T: Clone> Clone for ValidationNetwork<P, E, N, T> {
+impl<P, E: Clone, T: Clone> Clone for ValidationNetwork<P, E, T> {
 	fn clone(&self) -> Self {
 		ValidationNetwork {
 			network: self.network.clone(),
 			exit: self.exit.clone(),
 			api: self.api.clone(),
 			executor: self.executor.clone(),
-			message_validator: self.message_validator.clone(),
 		}
 	}
 }
 
-impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
+impl<P, E, T> ValidationNetwork<P, E, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Clone + futures03::Future<Output=()> + Send + Sync + 'static,
-	N: NetworkService,
 	T: Clone + Executor + Send + Sync + 'static,
 {
 	/// Instantiate block-DAG leaf work
@@ -143,27 +139,26 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 	/// leaf-work instances safely, but they should all be coordinated on which session keys
 	/// are being used.
 	pub fn instantiate_leaf_work(&self, params: LeafWorkParams)
-		-> oneshot::Receiver<LeafWorkDataFetcher<P, E, N, T>>
+		-> oneshot::Receiver<LeafWorkDataFetcher<P, E, T>>
 	{
 		let parent_hash = params.parent_hash;
 		let network = self.network.clone();
 		let api = self.api.clone();
 		let task_executor = self.executor.clone();
 		let exit = self.exit.clone();
-		let message_validator = self.message_validator.clone();
 		let authorities = params.authorities.clone();
 
 		let (tx, rx) = oneshot::channel();
 
 		self.network.with_spec(move |spec, ctx| {
-			let actions = message_validator.new_local_leaf(
+			let actions = network.new_local_leaf(
 				parent_hash,
 				MessageValidationData { authorities },
 				|queue_root| spec.availability_store.as_ref()
 					.and_then(|store| store.queue_by_root(queue_root))
 			);
 
-			network.with_gossip(move |gossip, ctx| actions.perform(gossip, ctx));
+			actions.perform(&network);
 
 			let work = spec.new_validation_leaf_work(ctx, params);
 			let _ = tx.send(LeafWorkDataFetcher {
@@ -173,7 +168,6 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 				parent_hash,
 				knowledge: work.knowledge().clone(),
 				exit,
-				message_validator,
 			});
 		});
 
@@ -181,7 +175,7 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 	}
 }
 
-impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
+impl<P, E, T> ValidationNetwork<P, E, T> {
 	/// Convert the given `CollatorId` to a `PeerId`.
 	pub fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
 		impl Future<Item=Option<PeerId>, Error=()> + Send
@@ -199,20 +193,19 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
 	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=SignedStatement, Error=()> {
-		crate::router::checked_statements(&*self.network, crate::router::attestation_topic(relay_parent))
+		crate::router::checked_statements(&self.network, crate::router::attestation_topic(relay_parent))
 	}
 }
 
 /// A long-lived network which can create parachain statement  routing processes on demand.
-impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
+impl<P, E, T> ParachainNetwork for ValidationNetwork<P, E, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	E: Clone + futures03::Future<Output=()> + Send + Sync + Unpin + 'static,
-	N: NetworkService,
 	T: Clone + Executor + Send + Sync + 'static,
 {
 	type Error = String;
-	type TableRouter = Router<P, E, N, T>;
+	type TableRouter = Router<P, E, T>;
 	type BuildTableRouter = Box<dyn Future<Item=Self::TableRouter, Error=String> + Send>;
 
 	fn communication_for(
@@ -229,16 +222,16 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 			parent_hash,
 			authorities: authorities.to_vec(),
 		});
-		let message_validator = self.message_validator.clone();
 
 		let executor = self.executor.clone();
+		let network = self.network.clone();
 		let work = build_fetcher
 			.map_err(|e| format!("{:?}", e))
 			.map(move |fetcher| {
 				let table_router = Router::new(
 					table,
 					fetcher,
-					message_validator,
+					network,
 				);
 
 				let table_router_clone = table_router.clone();
@@ -288,10 +281,9 @@ impl Future for AwaitingCollation {
 	}
 }
 
-impl<P, E: Clone, N, T: Clone> Collators for ValidationNetwork<P, E, N, T> where
+impl<P, E: Clone, T: Clone> Collators for ValidationNetwork<P, E, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
-	N: NetworkService,
 {
 	type Error = NetworkDown;
 	type Collation = AwaitingCollation;
@@ -615,17 +607,16 @@ impl Future for PoVReceiver {
 }
 
 /// Can fetch data for a given validation leaf-work instance.
-pub struct LeafWorkDataFetcher<P, E, N: NetworkService, T> {
-	network: Arc<N>,
+pub struct LeafWorkDataFetcher<P, E, T> {
+	network: RegisteredMessageValidator,
 	api: Arc<P>,
 	exit: E,
 	task_executor: T,
 	knowledge: Arc<Mutex<Knowledge>>,
 	parent_hash: Hash,
-	message_validator: RegisteredMessageValidator,
 }
 
-impl<P, E, N: NetworkService, T> LeafWorkDataFetcher<P, E, N, T> {
+impl<P, E, T> LeafWorkDataFetcher<P, E, T> {
 	/// Get the parent hash.
 	pub(crate) fn parent_hash(&self) -> Hash {
 		self.parent_hash
@@ -642,7 +633,7 @@ impl<P, E, N: NetworkService, T> LeafWorkDataFetcher<P, E, N, T> {
 	}
 
 	/// Get the network service.
-	pub(crate) fn network(&self) -> &Arc<N> {
+	pub(crate) fn network(&self) -> &RegisteredMessageValidator {
 		&self.network
 	}
 
@@ -657,7 +648,7 @@ impl<P, E, N: NetworkService, T> LeafWorkDataFetcher<P, E, N, T> {
 	}
 }
 
-impl<P, E: Clone, N: NetworkService, T: Clone> Clone for LeafWorkDataFetcher<P, E, N, T> {
+impl<P, E: Clone, T: Clone> Clone for LeafWorkDataFetcher<P, E, T> {
 	fn clone(&self) -> Self {
 		LeafWorkDataFetcher {
 			network: self.network.clone(),
@@ -666,14 +657,12 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for LeafWorkDataFetcher<P, 
 			parent_hash: self.parent_hash,
 			knowledge: self.knowledge.clone(),
 			exit: self.exit.clone(),
-			message_validator: self.message_validator.clone(),
 		}
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send, E, N, T> LeafWorkDataFetcher<P, E, N, T> where
+impl<P: ProvideRuntimeApi + Send, E, T> LeafWorkDataFetcher<P, E, T> where
 	P::Api: ParachainHost<Block>,
-	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
 	E: futures03::Future<Output=()> + Clone + Send + 'static,
 {

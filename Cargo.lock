@@ -1080,6 +1080,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "fork-tree"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "fork-tree"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1560,6 +1568,11 @@ dependencies = [
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "scopeguard 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "hashbrown"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "hashbrown"
@@ -2498,6 +2511,14 @@ version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cfg-if 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "lru"
+version = "0.1.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "hashbrown 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3579,6 +3600,7 @@ dependencies = [
  "polkadot-validation 0.7.9",
  "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sc-network-gossip 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
  "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
@@ -4303,6 +4325,18 @@ dependencies = [
 [[package]]
 name = "sc-application-crypto"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+]
+
+[[package]]
+name = "sc-application-crypto"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4334,6 +4368,20 @@ dependencies = [
  "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "sc-block-builder"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-block-builder 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-blockchain 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-state-machine 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
 ]
 
 [[package]]
@@ -4414,6 +4462,39 @@ dependencies = [
 [[package]]
 name = "sc-client"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hex-literal 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kvdb 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sc-block-builder 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sc-client-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sc-executor 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sc-telemetry 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-blockchain 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-consensus 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-externalities 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-keyring 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-state-machine 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-version 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "tracing 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sc-client"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4442,6 +4523,38 @@ dependencies = [
  "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "tracing 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sc-client-api"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hex-literal 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kvdb 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sc-block-builder 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sc-executor 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sc-telemetry 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-blockchain 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-consensus 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-externalities 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-keyring 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-state-machine 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-transaction-pool-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-version 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
 ]
 
 [[package]]
@@ -4544,6 +4657,25 @@ dependencies = [
 [[package]]
 name = "sc-consensus-slots"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-timer 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sc-client-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sc-telemetry 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-blockchain 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-consensus 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+]
+
+[[package]]
+name = "sc-consensus-slots"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4572,6 +4704,30 @@ dependencies = [
  "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "sc-executor"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libsecp256k1 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-externalities 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-panic-handler 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-serializer 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-version 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "wasmi 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4654,6 +4810,51 @@ dependencies = [
 [[package]]
 name = "sc-network"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "erased-serde 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fork-tree 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-timer 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "linked-hash-map 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "linked_hash_set 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lru 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-hex 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sc-block-builder 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sc-client 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sc-client-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sc-peerset 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slog 2.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slog_derive 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smallvec 0.6.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-arithmetic 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-blockchain 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-consensus 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-consensus-babe 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "unsigned-varint 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "void 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zeroize 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sc-network"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4697,6 +4898,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sc-network-gossip"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-timer 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lru 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sc-network 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+]
+
+[[package]]
 name = "sc-offchain"
 version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
@@ -4721,6 +4938,17 @@ dependencies = [
  "sp-offchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "threadpool 1.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sc-peerset"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4857,6 +5085,28 @@ dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "sc-telemetry"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-timer 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slog 2.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slog-async 2.3.0 (git+https://github.com/paritytech/slog-async)",
+ "slog-json 2.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slog-scope 4.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-io 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "void 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -5207,6 +5457,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "sp-api"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-api-proc-macro 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-state-machine 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-version 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+]
+
+[[package]]
+name = "sp-api"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5221,6 +5485,18 @@ dependencies = [
 [[package]]
 name = "sp-api-proc-macro"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-api-proc-macro"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5228,6 +5504,19 @@ dependencies = [
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-arithmetic"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "integer-sqrt 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num-traits 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-debug-derive 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
 ]
 
 [[package]]
@@ -5268,6 +5557,18 @@ dependencies = [
 [[package]]
 name = "sp-block-builder"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+]
+
+[[package]]
+name = "sp-block-builder"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5275,6 +5576,22 @@ dependencies = [
  "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "sp-blockchain"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lru 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-block-builder 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-consensus 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-state-machine 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
 ]
 
 [[package]]
@@ -5291,6 +5608,25 @@ dependencies = [
  "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "sp-consensus"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-timer 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-version 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
 ]
 
 [[package]]
@@ -5315,6 +5651,22 @@ dependencies = [
 [[package]]
 name = "sp-consensus-babe"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sc-consensus-slots 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "schnorrkel 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-timestamp 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+]
+
+[[package]]
+name = "sp-consensus-babe"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5326,6 +5678,45 @@ dependencies = [
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "sp-core"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ed25519-dalek 1.0.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hash256-std-hasher 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "impl-serde 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libsecp256k1 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num-traits 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "primitive-types 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-hex 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "schnorrkel 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-debug-derive 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-externalities 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "substrate-bip39 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tiny-bip39 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tiny-keccak 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "twox-hash 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmi 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zeroize 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -5370,6 +5761,17 @@ dependencies = [
 [[package]]
 name = "sp-core-storage"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "impl-serde 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-debug-derive 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+]
+
+[[package]]
+name = "sp-core-storage"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "impl-serde 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5381,11 +5783,31 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-debug-derive"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-externalities"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "environmental 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
 ]
 
 [[package]]
@@ -5424,6 +5846,18 @@ dependencies = [
 [[package]]
 name = "sp-inherents"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+]
+
+[[package]]
+name = "sp-inherents"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5431,6 +5865,23 @@ dependencies = [
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "sp-io"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libsecp256k1 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-externalities 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-state-machine 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
 ]
 
 [[package]]
@@ -5453,6 +5904,17 @@ dependencies = [
 [[package]]
 name = "sp-keyring"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "strum 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-keyring"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5468,6 +5930,15 @@ source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665
 dependencies = [
  "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "sp-panic-handler"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "backtrace 0.3.40 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -5501,6 +5972,25 @@ dependencies = [
 [[package]]
 name = "sp-runtime"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "paste 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sc-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-arithmetic 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+]
+
+[[package]]
+name = "sp-runtime"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5515,6 +6005,21 @@ dependencies = [
  "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "sp-runtime-interface"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "environmental 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "primitive-types 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-externalities 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime-interface-proc-macro 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "static_assertions 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -5535,6 +6040,18 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "Inflector 0.11.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-runtime-interface-proc-macro"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "Inflector 0.11.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5542,6 +6059,15 @@ dependencies = [
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-serializer"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -5576,6 +6102,25 @@ dependencies = [
 [[package]]
 name = "sp-state-machine"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num-traits 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-externalities 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-panic-handler 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "trie-db 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "trie-root 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-state-machine"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5595,7 +6140,25 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+
+[[package]]
+name = "sp-std"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
+
+[[package]]
+name = "sp-timestamp"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+]
 
 [[package]]
 name = "sp-timestamp"
@@ -5608,6 +6171,20 @@ dependencies = [
  "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "sp-transaction-pool-api"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
 ]
 
 [[package]]
@@ -5637,6 +6214,20 @@ dependencies = [
 [[package]]
 name = "sp-trie"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "memory-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "trie-db 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "trie-root 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-trie"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5651,6 +6242,18 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "impl-serde 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+ "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)",
+]
+
+[[package]]
+name = "sp-version"
+version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#665304397ff7e60d7cda177a0623a571e5909a2c"
 dependencies = [
  "impl-serde 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5658,6 +6261,15 @@ dependencies = [
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+]
+
+[[package]]
+name = "sp-wasm-interface"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=extract-gossip#e6a06adae4e4f9dccfb4a361e2abb91a673a5a5e"
+dependencies = [
+ "impl-trait-for-tuples 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmi 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -7011,6 +7623,7 @@ dependencies = [
 "checksum flate2 1.0.13 (registry+https://github.com/rust-lang/crates.io-index)" = "6bd6d6f4752952feb71363cffc9ebac9411b75b87c6ab6058c40c8900cf43c0f"
 "checksum fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)" = "2fad85553e09a6f881f739c29f0b00b0f01357c743266d478b68951ce23285f3"
 "checksum fork-tree 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum fork-tree 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum frame-executive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum frame-metadata 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
@@ -7058,6 +7671,7 @@ dependencies = [
 "checksum hash-db 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d23bd4e7b5eda0d0f3a307e8b381fdc8ba9000f26fbe912250c0a4cc3956364a"
 "checksum hash256-std-hasher 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)" = "92c171d55b98633f4ed3860808f004099b36c1cc29c42cfc53aa8591b21efcf2"
 "checksum hashbrown 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "3bae29b6653b3412c2e71e9d486db9f9df5d701941d86683005efb9f2d28e3da"
+"checksum hashbrown 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e1de41fb8dba9714efd92241565cdff73f78508c95697dd56787d3cba27e2353"
 "checksum hashbrown 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "8e6073d0ca812575946eb5f35ff68dbe519907b25c42530389ff946dc84c6ead"
 "checksum heapsize 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "1679e6ea370dee694f91f1dc469bf94cf8f52051d147aec3e1f9497c6fc22461"
 "checksum heck 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "20564e78d53d2bb135c343b3f47714a56af2061f1c928fdb541dc7b9fdd94205"
@@ -7137,6 +7751,7 @@ dependencies = [
 "checksum lock_api 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f8912e782533a93a167888781b836336a6ca5da6175c05944c86cf28c31104dc"
 "checksum log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "e19e8d5c34a3e0e2223db8e060f9e8264aeeb5c5fc64a4ee9965c062211c024b"
 "checksum log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)" = "14b6052be84e6b71ab17edffc2eeabf5c2c3ae1fdb464aae35ac50c67a44e1f7"
+"checksum lru 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)" = "5d8f669d42c72d18514dfca8115689c5f6370a17d980cb5bd777a67f404594c8"
 "checksum lru 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "26b0dca4ac5b5083c5169ab12205e6473df1c7659940e4978b94f363c6b54b22"
 "checksum mach 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "86dd2487cdfea56def77b88438a2c915fb45113c5319bfe7e14306ca4cd0b0e1"
 "checksum malloc_size_of_derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e37c5d4cd9473c5f4c9c111f033f15d4df9bd378fdf615944e360a4f55a05f0b"
@@ -7286,29 +7901,39 @@ dependencies = [
 "checksum ryu 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "bfa8506c1de11c9c4e4c38863ccbe02a305c8188e85a05a784c9e11e1c3910c8"
 "checksum safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7f7bf422d23a88c16d5090d455f182bc99c60af4df6a345c63428acf5129e347"
 "checksum sc-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sc-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-block-builder 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sc-chain-spec 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-chain-spec-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-cli 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-client 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-client-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sc-client-db 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-consensus-slots 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-consensus-slots 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sc-consensus-uncles 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-executor 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-executor 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sc-finality-grandpa 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-keystore 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-network 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
+"checksum sc-network-gossip 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sc-offchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-peerset 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-peerset 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sc-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-rpc-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-rpc-server 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-service 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-state-db 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-telemetry 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sc-telemetry 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sc-tracing 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-transaction-graph 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sc-transaction-pool 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
@@ -7343,41 +7968,67 @@ dependencies = [
 "checksum soketto 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "bceb1a3a15232d013d9a3b7cac9e5ce8e2313f348f01d4bc1097e5e53aa07095"
 "checksum sourcefile 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "4bf77cb82ba8453b42b6ae1d692e4cdc92f9a47beaf89a847c8be83f4e328ad3"
 "checksum sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-api-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-api-proc-macro 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-arithmetic 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-authority-discovery 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sp-authorship 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sp-block-builder 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-block-builder 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-blockchain 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-consensus 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-consensus-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-consensus-babe 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-core-storage 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-core-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-debug-derive 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-externalities 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-externalities 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-finality-grandpa 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sp-finality-tracker 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-io 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-keyring 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-offchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sp-panic-handler 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-panic-handler 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-phragmen 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sp-rpc 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-runtime-interface-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-runtime-interface-proc-macro 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-serializer 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-serializer 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sp-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sp-state-machine 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-state-machine 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-timestamp 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-timestamp 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-transaction-pool-api 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-transaction-pool-runtime-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-version 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum sp-wasm-interface 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
+"checksum sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=extract-gossip)" = "<none>"
 "checksum spin 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 "checksum stable_deref_trait 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
 "checksum static_assertions 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"

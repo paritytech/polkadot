@@ -228,6 +228,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	let mut gossip_validator = network_gossip::register_validator(
 		service.network(),
 		(is_known, client.clone()),
+		&service.spawn_task_handle(),
 	);
 
 	if participates_in_consensus {
@@ -241,7 +242,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 				cache_size: None,
 				path,
 			},
-			polkadot_network::AvailabilityNetworkShim(service.network()),
+			polkadot_network::AvailabilityNetworkShim(gossip_validator.clone()),
 			)?
 		};
 
@@ -259,9 +260,8 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 
 		// collator connections and validation network both fulfilled by this
 		let validation_network = ValidationNetwork::new(
-			service.network(),
-			service.on_exit(),
 			gossip_validator,
+			service.on_exit(),
 			service.client(),
 			polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
 		);
@@ -358,6 +358,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			on_exit: service.on_exit(),
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 			voting_rule: grandpa::VotingRulesBuilder::default().build(),
+			executor: service.spawn_task_handle(),
 		};
 		service.spawn_essential_task(grandpa::run_grandpa_voter(grandpa_config)?);
 	} else {
