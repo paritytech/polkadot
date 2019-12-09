@@ -591,8 +591,8 @@ mod tests {
 		fn gossip_messages_for(
 			&self,
 			_topic: Hash
-		) -> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send> {
-			Box::new(futures03::stream::empty())
+		) -> Box<dyn futures::Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send> {
+			Box::new(futures::stream::empty())
 		}
 
 		fn gossip_erasure_chunk(
@@ -765,7 +765,7 @@ mod tests {
 			n_validators as u32,
 		).unwrap();
 
-		let producer: ParachainWork<future::FutureResult<_, ::std::io::Error>> = ParachainWork {
+		let producer: ParachainWork<future::Ready<Result<_, ::std::io::Error>>> = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
 				fetch: future::ok(pov_block.clone()),
