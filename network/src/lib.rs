@@ -115,7 +115,7 @@ impl<T> av_store::ProvideGossipMessages for AvailabilityNetworkShim<T>
 	fn gossip_messages_for(&self, topic: Hash)
 		-> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>
 	{
-		Box::new(self.0.gossip_messages_for(topic)
+		self.0.gossip_messages_for(topic)
 			.filter_map(|(msg, _)| async move {
 				match msg {
 					GossipMessage::ErasureChunk(chunk) => {
@@ -125,7 +125,6 @@ impl<T> av_store::ProvideGossipMessages for AvailabilityNetworkShim<T>
 				}
 			})
 			.boxed()
-		)
 	}
 
 	fn gossip_erasure_chunk(
@@ -167,7 +166,7 @@ impl NetworkService for PolkadotNetworkService {
 			Err(_) => mpsc::unbounded().1, // return empty channel.
 		};
 
-		GossipMessageStream::new(Box::new(topic_stream))
+		GossipMessageStream::new(topic_stream.boxed())
 	}
 
 	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
@@ -215,7 +214,7 @@ pub struct GossipMessageStream {
 
 impl GossipMessageStream {
 	/// Create a new instance with the given topic stream.
-	pub fn new(topic_stream: Box<dyn Stream<Item = TopicNotification> + Unpin + Send>) -> Self {
+	pub fn new(topic_stream: Pin<Box<dyn Stream<Item = TopicNotification> + Send>>) -> Self {
 		Self {
 			topic_stream,
 		}
