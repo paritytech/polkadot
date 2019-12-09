@@ -880,7 +880,7 @@ mod tests {
 		// chunk topics.
 		handle.sender.unbounded_send(msg).unwrap();
 
-		runtime.block_on(r.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r).unwrap().unwrap();
 
 		// Make sure that at this point we are waiting for the appropriate chunk.
 		assert_eq!(
@@ -982,7 +982,7 @@ mod tests {
 
 		handle.sender.unbounded_send(listen_msg_2).unwrap();
 
-		runtime.block_on(r2.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r2).unwrap().unwrap();
 		// The gossip sender for this topic left intact => listener not registered.
 		assert!(messages.messages.lock().unwrap().contains_key(&topic_2));
 
@@ -998,7 +998,7 @@ mod tests {
 		});
 
 		handle.sender.unbounded_send(listen_msg_1).unwrap();
-		runtime.block_on(r1.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r1).unwrap().unwrap();
 
 		// The gossip sender taken => listener registered.
 		assert!(!messages.messages.lock().unwrap().contains_key(&topic_1));
