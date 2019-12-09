@@ -28,7 +28,6 @@ pub mod gossip;
 use codec::{Decode, Encode};
 use futures::channel::{oneshot, mpsc};
 use futures::prelude::*;
-use futures::future::Either;
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock,
@@ -826,34 +825,26 @@ impl PolkadotProtocol {
 	/// This should be called by a collator intending to get the locally-collated
 	/// block into the hands of validators.
 	/// It also places the outgoing message and block data in the local availability store.
-	pub fn add_local_collation(
+	pub async fn add_local_collation(
 		&mut self,
 		ctx: &mut dyn Context<Block>,
 		relay_parent: Hash,
 		targets: HashSet<ValidatorId>,
 		collation: Collation,
 		outgoing_targeted: OutgoingMessages,
-	) -> impl futures::future::Future<Output = ()> {
+	) {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",
 			relay_parent, collation.info.parachain_index);
 
-		let res = match self.availability_store {
-			Some(ref availability_store) => {
-				let availability_store_cloned = availability_store.clone();
-				let collation_cloned = collation.clone();
-				Either::Left((async move {
-						let _ = availability_store_cloned.make_available(av_store::Data {
-							relay_parent,
-							parachain_id: collation_cloned.info.parachain_index,
-							block_data: collation_cloned.pov.block_data.clone(),
-							outgoing_queues: Some(outgoing_targeted.clone().into()),
-						}).await;
-					}
-				)
-					.boxed()
-				)
-			}
-			None => Either::Right(futures::future::ready(())),
+		if let Some(ref availability_store) = self.availability_store {
+			let availability_store_cloned = availability_store.clone();
+			let collation_cloned = collation.clone();
+			let _ = availability_store_cloned.make_available(av_store::Data {
+				relay_parent,
+				parachain_id: collation_cloned.info.parachain_index,
+				block_data: collation_cloned.pov.block_data.clone(),
+				outgoing_queues: Some(outgoing_targeted.clone().into()),
+			}).await;
 		};
 
 		for (primary, cloned_collation) in self.local_collations.add_collation(relay_parent, targets, collation.clone()) {
@@ -870,8 +861,6 @@ impl PolkadotProtocol {
 					warn!(target: "polkadot_network", "Encountered tracked but disconnected validator {:?}", primary),
 			}
 		}
-
-		res
 	}
 
 	/// Give the network protocol a handle to an availability store, used for
