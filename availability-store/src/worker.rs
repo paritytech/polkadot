@@ -1031,9 +1031,9 @@ mod tests {
 		// which will get them removed from `TestGossipMessages`. Therefore, the
 		// `Condvar` is used to wait for that event.
 		let (lock, cvar1) = &*cvar_pair1;
-		let mut started = lock.lock().unwrap();
-		while !*started {
-			started = cvar1.wait(started).unwrap();
+		let mut gossip_stream_consumed = lock.lock().unwrap();
+		while !*gossip_stream_consumed {
+			gossip_stream_consumed = cvar1.wait(gossip_stream_consumed).unwrap();
 		}
 
 		// The gossip sender taken => listener registered.
