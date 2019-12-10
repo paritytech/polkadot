@@ -27,7 +27,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", default-features = 
 sp-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sp-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 version = { package = "sp-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-tx-pool-api = { package = "sp-transaction-pool-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+tx-pool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 authority-discovery = { package = "pallet-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -42,6 +42,7 @@ elections-phragmen = { package = "pallet-elections-phragmen", git = "https://git
 executive = { package = "frame-executive", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 finality-tracker = { package = "pallet-finality-tracker", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 grandpa = { package = "pallet-grandpa", git = "https://github.com/paritytech/substrate", default-features = false, features = ["migrate-authorities"], branch = "polkadot-master" }
+identity = { package = "pallet-identity", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 indices = { package = "pallet-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 membership = { package = "pallet-membership", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -103,6 +104,7 @@ std = [
 	"executive/std",
 	"finality-tracker/std",
 	"grandpa/std",
+	"identity/std",
 	"im-online/std",
 	"indices/std",
 	"membership/std",

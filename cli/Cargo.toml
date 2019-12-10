@@ -5,6 +5,9 @@ authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 edition = "2018"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 log = "0.4.8"
 tokio = "0.1.22"
@@ -14,6 +17,28 @@ structopt = "0.3.4"
 cli = { package = "sc-cli", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 service = { package = "polkadot-service", path = "../service" }
 
+libp2p = { version = "0.13.0", default-features = false, optional = true }
+wasm-bindgen = { version = "0.2.45", optional = true }
+wasm-bindgen-futures = { version = "0.3.22", optional = true }
+console_log = { version = "0.1.2", optional = true }
+console_error_panic_hook = { version = "0.1.1", optional = true }
+js-sys = { version = "0.3.22", optional = true }
+kvdb-memorydb = { version = "0.1.1", optional = true }
+substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true, default-features = false }
+substrate-network = { package = "sc-network", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
+
 [features]
-default = [ "wasmtime" ]
+default = [ "wasmtime", "rocksdb" ]
 wasmtime = [ "cli/wasmtime" ]
+rocksdb = [ "service/rocksdb" ]
+browser = [
+	"libp2p",
+	"wasm-bindgen",
+	"console_error_panic_hook",
+	"wasm-bindgen-futures",
+	"console_log",
+	"js-sys",
+	"kvdb-memorydb",
+	"substrate-service",
+	"substrate-network"
+]

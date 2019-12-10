@@ -26,10 +26,13 @@ pub mod validation;
 pub mod gossip;
 
 use codec::{Decode, Encode};
-use futures::sync::oneshot;
-use futures::future::Either;
+use futures::channel::{oneshot, mpsc};
 use futures::prelude::*;
+<<<<<<< HEAD
 use futures03::{compat::Stream01CompatExt, FutureExt, StreamExt, TryFutureExt};
+=======
+use futures::future::Either;
+>>>>>>> upstream/master
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock,
@@ -46,6 +49,8 @@ use self::local_collations::LocalCollations;
 use log::{trace, debug, warn};
 
 use std::collections::{HashMap, HashSet};
+use std::pin::Pin;
+use std::task::{Context as PollContext, Poll};
 
 use crate::gossip::{GossipMessage, ErasureChunkMessage, RegisteredMessageValidator};
 
@@ -108,23 +113,18 @@ pub struct AvailabilityNetworkShim(pub RegisteredMessageValidator);
 
 impl av_store::ProvideGossipMessages for AvailabilityNetworkShim {
 	fn gossip_messages_for(&self, topic: Hash)
-		-> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send>
+		-> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>
 	{
-		Box::new(self.0.gossip_messages_for(topic)
-			.compat()
-			.filter_map(|msg| async move {
+		self.0.gossip_messages_for(topic)
+			.filter_map(|(msg, _)| async move {
 				match msg {
-					Ok(msg) => match msg.0 {
-						GossipMessage::ErasureChunk(chunk) => {
-							Some((chunk.relay_parent, chunk.candidate_hash, chunk.chunk))
-						},
-						_ => None,
-					}
+					GossipMessage::ErasureChunk(chunk) => {
+						Some((chunk.relay_parent, chunk.candidate_hash, chunk.chunk))
+					},
 					_ => None,
 				}
 			})
 			.boxed()
-		)
 	}
 
 	fn gossip_erasure_chunk(
@@ -146,14 +146,78 @@ impl av_store::ProvideGossipMessages for AvailabilityNetworkShim {
 	}
 }
 
+<<<<<<< HEAD
+=======
+impl<T> Clone for AvailabilityNetworkShim<T> {
+	fn clone(&self) -> Self {
+		AvailabilityNetworkShim(self.0.clone())
+	}
+}
+
+impl NetworkService for PolkadotNetworkService {
+	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
+		let (tx, rx) = std::sync::mpsc::channel();
+
+		PolkadotNetworkService::with_gossip(self, move |gossip, _| {
+			let inner_rx = gossip.messages_for(POLKADOT_ENGINE_ID, topic);
+			let _ = tx.send(inner_rx);
+		});
+
+		let topic_stream = match rx.recv() {
+			Ok(rx) => rx,
+			Err(_) => mpsc::unbounded().1, // return empty channel.
+		};
+
+		GossipMessageStream::new(topic_stream.boxed())
+	}
+
+	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
+		self.gossip_consensus_message(
+			topic,
+			POLKADOT_ENGINE_ID,
+			message.encode(),
+			GossipMessageRecipient::BroadcastToAll,
+		);
+	}
+
+	fn with_gossip<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut dyn GossipService, &mut dyn Context<Block>)
+	{
+		PolkadotNetworkService::with_gossip(self, move |gossip, ctx| with(gossip, ctx))
+	}
+
+	fn with_spec<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>)
+	{
+		PolkadotNetworkService::with_spec(self, with)
+	}
+}
+
+/// A gossip network subservice.
+pub trait GossipService {
+	fn send_message(&mut self, ctx: &mut dyn Context<Block>, who: &PeerId, message: ConsensusMessage);
+	fn multicast(&mut self, ctx: &mut dyn Context<Block>, topic: &Hash, message: ConsensusMessage);
+}
+
+impl GossipService for consensus_gossip::ConsensusGossip<Block> {
+	fn send_message(&mut self, ctx: &mut dyn Context<Block>, who: &PeerId, message: ConsensusMessage) {
+		consensus_gossip::ConsensusGossip::send_message(self, ctx, who, message)
+	}
+
+	fn multicast(&mut self, ctx: &mut dyn Context<Block>, topic: &Hash, message: ConsensusMessage) {
+		consensus_gossip::ConsensusGossip::multicast(self, ctx, *topic, message, false)
+	}
+}
+
+>>>>>>> upstream/master
 /// A stream of gossip messages and an optional sender for a topic.
 pub struct GossipMessageStream {
-	topic_stream: Box<dyn Stream<Item = TopicNotification, Error = ()> + Send>,
+	topic_stream: Pin<Box<dyn Stream<Item = TopicNotification> + Send>>,
 }
 
 impl GossipMessageStream {
 	/// Create a new instance with the given topic stream.
-	pub fn new(topic_stream: Box<dyn Stream<Item = TopicNotification, Error = ()> + Send>) -> Self {
+	pub fn new(topic_stream: Pin<Box<dyn Stream<Item = TopicNotification> + Send>>) -> Self {
 		Self {
 			topic_stream,
 		}
@@ -162,18 +226,20 @@ impl GossipMessageStream {
 
 impl Stream for GossipMessageStream {
 	type Item = (GossipMessage, Option<PeerId>);
-	type Error = ();
 
-	fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+	fn poll_next(self: Pin<&mut Self>, cx: &mut PollContext) -> Poll<Option<Self::Item>> {
+		let this = Pin::into_inner(self);
+
 		loop {
-			let msg = match futures::try_ready!(self.topic_stream.poll()) {
-				Some(msg) => msg,
-				None => return Ok(Async::Ready(None)),
+			let msg = match Pin::new(&mut this.topic_stream).poll_next(cx) {
+				Poll::Ready(Some(msg)) => msg,
+				Poll::Ready(None) => return Poll::Ready(None),
+				Poll::Pending => return Poll::Pending,
 			};
 
 			debug!(target: "validation", "Processing statement for live validation leaf-work");
 			if let Ok(gmsg) = GossipMessage::decode(&mut &msg.message[..]) {
-				return Ok(Async::Ready(Some((gmsg, msg.sender))))
+				return Poll::Ready(Some((gmsg, msg.sender)))
 			}
 		}
 	}
@@ -770,7 +836,7 @@ impl PolkadotProtocol {
 		targets: HashSet<ValidatorId>,
 		collation: Collation,
 		outgoing_targeted: OutgoingMessages,
-	) -> impl futures::future::Future<Item = (), Error=()> {
+	) -> impl Future<Output = ()> {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",
 			relay_parent, collation.info.parachain_index);
 
@@ -778,7 +844,7 @@ impl PolkadotProtocol {
 			Some(ref availability_store) => {
 				let availability_store_cloned = availability_store.clone();
 				let collation_cloned = collation.clone();
-				Either::A((async move {
+				Either::Left((async move {
 						let _ = availability_store_cloned.make_available(av_store::Data {
 							relay_parent,
 							parachain_id: collation_cloned.info.parachain_index,
@@ -787,13 +853,10 @@ impl PolkadotProtocol {
 						}).await;
 					}
 				)
-					.unit_error()
 					.boxed()
-					.compat()
-					.then(|_| Ok(()))
 				)
 			}
-			None => Either::B(futures::future::ok::<(), ()>(())),
+			None => Either::Right(futures::future::ready(())),
 		};
 
 		for (primary, cloned_collation) in self.local_collations.add_collation(relay_parent, targets, collation.clone()) {

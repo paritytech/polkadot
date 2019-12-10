@@ -12,9 +12,8 @@ polkadot-runtime = { path = "../runtime" }
 parking_lot = "0.9.0"
 derive_more = "0.99"
 log = "0.4.8"
-futures01 = "0.1.17"
-futures = { package = "futures", version = "0.3.1", features = ["compat"] }
-tokio = "0.1.7"
+futures = "0.3.1"
+tokio = { version = "0.2.4", features = ["rt-core"] }
 exit-future = "0.2.0"
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

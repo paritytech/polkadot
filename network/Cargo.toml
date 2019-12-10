@@ -18,8 +18,7 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkad
 sc-network-gossip = { git = "https://github.com/tomaka/polkadot", branch = "extract-gossip" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-futures = "0.1"
-futures03 = { package = "futures", version = "0.3.1", features = ["compat"] }
+futures = "0.3.1"
 log = "0.4.8"
 exit-future = "0.2.0"
 sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
