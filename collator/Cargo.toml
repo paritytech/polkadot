@@ -6,8 +6,7 @@ description = "Collator node implementation"
 edition = "2018"
 
 [dependencies]
-futures01 = { package = "futures", version = "0.1.17" }
-futures = { version = "0.3.1", features = ["compat"] }
+futures = "0.3.1"
 client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
@@ -20,7 +19,7 @@ polkadot-network = { path = "../network" }
 polkadot-validation = { path = "../validation" }
 polkadot-service = { path = "../service" }
 log = "0.4.8"
-tokio = "0.1.22"
+tokio = "0.2.1"
 futures-timer = "1.0"
 
 [dev-dependencies]

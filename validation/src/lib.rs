@@ -56,12 +56,11 @@ use polkadot_primitives::parachain::{
 use primitives::Pair;
 use runtime_primitives::traits::{ProvideRuntimeApi, DigestFor};
 use futures_timer::Delay;
-use async_std::stream::{interval, Interval};
 use txpool_api::{TransactionPool, InPoolTransaction};
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
-use futures03::{future::{self, Either}, FutureExt, StreamExt, TryFutureExt};
+use futures::{future::{self, Either, select, ready}, stream::unfold, task::{Spawn, SpawnExt}};
 use collation::CollationFetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
@@ -70,10 +69,13 @@ use log::{info, debug, warn, trace, error};
 use keystore::KeyStorePtr;
 use sp_api::ApiExt;
 
-type TaskExecutor =
-	Arc<
-		dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>>
-	+ Send + Sync>;
+type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
+
+fn interval(duration: Duration) -> impl Stream<Item=()> + Send + Unpin {
+	unfold((), move |_| {
+		futures_timer::Delay::new(duration).map(|_| Some(((), ())))
+	}).map(drop)
+}
 
 pub use self::collation::{
 	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
@@ -84,6 +86,8 @@ pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
 };
+
+#[cfg(not(target_os = "unknown"))]
 pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
 mod attestation_service;
@@ -107,7 +111,7 @@ pub trait TableRouter: Clone {
 	/// Errors when fetching data from the network.
 	type Error: std::fmt::Debug;
 	/// Future that resolves when candidate data is fetched.
-	type FetchValidationProof: IntoFuture<Item=PoVBlock,Error=Self::Error>;
+	type FetchValidationProof: Future<Output=Result<PoVBlock, Self::Error>>;
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
@@ -134,7 +138,7 @@ pub trait Network {
 
 	/// The future used for asynchronously building the table router.
 	/// This should not fail.
-	type BuildTableRouter: IntoFuture<Item=Self::TableRouter,Error=Self::Error>;
+	type BuildTableRouter: Future<Output=Result<Self::TableRouter,Self::Error>>;
 
 	/// Instantiate a table router using the given shared table.
 	/// Also pass through any outgoing messages to be broadcast to peers.
@@ -273,13 +277,13 @@ struct ParachainValidation<C, N, P> {
 }
 
 impl<C, N, P> ParachainValidation<C, N, P> where
-	C: Collators + Send + 'static,
+	C: Collators + Send + Unpin + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
-	<C::Collation as IntoFuture>::Future: Send + 'static,
+	C::Collation: Send + Unpin + 'static,
 	N::TableRouter: Send + 'static,
-	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	N::BuildTableRouter: Unpin + Send + 'static,
 {
 	/// Get an attestation table for given parent hash.
 	///
@@ -400,7 +404,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				max_block_data_size,
 			);
 
-			collation_work.then(move |result| match result {
+			collation_work.map(move |result| match result {
 				Ok((collation, outgoing_targeted, fees_charged)) => {
 					match produce_receipt_and_chunks(
 						authorities_num,
@@ -427,10 +431,9 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 							}
 							.unit_error()
 							.boxed()
-							.compat()
 							.then(move |_| {
 								router.local_collation(collation, receipt, outgoing_targeted, (local_id, &chunks));
-								Ok(())
+								ready(())
 							});
 
 
@@ -449,18 +452,16 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			})
 		};
 
-		let cancellable_work = build_router
-			.into_future()
+		let router = build_router
+			.map_ok(with_router)
 			.map_err(|e| {
 				warn!(target: "validation" , "Failed to build table router: {:?}", e);
-			})
-			.and_then(with_router)
-			.then(|_| Ok(()))
-			.select(exit.unit_error().compat())
-			.then(|_| Ok(()));
+			});
+
+		let cancellable_work = select(exit, router).map(drop);
 
 		// spawn onto thread pool.
-		if self.handle.execute(Box::new(cancellable_work)).is_err() {
+		if self.handle.spawn(cancellable_work).is_err() {
 			error!("Failed to spawn cancellable work task");
 		}
 	}
@@ -485,8 +486,8 @@ pub struct ProposerFactory<C, N, P, SC, TxPool: TransactionPool> {
 }
 
 impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
-	C: Collators + Send + Sync + 'static,
-	<C::Collation as IntoFuture>::Future: Send + 'static,
+	C: Collators + Send + Sync + Unpin + 'static,
+	C::Collation: Send + Unpin + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> +
@@ -495,7 +496,7 @@ impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
 		ApiExt<Block, Error = sp_blockchain::Error>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
-	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	N::BuildTableRouter: Send + Unpin + 'static,
 	TxPool: TransactionPool,
 	SC: SelectChain<Block> + 'static,
 {
@@ -543,7 +544,7 @@ impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
 }
 
 impl<C, N, P, SC, TxPool> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxPool> where
-	C: Collators + Send + 'static,
+	C: Collators + Send + Unpin + 'static,
 	N: Network,
 	TxPool: TransactionPool<Block=Block> + 'static,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
@@ -551,9 +552,9 @@ impl<C, N, P, SC, TxPool> consensus::Environment<Block> for ProposerFactory<C, N
 		BlockBuilderApi<Block> +
 		BabeApi<Block> +
 		ApiExt<Block, Error = sp_blockchain::Error>,
-	<C::Collation as IntoFuture>::Future: Send + 'static,
+	C::Collation: Send + Unpin + 'static,
 	N::TableRouter: Send + 'static,
-	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	N::BuildTableRouter: Send + Unpin + 'static,
 	SC: SelectChain<Block>,
 {
 	type Proposer = Proposer<P, TxPool>;
@@ -649,7 +650,7 @@ impl<C, TxPool> consensus::Proposer<Block> for Proposer<C, TxPool> where
 
 		let timing = ProposalTiming {
 			minimum: delay_future,
-			attempt_propose: interval(ATTEMPT_PROPOSE_EVERY),
+			attempt_propose: Box::new(interval(ATTEMPT_PROPOSE_EVERY)),
 			enough_candidates: Delay::new(enough_candidates),
 			dynamic_inclusion,
 			last_included: initial_included,
@@ -690,7 +691,7 @@ fn current_timestamp() -> u64 {
 
 struct ProposalTiming {
 	minimum: Option<Delay>,
-	attempt_propose: Interval,
+	attempt_propose: Box<dyn Stream<Item=()> + Send + Unpin>,
 	dynamic_inclusion: DynamicInclusion,
 	enough_candidates: Delay,
 	last_included: usize,
@@ -746,7 +747,7 @@ enum CreateProposalState<C: Send + Sync, TxPool> {
 	/// Represents the state when we switch from pending to fired.
 	Switching,
 	/// Block proposing has fired.
-	Fired(tokio_executor::blocking::Blocking<Result<Block, Error>>),
+	Fired(tokio::task::JoinHandle<Result<Block, Error>>),
 }
 
 /// Inner data of the create proposal.
@@ -858,7 +859,7 @@ impl<C, TxPool> CreateProposalData<C, TxPool> where
 	}
 }
 
-impl<C, TxPool> futures03::Future for CreateProposal<C, TxPool> where
+impl<C, TxPool> Future for CreateProposal<C, TxPool> where
 	TxPool: TransactionPool<Block=Block> + 'static,
 	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
@@ -892,18 +893,22 @@ impl<C, TxPool> futures03::Future for CreateProposal<C, TxPool> where
 					thus Switching will never be reachable here; qed"
 				),
 			CreateProposalState::Fired(mut future) => {
-				let ret = Pin::new(&mut future).poll(cx);
+				let ret = Pin::new(&mut future)
+					.poll(cx)
+					.map(|res| res.map_err(Error::Join).and_then(|res| res));
 				self.state = CreateProposalState::Fired(future);
 				return ret
 			},
 		};
 
 		// 2. propose
-		let mut future = tokio_executor::blocking::run(move || {
+		let mut future = tokio::task::spawn_blocking(move || {
 			let proposed_candidates = data.table.proposed_set();
 			data.propose_with(proposed_candidates)
 		});
-		let polled = Pin::new(&mut future).poll(cx);
+		let polled = Pin::new(&mut future)
+			.poll(cx)
+			.map(|res| res.map_err(Error::Join).and_then(|res| res));
 		self.state = CreateProposalState::Fired(future);
 
 		polled

@@ -23,15 +23,14 @@
 /// such as candidate verification while performing event-driven work
 /// on a local event loop.
 
-use std::{thread, time::{Duration, Instant}, sync::Arc};
+use std::{thread, time::Duration, sync::Arc};
 
 use client::{BlockchainEvents, BlockBody};
 use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
 use futures::prelude::*;
-use futures03::{TryStreamExt as _, StreamExt as _, FutureExt as _, TryFutureExt as _};
-use log::error;
+use futures::{future::{ready, select}, task::{Spawn, SpawnExt}};
 use polkadot_primitives::Block;
 use polkadot_primitives::parachain::ParachainHost;
 use runtime_primitives::traits::{ProvideRuntimeApi};
@@ -39,12 +38,12 @@ use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
 use sp_api::ApiExt;
 
-use tokio::{timer::Interval, runtime::current_thread::Runtime as LocalRuntime};
-use log::{warn, debug};
+use tokio::{runtime::Runtime as LocalRuntime};
+use log::{warn, error};
 
 use super::{Network, Collators};
 
-type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
+type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 
 /// Parachain candidate attestation service handle.
 pub(crate) struct ServiceHandle {
@@ -62,8 +61,8 @@ pub(crate) fn start<C, N, P, SC>(
 	max_block_data_size: Option<u64>,
 ) -> ServiceHandle
 	where
-		C: Collators + Send + Sync + 'static,
-		<C::Collation as IntoFuture>::Future: Send + 'static,
+		C: Collators + Send + Sync + Unpin + 'static,
+		C::Collation: Send + Unpin + 'static,
 		P: BlockchainEvents<Block> + BlockBody<Block>,
 		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block> +
@@ -72,10 +71,9 @@ pub(crate) fn start<C, N, P, SC>(
 			ApiExt<Block, Error = sp_blockchain::Error>,
 		N: Network + Send + Sync + 'static,
 		N::TableRouter: Send + 'static,
-		<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+		N::BuildTableRouter: Send + Unpin + 'static,
 		SC: SelectChain<Block> + 'static,
 {
-	const TIMER_DELAY: Duration = Duration::from_secs(5);
 	const TIMER_INTERVAL: Duration = Duration::from_secs(30);
 
 	let (signal, exit) = ::exit_future::signal();
@@ -87,8 +85,7 @@ pub(crate) fn start<C, N, P, SC>(
 
 			let keystore = keystore.clone();
 
-			client.import_notification_stream()
-				.map(|v| Ok::<_, ()>(v)).compat()
+			let notifications = client.import_notification_stream()
 				.for_each(move |notification| {
 					let parent_hash = notification.hash;
 					if notification.is_new_best {
@@ -105,43 +102,35 @@ pub(crate) fn start<C, N, P, SC>(
 							);
 						}
 					}
-					Ok(())
-				})
-				.select(exit.clone().unit_error().compat())
-				.then(|_| Ok(()))
+					ready(())
+				});
+
+			select(notifications, exit.clone())
 		};
 
 		let prune_old_sessions = {
 			let select_chain = select_chain.clone();
-			let interval = Interval::new(
-				Instant::now() + TIMER_DELAY,
-				TIMER_INTERVAL,
-			);
-
-			interval
+			let interval = crate::interval(TIMER_INTERVAL)
 				.for_each(move |_| match select_chain.leaves() {
 					Ok(leaves) => {
 						parachain_validation.retain(|h| leaves.contains(h));
-						Ok(())
+						ready(())
 					}
 					Err(e) => {
 						warn!("Error fetching leaves from client: {:?}", e);
-						Ok(())
+						ready(())
 					}
-				})
-				.map_err(|e| warn!("Timer error {:?}", e))
-				.select(exit.clone().unit_error().compat())
-				.then(|_| Ok(()))
+				});
+
+			select(interval, exit.clone()).map(|_| ())
 		};
 
 		runtime.spawn(notifications);
-		if let Err(_) = thread_pool.execute(Box::new(prune_old_sessions)) {
+		if let Err(_) = thread_pool.spawn(prune_old_sessions) {
 			error!("Failed to spawn old sessions pruning task");
 		}
 
-		if let Err(e) = runtime.block_on(exit.unit_error().compat()) {
-			debug!("BFT event loop error {:?}", e);
-		}
+		runtime.block_on(exit);
 	});
 
 	ServiceHandle {
