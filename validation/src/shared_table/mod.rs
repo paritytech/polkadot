@@ -139,7 +139,7 @@ impl SharedTableInner {
 		statement: table::SignedStatement,
 		max_block_data_size: Option<u64>,
 	) -> Option<ParachainWork<
-		<R::FetchValidationProof as IntoFuture>::Future,
+		R::FetchValidationProof
 	>> {
 		let summary = self.table.import_statement(context, statement)?;
 		self.update_trackers(&summary.candidate, context);
@@ -172,7 +172,7 @@ impl SharedTableInner {
 					None
 				}
 				Some(candidate) => {
-					let fetch = router.fetch_pov_block(candidate).into_future();
+					let fetch = router.fetch_pov_block(candidate);
 
 					Some(Work {
 						candidate_receipt: candidate.clone(),
@@ -267,13 +267,13 @@ pub struct ParachainWork<Fetch> {
 	max_block_data_size: Option<u64>,
 }
 
-impl<Fetch: Future> ParachainWork<Fetch> {
+impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 	/// Prime the parachain work with an API reference for extracting
 	/// chain information.
 	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			Fetch,
-			impl Send + FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>,
+			impl Send + FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()> + Unpin,
 		>
 		where
 			P: Send + Sync + 'static,
@@ -326,14 +326,13 @@ pub struct PrimedParachainWork<Fetch, F> {
 
 impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 	where
-		Fetch: Future<Item=PoVBlock,Error=Err>,
-		F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>,
+		Fetch: Future<Output=Result<PoVBlock,Err>> + Unpin,
+		F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()> + Unpin,
 		Err: From<::std::io::Error>,
 {
 	pub async fn validate(mut self) -> Result<(Validated, Option<ErasureChunk>), Err> {
-		use futures03::compat::Future01CompatExt;
 		let candidate = &self.inner.work.candidate_receipt;
-		let pov_block = self.inner.work.fetch.compat().await?;
+		let pov_block = self.inner.work.fetch.await?;
 
 		let validation_res = (self.validate)(
 			&BlockId::hash(self.inner.relay_parent),
@@ -439,7 +438,7 @@ impl SharedTable {
 		router: &R,
 		statement: table::SignedStatement,
 	) -> Option<ParachainWork<
-		<R::FetchValidationProof as IntoFuture>::Future,
+		R::FetchValidationProof,
 	>> {
 		self.inner.lock().import_remote_statement(&*self.context, router, statement, self.max_block_data_size)
 	}
@@ -455,7 +454,7 @@ impl SharedTable {
 			R: TableRouter,
 			I: IntoIterator<Item=table::SignedStatement>,
 			U: ::std::iter::FromIterator<Option<ParachainWork<
-				<R::FetchValidationProof as IntoFuture>::Future,
+				R::FetchValidationProof,
 			>>>,
 	{
 		let mut inner = self.inner.lock();
@@ -575,8 +574,9 @@ mod tests {
 	use polkadot_primitives::parachain::{AvailableMessages, BlockData, ConsolidatedIngress, Collation};
 	use polkadot_erasure_coding::{self as erasure};
 	use availability_store::ProvideGossipMessages;
-
-	use futures::{future};
+	use futures::future;
+	use futures::executor::block_on;
+	use std::pin::Pin;
 
 	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
 		PoVBlock {
@@ -592,8 +592,8 @@ mod tests {
 		fn gossip_messages_for(
 			&self,
 			_topic: Hash
-		) -> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Unpin + Send> {
-			Box::new(futures03::stream::empty())
+		) -> Pin<Box<dyn futures::Stream<Item = (Hash, Hash, ErasureChunk)> + Send>> {
+			futures::stream::empty().boxed()
 		}
 
 		fn gossip_erasure_chunk(
@@ -609,7 +609,7 @@ mod tests {
 	struct DummyRouter;
 	impl TableRouter for DummyRouter {
 		type Error = ::std::io::Error;
-		type FetchValidationProof = future::FutureResult<PoVBlock,Self::Error>;
+		type FetchValidationProof = future::Ready<Result<PoVBlock,Self::Error>>;
 
 		fn local_collation(
 			&self,
@@ -766,7 +766,7 @@ mod tests {
 			n_validators as u32,
 		).unwrap();
 
-		let producer: ParachainWork<future::FutureResult<_, ::std::io::Error>> = ParachainWork {
+		let producer: ParachainWork<future::Ready<Result<_, ::std::io::Error>>> = ParachainWork {
 			work: Work {
 				candidate_receipt: candidate,
 				fetch: future::ok(pov_block.clone()),
@@ -777,7 +777,7 @@ mod tests {
 			max_block_data_size: None,
 		};
 
-		let validated = futures03::executor::block_on(producer.prime_with(|_, _, _| Ok((
+		let validated = block_on(producer.prime_with(|_, _, _| Ok((
 				OutgoingMessages { outgoing_messages: Vec::new() },
 				ErasureChunk {
 					chunk: vec![1, 2, 3],
@@ -841,7 +841,7 @@ mod tests {
 			max_block_data_size: None,
 		};
 
-		let validated = futures03::executor::block_on(producer.prime_with(|_, _, _| Ok((
+		let validated = block_on(producer.prime_with(|_, _, _| Ok((
 				OutgoingMessages { outgoing_messages: Vec::new() },
 				ErasureChunk {
 					chunk: chunks[local_index].clone(),

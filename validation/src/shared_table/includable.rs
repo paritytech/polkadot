@@ -19,7 +19,9 @@
 use std::collections::HashMap;
 
 use futures::prelude::*;
-use futures::sync::oneshot;
+use futures::channel::oneshot;
+use std::pin::Pin;
+use std::task::{Poll, Context};
 
 use polkadot_primitives::Hash;
 
@@ -95,17 +97,17 @@ impl IncludabilitySender {
 pub struct Includable(oneshot::Receiver<()>);
 
 impl Future for Includable {
-	type Item = ();
-	type Error = oneshot::Canceled;
+	type Output = Result<(), oneshot::Canceled>;
 
-	fn poll(&mut self) -> Poll<(), oneshot::Canceled> {
-		self.0.poll()
+	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+		Pin::new(&mut Pin::into_inner(self).0).poll(cx)
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use futures::executor::block_on;
 
 	#[test]
 	fn it_works() {
@@ -132,6 +134,6 @@ mod tests {
 		sender.update_candidate(hash1, true);
 		assert!(sender.is_complete());
 
-		recv.wait().unwrap();
+		block_on(recv).unwrap();
 	}
 }
