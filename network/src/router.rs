@@ -34,7 +34,7 @@ use polkadot_primitives::parachain::{
 use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
 
 use futures::prelude::*;
-use futures03::{future::FutureExt, TryFutureExt};
+use futures::{task::SpawnExt, future::{ready, select}};
 use parking_lot::Mutex;
 use log::{debug, trace};
 
@@ -59,14 +59,14 @@ pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 /// dropped when it is not required anymore. Otherwise, it will stick around in memory
 /// infinitely.
 pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
-	impl Stream<Item=SignedStatement, Error=()> {
+	impl Stream<Item=SignedStatement> {
 	// spin up a task in the background that processes all incoming statements
 	// validation has been done already by the gossip validator.
 	// this will block internally until the gossip messages stream is obtained.
 	network.gossip_messages_for(topic)
 		.filter_map(|msg| match msg.0 {
-			GossipMessage::Statement(s) => Some(s.signed_statement),
-			_ => None
+			GossipMessage::Statement(s) => ready(Some(s.signed_statement)),
+			_ => ready(None)
 		})
 }
 
@@ -101,7 +101,7 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	/// The returned stream will not terminate, so it is required to make sure that the stream is
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
-	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement, Error=()> {
+	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement> {
 		checked_statements(&**self.network(), self.attestation_topic)
 	}
 
@@ -130,7 +130,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
-	E: futures03::Future<Output=()> + Clone + Send + Unpin + 'static,
+	E: Future<Output=()> + Clone + Send + Unpin + 'static,
 {
 	/// Import a statement whose signature has been checked already.
 	pub(crate) fn import_statement(&self, statement: SignedStatement) {
@@ -174,50 +174,54 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 
 				if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
 					trace!(target: "validation", "driving statement work to completion");
-					let exit = self.fetcher.exit().clone().unit_error().compat();
-					let work = work.select2(exit).then(|_| Ok(()));
-					self.fetcher.executor().spawn(work);
+
+					let work = select(work.boxed(), self.fetcher.exit().clone())
+						.map(drop);
+					let _ = self.fetcher.executor().spawn(work);
 				}
 			}
 		}
 	}
 
 	fn create_work<D>(&self, candidate_hash: Hash, producer: ParachainWork<D>)
-		-> impl Future<Item=(),Error=()> + Send + 'static
+		-> impl Future<Output=()> + Send + 'static
 		where
-		D: Future<Item=PoVBlock,Error=io::Error> + Send + 'static,
+		D: Future<Output=Result<PoVBlock,io::Error>> + Send + Unpin + 'static,
 	{
 		let table = self.table.clone();
 		let network = self.network().clone();
 		let knowledge = self.fetcher.knowledge().clone();
 		let attestation_topic = self.attestation_topic;
 		let parent_hash = self.parent_hash();
+		let api = self.fetcher.api().clone();
 
-		producer.prime(self.fetcher.api().clone())
-			.validate()
-			.boxed()
-			.compat()
-			.map(move |validated| {
-				// store the data before broadcasting statements, so other peers can fetch.
-				knowledge.lock().note_candidate(
+		async move {
+			match producer.prime(api).validate().await {
+				Ok(validated) => {
+					// store the data before broadcasting statements, so other peers can fetch.
+					knowledge.lock().note_candidate(
 					candidate_hash,
 					Some(validated.0.pov_block().clone()),
 					validated.0.outgoing_messages().cloned(),
-				);
+					);
 
-				// propagate the statement.
-				// consider something more targeted than gossip in the future.
-				let statement = GossipStatement::new(
+					// propagate the statement.
+					// consider something more targeted than gossip in the future.
+					let statement = GossipStatement::new(
 					parent_hash,
 					match table.import_validated(validated.0) {
-						None => return,
-						Some(s) => s,
+					None => return,
+					Some(s) => s,
 					}
-				);
+					);
 
-				network.gossip_message(attestation_topic, statement.into());
-			})
-			.map_err(|e| debug!(target: "p_net", "Failed to produce statements: {:?}", e))
+					network.gossip_message(attestation_topic, statement.into());
+				},
+				Err(err) => {
+					debug!(target: "p_net", "Failed to produce statements: {:?}", err);
+				}
+			}
+		}
 	}
 }
 
@@ -225,7 +229,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
-	E: futures03::Future<Output=()> + Clone + Send + Unpin + 'static,
+	E: Future<Output=()> + Clone + Send + 'static,
 {
 	type Error = io::Error;
 	type FetchValidationProof = validation::PoVReceiver;

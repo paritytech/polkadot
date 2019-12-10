@@ -31,17 +31,19 @@ use polkadot_primitives::parachain::{
 };
 
 use futures::prelude::*;
-use futures::future::{self, Executor as FutureExecutor};
-use futures::sync::oneshot::{self, Receiver};
-use futures03::{FutureExt as _, TryFutureExt as _};
+use futures::task::SpawnExt;
+pub use futures::task::Spawn as Executor;
+use futures::channel::oneshot::{self, Receiver};
+use futures::future::{ready, select};
 
 use std::collections::hash_map::{HashMap, Entry};
 use std::io;
 use std::sync::Arc;
+use std::pin::Pin;
+use std::task::{Poll, Context};
 
 use arrayvec::ArrayVec;
 use parking_lot::Mutex;
-use log::warn;
 
 use crate::router::Router;
 use crate::gossip::{RegisteredMessageValidator, MessageValidationData};
@@ -49,33 +51,6 @@ use crate::gossip::{RegisteredMessageValidator, MessageValidationData};
 use super::NetworkService;
 
 pub use polkadot_validation::Incoming;
-
-/// An executor suitable for dispatching async consensus tasks.
-pub trait Executor {
-	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F);
-}
-
-/// A wrapped futures::future::Executor.
-#[derive(Clone)]
-pub struct WrappedExecutor<T>(pub T);
-
-impl<T> Executor for WrappedExecutor<T>
-	where T: FutureExecutor<Box<dyn Future<Item=(),Error=()> + Send + 'static>>
-{
-	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
-		if let Err(e) = self.0.execute(Box::new(f)) {
-			warn!(target: "validation", "could not spawn consensus task: {:?}", e);
-		}
-	}
-}
-
-impl Executor for Arc<
-	dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync
-> {
-	fn spawn<F: Future<Item=(),Error=()> + Send + 'static>(&self, f: F) {
-		let _ = FutureExecutor::execute(&**self, Box::new(f));
-	}
-}
 
 /// Params to instantiate validation work on a block-DAG leaf.
 pub struct LeafWorkParams {
@@ -124,7 +99,7 @@ impl<P, E: Clone, N, T: Clone> Clone for ValidationNetwork<P, E, N, T> {
 impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
-	E: Clone + futures03::Future<Output=()> + Send + Sync + 'static,
+	E: Clone + Future<Output=()> + Send + Sync + 'static,
 	N: NetworkService,
 	T: Clone + Executor + Send + Sync + 'static,
 {
@@ -184,13 +159,17 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 	/// Convert the given `CollatorId` to a `PeerId`.
 	pub fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
-		impl Future<Item=Option<PeerId>, Error=()> + Send
+		impl Future<Output=Option<PeerId>> + Send
 	{
-		let (send, recv) = oneshot::channel();
-		self.network.with_spec(move |spec, _| {
-			let _ = send.send(spec.collator_id_to_peer_id(&collator_id).cloned());
-		});
-		recv.map_err(|_| ())
+		let network = self.network.clone();
+
+		async move {
+			let (send, recv) = oneshot::channel();
+			network.with_spec(move |spec, _| {
+				let _ = send.send(spec.collator_id_to_peer_id(&collator_id).cloned());
+			});
+			recv.await.ok().and_then(|opt| opt)
+		}
 	}
 
 	/// Create a `Stream` of checked statements for the given `relay_parent`.
@@ -198,7 +177,7 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 	/// The returned stream will not terminate, so it is required to make sure that the stream is
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
-	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=SignedStatement, Error=()> {
+	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=SignedStatement> {
 		crate::router::checked_statements(&*self.network, crate::router::attestation_topic(relay_parent))
 	}
 }
@@ -207,13 +186,13 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
-	E: Clone + futures03::Future<Output=()> + Send + Sync + Unpin + 'static,
+	E: Clone + Future<Output=()> + Send + Sync + Unpin + 'static,
 	N: NetworkService,
 	T: Clone + Executor + Send + Sync + 'static,
 {
 	type Error = String;
 	type TableRouter = Router<P, E, N, T>;
-	type BuildTableRouter = Box<dyn Future<Item=Self::TableRouter, Error=String> + Send>;
+	type BuildTableRouter = Box<dyn Future<Output=Result<Self::TableRouter, String>> + Send + Unpin>;
 
 	fn communication_for(
 		&self,
@@ -234,7 +213,7 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 		let executor = self.executor.clone();
 		let work = build_fetcher
 			.map_err(|e| format!("{:?}", e))
-			.map(move |fetcher| {
+			.map_ok(move |fetcher| {
 				let table_router = Router::new(
 					table,
 					fetcher,
@@ -243,12 +222,14 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 
 				let table_router_clone = table_router.clone();
 				let work = table_router.checked_statements()
-					.for_each(move |msg| { table_router_clone.import_statement(msg); Ok(()) })
-					.select(exit.clone().unit_error().compat())
-					.map(|_| ())
-					.map_err(|_| ());
+					.for_each(move |msg| {
+						table_router_clone.import_statement(msg);
+						ready(())
+					});
 
-				executor.spawn(work);
+				let work = select(work, exit).map(drop);
+
+				let _ = executor.spawn(work);
 
 				table_router
 			});
@@ -263,27 +244,26 @@ pub struct NetworkDown;
 
 /// A future that resolves when a collation is received.
 pub struct AwaitingCollation {
-	outer: futures::sync::oneshot::Receiver<::futures::sync::oneshot::Receiver<Collation>>,
-	inner: Option<::futures::sync::oneshot::Receiver<Collation>>
+	outer: oneshot::Receiver<oneshot::Receiver<Collation>>,
+	inner: Option<oneshot::Receiver<Collation>>
 }
 
 impl Future for AwaitingCollation {
-	type Item = Collation;
-	type Error = NetworkDown;
+	type Output = Result<Collation, NetworkDown>;
 
-	fn poll(&mut self) -> Poll<Collation, NetworkDown> {
-		if let Some(ref mut inner) = self.inner {
-			return inner
-				.poll()
-				.map_err(|_| NetworkDown)
+	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+		let this = Pin::into_inner(self);
+
+		if let Some(ref mut inner) = this.inner {
+			return Pin::new(inner).poll(cx).map_err(|_| NetworkDown)
 		}
-		match self.outer.poll() {
-			Ok(futures::Async::Ready(inner)) => {
-				self.inner = Some(inner);
-				self.poll()
+		match Pin::new(&mut this.outer).poll(cx) {
+			Poll::Ready(Ok(inner)) => {
+				this.inner = Some(inner);
+				Pin::new(this).poll(cx)
 			},
-			Ok(futures::Async::NotReady) => Ok(futures::Async::NotReady),
-			Err(_) => Err(NetworkDown)
+			Poll::Ready(Err(_)) => Poll::Ready(Err(NetworkDown)),
+			Poll::Pending => Poll::Pending,
 		}
 	}
 }
@@ -297,7 +277,7 @@ impl<P, E: Clone, N, T: Clone> Collators for ValidationNetwork<P, E, N, T> where
 	type Collation = AwaitingCollation;
 
 	fn collate(&self, parachain: ParaId, relay_parent: Hash) -> Self::Collation {
-		let (tx, rx) = ::futures::sync::oneshot::channel();
+		let (tx, rx) = oneshot::channel();
 		self.network.with_spec(move |spec, _| {
 			let collation = spec.await_collation(relay_parent, parachain);
 			let _ = tx.send(collation);
@@ -375,17 +355,16 @@ pub struct IncomingReceiver {
 }
 
 impl Future for IncomingReceiver {
-	type Item = Incoming;
-	type Error = io::Error;
+	type Output = Result<Incoming, io::Error>;
 
-	fn poll(&mut self) -> Poll<Incoming, io::Error> {
-		match self.inner.poll() {
-			Ok(Async::NotReady) => Ok(Async::NotReady),
-			Ok(Async::Ready(i)) => Ok(Async::Ready(Incoming::clone(&*i))),
-			Err(_) => Err(io::Error::new(
+	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+		match Pin::new(&mut Pin::into_inner(self).inner).poll(cx) {
+			Poll::Ready(Ok(i)) => Poll::Ready(Ok(Incoming::clone(&i))),
+			Poll::Ready(Err(_)) => Poll::Ready(Err(io::Error::new(
 				io::ErrorKind::Other,
 				"Sending end of channel hung up",
-			)),
+			))),
+			Poll::Pending => Poll::Pending,
 		}
 	}
 }
@@ -592,24 +571,25 @@ pub struct PoVReceiver {
 }
 
 impl Future for PoVReceiver {
-	type Item = PoVBlock;
-	type Error = io::Error;
+	type Output = Result<PoVBlock, io::Error>;
 
-	fn poll(&mut self) -> Poll<PoVBlock, io::Error> {
+	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+		let this = Pin::into_inner(self);
+
 		let map_err = |_| io::Error::new(
 			io::ErrorKind::Other,
 			"Sending end of channel hung up",
 		);
 
-		if let Some(ref mut inner) = self.inner {
-			return inner.poll().map_err(map_err);
+		if let Some(ref mut inner) = this.inner {
+			return Pin::new(inner).poll(cx).map_err(map_err);
 		}
-		match self.outer.poll().map_err(map_err)? {
-			Async::Ready(inner) => {
-				self.inner = Some(inner);
-				self.poll()
+		match Pin::new(&mut this.outer).poll(cx).map_err(map_err)? {
+			Poll::Ready(inner) => {
+				this.inner = Some(inner);
+				Pin::new(this).poll(cx)
 			}
-			Async::NotReady => Ok(Async::NotReady),
+			Poll::Pending => Poll::Pending,
 		}
 	}
 }
@@ -675,7 +655,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> LeafWorkDataFetcher<P, E, N, T> where
 	P::Api: ParachainHost<Block>,
 	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
-	E: futures03::Future<Output=()> + Clone + Send + 'static,
+	E: Future<Output=()> + Clone + Send + 'static,
 {
 	/// Fetch PoV block for the given candidate receipt.
 	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> PoVReceiver {
@@ -697,7 +677,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> LeafWorkDataFetcher<P, E, N, T> where
 			);
 
 		let candidate = candidate.clone();
-		let (tx, rx) = ::futures::sync::oneshot::channel();
+		let (tx, rx) = oneshot::channel();
 		self.network.with_spec(move |spec, ctx| {
 			if let Ok(Some(canon_roots)) = canon_roots {
 				let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash, canon_roots);

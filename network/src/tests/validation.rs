@@ -39,22 +39,23 @@ use sp_runtime::traits::{ApiRef, {Block as BlockT}, ProvideRuntimeApi};
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use futures::{prelude::*, sync::mpsc};
+use std::pin::Pin;
+use std::task::{Poll, Context};
+use futures::{prelude::*, channel::mpsc};
 use codec::Encode;
 
 use super::{TestContext, TestChainContext};
 
-type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
+type TaskExecutor = Arc<dyn futures::task::Spawn + Send + Sync>;
 
 #[derive(Clone, Copy)]
 struct NeverExit;
 
 impl Future for NeverExit {
-	type Item = ();
-	type Error = ();
+	type Output = ();
 
-	fn poll(&mut self) -> Poll<(), ()> {
-		Ok(Async::NotReady)
+	fn poll(self: Pin<&mut Self>, _: &mut Context) -> Poll<Self::Output> {
+		Poll::Pending
 	}
 }
 
@@ -93,27 +94,28 @@ impl GossipRouter {
 }
 
 impl Future for GossipRouter {
-	type Item = ();
-	type Error = ();
+	type Output = ();
 
-	fn poll(&mut self) -> Poll<(), ()> {
+	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+		let this = Pin::into_inner(self);
+
 		loop {
-			match self.incoming_messages.poll().unwrap() {
-				Async::Ready(Some((topic, message))) => self.add_message(topic, message),
-				Async::Ready(None) => panic!("ended early."),
-				Async::NotReady => break,
+			match Pin::new(&mut this.incoming_messages).poll_next(cx) {
+				Poll::Ready(Some((topic, message))) => this.add_message(topic, message),
+				Poll::Ready(None) => panic!("ended early."),
+				Poll::Pending => break,
 			}
 		}
 
 		loop {
-			match self.incoming_streams.poll().unwrap() {
-				Async::Ready(Some((topic, sender))) => self.add_outgoing(topic, sender),
-				Async::Ready(None) => panic!("ended early."),
-				Async::NotReady => break,
+			match Pin::new(&mut this.incoming_streams).poll_next(cx) {
+				Poll::Ready(Some((topic, sender))) => this.add_outgoing(topic, sender),
+				Poll::Ready(None) => panic!("ended early."),
+				Poll::Pending => break,
 			}
 		}
 
-		Ok(Async::NotReady)
+		Poll::Pending
 	}
 }
 
@@ -148,7 +150,7 @@ impl NetworkService for TestNetwork {
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
-		GossipMessageStream::new(Box::new(rx))
+		GossipMessageStream::new(rx.boxed())
 	}
 
 	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
@@ -417,8 +419,8 @@ impl av_store::ProvideGossipMessages for DummyGossipMessages {
 	fn gossip_messages_for(
 		&self,
 		_topic: Hash
-	) -> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin> {
-		Box::new(futures03::stream::empty())
+	) -> Pin<Box<dyn futures::Stream<Item = (Hash, Hash, ErasureChunk)> + Send>> {
+		stream::empty().boxed()
 	}
 
 	fn gossip_erasure_chunk(

@@ -23,7 +23,7 @@
 #![warn(missing_docs)]
 
 use futures::prelude::*;
-use futures::channel::{mpsc, oneshot};
+use futures::{channel::{mpsc, oneshot}, task::Spawn};
 use keystore::KeyStorePtr;
 use polkadot_primitives::{
 	Hash, Block,
@@ -45,6 +45,7 @@ use std::sync::Arc;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::io;
+use std::pin::Pin;
 
 mod worker;
 mod store;
@@ -58,10 +59,7 @@ use worker::{
 use store::{Store as InnerStore};
 
 /// Abstraction over an executor that lets you spawn tasks in the background.
-pub(crate) type TaskExecutor =
-	Arc<dyn futures01::future::Executor<
-		Box<dyn futures01::Future<Item = (), Error = ()> + Send>
-	> + Send + Sync>;
+pub(crate) type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 
 const LOG_TARGET: &str = "availability";
 
@@ -110,7 +108,7 @@ pub trait ProvideGossipMessages {
 	fn gossip_messages_for(
 		&self,
 		topic: Hash,
-	) -> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin>;
+	) -> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>;
 
 	/// Gossip an erasure chunk message.
 	fn gossip_erasure_chunk(
@@ -155,6 +153,7 @@ impl Store {
 	///
 	/// Creating a store among other things starts a background worker thread which
 	/// handles most of the write operations to the storage.
+	#[cfg(not(target_os = "unknown"))]
 	pub fn new<PGM>(config: Config, gossip: PGM) -> io::Result<Self>
 		where PGM: ProvideGossipMessages + Send + Sync + Clone + 'static
 	{
