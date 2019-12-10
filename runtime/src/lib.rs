@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1029,
+	spec_version: 1030,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -552,6 +552,27 @@ impl nicks::Trait for Runtime {
 	type MaxLength = MaxLength;
 }
 
+parameter_types! {
+	// KUSAMA: can be probably be reduced for mainnet
+	// Minimum 100 bytes/KSM deposited (1 CENT/byte)
+	pub const BasicDeposit: Balance = 1000 * DOLLARS;       // 258 bytes on-chain
+	pub const FieldDeposit: Balance = 250 * DOLLARS;        // 66 bytes on-chain
+	pub const SubAccountDeposit: Balance = 200 * DOLLARS;   // 53 bytes on-chain
+	pub const MaximumSubAccounts: u32 = 100;
+}
+
+impl identity::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type Slashed = Treasury;
+	type BasicDeposit = BasicDeposit;
+	type FieldDeposit = FieldDeposit;
+	type SubAccountDeposit = SubAccountDeposit;
+	type MaximumSubAccounts = MaximumSubAccounts;
+	type RegistrarOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type ForceOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -599,7 +620,11 @@ construct_runtime! {
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
 
 		// Simple nicknames module.
+		// KUSAMA: Remove before mainnet
 		Nicks: nicks::{Module, Call, Storage, Event<T>},
+
+		// Less simple identity module.
+		Identity: identity::{Module, Call, Storage, Event<T>},
 	}
 }
 
@@ -678,7 +703,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl tx_pool_api::TaggedTransactionQueue<Block> for Runtime {
+	impl tx_pool_api::runtime_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(tx: <Block as BlockT>::Extrinsic) -> TransactionValidity {
 			Executive::validate_transaction(tx)
 		}
