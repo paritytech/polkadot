@@ -609,7 +609,7 @@ impl<C, TxPool> consensus::Proposer<Block> for Proposer<C, TxPool> where
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 {
 	type Error = Error;
-	type Create = Pin<Box<dyn Future<Output = Result<Block, Error>>>>;
+	type Create = Pin<Box<dyn Future<Output = Result<Block, Error>> + Send>>;
 
 	fn propose(&mut self,
 		inherent_data: InherentData,
