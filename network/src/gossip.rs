@@ -340,8 +340,8 @@ pub fn register_validator<C: ChainContext + 'static>(
 
 	RegisteredMessageValidator {
 		inner: validator as _,
-		service,
-		gossip_engine
+		service: Some(service),
+		gossip_engine: Some(gossip_engine),
 	}
 }
 
@@ -384,8 +384,10 @@ impl NewLeafActions {
 #[derive(Clone)]
 pub struct RegisteredMessageValidator {
 	inner: Arc<MessageValidator<dyn ChainContext>>,
-	service: Arc<PolkadotNetworkService>,
-	gossip_engine: sc_network_gossip::GossipEngine<Block>,
+	// Note: this is always `Some` in real code and `None` in tests.
+	service: Option<Arc<PolkadotNetworkService>>,
+	// Note: this is always `Some` in real code and `None` in tests.
+	gossip_engine: Option<sc_network_gossip::GossipEngine<Block>>,
 }
 
 impl RegisteredMessageValidator {
@@ -396,10 +398,11 @@ impl RegisteredMessageValidator {
 	) -> Self {
 		let validator = Arc::new(MessageValidator::new_test(chain, report_handle));
 
-		/*RegisteredMessageValidator {
-			inner: validator as _
-		}*/
-		unimplemented!()		// FIXME:
+		RegisteredMessageValidator {
+			inner: validator as _,
+			service: None,
+			gossip_engine: None,
+		}
 	}
 
 	pub fn register_availability_store(&mut self, availability_store: av_store::Store) {
@@ -469,26 +472,44 @@ impl RegisteredMessageValidator {
 
 impl NetworkService for RegisteredMessageValidator {
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
-		let topic_stream = self.gossip_engine.messages_for(topic);
+		let topic_stream = if let Some(gossip_engine) = self.gossip_engine.as_ref() {
+			gossip_engine.messages_for(topic)
+		} else {
+			log::error!("Called gossip_messages_for on a test engine");
+			futures03::channel::mpsc::unbounded().1
+		};
+
 		GossipMessageStream::new(Box::new(Compat::new(topic_stream.map(Ok))))
 	}
 
 	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
-		self.gossip_engine.gossip_message(
-			topic,
-			message.encode(),
-			false,
-		);
+		if let Some(gossip_engine) = self.gossip_engine.as_ref() {
+			gossip_engine.gossip_message(
+				topic,
+				message.encode(),
+				false,
+			);
+		} else {
+			log::error!("Called gossip_message on a test engine");
+		}
 	}
 
 	fn send_message(&self, who: PeerId, message: GossipMessage) {
-		self.gossip_engine.send_message(vec![who], message.encode());
+		if let Some(gossip_engine) = self.gossip_engine.as_ref() {
+			gossip_engine.send_message(vec![who], message.encode());
+		} else {
+			log::error!("Called send_message on a test engine");
+		}
 	}
 
 	fn with_spec<F: Send + 'static>(&self, with: F)
 		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>)
 	{
-		self.service.with_spec(with)
+		if let Some(service) = self.service.as_ref() {
+			service.with_spec(with)
+		} else {
+			log::error!("Called with_spec on a test engine");
+		}
 	}
 }
 
