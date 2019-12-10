@@ -175,7 +175,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 				if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
 					trace!(target: "validation", "driving statement work to completion");
 
-					let work = select(work, self.fetcher.exit().clone())
+					let work = select(work.boxed(), self.fetcher.exit().clone())
 						.map(drop);
 					let _ = self.fetcher.executor().spawn(work);
 				}
@@ -193,35 +193,35 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 		let knowledge = self.fetcher.knowledge().clone();
 		let attestation_topic = self.attestation_topic;
 		let parent_hash = self.parent_hash();
+		let api = self.fetcher.api().clone();
 
-		producer.prime(self.fetcher.api().clone())
-			.validate()
-			.boxed()
-			.map_ok(move |validated| {
-				// store the data before broadcasting statements, so other peers can fetch.
-				knowledge.lock().note_candidate(
+		async move {
+			match producer.prime(api).validate().await {
+				Ok(validated) => {
+					// store the data before broadcasting statements, so other peers can fetch.
+					knowledge.lock().note_candidate(
 					candidate_hash,
 					Some(validated.0.pov_block().clone()),
 					validated.0.outgoing_messages().cloned(),
-				);
+					);
 
-				// propagate the statement.
-				// consider something more targeted than gossip in the future.
-				let statement = GossipStatement::new(
+					// propagate the statement.
+					// consider something more targeted than gossip in the future.
+					let statement = GossipStatement::new(
 					parent_hash,
 					match table.import_validated(validated.0) {
-						None => return,
-						Some(s) => s,
+					None => return,
+					Some(s) => s,
 					}
-				);
+					);
 
-				network.gossip_message(attestation_topic, statement.into());
-			})
-			.map(|res| {
-				if let Err(e) = res {
-					debug!(target: "p_net", "Failed to produce statements: {:?}", e);
+					network.gossip_message(attestation_topic, statement.into());
+				},
+				Err(err) => {
+					debug!(target: "p_net", "Failed to produce statements: {:?}", err);
 				}
-			})
+			}
+		}
 	}
 }
 

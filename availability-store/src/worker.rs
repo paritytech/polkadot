@@ -37,8 +37,7 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, ParachainHost, ValidatorId,
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
-use futures::channel::{mpsc, oneshot};
-use futures::{FutureExt, Sink, SinkExt, StreamExt, future::select, task::SpawnExt};
+use futures::{prelude::*, future::select, channel::{mpsc, oneshot}, task::SpawnExt};
 use keystore::KeyStorePtr;
 
 use tokio::runtime::{Handle, Runtime as LocalRuntime};
@@ -796,6 +795,7 @@ mod tests {
 	use std::time::Duration;
 	use futures::{stream, channel::mpsc, Stream};
 	use std::sync::{Arc, Mutex};
+	use std::pin::Pin;
 	use tokio::runtime::Runtime;
 
 	// Just contains topic->channel mapping to give to outer code on `gossip_messages_for` calls.
@@ -805,11 +805,11 @@ mod tests {
 
 	impl ProvideGossipMessages for TestGossipMessages {
 		fn gossip_messages_for(&self, topic: Hash)
-			-> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin>
+			-> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>
 		{
 			match self.messages.lock().unwrap().remove(&topic) {
-				Some(receiver) => Box::new(receiver),
-				None => Box::new(stream::iter(vec![])),
+				Some(receiver) => receiver.boxed(),
+				None => stream::iter(vec![]).boxed(),
 			}
 		}
 
@@ -880,7 +880,7 @@ mod tests {
 		// chunk topics.
 		handle.sender.unbounded_send(msg).unwrap();
 
-		runtime.block_on(r.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r).unwrap().unwrap();
 
 		// Make sure that at this point we are waiting for the appropriate chunk.
 		assert_eq!(
@@ -982,7 +982,7 @@ mod tests {
 
 		handle.sender.unbounded_send(listen_msg_2).unwrap();
 
-		runtime.block_on(r2.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r2).unwrap().unwrap();
 		// The gossip sender for this topic left intact => listener not registered.
 		assert!(messages.messages.lock().unwrap().contains_key(&topic_2));
 
@@ -998,7 +998,7 @@ mod tests {
 		});
 
 		handle.sender.unbounded_send(listen_msg_1).unwrap();
-		runtime.block_on(r1.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r1).unwrap().unwrap();
 
 		// The gossip sender taken => listener registered.
 		assert!(!messages.messages.lock().unwrap().contains_key(&topic_1));

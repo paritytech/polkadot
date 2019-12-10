@@ -48,9 +48,9 @@ pub use chain_spec::ChainSpec;
 #[cfg(not(target_os = "unknown"))]
 pub use consensus::run_validation_worker;
 
-/// A wrapped futures01::future::Executor.
+/// Wrap a futures01 executor as a futures03 spawn.
 #[derive(Clone)]
-struct WrappedExecutor<T>(pub T);
+pub struct WrappedExecutor<T>(pub T);
 
 impl<T> Spawn for WrappedExecutor<T>
 	where T: futures01::future::Executor<Box<dyn futures01::Future<Item=(),Error=()> + Send + 'static>>

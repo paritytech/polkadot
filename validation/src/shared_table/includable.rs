@@ -107,6 +107,7 @@ impl Future for Includable {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use futures::executor::block_on;
 
 	#[test]
 	fn it_works() {

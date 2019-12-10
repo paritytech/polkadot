@@ -24,8 +24,11 @@ mod chain_spec;
 mod browser;
 
 use chain_spec::ChainSpec;
-use futures::{Future, future::select, channel::oneshot, compat::Future01CompatExt};
-pub use tokio::runtime::Runtime;
+use futures::{
+	Future, future::select, channel::oneshot, compat::Future01CompatExt,
+	task::{Spawn, FutureObj, SpawnError}
+};
+use tokio::runtime::{Runtime, Handle};
 use log::{info, error};
 use structopt::StructOpt;
 
@@ -59,13 +62,14 @@ pub trait Worker: IntoExit {
 	fn configuration(&self) -> service::CustomConfiguration { Default::default() }
 
 	/// Do work and schedule exit.
-	fn work<S, SC, B, CE>(self, service: &S, executor: &Runtime) -> Self::Work
+	fn work<S, SC, B, CE, SP>(self, service: &S, spawner: SP) -> Self::Work
 	where S: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
 		Backend = B, SelectChain = SC,
 		NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
 		SC: service::SelectChain<service::Block> + 'static,
 		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
-		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static;
+		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static,
+		SP: Spawn + Clone + Send + Sync + 'static;
 }
 
 #[derive(Debug, StructOpt, Clone)]
@@ -144,10 +148,24 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 		cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<(), _, _, _, _, _>(|config|
 			Ok(service::new_chain_ops(config)?), load_spec),
 		cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
-			#[cfg(not(target_os = "unknown"))]
-			service::run_validation_worker(&args.mem_id)?;
-			Ok(())
+			if cfg!(feature = "browser") {
+				Err(error::Error::Input("Cannot run validation worker in browser".into()))
+			} else {
+				#[cfg(not(feature = "browser"))]
+				service::run_validation_worker(&args.mem_id)?;
+				Ok(())
+			}
 		}
+	}
+}
+
+#[derive(Clone)]
+struct RuntimeSpawner(Handle);
+
+impl Spawn for RuntimeSpawner {
+	fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
+		self.0.spawn(future);
+		Ok(())
 	}
 }
 
@@ -175,7 +193,7 @@ fn run_until_exit<T, SC, B, CE, W>(
 	// but we need to keep holding a reference to the global telemetry guard
 	let _telemetry = service.telemetry();
 
-	let work = worker.work(&service, &runtime);
+	let work = worker.work(&service, RuntimeSpawner(runtime.handle().clone()));
 	let service = service
 		.map_err(|err| error!("Error while running Service: {}", err))
 		.compat();

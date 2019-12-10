@@ -458,7 +458,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				warn!(target: "validation" , "Failed to build table router: {:?}", e);
 			});
 
-		let cancellable_work = select(exit, router).map(|_| ());
+		let cancellable_work = select(exit, router).map(drop);
 
 		// spawn onto thread pool.
 		if self.handle.spawn(cancellable_work).is_err() {
@@ -893,12 +893,9 @@ impl<C, TxPool> Future for CreateProposal<C, TxPool> where
 					thus Switching will never be reachable here; qed"
 				),
 			CreateProposalState::Fired(mut future) => {
-				let ret = match Pin::new(&mut future).poll(cx) {
-					Poll::Ready(res) => {
-						Poll::Ready(res.map_err(Error::Join).and_then(|res| res))
-					},
-					Poll::Pending => Poll::Pending
-				};
+				let ret = Pin::new(&mut future)
+					.poll(cx)
+					.map(|res| res.map_err(Error::Join).and_then(|res| res));
 				self.state = CreateProposalState::Fired(future);
 				return ret
 			},
@@ -909,12 +906,9 @@ impl<C, TxPool> Future for CreateProposal<C, TxPool> where
 			let proposed_candidates = data.table.proposed_set();
 			data.propose_with(proposed_candidates)
 		});
-		let polled = match Pin::new(&mut future).poll(cx) {
-			Poll::Ready(res) => {
-				Poll::Ready(res.map_err(Error::Join).and_then(|res| res))
-			},
-			Poll::Pending => Poll::Pending
-		};
+		let polled = Pin::new(&mut future)
+			.poll(cx)
+			.map(|res| res.map_err(Error::Join).and_then(|res| res));
 		self.state = CreateProposalState::Fired(future);
 
 		polled

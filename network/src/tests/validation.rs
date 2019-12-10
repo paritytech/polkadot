@@ -150,7 +150,7 @@ impl NetworkService for TestNetwork {
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
-		GossipMessageStream::new(Box::new(rx))
+		GossipMessageStream::new(rx.boxed())
 	}
 
 	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
@@ -419,8 +419,8 @@ impl av_store::ProvideGossipMessages for DummyGossipMessages {
 	fn gossip_messages_for(
 		&self,
 		_topic: Hash
-	) -> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin> {
-		Box::new(futures03::stream::empty())
+	) -> Pin<Box<dyn futures::Stream<Item = (Hash, Hash, ErasureChunk)> + Send>> {
+		stream::empty().boxed()
 	}
 
 	fn gossip_erasure_chunk(
