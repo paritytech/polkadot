@@ -23,7 +23,8 @@ use sc_network::PeerId;
 use futures::channel::oneshot;
 
 use std::collections::hash_map::{HashMap, Entry};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use wasm_timer::Instant;
 
 const COLLATION_LIFETIME: Duration = Duration::from_secs(60 * 5);
 
