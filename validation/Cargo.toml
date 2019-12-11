@@ -24,7 +24,7 @@ grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytec
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
