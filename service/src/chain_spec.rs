@@ -19,7 +19,6 @@
 use primitives::{Pair, Public, crypto::UncheckedInto, sr25519};
 use polkadot_primitives::{AccountId, AccountPublic, parachain::ValidatorId};
 use polkadot_runtime as polkadot;
-use kusama_runtime as kusama;
 use polkadot_runtime::constants::currency::DOTS;
 use sp_runtime::{traits::IdentifyAccount, Perbill};
 use telemetry::TelemetryEndpoints;
@@ -33,12 +32,14 @@ use pallet_staking::Forcing;
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
-/// Specialised `ChainSpec`.
-pub type KusamaChainSpec = service::ChainSpec<kusama::GenesisConfig>;
-pub type PolkadotChainSpec = service::ChainSpec<polkadot::GenesisConfig>;
+/// The `ChainSpec`.
+///
+/// We use the same `ChainSpec` type for Polkadot and Kusama. As Kusama
+/// is only loaded from a file, the `GenesisConfig` type is not used.
+pub type ChainSpec = service::ChainSpec<polkadot::GenesisConfig>;
 
-pub fn kusama_config() -> Result<KusamaChainSpec, String> {
-	KusamaChainSpec::from_json_bytes(&include_bytes!("../res/kusama.json")[..])
+pub fn kusama_config() -> Result<ChainSpec, String> {
+	ChainSpec::from_json_bytes(&include_bytes!("../res/kusama.json")[..])
 }
 
 fn session_keys(
@@ -203,9 +204,9 @@ fn staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 }
 
 /// Staging testnet config.
-pub fn staging_testnet_config() -> PolkadotChainSpec {
+pub fn staging_testnet_config() -> ChainSpec {
 	let boot_nodes = vec![];
-	PolkadotChainSpec::from_genesis(
+	ChainSpec::from_genesis(
 		"Staging Testnet",
 		"staging_testnet",
 		staging_testnet_config_genesis,
@@ -351,8 +352,8 @@ fn development_config_genesis() -> polkadot::GenesisConfig {
 }
 
 /// Development config (single validator Alice)
-pub fn development_config() -> PolkadotChainSpec {
-	PolkadotChainSpec::from_genesis(
+pub fn development_config() -> ChainSpec {
+	ChainSpec::from_genesis(
 		"Development",
 		"dev",
 		development_config_genesis,
@@ -376,8 +377,8 @@ fn local_testnet_genesis() -> polkadot::GenesisConfig {
 }
 
 /// Local testnet config (multivalidator Alice + Bob)
-pub fn local_testnet_config() -> PolkadotChainSpec {
-	PolkadotChainSpec::from_genesis(
+pub fn local_testnet_config() -> ChainSpec {
+	ChainSpec::from_genesis(
 		"Local Testnet",
 		"local_testnet",
 		local_testnet_genesis,

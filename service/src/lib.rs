@@ -24,13 +24,15 @@ use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
 use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
-use service::{error::{Error as ServiceError}, Configuration, ServiceBuilder};
+use service::{error::{Error as ServiceError}, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use sc_executor::native_executor_instance;
 use log::info;
-pub use service::{AbstractService, Roles, PruningMode, TransactionPoolOptions, Error, ChainSpec,
-	RuntimeGenesis, ServiceBuilderCommand, TFullClient, TLightClient};
+pub use service::{
+	AbstractService, Roles, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
+	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
+};
 pub use service::config::{DatabaseConfig, full_version_from_strs};
 pub use sc_executor::NativeExecutionDispatch;
 pub use client::{ExecutionStrategy, CallExecutor, Client};
@@ -43,7 +45,7 @@ pub use polkadot_primitives::Block;
 pub use primitives::Blake2Hasher;
 pub use sp_runtime::traits::{Block as BlockT, ProvideRuntimeApi, self as runtime_traits};
 pub use sc_network::specialization::NetworkSpecialization;
-pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec};
+pub use chain_spec::ChainSpec;
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
@@ -65,6 +67,11 @@ pub struct CustomConfiguration {
 	pub slot_duration: u64,
 }
 
+/// Configuration type that is being used.
+///
+/// See [`ChainSpec`] for more information why Polkadot `GenesisConfig` is safe here.
+pub type Configuration = service::Configuration<CustomConfiguration, polkadot_runtime::GenesisConfig>;
+
 impl Default for CustomConfiguration {
 	fn default() -> Self {
 		Self {
@@ -75,7 +82,6 @@ impl Default for CustomConfiguration {
 		}
 	}
 }
-
 
 native_executor_instance!(
 	pub PolkadotExecutor,
@@ -128,6 +134,18 @@ pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static
 
 impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static
 {}
+
+/// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
+pub trait IsKusama {
+	/// Returns if this is a configuration for the `Kusama` network.
+	fn is_kusama(&self) -> bool;
+}
+
+impl IsKusama for Configuration {
+	fn is_kusama(&self) -> bool {
+		self.chain_spec.name().starts_with("Kusama")
+	}
+}
 
 /// Starts a `ServiceBuilder` for a full service.
 ///
@@ -189,34 +207,60 @@ macro_rules! new_full_start {
 }
 
 /// Builds a new object suitable for chain operations.
-pub fn new_chain_ops<Runtime, Dispatch, Extrinsic, Genesis>(config: Configuration<CustomConfiguration, Genesis>)
+pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	-> Result<impl ServiceBuilderCommand<Block=Block>, ServiceError>
 where
 	Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
 	Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic>,
 	Dispatch: NativeExecutionDispatch + 'static,
 	Extrinsic: RuntimeExtrinsic,
-	Genesis: RuntimeGenesis,
 {
 	Ok(new_full_start!(config, Runtime, Dispatch).0)
 }
 
+/// Create a new Polkadot service for a full node.
+pub fn polkadot_new_full(config: Configuration)
+	-> Result<impl AbstractService<
+		Block = Block,
+		RuntimeApi = polkadot_runtime::RuntimeApi,
+		NetworkSpecialization = PolkadotProtocol,
+		Backend = TFullBackend<Block>,
+		SelectChain = LongestChain<TFullBackend<Block>, Block>,
+		CallExecutor = TFullCallExecutor<Block, PolkadotExecutor>,
+	>, ServiceError>
+{
+	new_full(config)
+}
+
+/// Create a new Kusama service for a full node.
+pub fn kusama_new_full(config: Configuration)
+	-> Result<impl AbstractService<
+		Block = Block,
+		RuntimeApi = kusama_runtime::RuntimeApi,
+		NetworkSpecialization = PolkadotProtocol,
+		Backend = TFullBackend<Block>,
+		SelectChain = LongestChain<TFullBackend<Block>, Block>,
+		CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
+	>, ServiceError>
+{
+	new_full(config)
+}
+
 /// Builds a new service for a full client.
-pub fn new_full<Runtime, Dispatch, Extrinsic, Genesis>(config: Configuration<CustomConfiguration, Genesis>)
+pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = Runtime,
 		NetworkSpecialization = PolkadotProtocol,
-		Backend = impl Backend<Block, Blake2Hasher> + 'static,
-		SelectChain = impl SelectChain<Block>,
-		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
+		Backend = TFullBackend<Block>,
+		SelectChain = LongestChain<TFullBackend<Block>, Block>,
+		CallExecutor = TFullCallExecutor<Block, Dispatch>,
 	>, ServiceError>
 	where
 		Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
 		Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic>,
 		Dispatch: NativeExecutionDispatch + 'static,
 		Extrinsic: RuntimeExtrinsic,
-		Genesis: RuntimeGenesis,
 {
 	use sc_network::DhtEvent;
 	use futures03::{
@@ -367,7 +411,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic, Genesis>(config: Configuration<Cus
 			env: proposer,
 			sync_oracle: service.network(),
 			inherent_data_providers: inherent_data_providers.clone(),
-			force_authoring: force_authoring,
+			force_authoring,
 			babe_link,
 			can_author_with,
 		};
@@ -418,7 +462,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic, Genesis>(config: Configuration<Cus
 		// provide better guarantees of block and vote data availability than
 		// the observer.
 		let grandpa_config = grandpa::GrandpaParams {
-			config: config,
+			config,
 			link: link_half,
 			network: service.network(),
 			inherent_data_providers: inherent_data_providers.clone(),
@@ -438,22 +482,49 @@ pub fn new_full<Runtime, Dispatch, Extrinsic, Genesis>(config: Configuration<Cus
 	Ok(service)
 }
 
+/// Create a new Polkadot service for a light client.
+pub fn polkadot_new_light(config: Configuration)
+	-> Result<impl AbstractService<
+		Block = Block,
+		RuntimeApi = polkadot_runtime::RuntimeApi,
+		NetworkSpecialization = PolkadotProtocol,
+		Backend = TLightBackend<Block>,
+		SelectChain = LongestChain<TLightBackend<Block>, Block>,
+		CallExecutor = TLightCallExecutor<Block, PolkadotExecutor>,
+	>, ServiceError>
+{
+	new_light(config)
+}
+
+/// Create a new Kusama service for a light client.
+pub fn kusama_new_light(config: Configuration)
+	-> Result<impl AbstractService<
+		Block = Block,
+		RuntimeApi = kusama_runtime::RuntimeApi,
+		NetworkSpecialization = PolkadotProtocol,
+		Backend = TLightBackend<Block>,
+		SelectChain = LongestChain<TLightBackend<Block>, Block>,
+		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,
+	>, ServiceError>
+{
+	new_light(config)
+}
+
 /// Builds a new service for a light client.
-pub fn new_light<Runtime, Dispatch, Extrinsic, Genesis>(config: Configuration<CustomConfiguration, Genesis>)
+pub fn new_light<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = Runtime,
 		NetworkSpecialization = PolkadotProtocol,
-		Backend = impl Backend<Block, Blake2Hasher> + 'static,
-		SelectChain = impl SelectChain<Block>,
-		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
+		Backend = TLightBackend<Block>,
+		SelectChain = LongestChain<TLightBackend<Block>, Block>,
+		CallExecutor = TLightCallExecutor<Block, Dispatch>,
 	>, ServiceError>
 where
 	Runtime: ConstructRuntimeApi<Block, service::TLightClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
 	Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic>,
 	Dispatch: NativeExecutionDispatch + 'static,
 	Extrinsic: RuntimeExtrinsic,
-	Genesis: RuntimeGenesis,
 {
 	let inherent_data_providers = InherentDataProviders::new();
 

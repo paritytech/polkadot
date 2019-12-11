@@ -3585,6 +3585,7 @@ dependencies = [
  "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-consensus 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",

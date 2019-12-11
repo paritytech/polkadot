@@ -6,6 +6,7 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
+
 // Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -51,10 +52,10 @@ use std::time::Duration;
 
 use futures::{
 	future, Future, Stream, FutureExt, TryFutureExt, StreamExt,
-	compat::{Compat01As03, Future01CompatExt, Stream01CompatExt}
+	compat::{Future01CompatExt, Stream01CompatExt}
 };
 use futures01::{Future as _};
-use log::{warn, error};
+use log::warn;
 use client::BlockchainEvents;
 use primitives::{Pair, Blake2Hasher};
 use polkadot_primitives::{
@@ -65,13 +66,13 @@ use polkadot_primitives::{
 	}
 };
 use polkadot_cli::{
-	Worker, IntoExit, ProvideRuntimeApi, AbstractService, CustomConfiguration, ParachainHost,
-	service,
+	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
+	service::{self, Roles, SelectChain}
 };
 use polkadot_network::validation::{LeafWorkParams, ValidationNetwork};
-use polkadot_network::{PolkadotNetworkService, PolkadotProtocol};
+use polkadot_network::PolkadotNetworkService;
 
-pub use polkadot_cli::{VersionInfo, TaskExecutor};
+pub use polkadot_cli::{VersionInfo, TaskExecutor, load_spec, service::Configuration};
 pub use polkadot_network::validation::Incoming;
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
@@ -269,206 +270,178 @@ impl<P: 'static, E: 'static> RelayChainContext for ApiContext<P, E> where
 	}
 }
 
-struct CollationNode<P, E> {
-	build_parachain_context: P,
+/// Run the collator node using the given `service`.
+fn run_collator_node<S, E, P>(
+	service: S,
 	exit: E,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
-}
-
-impl<P, E> IntoExit for CollationNode<P, E> where
-	E: futures01::Future<Item=(),Error=()> + Unpin + Send + 'static
-{
-	type Exit = future::Map<Compat01As03<E>, fn (Result<(), ()>) -> ()>;
-	fn into_exit(self) -> Self::Exit {
-		self.exit.compat().map(drop)
-	}
-}
-
-impl<P, E> Worker for CollationNode<P, E> where
-	P: BuildParachainContext + Send + 'static,
-	P::ParachainContext: Send + 'static,
-	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send + 'static,
-	E: futures01::Future<Item=(),Error=()> + Clone + Unpin + Send + Sync + 'static,
-{
-	type Work = Box<dyn Future<Output=()> + Unpin + Send>;
-
-	fn configuration(&self) -> CustomConfiguration {
-		let mut config = CustomConfiguration::default();
-		config.collating_for = Some((
-			self.key.public(),
-			self.para_id,
-		));
-		config
-	}
-
-	fn work<S, R, SC, B, CE, Ex, D>(self, service: &S, task_executor: TaskExecutor) -> Self::Work
+	build_parachain_context: P,
+) -> polkadot_cli::error::Result<()>
 	where
-		R: service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>
-		+ service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>
-		+ Send + Sync + 'static,
-		<R as service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<Ex>,
-		<R as service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<Ex>,
-		Ex: service::Codec + Send + Sync + 'static,
-		S: AbstractService<Block = service::Block, SelectChain = SC,
-		Backend = B, NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE, RuntimeApi = R>,
-		SC: service::SelectChain<service::Block> + 'static,
-		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
-		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static,
-		D: service::NativeExecutionDispatch + 'static,
-	{
-		let CollationNode { build_parachain_context, exit, para_id, key } = self;
-		let client = service.client();
-		let network = service.network();
-		let known_oracle = client.clone();
-		let select_chain = if let Some(select_chain) = service.select_chain() {
-			select_chain
-		} else {
-			error!("The node cannot work because it can't select chain.");
-			return Box::new(future::ready(()));
-		};
+		S: AbstractService<Block = service::Block, NetworkSpecialization = service::PolkadotProtocol>,
+		client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi>: ProvideRuntimeApi,
+		<client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi> as ProvideRuntimeApi>::Api:
+			ParachainHost<service::Block, Error = sp_blockchain::Error>,
+		// Rust bug: https://github.com/rust-lang/rust/issues/24159
+		S::Backend: service::Backend<service::Block, service::Blake2Hasher>,
+		// Rust bug: https://github.com/rust-lang/rust/issues/24159
+		S::CallExecutor: service::CallExecutor<service::Block, service::Blake2Hasher>,
+		// Rust bug: https://github.com/rust-lang/rust/issues/24159
+		S::SelectChain: service::SelectChain<service::Block>,
+		E: futures01::Future<Item = (), Error = ()> + Unpin + Send + Clone + Sync + 'static,
+		P: BuildParachainContext,
+		P::ParachainContext: Send + 'static,
+		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
+{
+	let runtime = tokio::runtime::Runtime::new().map_err(|e| format!("{:?}", e))?;
+	let task_executor: TaskExecutor = Arc::new(runtime.executor());
 
-		let is_known = move |block_hash: &Hash| {
-			use consensus_common::BlockStatus;
-			use polkadot_network::gossip::Known;
+	let client = service.client();
+	let network = service.network();
+	let known_oracle = client.clone();
+	let select_chain = if let Some(select_chain) = service.select_chain() {
+		select_chain
+	} else {
+		return Err(polkadot_cli::error::Error::Other("The node cannot work because it can't select chain.".into()))
+	};
 
-			match known_oracle.block_status(&BlockId::hash(*block_hash)) {
-				Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
-				Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-				Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) =>
-					match select_chain.leaves() {
-						Err(_) => None,
-						Ok(leaves) => if leaves.contains(block_hash) {
-							Some(Known::Leaf)
-						} else {
-							Some(Known::Old)
-						},
-					}
-			}
-		};
+	let is_known = move |block_hash: &Hash| {
+		use consensus_common::BlockStatus;
+		use polkadot_network::gossip::Known;
 
-		let message_validator = polkadot_network::gossip::register_validator(
-			network.clone(),
-			(is_known, client.clone()),
-		);
+		match known_oracle.block_status(&BlockId::hash(*block_hash)) {
+			Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
+			Ok(BlockStatus::KnownBad) => Some(Known::Bad),
+			Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) =>
+				match select_chain.leaves() {
+					Err(_) => None,
+					Ok(leaves) => if leaves.contains(block_hash) {
+						Some(Known::Leaf)
+					} else {
+						Some(Known::Old)
+					},
+				}
+		}
+	};
 
-		let validation_network = Arc::new(ValidationNetwork::new(
-			network.clone(),
-			exit.clone(),
-			message_validator,
-			client.clone(),
-			task_executor.clone(),
-		));
+	let message_validator = polkadot_network::gossip::register_validator(
+		network.clone(),
+		(is_known, client.clone()),
+	);
 
-		let parachain_context = match build_parachain_context.build(
-			client.clone(),
-			task_executor,
-			validation_network.clone(),
-		) {
-			Ok(ctx) => ctx,
-			Err(()) => {
-				error!("Could not build the parachain context!");
-				return Box::new(future::ready(()))
-			}
-		};
+	let validation_network = Arc::new(ValidationNetwork::new(
+		network.clone(),
+		exit.clone(),
+		message_validator,
+		client.clone(),
+		task_executor.clone(),
+	));
 
-		let inner_exit = exit.clone();
-		let work = client.import_notification_stream()
-			.for_each(move |notification| {
-				macro_rules! try_fr {
-					($e:expr) => {
-						match $e {
-							Ok(x) => x,
-							Err(e) => return future::Either::Left(future::err(Error::Polkadot(
-								format!("{:?}", e)
-							))),
-						}
+	let parachain_context = match build_parachain_context.build(
+		client.clone(),
+		task_executor,
+		validation_network.clone(),
+	) {
+		Ok(ctx) => ctx,
+		Err(()) => {
+			return Err(polkadot_cli::error::Error::Other("Could not build the parachain context!".into()))
+		}
+	};
+
+	let inner_exit = exit.clone();
+	let work = client.import_notification_stream()
+		.for_each(move |notification| {
+			macro_rules! try_fr {
+				($e:expr) => {
+					match $e {
+						Ok(x) => x,
+						Err(e) => return future::Either::Left(future::err(Error::Polkadot(
+							format!("{:?}", e)
+						))),
 					}
 				}
+			}
 
-				let relay_parent = notification.hash;
-				let id = BlockId::hash(relay_parent);
+			let relay_parent = notification.hash;
+			let id = BlockId::hash(relay_parent);
 
-				let network = network.clone();
-				let client = client.clone();
-				let key = key.clone();
-				let parachain_context = parachain_context.clone();
-				let validation_network = validation_network.clone();
-				let inner_exit_2 = inner_exit.clone();
+			let network = network.clone();
+			let client = client.clone();
+			let key = key.clone();
+			let parachain_context = parachain_context.clone();
+			let validation_network = validation_network.clone();
+			let inner_exit_2 = inner_exit.clone();
 
-				let work = future::lazy(move |_| {
-					let api = client.runtime_api();
-					let status = match try_fr!(api.parachain_status(&id, para_id)) {
-						Some(status) => status,
-						None => return future::Either::Left(future::ok(())),
-					};
+			let work = future::lazy(move |_| {
+				let api = client.runtime_api();
+				let status = match try_fr!(api.parachain_status(&id, para_id)) {
+					Some(status) => status,
+					None => return future::Either::Left(future::ok(())),
+				};
 
-					let validators = try_fr!(api.validators(&id));
+				let validators = try_fr!(api.validators(&id));
 
-					let targets = compute_targets(
-						para_id,
-						validators.as_slice(),
-						try_fr!(api.duty_roster(&id)),
-					);
-
-					let context = ApiContext {
-						network: validation_network,
-						parent_hash: relay_parent,
-						validators,
-					};
-
-					let collation_work = collate(
-						relay_parent,
-						para_id,
-						status,
-						context,
-						parachain_context,
-						key,
-					).map_ok(move |(collation, outgoing)| {
-						network.with_spec(move |spec, ctx| {
-							let res = spec.add_local_collation(
-								ctx,
-								relay_parent,
-								targets,
-								collation,
-								outgoing,
-							);
-
-							tokio::spawn(res.select(inner_exit_2.clone()).then(|_| Ok(())));
-						})
-					});
-
-					future::Either::Right(collation_work)
-				}).map(|_| Ok::<_, ()>(()));
-
-				let deadlined = future::select(
-					work,
-					futures_timer::Delay::new(COLLATION_TIMEOUT)
+				let targets = compute_targets(
+					para_id,
+					validators.as_slice(),
+					try_fr!(api.duty_roster(&id)),
 				);
 
-				let silenced = deadlined
-					.map(|either| {
-						if let future::Either::Right(_) = either {
-							warn!("Collation failure: timeout");
-						}
-					});
+				let context = ApiContext {
+					network: validation_network,
+					parent_hash: relay_parent,
+					validators,
+				};
 
-				let future = future::select(
-					silenced,
-					inner_exit.clone().map(|_| Ok::<_, ()>(())).compat()
-				).map(|_| Ok::<_, ()>(())).compat();
+				let collation_work = collate(
+					relay_parent,
+					para_id,
+					status,
+					context,
+					parachain_context,
+					key,
+				).map_ok(move |(collation, outgoing)| {
+					network.with_spec(move |spec, ctx| {
+						let res = spec.add_local_collation(
+							ctx,
+							relay_parent,
+							targets,
+							collation,
+							outgoing,
+						);
 
-				tokio::spawn(future);
-				future::ready(())
-			});
+						tokio::spawn(res.select(inner_exit_2.clone()).then(|_| Ok(())));
+					})
+				});
 
-		let work_and_exit = future::select(
-			work,
-			exit.map(|_| Ok::<_, ()>(())).compat()
-		).map(|_| ());
+				future::Either::Right(collation_work)
+			}).map(|_| Ok::<_, ()>(()));
 
-		Box::new(work_and_exit)
-	}
+			let deadlined = future::select(
+				work,
+				futures_timer::Delay::new(COLLATION_TIMEOUT)
+			);
+
+			let silenced = deadlined
+				.map(|either| {
+					if let future::Either::Right(_) = either {
+						warn!("Collation failure: timeout");
+					}
+				});
+
+			let future = future::select(
+				silenced,
+				inner_exit.clone().map(|_| Ok::<_, ()>(())).compat()
+			).map(|_| Ok::<_, ()>(())).compat();
+
+			tokio::spawn(future);
+			future::ready(())
+		});
+
+	service.spawn_essential_task(work.map(|_| Ok::<_, ()>(())).compat());
+
+	polkadot_cli::run_until_exit(runtime, service, exit.compat().map(|_| ()))
 }
 
 fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRoster) -> HashSet<ValidatorId> {
@@ -481,6 +454,11 @@ fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRo
 		.collect()
 }
 
+/// Set the `collating_for` parameter of the configuration.
+fn prepare_config(config: &mut Configuration, para_id: ParaId, key: &Arc<CollatorPair>) {
+	config.custom.collating_for = Some((key.public(), para_id));
+}
+
 /// Run a collator node with the given `RelayChainContext` and `ParachainContext`
 /// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
@@ -491,15 +469,25 @@ pub fn run_collator<P, E>(
 	para_id: ParaId,
 	exit: E,
 	key: Arc<CollatorPair>,
-	version: VersionInfo,
+	mut config: Configuration,
 ) -> polkadot_cli::error::Result<()> where
-	P: BuildParachainContext + Send + 'static,
+	P: BuildParachainContext,
 	P::ParachainContext: Send + 'static,
-	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send + 'static,
-	E: futures01::Future<Item = (),Error=()> + Unpin + Send + Clone + Sync + 'static,
+	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
+	E: futures01::Future<Item = (), Error = ()> + Unpin + Send + Clone + Sync + 'static,
 {
-	let node_logic = CollationNode { build_parachain_context, exit, para_id, key };
-	polkadot_cli::run(node_logic, version)
+	prepare_config(&mut config, para_id, &key);
+
+	match (config.is_kusama(), config.roles) {
+		(true, Roles::LIGHT) =>
+			run_collator_node(service::kusama_new_light(config)?, exit, para_id, key, build_parachain_context),
+		(true, _) =>
+			run_collator_node(service::kusama_new_full(config)?, exit, para_id, key, build_parachain_context),
+		(false, Roles::LIGHT) =>
+			run_collator_node(service::polkadot_new_light(config)?, exit, para_id, key, build_parachain_context),
+		(false, _) =>
+			run_collator_node(service::polkadot_new_full(config)?, exit, para_id, key, build_parachain_context),
+	}
 }
 
 #[cfg(test)]

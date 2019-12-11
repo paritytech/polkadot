@@ -40,12 +40,12 @@ impl Default for ChainSpec {
 
 /// Get a chain config from a spec setting.
 impl ChainSpec {
-	pub(crate) fn load_polkadot(self) -> Result<service::PolkadotChainSpec, String> {
+	pub(crate) fn load(self) -> Result<service::ChainSpec, String> {
 		match self {
 			ChainSpec::Development => Ok(service::chain_spec::development_config()),
 			ChainSpec::LocalTestnet => Ok(service::chain_spec::local_testnet_config()),
 			ChainSpec::StagingTestnet => Ok(service::chain_spec::staging_testnet_config()),
-			ChainSpec::Kusama => Err("Incompatible chain spec".into()),
+			ChainSpec::Kusama => service::chain_spec::kusama_config(),
 		}
 	}
 
