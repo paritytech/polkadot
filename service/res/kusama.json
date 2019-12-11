@@ -8,9 +8,9 @@
     "/dns4/p2p.cc3-3.kusama.network/tcp/30100/p2p/QmQv5EXUAfVt4gbupiuLDZP2Gd7ykK6YuXoYPkyLfLtJch",
     "/dns4/p2p.cc3-4.kusama.network/tcp/30100/p2p/QmP3zYRhAxxw4fDf6Vq5agM8AZt1m2nKpPAEDmyEHPK5go",
     "/dns4/p2p.cc3-5.kusama.network/tcp/30100/p2p/QmdePe9MiAJT4yHT2tEwmazCsckAZb19uaoSUgRDffPq3G",
-    "/dns4/kusama-bootnode-0.paritytech.net/tcp/30333/p2p/QmaEYixpsZy126nijCeP1LFhUipvGs23RU15jJJyAePxWn",
-    "/dns4/kusama-bootnode-0.paritytech.net/tcp/30334/ws/p2p/QmaEYixpsZy126nijCeP1LFhUipvGs23RU15jJJyAePxWn",
-    "/dns4/kusama-bootnode-1.paritytech.net/tcp/30333/p2p/QmV32G18YzenpNFmhqg2n7TtdjYRK7oU6FhLbDL4oRgsbe"
+    "/dns4/kusama-bootnode-0.paritytech.net/tcp/30333/p2p/QmTFUXWi98EADXdsUxvv7t9fhJG1XniRijahDXxdv1EbAW",
+    "/dns4/kusama-bootnode-0.paritytech.net/tcp/30334/ws/p2p/QmTFUXWi98EADXdsUxvv7t9fhJG1XniRijahDXxdv1EbAW",
+    "/dns4/kusama-bootnode-1.paritytech.net/tcp/30333/p2p/Qmf58BhdDSkHxGy1gX5YUuHCpdYYGACxQM3nGWa7xJa5an"
   ],
   "telemetryEndpoints": [
     [
