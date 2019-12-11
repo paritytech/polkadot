@@ -747,7 +747,7 @@ enum CreateProposalState<C: Send + Sync, TxPool> {
 	/// Represents the state when we switch from pending to fired.
 	Switching,
 	/// Block proposing has fired.
-	Fired(tokio::task::JoinHandle<Result<Block, Error>>),
+	Fired(tokio_executor::blocking::Blocking<Result<Block, Error>>),
 }
 
 /// Inner data of the create proposal.
@@ -893,22 +893,18 @@ impl<C, TxPool> Future for CreateProposal<C, TxPool> where
 					thus Switching will never be reachable here; qed"
 				),
 			CreateProposalState::Fired(mut future) => {
-				let ret = Pin::new(&mut future)
-					.poll(cx)
-					.map(|res| res.map_err(Error::Join).and_then(|res| res));
+				let ret = Pin::new(&mut future).poll(cx);
 				self.state = CreateProposalState::Fired(future);
 				return ret
 			},
 		};
 
 		// 2. propose
-		let mut future = tokio::task::spawn_blocking(move || {
+		let mut future = tokio_executor::blocking::run(move || {
 			let proposed_candidates = data.table.proposed_set();
 			data.propose_with(proposed_candidates)
 		});
-		let polled = Pin::new(&mut future)
-			.poll(cx)
-			.map(|res| res.map_err(Error::Join).and_then(|res| res));
+		let polled = Pin::new(&mut future).poll(cx);
 		self.state = CreateProposalState::Fired(future);
 
 		polled
