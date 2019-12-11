@@ -17,7 +17,7 @@ structopt = "0.3.4"
 cli = { package = "sc-cli", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
 
-libp2p = { git = "https://github.com/expenses/rust-libp2p", branch = "rand-wasm", default-features = false, optional = true }
+libp2p = { version = "0.13.1", default-features = false, optional = true }
 wasm-bindgen = { version = "0.2.45", optional = true }
 wasm-bindgen-futures = { version = "0.3.22", optional = true }
 console_log = { version = "0.1.2", optional = true }
@@ -26,6 +26,10 @@ js-sys = { version = "0.3.22", optional = true }
 kvdb-memorydb = { version = "0.1.1", optional = true }
 substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", optional = true, default-features = false }
 substrate-network = { package = "sc-network", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", optional = true }
+
+# Imported just for the `wasm-bindgen` feature
+rand = { version = "0.7", features = ["wasm-bindgen"], optional = true }
+rand6 = { package = "rand", version = "0.6.5", features = ["wasm-bindgen"], optional = true }
 
 [features]
 default = [ "wasmtime", "rocksdb" ]
@@ -40,5 +44,7 @@ browser = [
 	"js-sys",
 	"kvdb-memorydb",
 	"substrate-service",
-	"substrate-network"
+	"substrate-network",
+	"rand",
+	"rand6",
 ]
