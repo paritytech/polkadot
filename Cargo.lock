@@ -3826,6 +3826,7 @@ dependencies = [
  "sp-transaction-pool-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "tokio 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-executor 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -6076,6 +6077,8 @@ version = "0.2.0-alpha.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "futures-util-preview 0.3.0-alpha.19 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-sync 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

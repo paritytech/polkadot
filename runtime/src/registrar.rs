@@ -277,7 +277,7 @@ decl_module! {
 
 		/// Place a bid for a parathread to be progressed in the next block.
 		///
-		/// This is a kind of special transaction that should by heavily prioritized in the
+		/// This is a kind of special transaction that should be heavily prioritized in the
 		/// transaction pool according to the `value`; only `ThreadCount` of them may be presented
 		/// in any single block.
 		fn select_parathread(origin,
