@@ -35,7 +35,7 @@ inherents = { package = "sp-inherents", git = "https://github.com/paritytech/sub
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 txpool = { package = "sc-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
