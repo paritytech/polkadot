@@ -28,11 +28,7 @@ pub mod gossip;
 use codec::{Decode, Encode};
 use futures::channel::{oneshot, mpsc};
 use futures::prelude::*;
-<<<<<<< HEAD
-use futures03::{compat::Stream01CompatExt, FutureExt, StreamExt, TryFutureExt};
-=======
-use futures::future::Either;
->>>>>>> upstream/master
+use futures::{compat::Stream01CompatExt, future::Either};
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock,
@@ -146,70 +142,6 @@ impl av_store::ProvideGossipMessages for AvailabilityNetworkShim {
 	}
 }
 
-<<<<<<< HEAD
-=======
-impl<T> Clone for AvailabilityNetworkShim<T> {
-	fn clone(&self) -> Self {
-		AvailabilityNetworkShim(self.0.clone())
-	}
-}
-
-impl NetworkService for PolkadotNetworkService {
-	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
-		let (tx, rx) = std::sync::mpsc::channel();
-
-		PolkadotNetworkService::with_gossip(self, move |gossip, _| {
-			let inner_rx = gossip.messages_for(POLKADOT_ENGINE_ID, topic);
-			let _ = tx.send(inner_rx);
-		});
-
-		let topic_stream = match rx.recv() {
-			Ok(rx) => rx,
-			Err(_) => mpsc::unbounded().1, // return empty channel.
-		};
-
-		GossipMessageStream::new(topic_stream.boxed())
-	}
-
-	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
-		self.gossip_consensus_message(
-			topic,
-			POLKADOT_ENGINE_ID,
-			message.encode(),
-			GossipMessageRecipient::BroadcastToAll,
-		);
-	}
-
-	fn with_gossip<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut dyn GossipService, &mut dyn Context<Block>)
-	{
-		PolkadotNetworkService::with_gossip(self, move |gossip, ctx| with(gossip, ctx))
-	}
-
-	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>)
-	{
-		PolkadotNetworkService::with_spec(self, with)
-	}
-}
-
-/// A gossip network subservice.
-pub trait GossipService {
-	fn send_message(&mut self, ctx: &mut dyn Context<Block>, who: &PeerId, message: ConsensusMessage);
-	fn multicast(&mut self, ctx: &mut dyn Context<Block>, topic: &Hash, message: ConsensusMessage);
-}
-
-impl GossipService for consensus_gossip::ConsensusGossip<Block> {
-	fn send_message(&mut self, ctx: &mut dyn Context<Block>, who: &PeerId, message: ConsensusMessage) {
-		consensus_gossip::ConsensusGossip::send_message(self, ctx, who, message)
-	}
-
-	fn multicast(&mut self, ctx: &mut dyn Context<Block>, topic: &Hash, message: ConsensusMessage) {
-		consensus_gossip::ConsensusGossip::multicast(self, ctx, *topic, message, false)
-	}
-}
-
->>>>>>> upstream/master
 /// A stream of gossip messages and an optional sender for a topic.
 pub struct GossipMessageStream {
 	topic_stream: Pin<Box<dyn Stream<Item = TopicNotification> + Send>>,
