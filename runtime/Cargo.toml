@@ -27,7 +27,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", default-features = 
 sp-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sp-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 version = { package = "sp-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-tx-pool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 authority-discovery = { package = "pallet-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
