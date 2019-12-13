@@ -33,14 +33,13 @@ use polkadot_primitives::parachain::{
 use futures::prelude::*;
 use futures::task::SpawnExt;
 pub use futures::task::Spawn as Executor;
-use futures::channel::oneshot::{self, Receiver};
+use futures::channel::oneshot;
 use futures::future::{ready, select};
 
 use std::collections::hash_map::{HashMap, Entry};
 use std::io;
 use std::sync::Arc;
 use std::pin::Pin;
-use std::task::{Poll, Context};
 
 use arrayvec::ArrayVec;
 use parking_lot::Mutex;
@@ -235,46 +234,29 @@ impl<P, E, T> ParachainNetwork for ValidationNetwork<P, E, T> where
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NetworkDown;
 
-/// A future that resolves when a collation is received.
-pub struct AwaitingCollation {
-	outer: oneshot::Receiver<oneshot::Receiver<Collation>>,
-	inner: Option<oneshot::Receiver<Collation>>
-}
-
-impl Future for AwaitingCollation {
-	type Output = Result<Collation, NetworkDown>;
-
-	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-		let this = Pin::into_inner(self);
-
-		if let Some(ref mut inner) = this.inner {
-			return Pin::new(inner).poll(cx).map_err(|_| NetworkDown)
-		}
-		match Pin::new(&mut this.outer).poll(cx) {
-			Poll::Ready(Ok(inner)) => {
-				this.inner = Some(inner);
-				Pin::new(this).poll(cx)
-			},
-			Poll::Ready(Err(_)) => Poll::Ready(Err(NetworkDown)),
-			Poll::Pending => Poll::Pending,
-		}
-	}
-}
-
-impl<P, E: Clone, T: Clone> Collators for ValidationNetwork<P, E, T> where
+impl<P, E: Clone, N: Clone> Collators for ValidationNetwork<P, E, N> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 {
 	type Error = NetworkDown;
-	type Collation = AwaitingCollation;
+	type Collation = Pin<Box<dyn Future<Output = Result<Collation, NetworkDown>> + Send>>;
 
 	fn collate(&self, parachain: ParaId, relay_parent: Hash) -> Self::Collation {
 		let (tx, rx) = oneshot::channel();
-		self.network.with_spec(move |spec, _| {
-			let collation = spec.await_collation(relay_parent, parachain);
-			let _ = tx.send(collation);
-		});
-		AwaitingCollation{outer: rx, inner: None}
+		let network = self.network.clone();
+
+		// A future that resolves when a collation is received.
+		async move {
+			network.with_spec(move |spec, _| {
+				let collation = spec.await_collation(relay_parent, parachain);
+				let _ = tx.send(collation);
+			});
+
+			rx.await
+				.map_err(|_| NetworkDown)?
+				.await
+				.map_err(|_| NetworkDown)
+		}.boxed()
 	}
 
 
@@ -337,27 +319,6 @@ impl Knowledge {
 		let entry = self.candidates.entry(hash).or_insert_with(Default::default);
 		entry.pov = entry.pov.take().or(pov);
 		entry.outgoing_messages = entry.outgoing_messages.take().or(outgoing_messages);
-	}
-}
-
-/// receiver for incoming data.
-#[derive(Clone)]
-pub struct IncomingReceiver {
-	inner: future::Shared<Receiver<Incoming>>
-}
-
-impl Future for IncomingReceiver {
-	type Output = Result<Incoming, io::Error>;
-
-	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-		match Pin::new(&mut Pin::into_inner(self).inner).poll(cx) {
-			Poll::Ready(Ok(i)) => Poll::Ready(Ok(Incoming::clone(&i))),
-			Poll::Ready(Err(_)) => Poll::Ready(Err(io::Error::new(
-				io::ErrorKind::Other,
-				"Sending end of channel hung up",
-			))),
-			Poll::Pending => Poll::Pending,
-		}
 	}
 }
 
@@ -556,36 +517,6 @@ impl LiveValidationLeaves {
 	}
 }
 
-/// Receiver for block data.
-pub struct PoVReceiver {
-	outer: Receiver<Receiver<PoVBlock>>,
-	inner: Option<Receiver<PoVBlock>>
-}
-
-impl Future for PoVReceiver {
-	type Output = Result<PoVBlock, io::Error>;
-
-	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-		let this = Pin::into_inner(self);
-
-		let map_err = |_| io::Error::new(
-			io::ErrorKind::Other,
-			"Sending end of channel hung up",
-		);
-
-		if let Some(ref mut inner) = this.inner {
-			return Pin::new(inner).poll(cx).map_err(map_err);
-		}
-		match Pin::new(&mut this.outer).poll(cx).map_err(map_err)? {
-			Poll::Ready(inner) => {
-				this.inner = Some(inner);
-				Pin::new(this).poll(cx)
-			}
-			Poll::Pending => Poll::Pending,
-		}
-	}
-}
-
 /// Can fetch data for a given validation leaf-work instance.
 pub struct LeafWorkDataFetcher<P, E, T> {
 	network: RegisteredMessageValidator,
@@ -647,9 +578,14 @@ impl<P: ProvideRuntimeApi + Send, E, T> LeafWorkDataFetcher<P, E, T> where
 	E: Future<Output=()> + Clone + Send + 'static,
 {
 	/// Fetch PoV block for the given candidate receipt.
-	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> PoVReceiver {
+	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt)
+		-> Pin<Box<dyn Future<Output = Result<PoVBlock, io::Error>> + Send>> {
+
 		let parachain = candidate.parachain_index;
 		let parent_hash = self.parent_hash;
+		let network = self.network.clone();
+		let candidate = candidate.clone();
+		let (tx, rx) = oneshot::channel();
 
 		let canon_roots = self.api.runtime_api().ingress(
 			&BlockId::hash(parent_hash),
@@ -665,15 +601,24 @@ impl<P: ProvideRuntimeApi + Send, E, T> LeafWorkDataFetcher<P, E, T> where
 				)
 			);
 
-		let candidate = candidate.clone();
-		let (tx, rx) = oneshot::channel();
-		self.network.with_spec(move |spec, ctx| {
-			if let Ok(Some(canon_roots)) = canon_roots {
-				let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash, canon_roots);
-				let _ = tx.send(inner_rx);
-			}
-		});
-		PoVReceiver { outer: rx, inner: None }
+		async move {
+			network.with_spec(move |spec, ctx| {
+				if let Ok(Some(canon_roots)) = canon_roots {
+					let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash, canon_roots);
+					let _ = tx.send(inner_rx);
+				}
+			});
+
+			let map_err = |_| io::Error::new(
+				io::ErrorKind::Other,
+				"Sending end of channel hung up",
+			);
+
+			rx.await
+				.map_err(map_err)?
+				.await
+				.map_err(map_err)
+		}.boxed()
 	}
 }
 

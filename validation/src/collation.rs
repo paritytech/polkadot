@@ -32,8 +32,6 @@ use parachain::{wasm_executor::{self, ExternalitiesError, ExecutionMode}, Messag
 use trie::TrieConfiguration;
 use futures::prelude::*;
 use log::debug;
-use std::task::{Poll, Context};
-use std::pin::Pin;
 
 /// Encapsulates connections to collators and allows collation on any parachain.
 ///
@@ -58,94 +56,41 @@ pub trait Collators: Clone {
 }
 
 /// A future which resolves when a collation is available.
-///
-/// This future is fused.
-pub struct CollationFetch<C: Collators, P> {
+pub async fn collation_fetch<C: Collators, P>(
 	parachain: ParaId,
 	relay_parent_hash: Hash,
-	relay_parent: BlockId,
 	collators: C,
-	live_fetch: Option<C::Collation>,
 	client: Arc<P>,
 	max_block_data_size: Option<u64>,
-}
-
-impl<C: Collators, P> CollationFetch<C, P> {
-	/// Create a new collation fetcher for the given chain.
-	pub fn new(
-		parachain: ParaId,
-		relay_parent_hash: Hash,
-		collators: C,
-		client: Arc<P>,
-		max_block_data_size: Option<u64>,
-	) -> Self {
-		CollationFetch {
-			relay_parent: BlockId::hash(relay_parent_hash),
-			relay_parent_hash,
-			collators,
-			client,
-			parachain,
-			live_fetch: None,
-			max_block_data_size,
-		}
-	}
-
-	/// Access the underlying relay parent hash.
-	pub fn relay_parent(&self) -> Hash {
-		self.relay_parent_hash
-	}
-
-	/// Access the local parachain ID.
-	pub fn parachain(&self) -> ParaId {
-		self.parachain
-	}
-}
-
-impl<C, P> Future for CollationFetch<C, P>
+) -> Result<(Collation, OutgoingMessages, Balance),C::Error>
 	where
 		P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 		C: Collators + Unpin,
 		P: ProvideRuntimeApi,
 		<C as Collators>::Collation: Unpin,
 {
-	type Output = Result<(Collation, OutgoingMessages, Balance),C::Error>;
+	let relay_parent = BlockId::hash(relay_parent_hash);
 
-	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-		let this = Pin::into_inner(self);
+	loop {
+		let collation = collators.collate(parachain, relay_parent_hash)
+			.await?;
 
-		loop {
-			let collation = {
-				let parachain = this.parachain.clone();
-				let (r, c)  = (this.relay_parent_hash, &this.collators);
+		let res = validate_collation(
+			&*client,
+			&relay_parent,
+			&collation,
+			max_block_data_size,
+		);
 
-				let future = this.live_fetch
-					.get_or_insert_with(move || c.collate(parachain, r));
+		match res {
+			Ok((messages, fees)) => {
+				return Ok((collation, messages, fees))
+			}
+			Err(e) => {
+				debug!("Failed to validate parachain due to API error: {}", e);
 
-				match Pin::new(future).poll(cx) {
-					Poll::Ready(Ok(c)) => c,
-					Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
-					Poll::Pending => return Poll::Pending
-				}
-			};
-
-			let res = validate_collation(
-				&*this.client,
-				&this.relay_parent,
-				&collation,
-				this.max_block_data_size,
-			);
-
-			match res {
-				Ok((messages, fees)) => {
-					return Poll::Ready(Ok((collation, messages, fees)))
-				}
-				Err(e) => {
-					debug!("Failed to validate parachain due to API error: {}", e);
-
-					// just continue if we got a bad collation or failed to validate
-					this.live_fetch = None;
-					this.collators.note_bad_collator(collation.info.collator)
-				}
+				// just continue if we got a bad collation or failed to validate
+				collators.note_bad_collator(collation.info.collator)
 			}
 		}
 	}

@@ -68,7 +68,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use arrayvec::ArrayVec;
-use futures03::{prelude::*, compat::Compat};
+use futures::prelude::*;
 use parking_lot::RwLock;
 use log::warn;
 
@@ -310,7 +310,7 @@ impl<F, P> ChainContext for (F, P) where
 pub fn register_validator<C: ChainContext + 'static>(
 	service: Arc<PolkadotNetworkService>,
 	chain: C,
-	executor: &impl futures03::task::Spawn,
+	executor: &impl futures::task::Spawn,
 ) -> RegisteredMessageValidator
 {
 	let s = service.clone();
@@ -476,10 +476,10 @@ impl NetworkService for RegisteredMessageValidator {
 			gossip_engine.messages_for(topic)
 		} else {
 			log::error!("Called gossip_messages_for on a test engine");
-			futures03::channel::mpsc::unbounded().1
+			futures::channel::mpsc::unbounded().1
 		};
 
-		GossipMessageStream::new(Box::new(Compat::new(topic_stream.map(Ok))))
+		GossipMessageStream::new(topic_stream.boxed())
 	}
 
 	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
