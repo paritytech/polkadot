@@ -85,9 +85,9 @@ async fn gossip_router(
 				for message in messages.iter()
 					.filter(|&&(ref t, _)| t == &topic)
 					.map(|&(_, ref msg)| clone_gossip(msg))
-					{
-						if let Err(_) = sender.unbounded_send(message) { return }
-					}
+				{
+					if let Err(_) = sender.unbounded_send(message) { return }
+				}
 
 				outgoing.push((topic, sender));
 			},
