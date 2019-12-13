@@ -28,7 +28,6 @@ pub mod gossip;
 use codec::{Decode, Encode};
 use futures::channel::{oneshot, mpsc};
 use futures::prelude::*;
-use futures::future::Either;
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock,
@@ -837,25 +836,6 @@ impl PolkadotProtocol {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",
 			relay_parent, collation.info.parachain_index);
 
-		let res = match self.availability_store {
-			Some(ref availability_store) => {
-				let availability_store_cloned = availability_store.clone();
-				let collation_cloned = collation.clone();
-				Either::Left((async move {
-						let _ = availability_store_cloned.make_available(av_store::Data {
-							relay_parent,
-							parachain_id: collation_cloned.info.parachain_index,
-							block_data: collation_cloned.pov.block_data.clone(),
-							outgoing_queues: Some(outgoing_targeted.clone().into()),
-						}).await;
-					}
-				)
-					.boxed()
-				)
-			}
-			None => Either::Right(futures::future::ready(())),
-		};
-
 		for (primary, cloned_collation) in self.local_collations.add_collation(relay_parent, targets, collation.clone()) {
 			match self.validators.get(&primary) {
 				Some(who) => {
@@ -871,7 +851,19 @@ impl PolkadotProtocol {
 			}
 		}
 
-		res
+		let availability_store = self.availability_store.clone();
+		let collation_cloned = collation.clone();
+
+		async move {
+			if let Some(availability_store) = availability_store {
+				let _ = availability_store.make_available(av_store::Data {
+					relay_parent,
+					parachain_id: collation_cloned.info.parachain_index,
+					block_data: collation_cloned.pov.block_data.clone(),
+					outgoing_queues: Some(outgoing_targeted.clone().into()),
+				}).await;
+			}
+		}
 	}
 
 	/// Give the network protocol a handle to an availability store, used for

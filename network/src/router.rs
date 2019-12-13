@@ -41,8 +41,9 @@ use log::{debug, trace};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
+use std::pin::Pin;
 
-use crate::validation::{self, LeafWorkDataFetcher, Executor};
+use crate::validation::{LeafWorkDataFetcher, Executor};
 use crate::NetworkService;
 
 /// Compute the gossip topic for attestations on the given parent hash.
@@ -232,7 +233,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	E: Future<Output=()> + Clone + Send + 'static,
 {
 	type Error = io::Error;
-	type FetchValidationProof = validation::PoVReceiver;
+	type FetchValidationProof = Pin<Box<dyn Future<Output = Result<PoVBlock, io::Error>> + Send>>;
 
 	// We have fetched from a collator and here the receipt should have been already formed.
 	fn local_collation(
