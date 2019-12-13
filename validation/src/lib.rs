@@ -652,7 +652,12 @@ impl<C, TxPool> consensus::Proposer<Block> for Proposer<C, TxPool> where
 			};
 
 			let data = CreateProposalData {
-				parent_hash, parent_number, parent_id, client, transaction_pool, table,
+				parent_hash,
+				parent_number,
+				parent_id,
+				client,
+				transaction_pool,
+				table,
 				believed_minimum_timestamp: believed_timestamp,
 				inherent_data: Some(inherent_data),
 				inherent_digests,
@@ -663,19 +668,17 @@ impl<C, TxPool> consensus::Proposer<Block> for Proposer<C, TxPool> where
 			// set up delay until next allowed timestamp.
 			let current_timestamp = current_timestamp();
 			if current_timestamp < believed_timestamp {
-				Delay::new(Duration::from_millis (current_timestamp - believed_timestamp))
+				Delay::new(Duration::from_millis(current_timestamp - believed_timestamp))
 					.await;
 			}
 
 			Delay::new(enough_candidates).await;
 
-			tokio::task::spawn_blocking(move || {
+			tokio_executor::blocking::run(move || {
 				let proposed_candidates = data.table.proposed_set();
 				data.propose_with(proposed_candidates)
 			})
 				.await
-				.map_err(Error::Join)
-				.and_then(|res| res)
 		}.boxed()
 	}
 }
