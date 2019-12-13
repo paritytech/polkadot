@@ -22,17 +22,19 @@ use std::sync::Arc;
 use service::{AbstractService, Roles as ServiceRoles};
 use substrate_service::{RpcSession, Configuration, config::DatabaseConfig};
 use wasm_bindgen::prelude::*;
+use futures::{compat::*, TryFutureExt as _, TryStreamExt as _, FutureExt as _};
 
 /// Starts the client.
 ///
 /// You must pass a libp2p transport that supports .
 #[wasm_bindgen]
-pub fn start_client(wasm_ext: wasm_ext::ffi::Transport) -> Result<Client, JsValue> {
+pub async fn start_client(wasm_ext: wasm_ext::ffi::Transport) -> Result<Client, JsValue> {
 	start_inner(wasm_ext)
+		.await
 		.map_err(|err| JsValue::from_str(&err.to_string()))
 }
 
-fn start_inner(wasm_ext: wasm_ext::ffi::Transport) -> Result<Client, Box<dyn std::error::Error>> {
+async fn start_inner(wasm_ext: wasm_ext::ffi::Transport) -> Result<Client, Box<dyn std::error::Error>> {
 	console_error_panic_hook::set_once();
 	console_log::init_with_level(log::Level::Info);
 
@@ -50,8 +52,10 @@ fn start_inner(wasm_ext: wasm_ext::ffi::Transport) -> Result<Client, Box<dyn std
 		config.roles = ServiceRoles::LIGHT;
 		config.name = "Browser node".to_string();
 		config.database = {
-			let db = Arc::new(kvdb_memorydb::create(10));
-			DatabaseConfig::Custom(db)
+			let db = kvdb_web::Database::open("polkadot".into(), 10)
+				.await
+				.unwrap();
+			DatabaseConfig::Custom(Arc::new(db))
 		};
 		config.keystore_path = Some(std::path::PathBuf::from("/"));
 		config
@@ -99,8 +103,8 @@ fn start_inner(wasm_ext: wasm_ext::ffi::Transport) -> Result<Client, Box<dyn std
 			}
 		}
 
-		Ok(Async::NotReady)
-	}));
+		Ok::<_, ()>(Async::NotReady)
+	}).compat().map(drop));
 
 	Ok(Client {
 		rpc_send_tx,
@@ -116,7 +120,7 @@ pub struct Client {
 struct RpcMessage {
 	rpc_json: String,
 	session: RpcSession,
-	send_back: oneshot::Sender<Box<dyn Future<Item = Option<String>, Error = ()>>>,
+	send_back: oneshot::Sender<Box<dyn Future<Item = Option<String>, Error = ()> + Unpin>>,
 }
 
 #[wasm_bindgen]
@@ -132,9 +136,10 @@ impl Client {
 			send_back: tx,
 		});
 		let fut = rx
+			.compat()
 			.map_err(|_| ())
-			.and_then(|fut| fut)
-			.map(|s| JsValue::from_str(&s.unwrap_or(String::new())))
+			.and_then(|fut| fut.compat())
+			.map_ok(|s| JsValue::from_str(&s.unwrap_or(String::new())))
 			.map_err(|_| JsValue::NULL);
 		wasm_bindgen_futures::future_to_promise(fut)
 	}
@@ -151,19 +156,25 @@ impl Client {
 			send_back: fut_tx,
 		});
 		let fut_rx = fut_rx
+			.compat()
 			.map_err(|_| ())
-			.and_then(|fut| fut);
-		wasm_bindgen_futures::spawn_local(fut_rx.then(|_| Ok(())));
-		wasm_bindgen_futures::spawn_local(rx.for_each(move |s| {
-			match callback.call1(&callback, &JsValue::from_str(&s)) {
-				Ok(_) => Ok(()),
-				Err(_) => Err(()),
-			}
-		}).then(move |v| {
-			// We need to keep `rpc_session` alive.
-			debug!("RPC subscription has ended");
-			drop(rpc_session);
-			v
-		}));
+			.and_then(|fut| fut.compat())
+			.map(drop);
+		wasm_bindgen_futures::spawn_local(fut_rx);
+		wasm_bindgen_futures::spawn_local(rx
+			.compat()
+			.try_for_each(move |s| {
+				match callback.call1(&callback, &JsValue::from_str(&s)) {
+					Ok(_) => futures::future::ready(Ok(())),
+					Err(_) => futures::future::ready(Err(())),
+				}
+			})
+			.then(move |_| {
+				// We need to keep `rpc_session` alive.
+				debug!("RPC subscription has ended");
+				drop(rpc_session);
+				futures::future::ready(())
+			})
+		);
 	}
 }
