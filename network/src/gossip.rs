@@ -335,7 +335,7 @@ pub fn register_validator<C: ChainContext + 'static>(
 		service.clone(),
 		executor,
 		POLKADOT_ENGINE_ID,
-		gossip_side
+		gossip_side,
 	);
 
 	RegisteredMessageValidator {
