@@ -20,12 +20,12 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit="256"]
 
-mod attestations;
-mod claims;
-mod parachains;
-mod slot_range;
-mod slots;
-mod crowdfund;
+pub mod attestations;
+pub mod claims;
+pub mod parachains;
+pub mod slot_range;
+pub mod slots;
+pub mod crowdfund;
 
 use rstd::prelude::*;
 use codec::{Encode, Decode};
