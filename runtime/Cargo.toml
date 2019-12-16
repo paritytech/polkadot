@@ -14,49 +14,49 @@ safe-mix = { version = "1.0.0", default-features = false }
 serde = { version = "1.0.102", default-features = false }
 serde_derive = { version = "1.0.102", optional = true }
 
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-sp-api = { git = "https://github.com/tomaka/polkadot", branch = "extract-gossip", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-offchain-primitives = { package = "sp-offchain", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-rstd = { package = "sp-std", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-sp-io = { git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-sp-runtime = { git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-sp-staking = { git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-sp-core = { git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-sp-serializer = { git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-sp-session = { git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-version = { package = "sp-version", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-block-builder-api = { package = "sp-block-builder", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+version = { package = "sp-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 
-authority-discovery = { package = "pallet-authority-discovery", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-authorship = { package = "pallet-authorship", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-babe = { package = "pallet-babe", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-balances = { package = "pallet-balances", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-collective = { package = "pallet-collective", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-democracy = { package = "pallet-democracy", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-elections-phragmen = { package = "pallet-elections-phragmen", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-executive = { package = "frame-executive", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-finality-tracker = { package = "pallet-finality-tracker", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-grandpa = { package = "pallet-grandpa", git = "https://github.com/tomaka/polkadot", default-features = false, features = ["migrate-authorities"], branch = "extract-gossip" }
-identity = { package = "pallet-identity", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-im-online = { package = "pallet-im-online", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-indices = { package = "pallet-indices", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-membership = { package = "pallet-membership", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-nicks = { package = "pallet-nicks", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-offences = { package = "pallet-offences", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-session = { package = "pallet-session", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-frame-support = { git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-staking = { package = "pallet-staking", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-pallet-staking-reward-curve = { git = "https://github.com/tomaka/polkadot", branch = "extract-gossip" }
-system = { package = "frame-system", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-timestamp = { package = "pallet-timestamp", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
-treasury = { package = "pallet-treasury", git = "https://github.com/tomaka/polkadot", default-features = false, branch = "extract-gossip" }
+authority-discovery = { package = "pallet-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+authorship = { package = "pallet-authorship", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+collective = { package = "pallet-collective", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+democracy = { package = "pallet-democracy", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+elections-phragmen = { package = "pallet-elections-phragmen", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+executive = { package = "frame-executive", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+finality-tracker = { package = "pallet-finality-tracker", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+grandpa = { package = "pallet-grandpa", git = "https://github.com/paritytech/substrate", default-features = false, features = ["migrate-authorities"], branch = "master" }
+identity = { package = "pallet-identity", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+indices = { package = "pallet-indices", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+membership = { package = "pallet-membership", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+nicks = { package = "pallet-nicks", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+session = { package = "pallet-session", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 
 primitives = { package = "polkadot-primitives", path = "../primitives", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
@@ -65,8 +65,8 @@ polkadot-parachain = { path = "../parachain", default-features = false }
 hex-literal = "0.2.1"
 libsecp256k1 = "0.3.2"
 tiny-keccak = "1.5.0"
-keyring = { package = "sp-keyring", git = "https://github.com/tomaka/polkadot", branch = "extract-gossip" }
-sp-trie = { git = "https://github.com/tomaka/polkadot", branch = "extract-gossip" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie-db = "0.16.0"
 serde_json = "1.0.41"
 
