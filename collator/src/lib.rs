@@ -65,7 +65,7 @@ use polkadot_cli::{
 	Worker, IntoExit, ProvideRuntimeApi, AbstractService, CustomConfiguration, ParachainHost,
 };
 use polkadot_network::validation::{LeafWorkParams, ValidationNetwork};
-use polkadot_network::{PolkadotNetworkService, PolkadotProtocol};
+use polkadot_network::PolkadotProtocol;
 use polkadot_runtime::RuntimeApi;
 
 pub use polkadot_cli::VersionInfo;
@@ -90,7 +90,7 @@ pub trait Network: Send + Sync {
 	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement>>;
 }
 
-impl<P, E, SP> Network for ValidationNetwork<P, E, PolkadotNetworkService, SP> where
+impl<P, E, SP> Network for ValidationNetwork<P, E, SP> where
 	P: 'static + Send + Sync,
 	E: 'static + Send + Sync,
 	SP: 'static + Spawn + Clone + Send + Sync,
@@ -231,7 +231,7 @@ pub async fn collate<R, P>(
 
 /// Polkadot-api context.
 struct ApiContext<P, E, SP> {
-	network: Arc<ValidationNetwork<P, E, PolkadotNetworkService, SP>>,
+	network: Arc<ValidationNetwork<P, E, SP>>,
 	parent_hash: Hash,
 	validators: Vec<ValidatorId>,
 }
@@ -347,12 +347,12 @@ impl<P, E> Worker for CollationNode<P, E> where
 		let message_validator = polkadot_network::gossip::register_validator(
 			network.clone(),
 			(is_known, client.clone()),
+			&spawner
 		);
 
 		let validation_network = Arc::new(ValidationNetwork::new(
-			network.clone(),
-			exit.clone(),
 			message_validator,
+			exit.clone(),
 			client.clone(),
 			spawner.clone(),
 		));
