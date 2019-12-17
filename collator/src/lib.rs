@@ -48,6 +48,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
+use std::pin::Pin;
 
 use futures::{future, Future, Stream, FutureExt, TryFutureExt, StreamExt, task::Spawn};
 use log::{warn, error};
@@ -242,20 +243,26 @@ impl<P: 'static, E: 'static, SP: 'static> RelayChainContext for ApiContext<P, E,
 	SP: Spawn + Clone + Send + Sync
 {
 	type Error = String;
-	type FutureEgress = Box<dyn Future<Output=Result<ConsolidatedIngress, String>> + Unpin + Send>;
+	type FutureEgress = Pin<Box<dyn Future<Output=Result<ConsolidatedIngress, String>> + Send>>;
 
 	fn unrouted_egress(&self, _id: ParaId) -> Self::FutureEgress {
-		// TODO: https://github.com/paritytech/polkadot/issues/253
-		//
-		// Fetch ingress and accumulate all unrounted egress
-		let _session = self.network.instantiate_leaf_work(LeafWorkParams {
-			local_session_key: None,
-			parent_hash: self.parent_hash,
-			authorities: self.validators.clone(),
-		})
-			.map_err(|e| format!("unable to instantiate validation session: {:?}", e));
+		let network = self.network.clone();
+		let parent_hash = self.parent_hash;
+		let authorities = self.validators.clone();
 
-		Box::new(future::ok(ConsolidatedIngress(Vec::new())))
+		async move {
+			// TODO: https://github.com/paritytech/polkadot/issues/253
+			//
+			// Fetch ingress and accumulate all unrounted egress
+			let _session = network.instantiate_leaf_work(LeafWorkParams {
+				local_session_key: None,
+				parent_hash,
+				authorities,
+			})
+				.map_err(|e| format!("unable to instantiate validation session: {:?}", e));
+
+			Ok(ConsolidatedIngress(Vec::new()))
+		}.boxed()
 	}
 }
 
@@ -425,7 +432,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 							);
 
 							let exit = inner_exit_2.clone();
-							tokio::spawn(future::select(res, exit).map(drop));
+							tokio::spawn(future::select(res.boxed(), exit).map(drop));
 						})
 					});
 
