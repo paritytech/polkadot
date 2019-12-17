@@ -30,7 +30,7 @@
 //! a `Candidate` we are aware of. Otherwise, it is possible we could be forced to
 //! consider an infinite amount of attestations produced by a misbehaving validator.
 
-use sc_network::consensus_gossip::{ValidationResult as GossipValidationResult};
+use sc_network_gossip::{ValidationResult as GossipValidationResult};
 use sc_network::ReputationChange;
 use polkadot_validation::GenericStatement;
 use polkadot_primitives::Hash;
