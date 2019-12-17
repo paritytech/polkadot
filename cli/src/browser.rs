@@ -24,17 +24,17 @@ use service::CustomConfiguration;
 ///
 /// You must pass a libp2p transport that supports .
 #[wasm_bindgen]
-pub async fn start_client(wasm_ext: sc_browser::Transport) -> Result<sc_browser::Client, JsValue> {
+pub async fn start_client(wasm_ext: browser_utils::Transport) -> Result<browser_utils::Client, JsValue> {
 	start_inner(wasm_ext)
 		.await
 		.map_err(|err| JsValue::from_str(&err.to_string()))
 }
 
-async fn start_inner(wasm_ext: sc_browser::Transport) -> Result<sc_browser::Client, Box<dyn std::error::Error>> {
-	sc_browser::set_hooks(log::Level::Info);
+async fn start_inner(wasm_ext: sc_browser::Transport) -> Result<browser_utils::Client, Box<dyn std::error::Error>> {
+	browser_utils::set_hooks(log::Level::Info);
 
 	let chain_spec = ChainSpec::Kusama.load().map_err(|e| format!("{:?}", e))?;
-	let config: Configuration<CustomConfiguration, _, _> = sc_browser::browser_configuration(wasm_ext, chain_spec)
+	let config: Configuration<CustomConfiguration, _, _> = browser_utils::browser_configuration(wasm_ext, chain_spec)
 		.await?;
 
 	info!("Polkadot browser node");
@@ -54,5 +54,5 @@ async fn start_inner(wasm_ext: sc_browser::Transport) -> Result<sc_browser::Clie
 	// Create the service. This is the most heavy initialization step.
 	let service = service::new_light(config).map_err(|e| format!("{:?}", e))?;
 
-	Ok(sc_browser::start_client(service))
+	Ok(browser_utils::start_client(service))
 }

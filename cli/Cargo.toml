@@ -17,7 +17,7 @@ structopt = "0.3.4"
 cli = { package = "sc-cli", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
 
-sc-browser = { package = "sc-browser", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", optional = true }
+browser-utils = { package = "browser-utils", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", optional = true }
 substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", optional = true, default-features = false }
 wasm-bindgen = { version = "0.2.55", optional = true }
 wasm-bindgen-futures = { version = "0.4.5", optional = true }
@@ -27,7 +27,7 @@ default = [ "wasmtime", "rocksdb" ]
 wasmtime = [ "cli/wasmtime" ]
 rocksdb = [ "service/rocksdb" ]
 browser = [
-	"sc-browser",
+	"browser-utils",
 	"wasm-bindgen",
 	"wasm-bindgen-futures",
 	"substrate-service",
