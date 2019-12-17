@@ -19,11 +19,11 @@
 #![allow(unused)]
 
 use crate::gossip::GossipMessage;
-use sc_network::Context as NetContext;
-use sc_network::consensus_gossip::TopicNotification;
+use sc_network::{Context as NetContext, PeerId};
+use sc_network_gossip::TopicNotification;
 use sp_core::{NativeOrEncoded, ExecutionContext};
 use sp_keyring::Sr25519Keyring;
-use crate::{GossipService, PolkadotProtocol, NetworkService, GossipMessageStream};
+use crate::{PolkadotProtocol, NetworkService, GossipMessageStream};
 
 use polkadot_validation::{SharedTable, Network};
 use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
@@ -124,15 +124,13 @@ impl NetworkService for TestNetwork {
 		GossipMessageStream::new(rx.boxed())
 	}
 
+	fn send_message(&self, _: PeerId, _: GossipMessage) {
+		unimplemented!()
+	}
+
 	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
 		let notification = TopicNotification { message: message.encode(), sender: None };
 		let _ = self.gossip.send_message.unbounded_send((topic, notification));
-	}
-
-	fn with_gossip<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut dyn GossipService, &mut dyn NetContext<Block>)
-	{
-		unimplemented!()
 	}
 
 	fn with_spec<F: Send + 'static>(&self, with: F)
@@ -310,7 +308,6 @@ impl ParachainHost<Block> for RuntimeApi {
 type TestValidationNetwork = crate::validation::ValidationNetwork<
 	TestApi,
 	NeverExit,
-	TestNetwork,
 	TaskExecutor,
 >;
 
@@ -337,9 +334,8 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 		);
 
 		TestValidationNetwork::new(
-			net,
-			NeverExit,
 			message_val,
+			NeverExit,
 			runtime_api.clone(),
 			executor.clone(),
 		)
