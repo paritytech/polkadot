@@ -3698,6 +3698,7 @@ dependencies = [
  "polkadot-validation 0.7.9",
  "sc-client 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-polkadot-wasm)",
  "sc-network 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-polkadot-wasm)",
+ "sc-network-gossip 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-polkadot-wasm)",
  "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-polkadot-wasm)",
  "sp-blockchain 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-polkadot-wasm)",
  "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-polkadot-wasm)",

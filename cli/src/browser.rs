@@ -30,7 +30,7 @@ pub async fn start_client(wasm_ext: browser_utils::Transport) -> Result<browser_
 		.map_err(|err| JsValue::from_str(&err.to_string()))
 }
 
-async fn start_inner(wasm_ext: sc_browser::Transport) -> Result<browser_utils::Client, Box<dyn std::error::Error>> {
+async fn start_inner(wasm_ext: browser_utils::Transport) -> Result<browser_utils::Client, Box<dyn std::error::Error>> {
 	browser_utils::set_hooks(log::Level::Info);
 
 	let chain_spec = ChainSpec::Kusama.load().map_err(|e| format!("{:?}", e))?;
