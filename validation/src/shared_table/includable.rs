@@ -17,16 +17,13 @@
 //! Implements a future which resolves when all of the candidates referenced are includable.
 
 use std::collections::HashMap;
-
-use futures::prelude::*;
 use futures::channel::oneshot;
-use std::pin::Pin;
-use std::task::{Poll, Context};
-
 use polkadot_primitives::Hash;
 
 /// Track includability of a set of candidates,
-pub(super) fn track<I: IntoIterator<Item=(Hash, bool)>>(candidates: I) -> (IncludabilitySender, Includable) {
+pub(super) fn track<I: IntoIterator<Item=(Hash, bool)>>(candidates: I)
+	-> (IncludabilitySender, oneshot::Receiver<()>) {
+
 	let (tx, rx) = oneshot::channel();
 	let tracking: HashMap<_, _> = candidates.into_iter().collect();
 	let includable_count = tracking.values().filter(|x| **x).count();
@@ -39,10 +36,7 @@ pub(super) fn track<I: IntoIterator<Item=(Hash, bool)>>(candidates: I) -> (Inclu
 
 	sender.try_complete();
 
-	(
-		sender,
-		Includable(rx),
-	)
+	(sender, rx)
 }
 
 /// The sending end of the includability sender.
@@ -90,17 +84,6 @@ impl IncludabilitySender {
 		} else {
 			false
 		}
-	}
-}
-
-/// Future that resolves when all the candidates within are includable.
-pub struct Includable(oneshot::Receiver<()>);
-
-impl Future for Includable {
-	type Output = Result<(), oneshot::Canceled>;
-
-	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-		Pin::new(&mut Pin::into_inner(self).0).poll(cx)
 	}
 }
 

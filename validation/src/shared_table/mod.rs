@@ -30,6 +30,7 @@ use polkadot_primitives::parachain::{
 
 use parking_lot::Mutex;
 use futures::prelude::*;
+use futures::channel::oneshot;
 use log::{warn, debug};
 use bitvec::bitvec;
 
@@ -40,7 +41,6 @@ use runtime_primitives::traits::ProvideRuntimeApi;
 
 mod includable;
 
-pub use self::includable::Includable;
 pub use table::{SignedStatement, Statement};
 pub use table::generic::Statement as GenericStatement;
 
@@ -543,7 +543,7 @@ impl SharedTable {
 	}
 
 	/// Track includability  of a given set of candidate hashes.
-	pub fn track_includability<I>(&self, iterable: I) -> Includable
+	pub fn track_includability<I>(&self, iterable: I) -> oneshot::Receiver<()>
 		where I: IntoIterator<Item=Hash>
 	{
 		let mut inner = self.inner.lock();

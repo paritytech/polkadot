@@ -33,14 +33,13 @@ use polkadot_primitives::parachain::{
 use futures::prelude::*;
 use futures::task::SpawnExt;
 pub use futures::task::Spawn as Executor;
-use futures::channel::oneshot::{self, Receiver};
+use futures::channel::oneshot;
 use futures::future::{ready, select};
 
 use std::collections::hash_map::{HashMap, Entry};
 use std::io;
 use std::sync::Arc;
 use std::pin::Pin;
-use std::task::{Poll, Context};
 
 use arrayvec::ArrayVec;
 use parking_lot::Mutex;
@@ -63,44 +62,40 @@ pub struct LeafWorkParams {
 }
 
 /// Wrapper around the network service
-pub struct ValidationNetwork<P, E, N, T> {
-	network: Arc<N>,
+pub struct ValidationNetwork<P, E, T> {
 	api: Arc<P>,
 	executor: T,
-	message_validator: RegisteredMessageValidator,
+	network: RegisteredMessageValidator,
 	exit: E,
 }
 
-impl<P, E, N, T> ValidationNetwork<P, E, N, T> {
+impl<P, E, T> ValidationNetwork<P, E, T> {
 	/// Create a new consensus networking object.
 	pub fn new(
-		network: Arc<N>,
+		network: RegisteredMessageValidator,
 		exit: E,
-		message_validator: RegisteredMessageValidator,
 		api: Arc<P>,
 		executor: T,
 	) -> Self {
-		ValidationNetwork { network, exit, message_validator, api, executor }
+		ValidationNetwork { network, exit, api, executor }
 	}
 }
 
-impl<P, E: Clone, N, T: Clone> Clone for ValidationNetwork<P, E, N, T> {
+impl<P, E: Clone, T: Clone> Clone for ValidationNetwork<P, E, T> {
 	fn clone(&self) -> Self {
 		ValidationNetwork {
 			network: self.network.clone(),
 			exit: self.exit.clone(),
 			api: self.api.clone(),
 			executor: self.executor.clone(),
-			message_validator: self.message_validator.clone(),
 		}
 	}
 }
 
-impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
+impl<P, E, T> ValidationNetwork<P, E, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Clone + Future<Output=()> + Send + Sync + 'static,
-	N: NetworkService,
 	T: Clone + Executor + Send + Sync + 'static,
 {
 	/// Instantiate block-DAG leaf work
@@ -118,27 +113,26 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 	/// leaf-work instances safely, but they should all be coordinated on which session keys
 	/// are being used.
 	pub fn instantiate_leaf_work(&self, params: LeafWorkParams)
-		-> oneshot::Receiver<LeafWorkDataFetcher<P, E, N, T>>
+		-> oneshot::Receiver<LeafWorkDataFetcher<P, E, T>>
 	{
 		let parent_hash = params.parent_hash;
 		let network = self.network.clone();
 		let api = self.api.clone();
 		let task_executor = self.executor.clone();
 		let exit = self.exit.clone();
-		let message_validator = self.message_validator.clone();
 		let authorities = params.authorities.clone();
 
 		let (tx, rx) = oneshot::channel();
 
 		self.network.with_spec(move |spec, ctx| {
-			let actions = message_validator.new_local_leaf(
+			let actions = network.new_local_leaf(
 				parent_hash,
 				MessageValidationData { authorities },
 				|queue_root| spec.availability_store.as_ref()
 					.and_then(|store| store.queue_by_root(queue_root))
 			);
 
-			network.with_gossip(move |gossip, ctx| actions.perform(gossip, ctx));
+			actions.perform(&network);
 
 			let work = spec.new_validation_leaf_work(ctx, params);
 			let _ = tx.send(LeafWorkDataFetcher {
@@ -148,7 +142,6 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 				parent_hash,
 				knowledge: work.knowledge().clone(),
 				exit,
-				message_validator,
 			});
 		});
 
@@ -156,7 +149,7 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where
 	}
 }
 
-impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
+impl<P, E, T> ValidationNetwork<P, E, T> {
 	/// Convert the given `CollatorId` to a `PeerId`.
 	pub fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
 		impl Future<Output=Option<PeerId>> + Send
@@ -178,20 +171,19 @@ impl<P, E, N, T> ValidationNetwork<P, E, N, T> where N: NetworkService {
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
 	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=SignedStatement> {
-		crate::router::checked_statements(&*self.network, crate::router::attestation_topic(relay_parent))
+		crate::router::checked_statements(&self.network, crate::router::attestation_topic(relay_parent))
 	}
 }
 
 /// A long-lived network which can create parachain statement  routing processes on demand.
-impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
+impl<P, E, T> ParachainNetwork for ValidationNetwork<P, E, T> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	E: Clone + Future<Output=()> + Send + Sync + Unpin + 'static,
-	N: NetworkService,
 	T: Clone + Executor + Send + Sync + 'static,
 {
 	type Error = String;
-	type TableRouter = Router<P, E, N, T>;
+	type TableRouter = Router<P, E, T>;
 	type BuildTableRouter = Box<dyn Future<Output=Result<Self::TableRouter, String>> + Send + Unpin>;
 
 	fn communication_for(
@@ -208,16 +200,16 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 			parent_hash,
 			authorities: authorities.to_vec(),
 		});
-		let message_validator = self.message_validator.clone();
 
 		let executor = self.executor.clone();
+		let network = self.network.clone();
 		let work = build_fetcher
 			.map_err(|e| format!("{:?}", e))
 			.map_ok(move |fetcher| {
 				let table_router = Router::new(
 					table,
 					fetcher,
-					message_validator,
+					network,
 				);
 
 				let table_router_clone = table_router.clone();
@@ -242,47 +234,29 @@ impl<P, E, N, T> ParachainNetwork for ValidationNetwork<P, E, N, T> where
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NetworkDown;
 
-/// A future that resolves when a collation is received.
-pub struct AwaitingCollation {
-	outer: oneshot::Receiver<oneshot::Receiver<Collation>>,
-	inner: Option<oneshot::Receiver<Collation>>
-}
-
-impl Future for AwaitingCollation {
-	type Output = Result<Collation, NetworkDown>;
-
-	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-		let this = Pin::into_inner(self);
-
-		if let Some(ref mut inner) = this.inner {
-			return Pin::new(inner).poll(cx).map_err(|_| NetworkDown)
-		}
-		match Pin::new(&mut this.outer).poll(cx) {
-			Poll::Ready(Ok(inner)) => {
-				this.inner = Some(inner);
-				Pin::new(this).poll(cx)
-			},
-			Poll::Ready(Err(_)) => Poll::Ready(Err(NetworkDown)),
-			Poll::Pending => Poll::Pending,
-		}
-	}
-}
-
-impl<P, E: Clone, N, T: Clone> Collators for ValidationNetwork<P, E, N, T> where
+impl<P, E: Clone, N: Clone> Collators for ValidationNetwork<P, E, N> where
 	P: ProvideRuntimeApi + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
-	N: NetworkService,
 {
 	type Error = NetworkDown;
-	type Collation = AwaitingCollation;
+	type Collation = Pin<Box<dyn Future<Output = Result<Collation, NetworkDown>> + Send>>;
 
 	fn collate(&self, parachain: ParaId, relay_parent: Hash) -> Self::Collation {
 		let (tx, rx) = oneshot::channel();
-		self.network.with_spec(move |spec, _| {
-			let collation = spec.await_collation(relay_parent, parachain);
-			let _ = tx.send(collation);
-		});
-		AwaitingCollation{outer: rx, inner: None}
+		let network = self.network.clone();
+
+		// A future that resolves when a collation is received.
+		async move {
+			network.with_spec(move |spec, _| {
+				let collation = spec.await_collation(relay_parent, parachain);
+				let _ = tx.send(collation);
+			});
+
+			rx.await
+				.map_err(|_| NetworkDown)?
+				.await
+				.map_err(|_| NetworkDown)
+		}.boxed()
 	}
 
 
@@ -345,27 +319,6 @@ impl Knowledge {
 		let entry = self.candidates.entry(hash).or_insert_with(Default::default);
 		entry.pov = entry.pov.take().or(pov);
 		entry.outgoing_messages = entry.outgoing_messages.take().or(outgoing_messages);
-	}
-}
-
-/// receiver for incoming data.
-#[derive(Clone)]
-pub struct IncomingReceiver {
-	inner: future::Shared<Receiver<Incoming>>
-}
-
-impl Future for IncomingReceiver {
-	type Output = Result<Incoming, io::Error>;
-
-	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-		match Pin::new(&mut Pin::into_inner(self).inner).poll(cx) {
-			Poll::Ready(Ok(i)) => Poll::Ready(Ok(Incoming::clone(&i))),
-			Poll::Ready(Err(_)) => Poll::Ready(Err(io::Error::new(
-				io::ErrorKind::Other,
-				"Sending end of channel hung up",
-			))),
-			Poll::Pending => Poll::Pending,
-		}
 	}
 }
 
@@ -564,48 +517,17 @@ impl LiveValidationLeaves {
 	}
 }
 
-/// Receiver for block data.
-pub struct PoVReceiver {
-	outer: Receiver<Receiver<PoVBlock>>,
-	inner: Option<Receiver<PoVBlock>>
-}
-
-impl Future for PoVReceiver {
-	type Output = Result<PoVBlock, io::Error>;
-
-	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-		let this = Pin::into_inner(self);
-
-		let map_err = |_| io::Error::new(
-			io::ErrorKind::Other,
-			"Sending end of channel hung up",
-		);
-
-		if let Some(ref mut inner) = this.inner {
-			return Pin::new(inner).poll(cx).map_err(map_err);
-		}
-		match Pin::new(&mut this.outer).poll(cx).map_err(map_err)? {
-			Poll::Ready(inner) => {
-				this.inner = Some(inner);
-				Pin::new(this).poll(cx)
-			}
-			Poll::Pending => Poll::Pending,
-		}
-	}
-}
-
 /// Can fetch data for a given validation leaf-work instance.
-pub struct LeafWorkDataFetcher<P, E, N: NetworkService, T> {
-	network: Arc<N>,
+pub struct LeafWorkDataFetcher<P, E, T> {
+	network: RegisteredMessageValidator,
 	api: Arc<P>,
 	exit: E,
 	task_executor: T,
 	knowledge: Arc<Mutex<Knowledge>>,
 	parent_hash: Hash,
-	message_validator: RegisteredMessageValidator,
 }
 
-impl<P, E, N: NetworkService, T> LeafWorkDataFetcher<P, E, N, T> {
+impl<P, E, T> LeafWorkDataFetcher<P, E, T> {
 	/// Get the parent hash.
 	pub(crate) fn parent_hash(&self) -> Hash {
 		self.parent_hash
@@ -622,7 +544,7 @@ impl<P, E, N: NetworkService, T> LeafWorkDataFetcher<P, E, N, T> {
 	}
 
 	/// Get the network service.
-	pub(crate) fn network(&self) -> &Arc<N> {
+	pub(crate) fn network(&self) -> &RegisteredMessageValidator {
 		&self.network
 	}
 
@@ -637,7 +559,7 @@ impl<P, E, N: NetworkService, T> LeafWorkDataFetcher<P, E, N, T> {
 	}
 }
 
-impl<P, E: Clone, N: NetworkService, T: Clone> Clone for LeafWorkDataFetcher<P, E, N, T> {
+impl<P, E: Clone, T: Clone> Clone for LeafWorkDataFetcher<P, E, T> {
 	fn clone(&self) -> Self {
 		LeafWorkDataFetcher {
 			network: self.network.clone(),
@@ -646,21 +568,24 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for LeafWorkDataFetcher<P, 
 			parent_hash: self.parent_hash,
 			knowledge: self.knowledge.clone(),
 			exit: self.exit.clone(),
-			message_validator: self.message_validator.clone(),
 		}
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send, E, N, T> LeafWorkDataFetcher<P, E, N, T> where
+impl<P: ProvideRuntimeApi + Send, E, T> LeafWorkDataFetcher<P, E, T> where
 	P::Api: ParachainHost<Block>,
-	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
 	E: Future<Output=()> + Clone + Send + 'static,
 {
 	/// Fetch PoV block for the given candidate receipt.
-	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> PoVReceiver {
+	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt)
+		-> Pin<Box<dyn Future<Output = Result<PoVBlock, io::Error>> + Send>> {
+
 		let parachain = candidate.parachain_index;
 		let parent_hash = self.parent_hash;
+		let network = self.network.clone();
+		let candidate = candidate.clone();
+		let (tx, rx) = oneshot::channel();
 
 		let canon_roots = self.api.runtime_api().ingress(
 			&BlockId::hash(parent_hash),
@@ -676,15 +601,24 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> LeafWorkDataFetcher<P, E, N, T> where
 				)
 			);
 
-		let candidate = candidate.clone();
-		let (tx, rx) = oneshot::channel();
-		self.network.with_spec(move |spec, ctx| {
-			if let Ok(Some(canon_roots)) = canon_roots {
-				let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash, canon_roots);
-				let _ = tx.send(inner_rx);
-			}
-		});
-		PoVReceiver { outer: rx, inner: None }
+		async move {
+			network.with_spec(move |spec, ctx| {
+				if let Ok(Some(canon_roots)) = canon_roots {
+					let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash, canon_roots);
+					let _ = tx.send(inner_rx);
+				}
+			});
+
+			let map_err = |_| io::Error::new(
+				io::ErrorKind::Other,
+				"Sending end of channel hung up",
+			);
+
+			rx.await
+				.map_err(map_err)?
+				.await
+				.map_err(map_err)
+		}.boxed()
 	}
 }
 

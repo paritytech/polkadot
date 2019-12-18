@@ -48,6 +48,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
+use std::pin::Pin;
 
 use futures::{future, Future, Stream, FutureExt, TryFutureExt, StreamExt, task::Spawn};
 use log::{warn, error};
@@ -64,7 +65,7 @@ use polkadot_cli::{
 	Worker, IntoExit, ProvideRuntimeApi, AbstractService, CustomConfiguration, ParachainHost,
 };
 use polkadot_network::validation::{LeafWorkParams, ValidationNetwork};
-use polkadot_network::{PolkadotNetworkService, PolkadotProtocol};
+use polkadot_network::PolkadotProtocol;
 use polkadot_runtime::RuntimeApi;
 
 pub use polkadot_cli::VersionInfo;
@@ -89,7 +90,7 @@ pub trait Network: Send + Sync {
 	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement>>;
 }
 
-impl<P, E, SP> Network for ValidationNetwork<P, E, PolkadotNetworkService, SP> where
+impl<P, E, SP> Network for ValidationNetwork<P, E, SP> where
 	P: 'static + Send + Sync,
 	E: 'static + Send + Sync,
 	SP: 'static + Spawn + Clone + Send + Sync,
@@ -230,7 +231,7 @@ pub async fn collate<R, P>(
 
 /// Polkadot-api context.
 struct ApiContext<P, E, SP> {
-	network: Arc<ValidationNetwork<P, E, PolkadotNetworkService, SP>>,
+	network: Arc<ValidationNetwork<P, E, SP>>,
 	parent_hash: Hash,
 	validators: Vec<ValidatorId>,
 }
@@ -242,20 +243,26 @@ impl<P: 'static, E: 'static, SP: 'static> RelayChainContext for ApiContext<P, E,
 	SP: Spawn + Clone + Send + Sync
 {
 	type Error = String;
-	type FutureEgress = Box<dyn Future<Output=Result<ConsolidatedIngress, String>> + Unpin + Send>;
+	type FutureEgress = Pin<Box<dyn Future<Output=Result<ConsolidatedIngress, String>> + Send>>;
 
 	fn unrouted_egress(&self, _id: ParaId) -> Self::FutureEgress {
-		// TODO: https://github.com/paritytech/polkadot/issues/253
-		//
-		// Fetch ingress and accumulate all unrounted egress
-		let _session = self.network.instantiate_leaf_work(LeafWorkParams {
-			local_session_key: None,
-			parent_hash: self.parent_hash,
-			authorities: self.validators.clone(),
-		})
-			.map_err(|e| format!("unable to instantiate validation session: {:?}", e));
+		let network = self.network.clone();
+		let parent_hash = self.parent_hash;
+		let authorities = self.validators.clone();
 
-		Box::new(future::ok(ConsolidatedIngress(Vec::new())))
+		async move {
+			// TODO: https://github.com/paritytech/polkadot/issues/253
+			//
+			// Fetch ingress and accumulate all unrounted egress
+			let _session = network.instantiate_leaf_work(LeafWorkParams {
+				local_session_key: None,
+				parent_hash,
+				authorities,
+			})
+				.map_err(|e| format!("unable to instantiate validation session: {:?}", e));
+
+			Ok(ConsolidatedIngress(Vec::new()))
+		}.boxed()
 	}
 }
 
@@ -340,12 +347,12 @@ impl<P, E> Worker for CollationNode<P, E> where
 		let message_validator = polkadot_network::gossip::register_validator(
 			network.clone(),
 			(is_known, client.clone()),
+			&spawner
 		);
 
 		let validation_network = Arc::new(ValidationNetwork::new(
-			network.clone(),
-			exit.clone(),
 			message_validator,
+			exit.clone(),
 			client.clone(),
 			spawner.clone(),
 		));
@@ -425,7 +432,7 @@ impl<P, E> Worker for CollationNode<P, E> where
 							);
 
 							let exit = inner_exit_2.clone();
-							tokio::spawn(future::select(res, exit).map(drop));
+							tokio::spawn(future::select(res.boxed(), exit).map(drop));
 						})
 					});
 
