@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1030,
+	spec_version: 1031,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -416,7 +416,8 @@ impl membership::Trait<membership::Instance1> for Runtime {
 
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
-	pub const ProposalBondMinimum: Balance = 100 * DOLLARS;
+	// KUSAMA: This value is 20x of that expected for mainnet
+	pub const ProposalBondMinimum: Balance = 2_000 * DOLLARS;
 	// KUSAMA: This value is 1/4 of that expected for mainnet
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
 	// KUSAMA: No burn - let's try to put it to use!
