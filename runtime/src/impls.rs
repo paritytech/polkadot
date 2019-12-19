@@ -28,7 +28,10 @@ pub struct ToAuthor;
 
 impl OnUnbalanced<NegativeImbalance> for ToAuthor {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance) {
-		Balances::resolve_creating(&Authorship::author(), amount);
+		let numeric_amount = amount.peek();
+		let author = Authorship::author();
+		Balances::resolve_creating(&author, amount);
+		Self::deposit_event(Balances::RawEvent::Deposit(author, numeric_amount));
 	}
 }
 
