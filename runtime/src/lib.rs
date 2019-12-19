@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1031,
+	spec_version: 1032,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -163,6 +163,7 @@ impl system::Trait for Runtime {
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
+	type ModuleToIndex = ModuleToIndex;
 }
 
 parameter_types! {

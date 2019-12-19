@@ -30,7 +30,7 @@ use sp_runtime::{
 
 use frame_support::{
 	decl_storage, decl_module, decl_event, ensure,
-	dispatch::{Result, IsSubType}, traits::{Get, Currency, ReservableCurrency},
+	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
 	weights::{SimpleDispatchInfo, DispatchInfo},
 };
 use system::{self, ensure_root, ensure_signed};
@@ -53,10 +53,10 @@ pub trait Registrar<AccountId> {
 		info: ParaInfo,
 		code: Vec<u8>,
 		initial_head_data: Vec<u8>,
-	) -> Result;
+	) -> DispatchResult;
 
 	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
-	fn deregister_para(id: ParaId) -> Result;
+	fn deregister_para(id: ParaId) -> DispatchResult;
 }
 
 impl<T: Trait> Registrar<T::AccountId> for Module<T> {
@@ -69,7 +69,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		info: ParaInfo,
 		code: Vec<u8>,
 		initial_head_data: Vec<u8>,
-	) -> Result {
+	) -> DispatchResult {
 		ensure!(!Paras::exists(id), "Parachain already exists");
 		if let Scheduling::Always = info.scheduling {
 			Parachains::mutate(|parachains|
@@ -87,7 +87,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		Ok(())
 	}
 
-	fn deregister_para(id: ParaId) -> Result {
+	fn deregister_para(id: ParaId) -> DispatchResult {
 		let info = Paras::take(id).ok_or("Invalid id")?;
 		if let Scheduling::Always = info.scheduling {
 			Parachains::mutate(|parachains|
@@ -227,7 +227,7 @@ decl_module! {
 			info: ParaInfo,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>,
-		) -> Result {
+		) -> DispatchResult {
 			ensure_root(origin)?;
 			<Self as Registrar<T::AccountId>>::
 				register_para(id, info, code, initial_head_data)
@@ -235,7 +235,7 @@ decl_module! {
 
 		/// Deregister a parachain with given id
 		#[weight = SimpleDispatchInfo::FixedOperational(10_000)]
-		pub fn deregister_para(origin, #[compact] id: ParaId) -> Result {
+		pub fn deregister_para(origin, #[compact] id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			<Self as Registrar<T::AccountId>>::deregister_para(id)
 		}
@@ -540,7 +540,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 				let thread_count = ThreadCount::get() as usize;
 				ensure!(
 					selected_threads.len() < thread_count,
-					InvalidTransaction::ExhaustsResources.into()
+					InvalidTransaction::ExhaustsResources,
 				);
 
 				// ensure that this is not selecting a duplicate parathread ID
@@ -554,7 +554,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 				let e = TransactionValidityError::from(InvalidTransaction::Custom(Error::InvalidId as u8));
 				let head = <parachains::Module<T>>::parachain_head(id).ok_or(e)?;
 				let actual = T::Hashing::hash(&head);
-				ensure!(&actual == hash, InvalidTransaction::Stale.into());
+				ensure!(&actual == hash, InvalidTransaction::Stale);
 
 				// updated the selected threads.
 				selected_threads.insert(pos, (*id, collator.clone()));
@@ -635,6 +635,7 @@ mod tests {
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
+		type ModuleToIndex = ();
 	}
 
 	parameter_types! {
@@ -1335,7 +1336,7 @@ mod tests {
 					assert_noop!(
 						LimitParathreadCommits::<Test>(std::marker::PhantomData)
 							.validate(&0, &call, info, 0),
-						InvalidTransaction::ExhaustsResources.into()
+						InvalidTransaction::ExhaustsResources,
 					);
 				}
 			}
