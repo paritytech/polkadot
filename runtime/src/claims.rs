@@ -305,6 +305,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type MaximumBlockLength = MaximumBlockLength;
 		type Version = ();
+		type ModuleToIndex = ();
 	}
 
 	parameter_types! {
@@ -407,7 +408,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_noop!(
 				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, None),
-				"RequireRootOrigin"
+				sp_runtime::traits::BadOrigin,
 			);
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_noop!(
@@ -426,7 +427,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_noop!(
 				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, Some((50, 10, 1))),
-				"RequireRootOrigin"
+				sp_runtime::traits::BadOrigin,
 			);
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_noop!(
@@ -446,7 +447,7 @@ mod tests {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_err!(
 				Claims::claim(Origin::signed(42), 42, sig(&alice(), &42u64.encode())),
-				"RequireNoOrigin",
+				sp_runtime::traits::BadOrigin,
 			);
 		});
 	}

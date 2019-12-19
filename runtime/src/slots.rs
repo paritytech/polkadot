@@ -25,7 +25,7 @@ use sp_runtime::traits::{
 use frame_support::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode, Codec};
 use frame_support::{
-	decl_module, decl_storage, decl_event, ensure,
+	decl_module, decl_storage, decl_event, ensure, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
 };
 use primitives::parachain::{
@@ -379,7 +379,7 @@ decl_module! {
 			if let IncomingParachain::Unset(ref nb) = details {
 				ensure!(nb.who == who && nb.sub == sub, "parachain not registered by origin");
 			} else {
-				return Err("already registered")
+				Err("already registered")?
 			}
 			let item = (starts, IncomingParachain::Fixed{code_hash, initial_head_data});
 			<Onboarding<T>>::insert(&para_id, item);
@@ -398,7 +398,7 @@ decl_module! {
 		/// - `para_id` is the parachain ID whose code will be elaborated.
 		/// - `code` is the preimage of the registered `code_hash` of `para_id`.
 		#[weight = SimpleDispatchInfo::FixedNormal(5_000_000)]
-		pub fn elaborate_deploy_data(_origin, #[compact] para_id: ParaId, code: Vec<u8>) {
+		pub fn elaborate_deploy_data(_origin, #[compact] para_id: ParaId, code: Vec<u8>) -> DispatchResult {
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
 				.ok_or("parachain id not in onboarding")?;
 			if let IncomingParachain::Fixed{code_hash, initial_head_data} = details {
@@ -414,8 +414,10 @@ decl_module! {
 					let _ = T::Parachains::
 						register_para(para_id, PARACHAIN_INFO, code, initial_head_data);
 				}
+
+				Ok(())
 			} else {
-				return Err("deploy data not yet fixed")
+				Err("deploy data not yet fixed".into())
 			}
 		}
 	}
@@ -680,7 +682,7 @@ impl<T: Trait> Module<T> {
 		first_slot: LeasePeriodOf<T>,
 		last_slot: LeasePeriodOf<T>,
 		amount: BalanceOf<T>
-	) -> Result<(), &'static str> {
+	) -> DispatchResult {
 		// Bidding on latest auction.
 		ensure!(auction_index == <AuctionCounter>::get(), "not current auction");
 		// Assume it's actually an auction (this should never fail because of above).
@@ -706,7 +708,7 @@ impl<T: Trait> Module<T> {
 						.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
 					)
 				)),
-				"bidder winning non-intersecting range"
+				"bidder winning non-intersecting range",
 			);
 
 			// Ok; we are the new winner of this range - reserve the additional amount and record.
@@ -818,7 +820,7 @@ impl<T: Trait> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::{result::Result, collections::HashMap, cell::RefCell};
+	use std::{collections::HashMap, cell::RefCell};
 
 	use sp_core::H256;
 	use sp_runtime::{
@@ -860,6 +862,7 @@ mod tests {
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
+		type ModuleToIndex = ();
 	}
 
 	parameter_types! {
@@ -899,7 +902,7 @@ mod tests {
 			_info: ParaInfo,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>
-		) -> Result<(), &'static str> {
+		) -> DispatchResult {
 			PARACHAINS.with(|p| {
 				if p.borrow().contains_key(&id.into()) {
 					panic!("ID already exists")
@@ -908,7 +911,7 @@ mod tests {
 				Ok(())
 			})
 		}
-		fn deregister_para(id: ParaId) -> Result<(), &'static str> {
+		fn deregister_para(id: ParaId) -> DispatchResult {
 			PARACHAINS.with(|p| {
 				if !p.borrow().contains_key(&id.into()) {
 					panic!("ID doesn't exist")
