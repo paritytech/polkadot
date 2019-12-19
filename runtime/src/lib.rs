@@ -403,7 +403,8 @@ impl membership::Trait<membership::Instance1> for Runtime {
 
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
-	pub const ProposalBondMinimum: Balance = 100 * DOLLARS;
+	// KUSAMA: This value is 20x of that expected for mainnet
+	pub const ProposalBondMinimum: Balance = 2_000 * DOLLARS;
 	// KUSAMA: This value is 1/4 of that expected for mainnet
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
 	// KUSAMA: No burn - let's try to put it to use!
