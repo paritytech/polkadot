@@ -78,26 +78,13 @@ use constants::{time::*, currency::*};
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-/*
-// KUSAMA: Polkadot version identifier; may be uncommented for Polkadot mainnet.
+// Polkadot version identifier;
 /// Runtime version (Polkadot).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
-	authoring_version: 1,
-	spec_version: 1000,
-	impl_version: 0,
-	apis: RUNTIME_API_VERSIONS,
-};
-*/
-
-// KUSAMA: Kusama version identifier; may be removed for Polkadot mainnet.
-/// Runtime version (Kusama).
-pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("kusama"),
-	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1026,
+	spec_version: 1030,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -130,7 +117,7 @@ impl SignedExtension for OnlyStakingAndClaims {
 		-> TransactionValidity
 	{
 		match call {
-			Call::Balances(_) | Call::Slots(_) | Call::Registrar(_)
+			Call::Slots(_) | Call::Registrar(_)
 				=> Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
 			_ => Ok(Default::default()),
 		}
@@ -297,12 +284,13 @@ pallet_staking_reward_curve::build! {
 
 parameter_types! {
 	// Six sessions in an era (24 hours).
+//	pub const SessionsPerEra: SessionIndex = 6;
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (28 days).
-	// KUSAMA: This value is 1/4 of what we expect for the mainnet.
-	// KUSAMA-launch: 0 for managing the spooning injection.
-	pub const BondingDuration: staking::EraIndex = 0;
-	pub const SlashDeferDuration: staking::EraIndex = 7;
+	// KUSAMA: This value is 1/4 of what we expect for the mainnet, however session length is also
+	// a quarter, so the figure remains the same.
+	pub const BondingDuration: staking::EraIndex = 28;
+	pub const SlashDeferDuration: staking::EraIndex = 28;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 }
 
@@ -317,9 +305,7 @@ impl staking::Trait for Runtime {
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	// A super-majority of the council can cancel the slash.
-	// KUSAMA-launch: Any council member can remove a slash.
-//	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
-	type SlashCancelOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
+	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
 	type SessionInterface = Self;
 	type Time = Timestamp;
 	type RewardCurve = RewardCurve;
@@ -329,8 +315,7 @@ parameter_types! {
 	// KUSAMA: These values are 1/4 of what we expect for the mainnet.
 	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
 	pub const VotingPeriod: BlockNumber = 7 * DAYS;
-	// KUSAMA: This is a bit short; should be increased to 3 hours.
-	pub const EmergencyVotingPeriod: BlockNumber = 1 * HOURS;
+	pub const EmergencyVotingPeriod: BlockNumber = 3 * HOURS;
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
 	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
 	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
@@ -378,7 +363,8 @@ impl collective::Trait<CouncilCollective> for Runtime {
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
-	pub const TermDuration: BlockNumber = 2 * HOURS;
+	/// Daily council elections.
+	pub const TermDuration: BlockNumber = 24 * HOURS;
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 7;
 }
@@ -420,8 +406,8 @@ parameter_types! {
 	pub const ProposalBondMinimum: Balance = 100 * DOLLARS;
 	// KUSAMA: This value is 1/4 of that expected for mainnet
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
-	// KUSAMA: This value is 1/5 of that expected for mainnet
-	pub const Burn: Permill = Permill::from_percent(1);
+	// KUSAMA: No burn - let's try to put it to use!
+	pub const Burn: Permill = Permill::from_percent(0);
 }
 
 impl treasury::Trait for Runtime {
@@ -537,7 +523,8 @@ impl claims::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const ReservationFee: Balance = 1 * DOLLARS;
+	// KUSAMA: for mainnet this can be reduced.
+	pub const ReservationFee: Balance = 1000 * DOLLARS;
 	pub const MinLength: usize = 3;
 	pub const MaxLength: usize = 32;
 }
@@ -547,9 +534,30 @@ impl nicks::Trait for Runtime {
 	type Currency = Balances;
 	type ReservationFee = ReservationFee;
 	type Slashed = Treasury;
-	type ForceOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
+	type ForceOrigin = collective::EnsureMembers<_2, AccountId, CouncilCollective>;
 	type MinLength = MinLength;
 	type MaxLength = MaxLength;
+}
+
+parameter_types! {
+	// KUSAMA: can be probably be reduced for mainnet
+	// Minimum 100 bytes/KSM deposited (1 CENT/byte)
+	pub const BasicDeposit: Balance = 1000 * DOLLARS;       // 258 bytes on-chain
+	pub const FieldDeposit: Balance = 250 * DOLLARS;        // 66 bytes on-chain
+	pub const SubAccountDeposit: Balance = 200 * DOLLARS;   // 53 bytes on-chain
+	pub const MaximumSubAccounts: u32 = 100;
+}
+
+impl identity::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type Slashed = Treasury;
+	type BasicDeposit = BasicDeposit;
+	type FieldDeposit = FieldDeposit;
+	type SubAccountDeposit = SubAccountDeposit;
+	type MaximumSubAccounts = MaximumSubAccounts;
+	type RegistrarOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type ForceOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 }
 
 construct_runtime! {
@@ -599,7 +607,11 @@ construct_runtime! {
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
 
 		// Simple nicknames module.
+		// KUSAMA: Remove before mainnet
 		Nicks: nicks::{Module, Call, Storage, Event<T>},
+
+		// Less simple identity module.
+		Identity: identity::{Module, Call, Storage, Event<T>},
 	}
 }
 
@@ -678,7 +690,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl tx_pool_api::TaggedTransactionQueue<Block> for Runtime {
+	impl tx_pool_api::runtime_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(tx: <Block as BlockT>::Extrinsic) -> TransactionValidity {
 			Executive::validate_transaction(tx)
 		}

@@ -21,7 +21,7 @@ use std::thread;
 
 use log::{error, info, trace, warn};
 use sp_blockchain::{Result as ClientResult};
-use sp_runtime::traits::{Header as HeaderT, ProvideRuntimeApi};
+use sp_runtime::traits::{Header as HeaderT, ProvideRuntimeApi, Block as BlockT};
 use sp_api::ApiExt;
 use client::{
 	BlockchainEvents, BlockBody,
@@ -37,12 +37,10 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, ParachainHost, ValidatorId,
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
-use futures01::Future;
-use futures::channel::{mpsc, oneshot};
-use futures::{FutureExt, Sink, SinkExt, TryFutureExt, StreamExt};
+use futures::{prelude::*, future::select, channel::{mpsc, oneshot}, task::SpawnExt};
 use keystore::KeyStorePtr;
 
-use tokio::runtime::current_thread::{Handle, Runtime as LocalRuntime};
+use tokio::runtime::{Handle, Runtime as LocalRuntime};
 
 use crate::{LOG_TARGET, Data, TaskExecutor, ProvideGossipMessages, erasure_coding_topic};
 use crate::store::Store;
@@ -166,7 +164,7 @@ impl WorkerHandle {
 impl Drop for WorkerHandle {
 	fn drop(&mut self) {
 		if let Some(signal) = self.exit_signal.take() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 
 		if let Some(thread) = self.thread.take() {
@@ -206,19 +204,25 @@ where
 }
 
 
-fn fetch_candidates<P>(client: &P, block: &BlockId, parent: &BlockId)
-	-> ClientResult<Option<impl Iterator<Item=CandidateReceipt>>>
+fn fetch_candidates<P>(client: &P, extrinsics: Vec<<Block as BlockT>::Extrinsic>, parent: &BlockId)
+	-> ClientResult<Option<Vec<CandidateReceipt>>>
 where
-	P: BlockBody<Block> + ProvideRuntimeApi,
-	P::Api: ParachainHost<Block> + ApiExt<Block, Error=sp_blockchain::Error>,
+	P: ProvideRuntimeApi,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
-	let extrinsics = client.block_body(block)?;
-	Ok(match extrinsics {
-		Some(extrinsics) => client.runtime_api()
-			.get_heads(&parent, extrinsics).map_err(|_| ConsensusError::ChainLookup("".into()))?
-			.and_then(|v| Some(v.into_iter())),
-		None => None,
-	})
+	let api = client.runtime_api();
+
+	let candidates = if api.has_api_with::<dyn ParachainHost<Block, Error = ()>, _>(
+		parent,
+		|version| version >= 2,
+	).map_err(|e| ConsensusError::ChainLookup(e.to_string()))? {
+		api.get_heads(&parent, extrinsics)
+			.map_err(|e| ConsensusError::ChainLookup(e.to_string()))?
+	} else {
+		None
+	};
+
+	Ok(candidates)
 }
 
 /// Creates a task to prune entries in availability store upon block finalization.
@@ -233,12 +237,33 @@ where
 	while let Some(notification) = finality_notification_stream.next().await {
 		let hash = notification.hash;
 		let parent_hash = notification.header.parent_hash;
+		let extrinsics = match client.block_body(&BlockId::hash(hash)) {
+			Ok(Some(extrinsics)) => extrinsics,
+			Ok(None) => {
+				error!(
+					target: LOG_TARGET,
+					"No block body found for imported block {:?}",
+					hash,
+				);
+				continue;
+			}
+			Err(e) => {
+				error!(
+					target: LOG_TARGET,
+					"Failed to get block body for imported block {:?}: {:?}",
+					hash,
+					e,
+				);
+				continue;
+			}
+		};
+
 		let candidate_hashes = match fetch_candidates(
 			&*client,
-			&BlockId::hash(hash),
+			extrinsics,
 			&BlockId::hash(parent_hash)
 		) {
-			Ok(Some(candidates)) => candidates.map(|c| c.hash()).collect(),
+			Ok(Some(candidates)) => candidates.into_iter().map(|c| c.hash()).collect(),
 			Ok(None) => {
 				warn!(
 					target: LOG_TARGET,
@@ -269,7 +294,7 @@ where
 impl<PGM> Drop for Worker<PGM> {
 	fn drop(&mut self) {
 		for (_, signal) in self.registered_gossip_streams.drain() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 	}
 }
@@ -282,7 +307,7 @@ where
 	// Called on startup of the worker to register listeners for all awaited chunks.
 	fn register_listeners(
 		&mut self,
-		runtime_handle: &mut Handle,
+		runtime_handle: &Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 	) {
 		if let Some(awaited_chunks) = self.availability_store.awaited_chunks() {
@@ -301,7 +326,7 @@ where
 
 	fn register_chunks_listener(
 		&mut self,
-		runtime_handle: &mut Handle,
+		runtime_handle: &Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 		relay_parent: Hash,
 		erasure_root: Hash,
@@ -328,21 +353,14 @@ where
 
 		self.registered_gossip_streams.insert(topic, signal);
 
-		let _ = runtime_handle.spawn(
-			fut
-				.unit_error()
-				.boxed()
-				.compat()
-				.select(exit)
-				.then(|_| Ok(()))
-			);
+		let _ = runtime_handle.spawn(select(fut.boxed(), exit).map(drop));
 
 		Ok(())
 	}
 
 	fn on_parachain_blocks_received(
 		&mut self,
-		runtime_handle: &mut Handle,
+		runtime_handle: &Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 		relay_parent: Hash,
 		blocks: Vec<(CandidateReceipt, Option<(BlockData, AvailableMessages)>)>,
@@ -396,7 +414,7 @@ where
 			let topic = erasure_coding_topic(relay_parent, receipt.erasure_root, chunk.index);
 			// need to remove gossip listener and stop it.
 			if let Some(signal) = self.registered_gossip_streams.remove(&topic) {
-				signal.fire();
+				let _ = signal.fire();
 			}
 		}
 
@@ -427,7 +445,7 @@ where
 	// we don't have that piece, and then it registers a listener.
 	fn on_listen_for_chunks_received(
 		&mut self,
-		runtime_handle: &mut Handle,
+		runtime_handle: &Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 		relay_parent: Hash,
 		candidate_hash: Hash,
@@ -473,11 +491,11 @@ where
 			let mut runtime = LocalRuntime::new()?;
 			let mut sender = worker.sender.clone();
 
-			let mut runtime_handle = runtime.handle();
+			let runtime_handle = runtime.handle().clone();
 
 			// On startup, registers listeners (gossip streams) for all
 			// (relay_parent, erasure-root, i) in the awaited frontier.
-			worker.register_listeners(&mut runtime_handle, &mut sender);
+			worker.register_listeners(runtime.handle(), &mut sender);
 
 			let process_notification = async move {
 				while let Some(msg) = receiver.next().await {
@@ -502,7 +520,7 @@ where
 							} = msg;
 
 							let res = worker.on_listen_for_chunks_received(
-								&mut runtime_handle,
+								&runtime_handle,
 								&mut sender,
 								relay_parent,
 								candidate_hash,
@@ -522,7 +540,7 @@ where
 							} = msg;
 
 							let res = worker.on_parachain_blocks_received(
-								&mut runtime_handle,
+								&runtime_handle,
 								&mut sender,
 								relay_parent,
 								blocks,
@@ -566,18 +584,9 @@ where
 
 			};
 
-			runtime.spawn(
-				process_notification
-					.unit_error()
-					.boxed()
-					.compat()
-					.select(exit.clone())
-					.then(|_| Ok(()))
-			);
+			runtime.spawn(select(process_notification.boxed(), exit.clone()).map(drop));
 
-			if let Err(e) = runtime.block_on(exit) {
-				warn!(target: LOG_TARGET, "Availability worker error {:?}", e);
-			}
+			runtime.block_on(exit);
 
 			info!(target: LOG_TARGET, "Availability worker exiting");
 
@@ -609,7 +618,7 @@ pub struct AvailabilityBlockImport<I, P> {
 impl<I, P> Drop for AvailabilityBlockImport<I, P> {
 	fn drop(&mut self) {
 		if let Some(signal) = self.exit_signal.take() {
-			signal.fire();
+			let _ = signal.fire();
 		}
 	}
 }
@@ -618,8 +627,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 	I: BlockImport<Block> + Send + Sync,
 	I::Error: Into<ConsensusError>,
 	P: ProvideRuntimeApi + ProvideCache<Block>,
-	P::Api: ParachainHost<Block>,
-	P::Api: ApiExt<Block, Error = sp_blockchain::Error>,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	type Error = ConsensusError;
 
@@ -645,7 +653,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 			let our_id = self.our_id(&validators);
 
 			// Use a runtime API to extract all included erasure-roots from the imported block.
-			let candidates = self.client.runtime_api().get_heads(&parent_id, extrinsics.clone())
+			let candidates = fetch_candidates(&*self.client, extrinsics.clone(), &parent_id)
 				.map_err(|e| ConsensusError::ChainLookup(e.to_string()))?;
 
 			match candidates {
@@ -655,7 +663,8 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 							trace!(
 								target: LOG_TARGET,
 								"Our validator id is {}, the candidates included are {:?}",
-								our_id, candidates
+								our_id,
+								candidates,
 							);
 
 							for candidate in &candidates {
@@ -748,14 +757,12 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 		// dependent on the types of client and executor, which would prove
 		// not not so handy in the testing code.
 		let mut exit_signal = Some(signal);
-		let prune_available = prune_unneeded_availability(client.clone(), to_worker.clone())
-			.unit_error()
-			.boxed()
-			.compat()
-			.select(exit.clone())
-			.then(|_| Ok(()));
+		let prune_available = select(
+			prune_unneeded_availability(client.clone(), to_worker.clone()).boxed(),
+			exit.clone()
+		).map(drop);
 
-		if let Err(_) = thread_pool.execute(Box::new(prune_available)) {
+		if let Err(_) = thread_pool.spawn(Box::new(prune_available)) {
 			error!(target: LOG_TARGET, "Failed to spawn availability pruning task");
 			exit_signal = None;
 		}
@@ -787,21 +794,34 @@ mod tests {
 	use super::*;
 	use std::time::Duration;
 	use futures::{stream, channel::mpsc, Stream};
-	use std::sync::{Arc, Mutex};
+	use std::sync::{Arc, Mutex, Condvar};
+	use std::pin::Pin;
 	use tokio::runtime::Runtime;
 
 	// Just contains topic->channel mapping to give to outer code on `gossip_messages_for` calls.
 	struct TestGossipMessages {
-		messages: Arc<Mutex<HashMap<Hash, mpsc::UnboundedReceiver<(Hash, Hash, ErasureChunk)>>>>,
+		messages: Arc<Mutex<HashMap<
+			Hash,
+			(
+				Arc<(Mutex<bool>, Condvar)>,
+				mpsc::UnboundedReceiver<(Hash, Hash, ErasureChunk)>,
+			),
+		>>>,
 	}
 
 	impl ProvideGossipMessages for TestGossipMessages {
 		fn gossip_messages_for(&self, topic: Hash)
-			-> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin>
+			-> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>
 		{
 			match self.messages.lock().unwrap().remove(&topic) {
-				Some(receiver) => Box::new(receiver),
-				None => Box::new(stream::iter(vec![])),
+				Some((pair, receiver)) => {
+					let (lock, cvar) = &*pair;
+					let mut consumed = lock.lock().unwrap();
+					*consumed = true;
+					cvar.notify_one();
+					receiver.boxed()
+				},
+				None => stream::iter(vec![]).boxed(),
 			}
 		}
 
@@ -843,9 +863,10 @@ mod tests {
 
 		let topic = erasure_coding_topic(relay_parent, erasure_root, local_id);
 
+		let pair = Arc::new((Mutex::new(false), Condvar::new()));
 		let messages = TestGossipMessages {
 			messages: Arc::new(Mutex::new(vec![
-						  (topic, gossip_receiver)
+						  (topic, (pair.clone(), gossip_receiver))
 			].into_iter().collect()))
 		};
 
@@ -872,7 +893,7 @@ mod tests {
 		// chunk topics.
 		handle.sender.unbounded_send(msg).unwrap();
 
-		runtime.block_on(r.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r).unwrap().unwrap();
 
 		// Make sure that at this point we are waiting for the appropriate chunk.
 		assert_eq!(
@@ -953,11 +974,14 @@ mod tests {
 		let topic_1 = erasure_coding_topic(relay_parent, erasure_root_1, local_id);
 		let topic_2 = erasure_coding_topic(relay_parent, erasure_root_2, local_id);
 
+		let cvar_pair1 = Arc::new((Mutex::new(false), Condvar::new()));
+		let cvar_pair2 = Arc::new((Mutex::new(false), Condvar::new()));
+
 		let messages = TestGossipMessages {
 			messages: Arc::new(Mutex::new(
 			vec![
-				(topic_1, gossip_receiver_1),
-				(topic_2, gossip_receiver_2),
+				(topic_1, (cvar_pair1.clone(), gossip_receiver_1)),
+				(topic_2, (cvar_pair2, gossip_receiver_2)),
 			].into_iter().collect()))
 		};
 
@@ -974,7 +998,7 @@ mod tests {
 
 		handle.sender.unbounded_send(listen_msg_2).unwrap();
 
-		runtime.block_on(r2.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r2).unwrap().unwrap();
 		// The gossip sender for this topic left intact => listener not registered.
 		assert!(messages.messages.lock().unwrap().contains_key(&topic_2));
 
@@ -990,7 +1014,17 @@ mod tests {
 		});
 
 		handle.sender.unbounded_send(listen_msg_1).unwrap();
-		runtime.block_on(r1.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r1).unwrap().unwrap();
+
+		// Here, we are racing against the worker thread that might have not yet
+		// reached the point when it requests the gossip messages for `topic_2`
+		// which will get them removed from `TestGossipMessages`. Therefore, the
+		// `Condvar` is used to wait for that event.
+		let (lock, cvar1) = &*cvar_pair1;
+		let mut gossip_stream_consumed = lock.lock().unwrap();
+		while !*gossip_stream_consumed {
+			gossip_stream_consumed = cvar1.wait(gossip_stream_consumed).unwrap();
+		}
 
 		// The gossip sender taken => listener registered.
 		assert!(!messages.messages.lock().unwrap().contains_key(&topic_1));

@@ -19,8 +19,7 @@
 #![warn(missing_docs)]
 
 use cli::VersionInfo;
-use futures::channel::oneshot;
-use futures::{future, FutureExt};
+use futures::{channel::oneshot, future, FutureExt};
 
 use std::cell::RefCell;
 
@@ -33,6 +32,7 @@ impl cli::IntoExit for Exit {
 		let (exit_send, exit) = oneshot::channel();
 
 		let exit_send_cell = RefCell::new(Some(exit_send));
+		#[cfg(not(target_os = "unknown"))]
 		ctrlc::set_handler(move || {
 			if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
 				exit_send.send(()).expect("Error sending exit notification");

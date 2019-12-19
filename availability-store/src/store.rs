@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(not(target_os = "unknown"))]
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 use codec::{Encode, Decode};
@@ -82,6 +83,7 @@ fn erasure_roots_in_relay_chain_block_key(relay_block: &Hash) -> Vec<u8> {
 
 impl Store {
 	/// Create a new `Store` with given condig on disk.
+	#[cfg(not(target_os = "unknown"))]
 	pub(super) fn new(config: Config) -> io::Result<Self> {
 		let mut db_config = DatabaseConfig::with_columns(Some(columns::NUM_COLUMNS));
 

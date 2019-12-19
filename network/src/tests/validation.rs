@@ -19,11 +19,11 @@
 #![allow(unused)]
 
 use crate::gossip::GossipMessage;
-use sc_network::Context as NetContext;
-use sc_network::consensus_gossip::TopicNotification;
+use sc_network::{Context as NetContext, PeerId};
+use sc_network_gossip::TopicNotification;
 use sp_core::{NativeOrEncoded, ExecutionContext};
 use sp_keyring::Sr25519Keyring;
-use crate::{GossipService, PolkadotProtocol, NetworkService, GossipMessageStream};
+use crate::{PolkadotProtocol, NetworkService, GossipMessageStream};
 
 use polkadot_validation::{SharedTable, Network};
 use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
@@ -39,22 +39,23 @@ use sp_runtime::traits::{ApiRef, {Block as BlockT}, ProvideRuntimeApi};
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use futures::{prelude::*, sync::mpsc};
+use std::pin::Pin;
+use std::task::{Poll, Context};
+use futures::{prelude::*, channel::mpsc, future::{select, Either}};
 use codec::Encode;
 
 use super::{TestContext, TestChainContext};
 
-type TaskExecutor = Arc<dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>> + Send + Sync>;
+type TaskExecutor = Arc<dyn futures::task::Spawn + Send + Sync>;
 
 #[derive(Clone, Copy)]
 struct NeverExit;
 
 impl Future for NeverExit {
-	type Item = ();
-	type Error = ();
+	type Output = ();
 
-	fn poll(&mut self) -> Poll<(), ()> {
-		Ok(Async::NotReady)
+	fn poll(self: Pin<&mut Self>, _: &mut Context) -> Poll<Self::Output> {
+		Poll::Pending
 	}
 }
 
@@ -65,58 +66,35 @@ fn clone_gossip(n: &TopicNotification) -> TopicNotification {
 	}
 }
 
-struct GossipRouter {
-	incoming_messages: mpsc::UnboundedReceiver<(Hash, TopicNotification)>,
-	incoming_streams: mpsc::UnboundedReceiver<(Hash, mpsc::UnboundedSender<TopicNotification>)>,
-	outgoing: Vec<(Hash, mpsc::UnboundedSender<TopicNotification>)>,
-	messages: Vec<(Hash, TopicNotification)>,
-}
+async fn gossip_router(
+	mut incoming_messages: mpsc::UnboundedReceiver<(Hash, TopicNotification)>,
+	mut incoming_streams: mpsc::UnboundedReceiver<(Hash, mpsc::UnboundedSender<TopicNotification>)>
+) {
+	let mut outgoing: Vec<(Hash, mpsc::UnboundedSender<TopicNotification>)> = Vec::new();
+	let mut messages = Vec::new();
 
-impl GossipRouter {
-	fn add_message(&mut self, topic: Hash, message: TopicNotification) {
-		self.outgoing.retain(|&(ref o_topic, ref sender)| {
-			o_topic != &topic || sender.unbounded_send(clone_gossip(&message)).is_ok()
-		});
-		self.messages.push((topic, message));
-	}
+	loop {
+		match select(incoming_messages.next(), incoming_streams.next()).await {
+			Either::Left((Some((topic, message)), _)) => {
+				outgoing.retain(|&(ref o_topic, ref sender)| {
+					o_topic != &topic || sender.unbounded_send(clone_gossip(&message)).is_ok()
+				});
+				messages.push((topic, message));
+			},
+			Either::Right((Some((topic, sender)), _)) => {
+				for message in messages.iter()
+					.filter(|&&(ref t, _)| t == &topic)
+					.map(|&(_, ref msg)| clone_gossip(msg))
+				{
+					if let Err(_) = sender.unbounded_send(message) { return }
+				}
 
-	fn add_outgoing(&mut self, topic: Hash, sender: mpsc::UnboundedSender<TopicNotification>) {
-		for message in self.messages.iter()
-			.filter(|&&(ref t, _)| t == &topic)
-			.map(|&(_, ref msg)| clone_gossip(msg))
-		{
-			if let Err(_) = sender.unbounded_send(message) { return }
+				outgoing.push((topic, sender));
+			},
+			Either::Left((None, _)) | Either::Right((None, _)) =>  panic!("ended early.")
 		}
-
-		self.outgoing.push((topic, sender));
-	}
-}
-
-impl Future for GossipRouter {
-	type Item = ();
-	type Error = ();
-
-	fn poll(&mut self) -> Poll<(), ()> {
-		loop {
-			match self.incoming_messages.poll().unwrap() {
-				Async::Ready(Some((topic, message))) => self.add_message(topic, message),
-				Async::Ready(None) => panic!("ended early."),
-				Async::NotReady => break,
-			}
-		}
-
-		loop {
-			match self.incoming_streams.poll().unwrap() {
-				Async::Ready(Some((topic, sender))) => self.add_outgoing(topic, sender),
-				Async::Ready(None) => panic!("ended early."),
-				Async::NotReady => break,
-			}
-		}
-
-		Ok(Async::NotReady)
 	}
 }
-
 
 #[derive(Clone)]
 struct GossipHandle {
@@ -124,17 +102,12 @@ struct GossipHandle {
 	send_listener: mpsc::UnboundedSender<(Hash, mpsc::UnboundedSender<TopicNotification>)>,
 }
 
-fn make_gossip() -> (GossipRouter, GossipHandle) {
+fn make_gossip() -> (impl Future<Output = ()>, GossipHandle) {
 	let (message_tx, message_rx) = mpsc::unbounded();
 	let (listener_tx, listener_rx) = mpsc::unbounded();
 
 	(
-		GossipRouter {
-			incoming_messages: message_rx,
-			incoming_streams: listener_rx,
-			outgoing: Vec::new(),
-			messages: Vec::new(),
-		},
+		gossip_router(message_rx, listener_rx),
 		GossipHandle { send_message: message_tx, send_listener: listener_tx },
 	)
 }
@@ -148,18 +121,16 @@ impl NetworkService for TestNetwork {
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
-		GossipMessageStream::new(Box::new(rx))
+		GossipMessageStream::new(rx.boxed())
+	}
+
+	fn send_message(&self, _: PeerId, _: GossipMessage) {
+		unimplemented!()
 	}
 
 	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
 		let notification = TopicNotification { message: message.encode(), sender: None };
 		let _ = self.gossip.send_message.unbounded_send((topic, notification));
-	}
-
-	fn with_gossip<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut dyn GossipService, &mut dyn NetContext<Block>)
-	{
-		unimplemented!()
 	}
 
 	fn with_spec<F: Send + 'static>(&self, with: F)
@@ -337,12 +308,11 @@ impl ParachainHost<Block> for RuntimeApi {
 type TestValidationNetwork = crate::validation::ValidationNetwork<
 	TestApi,
 	NeverExit,
-	TestNetwork,
 	TaskExecutor,
 >;
 
 struct Built {
-	gossip: GossipRouter,
+	gossip: Pin<Box<dyn Future<Output = ()>>>,
 	api_handle: Arc<Mutex<ApiData>>,
 	networks: Vec<TestValidationNetwork>,
 }
@@ -364,9 +334,8 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 		);
 
 		TestValidationNetwork::new(
-			net,
-			NeverExit,
 			message_val,
+			NeverExit,
 			runtime_api.clone(),
 			executor.clone(),
 		)
@@ -375,7 +344,7 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 	let networks: Vec<_> = networks.collect();
 
 	Built {
-		gossip: gossip_router,
+		gossip: gossip_router.boxed(),
 		api_handle,
 		networks,
 	}
@@ -417,8 +386,8 @@ impl av_store::ProvideGossipMessages for DummyGossipMessages {
 	fn gossip_messages_for(
 		&self,
 		_topic: Hash
-	) -> Box<dyn futures03::Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin> {
-		Box::new(futures03::stream::empty())
+	) -> Pin<Box<dyn futures::Stream<Item = (Hash, Hash, ErasureChunk)> + Send>> {
+		stream::empty().boxed()
 	}
 
 	fn gossip_erasure_chunk(

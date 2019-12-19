@@ -30,10 +30,10 @@ use primitives::{
 	},
 };
 use collator::{
-	InvalidHead, ParachainContext, Network, BuildParachainContext, TaskExecutor, load_spec, Configuration,
+	InvalidHead, ParachainContext, Network, BuildParachainContext, load_spec, Configuration,
 };
 use parking_lot::Mutex;
-use futures::future::{Ready, ok, err};
+use futures::{future::{Ready, ok, err}, task::Spawn};
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
@@ -108,15 +108,16 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build<B, E, R>(
+	fn build<B, E, R, SP>(
 		self,
 		_: Arc<collator::PolkadotClient<B, E, R>>,
-		_: TaskExecutor,
+		_: SP,
 		network: Arc<dyn Network>,
 	) -> Result<Self::ParachainContext, ()>
 		where
 			B: client_api::backend::Backend<Block, Blake2Hasher> + 'static,
-			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static
+			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
+			SP: Spawn + Clone + Send + Sync + 'static,
 	{
 		Ok(Self { _network: Some(network), ..self })
 	}
@@ -145,7 +146,7 @@ fn main() {
 	let exit_send_cell = RefCell::new(Some(exit_send));
 	ctrlc::set_handler(move || {
 		if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
-			exit_send.fire();
+			let _ = exit_send.fire();
 		}
 	}).expect("Error setting up ctrl-c handler");
 

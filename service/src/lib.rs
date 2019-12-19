@@ -18,7 +18,8 @@
 
 pub mod chain_spec;
 
-use futures::sync::mpsc;
+use futures01::sync::mpsc;
+use futures::{FutureExt, TryFutureExt, task::{Spawn, SpawnError, FutureObj}};
 use client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
@@ -46,11 +47,24 @@ pub use primitives::Blake2Hasher;
 pub use sp_runtime::traits::{Block as BlockT, ProvideRuntimeApi, self as runtime_traits};
 pub use sc_network::specialization::NetworkSpecialization;
 pub use chain_spec::ChainSpec;
+#[cfg(not(target_os = "unknown"))]
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 
+/// Wrap a futures01 executor as a futures03 spawn.
+#[derive(Clone)]
+pub struct WrappedExecutor<T>(pub T);
+
+impl<T> Spawn for WrappedExecutor<T>
+	where T: futures01::future::Executor<Box<dyn futures01::Future<Item=(),Error=()> + Send + 'static>>
+{
+	fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
+		self.0.execute(Box::new(future.map(Ok).compat()))
+			.map_err(|_| SpawnError::shutdown())
+	}
+}
 /// Polkadot-specific configuration.
 pub struct CustomConfiguration {
 	/// Set to `Some` with a collator `CollatorId` and desired parachain
@@ -97,17 +111,17 @@ native_executor_instance!(
 
 /// A set of APIs that polkadot-like runtimes must implement.
 pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static> :
-tx_pool_runtime_api::TaggedTransactionQueue<Block>
-+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-+ babe_primitives::BabeApi<Block>
-+ ParachainHost<Block>
-+ sp_block_builder::BlockBuilder<Block>
-+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
-+ sp_api::Metadata<Block>
-+ sp_offchain::OffchainWorkerApi<Block>
-+ sp_session::SessionKeys<Block>
-+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
+	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
+	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
+	+ babe_primitives::BabeApi<Block>
+	+ ParachainHost<Block>
+	+ sp_block_builder::BlockBuilder<Block>
+	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
+	+ sp_api::Metadata<Block>
+	+ sp_offchain::OffchainWorkerApi<Block>
+	+ sp_session::SessionKeys<Block>
+	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
 where
 	Extrinsic: RuntimeExtrinsic,
 {}
@@ -115,7 +129,7 @@ where
 impl<Api, Extrinsic> RuntimeApiCollection<Extrinsic> for Api
 where
 	Api:
-	tx_pool_runtime_api::TaggedTransactionQueue<Block>
+	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
 	+ ParachainHost<Block>
@@ -162,10 +176,10 @@ macro_rules! new_full_start {
 				Ok(client::LongestChain::new(backend.clone()))
 			})?
 			.with_transaction_pool(|config, client, _fetcher| {
-				let pool_api = txpool::FullChainApi::new(client.clone());
-				let pool = txpool::BasicPool::new(config, pool_api);
-				let maintainer = txpool::FullBasicPoolMaintainer::new(pool.pool().clone(), client);
-				let maintainable_pool = txpool_api::MaintainableTransactionPool::new(pool, maintainer);
+				let pool_api = sc_transaction_pool::FullChainApi::new(client.clone());
+				let pool = sc_transaction_pool::BasicPool::new(config, pool_api);
+				let maintainer = sc_transaction_pool::FullBasicPoolMaintainer::new(pool.pool().clone(), client);
+				let maintainable_pool = sp_transaction_pool::MaintainableTransactionPool::new(pool, maintainer);
 				Ok(maintainable_pool)
 			})?
 			.with_import_queue(|_config, client, mut select_chain, _| {
@@ -263,11 +277,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		Extrinsic: RuntimeExtrinsic,
 {
 	use sc_network::DhtEvent;
-	use futures03::{
-		compat::Stream01CompatExt,
-		stream::StreamExt,
-		future::{FutureExt, TryFutureExt},
-	};
+	use futures::{compat::Stream01CompatExt, stream::StreamExt};
 
 	let is_collator = config.custom.collating_for.is_some();
 	let is_authority = config.roles.is_authority() && !is_collator;
@@ -281,6 +291,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
 	let authority_discovery_enabled = config.custom.authority_discovery_enabled;
+	let sentry_nodes = config.network.sentry_nodes.clone();
 	let slot_duration = config.custom.slot_duration;
 
 	// sentry nodes announce themselves as authorities to the network
@@ -340,6 +351,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	let mut gossip_validator = network_gossip::register_validator(
 		service.network(),
 		(is_known, client.clone()),
+		&service.spawn_task_handle(),
 	);
 
 	if participates_in_consensus {
@@ -349,12 +361,18 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 			let mut path = PathBuf::from(db_path);
 			path.push("availability");
 
-			av_store::Store::new(::av_store::Config {
-				cache_size: None,
-				path,
-			},
-			polkadot_network::AvailabilityNetworkShim(service.network()),
-			)?
+			let gossip = polkadot_network::AvailabilityNetworkShim(gossip_validator.clone());
+
+			#[cfg(not(target_os = "unknown"))]
+			{
+				av_store::Store::new(::av_store::Config {
+					cache_size: None,
+					path,
+				}, gossip)?
+			}
+
+			#[cfg(target_os = "unknown")]
+			av_store::Store::new_in_memory(gossip)
 		};
 
 		{
@@ -371,11 +389,10 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 
 		// collator connections and validation network both fulfilled by this
 		let validation_network = ValidationNetwork::new(
-			service.network(),
-			service.on_exit(),
 			gossip_validator,
+			service.on_exit(),
 			service.client(),
-			polkadot_network::validation::WrappedExecutor(service.spawn_task_handle()),
+			WrappedExecutor(service.spawn_task_handle()),
 		);
 		let proposer = consensus::ProposerFactory::new(
 			client.clone(),
@@ -383,7 +400,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 			validation_network.clone(),
 			validation_network,
 			service.transaction_pool(),
-			Arc::new(service.spawn_task_handle()),
+			Arc::new(WrappedExecutor(service.spawn_task_handle())),
 			service.keystore(),
 			availability_store.clone(),
 			slot_duration,
@@ -399,7 +416,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		let block_import = availability_store.block_import(
 			block_import,
 			client.clone(),
-			Arc::new(service.spawn_task_handle()),
+			Arc::new(WrappedExecutor(service.spawn_task_handle())),
 			service.keystore(),
 		)?;
 
@@ -426,6 +443,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
 				service.client(),
 				service.network(),
+				sentry_nodes,
 				service.keystore(),
 				future03_dht_event_rx,
 			);
@@ -469,6 +487,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 			on_exit: service.on_exit(),
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 			voting_rule: grandpa::VotingRulesBuilder::default().build(),
+			executor: service.spawn_task_handle(),
 		};
 		service.spawn_essential_task(grandpa::run_grandpa_voter(grandpa_config)?);
 	} else {
@@ -535,10 +554,10 @@ where
 		.with_transaction_pool(|config, client, fetcher| {
 			let fetcher = fetcher
 				.ok_or_else(|| "Trying to start light transaction pool without active fetcher")?;
-			let pool_api = txpool::LightChainApi::new(client.clone(), fetcher.clone());
-			let pool = txpool::BasicPool::new(config, pool_api);
-			let maintainer = txpool::LightBasicPoolMaintainer::with_defaults(pool.pool().clone(), client, fetcher);
-			let maintainable_pool = txpool_api::MaintainableTransactionPool::new(pool, maintainer);
+			let pool_api = sc_transaction_pool::LightChainApi::new(client.clone(), fetcher.clone());
+			let pool = sc_transaction_pool::BasicPool::new(config, pool_api);
+			let maintainer = sc_transaction_pool::LightBasicPoolMaintainer::with_defaults(pool.pool().clone(), client, fetcher);
+			let maintainable_pool = sp_transaction_pool::MaintainableTransactionPool::new(pool, maintainer);
 			Ok(maintainable_pool)
 		})?
 		.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _| {

@@ -20,24 +20,24 @@
 #![warn(unused_extern_crates)]
 
 mod chain_spec;
+#[cfg(feature = "browser")]
+mod browser;
 
 use chain_spec::ChainSpec;
-use futures::{Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Future01CompatExt};
+use futures::{
+	Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Future01CompatExt,
+};
 use tokio::runtime::Runtime;
-use std::sync::Arc;
 use log::info;
 use structopt::StructOpt;
 
 pub use service::{
 	AbstractService, CustomConfiguration, ProvideRuntimeApi, CoreApi, ParachainHost, IsKusama, self,
+	WrappedExecutor
 };
 
 pub use cli::{VersionInfo, IntoExit, NoCustom, SharedParams};
 pub use cli::{display_role, error};
-
-type BoxedFuture = Box<dyn futures01::Future<Item = (), Error = ()> + Send>;
-/// Abstraction over an executor that lets you spawn tasks in the background.
-pub type TaskExecutor = Arc<dyn futures01::future::Executor<BoxedFuture> + Send + Sync>;
 
 /// Load the `ChainSpec` for the given `id`.
 pub fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
@@ -160,9 +160,14 @@ where
 			cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<_, _, _, _, _, _>(|config|
 				Ok(service::new_chain_ops::<R, D, E>(config)?), &load_spec),
 			cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
-				service::run_validation_worker(&args.mem_id)?;
-				Ok(())
-		}
+				if cfg!(feature = "browser") {
+					Err(error::Error::Input("Cannot run validation worker in browser".into()))
+				} else {
+					#[cfg(not(feature = "browser"))]
+					service::run_validation_worker(&args.mem_id)?;
+					Ok(())
+				}
+			}
 	}
 }
 
