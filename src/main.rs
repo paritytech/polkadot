@@ -21,7 +21,7 @@
 use cli::{AbstractService, VersionInfo};
 use futures::{channel::oneshot, future, FutureExt, task::Spawn};
 
-use std::cell::RefCell;
+use std::{cell::RefCell, marker::PhantomData};
 
 // the regular polkadot worker simply does nothing until ctrl-c
 struct Worker;

@@ -33,8 +33,7 @@ use log::{info, error};
 use structopt::StructOpt;
 
 pub use service::{
-	AbstractService, CustomConfiguration,
-	ProvideRuntimeApi, CoreApi, ParachainHost,
+	AbstractService, CustomConfiguration, ProvideRuntimeApi, CoreApi, ParachainHost, IsKusama,
 	WrappedExecutor
 };
 

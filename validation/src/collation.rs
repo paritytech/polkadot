@@ -30,7 +30,7 @@ use polkadot_primitives::{
 	},
 };
 use polkadot_erasure_coding as erasure;
-use runtime_primitives::traits::ProvideRuntimeApi;
+use sp_api::ProvideRuntimeApi;
 use parachain::{
 	wasm_executor::{self, ExecutionMode}, TargetedMessage, UpwardMessage,
 };
@@ -417,7 +417,7 @@ fn do_validation<P>(
 	queue_roots: &Vec<(ParaId, Hash)>,
 	upward_messages: &Vec<UpwardMessage>,
 ) -> Result<(OutgoingMessages, Balance), Error> where
-	P: ProvideRuntimeApi,
+	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	use parachain::{IncomingMessage, ValidationParams};
@@ -543,7 +543,7 @@ pub fn validate_receipt<P>(
 	receipt: &CandidateReceipt,
 	max_block_data_size: Option<u64>,
 ) -> Result<(OutgoingMessages, Vec<ErasureChunk>), Error> where
-	P: ProvideRuntimeApi,
+	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	let (messages, _fees) = do_validation(
@@ -590,7 +590,7 @@ pub fn validate_collation<P>(
 	collation: &Collation,
 	max_block_data_size: Option<u64>,
 ) -> Result<(OutgoingMessages, Balance), Error> where
-	P: ProvideRuntimeApi,
+	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	let para_id = collation.info.parachain_index;

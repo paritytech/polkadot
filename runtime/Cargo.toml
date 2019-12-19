@@ -127,5 +127,4 @@ std = [
 	"babe-primitives/std",
 	"sp-session/std",
 	"randomness-collective-flip/std",
-	"sudo/std",
 ]

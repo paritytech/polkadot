@@ -22,7 +22,8 @@ log = "0.4.8"
 exit-future = "0.2.0"
 sc-client = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }

@@ -35,14 +35,15 @@ pub use service::ServiceBuilderCommand;
 pub use service::config::{DatabaseConfig, full_version_from_strs};
 pub use client::{ExecutionStrategy, CallExecutor};
 pub use client_api::backend::Backend;
-pub use sp_api::{Core as CoreApi, ConstructRuntimeApi};
+pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
+pub use sp_runtime::traits::HasherFor;
 pub use consensus_common::SelectChain;
-pub use polkadot_network::{PolkadotProtocol};
+pub use polkadot_network::PolkadotProtocol;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use polkadot_runtime::RuntimeApi;
 pub use primitives::Blake2Hasher;
-pub use sp_runtime::traits::ProvideRuntimeApi;
+pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits};
 pub use sc_network::specialization::NetworkSpecialization;
 pub use chain_spec::ChainSpec;
 #[cfg(not(target_os = "unknown"))]
@@ -195,6 +196,8 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	// buffer size to 10 000.
 	let (dht_event_tx, dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
 
+	let backend = builder.backend().clone();
+
 	let service = builder
 		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
 		.with_finality_proof_provider(|client, backend|
@@ -292,6 +295,7 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 			availability_store.clone(),
 			polkadot_runtime::constants::time::SLOT_DURATION,
 			max_block_data_size,
+			backend,
 		);
 
 		let client = service.client();
