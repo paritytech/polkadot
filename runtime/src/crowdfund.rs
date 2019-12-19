@@ -506,7 +506,7 @@ mod tests {
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
-		Perbill, Permill, testing::Header,
+		Perbill, Permill, testing::Header, DispatchResult,
 		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup},
 	};
 	use crate::registrar::Registrar;
@@ -542,6 +542,7 @@ mod tests {
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
+		type ModuleToIndex = ();
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
@@ -594,12 +595,13 @@ mod tests {
 				(*p.borrow() - 1).into()
 			})
 		}
+
 		fn register_para(
 			id: ParaId,
 			_info: ParaInfo,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>
-		) -> Result<(), &'static str> {
+		) -> DispatchResult {
 			PARACHAINS.with(|p| {
 				if p.borrow().contains_key(&id.into()) {
 					panic!("ID already exists")
@@ -608,7 +610,8 @@ mod tests {
 				Ok(())
 			})
 		}
-		fn deregister_para(id: ParaId) -> Result<(), &'static str> {
+
+		fn deregister_para(id: ParaId) -> DispatchResult {
 			PARACHAINS.with(|p| {
 				if !p.borrow().contains_key(&id.into()) {
 					panic!("ID doesn't exist")

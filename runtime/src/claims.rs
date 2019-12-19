@@ -305,6 +305,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type MaximumBlockLength = MaximumBlockLength;
 		type Version = ();
+		type ModuleToIndex = ();
 	}
 
 	parameter_types! {
