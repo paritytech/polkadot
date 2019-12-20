@@ -20,7 +20,6 @@ sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-m
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -58,8 +57,9 @@ system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "http
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
-primitives = { package = "polkadot-primitives", path = "../primitives", default-features = false }
-polkadot-parachain = { path = "../parachain", default-features = false }
+runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
+primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
@@ -92,7 +92,6 @@ std = [
 	"block-builder-api/std",
 	"offchain-primitives/std",
 	"rstd/std",
-	"sp-io/std",
 	"frame-support/std",
 	"authorship/std",
 	"balances/std",
@@ -127,4 +126,5 @@ std = [
 	"babe-primitives/std",
 	"sp-session/std",
 	"randomness-collective-flip/std",
+	"runtime-common/std",
 ]

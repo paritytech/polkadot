@@ -26,8 +26,9 @@ members = [
 	"erasure-coding",
 	"network",
 	"primitives",
-	"runtime",
-	"kusama",
+	"runtime/common",
+	"runtime/polkadot",
+	"runtime/kusama",
 	"service",
 	"statement-table",
 	"service",
@@ -37,8 +38,8 @@ members = [
 	"test-parachains/adder/collator",
 ]
 exclude = [
-	"runtime/wasm",
-	"kusama/wasm",
+	"runtime/polkadot/wasm",
+	"runtime/kusama/wasm",
 	"test-parachains/adder/wasm",
 ]
 
