@@ -20,18 +20,28 @@ use primitives::Balance;
 use sp_runtime::traits::{Convert, Saturating};
 use sp_runtime::{Fixed64, Perbill};
 use frame_support::weights::Weight;
-use frame_support::traits::{OnUnbalanced, Currency, Get};
+use frame_support::traits::{OnUnbalanced, Imbalance, Currency, Get};
 use crate::{MaximumBlockWeight, NegativeImbalance};
 
 /// Logic for the author to get a portion of fees.
 pub struct ToAuthor<R>(rstd::marker::PhantomData<R>);
 
-impl<R: balances::Trait + authorship::Trait> OnUnbalanced<NegativeImbalance<R>> for ToAuthor<R>
+impl<R> OnUnbalanced<NegativeImbalance<R>> for ToAuthor<R>
 where
+	R: balances::Trait + authorship::Trait,
 	<R as system::Trait>::AccountId: From<primitives::AccountId>,
+	<R as system::Trait>::AccountId: Into<primitives::AccountId>,
+	<R as system::Trait>::Event: From<balances::RawEvent<
+		<R as system::Trait>::AccountId,
+		<R as balances::Trait>::Balance,
+		balances::DefaultInstance>
+	>,
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
-		<balances::Module<R>>::resolve_creating(&<authorship::Module<R>>::author().into(), amount);
+		let numeric_amount = amount.peek();
+		let author = <authorship::Module<R>>::author();
+		<balances::Module<R>>::resolve_creating(&<authorship::Module<R>>::author(), amount);
+		<system::Module<R>>::deposit_event(balances::RawEvent::Deposit(author, numeric_amount));
 	}
 }
 
