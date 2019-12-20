@@ -20,7 +20,7 @@ use primitives::Balance;
 use sp_runtime::traits::{Convert, Saturating};
 use sp_runtime::{Fixed64, Perbill};
 use frame_support::weights::Weight;
-use frame_support::traits::{OnUnbalanced, Currency, Get};
+use frame_support::traits::{OnUnbalanced, Imbalance, Currency, Get};
 use crate::{Balances, System, Authorship, MaximumBlockWeight, NegativeImbalance};
 
 /// Logic for the author to get a portion of fees.
@@ -31,7 +31,7 @@ impl OnUnbalanced<NegativeImbalance> for ToAuthor {
 		let numeric_amount = amount.peek();
 		let author = Authorship::author();
 		Balances::resolve_creating(&author, amount);
-		Self::deposit_event(Balances::RawEvent::Deposit(author, numeric_amount));
+		System::deposit_event(balances::RawEvent::Deposit(author, numeric_amount));
 	}
 }
 
