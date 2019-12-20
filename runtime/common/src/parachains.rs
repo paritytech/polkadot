@@ -23,7 +23,7 @@ use codec::{Encode, Decode};
 
 use sp_runtime::traits::{
 	Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
-	AccountIdConversion,
+	AccountIdConversion, BadOrigin,
 };
 use frame_support::weights::SimpleDispatchInfo;
 use primitives::{
@@ -34,7 +34,7 @@ use primitives::{
 	},
 };
 use frame_support::{
-	Parameter, dispatch::Result, decl_storage, decl_module, ensure,
+	Parameter, dispatch::DispatchResult, decl_storage, decl_module, ensure,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
 
@@ -74,7 +74,7 @@ fn number_range<N>(low: N, high: N) -> BlockNumberRange<N> {
 // doesn't work.`
 pub trait ParachainCurrency<AccountId> {
 	fn free_balance(para_id: ParaId) -> Balance;
-	fn deduct(para_id: ParaId, amount: Balance) -> Result;
+	fn deduct(para_id: ParaId, amount: Balance) -> DispatchResult;
 }
 
 impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
@@ -86,7 +86,7 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 		T::free_balance(&para_account).into()
 	}
 
-	fn deduct(para_id: ParaId, amount: Balance) -> Result {
+	fn deduct(para_id: ParaId, amount: Balance) -> DispatchResult {
 		let para_account = para_id.into_account();
 
 		// burn the fee.
@@ -200,7 +200,7 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
-		pub fn set_heads(origin, heads: Vec<AttestedCandidate>) -> Result {
+		pub fn set_heads(origin, heads: Vec<AttestedCandidate>) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
 
@@ -356,7 +356,7 @@ where
 		upward_messages: &[UpwardMessage],
 		max_queue_count: usize,
 		watermark_queue_size: usize,
-	) -> Result {
+	) -> DispatchResult {
 		// Either there are no more messages to add...
 		if !upward_messages.is_empty() {
 			let (count, size) = <RelayDispatchQueueSize>::get(id);
@@ -622,32 +622,32 @@ where
 	fn check_egress_queue_roots(
 		head: &AttestedCandidate,
 		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
-	) -> Result {
+	) -> DispatchResult {
 		let mut last_egress_id = None;
 		let mut iter = active_parachains.iter().map(|x| x.0);
 		for (egress_para_id, root) in &head.candidate.egress_queue_roots {
 			// egress routes should be ascending order by parachain ID without duplicate.
 			ensure!(
 				last_egress_id.as_ref().map_or(true, |x| x < &egress_para_id),
-				"Egress routes out of order by ID"
+				"Egress routes out of order by ID",
 			);
 
 			// a parachain can't route to self
 			ensure!(
 				*egress_para_id != head.candidate.parachain_index,
-				"Parachain routing to self"
+				"Parachain routing to self",
 			);
 
 			// no empty trie roots
 			ensure!(
 				*root != EMPTY_TRIE_ROOT.into(),
-				"Empty trie root included"
+				"Empty trie root included",
 			);
 
 			// can't route to a parachain which doesn't exist
 			ensure!(
 				iter.find(|x| x == egress_para_id).is_some(),
-				"Routing to non-existent parachain"
+				"Routing to non-existent parachain",
 			);
 
 			last_egress_id = Some(egress_para_id)
@@ -660,7 +660,7 @@ where
 	fn check_candidates(
 		attested_candidates: &[AttestedCandidate],
 		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
-	) -> rstd::result::Result<IncludedBlocks<T>, &'static str>
+	) -> rstd::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError>
 	{
 		use primitives::parachain::ValidityAttestation;
 		use sp_runtime::traits::AppVerify;
@@ -745,12 +745,12 @@ where
 
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
-				"Not enough validity attestations"
+				"Not enough validity attestations",
 			);
 
 			ensure!(
 				candidate.validity_votes.len() <= authorities.len(),
-				"The number of attestations exceeds the number of authorities"
+				"The number of attestations exceeds the number of authorities",
 			);
 
 			let fees = candidate.candidate().fees;
@@ -768,7 +768,7 @@ where
 				.enumerate()
 			{
 				let validity_attestation = match candidate.validity_votes.get(vote_index) {
-					None => return Err("Not enough validity votes"),
+					None => Err("Not enough validity votes")?,
 					Some(v) => {
 						expected_votes_len = vote_index + 1;
 						v
@@ -776,7 +776,7 @@ where
 				};
 
 				if validator_group.iter().find(|&(idx, _)| *idx == auth_index).is_none() {
-					return Err("Attesting validator not on this chain's validation duty.");
+					Err("Attesting validator not on this chain's validation duty.")?
 				}
 
 				let (payload, sig) = match validity_attestation {
@@ -802,15 +802,15 @@ where
 
 				ensure!(
 					sig.verify(&payload[..], &authorities[auth_index]),
-					"Candidate validity attestation signature is bad."
+					"Candidate validity attestation signature is bad.",
 				);
 			}
 
 			para_block_hashes.push(candidate_hash.unwrap_or_else(|| candidate.candidate().hash()));
 
-		ensure!(
+			ensure!(
 				candidate.validity_votes.len() == expected_votes_len,
-				"Extra untagged validity votes along with candidate"
+				"Extra untagged validity votes along with candidate",
 			);
 		}
 
@@ -893,12 +893,12 @@ impl<T: Trait> ProvideInherent for Module<T> {
 
 /// Ensure that the origin `o` represents a parachain.
 /// Returns `Ok` with the parachain ID that effected the extrinsic or an `Err` otherwise.
-pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, &'static str>
+pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, BadOrigin>
 	where OuterOrigin: Into<result::Result<Origin, OuterOrigin>>
 {
 	match o.into() {
 		Ok(Origin::Parachain(id)) => Ok(id),
-		_ => Err("bad origin: expected to be a parachain origin"),
+		_ => Err(BadOrigin),
 	}
 }
 
@@ -966,6 +966,7 @@ mod tests {
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
+		type ModuleToIndex = ();
 	}
 
 	parameter_types! {
@@ -1529,7 +1530,7 @@ mod tests {
 			];
 			assert_err!(
 				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
-				"Messages added when queue full"
+				"Messages added when queue full",
 			);
 		});
 	}
@@ -1550,7 +1551,7 @@ mod tests {
 			];
 			assert_err!(
 				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
-				"Messages added when queue full"
+				"Messages added when queue full",
 			);
 		});
 	}
@@ -1980,7 +1981,7 @@ mod tests {
 				Origin::NONE,
 			);
 
-			assert_eq!(Err("Routing to non-existent parachain"), result);
+			assert_eq!(Err("Routing to non-existent parachain".into()), result);
 		});
 	}
 
@@ -2005,7 +2006,7 @@ mod tests {
 				Origin::NONE,
 			);
 
-			assert_eq!(Err("Parachain routing to self"), result);
+			assert_eq!(Err("Parachain routing to self".into()), result);
 		});
 	}
 
@@ -2030,7 +2031,7 @@ mod tests {
 				Origin::NONE,
 			);
 
-			assert_eq!(Err("Egress routes out of order by ID"), result);
+			assert_eq!(Err("Egress routes out of order by ID".into()), result);
 		});
 	}
 
@@ -2055,7 +2056,7 @@ mod tests {
 				Origin::NONE,
 			);
 
-			assert_eq!(Err("Empty trie root included"), result);
+			assert_eq!(Err("Empty trie root included".into()), result);
 		});
 	}
 
