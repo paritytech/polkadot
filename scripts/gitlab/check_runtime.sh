@@ -13,7 +13,7 @@ set -e # fail on any error
 git log --graph --oneline --decorate=short -n 10
 
 
-VERSIONS_FILE="runtime/src/lib.rs"
+VERSIONS_FILE="runtime/kusama/src/lib.rs"
 
 github_label () {
 	echo
