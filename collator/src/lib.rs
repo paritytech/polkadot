@@ -51,9 +51,9 @@ use std::time::Duration;
 use std::pin::Pin;
 
 use futures::{future, Future, Stream, FutureExt, TryFutureExt, StreamExt, task::Spawn};
-use log::{warn, error};
-use client::BlockchainEvents;
-use primitives::{Pair, Blake2Hasher};
+use log::warn;
+use sc_client::BlockchainEvents;
+use sp_core::{Pair, Blake2Hasher};
 use polkadot_primitives::{
 	BlockId, Hash, Block,
 	parachain::{
@@ -129,7 +129,7 @@ impl<R: fmt::Display> fmt::Display for Error<R> {
 }
 
 /// The Polkadot client type.
-pub type PolkadotClient<B, E> = client::Client<B, E, Block, RuntimeApi>;
+pub type PolkadotClient<B, E, R> = sc_client::Client<B, E, Block, R>;
 
 /// Something that can build a `ParachainContext`.
 pub trait BuildParachainContext {
@@ -137,15 +137,20 @@ pub trait BuildParachainContext {
 	type ParachainContext: self::ParachainContext;
 
 	/// Build the `ParachainContext`.
-	fn build<B, E, SP>(
+	fn build<B, E, R, SP, Extrinsic>(
 		self,
 		client: Arc<PolkadotClient<B, E>>,
 		spawner: SP,
 		network: Arc<dyn Network>,
 	) -> Result<Self::ParachainContext, ()>
 		where
-			B: client_api::backend::Backend<Block, Blake2Hasher> + 'static,
-			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
+			PolkadotClient<B, E, R>: ProvideRuntimeApi<Block>,
+			<PolkadotClient<B, E, R> as ProvideRuntimeApi<Block>>::Api: service::RuntimeApiCollection<Extrinsic>,
+			// Rust bug: https://github.com/rust-lang/rust/issues/24159
+			<<PolkadotClient<B, E, R> as ProvideRuntimeApi<Block>>::Api as sp_api::ApiExt<Block>>::StateBackend:
+				sp_api::StateBackend<Blake2Hasher>,
+			Extrinsic: codec::Codec + Send + Sync + 'static,
+			E: sc_client::CallExecutor<Block> + Clone + Send + Sync + 'static,
 			SP: Spawn + Clone + Send + Sync + 'static;
 }
 
@@ -237,7 +242,7 @@ struct ApiContext<P, E, SP> {
 }
 
 impl<P: 'static, E: 'static, SP: 'static> RelayChainContext for ApiContext<P, E, SP> where
-	P: ProvideRuntimeApi + Send + Sync,
+	P: ProvideRuntimeApi<Block> + Send + Sync,
 	P::Api: ParachainHost<Block>,
 	E: futures::Future<Output=()> + Clone + Send + Sync + 'static,
 	SP: Spawn + Clone + Send + Sync
@@ -266,12 +271,44 @@ impl<P: 'static, E: 'static, SP: 'static> RelayChainContext for ApiContext<P, E,
 	}
 }
 
-struct CollationNode<P, E> {
-	build_parachain_context: P,
+/// Run the collator node using the given `service`.
+fn run_collator_node<S, E, P, Extrinsic>(
+	service: S,
 	exit: E,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
-}
+	build_parachain_context: P,
+) -> polkadot_cli::error::Result<()>
+	where
+		S: AbstractService<Block = service::Block, NetworkSpecialization = service::PolkadotProtocol>,
+		sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi>: ProvideRuntimeApi<Block>,
+		<sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi> as ProvideRuntimeApi<Block>>::Api:
+			service::RuntimeApiCollection<Extrinsic, Error = sp_blockchain::Error, StateBackend = sc_client_api::StateBackendFor<S::Backend, Block>>,
+		// Rust bug: https://github.com/rust-lang/rust/issues/24159
+		S::Backend: service::Backend<service::Block>,
+		// Rust bug: https://github.com/rust-lang/rust/issues/24159
+		<S::Backend as service::Backend<service::Block>>::State: sp_api::StateBackend<sp_runtime::traits::HasherFor<Block>>,
+		// Rust bug: https://github.com/rust-lang/rust/issues/24159
+		S::CallExecutor: service::CallExecutor<service::Block>,
+		// Rust bug: https://github.com/rust-lang/rust/issues/24159
+		S::SelectChain: service::SelectChain<service::Block>,
+		E: futures::Future<Output=()> + Clone + Unpin + Send + Sync + 'static,
+		P: BuildParachainContext,
+		P::ParachainContext: Send + 'static,
+		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
+	Extrinsic: service::Codec + Send + Sync + 'static,
+{
+	let runtime = tokio::runtime::Runtime::new().map_err(|e| format!("{:?}", e))?;
+	let spawner = WrappedExecutor(service.spawn_task_handle());
+
+	let client = service.client();
+	let network = service.network();
+	let known_oracle = client.clone();
+	let select_chain = if let Some(select_chain) = service.select_chain() {
+		select_chain
+	} else {
+		return Err(polkadot_cli::error::Error::Other("The node cannot work because it can't select chain.".into()))
+	};
 
 impl<P, E> IntoExit for CollationNode<P, E> where
 	E: futures::Future<Output=()> + Unpin + Send + 'static
@@ -601,4 +638,3 @@ mod tests {
 		assert_eq!(collation.info.egress_queue_roots, vec![(a, root_a), (b, root_b)]);
 	}
 }
-

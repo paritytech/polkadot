@@ -25,7 +25,6 @@ inherents = { package = "sp-inherents", git = "https://github.com/paritytech/sub
 consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }

@@ -199,7 +199,7 @@ impl Store {
 		client: Arc<P>,
 		thread_pool: TaskExecutor,
 		keystore: KeyStorePtr,
-	) -> ClientResult<(AvailabilityBlockImport<I, P>)>
+	) -> ClientResult<AvailabilityBlockImport<I, P>>
 	where
 		P: ProvideRuntimeApi<Block> + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block>,

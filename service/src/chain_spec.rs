@@ -16,7 +16,7 @@
 
 //! Polkadot chain configurations.
 
-use primitives::{Pair, Public, crypto::UncheckedInto, sr25519};
+use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use polkadot_primitives::{AccountId, AccountPublic, parachain::ValidatorId};
 use polkadot_runtime::{
 	AuthorityDiscoveryConfig, GenesisConfig, CouncilConfig, DemocracyConfig, SystemConfig,

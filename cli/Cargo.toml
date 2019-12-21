@@ -14,7 +14,14 @@ tokio = "0.1.22"
 futures = { version = "0.3.1", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
 structopt = "0.3.4"
-cli = { package = "sc-cli", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+cli = { package = "sc-cli", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
 
 libp2p = { version = "0.13.1", default-features = false, optional = true }

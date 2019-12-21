@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
-use sp_core::{Pair, Blake2Hasher};
+use sp_core::Pair;
 use codec::{Encode, Decode};
 use primitives::{
 	Hash, Block,
@@ -106,17 +106,12 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build<B, E, SP>(
+	fn build<B, E, R, SP, Extrinsic>(
 		self,
 		_: Arc<collator::PolkadotClient<B, E>>,
 		_: SP,
 		network: Arc<dyn Network>,
-	) -> Result<Self::ParachainContext, ()>
-		where
-			B: client_api::backend::Backend<Block, Blake2Hasher> + 'static,
-			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
-			SP: Spawn + Clone + Send + Sync + 'static,
-	{
+	) -> Result<Self::ParachainContext, ()> {
 		Ok(Self { _network: Some(network), ..self })
 	}
 }

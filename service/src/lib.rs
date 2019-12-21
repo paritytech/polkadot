@@ -20,7 +20,7 @@ pub mod chain_spec;
 
 use futures01::sync::mpsc;
 use futures::{FutureExt, TryFutureExt, task::{Spawn, SpawnError, FutureObj}};
-use client::LongestChain;
+use sc_client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId};
@@ -33,7 +33,8 @@ use log::info;
 pub use service::{AbstractService, Roles, PruningMode, TransactionPoolOptions, Error};
 pub use service::ServiceBuilderCommand;
 pub use service::config::{DatabaseConfig, full_version_from_strs};
-pub use client::{ExecutionStrategy, CallExecutor};
+pub use sc_executor::NativeExecutionDispatch;
+pub use sc_client::{ExecutionStrategy, CallExecutor, Client};
 pub use client_api::backend::Backend;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::HasherFor;
@@ -41,8 +42,7 @@ pub use consensus_common::SelectChain;
 pub use polkadot_network::PolkadotProtocol;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
-pub use polkadot_runtime::RuntimeApi;
-pub use primitives::Blake2Hasher;
+pub use sp_core::Blake2Hasher;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits};
 pub use sc_network::specialization::NetworkSpecialization;
 pub use chain_spec::ChainSpec;
@@ -84,11 +84,71 @@ impl Default for CustomConfiguration {
 	}
 }
 
-/// Chain API type for the transaction pool.
-pub type TxChainApi<Backend, Executor> = txpool::FullChainApi<
-	client::Client<Backend, Executor, Block, RuntimeApi>,
-	Block,
->;
+native_executor_instance!(
+	pub PolkadotExecutor,
+	polkadot_runtime::api::dispatch,
+	polkadot_runtime::native_version
+);
+
+native_executor_instance!(
+	pub KusamaExecutor,
+	kusama_runtime::api::dispatch,
+	kusama_runtime::native_version
+);
+
+/// A set of APIs that polkadot-like runtimes must implement.
+pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static> :
+	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
+	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
+	+ babe_primitives::BabeApi<Block>
+	+ ParachainHost<Block>
+	+ sp_block_builder::BlockBuilder<Block>
+	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
+	+ sp_api::Metadata<Block>
+	+ sp_offchain::OffchainWorkerApi<Block>
+	+ sp_session::SessionKeys<Block>
+	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
+where
+	Extrinsic: RuntimeExtrinsic,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
+{}
+
+impl<Api, Extrinsic> RuntimeApiCollection<Extrinsic> for Api
+where
+	Api:
+	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
+	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
+	+ babe_primitives::BabeApi<Block>
+	+ ParachainHost<Block>
+	+ sp_block_builder::BlockBuilder<Block>
+	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
+	+ sp_api::Metadata<Block>
+	+ sp_offchain::OffchainWorkerApi<Block>
+	+ sp_session::SessionKeys<Block>
+	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
+	Extrinsic: RuntimeExtrinsic,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
+{}
+
+pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static
+{}
+
+impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static
+{}
+
+/// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
+pub trait IsKusama {
+	/// Returns if this is a configuration for the `Kusama` network.
+	fn is_kusama(&self) -> bool;
+}
+
+impl IsKusama for Configuration {
+	fn is_kusama(&self) -> bool {
+		self.chain_spec.name().starts_with("Kusama")
+	}
+}
 
 /// Starts a `ServiceBuilder` for a full service.
 ///
@@ -102,7 +162,7 @@ macro_rules! new_full_start {
 			Block, RuntimeApi, polkadot_executor::Executor
 		>($config)?
 			.with_select_chain(|_, backend| {
-				Ok(client::LongestChain::new(backend.clone()))
+				Ok(sc_client::LongestChain::new(backend.clone()))
 			})?
 			.with_transaction_pool(|config, client, _fetcher| {
 				let pool_api = txpool::FullChainApi::new(client.clone());
@@ -152,6 +212,12 @@ macro_rules! new_full_start {
 /// Builds a new object suitable for chain operations.
 pub fn new_chain_ops(config: Configuration<impl Send + Default + 'static, GenesisConfig>)
 	-> Result<impl ServiceBuilderCommand<Block=Block>, ServiceError>
+where
+	Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
+	Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic, StateBackend = client_api::StateBackendFor<TFullBackend<Block>, Block>>,
+	Dispatch: NativeExecutionDispatch + 'static,
+	Extrinsic: RuntimeExtrinsic,
+	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
 {
 	Ok(new_full_start!(config).0)
 }
@@ -164,6 +230,13 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 		SelectChain = impl SelectChain<Block>,
 		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
 	>, ServiceError>
+	where
+		Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
+		Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic, StateBackend = client_api::StateBackendFor<TFullBackend<Block>, Block>>,
+		Dispatch: NativeExecutionDispatch + 'static,
+		Extrinsic: RuntimeExtrinsic,
+		// Rust bug: https://github.com/rust-lang/rust/issues/24159
+		<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
 {
 	use sc_network::DhtEvent;
 	use futures::{compat::Stream01CompatExt, stream::StreamExt};
@@ -400,6 +473,18 @@ pub fn new_light(config: Configuration<CustomConfiguration, GenesisConfig>)
 		SelectChain = impl SelectChain<Block>,
 		CallExecutor = impl CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
 	>, ServiceError>
+where
+	Runtime: Send + Sync + 'static,
+	Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic, StateBackend = client_api::StateBackendFor<TLightBackend<Block>, Block>>,
+	Dispatch: NativeExecutionDispatch + 'static,
+	Extrinsic: RuntimeExtrinsic,
+	// Rust bug: https://github.com/rust-lang/rust/issues/43580
+	Runtime: sp_api::ConstructRuntimeApi<
+		Block,
+	Client<
+	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
+	sc_client::light::call_executor::GenesisCallExecutor<sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
+	sc_client::LocalCallExecutor<sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>, sc_executor::NativeExecutor<Dispatch>>>, Block, Runtime>>,
 {
 	let inherent_data_providers = InherentDataProviders::new();
 

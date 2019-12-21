@@ -34,7 +34,7 @@ use structopt::StructOpt;
 
 pub use service::{
 	AbstractService, CustomConfiguration, ProvideRuntimeApi, CoreApi, ParachainHost, IsKusama,
-	WrappedExecutor
+	WrappedExecutor, Block, self,
 };
 
 pub use cli::{VersionInfo, IntoExit, NoCustom};
@@ -104,28 +104,84 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 		&version,
 		"parity-polkadot",
 		std::env::args(),
-	) {
-		cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, worker,
-		|worker, _cli_args, custom_args, mut config| {
-			info!("{}", version.name);
-			info!("  version {}", config.full_version());
-			info!("  by {}, 2017-2019", version.author);
-			info!("Chain specification: {}", config.chain_spec.name());
-			if config.chain_spec.name().starts_with("Kusama") {
-				info!("----------------------------");
-				info!("This chain is not in any way");
-				info!("      endorsed by the       ");
-				info!("     KUSAMA FOUNDATION      ");
-				info!("----------------------------");
-			}
-			info!("Node name: {}", config.name);
-			info!("Roles: {}", display_role(&config));
-			config.custom = worker.configuration();
-			config.custom.authority_discovery_enabled = custom_args.authority_discovery_enabled;
-			let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
-			match config.roles {
-				service::Roles::LIGHT =>
-					run_until_exit(
+	);
+	if cmd
+		.shared_params()
+		.and_then(|p| p.chain.as_ref())
+		.and_then(|c| ChainSpec::from(c))
+		.map_or(false, |c| c.is_kusama())
+	{
+		execute_cmd_with_runtime::<
+			service::kusama_runtime::RuntimeApi,
+			service::KusamaExecutor,
+			service::kusama_runtime::UncheckedExtrinsic,
+			_
+		>(exit, &version, cmd)
+	} else {
+		execute_cmd_with_runtime::<
+			service::polkadot_runtime::RuntimeApi,
+			service::PolkadotExecutor,
+			service::polkadot_runtime::UncheckedExtrinsic,
+			_
+		>(exit, &version, cmd)
+	}
+}
+
+/// Execute the given `cmd` with the given runtime.
+fn execute_cmd_with_runtime<R, D, E, X>(
+	exit: X,
+	version: &cli::VersionInfo,
+	cmd: cli::ParseAndPrepare<PolkadotSubCommands, PolkadotSubParams>,
+) -> error::Result<()>
+where
+	R: service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>
+		+ Send + Sync + 'static,
+	<R as service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E, StateBackend = sc_client_api::StateBackendFor<service::TFullBackend<Block>, Block>>,
+	<R as service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E, StateBackend = sc_client_api::StateBackendFor<service::TLightBackend<Block>, Block>>,
+	E: service::Codec + Send + Sync + 'static,
+	D: service::NativeExecutionDispatch + 'static,
+	X: IntoExit,
+	// Rust bug: https://github.com/rust-lang/rust/issues/24159
+	<<R as service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>>::RuntimeApi as sp_api::ApiExt<service::Block>>::StateBackend: sp_api::StateBackend<sp_core::Blake2Hasher>,
+// Rust bug: https://github.com/rust-lang/rust/issues/43580
+	R: sp_api::ConstructRuntimeApi<
+	sp_runtime::generic::Block<sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>, sp_runtime::OpaqueExtrinsic>,
+	sc_client::Client<
+	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<sp_runtime::generic::Block<sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>, sp_runtime::OpaqueExtrinsic>>,
+	sp_core::Blake2Hasher>,
+	sc_client::light::call_executor::GenesisCallExecutor<sc_client::light::backend::Backend<sc_client_db::light::LightStorage<
+	sp_runtime::generic::Block<sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>, sp_runtime::OpaqueExtrinsic>>, sp_core::Blake2Hasher>,
+	sc_client::LocalCallExecutor<sc_client::light::backend::Backend<sc_client_db::light::LightStorage<
+	sp_runtime::generic::Block<sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>, sp_runtime::OpaqueExtrinsic>>,
+	sp_core::Blake2Hasher>, sc_executor::NativeExecutor<D>>>, sp_runtime::generic::Block<sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>, sp_runtime::OpaqueExtrinsic>, R>>,
+{
+	match cmd {
+		cli::ParseAndPrepare::Run(cmd) => cmd.run(&load_spec, exit,
+			|exit, _cli_args, custom_args, mut config| {
+				info!("{}", version.name);
+				info!("  version {}", config.full_version());
+				info!("  by {}, 2017-2019", version.author);
+				info!("Chain specification: {}", config.chain_spec.name());
+				if config.is_kusama() {
+					info!("----------------------------");
+					info!("This chain is not in any way");
+					info!("      endorsed by the       ");
+					info!("     KUSAMA FOUNDATION      ");
+					info!("----------------------------");
+				}
+				info!("Node name: {}", config.name);
+				info!("Roles: {}", display_role(&config));
+				config.custom = service::CustomConfiguration::default();
+				config.custom.authority_discovery_enabled = custom_args.authority_discovery_enabled;
+				let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
+				match config.roles {
+					service::Roles::LIGHT =>
+						run_until_exit(
+							runtime,
+							service::new_light::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
+							exit.into_exit(),
+						),
+					_ => run_until_exit(
 						runtime,
 						service::new_light(config).map_err(|e| format!("{:?}", e))?,
 						worker

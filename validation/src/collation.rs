@@ -71,7 +71,7 @@ pub async fn collation_fetch<C: Collators, P>(
 	where
 		P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 		C: Collators + Unpin,
-		P: ProvideRuntimeApi,
+		P: ProvideRuntimeApi<Block>,
 		<C as Collators>::Collation: Unpin,
 {
 	let relay_parent = BlockId::hash(relay_parent_hash);

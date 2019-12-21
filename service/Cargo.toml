@@ -24,10 +24,10 @@ sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumu
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-client-db = { package = "sc-client-db", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }

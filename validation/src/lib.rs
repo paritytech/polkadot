@@ -486,7 +486,7 @@ pub struct ProposerFactory<C, N, P, SC, TxPool, B> {
 	backend: Arc<B>,
 }
 
-impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
+impl<C, N, P, SC, TxPool, B> ProposerFactory<C, N, P, SC, TxPool, B> where
 	C: Collators + Send + Sync + Unpin + 'static,
 	C::Collation: Send + Unpin + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
@@ -548,7 +548,7 @@ impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
 	}
 }
 
-impl<C, N, P, SC, TxPool> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxPool> where
+impl<C, N, P, SC, TxPool, B> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxPool, B> where
 	C: Collators + Send + Unpin + 'static,
 	N: Network,
 	TxPool: TransactionPool<Block=Block> + 'static,
@@ -623,7 +623,7 @@ impl<C, TxPool, B> consensus::Proposer<Block> for Proposer<C, TxPool, B> where
 {
 	type Error = Error;
 	type Transaction = sp_api::TransactionFor<C, Block>;
-	type Proposal = Pin<Box<dyn Future<Output = Result<CreateProposal<C, TxPool, B>, Error>>>;
+	type Proposal = Pin<Box<dyn Future<Output = Result<Proposal<Block, sp_api::TransactionFor<C, Block>>, Error>> + Send>>;
 
 	fn propose(&mut self,
 		inherent_data: InherentData,
@@ -648,6 +648,7 @@ impl<C, TxPool, B> consensus::Proposer<Block> for Proposer<C, TxPool, B> where
 		let client = self.client.clone();
 		let transaction_pool = self.transaction_pool.clone();
 		let table = self.tracker.table.clone();
+		let backend = self.backend.clone();
 
 		async move {
 			let enough_candidates = dynamic_inclusion.acceptable_in(
@@ -678,8 +679,8 @@ impl<C, TxPool, B> consensus::Proposer<Block> for Proposer<C, TxPool, B> where
 				inherent_digests,
 				// leave some time for the proposal finalisation
 				deadline,
-                record_proof,
-                backend: self.backend.clone(),
+				record_proof,
+				backend,
 			};
 
 			// set up delay until next allowed timestamp.
@@ -796,7 +797,7 @@ impl<C, TxPool, B> CreateProposalData<C, TxPool, B> where
 			self.transaction_pool.remove_invalid(&unqueue_invalid);
 		}
 
-		let (new_block, storage_changes, proof) = block_builder.bake()?;
+		let (new_block, storage_changes, proof) = block_builder.build()?.into_inner();
 
 		info!("Prepared block for proposing at {} [hash: {:?}; parent_hash: {}; extrinsics: [{}]]",
 			new_block.header.number,
