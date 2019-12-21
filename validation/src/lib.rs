@@ -34,8 +34,6 @@ use std::{
 	pin::Pin,
 	sync::Arc,
 	time::{self, Duration, Instant},
-	task::{Poll, Context},
-	mem,
 };
 
 use babe_primitives::BabeApi;
@@ -56,13 +54,12 @@ use polkadot_primitives::parachain::{
 use primitives::Pair;
 use runtime_primitives::traits::{ProvideRuntimeApi, DigestFor};
 use futures_timer::Delay;
-use async_std::stream::{interval, Interval};
 use txpool_api::{TransactionPool, InPoolTransaction};
 
 use attestation_service::ServiceHandle;
 use futures::prelude::*;
-use futures03::{future::{self, Either}, FutureExt, StreamExt, TryFutureExt};
-use collation::CollationFetch;
+use futures::{future::{select, ready}, stream::unfold, task::{Spawn, SpawnExt}};
+use collation::collation_fetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use sp_timestamp::TimestampInherentData;
@@ -70,10 +67,13 @@ use log::{info, debug, warn, trace, error};
 use keystore::KeyStorePtr;
 use sp_api::ApiExt;
 
-type TaskExecutor =
-	Arc<
-		dyn futures::future::Executor<Box<dyn Future<Item = (), Error = ()> + Send>>
-	+ Send + Sync>;
+type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
+
+fn interval(duration: Duration) -> impl Stream<Item=()> + Send + Unpin {
+	unfold((), move |_| {
+		futures_timer::Delay::new(duration).map(|_| Some(((), ())))
+	}).map(drop)
+}
 
 pub use self::collation::{
 	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
@@ -84,6 +84,8 @@ pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
 };
+
+#[cfg(not(target_os = "unknown"))]
 pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
 mod attestation_service;
@@ -107,7 +109,7 @@ pub trait TableRouter: Clone {
 	/// Errors when fetching data from the network.
 	type Error: std::fmt::Debug;
 	/// Future that resolves when candidate data is fetched.
-	type FetchValidationProof: IntoFuture<Item=PoVBlock,Error=Self::Error>;
+	type FetchValidationProof: Future<Output=Result<PoVBlock, Self::Error>>;
 
 	/// Call with local candidate data. This will make the data available on the network,
 	/// and sign, import, and broadcast a statement about the candidate.
@@ -134,7 +136,7 @@ pub trait Network {
 
 	/// The future used for asynchronously building the table router.
 	/// This should not fail.
-	type BuildTableRouter: IntoFuture<Item=Self::TableRouter,Error=Self::Error>;
+	type BuildTableRouter: Future<Output=Result<Self::TableRouter,Self::Error>>;
 
 	/// Instantiate a table router using the given shared table.
 	/// Also pass through any outgoing messages to be broadcast to peers.
@@ -273,13 +275,13 @@ struct ParachainValidation<C, N, P> {
 }
 
 impl<C, N, P> ParachainValidation<C, N, P> where
-	C: Collators + Send + 'static,
+	C: Collators + Send + Unpin + 'static,
 	N: Network,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
-	<C::Collation as IntoFuture>::Future: Send + 'static,
+	C::Collation: Send + Unpin + 'static,
 	N::TableRouter: Send + 'static,
-	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	N::BuildTableRouter: Unpin + Send + 'static,
 {
 	/// Get an attestation table for given parent hash.
 	///
@@ -392,7 +394,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 		let with_router = move |router: N::TableRouter| {
 			// fetch a local collation from connected collators.
-			let collation_work = CollationFetch::new(
+			let collation_work = collation_fetch(
 				validation_para,
 				relay_parent,
 				collators,
@@ -400,7 +402,7 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 				max_block_data_size,
 			);
 
-			collation_work.then(move |result| match result {
+			collation_work.map(move |result| match result {
 				Ok((collation, outgoing_targeted, fees_charged)) => {
 					match produce_receipt_and_chunks(
 						authorities_num,
@@ -427,10 +429,9 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 							}
 							.unit_error()
 							.boxed()
-							.compat()
 							.then(move |_| {
 								router.local_collation(collation, receipt, outgoing_targeted, (local_id, &chunks));
-								Ok(())
+								ready(())
 							});
 
 
@@ -449,18 +450,16 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			})
 		};
 
-		let cancellable_work = build_router
-			.into_future()
+		let router = build_router
+			.map_ok(with_router)
 			.map_err(|e| {
 				warn!(target: "validation" , "Failed to build table router: {:?}", e);
-			})
-			.and_then(with_router)
-			.then(|_| Ok(()))
-			.select(exit.unit_error().compat())
-			.then(|_| Ok(()));
+			});
+
+		let cancellable_work = select(exit, router).map(drop);
 
 		// spawn onto thread pool.
-		if self.handle.execute(Box::new(cancellable_work)).is_err() {
+		if self.handle.spawn(cancellable_work).is_err() {
 			error!("Failed to spawn cancellable work task");
 		}
 	}
@@ -485,8 +484,8 @@ pub struct ProposerFactory<C, N, P, SC, TxPool: TransactionPool> {
 }
 
 impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
-	C: Collators + Send + Sync + 'static,
-	<C::Collation as IntoFuture>::Future: Send + 'static,
+	C: Collators + Send + Sync + Unpin + 'static,
+	C::Collation: Send + Unpin + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> +
@@ -495,7 +494,7 @@ impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
 		ApiExt<Block, Error = sp_blockchain::Error>,
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
-	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	N::BuildTableRouter: Send + Unpin + 'static,
 	TxPool: TransactionPool,
 	SC: SelectChain<Block> + 'static,
 {
@@ -543,7 +542,7 @@ impl<C, N, P, SC, TxPool> ProposerFactory<C, N, P, SC, TxPool> where
 }
 
 impl<C, N, P, SC, TxPool> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxPool> where
-	C: Collators + Send + 'static,
+	C: Collators + Send + Unpin + 'static,
 	N: Network,
 	TxPool: TransactionPool<Block=Block> + 'static,
 	P: ProvideRuntimeApi + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
@@ -551,9 +550,9 @@ impl<C, N, P, SC, TxPool> consensus::Environment<Block> for ProposerFactory<C, N
 		BlockBuilderApi<Block> +
 		BabeApi<Block> +
 		ApiExt<Block, Error = sp_blockchain::Error>,
-	<C::Collation as IntoFuture>::Future: Send + 'static,
+	C::Collation: Send + Unpin + 'static,
 	N::TableRouter: Send + 'static,
-	<N::BuildTableRouter as IntoFuture>::Future: Send + 'static,
+	N::BuildTableRouter: Send + Unpin + 'static,
 	SC: SelectChain<Block>,
 {
 	type Proposer = Proposer<P, TxPool>;
@@ -610,14 +609,13 @@ impl<C, TxPool> consensus::Proposer<Block> for Proposer<C, TxPool> where
 	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 {
 	type Error = Error;
-	type Create = Either<CreateProposal<C, TxPool>, future::Ready<Result<Block, Error>>>;
+	type Create = Pin<Box<dyn Future<Output = Result<Block, Error>> + Send>>;
 
 	fn propose(&mut self,
 		inherent_data: InherentData,
 		inherent_digests: DigestFor<Block>,
 		max_duration: Duration,
 	) -> Self::Create {
-		const ATTEMPT_PROPOSE_EVERY: Duration = Duration::from_millis(100);
 		const SLOT_DURATION_DENOMINATOR: u64 = 3; // wait up to 1/3 of the slot for candidates.
 
 		let initial_included = self.tracker.table.includable_count();
@@ -629,56 +627,59 @@ impl<C, TxPool> consensus::Proposer<Block> for Proposer<C, TxPool> where
 			Duration::from_millis(self.slot_duration / SLOT_DURATION_DENOMINATOR),
 		);
 
-		let enough_candidates = dynamic_inclusion.acceptable_in(
-			now,
-			initial_included,
-		).unwrap_or_else(|| Duration::from_millis(1));
+		let parent_hash = self.parent_hash.clone();
+		let parent_number = self.parent_number.clone();
+		let parent_id = self.parent_id.clone();
+		let client = self.client.clone();
+		let transaction_pool = self.transaction_pool.clone();
+		let table = self.tracker.table.clone();
 
-		let believed_timestamp = match inherent_data.timestamp_inherent_data() {
-			Ok(timestamp) => timestamp,
-			Err(e) => return Either::Right(future::err(Error::InherentError(e))),
-		};
+		async move {
+			let enough_candidates = dynamic_inclusion.acceptable_in(
+				now,
+				initial_included,
+			).unwrap_or_else(|| Duration::from_millis(1));
 
-		// set up delay until next allowed timestamp.
-		let current_timestamp = current_timestamp();
-		let delay_future = if current_timestamp >= believed_timestamp {
-			None
-		} else {
-			Some(Delay::new(Duration::from_millis (current_timestamp - believed_timestamp)))
-		};
+			let believed_timestamp = match inherent_data.timestamp_inherent_data() {
+				Ok(timestamp) => timestamp,
+				Err(e) => return Err(Error::InherentError(e)),
+			};
 
-		let timing = ProposalTiming {
-			minimum: delay_future,
-			attempt_propose: interval(ATTEMPT_PROPOSE_EVERY),
-			enough_candidates: Delay::new(enough_candidates),
-			dynamic_inclusion,
-			last_included: initial_included,
-		};
+			let deadline_diff = max_duration - max_duration / 3;
+			let deadline = match Instant::now().checked_add(deadline_diff) {
+				None => return Err(Error::DeadlineComputeFailure(deadline_diff)),
+				Some(d) => d,
+			};
 
-		let deadline_diff = max_duration - max_duration / 3;
-		let deadline = match Instant::now().checked_add(deadline_diff) {
-			None => return Either::Right(
-				future::err(Error::DeadlineComputeFailure(deadline_diff)),
-			),
-			Some(d) => d,
-		};
-
-		Either::Left(CreateProposal {
-			state: CreateProposalState::Pending(CreateProposalData {
-				parent_hash: self.parent_hash.clone(),
-				parent_number: self.parent_number.clone(),
-				parent_id: self.parent_id.clone(),
-				client: self.client.clone(),
-				transaction_pool: self.transaction_pool.clone(),
-				table: self.tracker.table.clone(),
+			let data = CreateProposalData {
+				parent_hash,
+				parent_number,
+				parent_id,
+				client,
+				transaction_pool,
+				table,
 				believed_minimum_timestamp: believed_timestamp,
-				timing,
 				inherent_data: Some(inherent_data),
 				inherent_digests,
 				// leave some time for the proposal finalisation
 				deadline,
+			};
+
+			// set up delay until next allowed timestamp.
+			let current_timestamp = current_timestamp();
+			if current_timestamp < believed_timestamp {
+				Delay::new(Duration::from_millis(current_timestamp - believed_timestamp))
+					.await;
+			}
+
+			Delay::new(enough_candidates).await;
+
+			tokio_executor::blocking::run(move || {
+				let proposed_candidates = data.table.proposed_set();
+				data.propose_with(proposed_candidates)
 			})
-		})
+				.await
+		}.boxed()
 	}
 }
 
@@ -686,67 +687,6 @@ fn current_timestamp() -> u64 {
 	time::SystemTime::now().duration_since(time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
 		.as_millis() as u64
-}
-
-struct ProposalTiming {
-	minimum: Option<Delay>,
-	attempt_propose: Interval,
-	dynamic_inclusion: DynamicInclusion,
-	enough_candidates: Delay,
-	last_included: usize,
-}
-
-impl ProposalTiming {
-	// whether it's time to attempt a proposal.
-	// shouldn't be called outside of the context of a task.
-	fn poll(&mut self, cx: &mut Context, included: usize) -> Poll<()> {
-		// first drain from the interval so when the minimum delay is up
-		// we don't have any notifications built up.
-		//
-		// this interval is just meant to produce periodic task wakeups
-		// that lead to the `dynamic_inclusion` getting updated as necessary.
-		while let Poll::Ready(x) = self.attempt_propose.poll_next_unpin(cx) {
-			x.expect("timer still alive; intervals never end; qed");
-		}
-
-		// wait until the minimum time has passed.
-		if let Some(mut minimum) = self.minimum.take() {
-			if let Poll::Pending = minimum.poll_unpin(cx) {
-				self.minimum = Some(minimum);
-				return Poll::Pending;
-			}
-		}
-
-		if included == self.last_included {
-			return self.enough_candidates.poll_unpin(cx);
-		}
-
-		// the amount of includable candidates has changed. schedule a wakeup
-		// if it's not sufficient anymore.
-		match self.dynamic_inclusion.acceptable_in(Instant::now(), included) {
-			Some(instant) => {
-				self.last_included = included;
-				self.enough_candidates.reset(Instant::now() + instant);
-				self.enough_candidates.poll_unpin(cx)
-			}
-			None => Poll::Ready(()),
-		}
-	}
-}
-
-/// Future which resolves upon the creation of a proposal.
-pub struct CreateProposal<C: Send + Sync, TxPool> {
-	state: CreateProposalState<C, TxPool>,
-}
-
-/// Current status of the proposal future.
-enum CreateProposalState<C: Send + Sync, TxPool> {
-	/// Pending inclusion, with given proposal data.
-	Pending(CreateProposalData<C, TxPool>),
-	/// Represents the state when we switch from pending to fired.
-	Switching,
-	/// Block proposing has fired.
-	Fired(tokio_executor::blocking::Blocking<Result<Block, Error>>),
 }
 
 /// Inner data of the create proposal.
@@ -757,7 +697,6 @@ struct CreateProposalData<C: Send + Sync, TxPool> {
 	client: Arc<C>,
 	transaction_pool: Arc<TxPool>,
 	table: Arc<SharedTable>,
-	timing: ProposalTiming,
 	believed_minimum_timestamp: u64,
 	inherent_data: Option<InherentData>,
 	inherent_digests: DigestFor<Block>,
@@ -855,58 +794,6 @@ impl<C, TxPool> CreateProposalData<C, TxPool> where
 		).is_ok());
 
 		Ok(new_block)
-	}
-}
-
-impl<C, TxPool> futures03::Future for CreateProposal<C, TxPool> where
-	TxPool: TransactionPool<Block=Block> + 'static,
-	C: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
-{
-	type Output = Result<Block, Error>;
-
-	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-		let mut state = CreateProposalState::Switching;
-		mem::swap(&mut state, &mut self.state);
-
-		// 1. try to propose if we have enough includable candidates and other
-		// delays have concluded.
-		let data = match state {
-			CreateProposalState::Pending(mut data) => {
-				let included = data.table.includable_count();
-				match data.timing.poll(cx, included) {
-					Poll::Pending => {
-						self.state = CreateProposalState::Pending(data);
-						return Poll::Pending
-					},
-					Poll::Ready(()) => (),
-				}
-
-				data
-			},
-			CreateProposalState::Switching =>
-				unreachable!(
-					"State Switching are only created on call, \
-					and immediately swapped out; \
-					the data being read is from state; \
-					thus Switching will never be reachable here; qed"
-				),
-			CreateProposalState::Fired(mut future) => {
-				let ret = Pin::new(&mut future).poll(cx);
-				self.state = CreateProposalState::Fired(future);
-				return ret
-			},
-		};
-
-		// 2. propose
-		let mut future = tokio_executor::blocking::run(move || {
-			let proposed_candidates = data.table.proposed_set();
-			data.propose_with(proposed_candidates)
-		});
-		let polled = Pin::new(&mut future).poll(cx);
-		self.state = CreateProposalState::Fired(future);
-
-		polled
 	}
 }
 

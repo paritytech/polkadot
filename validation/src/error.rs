@@ -46,9 +46,7 @@ pub enum Error {
 	Timer(std::io::Error),
 	#[display(fmt = "Failed to compute deadline of now + {:?}", _0)]
 	DeadlineComputeFailure(std::time::Duration),
-	/// Unable to dispatch agreement future
-	#[display(fmt = "Unable to dispatch agreement future: {:?}", _0)]
-	Executor(futures::future::ExecuteErrorKind),
+	Join(tokio::task::JoinError)
 }
 
 impl std::error::Error for Error {

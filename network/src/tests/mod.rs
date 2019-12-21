@@ -33,7 +33,7 @@ use sc_network::{
 	specialization::NetworkSpecialization,
 };
 
-use futures::Future;
+use futures::executor::block_on;
 
 mod validation;
 
@@ -245,7 +245,7 @@ fn fetches_from_those_with_knowledge() {
 		let pov_block = make_pov(block_data.0);
 		on_message(&mut protocol, &mut ctx, peer_b, Message::PovBlock(2, Some(pov_block.clone())));
 		drop(protocol);
-		assert_eq!(recv.wait().unwrap(), pov_block);
+		assert_eq!(block_on(recv).unwrap(), pov_block);
 	}
 }
 

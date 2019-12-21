@@ -1,16 +1,14 @@
 [package]
 name = "polkadot-validation"
-version = "0.7.9"
+version = "0.7.10"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.1.17"
-futures03 = { package = "futures", version = "0.3.1", features = ["compat"] }
+futures = "0.3.1"
 futures-timer = "2.0"
-async-std = { version = "1.0.1", features = ["unstable"] }
 parking_lot = "0.9.0"
-tokio = "0.1.22"
+tokio = { version = "0.2.4", features = ["rt-core"] }
 derive_more = "0.14.1"
 log = "0.4.8"
 exit-future = "0.2.0"
@@ -26,7 +24,7 @@ grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytec
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-txpool-api = { package = "sp-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

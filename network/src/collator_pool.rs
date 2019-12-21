@@ -20,7 +20,7 @@ use codec::{Encode, Decode};
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{CollatorId, Id as ParaId, Collation};
 use sc_network::PeerId;
-use futures::sync::oneshot;
+use futures::channel::oneshot;
 
 use std::collections::hash_map::{HashMap, Entry};
 use std::time::{Duration, Instant};
@@ -230,7 +230,7 @@ mod tests {
 	use polkadot_primitives::parachain::{
 		CandidateReceipt, BlockData, PoVBlock, HeadData, ConsolidatedIngress,
 	};
-	use futures::Future;
+	use futures::executor::block_on;
 
 	fn make_pov(block_data: Vec<u8>) -> PoVBlock {
 		PoVBlock {
@@ -293,8 +293,8 @@ mod tests {
 			pov: make_pov(vec![4, 5, 6]),
 		});
 
-		rx1.wait().unwrap();
-		rx2.wait().unwrap();
+		block_on(rx1).unwrap();
+		block_on(rx2).unwrap();
 		assert_eq!(pool.collators.get(&primary).map(|ids| &ids.1).unwrap(), &peer_id);
 	}
 
@@ -324,7 +324,7 @@ mod tests {
 
 		let (tx, rx) = oneshot::channel();
 		pool.await_collation(relay_parent, para_id, tx);
-		rx.wait().unwrap();
+		block_on(rx).unwrap();
 	}
 
 	#[test]
