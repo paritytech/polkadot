@@ -73,10 +73,10 @@ use constants::{time::*, currency::*};
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 // Polkadot version identifier;
-/// Runtime version (Polkadot).
+/// Runtime version (Kusama).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("polkadot"),
-	impl_name: create_runtime_str!("parity-polkadot"),
+	spec_name: create_runtime_str!("kusama"),
+	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
 	spec_version: 1032,
 	impl_version: 0,
@@ -500,7 +500,7 @@ impl slots::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
+	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
 }
 
 impl claims::Trait for Runtime {

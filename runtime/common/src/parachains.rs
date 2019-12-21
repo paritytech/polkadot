@@ -289,10 +289,7 @@ fn localized_payload<H: AsRef<[u8]>>(statement: Statement, parent_hash: H) -> Ve
 	encoded
 }
 
-impl<T: Trait> Module<T>
-where
-	//T::Hash: Into<primitives::Hash>
-{
+impl<T: Trait> Module<T> {
 	/// Initialize the state of a new parachain/parathread.
 	pub fn initialize_para(
 		id: ParaId,
