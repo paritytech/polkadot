@@ -575,6 +575,23 @@ impl identity::Trait for Runtime {
 	type ForceOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 }
 
+parameter_types! {
+	// One storage item; value is size 4+4+16+32 bytes = 56 bytes.
+	pub const MultisigDepositBase: Balance = 30 * DOLLARS;
+	// Additional storage item size of 32 bytes.
+	pub const MultisigDepositFactor: Balance = 5 * DOLLARS;
+	pub const MaxSignatories: u16 = 100;
+}
+
+impl utility::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type Currency = Balances;
+	type MultisigDepositBase = MultisigDepositBase;
+	type MultisigDepositFactor = MultisigDepositFactor;
+	type MaxSignatories = MaxSignatories;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -627,6 +644,7 @@ construct_runtime! {
 
 		// Less simple identity module.
 		Identity: identity::{Module, Call, Storage, Event<T>},
+		Utility: utility::{Module, Call, Storage, Event<T>, Error},
 	}
 }
 
