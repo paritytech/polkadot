@@ -79,8 +79,8 @@ enum PolkadotSubCommands {
 	ValidationWorker(ValidationWorkerCommand),
 }
 
-impl cli::GetLogFilter for PolkadotSubCommands {
-	fn get_log_filter(&self) -> Option<String> { None }
+impl cli::GetSharedParams for PolkadotSubCommands {
+	fn shared_params(&self) -> Option<&cli::SharedParams> { None }
 }
 
 #[derive(Debug, StructOpt, Clone)]

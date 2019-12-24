@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.7.10"
+version = "0.7.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -57,6 +57,7 @@ system = { package = "frame-system", git = "https://github.com/paritytech/substr
 system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+utility = { package = "pallet-utility", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 primitives = { package = "polkadot-primitives", path = "../primitives", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
@@ -119,6 +120,7 @@ std = [
 	"timestamp/std",
 	"treasury/std",
 	"version/std",
+	"utility/std",
 	"serde_derive",
 	"serde/std",
 	"log",

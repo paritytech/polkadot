@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-network"
-version = "0.7.10"
+version = "0.7.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot-specific networking protocol"
 edition = "2018"
