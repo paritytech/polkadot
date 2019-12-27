@@ -25,8 +25,8 @@ sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "pol
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-kvdb = "0.1.1"
-kvdb-memorydb = "0.1.2"
+kvdb = "0.2.0"
+kvdb-memorydb = "0.2.0"
 
 [target.'cfg(not(target_os = "unknown"))'.dependencies]
-kvdb-rocksdb = "0.2"
+kvdb-rocksdb = "0.3"
