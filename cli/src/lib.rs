@@ -25,16 +25,18 @@ mod browser;
 
 use chain_spec::ChainSpec;
 use futures::{
-	Future, future::select, channel::oneshot, compat::Future01CompatExt,
-	task::{Spawn, FutureObj, SpawnError}
+	Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Future01CompatExt,
+	task::Spawn
 };
-use tokio::runtime::{Runtime, Handle};
+#[cfg(not(target_os = "unknown"))]
+use tokio::runtime::Runtime;
 use log::{info, error};
 use structopt::StructOpt;
 
 pub use service::{
 	AbstractService, CustomConfiguration,
 	ProvideRuntimeApi, CoreApi, ParachainHost,
+	WrappedExecutor
 };
 
 pub use cli::{VersionInfo, IntoExit, NoCustom};
@@ -97,6 +99,7 @@ struct PolkadotSubParams {
 cli::impl_augment_clap!(PolkadotSubParams);
 
 /// Parses polkadot specific CLI arguments and run the service.
+#[cfg(not(target_os = "unknown"))]
 pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	W: Worker,
 {
@@ -159,16 +162,7 @@ pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	}
 }
 
-#[derive(Clone)]
-struct RuntimeSpawner(Handle);
-
-impl Spawn for RuntimeSpawner {
-	fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
-		self.0.spawn(future);
-		Ok(())
-	}
-}
-
+#[cfg(not(target_os = "unknown"))]
 fn run_until_exit<T, SC, B, CE, W>(
 	mut runtime: Runtime,
 	service: T,
@@ -184,24 +178,32 @@ fn run_until_exit<T, SC, B, CE, W>(
 {
 	let (exit_send, exit) = oneshot::channel();
 
+	let executor = runtime.executor();
 	let informant = cli::informant::build(&service);
-	let future = select(exit, informant);
+	let future = select(exit, informant)
+		.map(|_| Ok(()))
+		.compat();
 
-	let informant_handle = runtime.spawn(future);
+	executor.spawn(future);
 
 	// we eagerly drop the service so that the internal exit future is fired,
 	// but we need to keep holding a reference to the global telemetry guard
 	let _telemetry = service.telemetry();
 
-	let work = worker.work(&service, RuntimeSpawner(runtime.handle().clone()));
+	let work = worker.work(&service, WrappedExecutor(executor));
 	let service = service
 		.map_err(|err| error!("Error while running Service: {}", err))
 		.compat();
-	let future = select(service, work);
+	let future = select(service, work)
+		.map(|_| Ok::<_, ()>(()))
+		.compat();
 	let _ = runtime.block_on(future);
 	let _ = exit_send.send(());
 
-	let _ = runtime.block_on(informant_handle);
+	use futures01::Future;
+
+	// TODO [andre]: timeout this future substrate/#1318
+	let _ = runtime.shutdown_on_idle().wait();
 
 	Ok(())
 }

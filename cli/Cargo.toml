@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.7.10"
+version = "0.7.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 edition = "2018"
@@ -10,7 +10,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 log = "0.4.8"
-tokio = "0.2.1"
 futures = { version = "0.3.1", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
 structopt = "0.3.4"
@@ -21,6 +20,9 @@ browser-utils = { package = "browser-utils", git = "https://github.com/paritytec
 substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", optional = true, default-features = false }
 wasm-bindgen = { version = "0.2.55", optional = true }
 wasm-bindgen-futures = { version = "0.4.5", optional = true }
+
+[target.'cfg(not(target_os = "unknown"))'.dependencies]
+tokio = "0.1.22"
 
 [features]
 default = [ "wasmtime", "rocksdb" ]
