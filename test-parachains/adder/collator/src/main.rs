@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
 use sp_core::{Pair, Blake2Hasher};
-use parachain::codec::{Encode, Decode};
+use codec::{Encode, Decode};
 use primitives::{
 	Hash, Block,
 	parachain::{

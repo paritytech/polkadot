@@ -20,6 +20,6 @@ fn main() {
 	build_current_project_with_rustflags(
 		"wasm_binary.rs",
 		WasmBuilderSource::Crates("1.0.7"),
-		"-C link-arg=--import-memory",
+		"-C link-arg=--export=__heap_base",
 	);
 }

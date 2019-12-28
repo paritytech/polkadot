@@ -31,7 +31,8 @@ pub async fn start_client(wasm_ext: browser_utils::Transport) -> Result<browser_
 }
 
 async fn start_inner(wasm_ext: browser_utils::Transport) -> Result<browser_utils::Client, Box<dyn std::error::Error>> {
-	browser_utils::set_hooks(log::Level::Info);
+	browser_utils::set_console_error_panic_hook();
+	browser_utils::init_console_log(log::Level::Info)?;
 
 	let chain_spec = ChainSpec::Kusama.load().map_err(|e| format!("{:?}", e))?;
 	let config: Configuration<CustomConfiguration, _, _> = browser_utils::browser_configuration(wasm_ext, chain_spec)

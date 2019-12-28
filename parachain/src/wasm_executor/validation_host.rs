@@ -16,11 +16,10 @@
 
 #![cfg(not(target_os = "unknown"))]
 
-use std::{process, env, sync::Arc, sync::atomic};
-use crate::codec::{Decode, Encode};
-use crate::{ValidationParams, ValidationResult, MessageRef,
-	UpwardMessageRef, UpwardMessage, IncomingMessage};
-use super::{validate_candidate_internal, Error, Externalities, WorkerExternalities};
+use std::{process, env, sync::Arc, sync::atomic, mem};
+use codec::{Decode, Encode, EncodeAppend};
+use crate::{ValidationParams, ValidationResult, UpwardMessage, TargetedMessage};
+use super::{validate_candidate_internal, Error, Externalities};
 use super::{MAX_CODE_MEM, MAX_RUNTIME_MEM};
 use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
 use parking_lot::Mutex;
@@ -38,6 +37,37 @@ const NUM_HOSTS: usize = 8;
 
 /// Execution timeout in seconds;
 pub const EXECUTION_TIMEOUT_SEC: u64 =  5;
+
+#[derive(Default)]
+struct WorkerExternalitiesInner {
+	egress_data: Vec<u8>,
+	up_data: Vec<u8>,
+}
+
+#[derive(Default, Clone)]
+struct WorkerExternalities {
+	inner: Arc<Mutex<WorkerExternalitiesInner>>,
+}
+
+impl Externalities for WorkerExternalities {
+	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String> {
+		let mut inner = self.inner.lock();
+		inner.egress_data = <Vec::<TargetedMessage> as EncodeAppend>::append_or_new(
+			mem::replace(&mut inner.egress_data, Vec::new()),
+			std::iter::once(message),
+		).map_err(|e| e.what())?;
+		Ok(())
+	}
+
+	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
+		let mut inner = self.inner.lock();
+		inner.up_data = <Vec::<UpwardMessage> as EncodeAppend>::append_or_new(
+			mem::replace(&mut inner.up_data, Vec::new()),
+			std::iter::once(message),
+		).map_err(|e| e.what())?;
+		Ok(())
+	}
+}
 
 enum Event {
 	CandidateReady = 0,
@@ -59,7 +89,8 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 			return Err(format!("Error opening shared memory: {:?}", e));
 		}
 	};
-	let mut externalities = WorkerExternalities::default();
+
+	let worker_ext = WorkerExternalities::default();
 
 	let exit = Arc::new(atomic::AtomicBool::new(false));
 	// spawn parent monitor thread
@@ -67,7 +98,8 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 	std::thread::spawn(move || {
 		use std::io::Read;
 		let mut in_data = Vec::new();
-		std::io::stdin().read_to_end(&mut in_data).ok(); // pipe terminates when parent process exits
+ 		// pipe terminates when parent process exits
+		std::io::stdin().read_to_end(&mut in_data).ok();
 		debug!("Parent process is dead. Exiting");
 		exit.store(true, atomic::Ordering::Relaxed);
 	});
@@ -109,23 +141,25 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 				let (call_data, _) = call_data.split_at_mut(header.params_size as usize);
 				let message_data = rest;
 
-				let result = validate_candidate_internal(code, call_data, &mut externalities);
+				let result = validate_candidate_internal(code, call_data, worker_ext.clone());
 				debug!("Candidate validated: {:?}", result);
 
 				match result {
 					Ok(r) => {
-						if externalities.egress_data.len() + externalities.up_data.len() > MAX_MESSAGE_MEM {
+						let inner = worker_ext.inner.lock();
+						let egress_data = &inner.egress_data;
+						let e_len = egress_data.len();
+						let up_data = &inner.up_data;
+						let up_len = up_data.len();
+
+						if e_len + up_len > MAX_MESSAGE_MEM {
 							ValidationResultHeader::Error("Message data is too large".into())
 						} else {
-							let e_len = externalities.egress_data.len();
-							let up_len = externalities.up_data.len();
-							message_data[0..e_len].copy_from_slice(&externalities.egress_data);
-							message_data[e_len..(e_len + up_len)].copy_from_slice(&externalities.up_data);
-							ValidationResultHeader::Ok {
-								result: r,
-								egress_message_count: externalities.egress_message_count as u64,
-								up_message_count: externalities.up_message_count as u64,
-							}
+							message_data[0..e_len].copy_from_slice(egress_data);
+
+							message_data[e_len..(e_len + up_len)].copy_from_slice(&up_data);
+
+							ValidationResultHeader::Ok(r)
 						}
 					},
 					Err(e) => ValidationResultHeader::Error(e.to_string()),
@@ -150,11 +184,7 @@ struct ValidationHeader {
 
 #[derive(Encode, Decode, Debug)]
 pub enum ValidationResultHeader {
-	Ok {
-		result: ValidationResult,
-		egress_message_count: u64,
-		up_message_count: u64,
-	},
+	Ok(ValidationResult),
 	Error(String),
 }
 
@@ -166,14 +196,13 @@ struct ValidationHost {
 	memory: Option<SharedMem>,
 }
 
-
 /// Validate a candidate under the given validation code.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
 pub fn validate_candidate<E: Externalities>(
 	validation_code: &[u8],
 	params: ValidationParams,
-	externalities: &mut E,
+	externalities: E,
 	test_mode: bool,
 ) -> Result<ValidationResult, Error> {
 	for host in HOSTS.iter() {
@@ -197,7 +226,7 @@ impl Drop for ValidationHost {
 impl ValidationHost {
 	fn create_memory() -> Result<SharedMem, Error> {
 		let mem_size = MAX_RUNTIME_MEM + MAX_CODE_MEM + MAX_MESSAGE_MEM + 1024;
-		let mem_config = SharedMemConf::new()
+		let mem_config = SharedMemConf::default()
 			.set_size(mem_size)
 			.add_lock(shared_memory::LockType::Mutex, 0, mem_size)?
 			.add_event(shared_memory::EventType::Auto)?  // Event::CandidateReady
@@ -226,7 +255,10 @@ impl ValidationHost {
 			.spawn()?;
 		self.worker = Some(worker);
 
-		memory.wait(Event::WorkerReady as usize, shared_memory::Timeout::Sec(EXECUTION_TIMEOUT_SEC as usize))?;
+		memory.wait(
+			Event::WorkerReady as usize,
+			shared_memory::Timeout::Sec(EXECUTION_TIMEOUT_SEC as usize),
+		)?;
 		self.memory = Some(memory);
 		Ok(())
 	}
@@ -238,7 +270,7 @@ impl ValidationHost {
 		&mut self,
 		validation_code: &[u8],
 		params: ValidationParams,
-		externalities: &mut E,
+		mut externalities: E,
 		test_mode: bool,
 	) -> Result<ValidationResult, Error> {
 		if validation_code.len() > MAX_CODE_MEM {
@@ -246,7 +278,8 @@ impl ValidationHost {
 		}
 		// First, check if need to spawn the child process
 		self.start_worker(test_mode)?;
-		let memory = self.memory.as_mut().expect("memory is always `Some` after `start_worker` completes successfully");
+		let memory = self.memory.as_mut()
+			.expect("memory is always `Some` after `start_worker` completes successfully");
 		{
 			// Put data in shared mem
 			let data: &mut[u8] = &mut **memory.wlock_as_slice(0)?;
@@ -293,23 +326,23 @@ impl ValidationHost {
 			let mut message_data: &[u8] = message_data;
 			let header = ValidationResultHeader::decode(&mut header_buf).unwrap();
 			match header {
-				ValidationResultHeader::Ok { result, egress_message_count, up_message_count } => {
-					for _ in 0 .. egress_message_count {
-						let message = IncomingMessage::decode(&mut message_data).unwrap();
-						let message_ref = MessageRef {
-							target: message.source,
-							data: &message.data,
-						};
-						externalities.post_message(message_ref)?;
-					}
-					for _ in 0 .. up_message_count {
-						let message = UpwardMessage::decode(&mut message_data).unwrap();
-						let message_ref = UpwardMessageRef {
-							origin: message.origin,
-							data: &message.data,
-						};
-						externalities.post_upward_message(message_ref)?;
-					}
+				ValidationResultHeader::Ok(result) => {
+					let egress = Vec::<TargetedMessage>::decode(&mut message_data)
+						.map_err(|e|
+							Error::External(
+								format!("Could not decode egress messages: {}", e.what())
+							)
+						)?;
+					egress.into_iter().try_for_each(|msg| externalities.post_message(msg))?;
+
+					let upwards = Vec::<UpwardMessage>::decode(&mut message_data)
+						.map_err(|e|
+							Error::External(
+								format!("Could not decode upward messages: {}", e.what())
+							)
+						)?;
+					upwards.into_iter().try_for_each(|msg| externalities.post_upward_message(msg))?;
+
 					Ok(result)
 				}
 				ValidationResultHeader::Error(message) => {
