@@ -95,8 +95,6 @@ struct PolkadotSubParams {
 	pub authority_discovery_enabled: bool,
 }
 
-cli::impl_augment_clap!(PolkadotSubParams);
-
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run<W>(worker: W, version: cli::VersionInfo) -> error::Result<()> where
 	W: Worker,
