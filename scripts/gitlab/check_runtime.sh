@@ -70,6 +70,8 @@ check_runtime () {
 			spec_version: ${sub_spec_version} -> ${add_spec_version}
 		
 		EOT
+		return
+
 	else
 		# check for impl_version updates: if only the impl versions changed, we assume
 		# there is no consensus-critical logic that has changed.
@@ -118,5 +120,4 @@ check_runtime () {
 check_runtime "runtime/kusama/src/lib.rs"
 check_runtime "runtime/polkadot/src/lib.rs"
 
-exit 0
 # vim: noexpandtab
