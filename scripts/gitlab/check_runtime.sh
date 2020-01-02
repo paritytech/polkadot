@@ -29,6 +29,9 @@ github_label () {
 
 
 
+# make sure the master branch is available in shallow clones
+git fetch --depth=${GIT_DEPTH:-100} origin master
+
 
 # check if the wasm sources changed
 if ! git diff --name-only origin/master...${CI_COMMIT_SHA} \

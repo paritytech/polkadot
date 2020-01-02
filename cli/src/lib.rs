@@ -54,7 +54,7 @@ enum PolkadotSubCommands {
 }
 
 impl cli::GetSharedParams for PolkadotSubCommands {
-	fn shared_params(&self) -> Option<&SharedParams> { None }
+	fn shared_params(&self) -> Option<&cli::SharedParams> { None }
 }
 
 #[derive(Debug, StructOpt, Clone)]
@@ -68,8 +68,6 @@ struct PolkadotSubParams {
 	#[structopt(long = "enable-authority-discovery")]
 	pub authority_discovery_enabled: bool,
 }
-
-cli::impl_augment_clap!(PolkadotSubParams);
 
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()> {

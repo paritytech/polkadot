@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-validation"
-version = "0.7.10"
+version = "0.7.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
