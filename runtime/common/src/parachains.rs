@@ -30,7 +30,8 @@ use primitives::{
 	Hash, Balance,
 	parachain::{
 		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
-		UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId, Retriable
+		UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId, Retriable,
+		NEW_HEADS_IDENTIFIER,
 	},
 };
 use frame_support::{
@@ -865,10 +866,6 @@ impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 
 	fn on_disabled(_i: usize) { }
 }
-
-/// An identifier for inherent data that provides new minimally-attested
-/// parachain heads.
-pub const NEW_HEADS_IDENTIFIER: InherentIdentifier = *b"newheads";
 
 pub type InherentType = Vec<AttestedCandidate>;
 
