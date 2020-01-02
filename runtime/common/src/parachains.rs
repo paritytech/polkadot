@@ -153,8 +153,6 @@ const WATERMARK_QUEUE_SIZE: usize = 20000;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains
-	where
-		//T::Hash: Into<primitives::Hash>,
 	{
 		/// All authorities' keys at the moment.
 		pub Authorities get(authorities): Vec<ValidatorId>;

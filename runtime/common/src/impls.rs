@@ -54,7 +54,7 @@ where
 	R::Balance: Into<u128>,
 {
 	fn factor() -> u128 {
-		let issuance: u128 =  <balances::Module<R>>::total_issuance().into();
+		let issuance: u128 = <balances::Module<R>>::total_issuance().into();
 		(issuance / u64::max_value() as u128).max(1)
 	}
 }
