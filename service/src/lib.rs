@@ -18,7 +18,6 @@
 
 pub mod chain_spec;
 
-use futures01::sync::mpsc;
 use futures::{FutureExt, TryFutureExt, task::{Spawn, SpawnError, FutureObj}};
 use client::LongestChain;
 use std::sync::Arc;
@@ -277,10 +276,10 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		Extrinsic: RuntimeExtrinsic,
 {
 	use sc_network::Event;
-	use futures03::{
+	use futures01::Stream;
+	use futures::{
 		compat::Stream01CompatExt,
 		stream::StreamExt,
-		future::{FutureExt, TryFutureExt},
 	};
 
 	let is_collator = config.custom.collating_for.is_some();
