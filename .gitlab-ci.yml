@@ -150,12 +150,12 @@ check-web-wasm:                    &test
   script:
     # WASM support is in progress. As more and more crates support WASM, we
     # should add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path executor/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/polkadot/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/kusama/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path erasure-coding/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path parachain/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path primitives/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path rpc/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path statement-table/Cargo.toml
     - sccache -s
 

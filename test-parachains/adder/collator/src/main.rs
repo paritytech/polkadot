@@ -29,7 +29,9 @@ use primitives::{
 		HeadData, BlockData, Id as ParaId, Message, OutgoingMessages, Status as ParachainStatus,
 	},
 };
-use collator::{InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext};
+use collator::{
+	InvalidHead, ParachainContext, Network, BuildParachainContext, load_spec, Configuration,
+};
 use parking_lot::Mutex;
 use futures::future::{Ready, ok, err};
 
@@ -108,7 +110,7 @@ impl BuildParachainContext for AdderContext {
 
 	fn build<B, E, R, SP, Extrinsic>(
 		self,
-		_: Arc<collator::PolkadotClient<B, E>>,
+		_: Arc<collator::PolkadotClient<B, E, R>>,
 		_: SP,
 		network: Arc<dyn Network>,
 	) -> Result<Self::ParachainContext, ()> {
@@ -148,20 +150,12 @@ fn main() {
 		_network: None,
 	};
 
-	let res = ::collator::run_collator(
+	let res = collator::run_collator(
 		context,
 		id,
 		exit,
 		key,
-		VersionInfo {
-			name: "<unknown>",
-			version: "<unknown>",
-			commit: "<unknown>",
-			executable_name: "adder-collator",
-			description: "collator for adder parachain",
-			author: "parity technologies",
-			support_url: "https://github.com/paritytech/polkadot/issues/new",
-		}
+		Configuration::default_with_spec_and_base_path(load_spec("dev").unwrap().unwrap(), None),
 	);
 
 	if let Err(e) = res {

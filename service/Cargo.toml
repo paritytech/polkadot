@@ -15,8 +15,8 @@ hex-literal = "0.2.1"
 av_store = { package = "polkadot-availability-store", path = "../availability-store" }
 consensus = { package = "polkadot-validation", path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
-polkadot-runtime = { path = "../runtime" }
-polkadot-executor = { path = "../executor" }
+polkadot-runtime = { path = "../runtime/polkadot" }
+kusama-runtime = { path = "../runtime/kusama" }
 polkadot-network = { path = "../network"  }
 polkadot-rpc = { path = "../rpc" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }

@@ -30,7 +30,8 @@ use primitives::{
 	Hash, Balance,
 	parachain::{
 		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
-		UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId, Retriable
+		UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId, Retriable,
+		NEW_HEADS_IDENTIFIER,
 	},
 };
 use frame_support::{
@@ -152,7 +153,8 @@ const MAX_QUEUE_COUNT: usize = 100;
 const WATERMARK_QUEUE_SIZE: usize = 20000;
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Parachains {
+	trait Store for Module<T: Trait> as Parachains
+	{
 		/// All authorities' keys at the moment.
 		pub Authorities get(authorities): Vec<ValidatorId>;
 		/// The parachains registered at present.
@@ -280,7 +282,7 @@ fn majority_of(list_len: usize) -> usize {
 	list_len / 2 + list_len % 2
 }
 
-fn localized_payload(statement: Statement, parent_hash: ::primitives::Hash) -> Vec<u8> {
+fn localized_payload<H: AsRef<[u8]>>(statement: Statement, parent_hash: H) -> Vec<u8> {
 	let mut encoded = statement.encode();
 	encoded.extend(parent_hash.as_ref());
 	encoded
@@ -726,7 +728,7 @@ impl<T: Trait> Module<T> {
 
 		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
 
-		let parent_hash = super::System::parent_hash();
+		let parent_hash = <system::Module<T>>::parent_hash();
 		let localized_payload = |statement: Statement| localized_payload(statement, parent_hash);
 
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
@@ -865,10 +867,6 @@ impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	fn on_disabled(_i: usize) { }
 }
 
-/// An identifier for inherent data that provides new minimally-attested
-/// parachain heads.
-pub const NEW_HEADS_IDENTIFIER: InherentIdentifier = *b"newheads";
-
 pub type InherentType = Vec<AttestedCandidate>;
 
 impl<T: Trait> ProvideInherent for Module<T> {
@@ -915,7 +913,6 @@ mod tests {
 		},
 		BlockNumber,
 	};
-	use crate::constants::time::*;
 	use keyring::Sr25519Keyring;
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
@@ -996,9 +993,17 @@ mod tests {
 		type MinimumPeriod = MinimumPeriod;
 	}
 
+	mod time {
+		use primitives::{Moment, BlockNumber};
+		pub const MILLISECS_PER_BLOCK: Moment = 6000;
+		pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 1 * HOURS;
+		// These time units are defined in number of blocks.
+		const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
+		const HOURS: BlockNumber = MINUTES * 60;
+	}
 	parameter_types! {
-		pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
-		pub const ExpectedBlockTime: u64 = MILLISECS_PER_BLOCK;
+		pub const EpochDuration: u64 = time::EPOCH_DURATION_IN_BLOCKS as u64;
+		pub const ExpectedBlockTime: u64 = time::MILLISECS_PER_BLOCK;
 	}
 
 	impl babe::Trait for Test {
@@ -1190,7 +1195,7 @@ mod tests {
 
 	fn make_attestations(candidate: &mut AttestedCandidate) {
 		let mut vote_implicit = false;
-		let parent_hash = crate::System::parent_hash();
+		let parent_hash = <system::Module<Test>>::parent_hash();
 
 		let (duty_roster, _) = Parachains::calculate_duty_roster();
 		let candidate_hash = candidate.candidate.hash();

@@ -49,7 +49,7 @@ use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, CandidateReceipt,
 	ParachainHost, AttestedCandidate, Statement as PrimitiveStatement, Message, OutgoingMessages,
 	Collation, PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
-	ValidatorPair, ValidatorId,
+	ValidatorPair, ValidatorId, NEW_HEADS_IDENTIFIER,
 };
 use primitives::Pair;
 use runtime_primitives::traits::{DigestFor, HasherFor};
@@ -742,7 +742,7 @@ impl<C, TxPool, B> CreateProposalData<C, TxPool, B> where
 		let mut inherent_data = self.inherent_data
 			.take()
 			.expect("CreateProposal is not polled after finishing; qed");
-		inherent_data.put_data(polkadot_runtime::NEW_HEADS_IDENTIFIER, &candidates)
+		inherent_data.put_data(NEW_HEADS_IDENTIFIER, &candidates)
 			.map_err(Error::InherentError)?;
 
 		let runtime_api = self.client.runtime_api();
