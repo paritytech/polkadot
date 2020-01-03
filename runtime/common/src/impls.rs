@@ -21,32 +21,57 @@ use sp_runtime::traits::{Convert, Saturating};
 use sp_runtime::{Fixed64, Perbill};
 use frame_support::weights::Weight;
 use frame_support::traits::{OnUnbalanced, Imbalance, Currency, Get};
-use crate::{Balances, System, Authorship, MaximumBlockWeight, NegativeImbalance};
+use crate::{MaximumBlockWeight, NegativeImbalance};
 
 /// Logic for the author to get a portion of fees.
-pub struct ToAuthor;
+pub struct ToAuthor<R>(rstd::marker::PhantomData<R>);
 
-impl OnUnbalanced<NegativeImbalance> for ToAuthor {
-	fn on_nonzero_unbalanced(amount: NegativeImbalance) {
+impl<R> OnUnbalanced<NegativeImbalance<R>> for ToAuthor<R>
+where
+	R: balances::Trait + authorship::Trait,
+	<R as system::Trait>::AccountId: From<primitives::AccountId>,
+	<R as system::Trait>::AccountId: Into<primitives::AccountId>,
+	<R as system::Trait>::Event: From<balances::RawEvent<
+		<R as system::Trait>::AccountId,
+		<R as balances::Trait>::Balance,
+		balances::DefaultInstance>
+	>,
+{
+	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		let numeric_amount = amount.peek();
-		let author = Authorship::author();
-		Balances::resolve_creating(&author, amount);
-		System::deposit_event(balances::RawEvent::Deposit(author, numeric_amount));
+		let author = <authorship::Module<R>>::author();
+		<balances::Module<R>>::resolve_creating(&<authorship::Module<R>>::author(), amount);
+		<system::Module<R>>::deposit_event(balances::RawEvent::Deposit(author, numeric_amount));
 	}
 }
 
 /// Converter for currencies to votes.
-pub struct CurrencyToVoteHandler;
+pub struct CurrencyToVoteHandler<R>(rstd::marker::PhantomData<R>);
 
-impl CurrencyToVoteHandler {
-	fn factor() -> u128 { (Balances::total_issuance() / u64::max_value() as u128).max(1) }
+impl<R> CurrencyToVoteHandler<R>
+where
+	R: balances::Trait,
+	R::Balance: Into<u128>,
+{
+	fn factor() -> u128 {
+		let issuance: u128 = <balances::Module<R>>::total_issuance().into();
+		(issuance / u64::max_value() as u128).max(1)
+	}
 }
 
-impl Convert<u128, u64> for CurrencyToVoteHandler {
+impl<R> Convert<u128, u64> for CurrencyToVoteHandler<R>
+where
+	R: balances::Trait,
+	R::Balance: Into<u128>,
+{
 	fn convert(x: u128) -> u64 { (x / Self::factor()) as u64 }
 }
 
-impl Convert<u128, u128> for CurrencyToVoteHandler {
+impl<R> Convert<u128, u128> for CurrencyToVoteHandler<R>
+where
+	R: balances::Trait,
+	R::Balance: Into<u128>,
+{
 	fn convert(x: u128) -> u128 { x * Self::factor() }
 }
 
@@ -77,11 +102,11 @@ impl Convert<Weight, Balance> for WeightToFee {
 ///
 /// Where `target_weight` must be given as the `Get` implementation of the `T` generic type.
 /// https://research.web3.foundation/en/latest/polkadot/Token%20Economics/#relay-chain-transaction-fees
-pub struct TargetedFeeAdjustment<T>(rstd::marker::PhantomData<T>);
+pub struct TargetedFeeAdjustment<T, R>(rstd::marker::PhantomData<(T, R)>);
 
-impl<T: Get<Perbill>> Convert<Fixed64, Fixed64> for TargetedFeeAdjustment<T> {
+impl<T: Get<Perbill>, R: system::Trait> Convert<Fixed64, Fixed64> for TargetedFeeAdjustment<T, R> {
 	fn convert(multiplier: Fixed64) -> Fixed64 {
-		let block_weight = System::all_extrinsics_weight();
+		let block_weight = <system::Module<R>>::all_extrinsics_weight();
 		let max_weight = MaximumBlockWeight::get();
 		let target_weight = (T::get() * max_weight) as u128;
 		let block_weight = block_weight as u128;

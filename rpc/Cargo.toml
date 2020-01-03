@@ -13,5 +13,4 @@ sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-m
 txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-polkadot-runtime = { path = "../runtime" }
-
+codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false }

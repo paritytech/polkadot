@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-runtime"
+name = "kusama-runtime"
 version = "0.7.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -24,7 +24,6 @@ sp-io = { git = "https://github.com/paritytech/substrate", default-features = fa
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sp-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sp-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 version = { package = "sp-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -59,8 +58,9 @@ timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 utility = { package = "pallet-utility", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
-primitives = { package = "polkadot-primitives", path = "../primitives", default-features = false }
-polkadot-parachain = { path = "../parachain", default-features = false }
+runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
+primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
@@ -129,4 +129,5 @@ std = [
 	"babe-primitives/std",
 	"sp-session/std",
 	"randomness-collective-flip/std",
+	"runtime-common/std",
 ]
