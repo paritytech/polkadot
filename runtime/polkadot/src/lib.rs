@@ -509,44 +509,6 @@ impl claims::Trait for Runtime {
 	type Prefix = Prefix;
 }
 
-parameter_types! {
-	// KUSAMA: for mainnet this can be reduced.
-	pub const ReservationFee: Balance = 1000 * DOLLARS;
-	pub const MinLength: usize = 3;
-	pub const MaxLength: usize = 32;
-}
-
-impl nicks::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type ReservationFee = ReservationFee;
-	type Slashed = Treasury;
-	type ForceOrigin = collective::EnsureMembers<_2, AccountId, CouncilCollective>;
-	type MinLength = MinLength;
-	type MaxLength = MaxLength;
-}
-
-parameter_types! {
-	// KUSAMA: can be probably be reduced for mainnet
-	// Minimum 100 bytes/KSM deposited (1 CENT/byte)
-	pub const BasicDeposit: Balance = 1000 * DOLLARS;       // 258 bytes on-chain
-	pub const FieldDeposit: Balance = 250 * DOLLARS;        // 66 bytes on-chain
-	pub const SubAccountDeposit: Balance = 200 * DOLLARS;   // 53 bytes on-chain
-	pub const MaximumSubAccounts: u32 = 100;
-}
-
-impl identity::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type Slashed = Treasury;
-	type BasicDeposit = BasicDeposit;
-	type FieldDeposit = FieldDeposit;
-	type SubAccountDeposit = SubAccountDeposit;
-	type MaximumSubAccounts = MaximumSubAccounts;
-	type RegistrarOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type ForceOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -567,7 +529,7 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
-		Staking: staking::{default, OfflineWorker},
+		Staking: staking::{default},
 		Offences: offences::{Module, Call, Storage, Event},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
@@ -592,13 +554,6 @@ construct_runtime! {
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
-
-		// Simple nicknames module.
-		// KUSAMA: Remove before mainnet
-		Nicks: nicks::{Module, Call, Storage, Event<T>},
-
-		// Less simple identity module.
-		Identity: identity::{Module, Call, Storage, Event<T>},
 	}
 }
 
