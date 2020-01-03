@@ -30,10 +30,10 @@ use primitives::{
 	},
 };
 use collator::{
-	InvalidHead, ParachainContext, VersionInfo, Network, BuildParachainContext, TaskExecutor,
+	InvalidHead, ParachainContext, Network, BuildParachainContext, load_spec, Configuration,
 };
 use parking_lot::Mutex;
-use futures::future::{Ready, ok, err};
+use futures::{future::{Ready, ok, err}, task::Spawn};
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
@@ -108,15 +108,16 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build<B, E>(
+	fn build<B, E, R, SP>(
 		self,
-		_: Arc<collator::PolkadotClient<B, E>>,
-		_: TaskExecutor,
+		_: Arc<collator::PolkadotClient<B, E, R>>,
+		_: SP,
 		network: Arc<dyn Network>,
 	) -> Result<Self::ParachainContext, ()>
 		where
 			B: client_api::backend::Backend<Block, Blake2Hasher> + 'static,
-			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static
+			E: client::CallExecutor<Block, Blake2Hasher> + Clone + Send + Sync + 'static,
+			SP: Spawn + Clone + Send + Sync + 'static,
 	{
 		Ok(Self { _network: Some(network), ..self })
 	}
@@ -154,20 +155,12 @@ fn main() {
 		_network: None,
 	};
 
-	let res = ::collator::run_collator(
+	let res = collator::run_collator(
 		context,
 		id,
 		exit,
 		key,
-		VersionInfo {
-			name: "<unknown>",
-			version: "<unknown>",
-			commit: "<unknown>",
-			executable_name: "adder-collator",
-			description: "collator for adder parachain",
-			author: "parity technologies",
-			support_url: "https://github.com/paritytech/polkadot/issues/new",
-		}
+		Configuration::default_with_spec_and_base_path(load_spec("dev").unwrap().unwrap(), None),
 	);
 
 	if let Err(e) = res {

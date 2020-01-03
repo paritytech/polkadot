@@ -20,13 +20,11 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit="256"]
 
-mod attestations;
-mod claims;
-mod parachains;
-mod slot_range;
-mod registrar;
-mod slots;
-mod crowdfund;
+use runtime_common::{attestations, claims, parachains, registrar, slots,
+	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor, WeightToFee},
+	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
+	MaximumBlockLength,
+};
 
 use rstd::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
@@ -49,8 +47,8 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness},
-	weights::{Weight, DispatchInfo},
+	parameter_types, construct_runtime, traits::{SplitTwoWays, Randomness},
+	weights::DispatchInfo,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -64,11 +62,7 @@ pub use sp_runtime::BuildStorage;
 pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
 pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
-pub use parachains::{Call as ParachainsCall, NEW_HEADS_IDENTIFIER};
-
-/// Implementations of some helper traits passed into runtime modules as associated types.
-pub mod impls;
-use impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor, WeightToFee};
+pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -78,26 +72,13 @@ use constants::{time::*, currency::*};
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-/*
-// KUSAMA: Polkadot version identifier; may be uncommented for Polkadot mainnet.
+// Polkadot version identifier;
 /// Runtime version (Polkadot).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
-	authoring_version: 1,
-	spec_version: 1000,
-	impl_version: 0,
-	apis: RUNTIME_API_VERSIONS,
-};
-*/
-
-// KUSAMA: Kusama version identifier; may be removed for Polkadot mainnet.
-/// Runtime version (Kusama).
-pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("kusama"),
-	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1030,
+	spec_version: 1000,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -137,13 +118,7 @@ impl SignedExtension for OnlyStakingAndClaims {
 	}
 }
 
-type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
-
 parameter_types! {
-	pub const BlockHashCount: BlockNumber = 250;
-	pub const MaximumBlockWeight: Weight = 1_000_000_000;
-	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
-	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
 	pub const Version: RuntimeVersion = VERSION;
 }
 
@@ -163,6 +138,7 @@ impl system::Trait for Runtime {
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
+	type ModuleToIndex = ModuleToIndex;
 }
 
 parameter_types! {
@@ -194,9 +170,9 @@ parameter_types! {
 /// Splits fees 80/20 between treasury and block author.
 pub type DealWithFees = SplitTwoWays<
 	Balance,
-	NegativeImbalance,
-	_4, Treasury,   // 4 parts (80%) goes to the treasury.
-	_1, ToAuthor,   // 1 part (20%) goes to the block author.
+	NegativeImbalance<Runtime>,
+	_4, Treasury,   		// 4 parts (80%) goes to the treasury.
+	_1, ToAuthor<Runtime>,   	// 1 part (20%) goes to the block author.
 >;
 
 impl balances::Trait for Runtime {
@@ -224,7 +200,7 @@ impl transaction_payment::Trait for Runtime {
 	type TransactionBaseFee = TransactionBaseFee;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
-	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness>;
+	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness, Self>;
 }
 
 parameter_types! {
@@ -309,7 +285,7 @@ parameter_types! {
 
 impl staking::Trait for Runtime {
 	type RewardRemainder = Treasury;
-	type CurrencyToVote = CurrencyToVoteHandler;
+	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type Event = Event;
 	type Currency = Balances;
 	type Slash = Treasury;
@@ -386,7 +362,7 @@ impl elections_phragmen::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type ChangeMembers = Council;
-	type CurrencyToVote = CurrencyToVoteHandler;
+	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type CandidacyBond = CandidacyBond;
 	type VotingBond = VotingBond;
 	type TermDuration = TermDuration;
@@ -416,7 +392,8 @@ impl membership::Trait<membership::Instance1> for Runtime {
 
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
-	pub const ProposalBondMinimum: Balance = 100 * DOLLARS;
+	// KUSAMA: This value is 20x of that expected for mainnet
+	pub const ProposalBondMinimum: Balance = 2_000 * DOLLARS;
 	// KUSAMA: This value is 1/4 of that expected for mainnet
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
 	// KUSAMA: No burn - let's try to put it to use!
@@ -523,10 +500,7 @@ impl slots::Trait for Runtime {
 }
 
 parameter_types! {
-	// KUSAMA: for mainnet this should be removed.
-	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
-	// KUSAMA: for mainnet this should be uncommented.
-	//pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
+	pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
 }
 
 impl claims::Trait for Runtime {

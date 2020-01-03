@@ -37,11 +37,10 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, ParachainHost, ValidatorId,
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
-use futures::channel::{mpsc, oneshot};
-use futures::{FutureExt, Sink, SinkExt, TryFutureExt, StreamExt, future::select};
+use futures::{prelude::*, future::select, channel::{mpsc, oneshot}, task::SpawnExt};
 use keystore::KeyStorePtr;
 
-use tokio::runtime::current_thread::{Handle, Runtime as LocalRuntime};
+use tokio::runtime::{Handle, Runtime as LocalRuntime};
 
 use crate::{LOG_TARGET, Data, TaskExecutor, ProvideGossipMessages, erasure_coding_topic};
 use crate::store::Store;
@@ -308,7 +307,7 @@ where
 	// Called on startup of the worker to register listeners for all awaited chunks.
 	fn register_listeners(
 		&mut self,
-		runtime_handle: &mut Handle,
+		runtime_handle: &Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 	) {
 		if let Some(awaited_chunks) = self.availability_store.awaited_chunks() {
@@ -327,7 +326,7 @@ where
 
 	fn register_chunks_listener(
 		&mut self,
-		runtime_handle: &mut Handle,
+		runtime_handle: &Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 		relay_parent: Hash,
 		erasure_root: Hash,
@@ -354,18 +353,14 @@ where
 
 		self.registered_gossip_streams.insert(topic, signal);
 
-		let _ = runtime_handle.spawn(
-			select(fut.boxed(), exit)
-				.map(|_| Ok(()))
-				.compat()
-		);
+		let _ = runtime_handle.spawn(select(fut.boxed(), exit).map(drop));
 
 		Ok(())
 	}
 
 	fn on_parachain_blocks_received(
 		&mut self,
-		runtime_handle: &mut Handle,
+		runtime_handle: &Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 		relay_parent: Hash,
 		blocks: Vec<(CandidateReceipt, Option<(BlockData, AvailableMessages)>)>,
@@ -450,7 +445,7 @@ where
 	// we don't have that piece, and then it registers a listener.
 	fn on_listen_for_chunks_received(
 		&mut self,
-		runtime_handle: &mut Handle,
+		runtime_handle: &Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 		relay_parent: Hash,
 		candidate_hash: Hash,
@@ -496,11 +491,11 @@ where
 			let mut runtime = LocalRuntime::new()?;
 			let mut sender = worker.sender.clone();
 
-			let mut runtime_handle = runtime.handle();
+			let runtime_handle = runtime.handle().clone();
 
 			// On startup, registers listeners (gossip streams) for all
 			// (relay_parent, erasure-root, i) in the awaited frontier.
-			worker.register_listeners(&mut runtime_handle, &mut sender);
+			worker.register_listeners(runtime.handle(), &mut sender);
 
 			let process_notification = async move {
 				while let Some(msg) = receiver.next().await {
@@ -525,7 +520,7 @@ where
 							} = msg;
 
 							let res = worker.on_listen_for_chunks_received(
-								&mut runtime_handle,
+								&runtime_handle,
 								&mut sender,
 								relay_parent,
 								candidate_hash,
@@ -545,7 +540,7 @@ where
 							} = msg;
 
 							let res = worker.on_parachain_blocks_received(
-								&mut runtime_handle,
+								&runtime_handle,
 								&mut sender,
 								relay_parent,
 								blocks,
@@ -589,15 +584,9 @@ where
 
 			};
 
-			runtime.spawn(
-				futures::future::select(process_notification.boxed(), exit.clone())
-					.map(|_| Ok(()))
-					.compat()
-			);
+			runtime.spawn(select(process_notification.boxed(), exit.clone()).map(drop));
 
-			if let Err(e) = runtime.block_on(exit.unit_error().compat()) {
-				warn!(target: LOG_TARGET, "Availability worker error {:?}", e);
-			}
+			runtime.block_on(exit);
 
 			info!(target: LOG_TARGET, "Availability worker exiting");
 
@@ -771,9 +760,9 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 		let prune_available = select(
 			prune_unneeded_availability(client.clone(), to_worker.clone()).boxed(),
 			exit.clone()
-		).map(|_| Ok(())).compat();
+		).map(drop);
 
-		if let Err(_) = thread_pool.execute(Box::new(prune_available)) {
+		if let Err(_) = thread_pool.spawn(Box::new(prune_available)) {
 			error!(target: LOG_TARGET, "Failed to spawn availability pruning task");
 			exit_signal = None;
 		}
@@ -805,21 +794,34 @@ mod tests {
 	use super::*;
 	use std::time::Duration;
 	use futures::{stream, channel::mpsc, Stream};
-	use std::sync::{Arc, Mutex};
+	use std::sync::{Arc, Mutex, Condvar};
+	use std::pin::Pin;
 	use tokio::runtime::Runtime;
 
 	// Just contains topic->channel mapping to give to outer code on `gossip_messages_for` calls.
 	struct TestGossipMessages {
-		messages: Arc<Mutex<HashMap<Hash, mpsc::UnboundedReceiver<(Hash, Hash, ErasureChunk)>>>>,
+		messages: Arc<Mutex<HashMap<
+			Hash,
+			(
+				Arc<(Mutex<bool>, Condvar)>,
+				mpsc::UnboundedReceiver<(Hash, Hash, ErasureChunk)>,
+			),
+		>>>,
 	}
 
 	impl ProvideGossipMessages for TestGossipMessages {
 		fn gossip_messages_for(&self, topic: Hash)
-			-> Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send + Unpin>
+			-> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>
 		{
 			match self.messages.lock().unwrap().remove(&topic) {
-				Some(receiver) => Box::new(receiver),
-				None => Box::new(stream::iter(vec![])),
+				Some((pair, receiver)) => {
+					let (lock, cvar) = &*pair;
+					let mut consumed = lock.lock().unwrap();
+					*consumed = true;
+					cvar.notify_one();
+					receiver.boxed()
+				},
+				None => stream::iter(vec![]).boxed(),
 			}
 		}
 
@@ -861,9 +863,10 @@ mod tests {
 
 		let topic = erasure_coding_topic(relay_parent, erasure_root, local_id);
 
+		let pair = Arc::new((Mutex::new(false), Condvar::new()));
 		let messages = TestGossipMessages {
 			messages: Arc::new(Mutex::new(vec![
-						  (topic, gossip_receiver)
+						  (topic, (pair.clone(), gossip_receiver))
 			].into_iter().collect()))
 		};
 
@@ -890,7 +893,7 @@ mod tests {
 		// chunk topics.
 		handle.sender.unbounded_send(msg).unwrap();
 
-		runtime.block_on(r.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r).unwrap().unwrap();
 
 		// Make sure that at this point we are waiting for the appropriate chunk.
 		assert_eq!(
@@ -971,11 +974,14 @@ mod tests {
 		let topic_1 = erasure_coding_topic(relay_parent, erasure_root_1, local_id);
 		let topic_2 = erasure_coding_topic(relay_parent, erasure_root_2, local_id);
 
+		let cvar_pair1 = Arc::new((Mutex::new(false), Condvar::new()));
+		let cvar_pair2 = Arc::new((Mutex::new(false), Condvar::new()));
+
 		let messages = TestGossipMessages {
 			messages: Arc::new(Mutex::new(
 			vec![
-				(topic_1, gossip_receiver_1),
-				(topic_2, gossip_receiver_2),
+				(topic_1, (cvar_pair1.clone(), gossip_receiver_1)),
+				(topic_2, (cvar_pair2, gossip_receiver_2)),
 			].into_iter().collect()))
 		};
 
@@ -992,7 +998,7 @@ mod tests {
 
 		handle.sender.unbounded_send(listen_msg_2).unwrap();
 
-		runtime.block_on(r2.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r2).unwrap().unwrap();
 		// The gossip sender for this topic left intact => listener not registered.
 		assert!(messages.messages.lock().unwrap().contains_key(&topic_2));
 
@@ -1008,7 +1014,17 @@ mod tests {
 		});
 
 		handle.sender.unbounded_send(listen_msg_1).unwrap();
-		runtime.block_on(r1.unit_error().boxed().compat()).unwrap().unwrap().unwrap();
+		runtime.block_on(r1).unwrap().unwrap();
+
+		// Here, we are racing against the worker thread that might have not yet
+		// reached the point when it requests the gossip messages for `topic_2`
+		// which will get them removed from `TestGossipMessages`. Therefore, the
+		// `Condvar` is used to wait for that event.
+		let (lock, cvar1) = &*cvar_pair1;
+		let mut gossip_stream_consumed = lock.lock().unwrap();
+		while !*gossip_stream_consumed {
+			gossip_stream_consumed = cvar1.wait(gossip_stream_consumed).unwrap();
+		}
 
 		// The gossip sender taken => listener registered.
 		assert!(!messages.messages.lock().unwrap().contains_key(&topic_1));

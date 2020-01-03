@@ -17,14 +17,13 @@
 //! Implements a future which resolves when all of the candidates referenced are includable.
 
 use std::collections::HashMap;
-
-use futures::prelude::*;
-use futures::sync::oneshot;
-
+use futures::channel::oneshot;
 use polkadot_primitives::Hash;
 
 /// Track includability of a set of candidates,
-pub(super) fn track<I: IntoIterator<Item=(Hash, bool)>>(candidates: I) -> (IncludabilitySender, Includable) {
+pub(super) fn track<I: IntoIterator<Item=(Hash, bool)>>(candidates: I)
+	-> (IncludabilitySender, oneshot::Receiver<()>) {
+
 	let (tx, rx) = oneshot::channel();
 	let tracking: HashMap<_, _> = candidates.into_iter().collect();
 	let includable_count = tracking.values().filter(|x| **x).count();
@@ -37,10 +36,7 @@ pub(super) fn track<I: IntoIterator<Item=(Hash, bool)>>(candidates: I) -> (Inclu
 
 	sender.try_complete();
 
-	(
-		sender,
-		Includable(rx),
-	)
+	(sender, rx)
 }
 
 /// The sending end of the includability sender.
@@ -91,21 +87,10 @@ impl IncludabilitySender {
 	}
 }
 
-/// Future that resolves when all the candidates within are includable.
-pub struct Includable(oneshot::Receiver<()>);
-
-impl Future for Includable {
-	type Item = ();
-	type Error = oneshot::Canceled;
-
-	fn poll(&mut self) -> Poll<(), oneshot::Canceled> {
-		self.0.poll()
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use futures::executor::block_on;
 
 	#[test]
 	fn it_works() {
@@ -132,6 +117,6 @@ mod tests {
 		sender.update_candidate(hash1, true);
 		assert!(sender.is_complete());
 
-		recv.wait().unwrap();
+		block_on(recv).unwrap();
 	}
 }
