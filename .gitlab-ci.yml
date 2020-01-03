@@ -176,18 +176,13 @@ build-linux-release:               &build
     - mkdir -p ./artifacts
     - mv ./target/release/polkadot ./artifacts/.
     - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
+    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - if [ "${CI_COMMIT_TAG}" ]; then
-        VERSION="${CI_COMMIT_TAG}";
-      else
-        VERSION="$(./artifacts/polkadot --version |
-          sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
-        VERSION="${VERSION}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
-      fi
-    - LATEST_BRANCH="$(ls -1 .git/refs/remotes/origin/ | sed -r -n 's:v([0-9]+)\.([0-9]+):v\1.\2:p' | sort -V | tail -n1)"
-    - if expr match x${CI_COMMIT_TAG} x${LATEST_BRANCH}; then
         EXTRATAG="latest";
       else
-        EXTRATAG="latest-${CI_COMMIT_REF_NAME}";
+        EXTRATAG="$(./artifacts/polkadot --version |
+          sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
+        EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
       fi
     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
     - echo -n ${VERSION} > ./artifacts/VERSION
