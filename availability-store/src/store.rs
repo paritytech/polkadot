@@ -35,8 +35,8 @@ use std::io;
 use crate::{LOG_TARGET, Data, Config};
 
 mod columns {
-	pub const DATA: Option<u32> = Some(0);
-	pub const META: Option<u32> = Some(1);
+	pub const DATA: u32 = 0;
+	pub const META: u32 = 1;
 	pub const NUM_COLUMNS: u32 = 2;
 }
 
@@ -85,12 +85,12 @@ impl Store {
 	/// Create a new `Store` with given condig on disk.
 	#[cfg(not(target_os = "unknown"))]
 	pub(super) fn new(config: Config) -> io::Result<Self> {
-		let mut db_config = DatabaseConfig::with_columns(Some(columns::NUM_COLUMNS));
+		let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
 
 		if let Some(cache_size) = config.cache_size {
 			let mut memory_budget = std::collections::HashMap::new();
 			for i in 0..columns::NUM_COLUMNS {
-				memory_budget.insert(Some(i), cache_size / columns::NUM_COLUMNS as usize);
+				memory_budget.insert(i, cache_size / columns::NUM_COLUMNS as usize);
 			}
 
 			db_config.memory_budget = memory_budget;
@@ -396,7 +396,7 @@ impl Store {
 		self.query_inner(columns::META, &block_to_candidate_key(&block_hash))
 	}
 
-	fn query_inner<T: Decode>(&self, column: Option<u32>, key: &[u8]) -> Option<T> {
+	fn query_inner<T: Decode>(&self, column: u32, key: &[u8]) -> Option<T> {
 		match self.inner.get(column, key) {
 			Ok(Some(raw)) => {
 				let res = T::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed");
