@@ -18,14 +18,14 @@
 
 #![warn(missing_docs)]
 
-use cli::{AbstractService, VersionInfo};
-use futures::{channel::oneshot, future, FutureExt, task::Spawn};
+use cli::VersionInfo;
+use futures::{channel::oneshot, future, FutureExt};
 
 use std::cell::RefCell;
 
 // the regular polkadot worker simply does nothing until ctrl-c
-struct Worker;
-impl cli::IntoExit for Worker {
+struct Exit;
+impl cli::IntoExit for Exit {
 	type Exit = future::Map<oneshot::Receiver<()>, fn(Result<(), oneshot::Canceled>) -> ()>;
 	fn into_exit(self) -> Self::Exit {
 		// can't use signal directly here because CtrlC takes only `Fn`.
@@ -43,21 +43,6 @@ impl cli::IntoExit for Worker {
 	}
 }
 
-impl cli::Worker for Worker {
-	type Work = <Self as cli::IntoExit>::Exit;
-	fn work<S, SC, B, CE, SP>(self, _: &S, _: SP) -> Self::Work
-	where S: AbstractService<Block = service::Block, RuntimeApi = service::RuntimeApi,
-		Backend = B, SelectChain = SC,
-		NetworkSpecialization = service::PolkadotProtocol, CallExecutor = CE>,
-		SC: service::SelectChain<service::Block> + 'static,
-		B: service::Backend<service::Block, service::Blake2Hasher> + 'static,
-		CE: service::CallExecutor<service::Block, service::Blake2Hasher> + Clone + Send + Sync + 'static,
-		SP: Spawn + Clone + Send + Sync + 'static {
-		use cli::IntoExit;
-		self.into_exit()
-	}
-}
-
 fn main() -> Result<(), cli::error::Error> {
 	let version = VersionInfo {
 		name: "Parity Polkadot",
@@ -69,5 +54,5 @@ fn main() -> Result<(), cli::error::Error> {
 		support_url: "https://github.com/paritytech/polkadot/issues/new",
 	};
 
-	cli::run(Worker, version)
+	cli::run(Exit, version)
 }

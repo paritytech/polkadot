@@ -8,6 +8,7 @@ edition = "2018"
 serde = { version = "1.0.102", optional = true, features = ["derive"] }
 parity-scale-codec = { version = "1.1.0", default-features = false, features = ["bit-vec", "derive"] }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
@@ -27,6 +28,7 @@ default = ["std"]
 std = [
 	"parity-scale-codec/std",
 	"primitives/std",
+	"inherents/std",
 	"trie/std",
 	"sp-api/std",
 	"rstd/std",

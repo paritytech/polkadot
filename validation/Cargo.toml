@@ -18,7 +18,6 @@ availability_store = { package = "polkadot-availability-store", path = "../avail
 parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
-polkadot-runtime = { path = "../runtime" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
