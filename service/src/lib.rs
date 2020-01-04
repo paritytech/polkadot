@@ -409,9 +409,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 
 		let client = service.client();
 		let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
-		let can_author_with =
-			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
-
+		let can_author_with = consensus_common::AlwaysCanAuthor;
 
 		let block_import = availability_store.block_import(
 			block_import,
