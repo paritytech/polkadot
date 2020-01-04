@@ -140,11 +140,39 @@ where
 							service::new_light::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
 							exit.into_exit(),
 						),
-					_ => run_until_exit(
-						runtime,
-						service::new_full::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
-						exit.into_exit(),
-					),
+					_ => {
+						let service = service::new_full::<R, D, E>(config).map_err(|e| format!("{:?}", e))?;
+
+						{
+							use sp_blockchain::HeaderBackend;
+
+							let reverted_blocks = 50;
+							let target_block = 516559;
+							let target_hash: sp_core::H256 = sp_serializer::from_str(
+								"0x07687523671a9d6ce05f75811026e8584ada1e3abf209b2c8e805363349bf9de",
+							).unwrap();
+
+							let client = service.client();
+
+							let (best_number, best_hash) = {
+								let info = client.info();
+								(info.best_number, info.best_hash)
+							};
+
+							if best_hash == target_hash {
+								client.unsafe_revert(reverted_blocks).unwrap();
+							} else if best_number < target_block {
+								let diff = best_number.saturating_sub(target_block - reverted_blocks);
+								client.unsafe_revert(diff).unwrap();
+							}
+						}
+
+						run_until_exit(
+							runtime,
+							service,
+							exit.into_exit(),
+						)
+					},
 				}.map_err(|e| format!("{:?}", e))
 			}),
 			cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(&load_spec),
