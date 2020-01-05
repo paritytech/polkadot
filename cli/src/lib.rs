@@ -141,35 +141,33 @@ where
 							exit.into_exit(),
 						),
 					_ => {
-						let service = service::new_full::<R, D, E>(config).map_err(|e| format!("{:?}", e))?;
+						let client = service::new_full_client::<R, D>(&config).map_err(|e| format!("{:?}", e))?;
 
-						{
+						let migrate = || {
 							use sp_blockchain::HeaderBackend;
+							use std::str::FromStr;
 
-							let reverted_blocks = 50;
-							let target_block = 516559;
-							let target_hash: sp_core::H256 = sp_serializer::from_str(
-								"0x07687523671a9d6ce05f75811026e8584ada1e3abf209b2c8e805363349bf9de",
+							let fork_block = 516510; // target_block - reverted_blocks + 1;
+							let fork_hash = sp_core::H256::from_str(
+								"15b1b925b0aa5cfe43c88cd024f74258cb5cfe3af424882c901014e8acd0d241",
 							).unwrap();
 
-							let client = service.client();
+							let best_number = client.info().best_number;
+							let target_hash = client.hash(fork_block).unwrap();
 
-							let (best_number, best_hash) = {
-								let info = client.info();
-								(info.best_number, info.best_hash)
-							};
-
-							if best_hash == target_hash {
-								client.unsafe_revert(reverted_blocks).unwrap();
-							} else if best_number < target_block {
-								let diff = best_number.saturating_sub(target_block - reverted_blocks);
+							if target_hash == Some(fork_hash) {
+								let diff = best_number.saturating_sub(fork_block - 1);
 								client.unsafe_revert(diff).unwrap();
 							}
-						}
+						};
+
+						migrate();
+
+						drop(client);
 
 						run_until_exit(
 							runtime,
-							service,
+							service::new_full::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
 							exit.into_exit(),
 						)
 					},

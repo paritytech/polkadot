@@ -260,6 +260,15 @@ pub fn kusama_new_full(config: Configuration)
 	new_full(config)
 }
 
+/// Builds a new full client.
+pub fn new_full_client<Runtime, Dispatch>(
+	config: &Configuration,
+) -> Result<service::TFullClient<Block, Runtime, Dispatch>, ServiceError> where
+	Dispatch: NativeExecutionDispatch,
+{
+	service::new_full_client(config)
+}
+
 /// Builds a new service for a full client.
 pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	-> Result<impl AbstractService<
