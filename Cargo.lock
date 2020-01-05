@@ -2068,7 +2068,7 @@ dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-parachain 0.7.11",
  "polkadot-primitives 0.7.11",
- "polkadot-runtime-common 0.7.10",
+ "polkadot-runtime-common 0.7.11",
  "rustc-hex 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3898,7 +3898,7 @@ dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-parachain 0.7.11",
  "polkadot-primitives 0.7.11",
- "polkadot-runtime-common 0.7.10",
+ "polkadot-runtime-common 0.7.11",
  "rustc-hex 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-mix 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3926,7 +3926,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-common"
-version = "0.7.10"
+version = "0.7.11"
 dependencies = [
  "bitvec 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
