@@ -141,29 +141,7 @@ where
 							exit.into_exit(),
 						),
 					_ => {
-						let client = service::new_full_client::<R, D>(&config).map_err(|e| format!("{:?}", e))?;
-
-						let migrate = || {
-							use sp_blockchain::HeaderBackend;
-							use std::str::FromStr;
-
-							let fork_block = 516510; // target_block - reverted_blocks + 1;
-							let fork_hash = sp_core::H256::from_str(
-								"15b1b925b0aa5cfe43c88cd024f74258cb5cfe3af424882c901014e8acd0d241",
-							).unwrap();
-
-							let best_number = client.info().best_number;
-							let target_hash = client.hash(fork_block).unwrap();
-
-							if target_hash == Some(fork_hash) {
-								let diff = best_number.saturating_sub(fork_block - 1);
-								client.unsafe_revert(diff).unwrap();
-							}
-						};
-
-						migrate();
-
-						drop(client);
+						service::kusama_hotfix::<R, D>(&config);
 
 						run_until_exit(
 							runtime,
