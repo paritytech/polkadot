@@ -263,15 +263,6 @@ pub fn kusama_new_full(config: Configuration)
 	new_full(config)
 }
 
-/// Builds a new full client.
-pub fn new_full_client<Runtime, Dispatch>(
-	config: &Configuration,
-) -> Result<service::TFullClient<Block, Runtime, Dispatch>, ServiceError> where
-	Dispatch: NativeExecutionDispatch,
-{
-	service::new_full_client(config)
-}
-
 pub fn kusama_chain_hotfix<Runtime, Dispatch>(config: &Configuration) where
 	Dispatch: NativeExecutionDispatch,
 	Runtime: Send + Sync,
@@ -279,7 +270,8 @@ pub fn kusama_chain_hotfix<Runtime, Dispatch>(config: &Configuration) where
 	use std::str::FromStr;
 	use sp_blockchain::HeaderBackend;
 
-	let client = new_full_client::<Runtime, Dispatch>(&config).unwrap();
+	let client: service::TFullClient<Block, Runtime, Dispatch> =
+		service::new_full_client(&config).unwrap();
 
 	let fork_block = 516510; // target_block - reverted_blocks + 1;
 	let fork_hash = primitives::H256::from_str(
