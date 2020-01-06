@@ -295,6 +295,10 @@ pub fn kusama_grandpa_hotfix<Runtime, Dispatch>(
 	Runtime: Send + Sync,
 {
 	let authority_set = &persistent_data.authority_set;
+	let last_completed_round = persistent_data.set_state
+		.read()
+		.last_completed_round()
+		.number;
 
 	let finalized = {
 		use sp_blockchain::HeaderBackend;
@@ -303,9 +307,13 @@ pub fn kusama_grandpa_hotfix<Runtime, Dispatch>(
 	};
 
 	let canon_finalized_height = 516509;
-	if authority_set.set_id() == 235 && finalized.1 == canon_finalized_height {
-		let set_state = grandpa::VoterSetState::<Block>::live(
+	if authority_set.set_id() == 235 &&
+		last_completed_round < 999999 &&
+		finalized.1 == canon_finalized_height {
+
+		let set_state = grandpa::VoterSetState::<Block>::live_at(
 			authority_set.set_id(),
+			999999,
 			&authority_set.inner().read(),
 			finalized,
 		);
