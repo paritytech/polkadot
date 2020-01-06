@@ -12,6 +12,9 @@ set -e # fail on any error
 # give some context
 git log --graph --oneline --decorate=short -n 10
 
+# make sure the master branch is available in shallow clones
+git fetch --depth=${GIT_DEPTH:-100} origin master
+
 
 github_label () {
 	echo
