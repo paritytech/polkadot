@@ -77,12 +77,15 @@ pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()>
 		std::env::args(),
 	);
 
+	// TODO: Use `IsKusama` trait. #727
 	if cmd
 		.shared_params()
-		.map_or(true, ChainSpec::from(p.chain)
+		.and_then(|p| p.chain.as_ref())
+		.map_or(true, |p| ChainSpec::from(&p)
 			.map_or(false, |c| c.is_kusama())
 		)
 	{
+		info!("Native-executor: Using native Kusama runtime");
 		execute_cmd_with_runtime::<
 			service::kusama_runtime::RuntimeApi,
 			service::KusamaExecutor,
@@ -90,6 +93,7 @@ pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()>
 			_
 		>(exit, &version, cmd)
 	} else {
+		info!("Native-executor: Using native Polkadot runtime");
 		execute_cmd_with_runtime::<
 			service::polkadot_runtime::RuntimeApi,
 			service::PolkadotExecutor,
