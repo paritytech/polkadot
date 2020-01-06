@@ -76,11 +76,12 @@ pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()>
 		"parity-polkadot",
 		std::env::args(),
 	);
+
 	if cmd
 		.shared_params()
-		.and_then(|p| p.chain.as_ref())
-		.and_then(|c| ChainSpec::from(c))
-		.map_or(false, |c| c.is_kusama())
+		.map_or(true, ChainSpec::from(p.chain)
+			.map_or(false, |c| c.is_kusama())
+		)
 	{
 		execute_cmd_with_runtime::<
 			service::kusama_runtime::RuntimeApi,
