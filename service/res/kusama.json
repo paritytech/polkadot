@@ -26,6 +26,7 @@
   },
   "consensusEngine": null,
   "forkBlocks": null,
+  "badBlocks": null,
   "genesis": {
     "raw": [
       {
