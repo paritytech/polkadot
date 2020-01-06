@@ -283,11 +283,16 @@ fn run_collator_node<S, E, P, Extrinsic>(
 		S: AbstractService<Block = service::Block, NetworkSpecialization = service::PolkadotProtocol>,
 		sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi>: ProvideRuntimeApi<Block>,
 		<sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi> as ProvideRuntimeApi<Block>>::Api:
-			service::RuntimeApiCollection<Extrinsic, Error = sp_blockchain::Error, StateBackend = sc_client_api::StateBackendFor<S::Backend, Block>>,
+			service::RuntimeApiCollection<
+				Extrinsic,
+				Error = sp_blockchain::Error,
+				StateBackend = sc_client_api::StateBackendFor<S::Backend, Block>
+			>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
 		S::Backend: service::Backend<service::Block>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		<S::Backend as service::Backend<service::Block>>::State: sp_api::StateBackend<sp_runtime::traits::HasherFor<Block>>,
+		<S::Backend as service::Backend<service::Block>>::State:
+			sp_api::StateBackend<sp_runtime::traits::HasherFor<Block>>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
 		S::CallExecutor: service::CallExecutor<service::Block>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -296,7 +301,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 		P: BuildParachainContext,
 		P::ParachainContext: Send + 'static,
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
-	Extrinsic: service::Codec + Send + Sync + 'static,
+		Extrinsic: service::Codec + Send + Sync + 'static,
 {
 	let runtime = tokio::runtime::Runtime::new().map_err(|e| format!("{:?}", e))?;
 	let spawner = WrappedExecutor(service.spawn_task_handle());

@@ -214,7 +214,8 @@ pub fn new_chain_ops(config: Configuration<impl Send + Default + 'static, Genesi
 	-> Result<impl ServiceBuilderCommand<Block=Block>, ServiceError>
 where
 	Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
-	Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic, StateBackend = client_api::StateBackendFor<TFullBackend<Block>, Block>>,
+	Runtime::RuntimeApi:
+		RuntimeApiCollection<Extrinsic, StateBackend = client_api::StateBackendFor<TFullBackend<Block>, Block>>,
 	Dispatch: NativeExecutionDispatch + 'static,
 	Extrinsic: RuntimeExtrinsic,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
@@ -232,7 +233,8 @@ pub fn new_full(config: Configuration<CustomConfiguration, GenesisConfig>)
 	>, ServiceError>
 	where
 		Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
-		Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic, StateBackend = client_api::StateBackendFor<TFullBackend<Block>, Block>>,
+		Runtime::RuntimeApi:
+			RuntimeApiCollection<Extrinsic, StateBackend = client_api::StateBackendFor<TFullBackend<Block>, Block>>,
 		Dispatch: NativeExecutionDispatch + 'static,
 		Extrinsic: RuntimeExtrinsic,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -481,10 +483,20 @@ where
 	// Rust bug: https://github.com/rust-lang/rust/issues/43580
 	Runtime: sp_api::ConstructRuntimeApi<
 		Block,
-	Client<
-	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
-	sc_client::light::call_executor::GenesisCallExecutor<sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
-	sc_client::LocalCallExecutor<sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>, sc_executor::NativeExecutor<Dispatch>>>, Block, Runtime>>,
+		Client<
+			sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
+			sc_client::light::call_executor::GenesisCallExecutor<
+				sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
+				sc_client::LocalCallExecutor<
+					sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>,
+					sp_core::Blake2Hasher
+				>,
+				sc_executor::NativeExecutor<Dispatch>>
+			>,
+			Block,
+			Runtime
+		>
+	>,
 {
 	let inherent_data_providers = InherentDataProviders::new();
 
