@@ -141,7 +141,7 @@ where
 							exit.into_exit(),
 						),
 					_ => {
-						service::kusama_hotfix::<R, D>(&config);
+						service::kusama_chain_hotfix::<R, D>(&config);
 
 						run_until_exit(
 							runtime,

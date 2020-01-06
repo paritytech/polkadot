@@ -272,7 +272,7 @@ pub fn new_full_client<Runtime, Dispatch>(
 	service::new_full_client(config)
 }
 
-pub fn kusama_hotfix<Runtime, Dispatch>(config: &Configuration) where
+pub fn kusama_chain_hotfix<Runtime, Dispatch>(config: &Configuration) where
 	Dispatch: NativeExecutionDispatch,
 	Runtime: Send + Sync,
 {
@@ -292,6 +292,36 @@ pub fn kusama_hotfix<Runtime, Dispatch>(config: &Configuration) where
 	if target_hash == Some(fork_hash) {
 		let diff = best_number.saturating_sub(fork_block - 1);
 		client.unsafe_revert(diff).unwrap();
+	}
+}
+
+pub fn kusama_grandpa_hotfix<Runtime, Dispatch>(
+	client: &service::TFullClient<Block, Runtime, Dispatch>,
+	persistent_data: &mut grandpa::PersistentData<Block>,
+) where
+	Dispatch: NativeExecutionDispatch,
+	Runtime: Send + Sync,
+{
+	let authority_set = &persistent_data.authority_set;
+	let last_completed_round = persistent_data.set_state
+		.read()
+		.last_completed_round()
+		.number;
+
+	if authority_set.set_id() == 235 && last_completed_round > 15000 {
+		let finalized = {
+			use sp_blockchain::HeaderBackend;
+			let info = client.info();
+			(info.finalized_hash, info.finalized_number)
+		};
+
+		let set_state = grandpa::VoterSetState::<Block>::live(
+			authority_set.set_id(),
+			&authority_set.inner().read(),
+			finalized,
+		);
+
+		persistent_data.set_state = set_state.into();
 	}
 }
 
@@ -507,28 +537,10 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 
 	let enable_grandpa = !disable_grandpa;
 	if enable_grandpa {
-		let authority_set = &link_half.persistent_data.authority_set;
-		let last_completed_round = link_half.persistent_data.set_state
-			.read()
-			.last_completed_round()
-			.number;
-
-		// KUSAMA HOTFIX
-		if authority_set.set_id() == 235 && last_completed_round > 15000 {
-			let finalized = {
-				use sp_blockchain::HeaderBackend;
-				let info = client.info();
-				(info.finalized_hash, info.finalized_number)
-			};
-
-			let set_state = grandpa::VoterSetState::<Block>::live(
-				authority_set.set_id(),
-				&authority_set.inner().read(),
-				finalized,
-			);
-
-			link_half.persistent_data.set_state = set_state.into();
-		}
+		kusama_grandpa_hotfix(
+			&client,
+			&mut link_half.persistent_data,
+		);
 
 		// start the full GRANDPA voter
 		// NOTE: unlike in substrate we are currently running the full
