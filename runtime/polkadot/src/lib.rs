@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -273,11 +273,8 @@ pallet_staking_reward_curve::build! {
 
 parameter_types! {
 	// Six sessions in an era (24 hours).
-//	pub const SessionsPerEra: SessionIndex = 6;
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (28 days).
-	// KUSAMA: This value is 1/4 of what we expect for the mainnet, however session length is also
-	// a quarter, so the figure remains the same.
 	pub const BondingDuration: staking::EraIndex = 28;
 	pub const SlashDeferDuration: staking::EraIndex = 28;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
