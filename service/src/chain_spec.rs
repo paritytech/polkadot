@@ -20,7 +20,9 @@ use primitives::{Pair, Public, crypto::UncheckedInto, sr25519};
 use polkadot_primitives::{AccountId, AccountPublic, parachain::ValidatorId};
 use polkadot_runtime as polkadot;
 use polkadot_runtime::constants::currency::DOTS;
+use sc_chain_spec::ChainSpecExtension;
 use sp_runtime::{traits::IdentifyAccount, Perbill};
+use serde::{Serialize, Deserialize};
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
 use babe_primitives::AuthorityId as BabeId;
@@ -32,11 +34,25 @@ use pallet_staking::Forcing;
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
+/// Node `ChainSpec` extensions.
+///
+/// Additional parameters for some Substrate core modules,
+/// customizable from the chain spec.
+#[derive(Default, Clone, Serialize, Deserialize, ChainSpecExtension)]
+#[serde(rename_all = "camelCase")]
+pub struct Extensions {
+	/// Block numbers with known hashes.
+	pub fork_blocks: client::ForkBlocks<polkadot_primitives::Block>,
+}
+
 /// The `ChainSpec`.
 ///
 /// We use the same `ChainSpec` type for Polkadot and Kusama. As Kusama
 /// is only loaded from a file, the `GenesisConfig` type is not used.
-pub type ChainSpec = service::ChainSpec<polkadot::GenesisConfig>;
+pub type ChainSpec = service::ChainSpec<
+	polkadot::GenesisConfig,
+	Extensions,
+>;
 
 pub fn kusama_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_json_bytes(&include_bytes!("../res/kusama.json")[..])
@@ -214,7 +230,7 @@ pub fn staging_testnet_config() -> ChainSpec {
 		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Default::default(),
 	)
 }
 
@@ -361,7 +377,7 @@ pub fn development_config() -> ChainSpec {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Default::default(),
 	)
 }
 
@@ -386,6 +402,6 @@ pub fn local_testnet_config() -> ChainSpec {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Default::default(),
 	)
 }
