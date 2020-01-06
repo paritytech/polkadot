@@ -9,13 +9,13 @@ Implementation of a https://polkadot.network node in Rust.
 
 ## NOTE
 
-In 2017 we split our implementation of "Polkadot" from its platform-level component "Substrate". When we split them, we split the Polkadot code off into another repo (this repo), leaving the [**Substrate** repo][substrate-repo] to be what used to be Polkadot, along with its branches and releases.
+In 2018 we split our implementation of "Polkadot" from its platform-level component "Substrate". When we split them, we split the Polkadot code off into another repo (this repo), leaving the [**Substrate** repo][substrate-repo] to be what used to be Polkadot, along with its branches and releases.
 
 We are actively building both Substrate and Polkadot, but things will be a little odd for a while.  If you see "substrate" and are wondering why you need it for Polkadot, now you know.
 
 To connect on the "Kusama" canary network, you will want the `v0.7` code, which is in this **Polkadot** repo. To play on the ("Alexander") testnet, you'll want the PoC-4 code instead.  Note that PoC-3 uses the Alexander testnet, but will not be able to sync to the latest block.
 
-* **Kusama CC-3** is in this [**Polkadot**] repo `master` branch.
+* **Kusama** (né Kusama CC-3) is in this [**Polkadot**] repo `master` branch.
 
 * **Kusama CC-2** is in this [**Polkadot**][polkadot-v0.6] repo branch `v0.6`.
 
