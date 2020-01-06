@@ -7,20 +7,20 @@ edition = "2018"
 [dependencies]
 serde = { version = "1.0.102", optional = true, features = ["derive"] }
 parity-scale-codec = { version = "1.1.0", default-features = false, features = ["bit-vec", "derive"] }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-browser-utils" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-browser-utils" }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-browser-utils" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-browser-utils" }
+rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-browser-utils" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-browser-utils" }
 polkadot-parachain = { path = "../parachain", default-features = false }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-browser-utils" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-browser-utils" }
 
 [dev-dependencies]
-sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
 pretty_assertions = "0.5.1"
 
 [features]
