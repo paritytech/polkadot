@@ -85,7 +85,6 @@ pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()>
 			.map_or(false, |c| c.is_kusama())
 		)
 	{
-		info!("Native-executor: Using native Kusama runtime");
 		execute_cmd_with_runtime::<
 			service::kusama_runtime::RuntimeApi,
 			service::KusamaExecutor,
@@ -93,7 +92,6 @@ pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()>
 			_
 		>(exit, &version, cmd)
 	} else {
-		info!("Native-executor: Using native Polkadot runtime");
 		execute_cmd_with_runtime::<
 			service::polkadot_runtime::RuntimeApi,
 			service::PolkadotExecutor,
@@ -125,7 +123,7 @@ where
 				info!("{}", version.name);
 				info!("  version {}", config.full_version());
 				info!("  by {}, 2017-2019", version.author);
-				info!("Chain specification: {}", config.chain_spec.name());
+				info!("Chain specification: {} (native: {})", config.chain_spec.name(), D::native_version().runtime_version);
 				if config.is_kusama() {
 					info!("----------------------------");
 					info!("This chain is not in any way");
