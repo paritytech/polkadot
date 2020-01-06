@@ -140,11 +140,15 @@ where
 							service::new_light::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
 							exit.into_exit(),
 						),
-					_ => run_until_exit(
-						runtime,
-						service::new_full::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
-						exit.into_exit(),
-					),
+					_ => {
+						service::kusama_chain_hotfix::<R, D>(&config);
+
+						run_until_exit(
+							runtime,
+							service::new_full::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
+							exit.into_exit(),
+						)
+					},
 				}.map_err(|e| format!("{:?}", e))
 			}),
 			cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(&load_spec),

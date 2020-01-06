@@ -263,6 +263,57 @@ pub fn kusama_new_full(config: Configuration)
 	new_full(config)
 }
 
+pub fn kusama_chain_hotfix<Runtime, Dispatch>(config: &Configuration) where
+	Dispatch: NativeExecutionDispatch,
+	Runtime: Send + Sync,
+{
+	use std::str::FromStr;
+	use sp_blockchain::HeaderBackend;
+
+	let client: service::TFullClient<Block, Runtime, Dispatch> =
+		service::new_full_client(&config).unwrap();
+
+	let fork_block = 516510; // target_block - reverted_blocks + 1;
+	let fork_hash = primitives::H256::from_str(
+		"15b1b925b0aa5cfe43c88cd024f74258cb5cfe3af424882c901014e8acd0d241",
+	).unwrap();
+
+	let best_number = client.info().best_number;
+	let target_hash = client.hash(fork_block).unwrap();
+
+	if target_hash == Some(fork_hash) {
+		let diff = best_number.saturating_sub(fork_block - 1);
+		client.unsafe_revert(diff).unwrap();
+	}
+}
+
+pub fn kusama_grandpa_hotfix<Runtime, Dispatch>(
+	client: &service::TFullClient<Block, Runtime, Dispatch>,
+	persistent_data: &mut grandpa::PersistentData<Block>,
+) where
+	Dispatch: NativeExecutionDispatch,
+	Runtime: Send + Sync,
+{
+	let authority_set = &persistent_data.authority_set;
+
+	let finalized = {
+		use sp_blockchain::HeaderBackend;
+		let info = client.info();
+		(info.finalized_hash, info.finalized_number)
+	};
+
+	let canon_finalized_height = 516509;
+	if authority_set.set_id() == 235 && finalized.1 == canon_finalized_height {
+		let set_state = grandpa::VoterSetState::<Block>::live(
+			authority_set.set_id(),
+			&authority_set.inner().read(),
+			finalized,
+		);
+
+		persistent_data.set_state = set_state.into();
+	}
+}
+
 /// Builds a new service for a full client.
 pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	-> Result<impl AbstractService<
@@ -315,7 +366,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		)?
 		.build()?;
 
-	let (block_import, link_half, babe_link) = import_setup.take()
+	let (block_import, mut link_half, babe_link) = import_setup.take()
 		.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
 
 	let client = service.client();
@@ -411,7 +462,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		let can_author_with =
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
-
 		let block_import = availability_store.block_import(
 			block_import,
 			client.clone(),
@@ -477,6 +527,11 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 
 	let enable_grandpa = !disable_grandpa;
 	if enable_grandpa {
+		kusama_grandpa_hotfix(
+			&client,
+			&mut link_half.persistent_data,
+		);
+
 		// start the full GRANDPA voter
 		// NOTE: unlike in substrate we are currently running the full
 		// GRANDPA voter protocol for all full nodes (regardless of whether
@@ -493,6 +548,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 			voting_rule: grandpa::VotingRulesBuilder::default().build(),
 			executor: service.spawn_task_handle(),
 		};
+
 		service.spawn_essential_task(grandpa::run_grandpa_voter(grandpa_config)?);
 	} else {
 		grandpa::setup_disabled_grandpa(

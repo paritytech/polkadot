@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.7.10"
+version = "0.7.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -41,7 +41,7 @@ babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate
 randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-trie-db = "0.16.0"
+trie-db = "0.18.0"
 serde_json = "1.0.41"
 
 [features]

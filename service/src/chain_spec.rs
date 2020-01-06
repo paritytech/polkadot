@@ -43,6 +43,8 @@ const DEFAULT_PROTOCOL_ID: &str = "dot";
 pub struct Extensions {
 	/// Block numbers with known hashes.
 	pub fork_blocks: client::ForkBlocks<polkadot_primitives::Block>,
+	/// Known bad block hashes.
+	pub bad_blocks: client::BadBlocks<polkadot_primitives::Block>,
 }
 
 /// The `ChainSpec`.
