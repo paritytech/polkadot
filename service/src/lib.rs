@@ -294,20 +294,50 @@ pub fn kusama_grandpa_hotfix<Runtime, Dispatch>(
 	Dispatch: NativeExecutionDispatch,
 	Runtime: Send + Sync,
 {
+	use std::str::FromStr;
+	use sp_blockchain::HeaderBackend;
+
 	let authority_set = &persistent_data.authority_set;
+	let last_completed_round = persistent_data.set_state
+		.read()
+		.last_completed_round()
+		.number;
+
+	let canon_finalized_block = 516509;
+	let canon_finalized_hash = primitives::H256::from_str(
+		"f432b7655a848094e6c67f8064ea642bd18f5cf184e1cf9f05a1a9886dd8b9cc",
+	).unwrap();
 
 	let finalized = {
-		use sp_blockchain::HeaderBackend;
 		let info = client.info();
 		(info.finalized_hash, info.finalized_number)
 	};
 
-	let canon_finalized_height = 516509;
-	if authority_set.set_id() == 235 && finalized.1 == canon_finalized_height {
-		let set_state = grandpa::VoterSetState::<Block>::live(
+	// our finalized block is lower than the fork block, nothing to do
+	if finalized.1 < canon_finalized_block {
+		return;
+	}
+
+	// we have finalized past the fork block, we need to make sure we're on the
+	// correct fork (should be guaranteed by the previous chain revert)
+	if finalized.1 >= canon_finalized_block {
+		assert_eq!(
+			client.hash(canon_finalized_block).unwrap().unwrap(),
+			canon_finalized_hash,
+		);
+	}
+
+	// assuming the previous preconditions, if we are in any previous grandpa
+	// round then we restart at the given reset round.
+	let grandpa_reset_round = 999999;
+	if authority_set.set_id() == 235 &&
+		last_completed_round < grandpa_reset_round
+	{
+		let set_state = grandpa::VoterSetState::<Block>::live_at(
 			authority_set.set_id(),
+			grandpa_reset_round,
 			&authority_set.inner().read(),
-			finalized,
+			(canon_finalized_hash, canon_finalized_block),
 		);
 
 		persistent_data.set_state = set_state.into();
