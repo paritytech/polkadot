@@ -84,7 +84,11 @@ pub struct CustomConfiguration {
 /// Configuration type that is being used.
 ///
 /// See [`ChainSpec`] for more information why Polkadot `GenesisConfig` is safe here.
-pub type Configuration = service::Configuration<CustomConfiguration, polkadot_runtime::GenesisConfig>;
+pub type Configuration = service::Configuration<
+	CustomConfiguration,
+	polkadot_runtime::GenesisConfig,
+	chain_spec::Extensions,
+>;
 
 impl Default for CustomConfiguration {
 	fn default() -> Self {
