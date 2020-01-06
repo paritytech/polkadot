@@ -27,6 +27,7 @@ use chain_spec::ChainSpec;
 use futures::{
 	Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Future01CompatExt,
 };
+#[cfg(not(target_os = "unknown"))]
 use tokio::runtime::Runtime;
 use log::info;
 use structopt::StructOpt;
@@ -70,6 +71,7 @@ struct PolkadotSubParams {
 }
 
 /// Parses polkadot specific CLI arguments and run the service.
+#[cfg(not(target_os = "unknown"))]
 pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()> {
 	let cmd = cli::parse_and_prepare::<PolkadotSubCommands, PolkadotSubParams, _>(
 		&version,
@@ -99,6 +101,7 @@ pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()>
 }
 
 /// Execute the given `cmd` with the given runtime.
+#[cfg(not(target_os = "unknown"))]
 fn execute_cmd_with_runtime<R, D, E, X>(
 	exit: X,
 	version: &cli::VersionInfo,
@@ -170,6 +173,7 @@ where
 }
 
 /// Run the given `service` using the `runtime` until it exits or `e` fires.
+#[cfg(not(target_os = "unknown"))]
 pub fn run_until_exit(
 	mut runtime: Runtime,
 	service: impl AbstractService,

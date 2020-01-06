@@ -35,7 +35,7 @@ consensus_common = { package = "sp-consensus", git = "https://github.com/parityt
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
 grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
