@@ -27,14 +27,6 @@ kvdb-web = { version = "0.1.1", optional = true }
 substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true, default-features = false }
 substrate-network = { package = "sc-network", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
 
-## needed for temporary chain revert fix
-polkadot-primitives = { path = "../primitives" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-
 # Imported just for the `wasm-bindgen` feature
 rand = { version = "0.7", features = ["wasm-bindgen"], optional = true }
 rand6 = { package = "rand", version = "0.6.5", features = ["wasm-bindgen"], optional = true }
