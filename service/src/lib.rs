@@ -307,13 +307,14 @@ pub fn kusama_grandpa_hotfix<Runtime, Dispatch>(
 	};
 
 	let canon_finalized_height = 516509;
+	let grandpa_reset_round = 999999;
 	if authority_set.set_id() == 235 &&
-		last_completed_round < 999999 &&
+		last_completed_round < grandpa_reset_round &&
 		finalized.1 == canon_finalized_height {
 
 		let set_state = grandpa::VoterSetState::<Block>::live_at(
 			authority_set.set_id(),
-			999999,
+			grandpa_reset_round,
 			&authority_set.inner().read(),
 			finalized,
 		);
