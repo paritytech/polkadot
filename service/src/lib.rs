@@ -295,18 +295,15 @@ pub fn kusama_grandpa_hotfix<Runtime, Dispatch>(
 	Runtime: Send + Sync,
 {
 	let authority_set = &persistent_data.authority_set;
-	let last_completed_round = persistent_data.set_state
-		.read()
-		.last_completed_round()
-		.number;
 
-	if authority_set.set_id() == 235 && last_completed_round > 15000 {
-		let finalized = {
-			use sp_blockchain::HeaderBackend;
-			let info = client.info();
-			(info.finalized_hash, info.finalized_number)
-		};
+	let finalized = {
+		use sp_blockchain::HeaderBackend;
+		let info = client.info();
+		(info.finalized_hash, info.finalized_number)
+	};
 
+	let canon_finalized_height = 516509;
+	if authority_set.set_id() == 235 && finalized.1 == canon_finalized_height {
 		let set_state = grandpa::VoterSetState::<Block>::live(
 			authority_set.set_id(),
 			&authority_set.inner().read(),
