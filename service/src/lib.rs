@@ -158,9 +158,9 @@ pub trait IsKusama {
 	fn is_kusama(&self) -> bool;
 }
 
-impl IsKusama for Configuration {
+impl IsKusama for ChainSpec {
 	fn is_kusama(&self) -> bool {
-		self.chain_spec.name().starts_with("Kusama")
+		self.name().starts_with("Kusama")
 	}
 }
 
