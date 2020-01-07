@@ -158,7 +158,7 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 		sc_executor::WasmExecutionMethod::Interpreted,
 		&mut ext,
 		validation_code,
-		// TODO: Make sure we don't use more than 1GB
+		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
 		1024,
 	)?;
 
@@ -171,79 +171,79 @@ struct ValidationExternalities(ParachainExt);
 
 impl sp_externalities::Externalities for ValidationExternalities {
 	fn storage(&self, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("storage: unsupported feature for parachain validation")
 	}
 
 	fn storage_hash(&self, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("storage_hash: unsupported feature for parachain validation")
 	}
 
 	fn child_storage_hash(&self, _: ChildStorageKey, _: ChildInfo, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("child_storage_hash: unsupported feature for parachain validation")
 	}
 
 	fn original_storage(&self, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("original_sorage: unsupported feature for parachain validation")
 	}
 
 	fn original_child_storage(&self, _: ChildStorageKey, _: ChildInfo, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("original_child_storage: unsupported feature for parachain validation")
 	}
 
 	fn original_storage_hash(&self, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("original_storage_hash: unsupported feature for parachain validation")
 	}
 
 	fn original_child_storage_hash(&self, _: ChildStorageKey, _: ChildInfo, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("original_child_storage_hash: unsupported feature for parachain validation")
 	}
 
 	fn child_storage(&self, _: ChildStorageKey, _: ChildInfo, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("child_storage: unsupported feature for parachain validation")
 	}
 
 	fn kill_child_storage(&mut self, _: ChildStorageKey, _: ChildInfo) {
-		panic!("Unsupported feature for parachain validation")
+		panic!("kill_child_storage: unsupported feature for parachain validation")
 	}
 
 	fn clear_prefix(&mut self, _: &[u8]) {
-		panic!("Unsupported feature for parachain validation")
+		panic!("clear_prefix: unsupported feature for parachain validation")
 	}
 
 	fn clear_child_prefix(&mut self, _: ChildStorageKey, _: ChildInfo, _: &[u8]) {
-		panic!("Unsupported feature for parachain validation")
+		panic!("clear_child_prefix: unsupported feature for parachain validation")
 	}
 
 	fn place_storage(&mut self, _: Vec<u8>, _: Option<Vec<u8>>) {
-		panic!("Unsupported feature for parachain validation")
+		panic!("place_storage: unsupported feature for parachain validation")
 	}
 
 	fn place_child_storage(&mut self, _: ChildStorageKey, _: ChildInfo, _: Vec<u8>, _: Option<Vec<u8>>) {
-		panic!("Unsupported feature for parachain validation")
+		panic!("place_child_storage: unsupported feature for parachain validation")
 	}
 
 	fn chain_id(&self) -> u64 {
-		panic!("Unsupported feature for parachain validation")
+		panic!("chain_id: unsupported feature for parachain validation")
 	}
 
 	fn storage_root(&mut self) -> Vec<u8> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("storage_root: unsupported feature for parachain validation")
 	}
 
 	fn child_storage_root(&mut self, _: ChildStorageKey) -> Vec<u8> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("child_storage_root: unsupported feature for parachain validation")
 	}
 
 	fn storage_changes_root(&mut self, _: &[u8]) -> Result<Option<Vec<u8>>, ()> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("storage_changes_root: unsupported feature for parachain validation")
 	}
 
 	fn next_child_storage_key(&self, _: ChildStorageKey, _: ChildInfo, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("next_child_storage_key: unsupported feature for parachain validation")
 	}
 
 	fn next_storage_key(&self, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("Unsupported feature for parachain validation")
+		panic!("next_storage_key: unsupported feature for parachain validation")
 	}
 }
 
