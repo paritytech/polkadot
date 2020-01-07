@@ -27,7 +27,6 @@ use chain_spec::ChainSpec;
 use futures::{
 	Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Future01CompatExt,
 };
-#[cfg(feature = "cli")]
 use tokio::runtime::Runtime;
 use log::info;
 use structopt::StructOpt;
@@ -37,8 +36,8 @@ pub use service::{
 	WrappedExecutor
 };
 
-pub use sc_cli::{VersionInfo, IntoExit, NoCustom, SharedParams};
-pub use sc_cli::{display_role, error};
+pub use cli::{VersionInfo, IntoExit, NoCustom, SharedParams};
+pub use cli::{display_role, error};
 
 /// Load the `ChainSpec` for the given `id`.
 pub fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
@@ -54,8 +53,8 @@ enum PolkadotSubCommands {
 	ValidationWorker(ValidationWorkerCommand),
 }
 
-impl sc_cli::GetSharedParams for PolkadotSubCommands {
-	fn shared_params(&self) -> Option<&sc_cli::SharedParams> { None }
+impl cli::GetSharedParams for PolkadotSubCommands {
+	fn shared_params(&self) -> Option<&cli::SharedParams> { None }
 }
 
 #[derive(Debug, StructOpt, Clone)]
@@ -71,9 +70,8 @@ struct PolkadotSubParams {
 }
 
 /// Parses polkadot specific CLI arguments and run the service.
-#[cfg(feature = "cli")]
-pub fn run<E: IntoExit>(exit: E, version: sc_cli::VersionInfo) -> error::Result<()> {
-	let cmd = sc_cli::parse_and_prepare::<PolkadotSubCommands, PolkadotSubParams, _>(
+pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()> {
+	let cmd = cli::parse_and_prepare::<PolkadotSubCommands, PolkadotSubParams, _>(
 		&version,
 		"parity-polkadot",
 		std::env::args(),
@@ -81,7 +79,7 @@ pub fn run<E: IntoExit>(exit: E, version: sc_cli::VersionInfo) -> error::Result<
 
 	// Preload spec to select native runtime
 	let spec = match cmd.shared_params() {
-		Some(params) => Some(sc_cli::load_spec(params, &load_spec)?),
+		Some(params) => Some(cli::load_spec(params, &load_spec)?),
 		None => None,
 	};
 	if spec.as_ref().map_or(false, |c| c.is_kusama()) {
@@ -102,11 +100,10 @@ pub fn run<E: IntoExit>(exit: E, version: sc_cli::VersionInfo) -> error::Result<
 }
 
 /// Execute the given `cmd` with the given runtime.
-#[cfg(feature = "cli")]
 fn execute_cmd_with_runtime<R, D, E, X>(
 	exit: X,
-	version: &sc_cli::VersionInfo,
-	cmd: sc_cli::ParseAndPrepare<PolkadotSubCommands, PolkadotSubParams>,
+	version: &cli::VersionInfo,
+	cmd: cli::ParseAndPrepare<PolkadotSubCommands, PolkadotSubParams>,
 	spec: Option<service::ChainSpec>,
 ) -> error::Result<()>
 where
@@ -123,7 +120,7 @@ where
 	// Use preloaded spec
 	let load_spec = |_: &str| Ok(spec);
 	match cmd {
-		sc_cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, exit,
+		cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, exit,
 			|exit, _cli_args, custom_args, mut config| {
 				info!("{}", version.name);
 				info!("  version {}", config.full_version());
@@ -159,17 +156,17 @@ where
 					},
 				}.map_err(|e| format!("{:?}", e))
 			}),
-			sc_cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(load_spec),
-			sc_cli::ParseAndPrepare::ExportBlocks(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
+			cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(load_spec),
+			cli::ParseAndPrepare::ExportBlocks(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
 				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec, exit),
-			sc_cli::ParseAndPrepare::ImportBlocks(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
+			cli::ParseAndPrepare::ImportBlocks(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
 				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec, exit),
-			sc_cli::ParseAndPrepare::CheckBlock(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
+			cli::ParseAndPrepare::CheckBlock(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
 				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec, exit),
-			sc_cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
-			sc_cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<_, _, _, _, _, _>(|config|
+			cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
+			cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<_, _, _, _, _, _>(|config|
 				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec),
-			sc_cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
+			cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
 				if cfg!(feature = "browser") {
 					Err(error::Error::Input("Cannot run validation worker in browser".into()))
 				} else {
@@ -182,7 +179,6 @@ where
 }
 
 /// Run the given `service` using the `runtime` until it exits or `e` fires.
-#[cfg(feature = "cli")]
 pub fn run_until_exit(
 	mut runtime: Runtime,
 	service: impl AbstractService,
@@ -191,7 +187,7 @@ pub fn run_until_exit(
 	let (exit_send, exit) = oneshot::channel();
 
 	let executor = runtime.executor();
-	let informant = sc_cli::informant::build(&service);
+	let informant = cli::informant::build(&service);
 	let future = select(exit, informant)
 		.map(|_| Ok(()))
 		.compat();

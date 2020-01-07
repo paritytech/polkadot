@@ -22,8 +22,7 @@
 use polkadot_primitives::{Hash, parachain::{ValidatorId}};
 use crate::collator_pool::Role;
 use std::collections::{HashMap, HashSet};
-use std::time::Duration;
-use wasm_timer::Instant;
+use std::time::{Duration, Instant};
 
 const LIVE_FOR: Duration = Duration::from_secs(60 * 5);
 
