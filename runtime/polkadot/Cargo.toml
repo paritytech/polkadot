@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.7.10"
+version = "0.7.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -20,11 +20,9 @@ sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-pol
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
 offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
 rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
 sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
 sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
-sp-serializer = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
 sp-session = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
 version = { package = "sp-version", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
 tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
@@ -58,8 +56,9 @@ system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "http
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
 
-primitives = { package = "polkadot-primitives", path = "../primitives", default-features = false }
-polkadot-parachain = { path = "../parachain", default-features = false }
+runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
+primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
@@ -92,7 +91,6 @@ std = [
 	"block-builder-api/std",
 	"offchain-primitives/std",
 	"rstd/std",
-	"sp-io/std",
 	"frame-support/std",
 	"authorship/std",
 	"balances/std",
@@ -127,4 +125,5 @@ std = [
 	"babe-primitives/std",
 	"sp-session/std",
 	"randomness-collective-flip/std",
+	"runtime-common/std",
 ]

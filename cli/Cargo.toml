@@ -12,7 +12,7 @@ crate-type = ["cdylib", "rlib"]
 log = "0.4.8"
 futures = { version = "0.3.1", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
-structopt = "0.3.4"
+structopt = "=0.3.7"
 cli = { package = "sc-cli", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
 
@@ -29,8 +29,8 @@ default = [ "wasmtime", "rocksdb" ]
 wasmtime = [ "cli/wasmtime" ]
 rocksdb = [ "service/rocksdb" ]
 browser = [
-	"browser-utils",
 	"wasm-bindgen",
 	"wasm-bindgen-futures",
+	"browser-utils",
 	"substrate-service",
 ]

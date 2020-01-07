@@ -1,4 +1,4 @@
-// Copyright 2019 Parity Technologies (UK) Ltd.
+// Copyright 2019-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 use crate::{HeadData, BlockData};
 use core::{intrinsics, panic};
 use parachain::ValidationResult;
-use codec::{Encode, Decode};
+use parachain::codec::{Encode, Decode};
 
 #[panic_handler]
 #[no_mangle]
@@ -38,8 +38,8 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 }
 
 #[no_mangle]
-pub extern fn validate_block(params: *const u8, len: usize) -> u64 {
-	let params = unsafe { parachain::load_params(params, len) };
+pub extern fn validate_block(params: *const u8, len: usize) -> usize {
+	let params = unsafe { parachain::wasm_api::load_params(params, len) };
 	let parent_head = HeadData::decode(&mut &params.parent_head[..])
 		.expect("invalid parent head format.");
 
@@ -55,8 +55,8 @@ pub extern fn validate_block(params: *const u8, len: usize) -> u64 {
 	);
 
 	match crate::execute(parent_hash, parent_head, &block_data, from_messages) {
-		Ok(new_head) => parachain::write_result(
-			&ValidationResult { head_data: new_head.encode() }
+		Ok(new_head) => parachain::wasm_api::write_result(
+			ValidationResult { head_data: new_head.encode() }
 		),
 		Err(_) => panic!("execution failure"),
 	}

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-network"
-version = "0.7.10"
+version = "0.7.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot-specific networking protocol"
 edition = "2018"
@@ -20,9 +20,9 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley
 futures = "0.3.1"
 log = "0.4.8"
 exit-future = "0.2.0"
-wasm-timer = "0.2.4"
 sc-client = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+wasm-timer = "0.2.4"
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }

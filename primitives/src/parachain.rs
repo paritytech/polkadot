@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -28,17 +28,22 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use primitives::bytes;
 use primitives::RuntimeDebug;
+use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
 #[cfg(feature = "std")]
 use trie::TrieConfiguration;
 
 pub use polkadot_parachain::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, TargetedMessage,
+	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage,
 };
 
 /// The key type ID for a collator key.
 pub const COLLATOR_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"coll");
+
+/// An identifier for inherent data that provides new minimally-attested
+/// parachain heads.
+pub const NEW_HEADS_IDENTIFIER: InherentIdentifier = *b"newheads";
 
 mod collator_app {
 	use application_crypto::{app_crypto, sr25519};
@@ -157,6 +162,36 @@ pub enum Chain {
 pub struct DutyRoster {
 	/// Lookup from validator index to chain on which that validator has a duty to validate.
 	pub validator_duty: Vec<Chain>,
+}
+
+/// A message targeted to a specific parachain.
+#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
+#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
+pub struct TargetedMessage {
+	/// The target parachain.
+	pub target: Id,
+	/// The message data.
+	pub data: Vec<u8>,
+}
+
+impl AsRef<[u8]> for TargetedMessage {
+	fn as_ref(&self) -> &[u8] {
+		&self.data[..]
+	}
+}
+
+impl PartialOrd for TargetedMessage {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.target.cmp(&other.target))
+	}
+}
+
+impl Ord for TargetedMessage {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.target.cmp(&other.target)
+	}
 }
 
 /// Outgoing message data for a parachain candidate.

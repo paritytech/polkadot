@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,7 +18,8 @@
 
 use polkadot_parachain as parachain;
 
-use crate::{DummyExt, parachain::{IncomingMessage, ValidationParams}};
+use crate::parachain::{IncomingMessage, ValidationParams};
+use crate::DummyExt;
 use codec::{Decode, Encode};
 
 /// Head data for this parachain.
@@ -77,7 +78,7 @@ pub fn execute_good_on_parent() {
 			block_data: block_data.encode(),
 			ingress: Vec::new(),
 		},
-		DummyExt,
+		&mut DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap();
 
@@ -113,7 +114,7 @@ fn execute_good_chain_on_parent() {
 				block_data: block_data.encode(),
 				ingress: Vec::new(),
 			},
-			DummyExt,
+			&mut DummyExt,
 			parachain::wasm_executor::ExecutionMode::RemoteTest,
 		).unwrap();
 
@@ -149,7 +150,7 @@ fn execute_bad_on_parent() {
 			block_data: block_data.encode(),
 			ingress: Vec::new(),
 		},
-		DummyExt,
+		&mut DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap_err();
 }
@@ -181,7 +182,7 @@ fn processes_messages() {
 				IncomingMessage { source: 3.into(), data: (AddMessage { amount: 256 }).encode() },
 			],
 		},
-		DummyExt,
+		&mut DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap();
 

@@ -25,6 +25,7 @@
     "tokenSymbol": "KSM"
   },
   "consensusEngine": null,
+  "forkBlocks": null,
   "genesis": {
     "raw": [
       {

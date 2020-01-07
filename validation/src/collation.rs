@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -21,23 +21,17 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::{
-	BlakeTwo256, Block, Hash, HashT, BlockId, Balance,
-	parachain::{
-		CollatorId, ConsolidatedIngress, StructuredUnroutedIngress, CandidateReceipt, CollationInfo,
-		ParachainHost, Id as ParaId, Collation, OutgoingMessages, FeeSchedule, ErasureChunk,
-		HeadData, PoVBlock,
-	},
-};
-use polkadot_erasure_coding as erasure;
+use polkadot_primitives::{BlakeTwo256, Block, Hash, HashT, BlockId, Balance, parachain::{
+	CollatorId, ConsolidatedIngress, StructuredUnroutedIngress, CandidateReceipt, CollationInfo, ParachainHost,
+	Id as ParaId, Collation, TargetedMessage, OutgoingMessages, UpwardMessage, FeeSchedule, ErasureChunk,
+	HeadData, PoVBlock,
+}};
+use polkadot_erasure_coding::{self as erasure};
 use runtime_primitives::traits::ProvideRuntimeApi;
-use parachain::{
-	wasm_executor::{self, ExecutionMode}, TargetedMessage, UpwardMessage,
-};
+use parachain::{wasm_executor::{self, ExternalitiesError, ExecutionMode}, MessageRef, UpwardMessageRef};
 use trie::TrieConfiguration;
 use futures::prelude::*;
 use log::debug;
-use parking_lot::Mutex;
 
 /// Encapsulates connections to collators and allows collation on any parachain.
 ///
@@ -245,7 +239,7 @@ fn check_egress(
 	Ok(OutgoingMessages { outgoing_messages: outgoing })
 }
 
-struct ExternalitiesInner {
+struct Externalities {
 	parachain_index: ParaId,
 	outgoing: Vec<TargetedMessage>,
 	upward: Vec<UpwardMessage>,
@@ -254,44 +248,41 @@ struct ExternalitiesInner {
 	fee_schedule: FeeSchedule,
 }
 
-impl wasm_executor::Externalities for ExternalitiesInner {
-	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String> {
-		if message.target == self.parachain_index {
-			return Err("posted message to self".into())
+impl wasm_executor::Externalities for Externalities {
+	fn post_message(&mut self, message: MessageRef) -> Result<(), ExternalitiesError> {
+		let target: ParaId = message.target.into();
+		if target == self.parachain_index {
+			return Err(ExternalitiesError::CannotPostMessage("posted message to self"));
 		}
 
 		self.apply_message_fee(message.data.len())?;
-		self.outgoing.push(message);
+		self.outgoing.push(TargetedMessage {
+			target,
+			data: message.data.to_vec(),
+		});
 
 		Ok(())
 	}
 
-	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
+	fn post_upward_message(&mut self, message: UpwardMessageRef)
+		-> Result<(), ExternalitiesError>
+	{
 		self.apply_message_fee(message.data.len())?;
 
-		self.upward.push(message);
-
+		self.upward.push(UpwardMessage {
+			origin: message.origin,
+			data: message.data.to_vec(),
+		});
 		Ok(())
 	}
 }
 
-impl ExternalitiesInner {
-	fn new(parachain_index: ParaId, free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
-		Self {
-			parachain_index,
-			free_balance,
-			fee_schedule,
-			fees_charged: 0,
-			upward: Vec::new(),
-			outgoing: Vec::new(),
-		}
-	}
-
-	fn apply_message_fee(&mut self, message_len: usize) -> Result<(), String> {
+impl Externalities {
+	fn apply_message_fee(&mut self, message_len: usize) -> Result<(), ExternalitiesError> {
 		let fee = self.fee_schedule.compute_fee(message_len);
 		let new_fees_charged = self.fees_charged.saturating_add(fee);
 		if new_fees_charged > self.free_balance {
-			Err("could not cover fee.".into())
+			Err(ExternalitiesError::CannotPostMessage("could not cover fee."))
 		} else {
 			self.fees_charged = new_fees_charged;
 			Ok(())
@@ -300,7 +291,7 @@ impl ExternalitiesInner {
 
 	// Performs final checks of validity, producing the outgoing message data.
 	fn final_checks(
-		&mut self,
+		self,
 		upward_messages: &[UpwardMessage],
 		egress_queue_roots: &[(ParaId, Hash)],
 		fees_charged: Option<Balance>,
@@ -322,32 +313,11 @@ impl ExternalitiesInner {
 		}
 
 		let messages = check_egress(
-			std::mem::replace(&mut self.outgoing, Vec::new()),
+			self.outgoing,
 			&egress_queue_roots[..],
 		)?;
 
 		Ok((messages, self.fees_charged))
-	}
-}
-
-#[derive(Clone)]
-struct Externalities(Arc<Mutex<ExternalitiesInner>>);
-
-impl Externalities {
-	fn new(parachain_index: ParaId, free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
-		Self(Arc::new(Mutex::new(
-			ExternalitiesInner::new(parachain_index, free_balance, fee_schedule)
-		)))
-	}
-}
-
-impl wasm_executor::Externalities for Externalities {
-	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String> {
-		self.0.lock().post_message(message)
-	}
-
-	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
-		self.0.lock().post_upward_message(message)
 	}
 }
 
@@ -455,17 +425,19 @@ fn do_validation<P>(
 			.collect()
 	};
 
-	let ext = Externalities::new(para_id.clone(), chain_status.balance, chain_status.fee_schedule);
+	let mut ext = Externalities {
+		parachain_index: para_id.clone(),
+		outgoing: Vec::new(),
+		upward: Vec::new(),
+		free_balance: chain_status.balance,
+		fee_schedule: chain_status.fee_schedule,
+		fees_charged: 0,
+	};
 
-	match wasm_executor::validate_candidate(
-		&validation_code,
-		params,
-		ext.clone(),
-		ExecutionMode::Remote,
-	) {
+	match wasm_executor::validate_candidate(&validation_code, params, &mut ext, ExecutionMode::Remote) {
 		Ok(result) => {
 			if result.head_data == head_data.0 {
-				let (messages, fees) = ext.0.lock().final_checks(
+				let (messages, fees) = ext.final_checks(
 					upward_messages,
 					queue_roots,
 					fees_charged
@@ -662,7 +634,7 @@ mod tests {
 
 	#[test]
 	fn ext_rejects_local_message() {
-		let mut ext = ExternalitiesInner {
+		let mut ext = Externalities {
 			parachain_index: 5.into(),
 			outgoing: Vec::new(),
 			upward: Vec::new(),
@@ -674,13 +646,13 @@ mod tests {
 			},
 		};
 
-		assert!(ext.post_message(TargetedMessage { target: 1.into(), data: Vec::new() }).is_ok());
-		assert!(ext.post_message(TargetedMessage { target: 5.into(), data: Vec::new() }).is_err());
+		assert!(ext.post_message(MessageRef { target: 1.into(), data: &[] }).is_ok());
+		assert!(ext.post_message(MessageRef { target: 5.into(), data: &[] }).is_err());
 	}
 
 	#[test]
 	fn ext_checks_upward_messages() {
-		let ext = || ExternalitiesInner {
+		let ext = || Externalities {
 			parachain_index: 5.into(),
 			outgoing: Vec::new(),
 			upward: vec![
@@ -770,7 +742,7 @@ mod tests {
 
 	#[test]
 	fn ext_checks_fees_and_updates_correctly() {
-		let mut ext = ExternalitiesInner {
+		let mut ext = Externalities {
 			parachain_index: 5.into(),
 			outgoing: Vec::new(),
 			upward: vec![
@@ -787,15 +759,15 @@ mod tests {
 		ext.apply_message_fee(100).unwrap();
 		assert_eq!(ext.fees_charged, 2000);
 
-		ext.post_message(TargetedMessage {
+		ext.post_message(MessageRef {
 			target: 1.into(),
-			data: vec![0u8; 100],
+			data: &[0u8; 100],
 		}).unwrap();
 		assert_eq!(ext.fees_charged, 4000);
 
-		ext.post_upward_message(UpwardMessage {
+		ext.post_upward_message(UpwardMessageRef {
 			origin: ParachainDispatchOrigin::Signed,
-			data: vec![0u8; 100],
+			data: &[0u8; 100],
 		}).unwrap();
 		assert_eq!(ext.fees_charged, 6000);
 

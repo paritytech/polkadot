@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,14 +20,6 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit="256"]
 
-mod attestations;
-mod claims;
-mod parachains;
-mod slot_range;
-mod registrar;
-mod slots;
-mod crowdfund;
-
 use rstd::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
@@ -35,6 +27,12 @@ use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	parachain::{self, ActiveParas, CandidateReceipt}, ValidityError,
 };
+use runtime_common::{attestations, claims, parachains, registrar, slots,
+	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor, WeightToFee},
+	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
+	MaximumBlockLength,
+};
+
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, Permill, Perbill, RuntimeDebug,
@@ -49,8 +47,8 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Currency, Randomness},
-	weights::{Weight, DispatchInfo},
+	parameter_types, construct_runtime, traits::{SplitTwoWays, Randomness},
+	weights::DispatchInfo,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -64,11 +62,7 @@ pub use sp_runtime::BuildStorage;
 pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
 pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
-pub use parachains::{Call as ParachainsCall, NEW_HEADS_IDENTIFIER};
-
-/// Implementations of some helper traits passed into runtime modules as associated types.
-pub mod impls;
-use impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor, WeightToFee};
+pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -78,26 +72,13 @@ use constants::{time::*, currency::*};
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-/*
-// KUSAMA: Polkadot version identifier; may be uncommented for Polkadot mainnet.
-/// Runtime version (Polkadot).
-pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("polkadot"),
-	impl_name: create_runtime_str!("parity-polkadot"),
-	authoring_version: 1,
-	spec_version: 1000,
-	impl_version: 0,
-	apis: RUNTIME_API_VERSIONS,
-};
-*/
-
-// KUSAMA: Kusama version identifier; may be removed for Polkadot mainnet.
+// Kusama version identifier;
 /// Runtime version (Kusama).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1032,
+	spec_version: 1034,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -111,13 +92,10 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
-/// Avoid processing transactions that are anything except staking and claims.
-///
-/// RELEASE: This is only relevant for the initial PoA run-in period and may be removed
-/// from the release runtime.
+/// Avoid processing transactions from slots and parachain registrar.
 #[derive(Default, Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug)]
-pub struct OnlyStakingAndClaims;
-impl SignedExtension for OnlyStakingAndClaims {
+pub struct RestrictFunctionality;
+impl SignedExtension for RestrictFunctionality {
 	type AccountId = AccountId;
 	type Call = Call;
 	type AdditionalSigned = ();
@@ -137,13 +115,7 @@ impl SignedExtension for OnlyStakingAndClaims {
 	}
 }
 
-type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
-
 parameter_types! {
-	pub const BlockHashCount: BlockNumber = 250;
-	pub const MaximumBlockWeight: Weight = 1_000_000_000;
-	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
-	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
 	pub const Version: RuntimeVersion = VERSION;
 }
 
@@ -195,9 +167,9 @@ parameter_types! {
 /// Splits fees 80/20 between treasury and block author.
 pub type DealWithFees = SplitTwoWays<
 	Balance,
-	NegativeImbalance,
+	NegativeImbalance<Runtime>,
 	_4, Treasury,   // 4 parts (80%) goes to the treasury.
-	_1, ToAuthor,   // 1 part (20%) goes to the block author.
+	_1, ToAuthor<Runtime>,   // 1 part (20%) goes to the block author.
 >;
 
 impl balances::Trait for Runtime {
@@ -225,7 +197,7 @@ impl transaction_payment::Trait for Runtime {
 	type TransactionBaseFee = TransactionBaseFee;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
-	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness>;
+	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness, Self>;
 }
 
 parameter_types! {
@@ -298,11 +270,8 @@ pallet_staking_reward_curve::build! {
 
 parameter_types! {
 	// Six sessions in an era (24 hours).
-//	pub const SessionsPerEra: SessionIndex = 6;
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (28 days).
-	// KUSAMA: This value is 1/4 of what we expect for the mainnet, however session length is also
-	// a quarter, so the figure remains the same.
 	pub const BondingDuration: staking::EraIndex = 28;
 	pub const SlashDeferDuration: staking::EraIndex = 28;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
@@ -310,7 +279,7 @@ parameter_types! {
 
 impl staking::Trait for Runtime {
 	type RewardRemainder = Treasury;
-	type CurrencyToVote = CurrencyToVoteHandler;
+	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type Event = Event;
 	type Currency = Balances;
 	type Slash = Treasury;
@@ -326,7 +295,6 @@ impl staking::Trait for Runtime {
 }
 
 parameter_types! {
-	// KUSAMA: These values are 1/4 of what we expect for the mainnet.
 	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
 	pub const VotingPeriod: BlockNumber = 7 * DAYS;
 	pub const EmergencyVotingPeriod: BlockNumber = 3 * HOURS;
@@ -348,8 +316,7 @@ impl democracy::Trait for Runtime {
 	type MinimumDeposit = MinimumDeposit;
 	/// A straight majority of the council can decide what their next motion is.
 	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
-	/// A super-majority can have the next scheduled referendum be a straight majority-carries vote.
-	// KUSAMA: A majority can have the next scheduled legislation be majority-carries.
+	/// A majority can have the next scheduled referendum be a straight majority-carries vote.
 	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
 	/// A unanimous council can have the next scheduled referendum be a straight default-carries
 	/// (NTB) vote.
@@ -387,7 +354,7 @@ impl elections_phragmen::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type ChangeMembers = Council;
-	type CurrencyToVote = CurrencyToVoteHandler;
+	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type CandidacyBond = CandidacyBond;
 	type VotingBond = VotingBond;
 	type TermDuration = TermDuration;
@@ -417,11 +384,8 @@ impl membership::Trait<membership::Instance1> for Runtime {
 
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
-	// KUSAMA: This value is 20x of that expected for mainnet
 	pub const ProposalBondMinimum: Balance = 2_000 * DOLLARS;
-	// KUSAMA: This value is 1/4 of that expected for mainnet
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
-	// KUSAMA: No burn - let's try to put it to use!
 	pub const Burn: Permill = Permill::from_percent(0);
 }
 
@@ -525,10 +489,7 @@ impl slots::Trait for Runtime {
 }
 
 parameter_types! {
-	// KUSAMA: for mainnet this should be removed.
 	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
-	// KUSAMA: for mainnet this should be uncommented.
-	//pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
 }
 
 impl claims::Trait for Runtime {
@@ -538,24 +499,6 @@ impl claims::Trait for Runtime {
 }
 
 parameter_types! {
-	// KUSAMA: for mainnet this can be reduced.
-	pub const ReservationFee: Balance = 1000 * DOLLARS;
-	pub const MinLength: usize = 3;
-	pub const MaxLength: usize = 32;
-}
-
-impl nicks::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type ReservationFee = ReservationFee;
-	type Slashed = Treasury;
-	type ForceOrigin = collective::EnsureMembers<_2, AccountId, CouncilCollective>;
-	type MinLength = MinLength;
-	type MaxLength = MaxLength;
-}
-
-parameter_types! {
-	// KUSAMA: can be probably be reduced for mainnet
 	// Minimum 100 bytes/KSM deposited (1 CENT/byte)
 	pub const BasicDeposit: Balance = 1000 * DOLLARS;       // 258 bytes on-chain
 	pub const FieldDeposit: Balance = 250 * DOLLARS;        // 66 bytes on-chain
@@ -573,6 +516,23 @@ impl identity::Trait for Runtime {
 	type MaximumSubAccounts = MaximumSubAccounts;
 	type RegistrarOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 	type ForceOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+}
+
+parameter_types! {
+	// One storage item; value is size 4+4+16+32 bytes = 56 bytes.
+	pub const MultisigDepositBase: Balance = 30 * DOLLARS;
+	// Additional storage item size of 32 bytes.
+	pub const MultisigDepositFactor: Balance = 5 * DOLLARS;
+	pub const MaxSignatories: u16 = 100;
+}
+
+impl utility::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type Currency = Balances;
+	type MultisigDepositBase = MultisigDepositBase;
+	type MultisigDepositFactor = MultisigDepositFactor;
+	type MaxSignatories = MaxSignatories;
 }
 
 construct_runtime! {
@@ -595,7 +555,7 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
-		Staking: staking::{default, OfflineWorker},
+		Staking: staking,
 		Offences: offences::{Module, Call, Storage, Event},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
@@ -621,9 +581,8 @@ construct_runtime! {
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
 
-		// Simple nicknames module.
-		// KUSAMA: Remove before mainnet
-		Nicks: nicks::{Module, Call, Storage, Event<T>},
+		// Utility module.
+		Utility: utility::{Module, Call, Storage, Event<T>},
 
 		// Less simple identity module.
 		Identity: identity::{Module, Call, Storage, Event<T>},
@@ -642,8 +601,7 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
-	// RELEASE: remove this for release build.
-	OnlyStakingAndClaims,
+	RestrictFunctionality,
 	system::CheckVersion<Runtime>,
 	system::CheckGenesis<Runtime>,
 	system::CheckEra<Runtime>,

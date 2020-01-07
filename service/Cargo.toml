@@ -1,11 +1,12 @@
 [package]
 name = "polkadot-service"
-version = "0.7.10"
+version = "0.7.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 parking_lot = "0.9.0"
+serde = { version = "1.0.102", features = ["derive"] }
 lazy_static = "1.4.0"
 log = "0.4.8"
 futures = "0.3.1"
@@ -15,17 +16,19 @@ hex-literal = "0.2.1"
 av_store = { package = "polkadot-availability-store", path = "../availability-store" }
 consensus = { package = "polkadot-validation", path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
-polkadot-runtime = { path = "../runtime" }
-polkadot-executor = { path = "../executor" }
+polkadot-runtime = { path = "../runtime/polkadot" }
+kusama-runtime = { path = "../runtime/kusama" }
 polkadot-network = { path = "../network"  }
 polkadot-rpc = { path = "../rpc" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 client-db = { package = "sc-client-db", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
@@ -34,16 +37,22 @@ grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.co
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-txpool = { package = "sc-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
-im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+codec = { package = "parity-scale-codec", version = "1.1.0" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
 
 [features]
 default = ["rocksdb"]

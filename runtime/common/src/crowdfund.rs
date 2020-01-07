@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -653,6 +653,7 @@ mod tests {
 	type Treasury = treasury::Module<Test>;
 	type Crowdfund = Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
+	use balances::Error as BalancesError;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
@@ -733,7 +734,7 @@ mod tests {
 			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 1, 5, 9), "last slot cannot be more then 3 more than first slot");
 
 			// Cannot create a crowdfund without some deposit funds
-			assert_noop!(Crowdfund::create(Origin::signed(1337), 1000, 1, 3, 9), "too few free funds in account");
+			assert_noop!(Crowdfund::create(Origin::signed(1337), 1000, 1, 3, 9), BalancesError::<Test, _>::InsufficientBalance);
 		});
 	}
 

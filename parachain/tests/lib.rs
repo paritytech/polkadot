@@ -1,4 +1,4 @@
-// Copyright 2019 Parity Technologies (UK) Ltd.
+// Copyright 2019-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,15 +19,16 @@ mod wasm_executor;
 
 use polkadot_parachain as parachain;
 use crate::parachain::{
-	TargetedMessage, UpwardMessage, wasm_executor::{Externalities, run_worker},
+	MessageRef, UpwardMessageRef,
+	wasm_executor::{Externalities, ExternalitiesError, run_worker},
 };
 
 struct DummyExt;
 impl Externalities for DummyExt {
-	fn post_message(&mut self, _: TargetedMessage) -> Result<(), String> {
+	fn post_message(&mut self, _message: MessageRef) -> Result<(), ExternalitiesError> {
 		Ok(())
 	}
-	fn post_upward_message(&mut self, _: UpwardMessage) -> Result<(), String> {
+	fn post_upward_message(&mut self, _message: UpwardMessageRef) -> Result<(), ExternalitiesError> {
 		Ok(())
 	}
 }

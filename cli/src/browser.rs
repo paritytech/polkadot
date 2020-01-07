@@ -1,4 +1,4 @@
-// Copyright 2019 Parity Technologies (UK) Ltd.
+// Copyright 2019-2020 Parity Technologies (UK) Ltd.
 // This file is part of Substrate.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -53,7 +53,7 @@ async fn start_inner(wasm_ext: browser_utils::Transport) -> Result<browser_utils
 	info!("Roles: {:?}", config.roles);
 
 	// Create the service. This is the most heavy initialization step.
-	let service = service::new_light(config).map_err(|e| format!("{:?}", e))?;
+	let service = service::kusama_new_light(config).map_err(|e| format!("{:?}", e))?;
 
 	Ok(browser_utils::start_client(service))
 }

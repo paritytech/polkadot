@@ -16,7 +16,7 @@ image:                             parity/rust-builder:latest
 
 variables:
   GIT_STRATEGY:                    fetch
-  GIT_DEPTH:                       3
+  GIT_DEPTH:                       100
   CARGO_HOME:                      "/ci-cache/${CI_PROJECT_NAME}/cargo/${CI_JOB_NAME}"
   SCCACHE_DIR:                     "/ci-cache/${CI_PROJECT_NAME}/sccache"
   CI_SERVER_NAME:                  "GitLab CI"
@@ -150,12 +150,12 @@ check-web-wasm:                    &test
   script:
     # WASM support is in progress. As more and more crates support WASM, we
     # should add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path executor/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/polkadot/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/kusama/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path erasure-coding/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path parachain/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path primitives/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path rpc/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path statement-table/Cargo.toml
     - sccache -s
 
@@ -176,18 +176,13 @@ build-linux-release:               &build
     - mkdir -p ./artifacts
     - mv ./target/release/polkadot ./artifacts/.
     - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
+    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - if [ "${CI_COMMIT_TAG}" ]; then
-        VERSION="${CI_COMMIT_TAG}";
-      else
-        VERSION="$(./artifacts/polkadot --version |
-          sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
-        VERSION="${VERSION}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
-      fi
-    - LATEST_BRANCH="$(ls -1 .git/refs/remotes/origin/ | sed -r -n 's:v([0-9]+)\.([0-9]+):v\1.\2:p' | sort -V | tail -n1)"
-    - if expr match x${CI_COMMIT_TAG} x${LATEST_BRANCH}; then
         EXTRATAG="latest";
       else
-        EXTRATAG="latest-${CI_COMMIT_REF_NAME}";
+        EXTRATAG="$(./artifacts/polkadot --version |
+          sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
+        EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
       fi
     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
     - echo -n ${VERSION} > ./artifacts/VERSION
