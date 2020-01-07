@@ -19,22 +19,22 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }

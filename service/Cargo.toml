@@ -20,39 +20,39 @@ polkadot-runtime = { path = "../runtime/polkadot" }
 kusama-runtime = { path = "../runtime/kusama" }
 polkadot-network = { path = "../network"  }
 polkadot-rpc = { path = "../rpc" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-client-db = { package = "sc-client-db", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+client-db = { package = "sc-client-db", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot", default-features = false }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
 codec = { package = "parity-scale-codec", version = "1.1.0" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
 
 [features]
 default = ["rocksdb"]
