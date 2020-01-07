@@ -29,8 +29,8 @@ github_label () {
 }
 
 
-
-for VERSIONS_FILE in runtime/kusama/src/lib.rs runtime/polkadot/src/lib.rs
+# Introduce runtime/polkadot/src/lib.rs once Polkadot mainnet is live.
+for VERSIONS_FILE in runtime/kusama/src/lib.rs 
 do
 	# check if the wasm sources changed
 	if ! git diff --name-only origin/master...${CI_COMMIT_SHA} \

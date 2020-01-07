@@ -26,6 +26,9 @@
   },
   "consensusEngine": null,
   "forkBlocks": null,
+  "badBlocks": [
+    "0x15b1b925b0aa5cfe43c88cd024f74258cb5cfe3af424882c901014e8acd0d241"
+  ],
   "genesis": {
     "raw": [
       {

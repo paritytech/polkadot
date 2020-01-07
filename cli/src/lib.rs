@@ -78,11 +78,14 @@ pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()>
 		"parity-polkadot",
 		std::env::args(),
 	);
+
+	// TODO: Use `IsKusama` trait. #727
 	if cmd
 		.shared_params()
 		.and_then(|p| p.chain.as_ref())
-		.and_then(|c| ChainSpec::from(c))
-		.map_or(false, |c| c.is_kusama())
+		.map_or(true, |p| ChainSpec::from(&p)
+			.map_or(false, |c| c.is_kusama())
+		)
 	{
 		execute_cmd_with_runtime::<
 			service::kusama_runtime::RuntimeApi,
@@ -123,7 +126,7 @@ where
 				info!("{}", version.name);
 				info!("  version {}", config.full_version());
 				info!("  by {}, 2017-2019", version.author);
-				info!("Chain specification: {}", config.chain_spec.name());
+				info!("Chain specification: {} (native: {})", config.chain_spec.name(), D::native_version().runtime_version);
 				if config.is_kusama() {
 					info!("----------------------------");
 					info!("This chain is not in any way");
@@ -143,11 +146,15 @@ where
 							service::new_light::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
 							exit.into_exit(),
 						),
-					_ => run_until_exit(
-						runtime,
-						service::new_full::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
-						exit.into_exit(),
-					),
+					_ => {
+						service::kusama_chain_hotfix::<R, D>(&config);
+
+						run_until_exit(
+							runtime,
+							service::new_full::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
+							exit.into_exit(),
+						)
+					},
 				}.map_err(|e| format!("{:?}", e))
 			}),
 			cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(&load_spec),
