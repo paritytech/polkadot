@@ -7,13 +7,13 @@ edition = "2018"
 [dependencies]
 serde = { version = "1.0.102", optional = true, features = ["derive"] }
 parity-scale-codec = { version = "1.1.0", default-features = false, features = ["bit-vec", "derive"] }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
+rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
 polkadot-parachain = { path = "../parachain", default-features = false }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }

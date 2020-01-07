@@ -15,15 +15,15 @@ futures = "0.3.1"
 tokio = { version = "0.2.4", features = ["rt-core"] }
 exit-future = "0.2.0"
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "bkchr-cumulus-branch" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 kvdb = "0.2.0"
 kvdb-memorydb = "0.2.0"
 
