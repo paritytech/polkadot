@@ -298,9 +298,8 @@ impl staking::Trait for Runtime {
 }
 
 parameter_types! {
-	// KUSAMA: These values are 1/4 of what we expect for the mainnet.
-	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
-	pub const VotingPeriod: BlockNumber = 7 * DAYS;
+	pub const LaunchPeriod: BlockNumber = 28 * DAYS;
+	pub const VotingPeriod: BlockNumber = 28 * DAYS;
 	pub const EmergencyVotingPeriod: BlockNumber = 3 * HOURS;
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
 	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
@@ -320,9 +319,8 @@ impl democracy::Trait for Runtime {
 	type MinimumDeposit = MinimumDeposit;
 	/// A straight majority of the council can decide what their next motion is.
 	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
-	/// A super-majority can have the next scheduled referendum be a straight majority-carries vote.
-	// KUSAMA: A majority can have the next scheduled legislation be majority-carries.
-	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
+	/// A 60% super-majority can have the next scheduled referendum be a straight majority-carries vote.
+	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
 	/// A unanimous council can have the next scheduled referendum be a straight default-carries
 	/// (NTB) vote.
 	type ExternalDefaultOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>;
@@ -349,10 +347,11 @@ impl collective::Trait<CouncilCollective> for Runtime {
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
-	/// Daily council elections.
-	pub const TermDuration: BlockNumber = 24 * HOURS;
+	/// Weekly council elections initially, later monthly.
+	pub const TermDuration: BlockNumber = 7 * DAYS;
+	/// 13 members initially, to be increased to 23 eventually.
 	pub const DesiredMembers: u32 = 13;
-	pub const DesiredRunnersUp: u32 = 7;
+	pub const DesiredRunnersUp: u32 = 20;
 }
 
 impl elections_phragmen::Trait for Runtime {
@@ -389,12 +388,9 @@ impl membership::Trait<membership::Instance1> for Runtime {
 
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
-	// KUSAMA: This value is 20x of that expected for mainnet
-	pub const ProposalBondMinimum: Balance = 2_000 * DOLLARS;
-	// KUSAMA: This value is 1/4 of that expected for mainnet
-	pub const SpendPeriod: BlockNumber = 6 * DAYS;
-	// KUSAMA: No burn - let's try to put it to use!
-	pub const Burn: Permill = Permill::from_percent(0);
+	pub const ProposalBondMinimum: Balance = 100 * DOLLARS;
+	pub const SpendPeriod: BlockNumber = 24 * DAYS;
+	pub const Burn: Permill = Permill::from_percent(1);
 }
 
 impl treasury::Trait for Runtime {
