@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -41,8 +41,9 @@ use log::{debug, trace};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::Arc;
+use std::pin::Pin;
 
-use crate::validation::{self, LeafWorkDataFetcher, Executor};
+use crate::validation::{LeafWorkDataFetcher, Executor};
 use crate::NetworkService;
 
 /// Compute the gossip topic for attestations on the given parent hash.
@@ -71,18 +72,18 @@ pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
 }
 
 /// Table routing implementation.
-pub struct Router<P, E, N: NetworkService, T> {
+pub struct Router<P, E, T> {
 	table: Arc<SharedTable>,
 	attestation_topic: Hash,
-	fetcher: LeafWorkDataFetcher<P, E, N, T>,
+	fetcher: LeafWorkDataFetcher<P, E, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 	message_validator: RegisteredMessageValidator,
 }
 
-impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
+impl<P, E, T> Router<P, E, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
-		fetcher: LeafWorkDataFetcher<P, E, N, T>,
+		fetcher: LeafWorkDataFetcher<P, E, T>,
 		message_validator: RegisteredMessageValidator,
 	) -> Self {
 		let parent_hash = fetcher.parent_hash();
@@ -102,19 +103,19 @@ impl<P, E, N: NetworkService, T> Router<P, E, N, T> {
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
 	pub(crate) fn checked_statements(&self) -> impl Stream<Item=SignedStatement> {
-		checked_statements(&**self.network(), self.attestation_topic)
+		checked_statements(&*self.network(), self.attestation_topic)
 	}
 
 	fn parent_hash(&self) -> Hash {
 		self.fetcher.parent_hash()
 	}
 
-	fn network(&self) -> &Arc<N> {
+	fn network(&self) -> &RegisteredMessageValidator {
 		self.fetcher.network()
 	}
 }
 
-impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
+impl<P, E: Clone, T: Clone> Clone for Router<P, E, T> {
 	fn clone(&self) -> Self {
 		Router {
 			table: self.table.clone(),
@@ -126,9 +127,8 @@ impl<P, E: Clone, N: NetworkService, T: Clone> Clone for Router<P, E, N, T> {
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> where
+impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, T> Router<P, E, T> where
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
-	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
 	E: Future<Output=()> + Clone + Send + Unpin + 'static,
 {
@@ -225,14 +225,13 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, N, T> Router<P, E, N, T> w
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> where
+impl<P: ProvideRuntimeApi + Send, E, T> TableRouter for Router<P, E, T> where
 	P::Api: ParachainHost<Block>,
-	N: NetworkService,
 	T: Clone + Executor + Send + 'static,
 	E: Future<Output=()> + Clone + Send + 'static,
 {
 	type Error = io::Error;
-	type FetchValidationProof = validation::PoVReceiver;
+	type FetchValidationProof = Pin<Box<dyn Future<Output = Result<PoVBlock, io::Error>> + Send>>;
 
 	// We have fetched from a collator and here the receipt should have been already formed.
 	fn local_collation(
@@ -283,7 +282,7 @@ impl<P: ProvideRuntimeApi + Send, E, N, T> TableRouter for Router<P, E, N, T> wh
 	}
 }
 
-impl<P, E, N: NetworkService, T> Drop for Router<P, E, N, T> {
+impl<P, E, T> Drop for Router<P, E, T> {
 	fn drop(&mut self) {
 		let parent_hash = self.parent_hash();
 		self.network().with_spec(move |spec, _| { spec.remove_validation_session(parent_hash); });

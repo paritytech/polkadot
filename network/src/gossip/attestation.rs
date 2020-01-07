@@ -1,4 +1,4 @@
-// Copyright 2019 Parity Technologies (UK) Ltd.
+// Copyright 2019-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@
 //! a `Candidate` we are aware of. Otherwise, it is possible we could be forced to
 //! consider an infinite amount of attestations produced by a misbehaving validator.
 
-use sc_network::consensus_gossip::{ValidationResult as GossipValidationResult};
+use sc_network_gossip::{ValidationResult as GossipValidationResult};
 use sc_network::ReputationChange;
 use polkadot_validation::GenericStatement;
 use polkadot_primitives::Hash;

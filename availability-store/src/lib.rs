@@ -1,4 +1,4 @@
-// Copyright 2018 Parity Technologies (UK) Ltd.
+// Copyright 2018-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -198,7 +198,7 @@ impl Store {
 		client: Arc<P>,
 		thread_pool: TaskExecutor,
 		keystore: KeyStorePtr,
-	) -> ClientResult<(AvailabilityBlockImport<I, P>)>
+	) -> ClientResult<AvailabilityBlockImport<I, P>>
 	where
 		P: ProvideRuntimeApi + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block>,
