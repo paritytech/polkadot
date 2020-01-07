@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.7.11"
+version = "0.7.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 edition = "2018"
@@ -13,21 +13,21 @@ log = "0.4.8"
 futures = { version = "0.3.1", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
 structopt = "=0.3.7"
-cli = { package = "sc-cli", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
 
-browser-utils = { package = "browser-utils", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", optional = true }
-substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", optional = true, default-features = false }
-wasm-bindgen = { version = "0.2.55", optional = true }
-wasm-bindgen-futures = { version = "0.4.5", optional = true }
+tokio = { version = "0.1.22", optional = true }
 
-[target.'cfg(not(target_os = "unknown"))'.dependencies]
-tokio = "0.1.22"
+wasm-bindgen = { version = "0.2.57", optional = true }
+wasm-bindgen-futures = { version = "0.4.7", optional = true }
+browser-utils = { package = "browser-utils", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged", optional = true }
+substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged", optional = true, default-features = false }
 
 [features]
-default = [ "wasmtime", "rocksdb" ]
-wasmtime = [ "cli/wasmtime" ]
+default = [ "wasmtime", "rocksdb", "cli" ]
+wasmtime = [ "sc-cli/wasmtime" ]
 rocksdb = [ "service/rocksdb" ]
+cli = [ "tokio" ]
 browser = [
 	"wasm-bindgen",
 	"wasm-bindgen-futures",

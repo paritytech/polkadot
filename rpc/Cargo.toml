@@ -1,16 +1,16 @@
 [package]
 name = "polkadot-rpc"
-version = "0.7.11"
+version = "0.7.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
 jsonrpc-core = "14.0.3"
 polkadot-primitives = { path = "../primitives" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm"  }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm"  }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged"  }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged"  }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false }

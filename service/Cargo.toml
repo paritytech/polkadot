@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.7.11"
+version = "0.7.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -20,39 +20,39 @@ polkadot-runtime = { path = "../runtime/polkadot" }
 kusama-runtime = { path = "../runtime/kusama" }
 polkadot-network = { path = "../network"  }
 polkadot-rpc = { path = "../rpc" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-client-db = { package = "sc-client-db", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+client-db = { package = "sc-client-db", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged", default-features = false }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
 codec = { package = "parity-scale-codec", version = "1.1.0" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
 
 [features]
 default = ["rocksdb"]

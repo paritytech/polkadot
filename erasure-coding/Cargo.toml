@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-erasure-coding"
-version = "0.7.11"
+version = "0.7.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -8,6 +8,6 @@ edition = "2018"
 primitives = { package = "polkadot-primitives", path = "../primitives" }
 reed_solomon = { package = "reed-solomon-erasure", git = "https://github.com/paritytech/reed-solomon-erasure" }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
 derive_more = "0.15.0"

@@ -1,26 +1,26 @@
 [package]
 name = "polkadot-primitives"
-version = "0.7.11"
+version = "0.7.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 serde = { version = "1.0.102", optional = true, features = ["derive"] }
 parity-scale-codec = { version = "1.1.0", default-features = false, features = ["bit-vec", "derive"] }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm", default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
-rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm-diverged" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm-diverged" }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm-diverged" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm-diverged" }
+rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm-diverged" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm-diverged" }
 polkadot-parachain = { path = "../parachain", default-features = false }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm-diverged" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm" }
+babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", default-features = false, branch = "ashley-polkadot-wasm-diverged" }
 
 [dev-dependencies]
-sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm" }
+sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-wasm-diverged" }
 pretty_assertions = "0.5.1"
 
 [features]
