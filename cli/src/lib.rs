@@ -38,7 +38,6 @@ pub use service::{
 
 pub use cli::{VersionInfo, IntoExit, NoCustom, SharedParams};
 pub use cli::{display_role, error};
-use futures::io::Chain;
 
 /// Load the `ChainSpec` for the given `id`.
 pub fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
@@ -147,15 +146,12 @@ where
 							service::new_light::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
 							exit.into_exit(),
 						),
-					_ => {
-						service::kusama_chain_hotfix::<R, D>(&config);
-
+					_ =>
 						run_until_exit(
 							runtime,
 							service::new_full::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
 							exit.into_exit(),
-						)
-					},
+						),
 				}.map_err(|e| format!("{:?}", e))
 			}),
 			cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(load_spec),
