@@ -38,6 +38,7 @@ pub use service::{
 
 pub use cli::{VersionInfo, IntoExit, NoCustom, SharedParams};
 pub use cli::{display_role, error};
+use futures::io::Chain;
 
 /// Load the `ChainSpec` for the given `id`.
 pub fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
@@ -77,13 +78,12 @@ pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()>
 		std::env::args(),
 	);
 
-	// TODO: Use `IsKusama` trait. #727
 	if cmd
 		.shared_params()
-		.and_then(|p| p.chain.as_ref())
-		.map_or(true, |p| ChainSpec::from(&p)
-			.map_or(false, |c| c.is_kusama())
-		)
+		.map(|p| p.chain.as_ref().map_or(
+			if p.dev { ChainSpec::Development } else { ChainSpec::default() },
+			|s| ChainSpec::from(&s).unwrap_or_default()).is_kusama()
+		).unwrap_or(false)
 	{
 		execute_cmd_with_runtime::<
 			service::kusama_runtime::RuntimeApi,
@@ -122,8 +122,9 @@ where
 			|exit, _cli_args, custom_args, mut config| {
 				info!("{}", version.name);
 				info!("  version {}", config.full_version());
-				info!("  by {}, 2017-2019", version.author);
-				info!("Chain specification: {} (native: {})", config.chain_spec.name(), D::native_version().runtime_version);
+				info!("  by {}, 2017-2020", version.author);
+				info!("Chain specification: {}", config.chain_spec.name());
+				info!("Native runtime: {}", D::native_version().runtime_version);
 				if config.is_kusama() {
 					info!("----------------------------");
 					info!("This chain is not in any way");
