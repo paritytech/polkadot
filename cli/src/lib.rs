@@ -38,6 +38,7 @@ pub use service::{
 
 pub use cli::{VersionInfo, IntoExit, NoCustom, SharedParams};
 pub use cli::{display_role, error};
+use futures::io::Chain;
 
 /// Load the `ChainSpec` for the given `id`.
 pub fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
@@ -125,7 +126,8 @@ where
 				info!("{}", version.name);
 				info!("  version {}", config.full_version());
 				info!("  by {}, 2017-2019", version.author);
-				info!("Chain specification: {} (native: {})", config.chain_spec.name(), D::native_version().runtime_version);
+				info!("Chain specification: {}", config.chain_spec.name());
+				info!("Native runtime: {}", D::native_version().runtime_version);
 				if is_kusama {
 					info!("----------------------------");
 					info!("This chain is not in any way");
