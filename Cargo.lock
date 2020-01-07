@@ -3296,7 +3296,7 @@ dependencies = [
 [[package]]
 name = "pallet-sudo"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#c9ca968bcfcb7947c96543c4455a1966cd2c20b1"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#de906546bcab2f66a997fe102d2ebd729a193122"
 dependencies = [
  "frame-support 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "frame-system 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",

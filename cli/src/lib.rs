@@ -38,7 +38,6 @@ pub use service::{
 
 pub use cli::{VersionInfo, IntoExit, NoCustom, SharedParams};
 pub use cli::{display_role, error};
-use futures::io::Chain;
 
 /// Load the `ChainSpec` for the given `id`.
 pub fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
