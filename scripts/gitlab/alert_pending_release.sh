@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # structure_message $content $formatted_content (optional)
 structure_message() {
