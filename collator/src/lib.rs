@@ -474,7 +474,7 @@ pub fn run_collator<P, E>(
 {
 	prepare_config(&mut config, para_id, &key);
 
-	match (config.is_kusama(), config.roles) {
+	match (config.chain_spec.is_kusama(), config.roles) {
 		(true, Roles::LIGHT) =>
 			run_collator_node(service::kusama_new_light(config)?, exit, para_id, key, build_parachain_context),
 		(true, _) =>

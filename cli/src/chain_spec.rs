@@ -49,13 +49,6 @@ impl ChainSpec {
 		}
 	}
 
-	pub(crate) fn is_kusama(&self) -> bool {
-		match self {
-			ChainSpec::Development | ChainSpec::LocalTestnet | ChainSpec::StagingTestnet => false,
-			ChainSpec::Kusama => true,
-		}
-	}
-
 	pub(crate) fn from(s: &str) -> Option<Self> {
 		match s {
 			"dev" => Some(ChainSpec::Development),
