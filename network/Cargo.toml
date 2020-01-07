@@ -13,16 +13,16 @@ polkadot-validation = { path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
-sc-network-gossip = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-network-gossip = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 futures = "0.3.1"
 log = "0.4.8"
 exit-future = "0.2.0"
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-browser-utils-polkadot" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
