@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -28,6 +28,7 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use primitives::bytes;
 use primitives::RuntimeDebug;
+use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
 #[cfg(feature = "std")]
@@ -39,6 +40,10 @@ pub use polkadot_parachain::{
 
 /// The key type ID for a collator key.
 pub const COLLATOR_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"coll");
+
+/// An identifier for inherent data that provides new minimally-attested
+/// parachain heads.
+pub const NEW_HEADS_IDENTIFIER: InherentIdentifier = *b"newheads";
 
 mod collator_app {
 	use application_crypto::{app_crypto, sr25519};

@@ -1,4 +1,4 @@
-// Copyright 2017 Parity Technologies (UK) Ltd.
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,13 +18,11 @@
 
 use primitives::{Pair, Public, crypto::UncheckedInto, sr25519};
 use polkadot_primitives::{AccountId, AccountPublic, parachain::ValidatorId};
-use polkadot_runtime::{
-	AuthorityDiscoveryConfig, GenesisConfig, CouncilConfig, DemocracyConfig, SystemConfig,
-	SessionConfig, StakingConfig, BalancesConfig, SessionKeys, TechnicalCommitteeConfig,
-	IndicesConfig, StakerStatus, WASM_BINARY, ClaimsConfig, ParachainsConfig, RegistrarConfig
-};
+use polkadot_runtime as polkadot;
 use polkadot_runtime::constants::currency::DOTS;
+use sc_chain_spec::ChainSpecExtension;
 use sp_runtime::{traits::IdentifyAccount, Perbill};
+use serde::{Serialize, Deserialize};
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
 use babe_primitives::AuthorityId as BabeId;
@@ -36,8 +34,27 @@ use pallet_staking::Forcing;
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
-/// Specialised `ChainSpec`.
-pub type ChainSpec = ::service::ChainSpec<GenesisConfig>;
+/// Node `ChainSpec` extensions.
+///
+/// Additional parameters for some Substrate core modules,
+/// customizable from the chain spec.
+#[derive(Default, Clone, Serialize, Deserialize, ChainSpecExtension)]
+#[serde(rename_all = "camelCase")]
+pub struct Extensions {
+	/// Block numbers with known hashes.
+	pub fork_blocks: client::ForkBlocks<polkadot_primitives::Block>,
+	/// Known bad block hashes.
+	pub bad_blocks: client::BadBlocks<polkadot_primitives::Block>,
+}
+
+/// The `ChainSpec`.
+///
+/// We use the same `ChainSpec` type for Polkadot and Kusama. As Kusama
+/// is only loaded from a file, the `GenesisConfig` type is not used.
+pub type ChainSpec = service::ChainSpec<
+	polkadot::GenesisConfig,
+	Extensions,
+>;
 
 pub fn kusama_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_json_bytes(&include_bytes!("../res/kusama.json")[..])
@@ -49,11 +66,11 @@ fn session_keys(
 	im_online: ImOnlineId,
 	parachain_validator: ValidatorId,
 	authority_discovery: AuthorityDiscoveryId
-) -> SessionKeys {
-	SessionKeys { babe, grandpa, im_online, parachain_validator, authority_discovery }
+) -> polkadot::SessionKeys {
+	polkadot::SessionKeys { babe, grandpa, im_online, parachain_validator, authority_discovery }
 }
 
-fn staging_testnet_config_genesis() -> GenesisConfig {
+fn staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 	// subkey inspect "$SECRET"
 	let endowed_accounts = vec![
 		// 5CVFESwfkk7NmhQ6FwHCM9roBvr9BGa4vJHFYU8DnGQxrXvz
@@ -138,45 +155,48 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 	const ENDOWMENT: u128 = 1_000_000 * DOTS;
 	const STASH: u128 = 100 * DOTS;
 
-	GenesisConfig {
-		system: Some(SystemConfig {
-			code: WASM_BINARY.to_vec(),
+	polkadot::GenesisConfig {
+		system: Some(polkadot::SystemConfig {
+			code: polkadot::WASM_BINARY.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		balances: Some(BalancesConfig {
+		balances: Some(polkadot::BalancesConfig {
 			balances: endowed_accounts.iter()
 				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 			vesting: vec![],
 		}),
-		indices: Some(IndicesConfig {
+		indices: Some(polkadot::IndicesConfig {
 			ids: endowed_accounts.iter().cloned()
 				.chain(initial_authorities.iter().map(|x| x.0.clone()))
 				.collect::<Vec<_>>(),
 		}),
-		session: Some(SessionConfig {
+		session: Some(polkadot::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
-		staking: Some(StakingConfig {
+		staking: Some(polkadot::StakingConfig {
 			current_era: 0,
 			validator_count: 50,
 			minimum_validator_count: 4,
-			stakers: initial_authorities.iter().map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator)).collect(),
+			stakers: initial_authorities
+				.iter()
+				.map(|x| (x.0.clone(), x.1.clone(), STASH, polkadot::StakerStatus::Validator))
+				.collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			force_era: Forcing::ForceNone,
 			slash_reward_fraction: Perbill::from_percent(10),
 			.. Default::default()
 		}),
 		democracy: Some(Default::default()),
-		collective_Instance1: Some(CouncilConfig {
+		collective_Instance1: Some(polkadot::CouncilConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		collective_Instance2: Some(TechnicalCommitteeConfig {
+		collective_Instance2: Some(polkadot::TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
@@ -184,17 +204,17 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		babe: Some(Default::default()),
 		grandpa: Some(Default::default()),
 		im_online: Some(Default::default()),
-		authority_discovery: Some(AuthorityDiscoveryConfig {
+		authority_discovery: Some(polkadot::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		parachains: Some(ParachainsConfig {
+		parachains: Some(polkadot::ParachainsConfig {
 			authorities: vec![],
 		}),
-		registrar: Some(RegistrarConfig {
+		registrar: Some(polkadot::RegistrarConfig {
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
-		claims: Some(ClaimsConfig {
+		claims: Some(polkadot::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
 		})
@@ -212,7 +232,7 @@ pub fn staging_testnet_config() -> ChainSpec {
 		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Default::default(),
 	)
 }
 
@@ -257,7 +277,7 @@ pub fn testnet_genesis(
 	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
 	_root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> GenesisConfig {
+) -> polkadot::GenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
 		vec![
 			get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -278,42 +298,42 @@ pub fn testnet_genesis(
 	const ENDOWMENT: u128 = 1_000_000 * DOTS;
 	const STASH: u128 = 100 * DOTS;
 
-	GenesisConfig {
-		system: Some(SystemConfig {
-			code: WASM_BINARY.to_vec(),
+	polkadot::GenesisConfig {
+		system: Some(polkadot::SystemConfig {
+			code: polkadot::WASM_BINARY.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		indices: Some(IndicesConfig {
+		indices: Some(polkadot::IndicesConfig {
 			ids: endowed_accounts.clone(),
 		}),
-		balances: Some(BalancesConfig {
+		balances: Some(polkadot::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
 			vesting: vec![],
 		}),
-		session: Some(SessionConfig {
+		session: Some(polkadot::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
-		staking: Some(StakingConfig {
+		staking: Some(polkadot::StakingConfig {
 			current_era: 0,
 			minimum_validator_count: 1,
 			validator_count: 2,
 			stakers: initial_authorities.iter()
-				.map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
+				.map(|x| (x.0.clone(), x.1.clone(), STASH, polkadot::StakerStatus::Validator))
 				.collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			force_era: Forcing::NotForcing,
 			slash_reward_fraction: Perbill::from_percent(10),
 			.. Default::default()
 		}),
-		democracy: Some(DemocracyConfig::default()),
-		collective_Instance1: Some(CouncilConfig {
+		democracy: Some(polkadot::DemocracyConfig::default()),
+		collective_Instance1: Some(polkadot::CouncilConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		collective_Instance2: Some(TechnicalCommitteeConfig {
+		collective_Instance2: Some(polkadot::TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
@@ -321,17 +341,17 @@ pub fn testnet_genesis(
 		babe: Some(Default::default()),
 		grandpa: Some(Default::default()),
 		im_online: Some(Default::default()),
-		authority_discovery: Some(AuthorityDiscoveryConfig {
+		authority_discovery: Some(polkadot::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		parachains: Some(ParachainsConfig {
+		parachains: Some(polkadot::ParachainsConfig {
 			authorities: vec![],
 		}),
-		registrar: Some(RegistrarConfig{
+		registrar: Some(polkadot::RegistrarConfig{
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
-		claims: Some(ClaimsConfig {
+		claims: Some(polkadot::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
 		})
@@ -339,7 +359,7 @@ pub fn testnet_genesis(
 }
 
 
-fn development_config_genesis() -> GenesisConfig {
+fn development_config_genesis() -> polkadot::GenesisConfig {
 	testnet_genesis(
 		vec![
 			get_authority_keys_from_seed("Alice"),
@@ -359,11 +379,11 @@ pub fn development_config() -> ChainSpec {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Default::default(),
 	)
 }
 
-fn local_testnet_genesis() -> GenesisConfig {
+fn local_testnet_genesis() -> polkadot::GenesisConfig {
 	testnet_genesis(
 		vec![
 			get_authority_keys_from_seed("Alice"),
@@ -384,6 +404,6 @@ pub fn local_testnet_config() -> ChainSpec {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Default::default(),
 	)
 }
