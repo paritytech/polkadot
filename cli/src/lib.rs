@@ -77,27 +77,25 @@ pub fn run<E: IntoExit>(exit: E, version: cli::VersionInfo) -> error::Result<()>
 		std::env::args(),
 	);
 
-	// TODO: Use `IsKusama` trait. #727
-	if cmd
-		.shared_params()
-		.and_then(|p| p.chain.as_ref())
-		.map_or(true, |p| ChainSpec::from(&p)
-			.map_or(false, |c| c.is_kusama())
-		)
-	{
+	// Preload spec to select native runtime
+	let spec = match cmd.shared_params() {
+		Some(params) => Some(cli::load_spec(params, &load_spec)?),
+		None => None,
+	};
+	if spec.as_ref().map_or(false, |c| c.is_kusama()) {
 		execute_cmd_with_runtime::<
 			service::kusama_runtime::RuntimeApi,
 			service::KusamaExecutor,
 			service::kusama_runtime::UncheckedExtrinsic,
 			_
-		>(exit, &version, cmd)
+		>(exit, &version, cmd, spec)
 	} else {
 		execute_cmd_with_runtime::<
 			service::polkadot_runtime::RuntimeApi,
 			service::PolkadotExecutor,
 			service::polkadot_runtime::UncheckedExtrinsic,
 			_
-		>(exit, &version, cmd)
+		>(exit, &version, cmd, spec)
 	}
 }
 
@@ -106,6 +104,7 @@ fn execute_cmd_with_runtime<R, D, E, X>(
 	exit: X,
 	version: &cli::VersionInfo,
 	cmd: cli::ParseAndPrepare<PolkadotSubCommands, PolkadotSubParams>,
+	spec: Option<service::ChainSpec>,
 ) -> error::Result<()>
 where
 	R: service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>
@@ -117,14 +116,17 @@ where
 	D: service::NativeExecutionDispatch + 'static,
 	X: IntoExit,
 {
+	let is_kusama = spec.as_ref().map_or(false, |s| s.is_kusama());
+	// Use preloaded spec
+	let load_spec = |_: &str| Ok(spec);
 	match cmd {
-		cli::ParseAndPrepare::Run(cmd) => cmd.run(&load_spec, exit,
+		cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, exit,
 			|exit, _cli_args, custom_args, mut config| {
 				info!("{}", version.name);
 				info!("  version {}", config.full_version());
 				info!("  by {}, 2017-2019", version.author);
 				info!("Chain specification: {} (native: {})", config.chain_spec.name(), D::native_version().runtime_version);
-				if config.is_kusama() {
+				if is_kusama {
 					info!("----------------------------");
 					info!("This chain is not in any way");
 					info!("      endorsed by the       ");
@@ -154,16 +156,16 @@ where
 					},
 				}.map_err(|e| format!("{:?}", e))
 			}),
-			cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(&load_spec),
+			cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(load_spec),
 			cli::ParseAndPrepare::ExportBlocks(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
-				Ok(service::new_chain_ops::<R, D, E>(config)?), &load_spec, exit),
+				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec, exit),
 			cli::ParseAndPrepare::ImportBlocks(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
-				Ok(service::new_chain_ops::<R, D, E>(config)?), &load_spec, exit),
+				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec, exit),
 			cli::ParseAndPrepare::CheckBlock(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
-				Ok(service::new_chain_ops::<R, D, E>(config)?), &load_spec, exit),
-			cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(&load_spec),
+				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec, exit),
+			cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
 			cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<_, _, _, _, _, _>(|config|
-				Ok(service::new_chain_ops::<R, D, E>(config)?), &load_spec),
+				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec),
 			cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
 				if cfg!(feature = "browser") {
 					Err(error::Error::Input("Cannot run validation worker in browser".into()))

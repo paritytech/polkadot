@@ -55,6 +55,7 @@ system = { package = "frame-system", git = "https://github.com/paritytech/substr
 system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
@@ -126,4 +127,5 @@ std = [
 	"sp-session/std",
 	"randomness-collective-flip/std",
 	"runtime-common/std",
+	"sudo/std",
 ]
