@@ -316,18 +316,8 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config, Runtime, Dispatch);
 
-<<<<<<< HEAD
-	// Dht event channel from the network to the authority discovery module. Use
-	// bounded channel to ensure back-pressure. Authority discovery is triggering one
-	// event per authority within the current authority set. This estimates the
-	// authority set size to be somewhere below 10 000 thereby setting the channel
-	// buffer size to 10 000.
-	let (dht_event_tx, dht_event_rx) = mpsc::channel::<DhtEvent>(10000);
-
 	let backend = builder.backend().clone();
 
-=======
->>>>>>> eac2ae7b... service/src/lib.rs: Register network event stream for authority disc (#678)
 	let service = builder
 		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
 		.with_finality_proof_provider(|client, backend|

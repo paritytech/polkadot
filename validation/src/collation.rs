@@ -37,6 +37,7 @@ use parachain::{
 use trie::TrieConfiguration;
 use futures::prelude::*;
 use log::debug;
+use parking_lot::Mutex;
 
 /// Encapsulates connections to collators and allows collation on any parachain.
 ///
