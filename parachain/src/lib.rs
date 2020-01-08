@@ -27,7 +27,7 @@
 //! `validate` accepts as input two `i32` values, representing a pointer/length pair
 //! respectively, that encodes [`ValidationParams`].
 //!
-//! `validate` returns an `u64` which is a pointer to an `u8` array and it's length.
+//! `validate` returns an `u64` which is a pointer to an `u8` array and its length.
 //! The data in the array is expected to be a SCALE encoded [`ValidationResult`].
 //!
 //! ASCII-diagram demonstrating the return data format:
