@@ -113,7 +113,7 @@ In Polkadot, a bad parachain group can force inclusion of an invalid or unavaila
 
 The W3F-research writeup on availability/validity provides a high-level view of the dispute resolution process: [Availability and Validity — Research at W3F](https://research.web3.foundation/en/latest/polkadot/Availability_and_Validity.html)
 
-One of the main behaviors that is unimplemented and needs to be is the _rollback_.that occurs when the dispute resolution process concludes that an error has been made. When we mark a parachain block as having been invalid or unavailable, we need to roll back all parachains to a point from just before this state.  We would also need to roll back relay chain state, because there may have been messages from a parachain to a relay chain that now need to be rolled back.  The easiest thing to do would be to side-step that by putting a delay on upwards messages, but this would impact the UX of parachain participation in slot auctions, council votes, etc. considerably. Assuming we can't side-step this, we will have to find a way to roll back selected state of the relay chain.
+One of the main behaviors that is unimplemented and needs to be is the _rollback_ that occurs when the dispute resolution process concludes that an error has been made. When we mark a parachain block as having been invalid or unavailable, we need to roll back all parachains to a point from just before this state.  We would also need to roll back relay chain state, because there may have been messages from a parachain to a relay chain that now need to be rolled back.  The easiest thing to do would be to side-step that by putting a delay on upwards messages, but this would impact the UX of parachain participation in slot auctions, council votes, etc. considerably. Assuming we can't side-step this, we will have to find a way to roll back selected state of the relay chain.
 
 #### *Double-vote Slash Handler*
 
@@ -145,10 +145,40 @@ This roadmap is divided up into phases, where each represents another set of del
 ## Phase 0: MVP
 The very first phase - this is parachains without slashing (full security) or cross-chain messaging. It is primarily a PoC that registration and validation are working correctly.
 
+### Infrastructure/API:
+  - Custom libp2p sub-protocols
+  - Peer Set Management
+
+### Assignment:
+  - Auctions
+  - Parathread Auctions
+  - Validator Assignment
+
+### Agreement:
+  - Attestation Circulation (black box: gossip)
+  - Availability Erasure-coding (black box: gossip)
+  - PoV block fetching (black box: gossip)
+  - Collation Loop
+
+### Cross-chain Messaging:
+  - TODO: probably just finalizing format to include egress bitfields.
+
 ## Phase 1: Fishing and Slashing
 
 This phase marks advancement in the security of parachains. Once completed, parachains are a full-fledged cryptoeconomically secure rollup primitive. This phase also includes implementation work on XCMP, but does not enable it fully.
 
+### Agreement
+  - Availability Erasure-coding (black box: targeted distribution)
+  - PoV block fetching (black box: targeted distribution and fetching)
+
+### Fishing/Slashing
+  - Validity/Availability Report Handler
+  - Double-vote Slash Handler
+  - Validity/Availability Fishing
+  - Double-vote Fishing
+
 ## Phase 2: Messaging
 
 This phase marks delivery of cross-chain messaging.
+
+TODO: requires lots of XCMP stuff.
