@@ -19,22 +19,22 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
