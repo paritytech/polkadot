@@ -628,12 +628,12 @@ impl<I, P> Drop for AvailabilityBlockImport<I, P> {
 }
 
 impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
-	I: BlockImport<Block> + Send + Sync,
+	I: BlockImport<Block, Transaction = sp_api::TransactionFor<P, Block>> + Send + Sync,
 	I::Error: Into<ConsensusError>,
 	P: ProvideRuntimeApi<Block> + ProvideCache<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<sp_core::Blake2Hasher>
 {
 	type Error = ConsensusError;
 	type Transaction = sp_api::TransactionFor<P, Block>;
@@ -731,8 +731,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 			}
 		}
 
-		//TODO: Remove convert_transaction
-		self.inner.import_block(block.convert_transaction(), new_cache).map_err(Into::into)
+		self.inner.import_block(block, new_cache).map_err(Into::into)
 	}
 
 	fn check_block(
