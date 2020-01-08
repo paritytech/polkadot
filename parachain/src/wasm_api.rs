@@ -22,10 +22,10 @@ use sp_runtime_interface::runtime_interface;
 use sp_externalities::ExternalitiesExt;
 
 /// The parachain api for posting messages.
-#[runtime_interface]
 // Either activate on `std` to get access to the `HostFunctions` or when `wasm-api` is given and on
 // `no_std`.
 #[cfg(any(feature = "std", all(not(feature = "std"), feature = "wasm-api")))]
+#[runtime_interface]
 pub trait Parachain {
 	/// Post a message to another parachain.
 	fn post_message(&mut self, msg: TargetedMessage) {
