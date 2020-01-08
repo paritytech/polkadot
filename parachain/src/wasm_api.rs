@@ -16,13 +16,31 @@
 
 //! Utilities for writing parachain WASM.
 
-use codec::{Encode, Decode};
-use super::{ValidationParams, ValidationResult, MessageRef, UpwardMessageRef};
+use crate::{TargetedMessage, UpwardMessage};
+use sp_runtime_interface::runtime_interface;
+#[cfg(feature = "std")]
+use sp_externalities::ExternalitiesExt;
 
-mod ll {
-	extern "C" {
-		pub(super) fn ext_post_message(target: u32, data_ptr: *const u8, data_len: u32);
-		pub(super) fn ext_post_upward_message(origin: u32, data_ptr: *const u8, data_len: u32);
+/// The parachain api for posting messages.
+// Either activate on `std` to get access to the `HostFunctions` or when `wasm-api` is given and on
+// `no_std`.
+#[cfg(any(feature = "std", all(not(feature = "std"), feature = "wasm-api")))]
+#[runtime_interface]
+pub trait Parachain {
+	/// Post a message to another parachain.
+	fn post_message(&mut self, msg: TargetedMessage) {
+		self.extension::<crate::wasm_executor::ParachainExt>()
+			.expect("No `ParachainExt` associated with the current context.")
+			.post_message(msg)
+			.expect("Failed to post message")
+	}
+
+	/// Post a message to this parachain's relay chain.
+	fn post_upward_message(&mut self, msg: UpwardMessage) {
+		self.extension::<crate::wasm_executor::ParachainExt>()
+			.expect("No `ParachainExt` associated with the current context.")
+			.post_upward_message(msg)
+			.expect("Failed to post upward message")
 	}
 }
 
@@ -30,43 +48,18 @@ mod ll {
 ///
 /// Offset and length must have been provided by the validation
 /// function's entry point.
-pub unsafe fn load_params(params: *const u8, len: usize) -> ValidationParams {
+#[cfg(not(feature = "std"))]
+pub unsafe fn load_params(params: *const u8, len: usize) -> crate::ValidationParams {
 	let mut slice = rstd::slice::from_raw_parts(params, len);
 
-	ValidationParams::decode(&mut slice).expect("Invalid input data")
+	codec::Decode::decode(&mut slice).expect("Invalid input data")
 }
 
 /// Allocate the validation result in memory, getting the return-pointer back.
 ///
 /// As described in the crate docs, this is a pointer to the appended length
 /// of the vector.
-pub fn write_result(result: ValidationResult) -> usize {
-	let mut encoded = result.encode();
-	let len = encoded.len();
-
-	assert!(len <= u32::max_value() as usize, "Len too large for parachain-WASM abi");
-	(len as u32).using_encoded(|s| encoded.extend(s));
-
-	// do not alter `encoded` beyond this point. may reallocate.
-	let end_ptr = &encoded[len] as *const u8 as usize;
-
-	// leak so it doesn't get zeroed.
-	rstd::mem::forget(encoded);
-	end_ptr
-}
-
-/// Post a message to another parachain.
-pub fn post_message(message: MessageRef) {
-	let data_ptr = message.data.as_ptr();
-	let data_len = message.data.len();
-
-	unsafe { ll::ext_post_message(message.target.into(), data_ptr, data_len as u32) }
-}
-
-/// Post a message to this parachain's relay chain.
-pub fn post_upward_message(message: UpwardMessageRef) {
-	let data_ptr = message.data.as_ptr();
-	let data_len = message.data.len();
-
-	unsafe { ll::ext_post_upward_message(u32::from(message.origin as u8), data_ptr, data_len as u32) }
+#[cfg(not(feature = "std"))]
+pub fn write_result(result: &crate::ValidationResult) -> u64 {
+	sp_core::to_substrate_wasm_fn_return_value(&result)
 }
