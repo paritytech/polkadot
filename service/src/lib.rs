@@ -263,87 +263,6 @@ pub fn kusama_new_full(config: Configuration)
 	new_full(config)
 }
 
-pub fn kusama_chain_hotfix<Runtime, Dispatch>(config: &Configuration) where
-	Dispatch: NativeExecutionDispatch,
-	Runtime: Send + Sync,
-{
-	use std::str::FromStr;
-	use sp_blockchain::HeaderBackend;
-
-	let client: service::TFullClient<Block, Runtime, Dispatch> =
-		service::new_full_client(&config).unwrap();
-
-	let fork_block = 516510; // target_block - reverted_blocks + 1;
-	let fork_hash = primitives::H256::from_str(
-		"15b1b925b0aa5cfe43c88cd024f74258cb5cfe3af424882c901014e8acd0d241",
-	).unwrap();
-
-	let best_number = client.info().best_number;
-	let target_hash = client.hash(fork_block).unwrap();
-
-	if target_hash == Some(fork_hash) {
-		let diff = best_number.saturating_sub(fork_block - 1);
-		client.unsafe_revert(diff).unwrap();
-	}
-}
-
-pub fn kusama_grandpa_hotfix<Runtime, Dispatch>(
-	client: &service::TFullClient<Block, Runtime, Dispatch>,
-	persistent_data: &mut grandpa::PersistentData<Block>,
-) where
-	Dispatch: NativeExecutionDispatch,
-	Runtime: Send + Sync,
-{
-	use std::str::FromStr;
-	use sp_blockchain::HeaderBackend;
-
-	let authority_set = &persistent_data.authority_set;
-	let last_completed_round = persistent_data.set_state
-		.read()
-		.last_completed_round()
-		.number;
-
-	let canon_finalized_block = 516509;
-	let canon_finalized_hash = primitives::H256::from_str(
-		"f432b7655a848094e6c67f8064ea642bd18f5cf184e1cf9f05a1a9886dd8b9cc",
-	).unwrap();
-
-	let finalized = {
-		let info = client.info();
-		(info.finalized_hash, info.finalized_number)
-	};
-
-	// our finalized block is lower than the fork block, nothing to do
-	if finalized.1 < canon_finalized_block {
-		return;
-	}
-
-	// we have finalized past the fork block, we need to make sure we're on the
-	// correct fork (should be guaranteed by the previous chain revert)
-	if finalized.1 >= canon_finalized_block {
-		assert_eq!(
-			client.hash(canon_finalized_block).unwrap().unwrap(),
-			canon_finalized_hash,
-		);
-	}
-
-	// assuming the previous preconditions, if we are in any previous grandpa
-	// round then we restart at the given reset round.
-	let grandpa_reset_round = 999999;
-	if authority_set.set_id() == 235 &&
-		last_completed_round < grandpa_reset_round
-	{
-		let set_state = grandpa::VoterSetState::<Block>::live_at(
-			authority_set.set_id(),
-			grandpa_reset_round,
-			&authority_set.inner().read(),
-			(canon_finalized_hash, canon_finalized_block),
-		);
-
-		persistent_data.set_state = set_state.into();
-	}
-}
-
 /// Builds a new service for a full client.
 pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	-> Result<impl AbstractService<
@@ -396,7 +315,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		)?
 		.build()?;
 
-	let (block_import, mut link_half, babe_link) = import_setup.take()
+	let (block_import, link_half, babe_link) = import_setup.take()
 		.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
 
 	let client = service.client();
@@ -557,11 +476,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 
 	let enable_grandpa = !disable_grandpa;
 	if enable_grandpa {
-		kusama_grandpa_hotfix(
-			&client,
-			&mut link_half.persistent_data,
-		);
-
 		// start the full GRANDPA voter
 		// NOTE: unlike in substrate we are currently running the full
 		// GRANDPA voter protocol for all full nodes (regardless of whether

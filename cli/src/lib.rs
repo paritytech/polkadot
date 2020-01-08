@@ -125,7 +125,8 @@ where
 				info!("{}", version.name);
 				info!("  version {}", config.full_version());
 				info!("  by {}, 2017-2019", version.author);
-				info!("Chain specification: {} (native: {})", config.chain_spec.name(), D::native_version().runtime_version);
+				info!("Chain specification: {}", config.chain_spec.name());
+				info!("Native runtime: {}", D::native_version().runtime_version);
 				if is_kusama {
 					info!("----------------------------");
 					info!("This chain is not in any way");
@@ -145,15 +146,12 @@ where
 							service::new_light::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
 							exit.into_exit(),
 						),
-					_ => {
-						service::kusama_chain_hotfix::<R, D>(&config);
-
+					_ =>
 						run_until_exit(
 							runtime,
 							service::new_full::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
 							exit.into_exit(),
-						)
-					},
+						),
 				}.map_err(|e| format!("{:?}", e))
 			}),
 			cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(load_spec),
