@@ -19,16 +19,15 @@ mod wasm_executor;
 
 use polkadot_parachain as parachain;
 use crate::parachain::{
-	MessageRef, UpwardMessageRef,
-	wasm_executor::{Externalities, ExternalitiesError, run_worker},
+	TargetedMessage, UpwardMessage, wasm_executor::{Externalities, run_worker},
 };
 
 struct DummyExt;
 impl Externalities for DummyExt {
-	fn post_message(&mut self, _message: MessageRef) -> Result<(), ExternalitiesError> {
+	fn post_message(&mut self, _: TargetedMessage) -> Result<(), String> {
 		Ok(())
 	}
-	fn post_upward_message(&mut self, _message: UpwardMessageRef) -> Result<(), ExternalitiesError> {
+	fn post_upward_message(&mut self, _: UpwardMessage) -> Result<(), String> {
 		Ok(())
 	}
 }
