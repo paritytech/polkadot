@@ -57,10 +57,6 @@ impl Context<Block> for TestContext {
 		}
 	}
 
-	fn send_consensus(&mut self, _who: PeerId, _consensus: Vec<ConsensusMessage>) {
-		unimplemented!()
-	}
-
 	fn send_chain_specific(&mut self, who: PeerId, message: Vec<u8>) {
 		self.messages.push((who, message))
 	}
