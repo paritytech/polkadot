@@ -576,7 +576,7 @@ mod tests {
 	}
 	pub struct Nobody;
 	impl Contains<u64> for Nobody {
-		fn contains(n: &u64) -> bool { false }
+		fn contains(_: &u64) -> bool { false }
 		fn sorted_members() -> Vec<u64> { vec![] }
 	}
 	impl treasury::Trait for Test {
