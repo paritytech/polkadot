@@ -22,11 +22,11 @@ Category: Networking
 
 Validators assigned to a parachain need a way to discover and connect to collators in order to get fresh parachain blocks to validate.
 
-Collators need to discover and connect to validators in order to submit parachain blocks,
+Collators need to discover and connect to validators in order to submit parachain blocks.
 
 Fishermen need to talk to validators and collators to fetch available data and circulate reports.
 
-Some connections are long-lived, some are ephemeral (just for a single request)
+Some connections are long-lived, some are just for a single request.
 
 #### Custom libp2p sub-protocols
 
@@ -45,7 +45,7 @@ Auctioning and registration of parachains. This is already implemented and follo
 
 Category: Runtime
 
-Parathreads are pay-as-you-go parachains.  This consists of an on-chain mechanism for resolving an auction by collators and ensuring that they author a block.
+Parathreads are pay-as-you-go parachains. This consists of an on-chain mechanism for resolving an auction by collators and ensuring that they author a block.
 
 The node-side portion of parathreads is for collators to actually cast bids and to be configured for which conditions to cast bids under.
 
@@ -68,7 +68,7 @@ A black-box networking component for circulating attestation messages (`Candidat
 
 Category: Node, Networking
 
-For each potential, considered parachain block, perform and erasure-coding of the PoV and outgoing messages of the block. Call the number of validators on the relay chain for the Relay-chain block this parachain block is being considered for inclusion in `n`. Erasure-code into `n` pieces, where any `f + 1` can recover (`f` being the maximum number of tolerated faulty nodes = ~ `n / 3`). The `i'th` validator stores the `i'th` piece of the coding and provides it to any who ask.
+For each potential, considered parachain block, perform an erasure-coding of the PoV and outgoing messages of the block. Call the number of validators on the relay chain for the Relay-chain block this parachain block is being considered for inclusion in `n`. Erasure-code into `n` pieces, where any `f + 1` can recover (`f` being the maximum number of tolerated faulty nodes = ~ `n / 3`). The `i'th` validator stores the `i'th` piece of the coding and provides it to any who ask.
 
 #### *PoV block fetching*
 
@@ -88,8 +88,8 @@ Category: Node, Networking
 
 The main event loop of a collator node:
  1. new relay chain block B
- 2. sync new parachain head w.r.t. B
- 3. build new child of B
+ 2. sync new parachain head P w.r.t. B
+ 3. build new child of P
  4. submit to validators
 
 ---
@@ -119,7 +119,7 @@ One of the main behaviors that is unimplemented and needs to be is the _rollback
 
 Category: Runtime
 
-In the attestation process, validators may submit only one `Candidate` message for a given relay chain block. If issuing a `Candidate` message on a parachain block, neither a `Valid` or `Invalid` vote cannot be issued on that parachain block, as the `Candidate` message is an implicit validity vote.  Otherwise, it is illegal to cast both a `Valid` and `Invalid` vote on a given parachain block.
+In the attestation process, validators may submit only one `Candidate` message for a given relay chain block. If issuing a `Candidate` message on a parachain block, neither a `Valid` or `Invalid` vote cannot be issued on that parachain block, as the `Candidate` message is an implicit validity vote. Otherwise, it is illegal to cast both a `Valid` and `Invalid` vote on a given parachain block.
 
 Runtime handlers that take two conflicting votes as arguments and slash the offender are needed.
 
