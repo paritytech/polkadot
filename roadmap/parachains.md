@@ -20,7 +20,7 @@ This section contains various sub-projects and the features that make them up.
 
 Category: Networking
 
-Validators assigned to a parachain need a way to discover and connect to collators in order to get fresh parachain blocks to validator.
+Validators assigned to a parachain need a way to discover and connect to collators in order to get fresh parachain blocks to validate.
 
 Collators need to discover and connect to validators in order to submit parachain blocks,
 
