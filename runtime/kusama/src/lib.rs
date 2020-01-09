@@ -72,13 +72,12 @@ use constants::{time::*, currency::*};
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-// Kusama version identifier;
 /// Runtime version (Kusama).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1036,
+	spec_version: 1037,
 	impl_version: 2,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -288,8 +287,8 @@ impl staking::Trait for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	// A super-majority of the council can cancel the slash.
-	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	// A majority of the council can cancel the slash.
+	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
 	type SessionInterface = Self;
 	type Time = Timestamp;
 	type RewardCurve = RewardCurve;
