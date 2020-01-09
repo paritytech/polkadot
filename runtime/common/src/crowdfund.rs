@@ -568,6 +568,15 @@ mod tests {
 		pub const ProposalBondMinimum: u64 = 1;
 		pub const SpendPeriod: u64 = 2;
 		pub const Burn: Permill = Permill::from_percent(50);
+		pub const TipCountdown: u64 = 1;
+		pub const TipFindersFee: Percent = Percent::from_percent(20);
+		pub const TipReportDepositBase: u64 = 1;
+		pub const TipReportDepositPerByte: u64 = 1;
+	}
+	pub struct Nobody;
+	impl Contains<u64> for Nobody {
+		fn contains(n: &u64) -> bool { false }
+		fn sorted_members() -> Vec<u64> { vec![] }
 	}
 	impl treasury::Trait for Test {
 		type Currency = balances::Module<Test>;
@@ -579,6 +588,11 @@ mod tests {
 		type ProposalBondMinimum = ProposalBondMinimum;
 		type SpendPeriod = SpendPeriod;
 		type Burn = Burn;
+		type Tippers = Nobody;
+		type TipCountdown = TipCountdown;
+		type TipFindersFee = TipFindersFee;
+		type TipReportDepositBase = TipReportDepositBase;
+		type TipReportDepositPerByte = TipReportDepositPerByte;
 	}
 
 	thread_local! {
