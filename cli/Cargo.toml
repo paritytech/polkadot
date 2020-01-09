@@ -10,41 +10,27 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 log = "0.4.8"
-tokio = "0.1.22"
 futures = { version = "0.3.1", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
 structopt = "=0.3.7"
-cli = { package = "sc-cli", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
 
-libp2p = { version = "0.13.1", default-features = false, optional = true }
-wasm-bindgen = { version = "0.2.55", optional = true }
-wasm-bindgen-futures = { version = "0.4.5", optional = true }
-console_log = { version = "0.1.2", optional = true }
-console_error_panic_hook = { version = "0.1.1", optional = true }
-js-sys = { version = "0.3.22", optional = true }
-kvdb-web = { version = "0.1.1", optional = true }
-substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true, default-features = false }
-substrate-network = { package = "sc-network", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
+tokio = { version = "0.1.22", optional = true }
 
-# Imported just for the `wasm-bindgen` feature
-rand = { version = "0.7", features = ["wasm-bindgen"], optional = true }
-rand6 = { package = "rand", version = "0.6.5", features = ["wasm-bindgen"], optional = true }
+wasm-bindgen = { version = "0.2.57", optional = true }
+wasm-bindgen-futures = { version = "0.4.7", optional = true }
+browser-utils = { package = "browser-utils", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
+substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true, default-features = false }
 
 [features]
-default = [ "wasmtime", "rocksdb" ]
-wasmtime = [ "cli/wasmtime" ]
+default = [ "wasmtime", "rocksdb", "cli" ]
+wasmtime = [ "sc-cli/wasmtime" ]
 rocksdb = [ "service/rocksdb" ]
+cli = [ "tokio" ]
 browser = [
-	"libp2p",
 	"wasm-bindgen",
-	"console_error_panic_hook",
 	"wasm-bindgen-futures",
-	"console_log",
-	"js-sys",
-	"kvdb-web",
+	"browser-utils",
 	"substrate-service",
-	"substrate-network",
-	"rand",
-	"rand6",
 ]
