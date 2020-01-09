@@ -390,10 +390,8 @@ parameter_types! {
 
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
-	// KUSAMA: This value is 100x of that expected for mainnet
-	pub const TipReportDepositBase: Balance = 100 * DOLLARS;
-	// KUSAMA: This value is 100x of that expected for mainnet
-	pub const TipReportDepositPerByte: Balance = 100 * CENTS;
+	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
+	pub const TipReportDepositPerByte: Balance = 1 * CENTS;
 }
 
 impl treasury::Trait for Runtime {
@@ -406,6 +404,7 @@ impl treasury::Trait for Runtime {
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
+	type Tippers = ElectionsPhragmen;
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
 	type TipReportDepositBase = TipReportDepositBase;
