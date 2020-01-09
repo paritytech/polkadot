@@ -99,7 +99,7 @@ decl_storage! {
 		pub RecentParaBlocks: map T::BlockNumber => Option<IncludedBlocks<T>>;
 
 		/// Attestations on a recent parachain block.
-		pub ParaBlockAttestations: double_map T::BlockNumber, blake2_128(Hash) => Option<BlockAttestations<T>>;
+		pub ParaBlockAttestations: double_map T::BlockNumber, hasher(blake2_128) Hash => Option<BlockAttestations<T>>;
 
 		// Did we already have more attestations included in this block?
 		DidUpdate: bool;
