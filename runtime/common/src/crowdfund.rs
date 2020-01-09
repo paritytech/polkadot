@@ -501,12 +501,13 @@ mod tests {
 
 	use std::{collections::HashMap, cell::RefCell};
 	use frame_support::{impl_outer_origin, assert_ok, assert_noop, parameter_types};
+	use frame_support::traits::Contains;
 	use sp_core::H256;
 	use primitives::parachain::{Info as ParaInfo, Id as ParaId};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
-		Perbill, Permill, testing::Header, DispatchResult,
+		Perbill, Permill, Percent, testing::Header, DispatchResult,
 		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup},
 	};
 	use crate::registrar::Registrar;
@@ -568,6 +569,15 @@ mod tests {
 		pub const ProposalBondMinimum: u64 = 1;
 		pub const SpendPeriod: u64 = 2;
 		pub const Burn: Permill = Permill::from_percent(50);
+		pub const TipCountdown: u64 = 1;
+		pub const TipFindersFee: Percent = Percent::from_percent(20);
+		pub const TipReportDepositBase: u64 = 1;
+		pub const TipReportDepositPerByte: u64 = 1;
+	}
+	pub struct Nobody;
+	impl Contains<u64> for Nobody {
+		fn contains(_: &u64) -> bool { false }
+		fn sorted_members() -> Vec<u64> { vec![] }
 	}
 	impl treasury::Trait for Test {
 		type Currency = balances::Module<Test>;
@@ -579,6 +589,11 @@ mod tests {
 		type ProposalBondMinimum = ProposalBondMinimum;
 		type SpendPeriod = SpendPeriod;
 		type Burn = Burn;
+		type Tippers = Nobody;
+		type TipCountdown = TipCountdown;
+		type TipFindersFee = TipFindersFee;
+		type TipReportDepositBase = TipReportDepositBase;
+		type TipReportDepositPerByte = TipReportDepositPerByte;
 	}
 
 	thread_local! {

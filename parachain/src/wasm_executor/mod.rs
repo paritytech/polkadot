@@ -160,6 +160,7 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 		validation_code,
 		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
 		1024,
+		false,
 	)?;
 
 	ValidationResult::decode(&mut &res[..]).map_err(|_| Error::BadReturn.into())
