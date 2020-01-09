@@ -501,6 +501,7 @@ mod tests {
 
 	use std::{collections::HashMap, cell::RefCell};
 	use frame_support::{impl_outer_origin, assert_ok, assert_noop, parameter_types};
+	use frame_support::traits::Contains;
 	use sp_core::H256;
 	use primitives::parachain::{Info as ParaInfo, Id as ParaId};
 	// The testing primitives are very useful for avoiding having to work with signatures
