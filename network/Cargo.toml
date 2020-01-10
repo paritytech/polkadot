@@ -13,10 +13,10 @@ polkadot-validation = { path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
-sc-network-gossip = { git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-network-gossip = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 futures = "0.3.1"
 log = "0.4.8"
 exit-future = "0.2.0"
@@ -26,5 +26,5 @@ sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-m
 wasm-timer = "0.2.4"
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "bkchr-propose-with-proof" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
