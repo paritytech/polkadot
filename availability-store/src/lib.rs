@@ -32,19 +32,20 @@ use polkadot_primitives::{
 		ParachainHost,
 	},
 };
-use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
+use sp_runtime::traits::{BlakeTwo256, Hash as HashT, HasherFor};
 use sp_blockchain::{Result as ClientResult};
 use client::{
 	BlockchainEvents, BlockBody,
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
-use std::pin::Pin;
+
 use log::warn;
 
 use std::sync::Arc;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::io;
+use std::pin::Pin;
 
 mod worker;
 mod store;
@@ -203,6 +204,8 @@ impl Store {
 		P: ProvideRuntimeApi<Block> + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block>,
 		P::Api: ApiExt<Block, Error=sp_blockchain::Error>,
+		// Rust bug: https://github.com/rust-lang/rust/issues/24159
+		sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
 	{
 		let to_worker = self.to_worker.clone();
 

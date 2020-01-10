@@ -22,8 +22,9 @@ log = "0.4.8"
 exit-future = "0.2.0"
 sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 wasm-timer = "0.2.4"
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

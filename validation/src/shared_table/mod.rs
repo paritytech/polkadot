@@ -37,7 +37,7 @@ use bitvec::bitvec;
 use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
 use primitives::Pair;
-use runtime_primitives::traits::ProvideRuntimeApi;
+use sp_api::ProvideRuntimeApi;
 
 mod includable;
 
@@ -270,7 +270,7 @@ pub struct ParachainWork<Fetch> {
 impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 	/// Prime the parachain work with an API reference for extracting
 	/// chain information.
-	pub fn prime<P: ProvideRuntimeApi>(self, api: Arc<P>)
+	pub fn prime<P: ProvideRuntimeApi<Block>>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			Fetch,
 			impl Send + FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()> + Unpin,

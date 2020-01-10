@@ -19,7 +19,6 @@
 //! This fulfills the `polkadot_validation::Network` trait, providing a hook to be called
 //! each time validation leaf work begins on a new chain head.
 
-use sp_runtime::traits::ProvideRuntimeApi;
 use sc_network::PeerId;
 use polkadot_validation::{
 	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, SignedStatement,
@@ -29,6 +28,7 @@ use polkadot_primitives::parachain::{
 	Id as ParaId, Collation, OutgoingMessages, ParachainHost, CandidateReceipt, CollatorId,
 	ValidatorId, PoVBlock,
 };
+use sp_api::ProvideRuntimeApi;
 
 use futures::prelude::*;
 use futures::task::SpawnExt;

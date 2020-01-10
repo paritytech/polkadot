@@ -317,6 +317,7 @@ mod tests {
 	impl balances::Trait for Test {
 		type Balance = u64;
 		type OnFreeBalanceZero = ();
+		type OnReapAccount = System;
 		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
@@ -335,6 +336,7 @@ mod tests {
 		type Currency = Balances;
 		type Prefix = Prefix;
 	}
+	type System = system::Module<Test>;
 	type Balances = balances::Module<Test>;
 	type Claims = Module<Test>;
 

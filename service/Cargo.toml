@@ -24,10 +24,10 @@ sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-ma
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-db = { package = "sc-client-db", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
@@ -35,7 +35,7 @@ consensus_common = { package = "sp-consensus", git = "https://github.com/parityt
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
