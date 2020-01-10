@@ -537,6 +537,24 @@ pub fn kusama_new_light(config: Configuration)
 	new_light(config)
 }
 
+// We can't use service::TLightClient due to
+// Rust bug: https://github.com/rust-lang/rust/issues/43580
+type TLocalLightClient<Runtime, Dispatch> =  Client<
+	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
+	sc_client::light::call_executor::GenesisCallExecutor<
+		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
+		sc_client::LocalCallExecutor<
+			sc_client::light::backend::Backend<
+				sc_client_db::light::LightStorage<Block>,
+				sp_core::Blake2Hasher
+			>,
+			sc_executor::NativeExecutor<Dispatch>
+		>
+	>,
+	Block,
+	Runtime
+>;
+
 /// Builds a new service for a light client.
 pub fn new_light<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	-> Result<impl AbstractService<
@@ -549,25 +567,15 @@ pub fn new_light<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	>, ServiceError>
 where
 	Runtime: Send + Sync + 'static,
-	Runtime::RuntimeApi: RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<TLightBackend<Block>, Block>>,
+	Runtime::RuntimeApi: RuntimeApiCollection<
+		Extrinsic,
+		StateBackend = sc_client_api::StateBackendFor<TLightBackend<Block>, Block>
+	>,
 	Dispatch: NativeExecutionDispatch + 'static,
 	Extrinsic: RuntimeExtrinsic,
-	// Rust bug: https://github.com/rust-lang/rust/issues/43580
 	Runtime: sp_api::ConstructRuntimeApi<
 		Block,
-		Client<
-			sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
-			sc_client::light::call_executor::GenesisCallExecutor<
-				sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
-				sc_client::LocalCallExecutor<
-					sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>,
-					sp_core::Blake2Hasher
-				>,
-				sc_executor::NativeExecutor<Dispatch>>
-			>,
-			Block,
-			Runtime
-		>
+		TLocalLightClient<Runtime, Dispatch>,
 	>,
 {
 	let inherent_data_providers = InherentDataProviders::new();
