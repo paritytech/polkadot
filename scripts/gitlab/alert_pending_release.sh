@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # structure_message $content $formatted_content (optional)
 structure_message() {
@@ -44,7 +44,7 @@ EOF
 formatted_msg_body=$(cat <<EOF
 <strong>New version of polkadot tagged:</strong> $CI_COMMIT_TAG.<br />
 Build pipeline: $CI_PIPELINE_URL<br />
-A release will be pending upon completion of this pipeline.
+A release will be drafted upon completion of this pipeline.
 EOF
 )
 
@@ -55,7 +55,7 @@ send_message "$(structure_message "$msg_body" "$formatted_msg_body")" $MATRIX_RO
 msg_body=$(cat <<EOF
 **New version of polkadot tagged:** $CI_COMMIT_TAG.
 Build pipeline: $CI_PIPELINE_URL
-When the build finishes, it is safe to perform a release.
+When the build finishes, it is safe to build cleanroom binaries.
 EOF
 )
 
