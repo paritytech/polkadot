@@ -134,12 +134,12 @@ fi
 echo '[+] Sending draft release URL to Matrix'
 
 msg_body=$(cat <<EOF
-**Release pipeline for Polkadot $version complete.**
+**Gav: Release pipeline for Polkadot $version complete.**
 Draft release created: $html_url
 EOF
 )
 formatted_msg_body=$(cat <<EOF
-<strong>Release pipeline for Polkadot $version complete.</strong><br />
+<strong>Gav: Release pipeline for Polkadot $version complete.</strong><br />
 Draft release created: $html_url
 EOF
 )
