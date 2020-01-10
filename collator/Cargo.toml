@@ -7,11 +7,13 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.1"
-client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-cli = { path = "../cli" }
@@ -21,6 +23,7 @@ polkadot-service = { path = "../service" }
 log = "0.4.8"
 tokio = "0.1.22"
 futures-timer = "1.0"
+codec = { package = "parity-scale-codec", version = "1.1.0" }
 
 [dev-dependencies]
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

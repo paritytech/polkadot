@@ -14,6 +14,13 @@ futures = { version = "0.3.1", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
 structopt = "=0.3.7"
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
 
 tokio = { version = "0.1.22", optional = true }

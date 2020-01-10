@@ -9,6 +9,7 @@ client = { package = "sc-client", git = "https://github.com/paritytech/substrate
 jsonrpc-core = "14.0.3"
 polkadot-primitives = { path = "../primitives" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
 sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }

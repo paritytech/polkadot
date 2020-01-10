@@ -34,8 +34,8 @@ use polkadot_primitives::parachain::{
 };
 use parking_lot::Mutex;
 use sp_blockchain::Result as ClientResult;
-use sp_api::{Core, RuntimeVersion, StorageProof, ApiExt};
-use sp_runtime::traits::{ApiRef, {Block as BlockT}, ProvideRuntimeApi};
+use sp_api::{ApiRef, Core, RuntimeVersion, StorageProof, ApiErrorExt, ApiExt, ProvideRuntimeApi};
+use sp_runtime::traits::Block as BlockT;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -161,7 +161,7 @@ struct RuntimeApi {
 	data: Arc<Mutex<ApiData>>,
 }
 
-impl ProvideRuntimeApi for TestApi {
+impl ProvideRuntimeApi<Block> for TestApi {
 	type Api = RuntimeApi;
 
 	fn runtime_api<'a>(&'a self) -> ApiRef<'a, Self::Api> {
@@ -201,8 +201,12 @@ impl Core<Block> for RuntimeApi {
 	}
 }
 
-impl ApiExt<Block> for RuntimeApi {
+impl ApiErrorExt for RuntimeApi {
 	type Error = sp_blockchain::Error;
+}
+
+impl ApiExt<Block> for RuntimeApi {
+	type StateBackend = sp_state_machine::InMemoryBackend<sp_api::HasherFor<Block>>;
 
 	fn map_api_result<F: FnOnce(&Self) -> Result<R, E>, R, E>(
 		&self,
@@ -219,6 +223,19 @@ impl ApiExt<Block> for RuntimeApi {
 
 	fn extract_proof(&mut self) -> Option<StorageProof> {
 		None
+	}
+
+	fn into_storage_changes<
+		T: sp_api::ChangesTrieStorage<sp_api::HasherFor<Block>, sp_api::NumberFor<Block>>
+	>(
+		&self,
+		_: &Self::StateBackend,
+		_: Option<&T>,
+		_: <Block as sp_api::BlockT>::Hash,
+	) -> std::result::Result<sp_api::StorageChanges<Self::StateBackend, Block>, String>
+		where Self: Sized
+	{
+		unimplemented!("Not required for testing!")
 	}
 }
 

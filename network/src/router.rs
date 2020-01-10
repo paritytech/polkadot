@@ -23,7 +23,7 @@
 //! the `TableRouter` trait from `polkadot-validation`, which is expected to call into a shared statement table
 //! and dispatch evaluation work as necessary when new statements come in.
 
-use sp_runtime::traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT};
+use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 use polkadot_validation::{
 	SharedTable, TableRouter, SignedStatement, GenericStatement, ParachainWork, Validated
 };
@@ -32,6 +32,7 @@ use polkadot_primitives::parachain::{
 	OutgoingMessages, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
 };
 use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
+use sp_api::ProvideRuntimeApi;
 
 use futures::prelude::*;
 use futures::{task::SpawnExt, future::{ready, select}};
@@ -127,7 +128,7 @@ impl<P, E: Clone, T: Clone> Clone for Router<P, E, T> {
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, T> Router<P, E, T> where
+impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, E, T> Router<P, E, T> where
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	T: Clone + Executor + Send + 'static,
 	E: Future<Output=()> + Clone + Send + Unpin + 'static,
@@ -225,7 +226,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, T> Router<P, E, T> where
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send, E, T> TableRouter for Router<P, E, T> where
+impl<P: ProvideRuntimeApi<Block> + Send, E, T> TableRouter for Router<P, E, T> where
 	P::Api: ParachainHost<Block>,
 	T: Clone + Executor + Send + 'static,
 	E: Future<Output=()> + Clone + Send + 'static,

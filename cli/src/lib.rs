@@ -31,10 +31,11 @@ use futures::{
 use tokio::runtime::Runtime;
 use log::info;
 use structopt::StructOpt;
+use sp_api::ConstructRuntimeApi;
 
 pub use service::{
-	AbstractService, CustomConfiguration, ProvideRuntimeApi, CoreApi, ParachainHost, IsKusama, self,
-	WrappedExecutor
+	AbstractService, CustomConfiguration, ProvideRuntimeApi, CoreApi, ParachainHost, IsKusama,
+	WrappedExecutor, Block, self, RuntimeApiCollection, TFullClient
 };
 
 pub use sc_cli::{VersionInfo, IntoExit, NoCustom, SharedParams};
@@ -101,6 +102,25 @@ pub fn run<E: IntoExit>(exit: E, version: sc_cli::VersionInfo) -> error::Result<
 	}
 }
 
+#[cfg(feature = "cli")]
+use sp_core::Blake2Hasher;
+
+#[cfg(feature = "cli")]
+// We can't simply use `service::TLightClient` due to a
+// Rust bug: https://github.com/rust-lang/rust/issues/43580
+type TLightClient<Runtime, Dispatch> = sc_client::Client<
+	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
+	sc_client::light::call_executor::GenesisCallExecutor<
+		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
+		sc_client::LocalCallExecutor<
+			sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
+			sc_executor::NativeExecutor<Dispatch>
+		>
+	>,
+	Block,
+	Runtime
+>;
+
 /// Execute the given `cmd` with the given runtime.
 #[cfg(feature = "cli")]
 fn execute_cmd_with_runtime<R, D, E, X>(
@@ -110,14 +130,23 @@ fn execute_cmd_with_runtime<R, D, E, X>(
 	spec: Option<service::ChainSpec>,
 ) -> error::Result<()>
 where
-	R: service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>
-		+ service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>
+	R: ConstructRuntimeApi<Block, service::TFullClient<Block, R, D>>
 		+ Send + Sync + 'static,
-	<R as service::ConstructRuntimeApi<service::Block, service::TFullClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E>,
-	<R as service::ConstructRuntimeApi<service::Block, service::TLightClient<service::Block, R, D>>>::RuntimeApi: service::RuntimeApiCollection<E>,
+	<R as ConstructRuntimeApi<Block, service::TFullClient<Block, R, D>>>::RuntimeApi:
+		RuntimeApiCollection<E, StateBackend = sc_client_api::StateBackendFor<service::TFullBackend<Block>, Block>>,
+	<R as ConstructRuntimeApi<Block, service::TLightClient<Block, R, D>>>::RuntimeApi:
+		RuntimeApiCollection<E, StateBackend = sc_client_api::StateBackendFor<service::TLightBackend<Block>, Block>>,
 	E: service::Codec + Send + Sync + 'static,
 	D: service::NativeExecutionDispatch + 'static,
 	X: IntoExit,
+	// Rust bug: https://github.com/rust-lang/rust/issues/24159
+	<<R as ConstructRuntimeApi<Block, TFullClient<Block, R, D>>>::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend:
+		sp_api::StateBackend<Blake2Hasher>,
+	// Rust bug: https://github.com/rust-lang/rust/issues/43580
+	R: ConstructRuntimeApi<
+		Block,
+		TLightClient<R, D>
+	>,
 {
 	let is_kusama = spec.as_ref().map_or(false, |s| s.is_kusama());
 	// Use preloaded spec
