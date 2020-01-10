@@ -602,28 +602,33 @@ pub struct LocalDuty {
 }
 
 /// The Polkadot proposer logic.
-pub struct Proposer<C, TxPool, B> {
-	client: Arc<C>,
+pub struct Proposer<Client, TxPool, Backend> {
+	client: Arc<Client>,
 	parent_hash: Hash,
 	parent_id: BlockId,
 	parent_number: BlockNumber,
 	tracker: Arc<AttestationTracker>,
 	transaction_pool: Arc<TxPool>,
 	slot_duration: u64,
-	backend: Arc<B>,
+	backend: Arc<Backend>,
 }
 
-impl<C, TxPool, B> consensus::Proposer<Block> for Proposer<C, TxPool, B> where
+impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, TxPool, Backend> where
 	TxPool: TransactionPool<Block=Block> + 'static,
-	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
-	B: Backend<Block, State = sp_api::StateBackendFor<C, Block>> + 'static,
+	Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
+	Client::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
+	Backend: sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>> + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<C, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
+	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
 {
 	type Error = Error;
-	type Transaction = sp_api::TransactionFor<C, Block>;
-	type Proposal = Pin<Box<dyn Future<Output = Result<Proposal<Block, sp_api::TransactionFor<C, Block>>, Error>> + Send>>;
+	type Transaction = sp_api::TransactionFor<Client, Block>;
+	type Proposal = Pin<
+		Box<
+			dyn Future<Output = Result<Proposal<Block, sp_api::TransactionFor<Client, Block>>, Error>>
+				+ Send
+		>
+	>;
 
 	fn propose(&mut self,
 		inherent_data: InherentData,
@@ -708,11 +713,11 @@ fn current_timestamp() -> u64 {
 }
 
 /// Inner data of the create proposal.
-struct CreateProposalData<C, TxPool, B> {
+struct CreateProposalData<Client, TxPool, Backend> {
 	parent_hash: Hash,
 	parent_number: BlockNumber,
 	parent_id: BlockId,
-	client: Arc<C>,
+	client: Arc<Client>,
 	transaction_pool: Arc<TxPool>,
 	table: Arc<SharedTable>,
 	believed_minimum_timestamp: u64,
@@ -720,21 +725,21 @@ struct CreateProposalData<C, TxPool, B> {
 	inherent_digests: DigestFor<Block>,
 	deadline: Instant,
 	record_proof: RecordProof,
-	backend: Arc<B>,
+	backend: Arc<Backend>,
 }
 
-impl<C, TxPool, B> CreateProposalData<C, TxPool, B> where
+impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 	TxPool: TransactionPool<Block=Block>,
-	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync,
-	C::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
-	B: Backend<Block, State = sp_api::StateBackendFor<C, Block>> + 'static,
+	Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync,
+	Client::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
+	Backend: sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>> + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<C, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
+	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
 {
 	fn propose_with(
 		mut self,
 		candidates: Vec<AttestedCandidate>,
-	) -> Result<Proposal<Block, sp_api::TransactionFor<C, Block>>, Error> {
+	) -> Result<Proposal<Block, sp_api::TransactionFor<Client, Block>>, Error> {
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
 		const MAX_TRANSACTIONS: usize = 40;
