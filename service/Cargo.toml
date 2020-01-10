@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.7.16"
+version = "0.7.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -24,10 +24,10 @@ sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-ma
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client-db = { package = "sc-client-db", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

@@ -25,7 +25,7 @@
 
 use std::{thread, time::Duration, sync::Arc};
 
-use client::{BlockchainEvents, BlockBody};
+use sc_client_api::{BlockchainEvents, BlockBody};
 use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
@@ -33,10 +33,10 @@ use futures::prelude::*;
 use futures::{future::{ready, select}, task::{Spawn, SpawnExt}};
 use polkadot_primitives::Block;
 use polkadot_primitives::parachain::ParachainHost;
-use runtime_primitives::traits::{ProvideRuntimeApi};
 use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
-use sp_api::ApiExt;
+use sp_api::{ApiExt, ProvideRuntimeApi};
+use runtime_primitives::traits::HasherFor;
 
 use tokio::{runtime::Runtime as LocalRuntime};
 use log::{warn, error};
@@ -64,7 +64,7 @@ pub(crate) fn start<C, N, P, SC>(
 		C: Collators + Send + Sync + Unpin + 'static,
 		C::Collation: Send + Unpin + 'static,
 		P: BlockchainEvents<Block> + BlockBody<Block>,
-		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+		P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block> +
 			BlockBuilderApi<Block> +
 			BabeApi<Block> +
@@ -73,6 +73,8 @@ pub(crate) fn start<C, N, P, SC>(
 		N::TableRouter: Send + 'static,
 		N::BuildTableRouter: Send + Unpin + 'static,
 		SC: SelectChain<Block> + 'static,
+		// Rust bug: https://github.com/rust-lang/rust/issues/24159
+		sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
 {
 	const TIMER_INTERVAL: Duration = Duration::from_secs(30);
 

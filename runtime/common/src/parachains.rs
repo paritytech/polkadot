@@ -1023,6 +1023,7 @@ mod tests {
 	impl balances::Trait for Test {
 		type Balance = Balance;
 		type OnFreeBalanceZero = ();
+		type OnReapAccount = System;
 		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
@@ -1647,14 +1648,14 @@ mod tests {
 			let duty_roster_0 = Parachains::calculate_duty_roster().0;
 			check_roster(&duty_roster_0);
 
-			System::initialize(&1, &H256::from([1; 32]), &Default::default(), &Default::default());
+			System::initialize(&1, &H256::from([1; 32]), &Default::default(), &Default::default(), Default::default());
 			RandomnessCollectiveFlip::on_initialize(1);
 			let duty_roster_1 = Parachains::calculate_duty_roster().0;
 			check_roster(&duty_roster_1);
 			assert_ne!(duty_roster_0, duty_roster_1);
 
 
-			System::initialize(&2, &H256::from([2; 32]), &Default::default(), &Default::default());
+			System::initialize(&2, &H256::from([2; 32]), &Default::default(), &Default::default(), Default::default());
 			RandomnessCollectiveFlip::on_initialize(2);
 			let duty_roster_2 = Parachains::calculate_duty_roster().0;
 			check_roster(&duty_roster_2);
