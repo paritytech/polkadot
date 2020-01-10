@@ -93,7 +93,7 @@ impl<P, E: Clone, T: Clone> Clone for ValidationNetwork<P, E, T> {
 }
 
 impl<P, E, T> ValidationNetwork<P, E, T> where
-	P: ProvideRuntimeApi + Send + Sync + 'static,
+	P: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 	E: Clone + Future<Output=()> + Send + Sync + 'static,
 	T: Clone + Executor + Send + Sync + 'static,
@@ -177,7 +177,7 @@ impl<P, E, T> ValidationNetwork<P, E, T> {
 
 /// A long-lived network which can create parachain statement  routing processes on demand.
 impl<P, E, T> ParachainNetwork for ValidationNetwork<P, E, T> where
-	P: ProvideRuntimeApi + Send + Sync + 'static,
+	P: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	E: Clone + Future<Output=()> + Send + Sync + Unpin + 'static,
 	T: Clone + Executor + Send + Sync + 'static,
@@ -235,7 +235,7 @@ impl<P, E, T> ParachainNetwork for ValidationNetwork<P, E, T> where
 pub struct NetworkDown;
 
 impl<P, E: Clone, N: Clone> Collators for ValidationNetwork<P, E, N> where
-	P: ProvideRuntimeApi + Send + Sync + 'static,
+	P: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block>,
 {
 	type Error = NetworkDown;
@@ -572,7 +572,7 @@ impl<P, E: Clone, T: Clone> Clone for LeafWorkDataFetcher<P, E, T> {
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send, E, T> LeafWorkDataFetcher<P, E, T> where
+impl<P: ProvideRuntimeApi<Block> + Send, E, T> LeafWorkDataFetcher<P, E, T> where
 	P::Api: ParachainHost<Block>,
 	T: Clone + Executor + Send + 'static,
 	E: Future<Output=()> + Clone + Send + 'static,

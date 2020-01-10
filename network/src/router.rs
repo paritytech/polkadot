@@ -127,7 +127,7 @@ impl<P, E: Clone, T: Clone> Clone for Router<P, E, T> {
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, T> Router<P, E, T> where
+impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, E, T> Router<P, E, T> where
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	T: Clone + Executor + Send + 'static,
 	E: Future<Output=()> + Clone + Send + Unpin + 'static,
@@ -225,7 +225,7 @@ impl<P: ProvideRuntimeApi + Send + Sync + 'static, E, T> Router<P, E, T> where
 	}
 }
 
-impl<P: ProvideRuntimeApi + Send, E, T> TableRouter for Router<P, E, T> where
+impl<P: ProvideRuntimeApi<Block> + Send, E, T> TableRouter for Router<P, E, T> where
 	P::Api: ParachainHost<Block>,
 	T: Clone + Executor + Send + 'static,
 	E: Future<Output=()> + Clone + Send + 'static,

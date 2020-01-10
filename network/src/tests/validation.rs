@@ -161,7 +161,7 @@ struct RuntimeApi {
 	data: Arc<Mutex<ApiData>>,
 }
 
-impl ProvideRuntimeApi for TestApi {
+impl ProvideRuntimeApi<Block> for TestApi {
 	type Api = RuntimeApi;
 
 	fn runtime_api<'a>(&'a self) -> ApiRef<'a, Self::Api> {

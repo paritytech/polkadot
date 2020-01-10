@@ -64,7 +64,7 @@ pub(crate) fn start<C, N, P, SC>(
 		C: Collators + Send + Sync + Unpin + 'static,
 		C::Collation: Send + Unpin + 'static,
 		P: BlockchainEvents<Block> + BlockBody<Block>,
-		P: ProvideRuntimeApi + HeaderBackend<Block> + Send + Sync + 'static,
+		P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block> +
 			BlockBuilderApi<Block> +
 			BabeApi<Block> +

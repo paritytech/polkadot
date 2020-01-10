@@ -236,7 +236,7 @@ struct ApiContext<P, E, SP> {
 }
 
 impl<P: 'static, E: 'static, SP: 'static> RelayChainContext for ApiContext<P, E, SP> where
-	P: ProvideRuntimeApi + Send + Sync,
+	P: ProvideRuntimeApi<Block> + Send + Sync,
 	P::Api: ParachainHost<Block>,
 	E: futures::Future<Output=()> + Clone + Send + Sync + 'static,
 	SP: Spawn + Clone + Send + Sync
