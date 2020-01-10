@@ -35,7 +35,7 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, Permill, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, Percent, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	curve::PiecewiseLinear,
 	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys},
@@ -77,8 +77,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1037,
-	impl_version: 2,
+	spec_version: 1038,
+	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
 
@@ -387,6 +387,11 @@ parameter_types! {
 	pub const ProposalBondMinimum: Balance = 20 * DOLLARS;
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
 	pub const Burn: Permill = Permill::from_percent(0);
+
+	pub const TipCountdown: BlockNumber = 1 * DAYS;
+	pub const TipFindersFee: Percent = Percent::from_percent(20);
+	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
+	pub const TipReportDepositPerByte: Balance = 1 * CENTS;
 }
 
 impl treasury::Trait for Runtime {
@@ -399,6 +404,11 @@ impl treasury::Trait for Runtime {
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
+	type Tippers = ElectionsPhragmen;
+	type TipCountdown = TipCountdown;
+	type TipFindersFee = TipFindersFee;
+	type TipReportDepositBase = TipReportDepositBase;
+	type TipReportDepositPerByte = TipReportDepositPerByte;
 }
 
 impl offences::Trait for Runtime {

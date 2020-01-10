@@ -47,8 +47,8 @@ struct TestContext {
 
 impl Context<Block> for TestContext {
 	fn report_peer(&mut self, peer: PeerId, reputation: ReputationChange) {
-        let reputation = self.reputations.get(&peer).map_or(reputation.value, |v| v + reputation.value);
-        self.reputations.insert(peer.clone(), reputation);
+		let reputation = self.reputations.get(&peer).map_or(reputation.value, |v| v + reputation.value);
+		self.reputations.insert(peer.clone(), reputation);
 
 		match reputation {
 			i if i < -100 => self.disabled.push(peer),
