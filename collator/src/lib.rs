@@ -152,8 +152,8 @@ pub trait BuildParachainContext {
 			Extrinsic: codec::Codec + Send + Sync + 'static,
 			E: sc_client::CallExecutor<Block> + Clone + Send + Sync + 'static,
 			SP: Spawn + Clone + Send + Sync + 'static,
-			R: Send + Sync,
-			B: sc_client_api::Backend<Block>,
+			R: Send + Sync + 'static,
+			B: sc_client_api::Backend<Block> + 'static,
 			// Rust bug: https://github.com/rust-lang/rust/issues/24159
 			B::State: sp_api::StateBackend<Blake2Hasher>;
 }
