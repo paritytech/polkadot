@@ -98,9 +98,55 @@ The main event loop of a collator node:
 https://hackmd.io/ILoQltEISP697oMYe4HbrA?view
 https://github.com/paritytech/polkadot/issues/597
 
-The biggest sub-project of the parachains roadmap - how messages are sent between parachains.
+The biggest sub-project of the parachains roadmap - how messages are sent between parachains. This involves the state-machine ordering of incoming messages, protocols for fetching those messages, and node logic for persisting the messages.
 
-TODO: break down further.
+This is designed around a concept of unidirectional _channels_ between paras, which consist of a sender and receiver. At each relay chain block, each para has an opportunity to send a message on each channel for which it controls the sending half. It will also attempt to process messages on each receiving half of the channel which it controls _in order_: messages sent at block height `b` must be processed before those sent at block height `b+1`. For messages on different channels sent at the same block height, there will be some well-defined order in which they should be processed.
+
+This means that a receiving para will have a maximum height differential of `1` in terms of the most recently processed message's send-height across all of the channels it is receiving on. The minimum processed send-height of a receiving para is known as its _watermark_. All messages on all channels sending to this para before or at the watermark have been processed.
+
+#### *Finalize CandidateReceipt format*
+
+Category: Runtime / Node
+
+The `CandidateReceipt` is the wrapper around a parablock header which is submitted to the runtime. It contains cryptographic commitments to data which is important for validation or interpretation of the parablock, including the hash of the witness data and outgoing message data.
+
+The `CandidateReceipt` format should be finalized in accordance to the XCMP writeups linked above - most importantly, to be altered to hold `bitfield` and `message_root` fields which cryptographically commit to the state of each open channel.
+
+#### *Finalize PovBlock format*
+
+Category: Runtime / Node
+
+The `PovBlock` or `Proof-of-Validity` block contains all the data you need to validate a parablock. It will need to contain incoming message queues and potentially outgoing ones as well.
+
+#### *CST Update Procedure*
+
+Category: Runtime
+
+Storage definitions and update logic of the Channel State Table (CST) based on the supplied `CandidateReceipt`s in a relay chain block.
+
+#### *CST Entry Proof Generation and Checking*
+
+Category: Node
+
+Means for full nodes of the relay chain to generate proofs of items in the CST and for light clients or pruned nodes to check those proofs.
+
+#### *MQC Storage and Distribution Protocol*
+
+Category: Node
+
+Every channel's state is described by a Message Queue Chain (MQC) which is a hash-chain, where the links are defined by `(M, b, H)`: the message most recently sent, the block height at which the prior message was sent, and the hash of the prior link.
+
+It is the responsibility of the full nodes of the _sending_ para to maintain all links of the MQC up to and including the link where `b` is less than the watermark of the _receiving_ para.
+
+Full nodes of the para will be aware of the head of all MQCs for its channels because they are produced by execution of the block. This will take collaboration with the Cumulus team (https://github.com/paritytech/cumulus) on APIs.
+
+We will need a network where collators of paras can discover and fetch the relevant portion of the MQC incoming from all channels.
+
+#### *Channel Registrar and Economics*
+
+Category: Runtime
+
+Runtime logic for paras to open and close channels by putting down a deposit. The amount of channels a parathread can open will be limited. Channels that are pending close should remain open until the watermark of the recipient has reached the block height of the close request.
 
 ---
 ### Fishing/Slashing
@@ -161,7 +207,7 @@ The very first phase - this is parachains without slashing (full security) or cr
   - Collation Loop
 
 ### Cross-chain Messaging:
-  - TODO: probably just finalizing format to include egress bitfields.
+  - Finalize `CandidateReceipt` format
 
 ## Phase 1: Fishing and Slashing
 
@@ -177,8 +223,11 @@ This phase marks advancement in the security of parachains. Once completed, para
   - Validity/Availability Fishing
   - Double-vote Fishing
 
+### Cross-chain Messaging:
+  - Finalize `PoVBlock` format.
+
 ## Phase 2: Messaging
 
 This phase marks delivery of cross-chain messaging.
 
-TODO: requires lots of XCMP stuff.
+Pretty much everything left from the XCMP section.
