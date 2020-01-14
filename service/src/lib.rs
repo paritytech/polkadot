@@ -227,16 +227,17 @@ macro_rules! new_full_start {
 }
 
 /// Builds a new object suitable for chain operations.
-pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(config: Configuration)
+pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration)
 	-> Result<impl ServiceBuilderCommand<Block=Block>, ServiceError>
 where
 	Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
 	Runtime::RuntimeApi:
-		RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>>,
+	RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>>,
 	Dispatch: NativeExecutionDispatch + 'static,
 	Extrinsic: RuntimeExtrinsic,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
 {
+	config.keystore = service::config::KeystoreConfig::InMemory;
 	Ok(new_full_start!(config, Runtime, Dispatch).0)
 }
 
