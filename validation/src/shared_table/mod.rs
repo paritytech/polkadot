@@ -431,7 +431,10 @@ impl SharedTable {
 
 	/// Import a single statement with remote source, whose signature has already been checked.
 	///
-	/// The statement producer, if any, will produce only statements concerning the same candidate
+	/// Validity and invalidity statements are only valid if the corresponding
+	/// candidate has already been imported.
+	///
+	/// The ParachainWork, if any, will produce only statements concerning the same candidate
 	/// as the one just imported
 	pub fn import_remote_statement<R: TableRouter>(
 		&self,
@@ -446,8 +449,10 @@ impl SharedTable {
 	/// Import many statements at once.
 	///
 	/// Provide an iterator yielding remote, pre-checked statements.
+	/// Validity and invalidity statements are only valid if the corresponding
+	/// candidate has already been imported.
 	///
-	/// The statement producer, if any, will produce only statements concerning the same candidate
+	/// The ParachainWork, if any, will produce only statements concerning the same candidate
 	/// as the one just imported
 	pub fn import_remote_statements<R, I, U>(&self, router: &R, iterable: I) -> U
 		where
