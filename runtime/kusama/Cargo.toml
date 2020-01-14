@@ -48,7 +48,9 @@ membership = { package = "pallet-membership", git = "https://github.com/parityte
 nicks = { package = "pallet-nicks", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+recovery = { package = "pallet-recovery", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 session = { package = "pallet-session", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
+society = { package = "pallet-society", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-master" }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
@@ -111,9 +113,11 @@ std = [
 	"membership/std",
 	"nicks/std",
 	"offences/std",
+	"recovery/std",
 	"sp-runtime/std",
 	"sp-staking/std",
 	"session/std",
+	"society/std",
 	"staking/std",
 	"system/std",
 	"system_rpc_runtime_api/std",
