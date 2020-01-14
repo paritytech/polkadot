@@ -35,7 +35,7 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, Permill, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, Percent, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	curve::PiecewiseLinear,
 	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys},
@@ -72,14 +72,13 @@ use constants::{time::*, currency::*};
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-// Kusama version identifier;
 /// Runtime version (Kusama).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1035,
-	impl_version: 2,
+	spec_version: 1040,
+	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
 
@@ -175,6 +174,7 @@ pub type DealWithFees = SplitTwoWays<
 impl balances::Trait for Runtime {
 	type Balance = Balance;
 	type OnFreeBalanceZero = Staking;
+	type OnReapAccount = System;
 	type OnNewAccount = Indices;
 	type Event = Event;
 	type DustRemoval = ();
@@ -288,8 +288,8 @@ impl staking::Trait for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	// A super-majority of the council can cancel the slash.
-	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	// A majority of the council can cancel the slash.
+	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
 	type SessionInterface = Self;
 	type Time = Timestamp;
 	type RewardCurve = RewardCurve;
@@ -388,6 +388,11 @@ parameter_types! {
 	pub const ProposalBondMinimum: Balance = 20 * DOLLARS;
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
 	pub const Burn: Permill = Permill::from_percent(0);
+
+	pub const TipCountdown: BlockNumber = 1 * DAYS;
+	pub const TipFindersFee: Percent = Percent::from_percent(20);
+	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
+	pub const TipReportDepositPerByte: Balance = 1 * CENTS;
 }
 
 impl treasury::Trait for Runtime {
@@ -400,6 +405,11 @@ impl treasury::Trait for Runtime {
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
+	type Tippers = ElectionsPhragmen;
+	type TipCountdown = TipCountdown;
+	type TipFindersFee = TipFindersFee;
+	type TipReportDepositBase = TipReportDepositBase;
+	type TipReportDepositPerByte = TipReportDepositPerByte;
 }
 
 impl offences::Trait for Runtime {
@@ -671,8 +681,8 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl offchain_primitives::OffchainWorkerApi<Block> for Runtime {
-		fn offchain_worker(number: sp_runtime::traits::NumberFor<Block>) {
-			Executive::offchain_worker(number)
+		fn offchain_worker(header: &<Block as BlockT>::Header) {
+			Executive::offchain_worker(header)
 		}
 	}
 

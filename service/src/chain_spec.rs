@@ -16,7 +16,7 @@
 
 //! Polkadot chain configurations.
 
-use primitives::{Pair, Public, crypto::UncheckedInto, sr25519};
+use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use polkadot_primitives::{AccountId, AccountPublic, parachain::ValidatorId};
 use polkadot_runtime as polkadot;
 use polkadot_runtime::constants::currency::DOTS;
@@ -42,9 +42,9 @@ const DEFAULT_PROTOCOL_ID: &str = "dot";
 #[serde(rename_all = "camelCase")]
 pub struct Extensions {
 	/// Block numbers with known hashes.
-	pub fork_blocks: client::ForkBlocks<polkadot_primitives::Block>,
+	pub fork_blocks: sc_client::ForkBlocks<polkadot_primitives::Block>,
 	/// Known bad block hashes.
-	pub bad_blocks: client::BadBlocks<polkadot_primitives::Block>,
+	pub bad_blocks: sc_client::BadBlocks<polkadot_primitives::Block>,
 }
 
 /// The `ChainSpec`.

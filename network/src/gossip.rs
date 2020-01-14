@@ -49,7 +49,7 @@
 //! Peers who send information which was not allowed under a recent neighbor packet
 //! will be noted as non-beneficial to Substrate's peer-set management utility.
 
-use sp_runtime::{generic::BlockId, traits::{ProvideRuntimeApi, BlakeTwo256, Hash as HashT}};
+use sp_runtime::{generic::BlockId, traits::{BlakeTwo256, Hash as HashT}};
 use sp_blockchain::Error as ClientError;
 use sc_network::{config::Roles, Context, PeerId, ReputationChange};
 use sc_network_gossip::{
@@ -63,6 +63,7 @@ use polkadot_primitives::parachain::{
 };
 use polkadot_erasure_coding::{self as erasure};
 use codec::{Decode, Encode};
+use sp_api::ProvideRuntimeApi;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -273,8 +274,8 @@ pub trait ChainContext: Send + Sync {
 impl<F, P> ChainContext for (F, P) where
 	F: Fn(&Hash) -> Option<Known> + Send + Sync,
 	P: Send + Sync + std::ops::Deref,
-	P::Target: ProvideRuntimeApi,
-	<P::Target as ProvideRuntimeApi>::Api: ParachainHost<Block, Error = ClientError>,
+	P::Target: ProvideRuntimeApi<Block>,
+	<P::Target as ProvideRuntimeApi<Block>>::Api: ParachainHost<Block, Error = ClientError>,
 {
 	fn is_known(&self, block_hash: &Hash) -> Option<Known> {
 		(self.0)(block_hash)

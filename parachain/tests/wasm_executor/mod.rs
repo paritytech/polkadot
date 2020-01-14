@@ -32,7 +32,7 @@ fn terminates_on_timeout() {
 			block_data: Vec::new(),
 			ingress: Vec::new(),
 		},
-		&mut DummyExt,
+		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	);
 	match result {
@@ -55,7 +55,7 @@ fn parallel_execution() {
 			block_data: Vec::new(),
 			ingress: Vec::new(),
 		},
-		&mut DummyExt,
+		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
@@ -65,7 +65,7 @@ fn parallel_execution() {
 			block_data: Vec::new(),
 			ingress: Vec::new(),
 		},
-		&mut DummyExt,
+		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	);
 	thread.join().unwrap();

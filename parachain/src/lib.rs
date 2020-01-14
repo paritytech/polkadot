@@ -22,39 +22,39 @@
 //! ## Parachain WASM
 //!
 //! Polkadot parachain WASM is in the form of a module which imports a memory
-//! instance and exports a function `validate`.
+//! instance and exports a function `validate_block`.
 //!
 //! `validate` accepts as input two `i32` values, representing a pointer/length pair
-//! respectively, that encodes `ValidationParams`.
+//! respectively, that encodes [`ValidationParams`].
 //!
-//! `validate` returns an `i32` which is a pointer to a little-endian 32-bit integer denoting a length.
-//! Subtracting the length from the initial pointer will give a new pointer to the actual return data,
+//! `validate` returns an `u64` which is a pointer to an `u8` array and its length.
+//! The data in the array is expected to be a SCALE encoded [`ValidationResult`].
 //!
 //! ASCII-diagram demonstrating the return data format:
 //!
 //! ```ignore
-//! [return data][len (LE-u32)]
-//!              ^~~returned pointer
+//! [pointer][length]
+//!   32bit   32bit
+//!         ^~~ returned pointer & length
 //! ```
 //!
-//! The `wasm_api` module (enabled only with the wasm-api feature) provides utilities
-//!  for setting up a parachain WASM module in Rust.
+//! The wasm-api (enabled only when `std` feature is not enabled and `wasm-api` feature is enabled)
+//! provides utilities for setting up a parachain WASM module in Rust.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-
-/// Re-export of parity-codec.
-pub use codec;
 
 #[cfg(feature = "std")]
 pub mod wasm_executor;
 
-#[cfg(feature = "wasm-api")]
-pub mod wasm_api;
+mod wasm_api;
 
-use rstd::vec::Vec;
+use rstd::{vec::Vec, cmp::Ordering};
 
 use codec::{Encode, Decode, CompactAs};
 use sp_core::{RuntimeDebug, TypeId};
+
+#[cfg(all(not(feature = "std"), feature = "wasm-api"))]
+pub use wasm_api::*;
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
@@ -155,7 +155,8 @@ pub trait AccountIdConversion<AccountId>: Sized {
 	fn try_from_account(a: &AccountId) -> Option<Self>;
 }
 
- /// Format is b"para" ++ encode(parachain ID) ++ 00.... where 00... is indefinite trailing zeroes to fill AccountId.
+/// Format is b"para" ++ encode(parachain ID) ++ 00.... where 00... is indefinite trailing
+/// zeroes to fill AccountId.
 impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 	fn into_account(&self) -> T {
 		(b"para", self).using_encoded(|b|
@@ -175,24 +176,6 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 			}
 		})
 	}
-}
-
-/// An incoming message.
-#[derive(PartialEq, Eq, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Encode))]
-pub struct IncomingMessage {
-	/// The source parachain.
-	pub source: Id,
-	/// The data of the message.
-	pub data: Vec<u8>,
-}
-
-/// A reference to a message.
-pub struct MessageRef<'a> {
-	/// The target parachain.
-	pub target: Id,
-	/// Underlying data of the message.
-	pub data: &'a [u8],
 }
 
 /// Which origin a parachain's message to the relay chain should be dispatched from.
@@ -224,20 +207,52 @@ impl rstd::convert::TryFrom<u8> for ParachainDispatchOrigin {
 	}
 }
 
-/// A reference to an upward message.
-pub struct UpwardMessageRef<'a> {
-	/// The origin type.
-	pub origin: ParachainDispatchOrigin,
-	/// Underlying data of the message.
-	pub data: &'a [u8],
-}
-
 /// A message from a parachain to its Relay Chain.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Clone, PartialEq, Eq, Encode, Decode, sp_runtime_interface::pass_by::PassByCodec)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct UpwardMessage {
 	/// The origin for the message to be sent from.
 	pub origin: ParachainDispatchOrigin,
 	/// The message data.
 	pub data: Vec<u8>,
+}
+
+/// An incoming message.
+#[derive(PartialEq, Eq, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Encode))]
+pub struct IncomingMessage {
+	/// The source parachain.
+	pub source: Id,
+	/// The data of the message.
+	pub data: Vec<u8>,
+}
+
+/// A message targeted to a specific parachain.
+#[derive(Clone, PartialEq, Eq, Encode, Decode, sp_runtime_interface::pass_by::PassByCodec)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, Debug))]
+#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
+#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
+pub struct TargetedMessage {
+	/// The target parachain.
+	pub target: Id,
+	/// The message data.
+	pub data: Vec<u8>,
+}
+
+impl AsRef<[u8]> for TargetedMessage {
+	fn as_ref(&self) -> &[u8] {
+		&self.data[..]
+	}
+}
+
+impl PartialOrd for TargetedMessage {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.target.cmp(&other.target))
+	}
+}
+
+impl Ord for TargetedMessage {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.target.cmp(&other.target)
+	}
 }
