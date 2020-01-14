@@ -433,7 +433,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 			});
 
 			let deadlined = future::select(
-				work,
+				work.then(|f| f).boxed(),
 				futures_timer::Delay::new(COLLATION_TIMEOUT)
 			);
 
