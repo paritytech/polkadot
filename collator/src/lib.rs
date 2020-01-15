@@ -72,6 +72,7 @@ pub use polkadot_network::validation::Incoming;
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
 pub use sc_network::PeerId;
+pub use service::RuntimeApiCollection;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -144,13 +145,17 @@ pub trait BuildParachainContext {
 	) -> Result<Self::ParachainContext, ()>
 		where
 			PolkadotClient<B, E, R>: ProvideRuntimeApi<Block>,
-			<PolkadotClient<B, E, R> as ProvideRuntimeApi<Block>>::Api: service::RuntimeApiCollection<Extrinsic>,
+			<PolkadotClient<B, E, R> as ProvideRuntimeApi<Block>>::Api: RuntimeApiCollection<Extrinsic>,
 			// Rust bug: https://github.com/rust-lang/rust/issues/24159
 			<<PolkadotClient<B, E, R> as ProvideRuntimeApi<Block>>::Api as sp_api::ApiExt<Block>>::StateBackend:
 				sp_api::StateBackend<Blake2Hasher>,
 			Extrinsic: codec::Codec + Send + Sync + 'static,
 			E: sc_client::CallExecutor<Block> + Clone + Send + Sync + 'static,
-			SP: Spawn + Clone + Send + Sync + 'static;
+			SP: Spawn + Clone + Send + Sync + 'static,
+			R: Send + Sync + 'static,
+			B: sc_client_api::Backend<Block> + 'static,
+			// Rust bug: https://github.com/rust-lang/rust/issues/24159
+			B::State: sp_api::StateBackend<Blake2Hasher>;
 }
 
 /// Parachain context needed for collation.
@@ -282,7 +287,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 		S: AbstractService<Block = service::Block, NetworkSpecialization = service::PolkadotProtocol>,
 		sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi>: ProvideRuntimeApi<Block>,
 		<sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi> as ProvideRuntimeApi<Block>>::Api:
-			service::RuntimeApiCollection<
+			RuntimeApiCollection<
 				Extrinsic,
 				Error = sp_blockchain::Error,
 				StateBackend = sc_client_api::StateBackendFor<S::Backend, Block>
@@ -428,7 +433,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 			});
 
 			let deadlined = future::select(
-				work,
+				work.then(|f| f).boxed(),
 				futures_timer::Delay::new(COLLATION_TIMEOUT)
 			);
 
