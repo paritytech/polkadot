@@ -395,7 +395,10 @@ decl_module! {
 			let fund = Self::funds(index).ok_or("invalid fund index")?;
 			ensure!(fund.parachain.is_none(), "cannot dissolve fund with active parachain");
 			let now = <system::Module<T>>::block_number();
-			ensure!(now >= fund.end + T::RetirementPeriod::get(), "retirement period not over");
+			ensure!(
+				now >= fund.end.saturating_add(T::RetirementPeriod::get()),
+				"retirement period not over"
+			);
 
 			let account = Self::fund_account_id(index);
 
