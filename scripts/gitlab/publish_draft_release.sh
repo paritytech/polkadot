@@ -13,7 +13,6 @@ sanitised_git_logs(){
 }
 
 check_tag () {
-  GITHUB_RELEASE_TOKEN="716e7a7547848b1e96718114b3be45f5321b5eeb"
   tagver=$1
   tag_out=$(curl -H "Authorization: token $GITHUB_RELEASE_TOKEN" -s "$api_base/git/refs/tags/$tagver")
   tag_sha=$(echo "$tag_out" | jq -r .object.sha)
