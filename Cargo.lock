@@ -3771,7 +3771,7 @@ dependencies = [
  "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
  "sp-keyring 2.0.0 (git+https://github.com/paritytech/substrate)",
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
