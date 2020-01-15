@@ -406,7 +406,6 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 
 			collation_work.map(move |result| match result {
 				Ok((collation, outgoing_targeted, fees_charged)) => {
-					log::error!("COLLATION_WORK");
 					match produce_receipt_and_chunks(
 						authorities_num,
 						&collation.pov,
@@ -437,7 +436,6 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 								ready(())
 							});
 
-
 							Ok(Some(res))
 						}
 						Err(e) => {
@@ -457,7 +455,12 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			.map_ok(with_router)
 			.map_err(|e| {
 				warn!(target: "validation" , "Failed to build table router: {:?}", e);
-			}).and_then(|f| f).boxed();
+			})
+			.and_then(|f| f)
+			.and_then(|f| match f {
+				Some(f) => f.map(Ok).boxed(),
+				None => ready(Ok(())).boxed(),
+			}).boxed();
 
 		let cancellable_work = select(exit, router).map(drop);
 

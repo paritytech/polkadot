@@ -461,7 +461,7 @@ fn do_validation<P>(
 		&validation_code,
 		params,
 		ext.clone(),
-		ExecutionMode::Remote,
+		ExecutionMode::Local,
 	) {
 		Ok(result) => {
 			if result.head_data == head_data.0 {
