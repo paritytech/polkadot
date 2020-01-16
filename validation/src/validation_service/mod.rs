@@ -50,7 +50,8 @@ use log::{warn, error, info, debug};
 use super::{Network, Collators, SharedTable, TableRouter};
 use crate::Error;
 
-type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
+/// A handle to spawn background tasks onto.
+pub type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 
 // Remote processes may request for a validation instance to be cloned or instantiated.
 // They send a oneshot channel.
@@ -112,97 +113,133 @@ impl ServiceHandle {
 	}
 }
 
-/// Create and start a new instance of the attestation service.
-pub(crate) fn build<C, N, P, SC>(
-	client: Arc<P>,
-	select_chain: SC,
-	mut parachain_validation: ParachainValidationInstances<C, N, P>,
-	keystore: KeyStorePtr,
-	max_block_data_size: Option<u64>,
-) -> (ServiceHandle, impl Future<Output = ()> + Send + 'static)
-	where
-		C: Collators + Send + Sync + Unpin + 'static,
-		C::Collation: Send + Unpin + 'static,
-		P: BlockchainEvents<Block> + BlockBody<Block>,
-		P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-		P::Api: ParachainHost<Block> +
-			BlockBuilderApi<Block> +
-			BabeApi<Block> +
-			ApiExt<Block, Error = sp_blockchain::Error>,
-		N: Network + Send + Sync + 'static,
-		N::TableRouter: Send + 'static,
-		N::BuildTableRouter: Send + Unpin + 'static,
-		SC: SelectChain<Block> + 'static,
-		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+fn interval(duration: Duration) -> impl Stream<Item=()> + Send + Unpin {
+	stream::unfold((), move |_| {
+		futures_timer::Delay::new(duration).map(|_| Some(((), ())))
+	}).map(drop)
+}
+
+/// A builder for the validation service.
+pub struct ValidationServiceBuilder<C, N, P, SC> {
+	/// The underlying blockchain client.
+	pub client: Arc<P>,
+	/// A handle to the network object used to communicate.
+	pub network: N,
+	/// A handle to the collator pool we are using.
+	pub collators: C,
+	/// A handle to a background executor.
+	pub task_executor: TaskExecutor,
+	/// A handle to the availability store.
+	pub availability_store: AvailabilityStore,
+	/// A chain selector for determining active leaves in the block-DAG.
+	pub select_chain: SC,
+	/// The keystore which holds the signing keys.
+	pub keystore: KeyStorePtr,
+	/// The maximum block-data size in bytes.
+	pub max_block_data_size: Option<u64>,
+}
+
+impl<C, N, P, SC> ValidationServiceBuilder<C, N, P, SC> where
+	C: Collators + Send + Sync + Unpin + 'static,
+	C::Collation: Send + Unpin + 'static,
+	P: BlockchainEvents<Block> + BlockBody<Block>,
+	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
+	P::Api: ParachainHost<Block> +
+		BlockBuilderApi<Block> +
+		BabeApi<Block> +
+		ApiExt<Block, Error = sp_blockchain::Error>,
+	N: Network + Send + Sync + 'static,
+	N::TableRouter: Send + 'static,
+	N::BuildTableRouter: Send + Unpin + 'static,
+	SC: SelectChain<Block> + 'static,
+	// Rust bug: https://github.com/rust-lang/rust/issues/24159
+	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
 {
-	const TIMER_INTERVAL: Duration = Duration::from_secs(30);
-	const CHAN_BUFFER: usize = 10;
+	/// Build the service - this consists of a handle to it, as well as a background
+	/// future to be run to completion.
+	pub fn build(self) -> (ServiceHandle, impl Future<Output = ()> + Send + 'static) {
+		const TIMER_INTERVAL: Duration = Duration::from_secs(30);
+		const CHAN_BUFFER: usize = 10;
 
-	enum Message {
-		CollectGarbage,
-		// relay-parent, receiver for instance.
-		RequestInstance(ValidationInstanceRequest),
-		// new chain heads - import notification.
-		NotifyImport(sc_client_api::BlockImportNotification<Block>),
-	}
+		enum Message {
+			CollectGarbage,
+			// relay-parent, receiver for instance.
+			RequestInstance(ValidationInstanceRequest),
+			// new chain heads - import notification.
+			NotifyImport(sc_client_api::BlockImportNotification<Block>),
+		}
 
-	let (tx, rx) = futures::channel::mpsc::channel(CHAN_BUFFER);
-	let interval = crate::interval(TIMER_INTERVAL).map(|_| Message::CollectGarbage);
-	let import_notifications = client.import_notification_stream().map(Message::NotifyImport);
-	let instance_requests = rx.map(Message::RequestInstance);
-	let service = ServiceHandle { sender: tx };
+		let mut parachain_validation = ParachainValidationInstances {
+			client: self.client.clone(),
+			network: self.network,
+			collators: self.collators,
+			handle: self.task_executor,
+			availability_store: self.availability_store,
+			live_instances: HashMap::new(),
+		};
 
-	let background_work = async move {
-		let message_stream = futures::stream::select(interval, instance_requests);
-		let mut message_stream = futures::stream::select(import_notifications, message_stream);
-		loop {
-			let message = match message_stream.next().await {
-				None => break,
-				Some(m) => m,
-			};
+		let client = self.client;
+		let select_chain = self.select_chain;
+		let keystore = self.keystore;
+		let max_block_data_size = self.max_block_data_size;
 
-			match message {
-				Message::CollectGarbage => {
-					match select_chain.leaves() {
-						Ok(leaves) => {
-							parachain_validation.retain(|h| leaves.contains(h));
-						}
-						Err(e) => {
-							warn!("Error fetching leaves from client: {:?}", e);
+		let (tx, rx) = futures::channel::mpsc::channel(CHAN_BUFFER);
+		let interval = interval(TIMER_INTERVAL).map(|_| Message::CollectGarbage);
+		let import_notifications = client.import_notification_stream().map(Message::NotifyImport);
+		let instance_requests = rx.map(Message::RequestInstance);
+		let service = ServiceHandle { sender: tx };
+
+		let background_work = async move {
+			let message_stream = futures::stream::select(interval, instance_requests);
+			let mut message_stream = futures::stream::select(import_notifications, message_stream);
+			loop {
+				let message = match message_stream.next().await {
+					None => break,
+					Some(m) => m,
+				};
+
+				match message {
+					Message::CollectGarbage => {
+						match select_chain.leaves() {
+							Ok(leaves) => {
+								parachain_validation.retain(|h| leaves.contains(h));
+							}
+							Err(e) => {
+								warn!("Error fetching leaves from client: {:?}", e);
+							}
 						}
 					}
-				}
-				Message::RequestInstance((relay_parent, sender)) => {
-					// Upstream will handle the failure case.
-					let _ = sender.send(parachain_validation.get_or_instantiate(
-						relay_parent,
-						&keystore,
-						max_block_data_size,
-					));
-				}
-				Message::NotifyImport(notification) => {
-					let relay_parent = notification.hash;
-					if notification.is_new_best {
-						let res = parachain_validation.get_or_instantiate(
+					Message::RequestInstance((relay_parent, sender)) => {
+						// Upstream will handle the failure case.
+						let _ = sender.send(parachain_validation.get_or_instantiate(
 							relay_parent,
 							&keystore,
 							max_block_data_size,
-						);
-
-						if let Err(e) = res {
-							warn!(
-								"Unable to start parachain validation on top of {:?}: {}",
-								relay_parent, e
+						));
+					}
+					Message::NotifyImport(notification) => {
+						let relay_parent = notification.hash;
+						if notification.is_new_best {
+							let res = parachain_validation.get_or_instantiate(
+								relay_parent,
+								&keystore,
+								max_block_data_size,
 							);
+
+							if let Err(e) = res {
+								warn!(
+									"Unable to start parachain validation on top of {:?}: {}",
+									relay_parent, e
+								);
+							}
 						}
 					}
 				}
 			}
-		}
-	};
+		};
 
-	(service, background_work)
+		(service, background_work)
+	}
 }
 
 // finds the first key we are capable of signing with out of the given set of validators,

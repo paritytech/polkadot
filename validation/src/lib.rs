@@ -54,20 +54,11 @@ use txpool_api::{TransactionPool, InPoolTransaction};
 
 use validation_service::ServiceHandle;
 use futures::prelude::*;
-use futures::{stream::unfold, task::Spawn};
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use sp_timestamp::TimestampInherentData;
 use log::{info, debug, trace};
 use sp_api::{ApiExt, ProvideRuntimeApi};
-
-type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
-
-fn interval(duration: Duration) -> impl Stream<Item=()> + Send + Unpin {
-	unfold((), move |_| {
-		futures_timer::Delay::new(duration).map(|_| Some(((), ())))
-	}).map(drop)
-}
 
 pub use self::collation::{
 	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
@@ -82,13 +73,13 @@ pub use self::shared_table::{
 #[cfg(not(target_os = "unknown"))]
 pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
-mod validation_service;
 mod dynamic_inclusion;
 mod evaluation;
 mod error;
 mod shared_table;
 
 pub mod collation;
+pub mod validation_service;
 
 // block size limit.
 const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
