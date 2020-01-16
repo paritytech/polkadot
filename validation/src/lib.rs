@@ -56,10 +56,9 @@ use runtime_primitives::traits::{DigestFor, HasherFor};
 use futures_timer::Delay;
 use txpool_api::{TransactionPool, InPoolTransaction};
 
-use attestation_service::ServiceHandle;
+use validation_service::ServiceHandle;
 use futures::prelude::*;
 use futures::{future::{select, ready}, stream::unfold, task::{Spawn, SpawnExt}};
-use collation::collation_fetch;
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use sp_timestamp::TimestampInherentData;
@@ -88,7 +87,7 @@ pub use self::shared_table::{
 #[cfg(not(target_os = "unknown"))]
 pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
-mod attestation_service;
+mod validation_service;
 mod dynamic_inclusion;
 mod evaluation;
 mod error;
@@ -257,223 +256,6 @@ fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc
 		.map(|pair| Arc::new(pair))
 }
 
-/// Constructs parachain-agreement instances.
-struct ParachainValidation<C, N, P> {
-	/// The client instance.
-	client: Arc<P>,
-	/// The backing network handle.
-	network: N,
-	/// Parachain collators.
-	collators: C,
-	/// handle to remote task executor
-	handle: TaskExecutor,
-	/// Store for extrinsic data.
-	availability_store: AvailabilityStore,
-	/// Live agreements. Maps relay chain parent hashes to attestation
-	/// instances.
-	live_instances: Mutex<HashMap<Hash, Arc<AttestationTracker>>>,
-}
-
-impl<C, N, P> ParachainValidation<C, N, P> where
-	C: Collators + Send + Unpin + 'static,
-	N: Network,
-	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
-	C::Collation: Send + Unpin + 'static,
-	N::TableRouter: Send + 'static,
-	N::BuildTableRouter: Unpin + Send + 'static,
-	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
-{
-	/// Get an attestation table for given parent hash.
-	///
-	/// This starts a parachain agreement process on top of the parent hash if
-	/// one has not already started.
-	///
-	/// Additionally, this will trigger broadcast of data to the new block's duty
-	/// roster.
-	fn get_or_instantiate(
-		&self,
-		parent_hash: Hash,
-		keystore: &KeyStorePtr,
-		max_block_data_size: Option<u64>,
-	)
-		-> Result<Arc<AttestationTracker>, Error>
-	{
-		let mut live_instances = self.live_instances.lock();
-		if let Some(tracker) = live_instances.get(&parent_hash) {
-			return Ok(tracker.clone());
-		}
-
-		let id = BlockId::hash(parent_hash);
-
-		let validators = self.client.runtime_api().validators(&id)?;
-		let sign_with = signing_key(&validators[..], keystore);
-
-		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
-
-		let (group_info, local_duty) = make_group_info(
-			duty_roster,
-			&validators,
-			sign_with.as_ref().map(|k| k.public()),
-		)?;
-
-		info!(
-			"Starting parachain attestation session on top of parent {:?}. Local parachain duty is {:?}",
-			parent_hash,
-			local_duty,
-		);
-
-		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
-
-		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
-
-		// If we are a validator, we need to store our index in this round in availability store.
-		// This will tell which erasure chunk we should store.
-		if let Some(ref local_duty) = local_duty {
-			if let Err(e) = self.availability_store.add_validator_index_and_n_validators(
-				&parent_hash,
-				local_duty.index,
-				validators.len() as u32,
-			) {
-				warn!(
-					target: "validation",
-					"Failed to add validator index and n_validators to the availability-store: {:?}", e
-				)
-			}
-		}
-
-		let table = Arc::new(SharedTable::new(
-			validators.clone(),
-			group_info,
-			sign_with,
-			parent_hash,
-			self.availability_store.clone(),
-			max_block_data_size,
-		));
-
-		let (_drop_signal, exit) = exit_future::signal();
-
-		let router = self.network.communication_for(
-			table.clone(),
-			&validators,
-			exit.clone(),
-		);
-
-		if let Some((Chain::Parachain(id), index)) = local_duty.as_ref().map(|d| (d.validation, d.index)) {
-			self.launch_work(parent_hash, id, router, max_block_data_size, validators.len(), index, exit);
-		}
-
-		let tracker = Arc::new(AttestationTracker {
-			table,
-			started: Instant::now(),
-			_drop_signal,
-		});
-
-		live_instances.insert(parent_hash, tracker.clone());
-
-		Ok(tracker)
-	}
-
-	/// Retain validation sessions matching predicate.
-	fn retain<F: FnMut(&Hash) -> bool>(&self, mut pred: F) {
-		self.live_instances.lock().retain(|k, _| pred(k))
-	}
-
-	// launch parachain work asynchronously.
-	fn launch_work(
-		&self,
-		relay_parent: Hash,
-		validation_para: ParaId,
-		build_router: N::BuildTableRouter,
-		max_block_data_size: Option<u64>,
-		authorities_num: usize,
-		local_id: ValidatorIndex,
-		exit: exit_future::Exit,
-	) {
-		let (collators, client) = (self.collators.clone(), self.client.clone());
-		let availability_store = self.availability_store.clone();
-
-		let with_router = move |router: N::TableRouter| {
-			// fetch a local collation from connected collators.
-			let collation_work = collation_fetch(
-				validation_para,
-				relay_parent,
-				collators,
-				client.clone(),
-				max_block_data_size,
-			);
-
-			collation_work.map(move |result| match result {
-				Ok((collation, outgoing_targeted, fees_charged)) => {
-					match produce_receipt_and_chunks(
-						authorities_num,
-						&collation.pov,
-						&outgoing_targeted,
-						fees_charged,
-						&collation.info,
-					) {
-						Ok((receipt, chunks)) => {
-							// Apparently the `async move` block is the only way to convince
-							// the compiler that we are not moving values out of borrowed context.
-							let av_clone = availability_store.clone();
-							let chunks_clone = chunks.clone();
-							let receipt_clone = receipt.clone();
-
-							let res = async move {
-								if let Err(e) = av_clone.clone().add_erasure_chunks(
-									relay_parent.clone(),
-									receipt_clone,
-									chunks_clone,
-								).await {
-									warn!(target: "validation", "Failed to add erasure chunks: {}", e);
-								}
-							}
-							.unit_error()
-							.boxed()
-							.then(move |_| {
-								router.local_collation(collation, receipt, outgoing_targeted, (local_id, &chunks));
-								ready(())
-							});
-
-
-							Some(res)
-						}
-						Err(e) => {
-							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
-							None
-						}
-					}
-				}
-				Err(e) => {
-					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
-					None
-				}
-			})
-		};
-
-		let router = build_router
-			.map_ok(with_router)
-			.map_err(|e| {
-				warn!(target: "validation" , "Failed to build table router: {:?}", e);
-			});
-
-		let cancellable_work = select(exit, router).map(drop);
-
-		// spawn onto thread pool.
-		if self.handle.spawn(cancellable_work).is_err() {
-			error!("Failed to spawn cancellable work task");
-		}
-	}
-}
-
-/// Parachain validation for a single block.
-struct AttestationTracker {
-	_drop_signal: exit_future::Signal,
-	table: Arc<SharedTable>,
-	started: Instant,
-}
-
 /// Polkadot proposer factory.
 pub struct ProposerFactory<C, N, P, SC, TxPool, B> {
 	parachain_validation: Arc<ParachainValidation<C, N, P>>,
@@ -526,7 +308,7 @@ impl<C, N, P, SC, TxPool, B> ProposerFactory<C, N, P, SC, TxPool, B> where
 			live_instances: Mutex::new(HashMap::new()),
 		});
 
-		let service_handle = crate::attestation_service::start(
+		let service_handle = crate::validation_service::start(
 			client,
 			_select_chain.clone(),
 			parachain_validation.clone(),
