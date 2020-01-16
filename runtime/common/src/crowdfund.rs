@@ -155,7 +155,7 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Example {
+	trait Store for Module<T: Trait> as Crowdfund {
 		/// Info on all of the funds.
 		Funds get(funds):
 			map FundIndex => Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
