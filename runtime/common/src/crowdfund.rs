@@ -155,7 +155,7 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Example {
+	trait Store for Module<T: Trait> as Crowdfund {
 		/// Info on all of the funds.
 		Funds get(funds):
 			map FundIndex => Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
@@ -395,7 +395,10 @@ decl_module! {
 			let fund = Self::funds(index).ok_or("invalid fund index")?;
 			ensure!(fund.parachain.is_none(), "cannot dissolve fund with active parachain");
 			let now = <system::Module<T>>::block_number();
-			ensure!(now >= fund.end + T::RetirementPeriod::get(), "retirement period not over");
+			ensure!(
+				now >= fund.end.saturating_add(T::RetirementPeriod::get()),
+				"retirement period not over"
+			);
 
 			let account = Self::fund_account_id(index);
 

@@ -275,7 +275,7 @@ struct ParachainValidation<C, N, P> {
 }
 
 impl<C, N, P> ParachainValidation<C, N, P> where
-	C: Collators + Send + Unpin + 'static,
+	C: Collators + Send + Unpin + 'static + Sync,
 	N: Network,
 	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
@@ -436,18 +436,17 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 								ready(())
 							});
 
-
-							Some(res)
+							Ok(Some(res))
 						}
 						Err(e) => {
 							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
-							None
+							Ok(None)
 						}
 					}
 				}
 				Err(e) => {
 					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
-					None
+					Ok(None)
 				}
 			})
 		};
@@ -456,7 +455,12 @@ impl<C, N, P> ParachainValidation<C, N, P> where
 			.map_ok(with_router)
 			.map_err(|e| {
 				warn!(target: "validation" , "Failed to build table router: {:?}", e);
-			});
+			})
+			.and_then(|f| f)
+			.and_then(|f| match f {
+				Some(f) => f.map(Ok).boxed(),
+				None => ready(Ok(())).boxed(),
+			}).boxed();
 
 		let cancellable_work = select(exit, router).map(drop);
 
@@ -549,7 +553,7 @@ impl<C, N, P, SC, TxPool, B> ProposerFactory<C, N, P, SC, TxPool, B> where
 }
 
 impl<C, N, P, SC, TxPool, B> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxPool, B> where
-	C: Collators + Send + Unpin + 'static,
+	C: Collators + Send + Unpin + 'static + Sync,
 	N: Network,
 	TxPool: TransactionPool<Block=Block> + 'static,
 	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,

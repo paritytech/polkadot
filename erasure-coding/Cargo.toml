@@ -8,6 +8,6 @@ edition = "2018"
 primitives = { package = "polkadot-primitives", path = "../primitives" }
 reed_solomon = { package = "reed-solomon-erasure", git = "https://github.com/paritytech/reed-solomon-erasure" }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
 derive_more = "0.15.0"

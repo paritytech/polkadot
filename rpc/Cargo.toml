@@ -5,13 +5,13 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "master" }
 jsonrpc-core = "14.0.3"
 polkadot-primitives = { path = "../primitives" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-master"  }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master"  }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false }
