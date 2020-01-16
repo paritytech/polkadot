@@ -140,7 +140,11 @@ pub fn validate_candidate<E: Externalities + 'static>(
 }
 
 /// The host functions provided by the wasm executor to the parachain wasm blob.
-type HostFunctions = (sp_io::SubstrateHostFunctions, crate::wasm_api::parachain::HostFunctions);
+type HostFunctions = (
+	sp_io::SubstrateHostFunctions,
+	sc_executor::deprecated_host_interface::SubstrateExternals,
+	crate::wasm_api::parachain::HostFunctions,
+);
 
 /// Validate a candidate under the given validation code.
 ///

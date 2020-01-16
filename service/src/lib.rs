@@ -18,7 +18,11 @@
 
 pub mod chain_spec;
 
-use futures::{FutureExt, TryFutureExt, task::{Spawn, SpawnError, FutureObj}};
+use futures::{
+	FutureExt, TryFutureExt,
+	task::{Spawn, SpawnError, FutureObj},
+	compat::Future01CompatExt,
+};
 use sc_client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
@@ -455,9 +459,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 				service.keystore(),
 				dht_event_stream,
 			);
-			let future01_authority_discovery = authority_discovery.map(|x| Ok(x)).compat();
-
-			service.spawn_task(future01_authority_discovery);
+			service.spawn_task(authority_discovery);
 		}
 	}
 
@@ -498,7 +500,9 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 			executor: service.spawn_task_handle(),
 		};
 
-		service.spawn_essential_task(grandpa::run_grandpa_voter(grandpa_config)?);
+		service.spawn_essential_task(
+			grandpa::run_grandpa_voter(grandpa_config)?.compat().map(drop)
+		);
 	} else {
 		grandpa::setup_disabled_grandpa(
 			service.client(),
