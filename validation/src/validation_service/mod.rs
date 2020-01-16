@@ -14,14 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Attestation service.
-
-/// Attestation service. A long running service that creates and manages parachain attestation
-/// instances.
-///
-/// This uses a handle to an underlying thread pool to dispatch heavy work
-/// such as candidate verification while performing event-driven work
-/// on a local event loop.
+//! The validation service is a long-running future that creates and manages parachain attestation
+//! instances.
+//!
+//! As soon as we import a new chain head, we start a parachain attestation session on top of it.
+//! The block authorship service may want access to the attestation session, and for that reason
+//! we expose a `ServiceHandle` which can be used to request a copy of it.
+//!
+//! In fact, the import notification and request from the block production pipeline may race to be
+//! the first one to create the instant, but the import notification will usually win.
+//!
+//! These attestation sessions are kept live until they are periodically garbage-collected.
 
 use std::{time::{Duration, Instant}, sync::Arc};
 use std::collections::HashMap;
@@ -389,7 +392,12 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 							.unit_error()
 							.boxed()
 							.then(move |_| {
-								router.local_collation(collation, receipt, outgoing_targeted, (local_id, &chunks));
+								router.local_collation(
+									collation,
+									receipt,
+									outgoing_targeted,
+									(local_id, &chunks),
+								);
 								ready(())
 							});
 
