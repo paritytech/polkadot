@@ -21,7 +21,7 @@ polkadot-network = { path = "../network" }
 polkadot-validation = { path = "../validation" }
 polkadot-service = { path = "../service" }
 log = "0.4.8"
-tokio = "0.1.22"
+tokio = "0.2"
 futures-timer = "1.0"
 codec = { package = "parity-scale-codec", version = "1.1.0" }
 

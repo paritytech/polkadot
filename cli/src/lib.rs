@@ -24,9 +24,7 @@ mod chain_spec;
 mod browser;
 
 use chain_spec::ChainSpec;
-use futures::{
-	Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Future01CompatExt,
-};
+use futures::{Future, future::{select, Either}, channel::oneshot};
 #[cfg(feature = "cli")]
 use tokio::runtime::Runtime;
 use log::info;
@@ -217,33 +215,22 @@ pub fn run_until_exit(
 ) -> error::Result<()> {
 	let (exit_send, exit) = oneshot::channel();
 
-	let executor = runtime.executor();
 	let informant = sc_cli::informant::build(&service);
-	let future = select(exit, informant)
-		.map(|_| Ok(()))
-		.compat();
 
-	executor.spawn(future);
+	let handle = runtime.spawn(select(exit, informant));
 
 	// we eagerly drop the service so that the internal exit future is fired,
 	// but we need to keep holding a reference to the global telemetry guard
 	let _telemetry = service.telemetry();
 
-	let service_res = {
-		let service = service
-			.map_err(|err| error::Error::Service(err))
-			.compat();
-		let select = select(service, e)
-			.map(|_| Ok(()))
-			.compat();
-		runtime.block_on(select)
-	};
+	let service_res = runtime.block_on(select(service, e));
 
 	let _ = exit_send.send(());
 
-	use futures01::Future;
-	// TODO [andre]: timeout this future substrate/#1318
-	let _ = runtime.shutdown_on_idle().wait();
+	runtime.block_on(handle);
 
-	service_res
+	match service_res {
+		Either::Left((res, _)) => res.map_err(error::Error::Service),
+		Either::Right((_, _)) => Ok(())
+	}
 }

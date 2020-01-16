@@ -569,23 +569,24 @@ impl<C, N, P, SC, TxPool, B> consensus::Environment<Block> for ProposerFactory<C
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
 {
+	type CreateProposer = Pin<Box<
+		dyn Future<Output = Result<Self::Proposer, Self::Error>> + Send + Unpin + 'static
+	>>;
 	type Proposer = Proposer<P, TxPool, B>;
 	type Error = Error;
 
 	fn init(
 		&mut self,
 		parent_header: &Header,
-	) -> Result<Self::Proposer, Error> {
+	) -> Self::CreateProposer {
 		let parent_hash = parent_header.hash();
 		let parent_id = BlockId::hash(parent_hash);
 
-		let tracker = self.parachain_validation.get_or_instantiate(
+		let maybe_proposer = self.parachain_validation.get_or_instantiate(
 			parent_hash,
 			&self.keystore,
 			self.max_block_data_size,
-		)?;
-
-		Ok(Proposer {
+		).map(|tracker| Proposer {
 			client: self.parachain_validation.client.clone(),
 			tracker,
 			parent_hash,
@@ -594,7 +595,9 @@ impl<C, N, P, SC, TxPool, B> consensus::Environment<Block> for ProposerFactory<C
 			transaction_pool: self.transaction_pool.clone(),
 			slot_duration: self.babe_slot_duration,
 			backend: self.backend.clone(),
-		})
+		});
+
+		Box::pin(future::ready(maybe_proposer))
 	}
 }
 
