@@ -404,21 +404,28 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 			service.client(),
 			WrappedExecutor(service.spawn_task_handle()),
 		);
+
+		let (validation_service_handle, validation_service) = consensus::ServiceBuilder {
+			client: client.clone(),
+			network: validation_network.clone(),
+			collators: validation_network,
+			task_executor: Arc::new(WrappedExecutor(service.spawn_task_handle())),
+			availability_store: availability_store.clone(),
+			select_chain: select_chain.clone(),
+			keystore: service.keystore(),
+			max_block_data_size,
+		}.build();
+
+		service.spawn_essential_task(Box::pin(validation_service));
+
 		let proposer = consensus::ProposerFactory::new(
 			client.clone(),
-			select_chain.clone(),
-			validation_network.clone(),
-			validation_network,
 			service.transaction_pool(),
-			Arc::new(WrappedExecutor(service.spawn_task_handle())),
-			service.keystore(),
-			availability_store.clone(),
+			validation_service_handle,
 			slot_duration,
-			max_block_data_size,
 			backend,
 		);
 
-		let client = service.client();
 		let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
 		let can_author_with =
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());

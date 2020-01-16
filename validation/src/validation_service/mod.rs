@@ -120,7 +120,7 @@ fn interval(duration: Duration) -> impl Stream<Item=()> + Send + Unpin {
 }
 
 /// A builder for the validation service.
-pub struct ValidationServiceBuilder<C, N, P, SC> {
+pub struct ServiceBuilder<C, N, P, SC> {
 	/// The underlying blockchain client.
 	pub client: Arc<P>,
 	/// A handle to the network object used to communicate.
@@ -139,7 +139,7 @@ pub struct ValidationServiceBuilder<C, N, P, SC> {
 	pub max_block_data_size: Option<u64>,
 }
 
-impl<C, N, P, SC> ValidationServiceBuilder<C, N, P, SC> where
+impl<C, N, P, SC> ServiceBuilder<C, N, P, SC> where
 	C: Collators + Send + Sync + Unpin + 'static,
 	C::Collation: Send + Unpin + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,

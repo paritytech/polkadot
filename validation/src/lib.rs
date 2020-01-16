@@ -46,6 +46,7 @@ use primitives::Pair;
 
 use futures::prelude::*;
 
+pub use self::block_production::ProposerFactory;
 pub use self::collation::{
 	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
 	produce_receipt_and_chunks,
@@ -55,6 +56,7 @@ pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
 };
+pub use self::validation_service::{ServiceHandle, ServiceBuilder};
 
 #[cfg(not(target_os = "unknown"))]
 pub use parachain::wasm_executor::{run_worker as run_validation_worker};
