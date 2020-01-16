@@ -42,7 +42,6 @@ use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use codec::Encode;
 use consensus::{SelectChain, Proposal, RecordProof};
-use availability_store::Store as AvailabilityStore;
 use parking_lot::Mutex;
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
 use polkadot_primitives::parachain::{
@@ -245,112 +244,52 @@ pub fn outgoing_queues(outgoing_targeted: &'_ OutgoingMessages)
 	})
 }
 
-// finds the first key we are capable of signing with out of the given set of validators,
-// if any.
-fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc<ValidatorPair>> {
-	let keystore = keystore.read();
-	validators.iter()
-		.find_map(|v| {
-			keystore.key_pair::<ValidatorPair>(&v).ok()
-		})
-		.map(|pair| Arc::new(pair))
-}
-
 /// Polkadot proposer factory.
-pub struct ProposerFactory<C, N, P, SC, TxPool, B> {
-	parachain_validation: Arc<ParachainValidation<C, N, P>>,
+pub struct ProposerFactory<Client, TxPool, Backend> {
+	client: Arc<Client>,
 	transaction_pool: Arc<TxPool>,
-	keystore: KeyStorePtr,
-	_service_handle: ServiceHandle,
+	service_handle: ServiceHandle,
 	babe_slot_duration: u64,
-	_select_chain: SC,
-	max_block_data_size: Option<u64>,
-	backend: Arc<B>,
+	backend: Arc<Backend>,
 }
 
-impl<C, N, P, SC, TxPool, B> ProposerFactory<C, N, P, SC, TxPool, B> where
-	C: Collators + Send + Sync + Unpin + 'static,
-	C::Collation: Send + Unpin + 'static,
-	P: BlockchainEvents<Block> + BlockBody<Block>,
-	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> +
-		BlockBuilderApi<Block> +
-		BabeApi<Block> +
-		ApiExt<Block, Error = sp_blockchain::Error>,
-	N: Network + Send + Sync + 'static,
-	N::TableRouter: Send + 'static,
-	N::BuildTableRouter: Send + Unpin + 'static,
-	TxPool: TransactionPool,
-	SC: SelectChain<Block> + 'static,
-	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
-{
+impl<Client, TxPool, Backend> ProposerFactory<Client, TxPool, Backend> {
 	/// Create a new proposer factory.
 	pub fn new(
-		client: Arc<P>,
-		_select_chain: SC,
-		network: N,
-		collators: C,
+		client: Arc<Client>,
 		transaction_pool: Arc<TxPool>,
-		thread_pool: TaskExecutor,
-		keystore: KeyStorePtr,
-		availability_store: AvailabilityStore,
+		service_handle: ServiceHandle,
 		babe_slot_duration: u64,
-		max_block_data_size: Option<u64>,
-		backend: Arc<B>,
+		backend: Arc<Backend>,
 	) -> Self {
-		let parachain_validation = Arc::new(ParachainValidation {
-			client: client.clone(),
-			network,
-			collators,
-			handle: thread_pool.clone(),
-			availability_store: availability_store.clone(),
-			live_instances: Mutex::new(HashMap::new()),
-		});
-
-		let service_handle = crate::validation_service::start(
-			client,
-			_select_chain.clone(),
-			parachain_validation.clone(),
-			thread_pool,
-			keystore.clone(),
-			max_block_data_size,
-		);
-
 		ProposerFactory {
-			parachain_validation,
+			client,
 			transaction_pool,
-			keystore,
-			_service_handle: service_handle,
+			service_handle: service_handle,
 			babe_slot_duration,
-			_select_chain,
-			max_block_data_size,
 			backend,
 		}
 	}
 }
 
-impl<C, N, P, SC, TxPool, B> consensus::Environment<Block> for ProposerFactory<C, N, P, SC, TxPool, B> where
-	C: Collators + Send + Unpin + 'static,
-	N: Network,
+impl<Client, TxPool, Backend> consensus::Environment<Block>
+	for ProposerFactory<Client, TxPool, Backend>
+where
 	TxPool: TransactionPool<Block=Block> + 'static,
-	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> +
-		BlockBuilderApi<Block> +
-		BabeApi<Block> +
-		ApiExt<Block, Error = sp_blockchain::Error>,
-	C::Collation: Send + Unpin + 'static,
-	N::TableRouter: Send + 'static,
-	N::BuildTableRouter: Send + Unpin + 'static,
-	SC: SelectChain<Block>,
-	B: Backend<Block, State = sp_api::StateBackendFor<P, Block>> + 'static,
+	Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
+	Client::Api: ParachainHost<Block> + BlockBuilderApi<Block>
+		+ ApiExt<Block, Error = sp_blockchain::Error>,
+	Backend: sc_client_api::Backend<
+		Block,
+		State = sp_api::StateBackendFor<Client, Block>
+	> + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
+	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
 {
 	type CreateProposer = Pin<Box<
-		dyn Future<Output = Result<Self::Proposer, Self::Error>> + Send + Unpin + 'static
+		dyn Future<Output = Result<Self::Proposer, Self::Error>> + Send + 'static
 	>>;
-	type Proposer = Proposer<P, TxPool, B>;
+	type Proposer = Proposer<Client, TxPool, Backend>;
 	type Error = Error;
 
 	fn init(
@@ -358,24 +297,29 @@ impl<C, N, P, SC, TxPool, B> consensus::Environment<Block> for ProposerFactory<C
 		parent_header: &Header,
 	) -> Self::CreateProposer {
 		let parent_hash = parent_header.hash();
+		let parent_number = parent_header.number;
 		let parent_id = BlockId::hash(parent_hash);
 
-		let maybe_proposer = self.parachain_validation.get_or_instantiate(
-			parent_hash,
-			&self.keystore,
-			self.max_block_data_size,
-		).map(|tracker| Proposer {
-			client: self.parachain_validation.client.clone(),
-			tracker,
-			parent_hash,
-			parent_id,
-			parent_number: parent_header.number,
-			transaction_pool: self.transaction_pool.clone(),
-			slot_duration: self.babe_slot_duration,
-			backend: self.backend.clone(),
-		});
+		let client = self.client.clone();
+		let transaction_pool = self.transaction_pool.clone();
+		let backend = self.backend.clone();
+		let slot_duration = self.babe_slot_duration.clone();
 
-		Box::pin(future::ready(maybe_proposer))
+		let maybe_proposer = self.service_handle
+			.clone()
+			.get_validation_instance(parent_hash)
+			.and_then(move |tracker| future::ready(Ok(Proposer {
+				client,
+				tracker,
+				parent_hash,
+				parent_id,
+				parent_number,
+				transaction_pool,
+				slot_duration,
+				backend,
+			})));
+
+		Box::pin(maybe_proposer)
 	}
 }
 
@@ -392,7 +336,7 @@ pub struct Proposer<Client, TxPool, Backend> {
 	parent_hash: Hash,
 	parent_id: BlockId,
 	parent_number: BlockNumber,
-	tracker: Arc<AttestationTracker>,
+	tracker: Arc<validation_service::ValidationInstanceHandle>,
 	transaction_pool: Arc<TxPool>,
 	slot_duration: u64,
 	backend: Arc<Backend>,
@@ -423,12 +367,12 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 	) -> Self::Proposal {
 		const SLOT_DURATION_DENOMINATOR: u64 = 3; // wait up to 1/3 of the slot for candidates.
 
-		let initial_included = self.tracker.table.includable_count();
+		let initial_included = self.tracker.table().includable_count();
 		let now = Instant::now();
 
 		let dynamic_inclusion = DynamicInclusion::new(
-			self.tracker.table.num_parachains(),
-			self.tracker.started,
+			self.tracker.table().num_parachains(),
+			self.tracker.started(),
 			Duration::from_millis(self.slot_duration / SLOT_DURATION_DENOMINATOR),
 		);
 
@@ -437,7 +381,7 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 		let parent_id = self.parent_id.clone();
 		let client = self.client.clone();
 		let transaction_pool = self.transaction_pool.clone();
-		let table = self.tracker.table.clone();
+		let table = self.tracker.table().clone();
 		let backend = self.backend.clone();
 
 		async move {

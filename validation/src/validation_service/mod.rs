@@ -32,29 +32,56 @@ use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
 use futures::prelude::*;
 use futures::{future::{ready, select}, task::{Spawn, SpawnExt}};
-use polkadot_primitives::{Block, BlockId};
-use polkadot_primitives::parachain::ParachainHost;
+use polkadot_primitives::{Block, Hash, BlockId};
+use polkadot_primitives::parachain::{
+	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
+};
 use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use runtime_primitives::traits::HasherFor;
+use availability_store::Store as AvailabilityStore;
 
 use tokio::{runtime::Runtime as LocalRuntime};
 use log::{warn, error, info, trace, debug};
 
-use super::{Network, Collators, SharedTable};
+use super::{Network, Collators, SharedTable, TableRouter};
+use crate::Error;
 
 type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 
+// Remote processes may request for a validation instance to be cloned or instantiated.
+// They send a oneshot channel.
 type ValidationInstanceRequest = (
 	Hash,
-	futures::channel::oneshot::Sender<ValidationInstanceHandle>,
+	futures::channel::oneshot::Sender<Result<Arc<ValidationInstanceHandle>, Error>>,
 );
+
+/// A handle to a single instance of parachain validation, which is pinned to
+/// a specific relay-chain block. This is the instance that should be used when
+/// constructing any
+pub(crate) struct ValidationInstanceHandle {
+	_drop_signal: exit_future::Signal,
+	table: Arc<SharedTable>,
+	started: Instant,
+}
+
+impl ValidationInstanceHandle {
+	/// Access the underlying table of attestations on parachain candidates.
+	pub(crate) fn table(&self) -> &Arc<SharedTable> {
+		&self.table
+	}
+
+	/// The moment we started this validation instance.
+	pub(crate) fn started(&self) -> Instant {
+		self.started.clone()
+	}
+}
 
 /// A handle to the service. This can be used to create a block-production environment.
 #[derive(Clone)]
 pub struct ServiceHandle {
-	sender: futures::channel::mpsc::Sender<ValidationInstanceHandleSender>,
+	sender: futures::channel::mpsc::Sender<ValidationInstanceRequest>,
 }
 
 impl ServiceHandle {
@@ -62,22 +89,23 @@ impl ServiceHandle {
 	///
 	/// This can fail if the service task has shut down for some reason.
 	pub(crate) fn get_validation_instance(self, relay_parent: Hash)
-		-> impl Future<Output = Result<Arc<ValidationInstanceHandle>, Error>> + Send + Unpin + 'static
+		-> impl Future<Output = Result<Arc<ValidationInstanceHandle>, Error>> + Send + 'static
 	{
 		let mut sender = self.sender;
 		async move {
 			let instance_rx = loop {
 				let (instance_tx, instance_rx) = futures::channel::oneshot::channel();
-				let message = Message::RequestInstance(relay_parent, instance_tx);
-				match sender.send().await {
+				match sender.send((relay_parent, instance_tx)).await {
 					Ok(()) => break instance_rx,
 					Err(e) => if !e.is_full() {
+						// Sink::send should be doing `poll_ready` before start-send,
+						// so this should only happen when there is a race.
 						return Err(Error::ValidationServiceDown)
 					},
 				}
 			};
 
-			instance_tx.map_err(|_| Error::ValidationServiceDown).await.and_then(|x| x)
+			instance_rx.map_err(|_| Error::ValidationServiceDown).await.and_then(|x| x)
 		}
 	}
 }
@@ -89,7 +117,7 @@ pub(crate) fn build<C, N, P, SC>(
 	mut parachain_validation: ParachainValidationInstances<C, N, P>,
 	keystore: KeyStorePtr,
 	max_block_data_size: Option<u64>,
-) -> (Service, impl Future<Output = ()> + Send + Unpin + 'static)
+) -> (ServiceHandle, impl Future<Output = ()> + Send + 'static)
 	where
 		C: Collators + Send + Sync + Unpin + 'static,
 		C::Collation: Send + Unpin + 'static,
@@ -124,10 +152,15 @@ pub(crate) fn build<C, N, P, SC>(
 	let service = ServiceHandle { sender: tx };
 
 	let background_work = async move {
-		let message_stream = futures::stream::select(interval, rx);
-		let mut message_stream = futures::stream::select(import_notifications);
+		let message_stream = futures::stream::select(interval, instance_requests);
+		let mut message_stream = futures::stream::select(import_notifications, message_stream);
 		loop {
-			match message_stream.next().await {
+			let message = match message_stream.next().await {
+				None => break,
+				Some(m) => m,
+			};
+
+			match message {
 				Message::CollectGarbage => {
 					match select_chain.leaves() {
 						Ok(leaves) => {
@@ -139,14 +172,12 @@ pub(crate) fn build<C, N, P, SC>(
 					}
 				}
 				Message::RequestInstance((relay_parent, sender)) => {
-					if notification.is_new_best {
-						// Upstream will handle the failure case.
-						let _ = sender.send(parachain_validation.get_or_instantiate(
-							relay_parent,
-							&keystore,
-							max_block_data_size,
-						));
-					}
+					// Upstream will handle the failure case.
+					let _ = sender.send(parachain_validation.get_or_instantiate(
+						relay_parent,
+						&keystore,
+						max_block_data_size,
+					));
 				}
 				Message::NotifyImport(notification) => {
 					let relay_parent = notification.hash;
@@ -172,8 +203,19 @@ pub(crate) fn build<C, N, P, SC>(
 	(service, background_work)
 }
 
+// finds the first key we are capable of signing with out of the given set of validators,
+// if any.
+fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc<ValidatorPair>> {
+	let keystore = keystore.read();
+	validators.iter()
+		.find_map(|v| {
+			keystore.key_pair::<ValidatorPair>(&v).ok()
+		})
+		.map(|pair| Arc::new(pair))
+}
+
 /// Constructs parachain-agreement instances.
-struct ParachainValidationInstances<C, N, P> {
+pub(crate) struct ParachainValidationInstances<C, N, P> {
 	/// The client instance.
 	client: Arc<P>,
 	/// The backing network handle.
@@ -215,7 +257,9 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 	)
 		-> Result<Arc<ValidationInstanceHandle>, Error>
 	{
-		if let Some(tracker) = live_instances.get(&parent_hash) {
+		use primitives::Pair;
+
+		if let Some(tracker) = self.live_instances.get(&parent_hash) {
 			return Ok(tracker.clone());
 		}
 
@@ -226,7 +270,7 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 
 		let duty_roster = self.client.runtime_api().duty_roster(&id)?;
 
-		let (group_info, local_duty) = make_group_info(
+		let (group_info, local_duty) = crate::make_group_info(
 			duty_roster,
 			&validators,
 			sign_with.as_ref().map(|k| k.public()),
@@ -284,7 +328,7 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 			_drop_signal,
 		});
 
-		live_instances.insert(parent_hash, tracker.clone());
+		self.live_instances.insert(parent_hash, tracker.clone());
 
 		Ok(tracker)
 	}
@@ -379,13 +423,4 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 			error!("Failed to spawn cancellable work task");
 		}
 	}
-}
-
-/// A handle to a single instance of parachain validation, which is pinned to
-/// a specific relay-chain block. This is the instance that should be used when
-/// constructing any
-struct ValidationInstanceHandle {
-	_drop_signal: exit_future::Signal,
-	table: Arc<SharedTable>,
-	started: Instant,
 }
