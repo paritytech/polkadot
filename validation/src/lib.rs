@@ -36,13 +36,10 @@ use std::{
 	time::{self, Duration, Instant},
 };
 
-use babe_primitives::BabeApi;
-use sc_client_api::{Backend, BlockchainEvents, BlockBody};
 use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use codec::Encode;
-use consensus::{SelectChain, Proposal, RecordProof};
-use parking_lot::Mutex;
+use consensus::{Proposal, RecordProof};
 use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, CandidateReceipt,
@@ -57,12 +54,11 @@ use txpool_api::{TransactionPool, InPoolTransaction};
 
 use validation_service::ServiceHandle;
 use futures::prelude::*;
-use futures::{future::{select, ready}, stream::unfold, task::{Spawn, SpawnExt}};
+use futures::{stream::unfold, task::Spawn};
 use dynamic_inclusion::DynamicInclusion;
 use inherents::InherentData;
 use sp_timestamp::TimestampInherentData;
-use log::{info, debug, warn, trace, error};
-use keystore::KeyStorePtr;
+use log::{info, debug, trace};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
 type TaskExecutor = Arc<dyn Spawn + Send + Sync>;

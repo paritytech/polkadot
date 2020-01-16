@@ -23,7 +23,7 @@
 /// such as candidate verification while performing event-driven work
 /// on a local event loop.
 
-use std::{thread, time::{Duration, Instant}, sync::Arc};
+use std::{time::{Duration, Instant}, sync::Arc};
 use std::collections::HashMap;
 
 use sc_client_api::{BlockchainEvents, BlockBody};
@@ -42,8 +42,7 @@ use sp_api::{ApiExt, ProvideRuntimeApi};
 use runtime_primitives::traits::HasherFor;
 use availability_store::Store as AvailabilityStore;
 
-use tokio::{runtime::Runtime as LocalRuntime};
-use log::{warn, error, info, trace, debug};
+use log::{warn, error, info, debug};
 
 use super::{Network, Collators, SharedTable, TableRouter};
 use crate::Error;
