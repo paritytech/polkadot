@@ -140,7 +140,11 @@ pub fn validate_candidate<E: Externalities + 'static>(
 }
 
 /// The host functions provided by the wasm executor to the parachain wasm blob.
-type HostFunctions = (sp_io::SubstrateHostFunctions, crate::wasm_api::parachain::HostFunctions);
+type HostFunctions = (
+	sp_io::SubstrateHostFunctions,
+	sc_executor::deprecated_host_interface::SubstrateExternals,
+	crate::wasm_api::parachain::HostFunctions,
+);
 
 /// Validate a candidate under the given validation code.
 ///
@@ -152,7 +156,7 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 ) -> Result<ValidationResult, Error> {
 	let mut ext = ValidationExternalities(ParachainExt::new(externalities));
 
-	let res = sc_executor::call_in_wasm::<_, HostFunctions>(
+	let res = sc_executor::call_in_wasm::<HostFunctions>(
 		"validate_block",
 		encoded_call_data,
 		sc_executor::WasmExecutionMethod::Interpreted,

@@ -7,7 +7,7 @@ structure_message() {
   else
     body=$(jq -Rs --arg body "$1" --arg formatted_body "$2" '{"msgtype": "m.text", $body, "format": "org.matrix.custom.html", $formatted_body}' < /dev/null)
   fi
-  echo $body
+  echo "$body"
 }
 
 # send_message $body (json formatted) $room_id $access_token
@@ -16,19 +16,19 @@ curl -XPOST -d "$1" "https://matrix.parity.io/_matrix/client/r0/rooms/$2/send/m.
 }
 
 # Receive keys
-trusted_keys=(
-27E36F4D3DB8D09946B14802EC077FBE1556877C # gavin@parity.io
-)
-
-for key in ${trusted_keys[@]}; do
-  gpg --keyserver hkps://keys.openpgp.org --recv-keys $key
-done
-
-# If the tag's not signed by any of the above keys, exit failing
-if ! git tag -v $CI_COMMIT_TAG; then
-  echo "[!] FATAL: TAG NOT VERIFIED WITH A GPG SIGNATURE, QUITTING"
-  exit 1
-fi
+# trusted_keys=(
+# 27E36F4D3DB8D09946B14802EC077FBE1556877C # gavin@parity.io
+# )
+#
+# for key in "${trusted_keys[@]}"; do
+#   gpg --keyserver hkps://keys.openpgp.org --recv-keys $key
+# done
+#
+# # If the tag's not signed by any of the above keys, exit failing
+# if ! git tag -v $CI_COMMIT_TAG; then
+#   echo "[!] FATAL: TAG NOT VERIFIED WITH A GPG SIGNATURE, QUITTING"
+#   exit 1
+# fi
 
 echo "[+] Tag present and verified. Alerting #polkadot and release-manager"
 
@@ -49,7 +49,7 @@ EOF
 )
 
 echo "[+] Sending message to Polkadot room"
-send_message "$(structure_message "$msg_body" "$formatted_msg_body")" $MATRIX_ROOM_ID $MATRIX_ACCESS_TOKEN
+send_message "$(structure_message "$msg_body" "$formatted_msg_body")" "$MATRIX_ROOM_ID" "$MATRIX_ACCESS_TOKEN"
 
 # Format and send message to release manager
 msg_body=$(cat <<EOF
@@ -60,4 +60,4 @@ EOF
 )
 
 echo "[+] Sending message to release manager"
-send_message "$(structure_message "$msg_body")" $REL_MAN_ROOM_ID $MATRIX_ACCESS_TOKEN
+send_message "$(structure_message "$msg_body")" "$REL_MAN_ROOM_ID" "$MATRIX_ACCESS_TOKEN"

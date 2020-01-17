@@ -25,7 +25,7 @@ mod browser;
 
 use chain_spec::ChainSpec;
 use futures::{
-	Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Future01CompatExt,
+	Future, FutureExt, TryFutureExt, future::select, channel::oneshot,
 };
 #[cfg(feature = "cli")]
 use tokio::runtime::Runtime;
@@ -231,11 +231,12 @@ pub fn run_until_exit(
 
 	let service_res = {
 		let service = service
-			.map_err(|err| error::Error::Service(err))
-			.compat();
+			.map_err(|err| error::Error::Service(err));
+
 		let select = select(service, e)
 			.map(|_| Ok(()))
 			.compat();
+
 		runtime.block_on(select)
 	};
 

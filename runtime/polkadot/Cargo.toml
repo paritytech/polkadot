@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.7.17"
+version = "0.7.18"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -10,7 +10,6 @@ bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 log = { version = "0.3.9", optional = true }
 rustc-hex = { version = "2.0.1", default-features = false }
-safe-mix = { version = "1.0.0", default-features = false }
 serde = { version = "1.0.102", default-features = false }
 serde_derive = { version = "1.0.102", optional = true }
 
@@ -67,7 +66,7 @@ libsecp256k1 = "0.3.2"
 tiny-keccak = "1.5.0"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-trie-db = "0.18.0"
+trie-db = "0.19.2"
 serde_json = "1.0.41"
 
 [build-dependencies]
@@ -121,7 +120,6 @@ std = [
 	"serde_derive",
 	"serde/std",
 	"log",
-	"safe-mix/std",
 	"babe/std",
 	"babe-primitives/std",
 	"sp-session/std",
