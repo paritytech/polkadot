@@ -10,7 +10,6 @@ bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 log = { version = "0.3.9", optional = true }
 rustc-hex = { version = "2.0.1", default-features = false }
-safe-mix = { version = "1.0.0", default-features = false }
 serde = { version = "1.0.102", default-features = false }
 serde_derive = { version = "1.0.102", optional = true }
 
@@ -128,7 +127,6 @@ std = [
 	"serde_derive",
 	"serde/std",
 	"log",
-	"safe-mix/std",
 	"babe/std",
 	"babe-primitives/std",
 	"sp-session/std",
