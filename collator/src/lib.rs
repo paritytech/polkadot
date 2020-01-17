@@ -453,7 +453,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 			future::ready(())
 		});
 
-	service.spawn_essential_task(work.map(|_| Ok::<_, ()>(())).compat());
+	service.spawn_essential_task(work);
 
 	polkadot_cli::run_until_exit(runtime, service, exit)
 }
