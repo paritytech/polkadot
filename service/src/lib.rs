@@ -467,6 +467,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 				service.keystore(),
 				dht_event_stream,
 			);
+
 			service.spawn_task(authority_discovery);
 		}
 	}
@@ -509,8 +510,8 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		};
 
 		service.spawn_essential_task(
-			grandpa::run_grandpa_voter(grandpa_config)?.compat().map(drop)
-		);
+			grandpa::run_grandpa_voter(grandpa_config)?.compat().map(|_| ())
+		)
 	} else {
 		grandpa::setup_disabled_grandpa(
 			service.client(),
