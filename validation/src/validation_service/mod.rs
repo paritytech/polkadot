@@ -434,7 +434,7 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 					};
 				}
 				Err(e) => {
-					warn!(target: "validation", "Failed to fetch a collation: {:?}", e);
+					warn!(target: "validation", "Failed to fetch a candidate: {:?}", e);
 				}
 			}
 		};
