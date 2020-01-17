@@ -91,25 +91,23 @@ impl ServiceHandle {
 	/// Requests instantiation or cloning of a validation instance from the service.
 	///
 	/// This can fail if the service task has shut down for some reason.
-	pub(crate) fn get_validation_instance(self, relay_parent: Hash)
-		-> impl Future<Output = Result<Arc<ValidationInstanceHandle>, Error>> + Send + 'static
+	pub(crate) async fn get_validation_instance(self, relay_parent: Hash)
+		-> Result<Arc<ValidationInstanceHandle>, Error>
 	{
 		let mut sender = self.sender;
-		async move {
-			let instance_rx = loop {
-				let (instance_tx, instance_rx) = futures::channel::oneshot::channel();
-				match sender.send((relay_parent, instance_tx)).await {
-					Ok(()) => break instance_rx,
-					Err(e) => if !e.is_full() {
-						// Sink::send should be doing `poll_ready` before start-send,
-						// so this should only happen when there is a race.
-						return Err(Error::ValidationServiceDown)
-					},
-				}
-			};
+		let instance_rx = loop {
+			let (instance_tx, instance_rx) = futures::channel::oneshot::channel();
+			match sender.send((relay_parent, instance_tx)).await {
+				Ok(()) => break instance_rx,
+				Err(e) => if !e.is_full() {
+					// Sink::send should be doing `poll_ready` before start-send,
+					// so this should only happen when there is a race.
+					return Err(Error::ValidationServiceDown)
+				},
+			}
+		};
 
-			instance_rx.map_err(|_| Error::ValidationServiceDown).await.and_then(|x| x)
-		}
+		instance_rx.map_err(|_| Error::ValidationServiceDown).await.and_then(|x| x)
 	}
 }
 
@@ -192,12 +190,7 @@ impl<C, N, P, SC> ServiceBuilder<C, N, P, SC> where
 		let background_work = async move {
 			let message_stream = futures::stream::select(interval, instance_requests);
 			let mut message_stream = futures::stream::select(import_notifications, message_stream);
-			loop {
-				let message = match message_stream.next().await {
-					None => break,
-					Some(m) => m,
-				};
-
+			while let Some(message) = message_stream.next().await {
 				match message {
 					Message::CollectGarbage => {
 						match select_chain.leaves() {
