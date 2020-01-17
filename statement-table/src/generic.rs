@@ -354,6 +354,9 @@ impl<C: Context> Table<C> {
 	/// Import a signed statement. Signatures should be checked for validity, and the
 	/// sender should be checked to actually be an authority.
 	///
+	/// Validity and invalidity statements are only valid if the corresponding
+	/// candidate has already been imported.
+	///
 	/// If this returns `None`, the statement was either duplicate or invalid.
 	pub fn import_statement(
 		&mut self,

@@ -16,7 +16,8 @@
 
 //! Polkadot block evaluation and evaluation errors.
 
-use super::MAX_TRANSACTIONS_SIZE;
+// block size limit.
+pub(crate) const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
 
 use codec::Encode;
 use polkadot_primitives::{Block, Hash, BlockNumber};

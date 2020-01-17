@@ -46,6 +46,8 @@ pub enum Error {
 	Timer(std::io::Error),
 	#[display(fmt = "Failed to compute deadline of now + {:?}", _0)]
 	DeadlineComputeFailure(std::time::Duration),
+	#[display(fmt = "Validation service is down.")]
+	ValidationServiceDown,
 	Join(tokio::task::JoinError)
 }
 
