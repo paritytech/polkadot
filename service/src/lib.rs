@@ -21,7 +21,7 @@ pub mod chain_spec;
 use futures::{
 	FutureExt, TryFutureExt,
 	task::{Spawn, SpawnError, FutureObj},
-	compat::Future01CompatExt,
+	compat::{Future01CompatExt, Stream01CompatExt},
 };
 use sc_client::LongestChain;
 use std::sync::Arc;
@@ -455,8 +455,9 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 
 		if authority_discovery_enabled {
 			let network = service.network();
-			let dht_event_stream = network.event_stream().filter_map(|e| async move { match e {
-				Event::Dht(e) => Some(e),
+			let network_event_stream = network.event_stream().compat();
+			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
+				Ok(Event::Dht(e)) => Some(e),
 				_ => None,
 			}}).boxed();
 			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
