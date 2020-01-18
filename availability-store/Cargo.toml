@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-availability-store"
 description = "Persistent database for parachain data"
-version = "0.7.18"
+version = "0.7.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
