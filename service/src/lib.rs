@@ -481,7 +481,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
-		gossip_duration: Duration::from_millis(333),
+		gossip_duration: Duration::from_millis(1000),
 		justification_period: 512,
 		name: Some(name),
 		observer_enabled: false,
