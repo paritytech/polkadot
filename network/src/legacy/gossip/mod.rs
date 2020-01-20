@@ -74,7 +74,7 @@ use parking_lot::RwLock;
 use log::warn;
 
 use super::PolkadotNetworkService;
-use crate::{GossipMessageStream, NetworkService, PolkadotProtocol, router::attestation_topic};
+use crate::legacy::{GossipMessageStream, NetworkService, PolkadotProtocol, router::attestation_topic};
 
 use attestation::{View as AttestationView, PeerData as AttestationPeerData};
 use message_routing::{View as MessageRoutingView};
@@ -366,7 +366,7 @@ impl NewLeafActions {
 	/// Perform the queued actions, feeding into gossip.
 	pub fn perform(
 		self,
-		gossip: &dyn crate::NetworkService,
+		gossip: &dyn crate::legacy::NetworkService,
 	) {
 		for action in self.actions {
 			match action {
@@ -806,7 +806,7 @@ mod tests {
 	use polkadot_validation::GenericStatement;
 	use super::message_routing::queue_topic;
 
-	use crate::tests::TestChainContext;
+	use crate::legacy::tests::TestChainContext;
 
 	#[derive(PartialEq, Clone, Debug)]
 	enum ContextEvent {

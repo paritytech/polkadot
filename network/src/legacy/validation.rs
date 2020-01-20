@@ -44,8 +44,8 @@ use std::pin::Pin;
 use arrayvec::ArrayVec;
 use parking_lot::Mutex;
 
-use crate::router::Router;
-use crate::gossip::{RegisteredMessageValidator, MessageValidationData};
+use crate::legacy::router::Router;
+use crate::legacy::gossip::{RegisteredMessageValidator, MessageValidationData};
 
 use super::NetworkService;
 
@@ -171,7 +171,7 @@ impl<P, E, T> ValidationNetwork<P, E, T> {
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
 	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=SignedStatement> {
-		crate::router::checked_statements(&self.network, crate::router::attestation_topic(relay_parent))
+		crate::legacy::router::checked_statements(&self.network, crate::legacy::router::attestation_topic(relay_parent))
 	}
 }
 

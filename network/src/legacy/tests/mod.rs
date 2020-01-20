@@ -18,7 +18,7 @@
 
 use std::collections::HashMap;
 use super::{PolkadotProtocol, Status, Message, FullStatus};
-use crate::validation::LeafWorkParams;
+use crate::legacy::validation::LeafWorkParams;
 
 use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash};
@@ -74,12 +74,12 @@ impl TestContext {
 
 #[derive(Default)]
 pub struct TestChainContext {
-	pub known_map: HashMap<Hash, crate::gossip::Known>,
+	pub known_map: HashMap<Hash, crate::legacy::gossip::Known>,
 	pub ingress_roots: HashMap<Hash, Vec<Hash>>,
 }
 
-impl crate::gossip::ChainContext for TestChainContext {
-	fn is_known(&self, block_hash: &Hash) -> Option<crate::gossip::Known> {
+impl crate::legacy::gossip::ChainContext for TestChainContext {
+	fn is_known(&self, block_hash: &Hash) -> Option<crate::legacy::gossip::Known> {
 		self.known_map.get(block_hash).map(|x| x.clone())
 	}
 

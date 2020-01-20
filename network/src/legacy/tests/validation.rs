@@ -18,12 +18,12 @@
 
 #![allow(unused)]
 
-use crate::gossip::GossipMessage;
+use crate::legacy::gossip::GossipMessage;
 use sc_network::{Context as NetContext, PeerId};
 use sc_network_gossip::TopicNotification;
 use sp_core::{NativeOrEncoded, ExecutionContext};
 use sp_keyring::Sr25519Keyring;
-use crate::{PolkadotProtocol, NetworkService, GossipMessageStream};
+use crate::legacy::{PolkadotProtocol, NetworkService, GossipMessageStream};
 
 use polkadot_validation::{SharedTable, Network};
 use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
@@ -321,7 +321,7 @@ impl ParachainHost<Block> for RuntimeApi {
 	}
 }
 
-type TestValidationNetwork = crate::validation::ValidationNetwork<
+type TestValidationNetwork = crate::legacy::validation::ValidationNetwork<
 	TestApi,
 	NeverExit,
 	TaskExecutor,
@@ -344,7 +344,7 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 			gossip: gossip_handle.clone(),
 		});
 
-		let message_val = crate::gossip::RegisteredMessageValidator::new_test(
+		let message_val = crate::legacy::gossip::RegisteredMessageValidator::new_test(
 			TestChainContext::default(),
 			Box::new(|_, _| {}),
 		);

@@ -31,7 +31,7 @@ use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
 	OutgoingMessages, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
 };
-use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
+use crate::legacy::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
 use sp_api::ProvideRuntimeApi;
 
 use futures::prelude::*;
@@ -44,8 +44,8 @@ use std::io;
 use std::sync::Arc;
 use std::pin::Pin;
 
-use crate::validation::{LeafWorkDataFetcher, Executor};
-use crate::NetworkService;
+use crate::legacy::validation::{LeafWorkDataFetcher, Executor};
+use crate::legacy::NetworkService;
 
 /// Compute the gossip topic for attestations on the given parent hash.
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
