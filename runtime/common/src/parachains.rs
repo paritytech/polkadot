@@ -1016,7 +1016,6 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: Balance = 0;
-		pub const TransferFee: Balance = 0;
 		pub const CreationFee: Balance = 0;
 	}
 
@@ -1029,7 +1028,6 @@ mod tests {
 		type DustRemoval = ();
 		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
 	}
 

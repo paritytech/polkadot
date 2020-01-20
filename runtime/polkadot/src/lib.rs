@@ -163,7 +163,6 @@ impl indices::Trait for Runtime {
 
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 100 * CENTS;
-	pub const TransferFee: Balance = 1 * CENTS;
 	pub const CreationFee: Balance = 1 * CENTS;
 }
 
@@ -184,7 +183,6 @@ impl balances::Trait for Runtime {
 	type DustRemoval = ();
 	type TransferPayment = ();
 	type ExistentialDeposit = ExistentialDeposit;
-	type TransferFee = TransferFee;
 	type CreationFee = CreationFee;
 }
 

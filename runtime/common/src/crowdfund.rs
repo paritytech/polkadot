@@ -550,9 +550,8 @@ mod tests {
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
-		// We want to make sure these fees are non zero, so we can check
+		// We want to make sure this fee is non zero, so we can check
 		// that our module correctly avoids these fees :)
-		pub const TransferFee: u64 = 10;
 		pub const CreationFee: u64 = 10;
 	}
 	impl balances::Trait for Test {
@@ -564,7 +563,6 @@ mod tests {
 		type DustRemoval = ();
 		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
 	}
 
