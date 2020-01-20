@@ -156,7 +156,7 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 ) -> Result<ValidationResult, Error> {
 	let mut ext = ValidationExternalities(ParachainExt::new(externalities));
 
-	let res = sc_executor::call_in_wasm::<_, HostFunctions>(
+	let res = sc_executor::call_in_wasm::<HostFunctions>(
 		"validate_block",
 		encoded_call_data,
 		sc_executor::WasmExecutionMethod::Interpreted,
