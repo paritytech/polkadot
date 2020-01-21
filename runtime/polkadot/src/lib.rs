@@ -245,14 +245,13 @@ parameter_types! {
 }
 
 impl session::Trait for Runtime {
-	type OnSessionEnding = Staking;
+	type SessionManager = Staking;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type ShouldEndSession = Babe;
 	type Event = Event;
 	type Keys = SessionKeys;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = staking::StashOf<Self>;
-	type SelectInitialValidators = Staking;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 }
 
