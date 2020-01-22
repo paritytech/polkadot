@@ -777,7 +777,6 @@ mod tests {
 
 		balances::GenesisConfig::<Test> {
 			balances,
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 
 		t.into()
