@@ -25,7 +25,7 @@ mod browser;
 
 use chain_spec::ChainSpec;
 use futures::{
-	Future, FutureExt, TryFutureExt, future::select, channel::oneshot,
+	Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Compat,
 };
 #[cfg(feature = "cli")]
 use tokio::runtime::Runtime;
@@ -156,7 +156,7 @@ where
 			|exit, _cli_args, custom_args, mut config| {
 				info!("{}", version.name);
 				info!("  version {}", config.full_version());
-				info!("  by {}, 2017-2019", version.author);
+				info!("  by {}, 2017-2020", version.author);
 				info!("Chain specification: {}", config.chain_spec.name());
 				info!("Native runtime: {}", D::native_version().runtime_version);
 				if is_kusama {
@@ -171,6 +171,10 @@ where
 				config.custom = service::CustomConfiguration::default();
 				config.custom.authority_discovery_enabled = custom_args.authority_discovery_enabled;
 				let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
+				config.tasks_executor = {
+					let runtime_handle = runtime.executor();
+					Some(Box::new(move |fut| { runtime_handle.spawn(Compat::new(fut.map(Ok))); }))
+				};
 				match config.roles {
 					service::Roles::LIGHT =>
 						run_until_exit(

@@ -363,13 +363,15 @@ fn run_collator_node<S, E, P, Extrinsic>(
 	};
 
 	let inner_exit = exit.clone();
-	let work = client.import_notification_stream()
-		.for_each(move |notification| {
+	let work = async move {
+		let mut notification_stream = client.import_notification_stream();
+
+		while let Some(notification) = notification_stream.next().await {
 			macro_rules! try_fr {
 				($e:expr) => {
 					match $e {
 						Ok(x) => x,
-						Err(e) => return future::Either::Left(future::err(Error::Polkadot(
+						Err(e) => return (future::err(Error::Polkadot(
 							format!("{:?}", e)
 						))),
 					}
@@ -386,11 +388,11 @@ fn run_collator_node<S, E, P, Extrinsic>(
 			let validation_network = validation_network.clone();
 			let inner_exit_2 = inner_exit.clone();
 
-			let work = future::lazy(move |_| {
+			let work = future::lazy(move |_| async move {
 				let api = client.runtime_api();
 				let status = match try_fr!(api.parachain_status(&id, para_id)) {
 					Some(status) => status,
-					None => return future::Either::Left(future::ok(())),
+					None => return future::ok(()),
 				};
 
 				let validators = try_fr!(api.validators(&id));
@@ -407,14 +409,14 @@ fn run_collator_node<S, E, P, Extrinsic>(
 					validators,
 				};
 
-				let collation_work = collate(
+				if let Ok((collation, outgoing)) = collate(
 					relay_parent,
 					para_id,
 					status,
 					context,
 					parachain_context,
 					key,
-				).map_ok(move |(collation, outgoing)| {
+				).await {
 					network.with_spec(move |spec, ctx| {
 						let res = spec.add_local_collation(
 							ctx,
@@ -426,10 +428,9 @@ fn run_collator_node<S, E, P, Extrinsic>(
 
 						let exit = inner_exit_2.clone();
 						tokio::spawn(future::select(res.boxed(), exit).map(drop).map(|_| Ok(())).compat());
-					})
-				});
-
-				future::Either::Right(collation_work)
+					});
+				}
+				future::ok(())
 			});
 
 			let deadlined = future::select(
@@ -450,8 +451,8 @@ fn run_collator_node<S, E, P, Extrinsic>(
 				).map(drop);
 
 			tokio::spawn(future.map(|_| Ok(())).compat());
-			future::ready(())
-		});
+		}
+	}.boxed();
 
 	service.spawn_essential_task(work);
 
