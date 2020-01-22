@@ -222,11 +222,10 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 
 			Delay::new(enough_candidates).await;
 
-			tokio_executor::blocking::run(move || {
+			tokio::task::block_in_place(move || {
 				let proposed_candidates = data.table.proposed_set();
 				data.propose_with(proposed_candidates)
 			})
-				.await
 		}.boxed()
 	}
 }

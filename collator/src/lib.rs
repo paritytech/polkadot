@@ -427,7 +427,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 						);
 
 						let exit = inner_exit_2.clone();
-						tokio::spawn(future::select(res.boxed(), exit).map(drop).map(|_| Ok(())).compat());
+						tokio::spawn(future::select(res.boxed(), exit));
 					});
 				}
 				future::ok(())
@@ -450,7 +450,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 					inner_exit.clone()
 				).map(drop);
 
-			tokio::spawn(future.map(|_| Ok(())).compat());
+			tokio::spawn(future);
 		}
 	}.boxed();
 
