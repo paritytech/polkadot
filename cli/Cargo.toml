@@ -13,22 +13,22 @@ log = "0.4.8"
 futures = { version = "0.3.1", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
 structopt = "=0.3.7"
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-cli = { git = "https://github.com/tomaka/polkadot", branch = "diagnose" }
+sp-api = { git = "https://github.com/tomaka/polkadot", branch = "diagnose" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "diagnose" }
+sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "diagnose" }
+sc-client = { git = "https://github.com/tomaka/polkadot", branch = "diagnose" }
+sc-client-api = { git = "https://github.com/tomaka/polkadot", branch = "diagnose" }
+sc-client-db = { git = "https://github.com/tomaka/polkadot", branch = "diagnose" }
+sc-executor = { git = "https://github.com/tomaka/polkadot", branch = "diagnose" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
 
 tokio = { version = "0.1.22", optional = true }
 
 wasm-bindgen = { version = "0.2.57", optional = true }
 wasm-bindgen-futures = { version = "0.4.7", optional = true }
-browser-utils = { package = "browser-utils", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
-substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true, default-features = false }
+browser-utils = { package = "browser-utils", git = "https://github.com/tomaka/polkadot", branch = "diagnose", optional = true }
+substrate-service = { package = "sc-service", git = "https://github.com/tomaka/polkadot", branch = "diagnose", optional = true, default-features = false }
 
 [features]
 default = [ "wasmtime", "rocksdb", "cli" ]

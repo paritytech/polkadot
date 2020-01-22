@@ -27,12 +27,12 @@ To connect on the "Kusama" canary network, you will want the `v0.7` code, which 
 
 * **Polkadot PoC-2 "Krumme Lanke"** is in the [**Substrate**][substrate-v0.2] repo branch `v0.2`.
 
-[substrate-repo]: https://github.com/paritytech/substrate
+[substrate-repo]: https://github.com/tomaka/polkadot
 [polkadot-v0.6]: https://github.com/paritytech/polkadot/tree/v0.6
 [polkadot-v0.5]: https://github.com/paritytech/polkadot/tree/v0.5
 [polkadot-v0.4]: https://github.com/paritytech/polkadot/tree/v0.4
 [polkadot-v0.3]: https://github.com/paritytech/polkadot/tree/v0.3
-[substrate-v0.2]: https://github.com/paritytech/substrate/tree/v0.2
+[substrate-v0.2]: https://github.com/tomaka/polkadot/tree/v0.2
 
 ## To play
 
@@ -106,7 +106,7 @@ Finally, connect to the global "Alexander" testnet by default by running:
 Install Polkadot PoC-2 and have a `polkadot` binary installed to your `PATH` with:
 
 ```
-cargo install --git https://github.com/paritytech/substrate.git --branch v0.2 polkadot
+cargo install --git https://github.com/tomaka/polkadot.git --branch v0.2 polkadot
 ```
 
 Connect to the global "Krumme Lanke" testnet by default by running:
@@ -126,7 +126,7 @@ cargo install --git https://github.com/paritytech/polkadot.git polkadot
 If you want a specific version of Polkadot, say `0.2.5`, you may run
 
 ```bash
-cargo install --git https://github.com/paritytech/substrate.git --tag v0.2.5 polkadot
+cargo install --git https://github.com/tomaka/polkadot.git --tag v0.2.5 polkadot
 ```
 
 ### Obtaining DOTs
