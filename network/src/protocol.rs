@@ -14,10 +14,17 @@
 //! Polkadot-specific base networking protocol.
 
 use codec::{Decode, Encode};
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use futures::prelude::*;
 use futures::task::SpawnExt;
-use polkadot_primitives::{Hash, parachain::{PoVBlock, ValidatorId, Collation}};
+use polkadot_primitives::{
+	Hash,
+	parachain::{
+		PoVBlock, ValidatorId, ValidatorIndex, Collation, CandidateReceipt, OutgoingMessages,
+		ErasureChunk,
+	},
+};
+use polkadot_validation::SharedTable;
 use sc_network::{config::Roles, Event, PeerId, RequestId};
 
 use std::collections::HashMap;
@@ -45,14 +52,31 @@ pub enum Role {
 
 // Messages from the service API or network adapter.
 enum ServiceToWorkerMsg {
+	// basic peer messages.
 	PeerConnected(PeerId, Roles),
 	PeerMessage(PeerId, Vec<bytes::Bytes>),
 	PeerDisconnected(PeerId),
+
+	// service messages.
+	BuildTableRouter(Arc<SharedTable>, Vec<ValidatorId>, exit_future::Exit),
+	LocalCollation(
+		Hash, // relay-parent
+		Collation,
+		CandidateReceipt,
+		(ValidatorIndex, Vec<ErasureChunk>),
+	),
+	FetchPoVBlock(
+		Hash, // relay-parent
+		CandidateReceipt,
+		oneshot::Sender<PoVBlock>,
+	),
 }
 
 /// An async handle to the network service.
+#[derive(Clone)]
 pub struct Service {
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
+	network_service: Arc<PolkadotNetworkService>,
 }
 
 // TODO [now]: implement `ParachainNetwork`.
@@ -73,7 +97,10 @@ pub fn start(
 	// TODO [now]: instantiate gossip
 	executor.spawn(worker_loop(service.clone(), worker_receiver))?;
 
-	let polkadot_service = Service { sender: worker_sender.clone() };
+	let polkadot_service = Service {
+		sender: worker_sender.clone(),
+		network_service: service.clone(),
+	};
 
 	executor.spawn(async move {
 		while let Some(event) = event_stream.next().await {
@@ -164,10 +191,26 @@ async fn worker_loop(
 			ServiceToWorkerMsg::PeerMessage(remote, messages) => {
 				for raw_message in messages {
 					match Message::decode(&mut raw_message.as_ref()) {
-						Ok(message) => unimplemented!(),
+						Ok(message) => {
+							service.report_peer(remote.clone(), benefit::VALID_FORMAT);
+							unimplemented!()
+						},
 						Err(_) => service.report_peer(remote.clone(), cost::INVALID_FORMAT),
 					}
 				}
+			}
+
+			ServiceToWorkerMsg::BuildTableRouter(table, validators, exit) => {
+				// instantiate a "router". no need to send it back.
+				// create an `exit-edges` futures-unordered that we can poll for sessions
+				// to garbage-collect.
+			}
+			ServiceToWorkerMsg::LocalCollation(relay_parent, collation, receipt, chunks) => {
+				// sign any necessary messages. port over implementation
+				// from existing `TableRouter`.
+			}
+			ServiceToWorkerMsg::FetchPoVBlock(relay_parent, candidate, sender) => {
+				// create a filter on gossip for it and send to sender.
 			}
 		}
 	}
