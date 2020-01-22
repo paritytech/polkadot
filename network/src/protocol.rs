@@ -14,7 +14,9 @@
 //! Polkadot-specific base networking protocol.
 
 use codec::{Decode, Encode};
+use futures::channel::mpsc;
 use futures::prelude::*;
+use futures::task::SpawnExt;
 use polkadot_primitives::{Hash, parachain::{PoVBlock, ValidatorId, Collation}};
 use sc_network::{config::Roles, Event, PeerId, RequestId};
 
@@ -41,6 +43,89 @@ pub enum Role {
 	Backup = 1,
 }
 
+// Messages from the service API or network adapter.
+enum ServiceToWorkerMsg {
+	PeerConnected(PeerId, Roles),
+	PeerMessage(PeerId, Vec<bytes::Bytes>),
+	PeerDisconnected(PeerId),
+}
+
+/// An async handle to the network service.
+pub struct Service {
+	sender: mpsc::Sender<ServiceToWorkerMsg>,
+}
+
+// TODO [now]: implement `ParachainNetwork`.
+
+/// Registers the protocol.
+///
+/// You are very strongly encouraged to call this method very early on. Any connection open
+/// will retain the protocols that were registered then, and not any new one.
+pub fn start(
+	service: Arc<PolkadotNetworkService>,
+	executor: &impl futures::task::Spawn,
+) -> Result<Service, futures::task::SpawnError> {
+	const SERVICE_TO_WORKER_BUF: usize = 256;
+
+	let mut event_stream = service.event_stream();
+	let (mut worker_sender, worker_receiver) = mpsc::channel(SERVICE_TO_WORKER_BUF);
+
+	// TODO [now]: instantiate gossip
+	executor.spawn(worker_loop(service.clone(), worker_receiver))?;
+
+	let polkadot_service = Service { sender: worker_sender.clone() };
+
+	executor.spawn(async move {
+		while let Some(event) = event_stream.next().await {
+			let res = match event {
+				Event::Dht(_) => continue,
+				Event::NotificationStreamOpened {
+					remote,
+					engine_id,
+					roles,
+				} => {
+					if engine_id != POLKADOT_ENGINE_ID { continue }
+
+					worker_sender.send(ServiceToWorkerMsg::PeerConnected(remote, roles)).await
+				},
+				Event::NotificationsStreamClosed {
+					remote,
+					engine_id,
+				} => {
+					if engine_id != POLKADOT_ENGINE_ID { continue }
+
+					worker_sender.send(ServiceToWorkerMsg::PeerDisconnected(remote)).await
+				},
+				Event::NotificationsReceived {
+					remote,
+					messages,
+				} => {
+					let our_notifications = messages.into_iter()
+						.filter_map(|(engine, message)| if engine == POLKADOT_ENGINE_ID {
+							Some(message)
+						} else {
+							None
+						})
+						.collect();
+
+					worker_sender.send(
+						ServiceToWorkerMsg::PeerMessage(remote, our_notifications)
+					).await
+				}
+			};
+
+			if let Err(e) = res {
+				// full is impossible here, as we've `await`ed the value being sent.
+				if e.is_disconnected() {
+					break
+				}
+			}
+		}
+	})?;
+
+	Ok(polkadot_service)
+}
+
 /// Polkadot-specific messages.
 #[derive(Debug, Encode, Decode)]
 pub enum Message {
@@ -62,79 +147,25 @@ struct PeerData {
 	roles: Roles,
 }
 
-struct ProtocolHandler {
+async fn worker_loop(
 	service: Arc<PolkadotNetworkService>,
-	peers: HashMap<PeerId, PeerData>,
-}
+	mut receiver: mpsc::Receiver<ServiceToWorkerMsg>,
+) {
+	let mut peers = HashMap::new();
 
-impl ProtocolHandler {
-	fn peer_connected(&mut self, peer: PeerId, roles: Roles) {
-		self.peers.insert(peer, PeerData { roles });
-	}
-
-	fn peer_disconnected(&mut self, peer: PeerId) {
-		self.peers.remove(&peer);
-	}
-
-	fn handle_notification(&mut self, peer: PeerId, mut notification: &[u8]) {
-		match Message::decode(&mut notification) {
-			Ok(msg) => {
-				unimplemented!();
+	while let Some(message) = receiver.next().await {
+		match message {
+			ServiceToWorkerMsg::PeerConnected(remote, roles) => {
+				peers.insert(remote, PeerData { roles });
 			}
-			Err(_) => {
-				self.service.report_peer(peer, cost::INVALID_FORMAT);
+			ServiceToWorkerMsg::PeerDisconnected(remote) => {
+				peers.remove(&remote);
 			}
-		}
-	}
-}
-
-/// Registers the protocol and returns a future for handling it.
-///
-/// You are very strongly encouraged to call this method very early on. Any connection open
-/// will retain the protocols that were registered then, and not any new one.
-pub fn start_protocol(service: Arc<PolkadotNetworkService>)
-	-> impl Future<Output = ()> + Send + 'static
-{
-	let mut event_stream = service.event_stream();
-
-	let mut handler = ProtocolHandler {
-		service,
-		peers: HashMap::new(),
-	};
-	async move {
-		while let Some(event) = event_stream.next().await {
-			match event {
-				Event::Dht(_) => continue,
-				Event::NotificationStreamOpened {
-					remote,
-					engine_id,
-					roles,
-				} => {
-					if engine_id != POLKADOT_ENGINE_ID { continue }
-
-					handler.peer_connected(remote, roles);
-				},
-				Event::NotificationsStreamClosed {
-					remote,
-					engine_id,
-				} => {
-					if engine_id != POLKADOT_ENGINE_ID { continue }
-
-					handler.peer_disconnected(remote);
-				},
-				Event::NotificationsReceived {
-					remote,
-					messages,
-				} => {
-					let our_notifications = messages.into_iter()
-						.filter_map(|(engine, message)| if engine == POLKADOT_ENGINE_ID {
-							Some(message)
-						} else {
-							None
-						});
-
-					for notification in our_notifications {
-						handler.handle_notification(remote.clone(), &notification.as_ref())
+			ServiceToWorkerMsg::PeerMessage(remote, messages) => {
+				for raw_message in messages {
+					match Message::decode(&mut raw_message.as_ref()) {
+						Ok(message) => unimplemented!(),
+						Err(_) => service.report_peer(remote.clone(), cost::INVALID_FORMAT),
 					}
 				}
 			}
