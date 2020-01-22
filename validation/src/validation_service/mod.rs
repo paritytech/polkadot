@@ -384,18 +384,18 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 		let (collators, client) = (self.collators.clone(), self.client.clone());
 		let availability_store = self.availability_store.clone();
 
-		let with_router = move |router: N::TableRouter| {
+		let with_router = move |router: N::TableRouter| async move {
 			// fetch a local collation from connected collators.
-			let collation_work = crate::collation::collation_fetch(
+			match crate::collation::collation_fetch(
 				validation_para,
 				relay_parent,
 				collators,
 				client.clone(),
 				max_block_data_size,
-			);
+			).await {
+				Ok(collation_work) => {
+					let (collation, outgoing_targeted, fees_charged) = collation_work;
 
-			collation_work.map(move |result| match result {
-				Ok((collation, outgoing_targeted, fees_charged)) => {
 					match crate::collation::produce_receipt_and_chunks(
 						authorities_num,
 						&collation.pov,
@@ -410,40 +410,40 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 							let chunks_clone = chunks.clone();
 							let receipt_clone = receipt.clone();
 
-							let res = async move {
-								if let Err(e) = av_clone.clone().add_erasure_chunks(
-									relay_parent.clone(),
-									receipt_clone,
-									chunks_clone,
-								).await {
-									warn!(target: "validation", "Failed to add erasure chunks: {}", e);
-								}
-							}
-							.unit_error()
-							.boxed()
-							.then(move |_| {
-								router.local_collation(
+							if let Err(e) = av_clone.clone().add_erasure_chunks(
+								relay_parent.clone(),
+								receipt_clone,
+								chunks_clone,
+							).await {
+								warn!(
+									target: "validation",
+									"Failed to add erasure chunks: {}", e
+								);
+							} else {
+								let res = router.local_collation(
 									collation,
 									receipt,
 									outgoing_targeted,
 									(local_id, &chunks),
-								)
-							});
+								).await;
 
-
-							Some(res)
+								if let Err(e) = res {
+									warn!(
+										target: "validation",
+										"Failed to notify network of local collation: {:?}", e
+									);
+								}
+							};
 						}
 						Err(e) => {
 							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
-							None
 						}
-					}
+					};
 				}
 				Err(e) => {
-					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
-					None
+					warn!(target: "validation", "Failed to fetch a candidate: {:?}", e);
 				}
-			})
+			}
 		};
 
 		let router = build_router
