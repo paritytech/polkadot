@@ -33,7 +33,7 @@ use sp_api::ConstructRuntimeApi;
 
 pub use service::{
 	AbstractService, CustomConfiguration, ProvideRuntimeApi, CoreApi, ParachainHost, IsKusama,
-	WrappedExecutor, Block, self, RuntimeApiCollection, TFullClient
+	Block, self, RuntimeApiCollection, TFullClient
 };
 
 pub use sc_cli::{VersionInfo, IntoExit, NoCustom, SharedParams};

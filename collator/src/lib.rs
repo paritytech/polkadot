@@ -62,7 +62,7 @@ use polkadot_primitives::{
 	}
 };
 use polkadot_cli::{
-	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama, WrappedExecutor,
+	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
 	service::{self, Roles, SelectChain}
 };
 use polkadot_network::validation::{LeafWorkParams, ValidationNetwork};
@@ -308,7 +308,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 		Extrinsic: service::Codec + Send + Sync + 'static,
 {
 	let runtime = tokio::runtime::Runtime::new().map_err(|e| format!("{:?}", e))?;
-	let spawner = WrappedExecutor(service.spawn_task_handle());
+	let spawner = service.spawn_task_handle();
 
 	let client = service.client();
 	let network = service.network();
