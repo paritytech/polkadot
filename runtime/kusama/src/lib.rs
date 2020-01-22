@@ -77,8 +77,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1042,
-	impl_version: 3,
+	spec_version: 1043,
+	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
 
@@ -241,14 +241,13 @@ parameter_types! {
 }
 
 impl session::Trait for Runtime {
-	type OnSessionEnding = Staking;
+	type SessionManager = Staking;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type ShouldEndSession = Babe;
 	type Event = Event;
 	type Keys = SessionKeys;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = staking::StashOf<Self>;
-	type SelectInitialValidators = Staking;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 }
 

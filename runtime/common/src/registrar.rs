@@ -688,12 +688,11 @@ mod tests {
 	}
 
 	impl session::Trait for Test {
-		type OnSessionEnding = ();
+		type SessionManager = ();
 		type Keys = UintAuthorityId;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
 		type SessionHandler = session::TestSessionHandler;
 		type Event = ();
-		type SelectInitialValidators = ();
 		type ValidatorId = u64;
 		type ValidatorIdOf = ();
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
