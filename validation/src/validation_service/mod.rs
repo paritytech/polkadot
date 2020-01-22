@@ -344,7 +344,7 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 
 		let (_drop_signal, exit) = exit_future::signal();
 
-		let router = self.network.communication_for(
+		let router = self.network.build_table_router(
 			table.clone(),
 			&validators,
 			exit.clone(),

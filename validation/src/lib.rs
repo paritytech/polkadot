@@ -111,7 +111,7 @@ pub trait Network {
 
 	/// Instantiate a table router using the given shared table.
 	/// Also pass through any outgoing messages to be broadcast to peers.
-	fn communication_for(
+	fn build_table_router(
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],

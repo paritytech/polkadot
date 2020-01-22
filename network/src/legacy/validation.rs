@@ -186,7 +186,7 @@ impl<P, E, T> ParachainNetwork for ValidationNetwork<P, E, T> where
 	type TableRouter = Router<P, E, T>;
 	type BuildTableRouter = Box<dyn Future<Output=Result<Self::TableRouter, String>> + Send + Unpin>;
 
-	fn communication_for(
+	fn build_table_router(
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],
