@@ -79,6 +79,8 @@ pub type Incoming = Vec<(ParaId, Vec<Message>)>;
 pub trait TableRouter: Clone {
 	/// Errors when fetching data from the network.
 	type Error: std::fmt::Debug;
+	/// Future that drives sending of the local collation to the network.
+	type SendLocalCollation: Future<Output=Result<(), Self::Error>>;
 	/// Future that resolves when candidate data is fetched.
 	type FetchValidationProof: Future<Output=Result<PoVBlock, Self::Error>>;
 
@@ -90,7 +92,7 @@ pub trait TableRouter: Clone {
 		receipt: CandidateReceipt,
 		outgoing: OutgoingMessages,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
-	);
+	) -> Self::SendLocalCollation;
 
 	/// Fetch validation proof for a specific candidate.
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;

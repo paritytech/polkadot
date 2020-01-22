@@ -34,7 +34,7 @@ use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
 use futures::prelude::*;
-use futures::{future::{ready, select}, task::{Spawn, SpawnExt}};
+use futures::{future::select, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
 	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
@@ -427,8 +427,7 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 									receipt,
 									outgoing_targeted,
 									(local_id, &chunks),
-								);
-								ready(())
+								)
 							});
 
 

@@ -24,10 +24,11 @@ use polkadot_primitives::{
 		ErasureChunk,
 	},
 };
-use polkadot_validation::SharedTable;
+use polkadot_validation::{SharedTable, TableRouter, Network as ParachainNetwork};
 use sc_network::{config::Roles, Event, PeerId, RequestId};
 
 use std::collections::HashMap;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use super::{cost, benefit, PolkadotNetworkService};
@@ -213,5 +214,76 @@ async fn worker_loop(
 				// create a filter on gossip for it and send to sender.
 			}
 		}
+	}
+}
+
+/// Routing logic for a particular attestation session.
+#[derive(Clone)]
+pub struct Router {
+	relay_parent: Hash,
+	sender: mpsc::Sender<ServiceToWorkerMsg>,
+}
+
+impl ParachainNetwork for Service {
+	type Error = mpsc::SendError;
+	type TableRouter = Router;
+	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router,Self::Error>>>>;
+
+	fn build_table_router(
+		&self,
+		table: Arc<SharedTable>,
+		authorities: &[ValidatorId],
+		exit: exit_future::Exit,
+	) -> Self::BuildTableRouter {
+		let authorities = authorities.to_vec();
+		let mut sender = self.sender.clone();
+		Box::pin(async move {
+			let relay_parent = table.consensus_parent_hash().clone();
+			sender.send(
+				ServiceToWorkerMsg::BuildTableRouter(table, authorities, exit)
+			).await?;
+
+			Ok(Router { sender, relay_parent })
+		})
+	}
+}
+
+impl TableRouter for Router {
+	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
+	type SendLocalCollation = Pin<Box<dyn Future<Output = Result<(), Self::Error>>>>;
+	type FetchValidationProof = Pin<Box<dyn Future<Output = Result<PoVBlock, Self::Error>>>>;
+
+	fn local_collation(
+		&self,
+		collation: Collation,
+		receipt: CandidateReceipt,
+		_outgoing: OutgoingMessages,
+		chunks: (ValidatorIndex, &[ErasureChunk]),
+	) -> Self::SendLocalCollation {
+		let message = ServiceToWorkerMsg::LocalCollation(
+			self.relay_parent.clone(),
+			collation,
+			receipt,
+			(chunks.0, chunks.1.to_vec()),
+		);
+		let mut sender = self.sender.clone();
+		Box::pin(async move {
+			sender.send(message).map_err(future::Either::Left).await
+		})
+	}
+
+	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof {
+		let (tx, rx) = oneshot::channel();
+		let message = ServiceToWorkerMsg::FetchPoVBlock(
+			self.relay_parent.clone(),
+			candidate.clone(),
+			tx,
+		);
+
+		let mut sender = self.sender.clone();
+		Box::pin(async move {
+			sender.send(message).map_err(future::Either::Left).await?;
+			rx.map_err(future::Either::Right).await
+		})
 	}
 }

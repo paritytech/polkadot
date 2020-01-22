@@ -232,6 +232,7 @@ impl<P: ProvideRuntimeApi<Block> + Send, E, T> TableRouter for Router<P, E, T> w
 	E: Future<Output=()> + Clone + Send + 'static,
 {
 	type Error = io::Error;
+	type SendLocalCollation = future::Ready<Result<(), Self::Error>>;
 	type FetchValidationProof = Pin<Box<dyn Future<Output = Result<PoVBlock, io::Error>> + Send>>;
 
 	// We have fetched from a collator and here the receipt should have been already formed.
@@ -241,7 +242,7 @@ impl<P: ProvideRuntimeApi<Block> + Send, E, T> TableRouter for Router<P, E, T> w
 		receipt: CandidateReceipt,
 		outgoing: OutgoingMessages,
 		chunks: (ValidatorIndex, &[ErasureChunk])
-	) {
+	) -> Self::SendLocalCollation {
 		// produce a signed statement
 		let hash = receipt.hash();
 		let erasure_root = receipt.erasure_root;
@@ -254,7 +255,7 @@ impl<P: ProvideRuntimeApi<Block> + Send, E, T> TableRouter for Router<P, E, T> w
 		let statement = GossipStatement::new(
 			self.parent_hash(),
 			match self.table.import_validated(validated) {
-				None => return,
+				None => return future::ready(Ok(())),
 				Some(s) => s,
 			},
 		);
@@ -276,6 +277,8 @@ impl<P: ProvideRuntimeApi<Block> + Send, E, T> TableRouter for Router<P, E, T> w
 				message.into()
 			);
 		}
+
+		future::ready(Ok(()))
 	}
 
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof {
