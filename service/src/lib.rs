@@ -21,7 +21,6 @@ pub mod chain_spec;
 use futures::{
 	FutureExt, TryFutureExt,
 	task::{Spawn, SpawnError, FutureObj},
-	compat::Future01CompatExt,
 };
 use sc_client::LongestChain;
 use std::sync::Arc;
@@ -509,7 +508,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		};
 
 		service.spawn_essential_task(
-			grandpa::run_grandpa_voter(grandpa_config)?.compat().map(drop)
+			grandpa::run_grandpa_voter(grandpa_config)?
 		);
 	} else {
 		grandpa::setup_disabled_grandpa(
