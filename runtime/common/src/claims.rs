@@ -20,7 +20,7 @@ use rstd::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module};
 use frame_support::weights::SimpleDispatchInfo;
-use frame_support::traits::{Currency, Get, VestingCurrency};
+use frame_support::traits::{Currency, Get, VestingSchedule};
 use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
@@ -41,8 +41,12 @@ type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::Ac
 pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-	type Currency: Currency<Self::AccountId>
-		+ VestingCurrency<Self::AccountId, Moment=Self::BlockNumber>;
+	/// The currency provider.
+	type Currency: Currency<Self::AccountId>;
+	/// The vesting schedule provider.
+	type VestingSchedule:
+		VestingSchedule<Self::AccountId, Moment=Self::BlockNumber, Currency=Self::Currency>;
+	/// The Prefix that is used in signed Ethereum messages for this network.
 	type Prefix: Get<&'static [u8]>;
 }
 
@@ -117,7 +121,8 @@ decl_storage! {
 		/// First balance is the total amount that should be held for vesting.
 		/// Second balance is how much should be unlocked per block.
 		/// The block number is when the vesting should start.
-		Vesting get(vesting) config(): map EthereumAddress => Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
+		Vesting get(vesting) config():
+			map EthereumAddress => Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
 	}
 	add_extra_genesis {
 		config(claims): Vec<(EthereumAddress, BalanceOf<T>)>;
@@ -148,7 +153,7 @@ decl_module! {
 			if let Some(vs) = <Vesting<T>>::get(&signer) {
 				// If this fails, destination account already has a vesting schedule
 				// applied to it, and this claim should not be processed.
-				T::Currency::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)?;
+				T::VestingSchedule::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)?;
 			}
 
 			<Claims<T>>::remove(&signer);

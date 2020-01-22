@@ -38,7 +38,7 @@ use sp_runtime::{
 	ApplyExtrinsicResult, Percent, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	curve::PiecewiseLinear,
-	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys},
+	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto},
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
@@ -503,6 +503,7 @@ parameter_types! {
 impl claims::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
+	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
 }
 
@@ -586,6 +587,12 @@ impl society::Trait for Runtime {
 	type ChallengePeriod = ChallengePeriod;
 }
 
+impl vesting::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type BlockNumberToBalance = ConvertInto;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -643,6 +650,9 @@ construct_runtime! {
 
 		// Social recovery module.
 		Recovery: recovery::{Module, Call, Storage, Event<T>},
+
+		// Vesting. Usable initially, but removed once all vesting is finished.
+		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
 	}
 }
 

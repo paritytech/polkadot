@@ -217,9 +217,12 @@ fn staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 			claims: vec![],
 			vesting: vec![],
 		}),
+		vesting: Some(polkadot::VestingConfig {
+			vesting: vec![],
+		})
 		sudo: Some(polkadot::SudoConfig {
 			key: endowed_accounts[0].clone(),
-		})
+		}),
 	}
 }
 
@@ -356,12 +359,14 @@ pub fn testnet_genesis(
 			claims: vec![],
 			vesting: vec![],
 		}),
+		vesting: Some(polkadot::VestingConfig {
+			vesting: vec![],
+		})
 		sudo: Some(polkadot::SudoConfig {
 			key: root_key,
 		}),
 	}
 }
-
 
 fn development_config_genesis() -> polkadot::GenesisConfig {
 	testnet_genesis(
