@@ -21,7 +21,9 @@
 
 use rstd::prelude::*;
 use codec::{Encode, Decode};
-use frame_support::{decl_storage, decl_module, ensure, dispatch::DispatchResult, traits::Get};
+use frame_support::{
+	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, traits::Get
+};
 
 use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};
 use sp_runtime::RuntimeDebug;
@@ -106,13 +108,22 @@ decl_storage! {
 	}
 }
 
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// More attestations can be added only once in a block.
+		TooManyAttestations,
+	}
+}
+
 decl_module! {
 	/// Parachain-attestations module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+		type Error = Error<T>;
+
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn more_attestations(origin, _more: MoreAttestations) -> DispatchResult {
 			ensure_none(origin)?;
-			ensure!(!<DidUpdate>::exists(), "More attestations can be added only once in a block.");
+			ensure!(!<DidUpdate>::exists(), Error::<T>::TooManyAttestations);
 			<DidUpdate>::put(true);
 
 			Ok(())
