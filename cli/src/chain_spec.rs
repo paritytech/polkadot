@@ -47,7 +47,7 @@ impl ChainSpec {
 			ChainSpec::Development => Ok(service::chain_spec::development_config()),
 			ChainSpec::LocalTestnet => Ok(service::chain_spec::local_testnet_config()),
 			ChainSpec::StagingTestnet => Ok(service::chain_spec::staging_testnet_config()),
-			ChainSpec::Westend => service::chain_spec::kusama_config(),
+			ChainSpec::Westend => service::chain_spec::westend_config(),
 			ChainSpec::Kusama => service::chain_spec::kusama_config(),
 		}
 	}
