@@ -19,7 +19,6 @@
 //! This manages routing for parachain statements, parachain block and outgoing message
 //! data fetching, communication between collators and validators, and more.
 
-use sc_network::NetworkService;
 use polkadot_primitives::{Block, Hash};
 
 pub mod legacy;
