@@ -190,8 +190,8 @@ impl<P, E, T> ParachainNetwork for ValidationNetwork<P, E, T> where
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],
-		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter {
+		let (signal, exit) = exit_future::signal();
 		let parent_hash = *table.consensus_parent_hash();
 		let local_session_key = table.session_key();
 
@@ -210,6 +210,7 @@ impl<P, E, T> ParachainNetwork for ValidationNetwork<P, E, T> where
 					table,
 					fetcher,
 					network,
+					signal,
 				);
 
 				let table_router_clone = table_router.clone();

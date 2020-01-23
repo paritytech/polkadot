@@ -79,6 +79,7 @@ pub struct Router<P, E, T> {
 	fetcher: LeafWorkDataFetcher<P, E, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 	message_validator: RegisteredMessageValidator,
+	drop_signal: Arc<exit_future::Signal>,
 }
 
 impl<P, E, T> Router<P, E, T> {
@@ -86,6 +87,7 @@ impl<P, E, T> Router<P, E, T> {
 		table: Arc<SharedTable>,
 		fetcher: LeafWorkDataFetcher<P, E, T>,
 		message_validator: RegisteredMessageValidator,
+		drop_signal: exit_future::Signal,
 	) -> Self {
 		let parent_hash = fetcher.parent_hash();
 		Router {
@@ -94,6 +96,7 @@ impl<P, E, T> Router<P, E, T> {
 			attestation_topic: attestation_topic(parent_hash),
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
 			message_validator,
+			drop_signal: Arc::new(drop_signal),
 		}
 	}
 
@@ -124,6 +127,7 @@ impl<P, E: Clone, T: Clone> Clone for Router<P, E, T> {
 			attestation_topic: self.attestation_topic,
 			deferred_statements: self.deferred_statements.clone(),
 			message_validator: self.message_validator.clone(),
+			drop_signal: self.drop_signal.clone(),
 		}
 	}
 }
