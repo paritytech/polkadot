@@ -55,6 +55,9 @@ pub trait Collators: Clone {
 	///
 	/// This does not have to guarantee local availability, as a valid collation
 	/// will be passed to the `TableRouter` instance.
+	///
+	/// The returned future may be prematurely concluded if the `relay_parent` goes
+	/// out of date.
 	fn collate(&self, parachain: ParaId, relay_parent: Hash) -> Self::Collation;
 
 	/// Note a bad collator. TODO: take proof (https://github.com/paritytech/polkadot/issues/217)

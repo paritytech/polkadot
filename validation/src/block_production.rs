@@ -132,7 +132,7 @@ pub struct Proposer<Client, TxPool, Backend> {
 	parent_hash: Hash,
 	parent_id: BlockId,
 	parent_number: BlockNumber,
-	tracker: Arc<crate::validation_service::ValidationInstanceHandle>,
+	tracker: crate::validation_service::ValidationInstanceHandle,
 	transaction_pool: Arc<TxPool>,
 	slot_duration: u64,
 	backend: Arc<Backend>,

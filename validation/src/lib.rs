@@ -76,6 +76,8 @@ pub type Incoming = Vec<(ParaId, Vec<Message>)>;
 /// A handle to a statement table router.
 ///
 /// This is expected to be a lightweight, shared type like an `Arc`.
+/// Once all instances are dropped, consensus networking for this router
+/// should be cleaned up.
 pub trait TableRouter: Clone {
 	/// Errors when fetching data from the network.
 	type Error: std::fmt::Debug;
@@ -95,6 +97,9 @@ pub trait TableRouter: Clone {
 	) -> Self::SendLocalCollation;
 
 	/// Fetch validation proof for a specific candidate.
+	///
+	/// This future must conclude once all `Clone`s of this `TableRouter` have
+	/// been cleaned up.
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
 }
 
@@ -117,7 +122,6 @@ pub trait Network {
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],
-		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter;
 }
 
