@@ -108,8 +108,8 @@ decl_storage! {
 	}
 }
 
-decl_error!{
-	pub enum Error for Module<T: Trait>{
+decl_error! {
+	pub enum Error for Module<T: Trait> {
 		/// More attestations can be added only once in a block.
 		TooManyAttestations,
 	}

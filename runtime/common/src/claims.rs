@@ -102,8 +102,8 @@ decl_event!(
 	}
 );
 
-decl_error!{
-	pub enum Error for Module<T: Trait>{
+decl_error! {
+	pub enum Error for Module<T: Trait> {
 		/// Invalid Ethereum signature.
 		InvalidEthereumSignature,
 		/// Ethereum address has no claim.

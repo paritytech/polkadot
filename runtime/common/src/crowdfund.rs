@@ -187,8 +187,8 @@ decl_event! {
 	}
 }
 
-decl_error!{
-	pub enum Error for Module<T: Trait>{
+decl_error! {
+	pub enum Error for Module<T: Trait> {
 		/// Last slot must be greater than first slot.
 		LastSlotBeforeFirstSlot,
 		/// The last slot cannot be more then 3 slots after the first slot.

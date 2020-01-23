@@ -224,8 +224,8 @@ decl_event!(
 	}
 );
 
-decl_error!{
-	pub enum Error for Module<T: Trait>{
+decl_error! {
+	pub enum Error for Module<T: Trait> {
 		/// This auction is already in progress.
 		AuctionInProgress,
 		/// The lease period is in the past.

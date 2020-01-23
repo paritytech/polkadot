@@ -214,8 +214,8 @@ pub fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T,
 	ids.sort();
 }
 
-decl_error!{
-	pub enum Error for Module<T: Trait>{
+decl_error! {
+	pub enum Error for Module<T: Trait> {
 		/// Parachain already exists.
 		ParaAlreadyExists,
 		/// Invalid parachain ID.

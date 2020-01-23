@@ -194,8 +194,8 @@ decl_storage! {
 	}
 }
 
-decl_error!{
-	pub enum Error for Module<T: Trait>{
+decl_error! {
+	pub enum Error for Module<T: Trait> {
 		/// Parachain heads must be updated only once in the block.
 		TooManyHeadUpdates,
 		/// Too many parachain candidates.
