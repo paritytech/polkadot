@@ -82,7 +82,7 @@ pub trait NetworkService: Send + Sync + 'static {
 /// [`NetworkService`]: ./trait.NetworkService.html
 /// [`ProvideGossipMessages`]: ../polkadot_availability_store/trait.ProvideGossipMessages.html
 #[derive(Clone)]
-pub struct AvailabilityNetworkShim(pub RegisteredMessageValidator);
+pub struct AvailabilityNetworkShim(pub RegisteredMessageValidator<PolkadotProtocol>);
 
 impl av_store::ProvideGossipMessages for AvailabilityNetworkShim {
 	fn gossip_messages_for(&self, topic: Hash)

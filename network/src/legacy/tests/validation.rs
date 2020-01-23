@@ -334,6 +334,7 @@ struct Built {
 }
 
 fn build_network(n: usize, executor: TaskExecutor) -> Built {
+	use crate::legacy::gossip::RegisteredMessageValidator;
 	let (gossip_router, gossip_handle) = make_gossip();
 	let api_handle = Arc::new(Mutex::new(Default::default()));
 	let runtime_api = Arc::new(TestApi { data: api_handle.clone() });
@@ -344,7 +345,7 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 			gossip: gossip_handle.clone(),
 		});
 
-		let message_val = crate::legacy::gossip::RegisteredMessageValidator::new_test(
+		let message_val = RegisteredMessageValidator::<PolkadotProtocol>::new_test(
 			TestChainContext::default(),
 			Box::new(|_, _| {}),
 		);

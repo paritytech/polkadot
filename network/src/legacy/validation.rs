@@ -47,7 +47,7 @@ use parking_lot::Mutex;
 use crate::legacy::router::Router;
 use crate::legacy::gossip::{RegisteredMessageValidator, MessageValidationData};
 
-use super::NetworkService;
+use super::{NetworkService, PolkadotProtocol};
 
 pub use polkadot_validation::Incoming;
 
@@ -65,14 +65,14 @@ pub struct LeafWorkParams {
 pub struct ValidationNetwork<P, E, T> {
 	api: Arc<P>,
 	executor: T,
-	network: RegisteredMessageValidator,
+	network: RegisteredMessageValidator<PolkadotProtocol>,
 	exit: E,
 }
 
 impl<P, E, T> ValidationNetwork<P, E, T> {
 	/// Create a new consensus networking object.
 	pub fn new(
-		network: RegisteredMessageValidator,
+		network: RegisteredMessageValidator<PolkadotProtocol>,
 		exit: E,
 		api: Arc<P>,
 		executor: T,
@@ -520,7 +520,7 @@ impl LiveValidationLeaves {
 
 /// Can fetch data for a given validation leaf-work instance.
 pub struct LeafWorkDataFetcher<P, E, T> {
-	network: RegisteredMessageValidator,
+	network: RegisteredMessageValidator<PolkadotProtocol>,
 	api: Arc<P>,
 	exit: E,
 	task_executor: T,
@@ -545,7 +545,7 @@ impl<P, E, T> LeafWorkDataFetcher<P, E, T> {
 	}
 
 	/// Get the network service.
-	pub(crate) fn network(&self) -> &RegisteredMessageValidator {
+	pub(crate) fn network(&self) -> &RegisteredMessageValidator<PolkadotProtocol> {
 		&self.network
 	}
 

@@ -31,7 +31,6 @@ use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
 	OutgoingMessages, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
 };
-use crate::legacy::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
 use sp_api::ProvideRuntimeApi;
 
 use futures::prelude::*;
@@ -44,8 +43,9 @@ use std::io;
 use std::sync::Arc;
 use std::pin::Pin;
 
+use crate::legacy::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
 use crate::legacy::validation::{LeafWorkDataFetcher, Executor};
-use crate::legacy::NetworkService;
+use crate::legacy::{NetworkService, PolkadotProtocol};
 
 /// Compute the gossip topic for attestations on the given parent hash.
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
@@ -78,7 +78,7 @@ pub struct Router<P, E, T> {
 	attestation_topic: Hash,
 	fetcher: LeafWorkDataFetcher<P, E, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
-	message_validator: RegisteredMessageValidator,
+	message_validator: RegisteredMessageValidator<PolkadotProtocol>,
 	drop_signal: Arc<exit_future::Signal>,
 }
 
@@ -86,7 +86,7 @@ impl<P, E, T> Router<P, E, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
 		fetcher: LeafWorkDataFetcher<P, E, T>,
-		message_validator: RegisteredMessageValidator,
+		message_validator: RegisteredMessageValidator<PolkadotProtocol>,
 		drop_signal: exit_future::Signal,
 	) -> Self {
 		let parent_hash = fetcher.parent_hash();
@@ -114,7 +114,7 @@ impl<P, E, T> Router<P, E, T> {
 		self.fetcher.parent_hash()
 	}
 
-	fn network(&self) -> &RegisteredMessageValidator {
+	fn network(&self) -> &RegisteredMessageValidator<PolkadotProtocol> {
 		self.fetcher.network()
 	}
 }
