@@ -176,8 +176,7 @@ pub type DealWithFees = SplitTwoWays<
 
 impl balances::Trait for Runtime {
 	type Balance = Balance;
-	type OnFreeBalanceZero = Staking;
-	type OnReapAccount = System;
+	type OnReapAccount = (System, Staking);
 	type OnNewAccount = Indices;
 	type Event = Event;
 	type DustRemoval = ();
