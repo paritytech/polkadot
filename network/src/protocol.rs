@@ -24,7 +24,6 @@
 use codec::{Decode, Encode};
 use futures::channel::{mpsc, oneshot};
 use futures::prelude::*;
-use futures::future::Either;
 use futures::task::{Spawn, SpawnExt};
 use av_store::Store as AvailabilityStore;
 use polkadot_primitives::{
@@ -36,12 +35,10 @@ use polkadot_primitives::{
 };
 use polkadot_validation::{SharedTable, TableRouter, Network as ParachainNetwork, Validated};
 use sc_network::{config::Roles, Event, PeerId, RequestId};
-use log::warn;
 
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 
 use super::{cost, benefit, PolkadotNetworkService};
 
@@ -90,10 +87,9 @@ enum ServiceToWorkerMsg {
 
 /// An async handle to the network service.
 #[derive(Clone)]
-pub struct Service<SP> {
+pub struct Service {
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
 	network_service: Arc<PolkadotNetworkService>,
-	spawn: SP,
 }
 
 /// Registers the protocol.
@@ -105,7 +101,7 @@ pub fn start<C: ChainContext + 'static, SP: Spawn + Clone + 'static>(
 	availability_store: AvailabilityStore,
 	chain_context: C,
 	executor: SP,
-) -> Result<Service<SP>, futures::task::SpawnError> {
+) -> Result<Service, futures::task::SpawnError> {
 	const SERVICE_TO_WORKER_BUF: usize = 256;
 
 	let mut event_stream = service.event_stream();
@@ -126,7 +122,6 @@ pub fn start<C: ChainContext + 'static, SP: Spawn + Clone + 'static>(
 	let polkadot_service = Service {
 		sender: worker_sender.clone(),
 		network_service: service.clone(),
-		spawn: executor.clone(),
 	};
 
 	executor.spawn(async move {
@@ -277,69 +272,39 @@ fn distribute_local_collation(
 
 /// Routing logic for a particular attestation session.
 #[derive(Clone)]
-pub struct Router<SP: Spawn + Clone + 'static> {
-	inner: Arc<RouterInner<SP>>,
+pub struct Router {
+	inner: Arc<RouterInner>,
 }
 
 // note: do _not_ make this `Clone`: the drop implementation needs to _uniquely_
 // send the `DropConsensusNetworking` message.
-struct RouterInner<SP: Spawn + Clone + 'static> {
+struct RouterInner {
 	relay_parent: Hash,
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
-	spawn: SP,
 }
 
-impl<SP: Spawn + Clone + 'static> Drop for RouterInner<SP> {
+impl Drop for RouterInner  {
 	fn drop(&mut self) {
-		// how long to wait to spawn a new task for cleaning up consensus
-		// networking.
-		const SEND_TIMEOUT: Duration = Duration::from_secs(3);
+		let res = self.sender.try_send(
+			ServiceToWorkerMsg::DropConsensusNetworking(self.relay_parent)
+		);
 
-		let res = {
-			let send_timeout = future::select(
-				futures_timer::Delay::new(SEND_TIMEOUT),
-				self.sender.send(ServiceToWorkerMsg::DropConsensusNetworking(self.relay_parent)),
+		if let Err(e) = res {
+			assert!(
+				!e.is_full(),
+				"futures 0.3 guarantees at least one free slot in the capacity \
+				per sender; this is the first message sent via this sender; \
+				therefore we will not have to wait for capacity; qed"
 			);
-
-			futures::executor::block_on(send_timeout)
-		};
-
-		if let Either::Left(((), _)) = res {
-			// the deadline hit - spawn a background task to send cleanup message.
-			// this should only ever happen in a single-threaded executor context,
-			// where the receiving end of the sender is unable to empty itself due to
-			// not being scheduled.
-			let mut sender = self.sender.clone();
-			let relay_parent = self.relay_parent.clone();
-			let res = self.spawn.spawn(async move {
-				let res = sender.send(
-					ServiceToWorkerMsg::DropConsensusNetworking(relay_parent)
-				).await;
-
-				if let Err(_) = res {
-					warn!(
-						target: "network",
-						"Unable to clean up consensus networking for relay-parent {}",
-						relay_parent,
-					);
-				}
-			});
-
-			if let Err(_) = res {
-				warn!(
-					target: "network",
-					"Unable to clean up consensus networking for relay-parent {}",
-					relay_parent,
-				);
-			}
+			// other error variants (disconnection) are fine here.
 		}
 	}
 }
 
-impl<SP: Spawn + Clone + 'static> ParachainNetwork for Service<SP> {
+impl ParachainNetwork for Service {
 	type Error = mpsc::SendError;
-	type TableRouter = Router<SP>;
-	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router<SP>,Self::Error>>>>;
+	type TableRouter = Router;
+	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router,Self::Error>>>>;
 
 	fn build_table_router(
 		&self,
@@ -348,7 +313,6 @@ impl<SP: Spawn + Clone + 'static> ParachainNetwork for Service<SP> {
 	) -> Self::BuildTableRouter {
 		let authorities = authorities.to_vec();
 		let mut sender = self.sender.clone();
-		let spawn = self.spawn.clone();
 		Box::pin(async move {
 			let relay_parent = table.consensus_parent_hash().clone();
 			sender.send(
@@ -358,14 +322,13 @@ impl<SP: Spawn + Clone + 'static> ParachainNetwork for Service<SP> {
 			let inner = Arc::new(RouterInner {
 				sender,
 				relay_parent,
-				spawn,
 			});
 			Ok(Router { inner })
 		})
 	}
 }
 
-impl<SP: Spawn + Clone + 'static> TableRouter for Router<SP> {
+impl TableRouter for Router {
 	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
 	type SendLocalCollation = Pin<Box<dyn Future<Output = Result<(), Self::Error>>>>;
 	type FetchValidationProof = Pin<Box<dyn Future<Output = Result<PoVBlock, Self::Error>>>>;
@@ -402,5 +365,26 @@ impl<SP: Spawn + Clone + 'static> TableRouter for Router<SP> {
 			sender.send(message).map_err(future::Either::Left).await?;
 			rx.map_err(future::Either::Right).await
 		})
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn router_inner_drop_sends_worker_message() {
+		let parent = [1; 32].into();
+
+		let (sender, mut receiver) = mpsc::channel(0);
+		drop(RouterInner {
+			relay_parent: parent,
+			sender,
+		});
+
+		match receiver.try_next() {
+			Ok(Some(ServiceToWorkerMsg::DropConsensusNetworking(x))) => assert_eq!(parent, x),
+			_ => panic!("message not sent"),
+		}
 	}
 }
