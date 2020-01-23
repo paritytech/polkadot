@@ -28,8 +28,8 @@ pub enum ChainSpec {
 	LocalTestnet,
 	/// The Kusama network.
 	Kusama,
-       /// The Westend network,
-       Westend,
+	/// The Westend network,
+	Westend,
 	/// Whatever the current runtime is with the "global testnet" defaults.
 	StagingTestnet,
 }
@@ -57,7 +57,7 @@ impl ChainSpec {
 			"dev" => Some(ChainSpec::Development),
 			"local" => Some(ChainSpec::LocalTestnet),
 			"kusama" => Some(ChainSpec::Kusama),
-                        "westend" => Some(ChainSpec::Westend),
+			"westend" => Some(ChainSpec::Westend),
 			"staging" => Some(ChainSpec::StagingTestnet),
 			"" => Some(ChainSpec::default()),
 			_ => None,
