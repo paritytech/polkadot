@@ -126,7 +126,12 @@ do
 	if [ "${add_spec_version}" != "${sub_spec_version}" ]
 	then
 
-		github_label "B2-breaksapi"
+		if git diff --name-only origin/master...${CI_COMMIT_SHA} \
+			| grep -q -e '^runtime/'
+		then
+			# add label breaksapi only if this pr altered the runtime sources
+		  github_label "B2-breaksapi"
+		fi
 
 		boldcat <<-EOT
 
