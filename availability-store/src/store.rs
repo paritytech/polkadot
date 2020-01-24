@@ -22,7 +22,7 @@ use polkadot_erasure_coding::{self as erasure};
 use polkadot_primitives::{
 	Hash,
 	parachain::{
-		BlockData, CandidateReceipt, Message, ErasureChunk
+		BlockData, CandidateReceipt, ErasureChunk, PoVBlock,
 	},
 };
 
@@ -121,26 +121,14 @@ impl Store {
 
 		// note the meta key.
 		let mut v = self.query_inner(columns::META, data.relay_parent.as_ref()).unwrap_or(Vec::new());
-		v.push(data.block_data.hash());
+		v.push(data.block.block_data.hash());
 		tx.put_vec(columns::META, &data.relay_parent[..], v.encode());
 
 		tx.put_vec(
 			columns::DATA,
-			block_data_key(&data.relay_parent, &data.block_data.hash()).as_slice(),
-			data.block_data.encode()
+			block_data_key(&data.relay_parent, &data.block.block_data.hash()).as_slice(),
+			data.block.encode()
 		);
-
-		if let Some(outgoing_queues) = data.outgoing_queues {
-			// This is kept forever and not pruned.
-			for (root, messages) in outgoing_queues.0 {
-				tx.put_vec(
-					columns::DATA,
-					root.as_ref(),
-					messages.encode(),
-				);
-			}
-
-		}
 
 		self.inner.write(tx)
 	}
@@ -287,14 +275,13 @@ impl Store {
 				columns::DATA,
 				&block_data_key(&relay_parent, &receipt.block_data_hash)
 			) {
-				if let Ok((block_data, outgoing_queues)) = erasure::reconstruct(
+				if let Ok(block_data) = erasure::reconstruct(
 					n_validators as usize,
 					v.iter().map(|chunk| (chunk.chunk.as_ref(), chunk.index as usize))) {
 					self.make_available(Data {
 						relay_parent: *relay_parent,
 						parachain_id: receipt.parachain_index,
-						block_data,
-						outgoing_queues,
+						block: PoVBlock { block_data },
 					})?;
 				}
 			}
@@ -385,11 +372,6 @@ impl Store {
 		self.query_inner(columns::DATA, &receipt_key[..]).and_then(|receipt: CandidateReceipt| {
 			self.block_data(relay_parent, receipt.block_data_hash)
 		})
-	}
-
-	/// Query message queue data by message queue root hash.
-	pub fn queue_by_root(&self, queue_root: &Hash) -> Option<Vec<Message>> {
-		self.query_inner(columns::DATA, queue_root.as_ref())
 	}
 
 	fn block_hash_to_candidate_hash(&self, block_hash: Hash) -> Option<Hash> {

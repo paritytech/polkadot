@@ -30,7 +30,7 @@ use primitives::{
 	Hash, Balance,
 	parachain::{
 		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
-		UpwardMessage, BlockIngressRoots, ValidatorId, ActiveParas, CollatorId, Retriable,
+		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable,
 		NEW_HEADS_IDENTIFIER,
 	},
 };
@@ -617,7 +617,7 @@ impl<T: Trait> Module<T> {
 	/// invoked off-chain.
 	///
 	/// Yields a structure containing all unrouted ingress to the parachain.
-	pub fn ingress(to: ParaId, since: Option<T::BlockNumber>) -> Option<Vec<(T::BlockNumber, BlockIngressRoots)>> {
+	pub fn ingress(to: ParaId, since: Option<T::BlockNumber>) -> Option<Vec<(T::BlockNumber, Vec<(ParaId, Hash)>)>> {
 		let watermark = <Watermarks<T>>::get(to)?;
 		let now = <system::Module<T>>::block_number();
 
@@ -630,7 +630,7 @@ impl<T: Trait> Module<T> {
 		Some(number_range(since, now)
 			.filter_map(|unrouted_height| {
 				<UnroutedIngress<T>>::get(&(unrouted_height, to)).map(|roots| {
-					(unrouted_height, BlockIngressRoots(roots))
+					(unrouted_height, roots)
 				})
 			})
 			.collect())

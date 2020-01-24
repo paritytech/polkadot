@@ -24,7 +24,7 @@ use availability_store::{Store as AvailabilityStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
-	Id as ParaId, OutgoingMessages, CandidateReceipt, ValidatorPair, ValidatorId,
+	Id as ParaId, CandidateReceipt, ValidatorPair, ValidatorId,
 	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, ErasureChunk,
 };
 
@@ -91,7 +91,7 @@ impl TableContext {
 }
 
 pub(crate) enum Validation {
-	Valid(PoVBlock, OutgoingMessages),
+	Valid(PoVBlock),
 	Invalid(PoVBlock), // should take proof.
 }
 
@@ -222,10 +222,10 @@ impl Validated {
 
 	/// Note that we've validated a candidate with given hash and it is good.
 	/// outgoing message required.
-	pub fn known_good(hash: Hash, collation: PoVBlock, outgoing: OutgoingMessages) -> Self {
+	pub fn known_good(hash: Hash, collation: PoVBlock) -> Self {
 		Validated {
 			statement: GenericStatement::Valid(hash),
-			result: Validation::Valid(collation, outgoing),
+			result: Validation::Valid(collation),
 		}
 	}
 
@@ -234,26 +234,17 @@ impl Validated {
 	pub fn collated_local(
 		receipt: CandidateReceipt,
 		collation: PoVBlock,
-		outgoing: OutgoingMessages,
 	) -> Self {
 		Validated {
 			statement: GenericStatement::Candidate(receipt),
-			result: Validation::Valid(collation, outgoing),
+			result: Validation::Valid(collation),
 		}
 	}
 
 	/// Get a reference to the proof-of-validation block.
 	pub fn pov_block(&self) -> &PoVBlock {
 		match self.result {
-			Validation::Valid(ref b, _) | Validation::Invalid(ref b) => b,
-		}
-	}
-
-	/// Get a reference to the outgoing messages data, if any.
-	pub fn outgoing_messages(&self) -> Option<&OutgoingMessages> {
-		match self.result {
-			Validation::Valid(_, ref ex) => Some(ex),
-			Validation::Invalid(_) => None,
+			Validation::Valid(ref b) | Validation::Invalid(ref b) => b,
 		}
 	}
 }
@@ -273,7 +264,7 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 	pub fn prime<P: ProvideRuntimeApi<Block>>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			Fetch,
-			impl Send + FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()> + Unpin,
+			impl Send + FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<ErasureChunk, ()> + Unpin,
 		>
 		where
 			P: Send + Sync + 'static,
@@ -293,7 +284,7 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 
 			match res {
 				Ok((messages, mut chunks)) => {
-					Ok((messages, chunks.swap_remove(local_index)))
+					Ok(chunks.swap_remove(local_index))
 				}
 				Err(e) => {
 					debug!(target: "validation", "Encountered bad collation: {}", e);
@@ -307,7 +298,7 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 
 	/// Prime the parachain work with a custom validation function.
 	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<Fetch, F>
-		where F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>
+		where F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<ErasureChunk, ()>
 	{
 		PrimedParachainWork { inner: self, validate }
 	}
@@ -327,7 +318,7 @@ pub struct PrimedParachainWork<Fetch, F> {
 impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 	where
 		Fetch: Future<Output=Result<PoVBlock,Err>> + Unpin,
-		F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()> + Unpin,
+		F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<ErasureChunk, ()> + Unpin,
 		Err: From<::std::io::Error>,
 {
 	pub async fn validate(mut self) -> Result<(Validated, Option<ErasureChunk>), Err> {
@@ -353,7 +344,7 @@ impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 				},
 				None,
 			)),
-			Ok((outgoing_targeted, our_chunk)) => {
+			Ok(our_chunk) => {
 				self.inner.availability_store.add_erasure_chunk(
 					self.inner.relay_parent,
 					candidate.clone(),
@@ -363,7 +354,7 @@ impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 				Ok((
 					Validated {
 						statement: GenericStatement::Valid(candidate_hash),
-						result: Validation::Valid(pov_block, outgoing_targeted),
+						result: Validation::Valid(pov_block),
 					},
 					Some(our_chunk),
 				))

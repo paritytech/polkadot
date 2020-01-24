@@ -27,7 +27,7 @@
 use codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::{Hash as H256, BlakeTwo256, HashT};
-use primitives::parachain::{BlockData, AvailableMessages};
+use primitives::parachain::{BlockData};
 use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 
@@ -125,11 +125,11 @@ fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 /// Obtain erasure-coded chunks, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, outgoing: Option<&AvailableMessages>)
+pub fn obtain_chunks(n_validators: usize, block_data: &BlockData)
 	-> Result<Vec<Vec<u8>>, Error>
 {
 	let params = code_params(n_validators)?;
-	let encoded = (block_data, outgoing).encode();
+	let encoded = block_data.encode();
 
 	if encoded.is_empty() {
 		return Err(Error::BadPayload);
@@ -151,7 +151,7 @@ pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, outgoing: Opti
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
 pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
-	-> Result<(BlockData, Option<AvailableMessages>), Error>
+	-> Result<BlockData, Error>
 	where I: IntoIterator<Item=(&'a [u8], usize)>
 {
 	let params = code_params(n_validators)?;

@@ -38,7 +38,7 @@ use codec::Encode;
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, CandidateReceipt,
-	Statement as PrimitiveStatement, Message, OutgoingMessages,
+	Statement as PrimitiveStatement,
 	Collation, PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
 	ValidatorPair, ValidatorId,
 };
@@ -48,7 +48,7 @@ use futures::prelude::*;
 
 pub use self::block_production::ProposerFactory;
 pub use self::collation::{
-	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
+	validate_collation, message_queue_root, egress_roots, Collators,
 	produce_receipt_and_chunks,
 };
 pub use self::error::Error;
@@ -88,7 +88,6 @@ pub trait TableRouter: Clone {
 		&self,
 		collation: Collation,
 		receipt: CandidateReceipt,
-		outgoing: OutgoingMessages,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
 	);
 

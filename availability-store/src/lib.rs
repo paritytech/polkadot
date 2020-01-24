@@ -28,7 +28,7 @@ use keystore::KeyStorePtr;
 use polkadot_primitives::{
 	Hash, Block,
 	parachain::{
-		Id as ParaId, BlockData, CandidateReceipt, Message, AvailableMessages, ErasureChunk,
+		Id as ParaId, BlockData, CandidateReceipt, ErasureChunk,
 		ParachainHost,
 	},
 };
@@ -57,6 +57,7 @@ use worker::{
 };
 
 use store::{Store as InnerStore};
+use polkadot_primitives::parachain::PoVBlock;
 
 /// Abstraction over an executor that lets you spawn tasks in the background.
 pub(crate) type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
@@ -127,12 +128,8 @@ pub struct Data {
 	pub relay_parent: Hash,
 	/// The parachain index for this candidate.
 	pub parachain_id: ParaId,
-	/// Block data.
-	pub block_data: BlockData,
-	/// Outgoing message queues from execution of the block, if any.
-	///
-	/// The tuple pairs the message queue root and the queue data.
-	pub outgoing_queues: Option<AvailableMessages>,
+	/// the block itself.
+	pub block: PoVBlock,
 }
 
 /// Handle to the availability store.
@@ -386,10 +383,5 @@ impl Store {
 		-> Option<BlockData>
 	{
 		self.inner.block_data_by_candidate(relay_parent, candidate_hash)
-	}
-
-	/// Query message queue data by message queue root hash.
-	pub fn queue_by_root(&self, queue_root: &Hash) -> Option<Vec<Message>> {
-		self.inner.queue_by_root(queue_root)
 	}
 }

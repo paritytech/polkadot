@@ -24,8 +24,8 @@ use std::sync::Arc;
 use polkadot_primitives::{
 	BlakeTwo256, Block, Hash, HashT, BlockId, Balance,
 	parachain::{
-		CollatorId, ConsolidatedIngress, StructuredUnroutedIngress, CandidateReceipt, CollationInfo,
-		ParachainHost, Id as ParaId, Collation, OutgoingMessages, FeeSchedule, ErasureChunk,
+		CollatorId, CandidateReceipt, CollationInfo,
+		ParachainHost, Id as ParaId, Collation, FeeSchedule, ErasureChunk,
 		HeadData, PoVBlock,
 	},
 };
@@ -68,7 +68,7 @@ pub async fn collation_fetch<C: Collators, P>(
 	collators: C,
 	client: Arc<P>,
 	max_block_data_size: Option<u64>,
-) -> Result<(Collation, OutgoingMessages, Balance),C::Error>
+) -> Result<(Collation, Balance),C::Error>
 	where
 		P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 		C: Collators + Unpin,
@@ -90,7 +90,7 @@ pub async fn collation_fetch<C: Collators, P>(
 
 		match res {
 			Ok((messages, fees)) => {
-				return Ok((collation, messages, fees))
+				return Ok((collation, fees))
 			}
 			Err(e) => {
 				debug!("Failed to validate parachain due to API error: {}", e);
@@ -195,7 +195,7 @@ pub fn egress_roots(outgoing: &mut [TargetedMessage]) -> Vec<(ParaId, Hash)> {
 fn check_egress(
 	mut outgoing: Vec<TargetedMessage>,
 	expected_egress_roots: &[(ParaId, Hash)],
-) -> Result<OutgoingMessages, Error> {
+) -> Result<(), Error> {
 	// stable sort messages by parachain ID.
 	outgoing.sort_by_key(|msg| ParaId::from(msg.target));
 
@@ -242,7 +242,7 @@ fn check_egress(
 		}
 	}
 
-	Ok(OutgoingMessages { outgoing_messages: outgoing })
+	Ok(())
 }
 
 struct ExternalitiesInner {
@@ -304,7 +304,7 @@ impl ExternalitiesInner {
 		upward_messages: &[UpwardMessage],
 		egress_queue_roots: &[(ParaId, Hash)],
 		fees_charged: Option<Balance>,
-	) -> Result<(OutgoingMessages, Balance), Error> {
+	) -> Result<Balance, Error> {
 		if self.upward != upward_messages {
 			return Err(Error::UpwardMessagesInvalid {
 				expected: upward_messages.to_vec(),
@@ -321,12 +321,12 @@ impl ExternalitiesInner {
 			}
 		}
 
-		let messages = check_egress(
+		check_egress(
 			std::mem::replace(&mut self.outgoing, Vec::new()),
 			&egress_queue_roots[..],
 		)?;
 
-		Ok((messages, self.fees_charged))
+		Ok(self.fees_charged)
 	}
 }
 
@@ -369,40 +369,6 @@ pub fn validate_chunk(
 	Ok(())
 }
 
-/// Validate incoming messages against expected roots.
-pub fn validate_incoming(
-	roots: &StructuredUnroutedIngress,
-	ingress: &ConsolidatedIngress,
-) -> Result<(), Error> {
-	if roots.len() != ingress.0.len() {
-		return Err(Error::IngressCanonicalityMismatch {
-			expected: roots.0.len(),
-			got: ingress.0.len()
-		});
-	}
-
-	let all_iter = roots.iter().zip(&ingress.0);
-	for ((_, expected_from, root), (got_id, messages)) in all_iter {
-		if expected_from != got_id {
-			return Err(Error::IngressChainMismatch {
-				expected: *expected_from,
-				got: *got_id
-			});
-		}
-
-		let got_root = message_queue_root(messages.iter().map(|msg| &msg.0[..]));
-		if &got_root != root {
-			return Err(Error::IngressRootMismatch{
-				id: *expected_from,
-				expected: *root,
-				got: got_root
-			});
-		}
-	}
-
-	Ok(())
-}
-
 // A utility function that implements most of the collation validation logic.
 //
 // Reused by `validate_collation` and `validate_receipt`.
@@ -417,7 +383,7 @@ fn do_validation<P>(
 	head_data: &HeadData,
 	queue_roots: &Vec<(ParaId, Hash)>,
 	upward_messages: &Vec<UpwardMessage>,
-) -> Result<(OutgoingMessages, Balance), Error> where
+) -> Result<Balance, Error> where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
@@ -437,10 +403,6 @@ fn do_validation<P>(
 	let chain_status = api.parachain_status(relay_parent, para_id)?
 		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
-	let roots = api.ingress(relay_parent, para_id, None)?
-		.ok_or_else(|| Error::InactiveParachain(para_id))?;
-
-	validate_incoming(&roots, &pov_block.ingress)?;
 
 	let params = ValidationParams {
 		parent_head: chain_status.head_data.0,
@@ -492,7 +454,6 @@ fn do_validation<P>(
 pub fn produce_receipt_and_chunks(
 	n_validators: usize,
 	pov: &PoVBlock,
-	messages: &OutgoingMessages,
 	fees: Balance,
 	info: &CollationInfo,
 ) -> Result<(CandidateReceipt, Vec<ErasureChunk>), Error>
@@ -543,7 +504,7 @@ pub fn validate_receipt<P>(
 	pov_block: &PoVBlock,
 	receipt: &CandidateReceipt,
 	max_block_data_size: Option<u64>,
-) -> Result<(OutgoingMessages, Vec<ErasureChunk>), Error> where
+) -> Result<Vec<ErasureChunk>, Error> where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
@@ -590,7 +551,7 @@ pub fn validate_collation<P>(
 	relay_parent: &BlockId,
 	collation: &Collation,
 	max_block_data_size: Option<u64>,
-) -> Result<(OutgoingMessages, Balance), Error> where
+) -> Result<Balance, Error> where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
