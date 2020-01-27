@@ -11,28 +11,28 @@ docker run --rm -it chevdor/polkadot:latest polkadot --version
 You can also pass any argument/flag that polkadot supports:
 
 ```bash
-docker run --rm -it chevdor/polkadot:latest polkadot --chain alex --name "PolkaDocker"
+docker run --rm -it chevdor/polkadot:latest polkadot --chain westend --name "PolkaDocker"
 ```
 
 Once you are done experimenting and picking the best node name :) you can start polkadot as daemon, exposes the polkadot ports and mount a volume that will keep your blockchain data locally:
 
 ```bash
-docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:latest polkadot --chain alex
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:latest polkadot --chain westend
 ```
 
 Additionally if you want to have custom node name you can add the `--name "YourName"` at the end
 
 ```bash
-docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:latest polkadot --chain alex --name "PolkaDocker"
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:latest polkadot --chain westend --name "PolkaDocker"
 ```
 
 ```bash
-docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:latest polkadot --rpc-external --chain alex
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data chevdor/polkadot:latest polkadot --rpc-external --chain westend
 ```
 
 if you want to connect to rpc port 9933, then must add polkadot startup parameter: `--rpc-external`.
 
-**Note:** The `--chain alex` argument is important and you need to add it to the command line. If you are running older node versions (pre 0.3) you don't need it.
+**Note:** The `--chain westend` argument is important and you need to add it to the command line. If you are running older node versions (pre 0.3) you don't need it.
 
 ### Limiting Resources
 
