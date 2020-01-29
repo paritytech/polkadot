@@ -35,7 +35,7 @@ use primitives::{
 	},
 };
 use frame_support::{
-	Parameter, dispatch::DispatchResult, decl_storage, decl_module, ensure,
+	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
 
@@ -182,10 +182,10 @@ decl_storage! {
 		/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
 		NeedsDispatch: Vec<ParaId>;
 
-		/// Some if the parachain heads get updated in this block, along with the parachain IDs that
-		/// did update. Ordered in the same way as `registrar::Active` (i.e. by ParaId).
+		/// `Some` if the parachain heads get updated in this block, along with the parachain IDs
+		/// that did update. Ordered in the same way as `registrar::Active` (i.e. by ParaId).
 		///
-		/// None if not yet updated.
+		/// `None` if not yet updated.
 		pub DidUpdate: Option<Vec<ParaId>>;
 	}
 	add_extra_genesis {
@@ -194,19 +194,60 @@ decl_storage! {
 	}
 }
 
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// Parachain heads must be updated only once in the block.
+		TooManyHeadUpdates,
+		/// Too many parachain candidates.
+		TooManyParaCandidates,
+		/// Proposed heads must be ascending order by parachain ID without duplicate.
+		HeadsOutOfOrder,
+		/// Candidate is for an unregistered parachain.
+		UnregisteredPara,
+		/// Invalid collator.
+		InvalidCollator,
+		/// The message queue is full. Messages will be added when there is space.
+		QueueFull,
+		/// The message origin is invalid.
+		InvalidMessageOrigin,
+		/// Egress routes should be in ascending order by parachain ID without duplicates.
+		EgressOutOfOrder,
+		/// A parachain cannot route a message to itself.
+		SelfAddressed,
+		/// The trie root cannot be empty.
+		EmptyTrieRoot,
+		/// Cannot route to a non-existing parachain.
+		DestinationDoesNotExist,
+		/// No validator group for parachain.
+		NoValidatorGroup,
+		/// Not enough validity votes for candidate.
+		NotEnoughValidityVotes,
+		/// The number of attestations exceeds the number of authorities.
+		VotesExceedsAuthorities,
+		/// Attesting validator not on this chain's validation duty.
+		WrongValidatorAttesting,
+		/// Invalid signature from attester.
+		InvalidSignature,
+		/// Extra untagged validity votes along with candidate.
+		UntaggedVotes,
+	}
+}
+
 decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+		type Error = Error<T>;
+
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
 		pub fn set_heads(origin, heads: Vec<AttestedCandidate>) -> DispatchResult {
 			ensure_none(origin)?;
-			ensure!(!<DidUpdate>::exists(), "Parachain heads must be updated only once in the block");
+			ensure!(!<DidUpdate>::exists(), Error::<T>::TooManyHeadUpdates);
 
 			let active_parachains = Self::active_parachains();
 
 			let parachain_count = active_parachains.len();
-			ensure!(heads.len() <= parachain_count, "Too many parachain candidates");
+			ensure!(heads.len() <= parachain_count, Error::<T>::TooManyParaCandidates);
 
 			let mut proceeded = Vec::with_capacity(heads.len());
 
@@ -221,15 +262,15 @@ decl_module! {
 						// proposed heads must be ascending order by parachain ID without duplicate.
 						ensure!(
 							last_id.as_ref().map_or(true, |x| x < &id),
-							"candidate out of order"
+							Error::<T>::HeadsOutOfOrder
 						);
 
 						// must be unknown since active parachains are always sorted.
 						let (_, maybe_required_collator) = iter.find(|para| para.0 == id)
-							.ok_or("candidate for unregistered parachain {}")?;
+							.ok_or(Error::<T>::UnregisteredPara)?;
 
 						if let Some((required_collator, _)) = maybe_required_collator {
-							ensure!(required_collator == &head.candidate.collator, "invalid collator");
+							ensure!(required_collator == &head.candidate.collator, Error::<T>::InvalidCollator);
 						}
 
 						Self::check_upward_messages(
@@ -371,11 +412,11 @@ impl<T: Trait> Module<T> {
 						.fold(size as usize, |a, x| a + x.data.len())
 					<= watermark_queue_size
 				),
-				"Messages added when queue full"
+				Error::<T>::QueueFull
 			);
 			if !id.is_system() {
 				for m in upward_messages.iter() {
-					ensure!(m.origin != ParachainDispatchOrigin::Root, "bad message origin");
+					ensure!(m.origin != ParachainDispatchOrigin::Root, Error::<T>::InvalidMessageOrigin);
 				}
 			}
 		}
@@ -625,25 +666,25 @@ impl<T: Trait> Module<T> {
 			// egress routes should be ascending order by parachain ID without duplicate.
 			ensure!(
 				last_egress_id.as_ref().map_or(true, |x| x < &egress_para_id),
-				"Egress routes out of order by ID",
+				Error::<T>::EgressOutOfOrder,
 			);
 
 			// a parachain can't route to self
 			ensure!(
 				*egress_para_id != head.candidate.parachain_index,
-				"Parachain routing to self",
+				Error::<T>::SelfAddressed,
 			);
 
 			// no empty trie roots
 			ensure!(
 				*root != EMPTY_TRIE_ROOT.into(),
-				"Empty trie root included",
+				Error::<T>::EmptyTrieRoot,
 			);
 
 			// can't route to a parachain which doesn't exist
 			ensure!(
 				iter.find(|x| x == egress_para_id).is_some(),
-				"Routing to non-existent parachain",
+				Error::<T>::DestinationDoesNotExist,
 			);
 
 			last_egress_id = Some(egress_para_id)
@@ -737,16 +778,16 @@ impl<T: Trait> Module<T> {
 		for candidate in attested_candidates {
 			let para_id = candidate.parachain_index();
 			let validator_group = validator_groups.group_for(para_id)
-				.ok_or("no validator group for parachain")?;
+				.ok_or(Error::<T>::NoValidatorGroup)?;
 
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
-				"Not enough validity attestations",
+				Error::<T>::NotEnoughValidityVotes,
 			);
 
 			ensure!(
 				candidate.validity_votes.len() <= authorities.len(),
-				"The number of attestations exceeds the number of authorities",
+				Error::<T>::VotesExceedsAuthorities,
 			);
 
 			let fees = candidate.candidate().fees;
@@ -764,7 +805,7 @@ impl<T: Trait> Module<T> {
 				.enumerate()
 			{
 				let validity_attestation = match candidate.validity_votes.get(vote_index) {
-					None => Err("Not enough validity votes")?,
+					None => Err(Error::<T>::NotEnoughValidityVotes)?,
 					Some(v) => {
 						expected_votes_len = vote_index + 1;
 						v
@@ -772,7 +813,7 @@ impl<T: Trait> Module<T> {
 				};
 
 				if validator_group.iter().find(|&(idx, _)| *idx == auth_index).is_none() {
-					Err("Attesting validator not on this chain's validation duty.")?
+					Err(Error::<T>::WrongValidatorAttesting)?
 				}
 
 				let (payload, sig) = match validity_attestation {
@@ -798,7 +839,7 @@ impl<T: Trait> Module<T> {
 
 				ensure!(
 					sig.verify(&payload[..], &authorities[auth_index]),
-					"Candidate validity attestation signature is bad.",
+					Error::<T>::InvalidSignature,
 				);
 			}
 
@@ -806,7 +847,7 @@ impl<T: Trait> Module<T> {
 
 			ensure!(
 				candidate.validity_votes.len() == expected_votes_len,
-				"Extra untagged validity votes along with candidate",
+				Error::<T>::UntaggedVotes
 			);
 		}
 
@@ -915,7 +956,7 @@ mod tests {
 	};
 	use keyring::Sr25519Keyring;
 	use frame_support::{
-		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
+		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, assert_noop, parameter_types,
 	};
 	use crate::parachains;
 	use crate::registrar;
@@ -1447,7 +1488,7 @@ mod tests {
 			];
 			assert_err!(
 				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
-				"Messages added when queue full"
+				Error::<Test>::QueueFull
 			);
 
 			// too many messages.
@@ -1458,7 +1499,7 @@ mod tests {
 			];
 			assert_err!(
 				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
-				"Messages added when queue full"
+				Error::<Test>::QueueFull
 			);
 		});
 	}
@@ -1480,7 +1521,7 @@ mod tests {
 			];
 			assert_err!(
 				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
-				"Messages added when queue full"
+				Error::<Test>::QueueFull
 			);
 		});
 	}
@@ -1501,7 +1542,7 @@ mod tests {
 			];
 			assert_err!(
 				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
-				"Messages added when queue full"
+				Error::<Test>::QueueFull
 			);
 		});
 	}
@@ -1522,7 +1563,7 @@ mod tests {
 			];
 			assert_err!(
 				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
-				"Messages added when queue full",
+				Error::<Test>::QueueFull
 			);
 		});
 	}
@@ -1543,7 +1584,7 @@ mod tests {
 			];
 			assert_err!(
 				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
-				"Messages added when queue full",
+				Error::<Test>::QueueFull
 			);
 		});
 	}
@@ -1968,12 +2009,10 @@ mod tests {
 
 			make_attestations(&mut candidate);
 
-			let result = Parachains::dispatch(
-				set_heads(vec![candidate.clone()]),
-				Origin::NONE,
+			assert_noop!(
+				Parachains::set_heads(Origin::NONE, vec![candidate.clone()]),
+				Error::<Test>::DestinationDoesNotExist
 			);
-
-			assert_eq!(Err("Routing to non-existent parachain".into()), result);
 		});
 	}
 
@@ -1993,12 +2032,10 @@ mod tests {
 
 			make_attestations(&mut candidate);
 
-			let result = Parachains::dispatch(
-				set_heads(vec![candidate.clone()]),
-				Origin::NONE,
+			assert_noop!(
+				Parachains::set_heads(Origin::NONE, vec![candidate.clone()]),
+				Error::<Test>::SelfAddressed
 			);
-
-			assert_eq!(Err("Parachain routing to self".into()), result);
 		});
 	}
 
@@ -2018,12 +2055,10 @@ mod tests {
 
 			make_attestations(&mut candidate);
 
-			let result = Parachains::dispatch(
-				set_heads(vec![candidate.clone()]),
-				Origin::NONE,
+			assert_noop!(
+				Parachains::set_heads(Origin::NONE, vec![candidate.clone()]),
+				Error::<Test>::EgressOutOfOrder
 			);
-
-			assert_eq!(Err("Egress routes out of order by ID".into()), result);
 		});
 	}
 
@@ -2043,12 +2078,10 @@ mod tests {
 
 			make_attestations(&mut candidate);
 
-			let result = Parachains::dispatch(
-				set_heads(vec![candidate.clone()]),
-				Origin::NONE,
+			assert_noop!(
+				Parachains::set_heads(Origin::NONE, vec![candidate.clone()]),
+				Error::<Test>::EmptyTrieRoot
 			);
-
-			assert_eq!(Err("Empty trie root included".into()), result);
 		});
 	}
 

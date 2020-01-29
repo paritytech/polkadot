@@ -29,7 +29,7 @@ use sp_runtime::{
 };
 
 use frame_support::{
-	decl_storage, decl_module, decl_event, ensure,
+	decl_storage, decl_module, decl_event, decl_error, ensure,
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
 	weights::{SimpleDispatchInfo, DispatchInfo},
 };
@@ -70,11 +70,11 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		code: Vec<u8>,
 		initial_head_data: Vec<u8>,
 	) -> DispatchResult {
-		ensure!(!Paras::exists(id), "Parachain already exists");
+		ensure!(!Paras::exists(id), Error::<T>::ParaAlreadyExists);
 		if let Scheduling::Always = info.scheduling {
 			Parachains::mutate(|parachains|
 				match parachains.binary_search(&id) {
-					Ok(_) => Err("Parachain already exists"),
+					Ok(_) => Err(Error::<T>::ParaAlreadyExists),
 					Err(idx) => {
 						parachains.insert(idx, id);
 						Ok(())
@@ -88,12 +88,12 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 	}
 
 	fn deregister_para(id: ParaId) -> DispatchResult {
-		let info = Paras::take(id).ok_or("Invalid id")?;
+		let info = Paras::take(id).ok_or(Error::<T>::InvalidChainId)?;
 		if let Scheduling::Always = info.scheduling {
 			Parachains::mutate(|parachains|
 				parachains.binary_search(&id)
 					.map(|index| parachains.remove(index))
-					.map_err(|_| "Invalid id")
+					.map_err(|_| Error::<T>::InvalidChainId)
 			)?;
 		}
 		<parachains::Module<T>>::cleanup_para(id);
@@ -214,9 +214,22 @@ pub fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T,
 	ids.sort();
 }
 
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// Parachain already exists.
+		ParaAlreadyExists,
+		/// Invalid parachain ID.
+		InvalidChainId,
+		/// Invalid parathread ID.
+		InvalidThreadId,
+	}
+}
+
 decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+		type Error = Error<T>;
+
 		fn deposit_event() = default;
 
 		/// Register a parachain with given code.
@@ -299,8 +312,8 @@ decl_module! {
 		fn deregister_parathread(origin) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
-			let info = Paras::get(id).ok_or("invalid id")?;
-			if let Scheduling::Dynamic = info.scheduling {} else { Err("invalid parathread id")? }
+			let info = Paras::get(id).ok_or(Error::<T>::InvalidChainId)?;
+			if let Scheduling::Dynamic = info.scheduling {} else { Err(Error::<T>::InvalidThreadId)? }
 
 			<Self as Registrar<T::AccountId>>::deregister_para(id)?;
 			Self::force_unschedule(|i| i == id);
@@ -494,7 +507,7 @@ impl<T: Trait + Send + Sync> rstd::fmt::Debug for LimitParathreadCommits<T> wher
 
 /// Custom validity errors used in Polkadot while validating transactions.
 #[repr(u8)]
-pub enum Error {
+pub enum ValidityError {
 	/// Parathread ID has already been submitted for this block.
 	Duplicate = 0,
 	/// Parathread ID does not identify a parathread.
@@ -527,7 +540,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 		if let Some(local_call) = call.is_sub_type() {
 			if let Call::select_parathread(id, collator, hash) = local_call {
 				// ensure that the para ID is actually a parathread.
-				let e = TransactionValidityError::from(InvalidTransaction::Custom(Error::InvalidId as u8));
+				let e = TransactionValidityError::from(InvalidTransaction::Custom(ValidityError::InvalidId as u8));
 				<Module<T>>::ensure_thread_id(*id).ok_or(e)?;
 
 				// ensure that we haven't already had a full complement of selected parathreads.
@@ -544,14 +557,14 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 				);
 
 				// ensure that this is not selecting a duplicate parathread ID
-				let e = TransactionValidityError::from(InvalidTransaction::Custom(Error::Duplicate as u8));
+				let e = TransactionValidityError::from(InvalidTransaction::Custom(ValidityError::Duplicate as u8));
 				let pos = selected_threads
 					.binary_search_by(|&(ref other_id, _)| other_id.cmp(id))
 					.err()
 					.ok_or(e)?;
 
 				// ensure that this is a live bid (i.e. that the thread's chain head matches)
-				let e = TransactionValidityError::from(InvalidTransaction::Custom(Error::InvalidId as u8));
+				let e = TransactionValidityError::from(InvalidTransaction::Custom(ValidityError::InvalidId as u8));
 				let head = <parachains::Module<T>>::parachain_head(id).ok_or(e)?;
 				let actual = T::Hashing::hash(&head);
 				ensure!(&actual == hash, InvalidTransaction::Stale);
