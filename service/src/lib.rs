@@ -416,7 +416,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 			max_block_data_size,
 		}.build();
 
-		service.spawn_essential_task(Box::pin(validation_service));
+		service.spawn_essential_task("validation-service", Box::pin(validation_service));
 
 		let proposer = consensus::ProposerFactory::new(
 			client.clone(),
@@ -451,7 +451,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		};
 
 		let babe = babe::start_babe(babe_config)?;
-		service.spawn_essential_task(babe);
+		service.spawn_essential_task("babe", babe);
 
 		if authority_discovery_enabled {
 			let network = service.network();
@@ -467,7 +467,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 				service.keystore(),
 				dht_event_stream,
 			);
-			service.spawn_task(authority_discovery);
+			service.spawn_task("authority-discovery", authority_discovery);
 		}
 	}
 
@@ -509,6 +509,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		};
 
 		service.spawn_essential_task(
+			"grandpa-voter",
 			grandpa::run_grandpa_voter(grandpa_config)?.compat().map(drop)
 		);
 	} else {

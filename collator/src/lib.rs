@@ -454,7 +454,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 		}
 	}.boxed();
 
-	service.spawn_essential_task(work);
+	service.spawn_essential_task("collation", work);
 
 	polkadot_cli::run_until_exit(runtime, service, exit)
 }
