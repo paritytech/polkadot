@@ -42,12 +42,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::pin::Pin;
 use std::task::{Poll, Context};
-use futures::{prelude::*, channel::mpsc, future::{select, Either}};
+use futures::{prelude::*, channel::mpsc, future::{select, Either}, task::Spawn};
 use codec::Encode;
 
 use super::{TestContext, TestChainContext};
-
-type TaskExecutor = Arc<dyn futures::task::Spawn + Send + Sync>;
 
 #[derive(Clone, Copy)]
 struct NeverExit;
@@ -321,19 +319,19 @@ impl ParachainHost<Block> for RuntimeApi {
 	}
 }
 
-type TestValidationNetwork = crate::validation::ValidationNetwork<
+type TestValidationNetwork<SP> = crate::validation::ValidationNetwork<
 	TestApi,
 	NeverExit,
-	TaskExecutor,
+	SP,
 >;
 
-struct Built {
+struct Built<SP> {
 	gossip: Pin<Box<dyn Future<Output = ()>>>,
 	api_handle: Arc<Mutex<ApiData>>,
-	networks: Vec<TestValidationNetwork>,
+	networks: Vec<TestValidationNetwork<SP>>,
 }
 
-fn build_network(n: usize, executor: TaskExecutor) -> Built {
+fn build_network<SP: Spawn + Clone>(n: usize, spawner: SP) -> Built<SP> {
 	let (gossip_router, gossip_handle) = make_gossip();
 	let api_handle = Arc::new(Mutex::new(Default::default()));
 	let runtime_api = Arc::new(TestApi { data: api_handle.clone() });
@@ -353,7 +351,7 @@ fn build_network(n: usize, executor: TaskExecutor) -> Built {
 			message_val,
 			NeverExit,
 			runtime_api.clone(),
-			executor.clone(),
+			spawner.clone(),
 		)
 	});
 

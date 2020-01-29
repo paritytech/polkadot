@@ -18,11 +18,7 @@
 
 pub mod chain_spec;
 
-use futures::{
-	FutureExt, TryFutureExt,
-	task::{Spawn, SpawnError, FutureObj},
-	compat::Future01CompatExt,
-};
+use futures::{FutureExt, compat::Future01CompatExt};
 use sc_client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
@@ -57,18 +53,6 @@ pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 
-/// Wrap a futures01 executor as a futures03 spawn.
-#[derive(Clone)]
-pub struct WrappedExecutor<T>(pub T);
-
-impl<T> Spawn for WrappedExecutor<T>
-	where T: futures01::future::Executor<Box<dyn futures01::Future<Item=(),Error=()> + Send + 'static>>
-{
-	fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
-		self.0.execute(Box::new(future.map(Ok).compat()))
-			.map_err(|_| SpawnError::shutdown())
-	}
-}
 /// Polkadot-specific configuration.
 pub struct CustomConfiguration {
 	/// Set to `Some` with a collator `CollatorId` and desired parachain
@@ -402,14 +386,14 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 			gossip_validator,
 			service.on_exit(),
 			service.client(),
-			WrappedExecutor(service.spawn_task_handle()),
+			service.spawn_task_handle(),
 		);
 
 		let (validation_service_handle, validation_service) = consensus::ServiceBuilder {
 			client: client.clone(),
 			network: validation_network.clone(),
 			collators: validation_network,
-			task_executor: Arc::new(WrappedExecutor(service.spawn_task_handle())),
+			spawner: service.spawn_task_handle(),
 			availability_store: availability_store.clone(),
 			select_chain: select_chain.clone(),
 			keystore: service.keystore(),
@@ -433,7 +417,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		let block_import = availability_store.block_import(
 			block_import,
 			client.clone(),
-			Arc::new(WrappedExecutor(service.spawn_task_handle())),
+			service.spawn_task_handle(),
 			service.keystore(),
 		)?;
 
