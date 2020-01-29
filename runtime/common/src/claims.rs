@@ -118,7 +118,7 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Claims {
 		Claims get(claims) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>()
-		}): map EthereumAddress => Option<BalanceOf<T>>;
+		}): map hasher(blake2_256) EthereumAddress => Option<BalanceOf<T>>;
 		Total get(total) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().fold(Zero::zero(), |acc: BalanceOf<T>, &(_, n)| acc + n)
 		}): BalanceOf<T>;
@@ -126,7 +126,9 @@ decl_storage! {
 		/// First balance is the total amount that should be held for vesting.
 		/// Second balance is how much should be unlocked per block.
 		/// The block number is when the vesting should start.
-		Vesting get(vesting) config(): map EthereumAddress => Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
+		Vesting get(vesting) config():
+			map hasher(blake2_256) EthereumAddress
+			=> Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
 	}
 	add_extra_genesis {
 		config(claims): Vec<(EthereumAddress, BalanceOf<T>)>;
