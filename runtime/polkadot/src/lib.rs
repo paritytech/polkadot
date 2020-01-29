@@ -479,6 +479,7 @@ impl parachains::Trait for Runtime {
 	type Registrar = Registrar;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadDataSize = MaxHeadDataSize;
+	type ReportDoubleVote = Offences;
 }
 
 parameter_types! {

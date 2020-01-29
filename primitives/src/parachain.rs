@@ -281,8 +281,8 @@ impl CollationInfo {
 }
 
 /// Candidate receipt type.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct CandidateReceipt {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
@@ -479,8 +479,7 @@ pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub 
 pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Statements which can be made about parachain candidates.
-#[derive(Clone, PartialEq, Eq, Encode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, PartialEq, Eq, Decode, Encode, RuntimeDebug)]
 pub enum Statement {
 	/// Proposal of a parachain candidate.
 	#[codec(index = "1")]
@@ -495,8 +494,7 @@ pub enum Statement {
 
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
-#[derive(Clone, PartialEq, Decode, Encode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug)]
 pub enum ValidityAttestation {
 	/// implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
