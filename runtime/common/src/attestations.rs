@@ -98,10 +98,12 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Attestations {
 		/// A mapping from modular block number (n % AttestationPeriod)
 		/// to session index and the list of candidate hashes.
-		pub RecentParaBlocks: map T::BlockNumber => Option<IncludedBlocks<T>>;
+		pub RecentParaBlocks: map hasher(blake2_256) T::BlockNumber => Option<IncludedBlocks<T>>;
 
 		/// Attestations on a recent parachain block.
-		pub ParaBlockAttestations: double_map T::BlockNumber, hasher(blake2_128) Hash => Option<BlockAttestations<T>>;
+		pub ParaBlockAttestations:
+			double_map hasher(blake2_256) T::BlockNumber, hasher(blake2_128) Hash
+			=> Option<BlockAttestations<T>>;
 
 		// Did we already have more attestations included in this block?
 		DidUpdate: bool;
