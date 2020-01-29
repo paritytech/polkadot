@@ -645,7 +645,7 @@ mod tests {
 
 	impl balances::Trait for Test {
 		type Balance = Balance;
-type OnReapAccount = System;
+		type OnReapAccount = System;
 		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
@@ -1042,8 +1042,8 @@ type OnReapAccount = System;
 				vec![3; 3],
 			));
 			// deposit should be taken (reserved)
-			assert_eq!(Balances::free_balance(&3u64) + ParathreadDeposit::get(), orig_bal);
-			assert_eq!(Balances::reserved_balance(&3u64), ParathreadDeposit::get());
+			assert_eq!(Balances::free_balance(3u64) + ParathreadDeposit::get(), orig_bal);
+			assert_eq!(Balances::reserved_balance(3u64), ParathreadDeposit::get());
 
 			run_to_block(3);
 
@@ -1065,8 +1065,8 @@ type OnReapAccount = System;
 				parachains::Origin::Parachain(user_id(0)).into()
 			));
 			// reserved balance should be returned.
-			assert_eq!(Balances::free_balance(&3u64), orig_bal);
-			assert_eq!(Balances::reserved_balance(&3u64), 0);
+			assert_eq!(Balances::free_balance(3u64), orig_bal);
+			assert_eq!(Balances::reserved_balance(3u64), 0);
 
 			run_to_block(4);
 

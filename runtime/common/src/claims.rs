@@ -172,7 +172,7 @@ decl_module! {
 		}
 
 		/// Add a new claim, if you are root.
-		#[weight = SimpleDispatchInfo::FreeOperational]
+		#[weight = SimpleDispatchInfo::FixedNormal(30_000)]
 		fn mint_claim(origin,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
@@ -320,7 +320,7 @@ mod tests {
 
 	impl balances::Trait for Test {
 		type Balance = u64;
-type OnReapAccount = System;
+		type OnReapAccount = System;
 		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
@@ -400,9 +400,9 @@ type OnReapAccount = System;
 	#[test]
 	fn claiming_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
-			assert_eq!(Balances::free_balance(&42), 100);
+			assert_eq!(Balances::free_balance(42), 100);
 			assert_eq!(Balances::vesting_balance(&42), 50);
 		});
 	}
@@ -414,14 +414,14 @@ type OnReapAccount = System;
 				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, None),
 				sp_runtime::traits::BadOrigin,
 			);
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
 				"Ethereum address has no claim"
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
-			assert_eq!(Balances::free_balance(&69), 200);
+			assert_eq!(Balances::free_balance(69), 200);
 			assert_eq!(Balances::vesting_balance(&69), 0);
 		});
 	}
@@ -433,14 +433,14 @@ type OnReapAccount = System;
 				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, Some((50, 10, 1))),
 				sp_runtime::traits::BadOrigin,
 			);
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
 				"Ethereum address has no claim"
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
-			assert_eq!(Balances::free_balance(&69), 200);
+			assert_eq!(Balances::free_balance(69), 200);
 			assert_eq!(Balances::vesting_balance(&69), 50);
 		});
 	}
@@ -448,7 +448,7 @@ type OnReapAccount = System;
 	#[test]
 	fn origin_signed_claiming_fail() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_err!(
 				Claims::claim(Origin::signed(42), 42, sig(&alice(), &42u64.encode())),
 				sp_runtime::traits::BadOrigin,
@@ -459,7 +459,7 @@ type OnReapAccount = System;
 	#[test]
 	fn double_claiming_doesnt_work() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
 			assert_noop!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())), "Ethereum address has no claim");
 		});
@@ -468,7 +468,7 @@ type OnReapAccount = System;
 	#[test]
 	fn non_sender_sig_doesnt_work() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(Claims::claim(Origin::NONE, 42, sig(&alice(), &69u64.encode())), "Ethereum address has no claim");
 		});
 	}
@@ -476,7 +476,7 @@ type OnReapAccount = System;
 	#[test]
 	fn non_claimant_doesnt_work() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(Claims::claim(Origin::NONE, 42, sig(&bob(), &69u64.encode())), "Ethereum address has no claim");
 		});
 	}

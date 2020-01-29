@@ -1020,7 +1020,7 @@ mod tests {
 
 	impl balances::Trait for Test {
 		type Balance = Balance;
-type OnReapAccount = System;
+		type OnReapAccount = System;
 		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
