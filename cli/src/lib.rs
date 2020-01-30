@@ -24,9 +24,7 @@ mod chain_spec;
 mod browser;
 
 use chain_spec::ChainSpec;
-use futures::{
-	Future, FutureExt, TryFutureExt, future::select, channel::oneshot, compat::Compat,
-};
+use futures::{Future, future::{select, Either}, channel::oneshot};
 #[cfg(feature = "cli")]
 use tokio::runtime::Runtime;
 use log::info;
@@ -35,7 +33,7 @@ use sp_api::ConstructRuntimeApi;
 
 pub use service::{
 	AbstractService, CustomConfiguration, ProvideRuntimeApi, CoreApi, ParachainHost, IsKusama,
-	WrappedExecutor, Block, self, RuntimeApiCollection, TFullClient
+	Block, self, RuntimeApiCollection, TFullClient
 };
 
 pub use sc_cli::{VersionInfo, IntoExit, NoCustom, SharedParams};
@@ -172,8 +170,8 @@ where
 				config.custom.authority_discovery_enabled = custom_args.authority_discovery_enabled;
 				let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
 				config.tasks_executor = {
-					let runtime_handle = runtime.executor();
-					Some(Box::new(move |fut| { runtime_handle.spawn(Compat::new(fut.map(Ok))); }))
+					let runtime_handle = runtime.handle().clone();
+					Some(Box::new(move |fut| { runtime_handle.spawn(fut); }))
 				};
 				match config.roles {
 					service::Roles::LIGHT =>
@@ -221,34 +219,22 @@ pub fn run_until_exit(
 ) -> error::Result<()> {
 	let (exit_send, exit) = oneshot::channel();
 
-	let executor = runtime.executor();
 	let informant = sc_cli::informant::build(&service);
-	let future = select(exit, informant)
-		.map(|_| Ok(()))
-		.compat();
 
-	executor.spawn(future);
+	let handle = runtime.spawn(select(exit, informant));
 
 	// we eagerly drop the service so that the internal exit future is fired,
 	// but we need to keep holding a reference to the global telemetry guard
 	let _telemetry = service.telemetry();
 
-	let service_res = {
-		let service = service
-			.map_err(|err| error::Error::Service(err));
-
-		let select = select(service, e)
-			.map(|_| Ok(()))
-			.compat();
-
-		runtime.block_on(select)
-	};
+	let service_res = runtime.block_on(select(service, e));
 
 	let _ = exit_send.send(());
 
-	use futures01::Future;
-	// TODO [andre]: timeout this future substrate/#1318
-	let _ = runtime.shutdown_on_idle().wait();
+	runtime.block_on(handle);
 
-	service_res
+	match service_res {
+		Either::Left((res, _)) => res.map_err(error::Error::Service),
+		Either::Right((_, _)) => Ok(())
+	}
 }

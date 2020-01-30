@@ -11,7 +11,6 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 log = "0.4.8"
 futures = { version = "0.3.1", features = ["compat"] }
-futures01 = { package = "futures", version = "0.1.29" }
 structopt = "=0.3.7"
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
@@ -23,7 +22,7 @@ sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "polk
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
 
-tokio = { version = "0.1.22", optional = true }
+tokio = { version = "0.2.10", features = ["rt-threaded"], optional = true }
 
 wasm-bindgen = { version = "0.2.57", optional = true }
 wasm-bindgen-futures = { version = "0.4.7", optional = true }

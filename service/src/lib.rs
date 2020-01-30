@@ -57,18 +57,6 @@ pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 
-/// Wrap a futures01 executor as a futures03 spawn.
-#[derive(Clone)]
-pub struct WrappedExecutor<T>(pub T);
-
-impl<T> Spawn for WrappedExecutor<T>
-	where T: futures01::future::Executor<Box<dyn futures01::Future<Item=(),Error=()> + Send + 'static>>
-{
-	fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
-		self.0.execute(Box::new(future.map(Ok).compat()))
-			.map_err(|_| SpawnError::shutdown())
-	}
-}
 /// Polkadot-specific configuration.
 pub struct CustomConfiguration {
 	/// Set to `Some` with a collator `CollatorId` and desired parachain
@@ -188,9 +176,7 @@ macro_rules! new_full_start {
 			.with_transaction_pool(|config, client, _fetcher| {
 				let pool_api = sc_transaction_pool::FullChainApi::new(client.clone());
 				let pool = sc_transaction_pool::BasicPool::new(config, pool_api);
-				let maintainer = sc_transaction_pool::FullBasicPoolMaintainer::new(pool.pool().clone(), client);
-				let maintainable_pool = sp_transaction_pool::MaintainableTransactionPool::new(pool, maintainer);
-				Ok(maintainable_pool)
+				Ok(pool)
 			})?
 			.with_import_queue(|_config, client, mut select_chain, _| {
 				let select_chain = select_chain.take()
@@ -402,21 +388,21 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 			gossip_validator,
 			service.on_exit(),
 			service.client(),
-			WrappedExecutor(service.spawn_task_handle()),
+			service.spawn_task_handle(),
 		);
 
 		let (validation_service_handle, validation_service) = consensus::ServiceBuilder {
 			client: client.clone(),
 			network: validation_network.clone(),
 			collators: validation_network,
-			task_executor: Arc::new(WrappedExecutor(service.spawn_task_handle())),
+			spawner: service.spawn_task_handle(),
 			availability_store: availability_store.clone(),
 			select_chain: select_chain.clone(),
 			keystore: service.keystore(),
 			max_block_data_size,
 		}.build();
 
-		service.spawn_essential_task(Box::pin(validation_service));
+		service.spawn_essential_task("validation-service", Box::pin(validation_service));
 
 		let proposer = consensus::ProposerFactory::new(
 			client.clone(),
@@ -433,7 +419,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		let block_import = availability_store.block_import(
 			block_import,
 			client.clone(),
-			Arc::new(WrappedExecutor(service.spawn_task_handle())),
+			service.spawn_task_handle(),
 			service.keystore(),
 		)?;
 
@@ -451,7 +437,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		};
 
 		let babe = babe::start_babe(babe_config)?;
-		service.spawn_essential_task(babe);
+		service.spawn_essential_task("babe", babe);
 
 		if authority_discovery_enabled {
 			let network = service.network();
@@ -467,7 +453,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 				service.keystore(),
 				dht_event_stream,
 			);
-			service.spawn_task(authority_discovery);
+			service.spawn_task("authority-discovery", authority_discovery);
 		}
 	}
 
@@ -509,7 +495,8 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		};
 
 		service.spawn_essential_task(
-			grandpa::run_grandpa_voter(grandpa_config)?.compat().map(drop)
+			"grandpa-voter",
+			grandpa::run_grandpa_voter(grandpa_config)?
 		);
 	} else {
 		grandpa::setup_disabled_grandpa(
@@ -601,10 +588,10 @@ where
 			let fetcher = fetcher
 				.ok_or_else(|| "Trying to start light transaction pool without active fetcher")?;
 			let pool_api = sc_transaction_pool::LightChainApi::new(client.clone(), fetcher.clone());
-			let pool = sc_transaction_pool::BasicPool::new(config, pool_api);
-			let maintainer = sc_transaction_pool::LightBasicPoolMaintainer::with_defaults(pool.pool().clone(), client, fetcher);
-			let maintainable_pool = sp_transaction_pool::MaintainableTransactionPool::new(pool, maintainer);
-			Ok(maintainable_pool)
+			let pool = sc_transaction_pool::BasicPool::with_revalidation_type(
+				config, pool_api, sc_transaction_pool::RevalidationType::Light,
+			);
+			Ok(pool)
 		})?
 		.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _| {
 			let fetch_checker = fetcher

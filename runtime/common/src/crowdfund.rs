@@ -158,7 +158,8 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Crowdfund {
 		/// Info on all of the funds.
 		Funds get(funds):
-			map FundIndex => Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
+			map hasher(blake2_256) FundIndex
+			=> Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
 
 		/// The total number of funds that have so far been allocated.
 		FundCount get(fund_count): FundIndex;
