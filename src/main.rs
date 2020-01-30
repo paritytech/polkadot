@@ -29,6 +29,7 @@ fn main() -> Result<(), cli::error::Error> {
 		author: "Parity Team <admin@parity.io>",
 		description: "Polkadot Relay-chain Client Node",
 		support_url: "https://github.com/paritytech/polkadot/issues/new",
+		copyright_start_year: 2017,
 	};
 
 	cli::run(version)

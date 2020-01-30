@@ -18,22 +18,22 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+sp-api = { git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }

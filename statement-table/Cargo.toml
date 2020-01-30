@@ -6,5 +6,5 @@ edition = "2018"
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-core = { git = "https://github.com/paritytech/substrate", rev = "26e37ff685819646633f5246419c03c02df81dff" }
 primitives = { package = "polkadot-primitives", path = "../primitives" }
