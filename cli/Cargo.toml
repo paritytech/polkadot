@@ -26,8 +26,8 @@ tokio = { version = "0.2.10", features = ["rt-threaded"], optional = true }
 
 wasm-bindgen = { version = "0.2.57", optional = true }
 wasm-bindgen-futures = { version = "0.4.7", optional = true }
-browser-utils = { package = "browser-utils", git = "https://github.com/paritytech/substrate", optional = true }
-substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", optional = true, default-features = false }
+browser-utils = { package = "browser-utils", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
+substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true, default-features = false }
 
 [features]
 default = [ "wasmtime", "rocksdb", "cli" ]
