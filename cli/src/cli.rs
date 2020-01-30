@@ -16,29 +16,35 @@
 
 //! Polkadot CLI library.
 
-#![warn(missing_docs)]
-#![warn(unused_extern_crates)]
+use structopt::StructOpt;
+pub use sc_cli::RunCmd;
 
-mod chain_spec;
-#[cfg(feature = "browser")]
-mod browser;
-#[cfg(feature = "cli")]
-mod cli;
-#[cfg(feature = "cli")]
-mod command;
+#[derive(Debug, StructOpt, Clone)]
+pub enum Subcommand {
+	#[allow(missing_docs)]
+	Base(sc_cli::Subcommand),
 
-pub use service::{
-	AbstractService, ProvideRuntimeApi, CoreApi, ParachainHost, IsKusama,
-	Block, self, RuntimeApiCollection, TFullClient
-};
+	#[structopt(name = "validation-worker", setting = structopt::clap::AppSettings::Hidden)]
+	ValidationWorker(ValidationWorkerCommand),
+}
 
-#[cfg(feature = "cli")]
-pub use cli::*;
+#[derive(Debug, StructOpt, Clone)]
+pub struct ValidationWorkerCommand {
+	#[allow(missing_docs)]
+	pub mem_id: String,
+}
 
-#[cfg(feature = "cli")]
-pub use command::*;
+#[derive(Debug, StructOpt, Clone)]
+pub struct Cli {
+	#[allow(missing_docs)]
+	#[structopt(subcommand)]
+	pub subcommand: Option<Subcommand>,
 
-pub use chain_spec::*;
+	#[allow(missing_docs)]
+	#[structopt(flatten)]
+	pub run: RunCmd,
 
-#[cfg(feature = "cli")]
-pub use sc_cli::{VersionInfo, error};
+	#[allow(missing_docs)]
+	#[structopt(long = "enable-authority-discovery")]
+	pub authority_discovery_enabled: bool,
+}
