@@ -19,21 +19,26 @@
 use structopt::StructOpt;
 pub use sc_cli::RunCmd;
 
+#[allow(missing_docs)]
 #[derive(Debug, StructOpt, Clone)]
 pub enum Subcommand {
 	#[allow(missing_docs)]
+	#[structopt(flatten)]
 	Base(sc_cli::Subcommand),
 
+	#[allow(missing_docs)]
 	#[structopt(name = "validation-worker", setting = structopt::clap::AppSettings::Hidden)]
 	ValidationWorker(ValidationWorkerCommand),
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, StructOpt, Clone)]
 pub struct ValidationWorkerCommand {
 	#[allow(missing_docs)]
 	pub mem_id: String,
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, StructOpt, Clone)]
 pub struct Cli {
 	#[allow(missing_docs)]
