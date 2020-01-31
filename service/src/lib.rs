@@ -142,7 +142,7 @@ macro_rules! new_full_start {
 			})?
 			.with_transaction_pool(|config, client, _fetcher| {
 				let pool_api = sc_transaction_pool::FullChainApi::new(client.clone());
-				let pool = sc_transaction_pool::BasicPool::new(config, pool_api);
+				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api));
 				Ok(pool)
 			})?
 			.with_import_queue(|_config, client, mut select_chain, _| {
@@ -583,7 +583,7 @@ where
 				.ok_or_else(|| "Trying to start light transaction pool without active fetcher")?;
 			let pool_api = sc_transaction_pool::LightChainApi::new(client.clone(), fetcher.clone());
 			let pool = sc_transaction_pool::BasicPool::with_revalidation_type(
-				config, pool_api, sc_transaction_pool::RevalidationType::Light,
+				config, Arc::new(pool_api), sc_transaction_pool::RevalidationType::Light,
 			);
 			Ok(pool)
 		})?
