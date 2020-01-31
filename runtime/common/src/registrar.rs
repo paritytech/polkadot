@@ -517,6 +517,7 @@ pub enum ValidityError {
 impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>
 {
+	const IDENTIFIER: &'static str = "LimitParathreadCommits";
 	type AccountId = T::AccountId;
 	type Call = <T as system::Trait>::Call;
 	type AdditionalSigned = ();

@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 futures = "0.3.1"
 sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

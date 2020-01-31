@@ -18,11 +18,6 @@
 
 pub mod chain_spec;
 
-use futures::{
-	FutureExt, TryFutureExt,
-	task::{Spawn, SpawnError, FutureObj},
-	compat::Future01CompatExt,
-};
 use sc_client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
@@ -57,41 +52,13 @@ pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 
-/// Polkadot-specific configuration.
-pub struct CustomConfiguration {
-	/// Set to `Some` with a collator `CollatorId` and desired parachain
-	/// if the network protocol should be started in collator mode.
-	pub collating_for: Option<(CollatorId, parachain::Id)>,
-
-	/// Maximal `block_data` size.
-	pub max_block_data_size: Option<u64>,
-
-	/// Whether to enable or disable the authority discovery module.
-	pub authority_discovery_enabled: bool,
-
-	/// Milliseconds per block.
-	pub slot_duration: u64,
-}
-
 /// Configuration type that is being used.
 ///
 /// See [`ChainSpec`] for more information why Polkadot `GenesisConfig` is safe here.
 pub type Configuration = service::Configuration<
-	CustomConfiguration,
 	polkadot_runtime::GenesisConfig,
 	chain_spec::Extensions,
 >;
-
-impl Default for CustomConfiguration {
-	fn default() -> Self {
-		Self {
-			collating_for: None,
-			max_block_data_size: None,
-			authority_discovery_enabled: false,
-			slot_duration: 6000,
-		}
-	}
-}
 
 native_executor_instance!(
 	pub PolkadotExecutor,
@@ -232,7 +199,13 @@ where
 }
 
 /// Create a new Polkadot service for a full node.
-pub fn polkadot_new_full(config: Configuration)
+pub fn polkadot_new_full(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = polkadot_runtime::RuntimeApi,
@@ -242,11 +215,17 @@ pub fn polkadot_new_full(config: Configuration)
 		CallExecutor = TFullCallExecutor<Block, PolkadotExecutor>,
 	>, ServiceError>
 {
-	new_full(config)
+	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
 }
 
 /// Create a new Kusama service for a full node.
-pub fn kusama_new_full(config: Configuration)
+pub fn kusama_new_full(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = kusama_runtime::RuntimeApi,
@@ -256,11 +235,17 @@ pub fn kusama_new_full(config: Configuration)
 		CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
 	>, ServiceError>
 {
-	new_full(config)
+	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
 }
 
 /// Builds a new service for a full client.
-pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
+pub fn new_full<Runtime, Dispatch, Extrinsic>(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = Runtime,
@@ -281,10 +266,10 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	use sc_network::Event;
 	use futures::stream::StreamExt;
 
-	let is_collator = config.custom.collating_for.is_some();
+	let is_collator = collating_for.is_some();
 	let is_authority = config.roles.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
-	let max_block_data_size = config.custom.max_block_data_size;
+	let max_block_data_size = max_block_data_size;
 	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.database {
 		path.clone()
 	} else {
@@ -292,9 +277,9 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	};
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
-	let authority_discovery_enabled = config.custom.authority_discovery_enabled;
+	let authority_discovery_enabled = authority_discovery_enabled;
 	let sentry_nodes = config.network.sentry_nodes.clone();
-	let slot_duration = config.custom.slot_duration;
+	let slot_duration = slot_duration;
 
 	// sentry nodes announce themselves as authorities to the network
 	// and should run the same protocols authorities do, but it should
@@ -306,7 +291,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	let backend = builder.backend().clone();
 
 	let service = builder
-		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
+		.with_network_protocol(|_config| Ok(PolkadotProtocol::new(collating_for.clone())))?
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
@@ -510,7 +495,10 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 }
 
 /// Create a new Polkadot service for a light client.
-pub fn polkadot_new_light(config: Configuration)
+pub fn polkadot_new_light(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = polkadot_runtime::RuntimeApi,
@@ -520,11 +508,14 @@ pub fn polkadot_new_light(config: Configuration)
 		CallExecutor = TLightCallExecutor<Block, PolkadotExecutor>,
 	>, ServiceError>
 {
-	new_light(config)
+	new_light(config, collating_for)
 }
 
 /// Create a new Kusama service for a light client.
-pub fn kusama_new_light(config: Configuration)
+pub fn kusama_new_light(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = kusama_runtime::RuntimeApi,
@@ -534,7 +525,7 @@ pub fn kusama_new_light(config: Configuration)
 		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,
 	>, ServiceError>
 {
-	new_light(config)
+	new_light(config, collating_for)
 }
 
 // We can't use service::TLightClient due to
@@ -556,7 +547,10 @@ type TLocalLightClient<Runtime, Dispatch> =  Client<
 >;
 
 /// Builds a new service for a light client.
-pub fn new_light<Runtime, Dispatch, Extrinsic>(config: Configuration)
+pub fn new_light<Runtime, Dispatch, Extrinsic>(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = Runtime,
@@ -625,7 +619,7 @@ where
 
 			Ok((import_queue, finality_proof_request_builder))
 		})?
-		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
+		.with_network_protocol(|_config| Ok(PolkadotProtocol::new(collating_for.clone())))?
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?

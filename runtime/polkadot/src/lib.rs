@@ -99,6 +99,7 @@ pub fn native_version() -> NativeVersion {
 #[derive(Default, Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug)]
 pub struct OnlyStakingAndClaims;
 impl SignedExtension for OnlyStakingAndClaims {
+	const IDENTIFIER: &'static str = "OnlyStakingAndClaims";
 	type AccountId = AccountId;
 	type Call = Call;
 	type AdditionalSigned = ();
