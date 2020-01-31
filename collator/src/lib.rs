@@ -453,7 +453,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 		}
 	}.boxed();
 
-	service.spawn_essential_task("work", work);
+	service.spawn_essential_task("collation", work);
 
 	// NOTE: this is not ideal as we should only provide the service
 	sc_cli::run_service_until_exit(Configuration::default(), |_config| Ok(service))
