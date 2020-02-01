@@ -12,7 +12,7 @@ crate-type = ["cdylib", "rlib"]
 log = "0.4.8"
 futures = { version = "0.3.1", features = ["compat"] }
 structopt = "0.3.8"
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
@@ -27,16 +27,17 @@ tokio = { version = "0.2.10", features = ["rt-threaded"], optional = true }
 wasm-bindgen = { version = "0.2.57", optional = true }
 wasm-bindgen-futures = { version = "0.4.7", optional = true }
 browser-utils = { package = "browser-utils", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
-substrate-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true, default-features = false }
 
 [features]
 default = [ "wasmtime", "rocksdb", "cli" ]
 wasmtime = [ "sc-cli/wasmtime" ]
 rocksdb = [ "service/rocksdb" ]
-cli = [ "tokio" ]
+cli = [
+	"tokio",
+	"sc-cli",
+]
 browser = [
 	"wasm-bindgen",
 	"wasm-bindgen-futures",
 	"browser-utils",
-	"substrate-service",
 ]
