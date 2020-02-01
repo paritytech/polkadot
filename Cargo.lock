@@ -3753,7 +3753,6 @@ dependencies = [
  "sc-client-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sc-client-db 0.8.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sc-executor 0.8.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
- "sc-service 0.8.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-api 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-core 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
