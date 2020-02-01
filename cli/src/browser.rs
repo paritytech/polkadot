@@ -17,6 +17,7 @@
 use crate::ChainSpec;
 use log::info;
 use wasm_bindgen::prelude::*;
+use service::IsKusama;
 
 /// Starts the client.
 ///
@@ -44,7 +45,7 @@ async fn start_inner(chain_spec: String, wasm_ext: browser_utils::Transport) -> 
 	info!("  by Parity Technologies, 2017-2019");
 	if let Some(chain_spec) = &config.chain_spec {
 		info!("Chain specification: {}", chain_spec.name());
-		if chain_spec.name().starts_with("Kusama") {
+		if chain_spec.is_kusama() {
 			info!("----------------------------");
 			info!("This chain is not in any way");
 			info!("      endorsed by the       ");
