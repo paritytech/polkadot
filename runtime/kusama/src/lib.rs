@@ -38,7 +38,7 @@ use sp_runtime::{
 	ApplyExtrinsicResult, Percent, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	curve::PiecewiseLinear,
-	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys},
+	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto},
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
@@ -77,7 +77,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1045,
+	spec_version: 1046,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -160,7 +160,6 @@ impl indices::Trait for Runtime {
 
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 1 * CENTS;
-	pub const TransferFee: Balance = 1 * CENTS;
 	pub const CreationFee: Balance = 1 * CENTS;
 }
 
@@ -174,14 +173,12 @@ pub type DealWithFees = SplitTwoWays<
 
 impl balances::Trait for Runtime {
 	type Balance = Balance;
-	type OnFreeBalanceZero = Staking;
-	type OnReapAccount = (System, Recovery);
+	type OnReapAccount = ((System, Recovery), Staking);
 	type OnNewAccount = Indices;
 	type Event = Event;
 	type DustRemoval = ();
 	type TransferPayment = ();
 	type ExistentialDeposit = ExistentialDeposit;
-	type TransferFee = TransferFee;
 	type CreationFee = CreationFee;
 }
 
@@ -506,6 +503,7 @@ parameter_types! {
 impl claims::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
+	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
 }
 
@@ -591,6 +589,12 @@ impl society::Trait for Runtime {
 	type ChallengePeriod = ChallengePeriod;
 }
 
+impl vesting::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type BlockNumberToBalance = ConvertInto;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -648,6 +652,9 @@ construct_runtime! {
 
 		// Social recovery module.
 		Recovery: recovery::{Module, Call, Storage, Event<T>},
+
+		// Vesting. Usable initially, but removed once all vesting is finished.
+		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
 	}
 }
 

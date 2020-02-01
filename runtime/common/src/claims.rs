@@ -20,7 +20,7 @@ use rstd::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error};
 use frame_support::weights::SimpleDispatchInfo;
-use frame_support::traits::{Currency, Get, VestingCurrency};
+use frame_support::traits::{Currency, Get, VestingSchedule};
 use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
@@ -41,8 +41,12 @@ type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::Ac
 pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-	type Currency: Currency<Self::AccountId>
-		+ VestingCurrency<Self::AccountId, Moment=Self::BlockNumber>;
+	/// The currency provider.
+	type Currency: Currency<Self::AccountId>;
+	/// The vesting schedule provider.
+	type VestingSchedule:
+		VestingSchedule<Self::AccountId, Moment=Self::BlockNumber, Currency=Self::Currency>;
+	/// The Prefix that is used in signed Ethereum messages for this network.
 	type Prefix: Get<&'static [u8]>;
 }
 
@@ -161,7 +165,7 @@ decl_module! {
 			if let Some(vs) = <Vesting<T>>::get(&signer) {
 				// If this fails, destination account already has a vesting schedule
 				// applied to it, and this claim should not be processed.
-				T::Currency::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)?;
+				T::VestingSchedule::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)?;
 			}
 
 			<Claims<T>>::remove(&signer);
@@ -323,20 +327,17 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
-		pub const TransferFee: u64 = 0;
 		pub const CreationFee: u64 = 0;
 	}
 
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnFreeBalanceZero = ();
 		type OnReapAccount = System;
 		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
 		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
 	}
 
@@ -411,9 +412,9 @@ mod tests {
 	#[test]
 	fn claiming_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
-			assert_eq!(Balances::free_balance(&42), 100);
+			assert_eq!(Balances::free_balance(42), 100);
 			assert_eq!(Balances::vesting_balance(&42), 50);
 		});
 	}
@@ -425,14 +426,14 @@ mod tests {
 				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, None),
 				sp_runtime::traits::BadOrigin,
 			);
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
-			assert_eq!(Balances::free_balance(&69), 200);
+			assert_eq!(Balances::free_balance(69), 200);
 			assert_eq!(Balances::vesting_balance(&69), 0);
 		});
 	}
@@ -444,14 +445,14 @@ mod tests {
 				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, Some((50, 10, 1))),
 				sp_runtime::traits::BadOrigin,
 			);
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
-			assert_eq!(Balances::free_balance(&69), 200);
+			assert_eq!(Balances::free_balance(69), 200);
 			assert_eq!(Balances::vesting_balance(&69), 50);
 		});
 	}
@@ -459,7 +460,7 @@ mod tests {
 	#[test]
 	fn origin_signed_claiming_fail() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_err!(
 				Claims::claim(Origin::signed(42), 42, sig(&alice(), &42u64.encode())),
 				sp_runtime::traits::BadOrigin,
@@ -470,7 +471,7 @@ mod tests {
 	#[test]
 	fn double_claiming_doesnt_work() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
 			assert_noop!(
 				Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())),
@@ -482,7 +483,7 @@ mod tests {
 	#[test]
 	fn non_sender_sig_doesnt_work() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 42, sig(&alice(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim
@@ -493,7 +494,7 @@ mod tests {
 	#[test]
 	fn non_claimant_doesnt_work() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 42, sig(&bob(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim

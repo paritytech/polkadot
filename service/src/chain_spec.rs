@@ -169,7 +169,6 @@ fn staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
-			vesting: vec![],
 		}),
 		indices: Some(polkadot::IndicesConfig {
 			ids: endowed_accounts.iter().cloned()
@@ -222,9 +221,12 @@ fn staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 			claims: vec![],
 			vesting: vec![],
 		}),
+		vesting: Some(polkadot::VestingConfig {
+			vesting: vec![],
+		}),
 		sudo: Some(polkadot::SudoConfig {
 			key: endowed_accounts[0].clone(),
-		})
+		}),
 	}
 }
 
@@ -315,7 +317,6 @@ pub fn testnet_genesis(
 		}),
 		balances: Some(polkadot::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
-			vesting: vec![],
 		}),
 		session: Some(polkadot::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
@@ -362,12 +363,14 @@ pub fn testnet_genesis(
 			claims: vec![],
 			vesting: vec![],
 		}),
+		vesting: Some(polkadot::VestingConfig {
+			vesting: vec![],
+		}),
 		sudo: Some(polkadot::SudoConfig {
 			key: root_key,
 		}),
 	}
 }
-
 
 fn development_config_genesis() -> polkadot::GenesisConfig {
 	testnet_genesis(
