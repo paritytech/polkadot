@@ -283,7 +283,7 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 			);
 
 			match res {
-				Ok((messages, mut chunks)) => {
+				Ok(mut chunks) => {
 					Ok(chunks.swap_remove(local_index))
 				}
 				Err(e) => {

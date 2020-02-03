@@ -49,7 +49,7 @@
 //! Peers who send information which was not allowed under a recent neighbor packet
 //! will be noted as non-beneficial to Substrate's peer-set management utility.
 
-use sp_runtime::{generic::BlockId, traits::{BlakeTwo256, Hash as HashT}};
+use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 use sp_blockchain::Error as ClientError;
 use sc_network::{config::Roles, Context, PeerId, ReputationChange};
 use sc_network_gossip::{
@@ -59,7 +59,7 @@ use sc_network_gossip::{
 use polkadot_validation::{SignedStatement};
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	ParachainHost, ValidatorId, Message as ParachainMessage, ErasureChunk as PrimitiveChunk
+	ParachainHost, ValidatorId, ErasureChunk as PrimitiveChunk
 };
 use polkadot_erasure_coding::{self as erasure};
 use codec::{Decode, Encode};
@@ -125,13 +125,6 @@ mod cost {
 	pub const ORPHANED_ERASURE_CHUNK: Rep = Rep::new(-10, "An erasure chunk from unknown candidate");
 	/// A peer sent us an erasure chunk that does not match candidate's erasure root.
 	pub const ERASURE_CHUNK_WRONG_ROOT: Rep = Rep::new(-100, "Chunk doesn't match encoding root");
-
-	/// A peer sent us an ICMP queue with a bad root.
-	pub fn icmp_messages_root_mismatch(n_messages: usize) -> Rep {
-		const PER_MESSAGE: i32 = -150;
-
-		Rep::new((0..n_messages).map(|_| PER_MESSAGE).sum(), "Polkadot: ICMP root mismatch")
-	}
 }
 
 /// A gossip message.
@@ -162,12 +155,6 @@ impl From<NeighborPacket> for GossipMessage {
 impl From<GossipStatement> for GossipMessage {
 	fn from(stmt: GossipStatement) -> Self {
 		GossipMessage::Statement(stmt)
-	}
-}
-
-impl From<GossipParachainMessages> for GossipMessage {
-	fn from(messages: GossipParachainMessages) -> Self {
-		GossipMessage::ParachainMessages(messages)
 	}
 }
 
@@ -218,19 +205,6 @@ impl From<ErasureChunkMessage> for GossipMessage {
 pub struct GossipParachainMessages {
 	/// The root of the message queue.
 	pub queue_root: Hash,
-	/// The messages themselves.
-	pub messages: Vec<ParachainMessage>,
-}
-
-impl GossipParachainMessages {
-	// confirms that the queue-root in the struct correctly matches
-	// the messages.
-	fn queue_root_is_correct(&self) -> bool {
-		let root = polkadot_validation::message_queue_root(
-			self.messages.iter().map(|m| &m.0)
-		);
-		root == self.queue_root
-	}
 }
 
 /// A versioned neighbor message.
@@ -283,23 +257,9 @@ impl<F, P> ChainContext for (F, P) where
 
 	fn leaf_unrouted_roots(
 		&self,
-		&leaf: &Hash,
-		with_queue_root: &mut dyn FnMut(&Hash),
+		_leaf: &Hash,
+		_with_queue_root: &mut dyn FnMut(&Hash),
 	) -> Result<(), ClientError> {
-		let api = self.1.runtime_api();
-
-		let leaf_id = BlockId::Hash(leaf);
-		let active_parachains = api.active_parachains(&leaf_id)?;
-
-		// TODO: https://github.com/paritytech/polkadot/issues/467
-		for (para_id, _) in active_parachains {
-			if let Some(ingress) = api.ingress(&leaf_id, para_id, None)? {
-				for (_height, _from, queue_root) in ingress.iter() {
-					with_queue_root(queue_root);
-				}
-			}
-		}
-
 		Ok(())
 	}
 }
@@ -350,8 +310,6 @@ pub fn register_validator<C: ChainContext + 'static>(
 enum NewLeafAction {
 	// (who, message)
 	TargetedMessage(PeerId, GossipMessage),
-	// (topic, message)
-	Multicast(Hash, GossipMessage),
 }
 
 /// Actions to take after noting a new block-DAG leaf.
@@ -372,8 +330,6 @@ impl NewLeafActions {
 			match action {
 				NewLeafAction::TargetedMessage(who, message)
 					=> gossip.send_message(who, message),
-				NewLeafAction::Multicast(topic, message)
-					=> gossip.gossip_message(topic, message),
 			}
 		}
 	}
@@ -417,7 +373,6 @@ impl RegisteredMessageValidator {
 		&self,
 		relay_chain_leaf: Hash,
 		validation: MessageValidationData,
-		lookup_queue_by_root: impl Fn(&Hash) -> Option<Vec<ParachainMessage>>,
 	) -> NewLeafActions {
 		// add an entry in attestation_view
 		// prune any entries from attestation_view which are no longer leaves
@@ -448,23 +403,6 @@ impl RegisteredMessageValidator {
 		// send neighbor packets to peers
 		inner.multicast_neighbor_packet(
 			|who, message| actions.push(NewLeafAction::TargetedMessage(who.clone(), message))
-		);
-
-		// feed any new unrouted queues into the propagation pool.
-		inner.message_routing_view.sweep_unknown_queues(|topic, queue_root|
-			match lookup_queue_by_root(queue_root) {
-				Some(messages) => {
-					let message = GossipMessage::from(GossipParachainMessages {
-						queue_root: *queue_root,
-						messages,
-					});
-
-					actions.push(NewLeafAction::Multicast(*topic, message));
-
-					true
-				}
-				None => false,
-			}
 		);
 
 		NewLeafActions { actions }

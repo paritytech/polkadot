@@ -27,7 +27,7 @@
 use codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::{Hash as H256, BlakeTwo256, HashT};
-use primitives::parachain::{BlockData};
+use primitives::parachain::BlockData;
 use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 
@@ -402,11 +402,9 @@ mod tests {
     #[test]
 	fn round_trip_block_data() {
 		let block_data = BlockData((0..255).collect());
-		let ex = Some(AvailableMessages(Vec::new()));
 		let chunks = obtain_chunks(
 			10,
 			&block_data,
-			ex.as_ref(),
 		).unwrap();
 
 		assert_eq!(chunks.len(), 10);
@@ -422,18 +420,16 @@ mod tests {
 			].iter().cloned(),
 		).unwrap();
 
-		assert_eq!(reconstructed, (block_data, ex));
+		assert_eq!(reconstructed, block_data);
 	}
 
 	#[test]
 	fn construct_valid_branches() {
 		let block_data = BlockData(vec![2; 256]);
-		let ex = Some(AvailableMessages(Vec::new()));
 
 		let chunks = obtain_chunks(
 			10,
 			&block_data,
-			ex.as_ref(),
 		).unwrap();
 
 		assert_eq!(chunks.len(), 10);

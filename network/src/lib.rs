@@ -30,8 +30,7 @@ use futures::channel::oneshot;
 use futures::prelude::*;
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
-	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock,
-	StructuredUnroutedIngress, ValidatorId, OutgoingMessages, ErasureChunk,
+	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock, ValidatorId, ErasureChunk,
 };
 use sc_network::{
 	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
@@ -188,7 +187,6 @@ struct PoVBlockRequest {
 	candidate_hash: Hash,
 	block_data_hash: Hash,
 	sender: oneshot::Sender<PoVBlock>,
-	canon_roots: StructuredUnroutedIngress,
 }
 
 impl PoVBlockRequest {
@@ -201,13 +199,7 @@ impl PoVBlockRequest {
 			return Err(self);
 		}
 
-		match polkadot_validation::validate_incoming(&self.canon_roots, &pov_block.ingress) {
-			Ok(()) => {
-				let _ = self.sender.send(pov_block);
-				Ok(())
-			}
-			Err(_) => Err(self)
-		}
+		Ok(())
 	}
 }
 
@@ -319,7 +311,6 @@ impl PolkadotProtocol {
 		ctx: &mut dyn Context<Block>,
 		candidate: &CandidateReceipt,
 		relay_parent: Hash,
-		canon_roots: StructuredUnroutedIngress,
 	) -> oneshot::Receiver<PoVBlock> {
 		let (tx, rx) = oneshot::channel();
 
@@ -329,7 +320,6 @@ impl PolkadotProtocol {
 			candidate_hash: candidate.hash(),
 			block_data_hash: candidate.block_data_hash,
 			sender: tx,
-			canon_roots,
 		});
 
 		self.dispatch_pending_requests(ctx);
@@ -636,7 +626,6 @@ impl Specialization<Block> for PolkadotProtocol {
 							validation_leaf: Default::default(),
 							candidate_hash: Default::default(),
 							block_data_hash: Default::default(),
-							canon_roots: StructuredUnroutedIngress(Vec::new()),
 							sender,
 						}));
 					}
@@ -766,7 +755,6 @@ impl PolkadotProtocol {
 		relay_parent: Hash,
 		targets: HashSet<ValidatorId>,
 		collation: Collation,
-		outgoing_targeted: OutgoingMessages,
 	) -> impl Future<Output = ()> {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",
 			relay_parent, collation.info.parachain_index);
@@ -794,8 +782,7 @@ impl PolkadotProtocol {
 				let _ = availability_store.make_available(av_store::Data {
 					relay_parent,
 					parachain_id: collation_cloned.info.parachain_index,
-					block_data: collation_cloned.pov.block_data.clone(),
-					outgoing_queues: Some(outgoing_targeted.clone().into()),
+					block: PoVBlock { block_data: collation_cloned.pov.block_data.clone() },
 				}).await;
 			}
 		}

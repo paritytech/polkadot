@@ -18,11 +18,6 @@
 
 pub mod chain_spec;
 
-use futures::{
-	FutureExt, TryFutureExt,
-	task::{Spawn, SpawnError, FutureObj},
-	compat::Future01CompatExt,
-};
 use sc_client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;

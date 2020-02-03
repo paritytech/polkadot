@@ -139,18 +139,11 @@ impl View {
 		match self.expected_queues.get_mut(&ostensible_topic) {
 			None => (GossipValidationResult::Discard, super::cost::UNNEEDED_ICMP_MESSAGES),
 			Some(&mut (_, ref mut known)) => {
-				if !messages.queue_root_is_correct() {
-					(
-						GossipValidationResult::Discard,
-						super::cost::icmp_messages_root_mismatch(messages.messages.len()),
-					)
-				} else {
-					*known = true;
-					(
-						GossipValidationResult::ProcessAndKeep(ostensible_topic),
-						super::benefit::NEW_ICMP_MESSAGES,
-					)
-				}
+				*known = true;
+				(
+					GossipValidationResult::ProcessAndKeep(ostensible_topic),
+					super::benefit::NEW_ICMP_MESSAGES,
+				)
 			}
 		}
 	}
@@ -190,20 +183,6 @@ impl View {
 			.collect::<HashSet<_>>();
 
 		deduplicated.into_iter()
-	}
-
-	/// Iterate over all live message queues for which the data is marked as not locally known,
-	/// calling a closure with `(topic, root)`. The closure will return whether the queue data is
-	/// unknown.
-	///
-	/// This is called when we should send un-routed message queues that we are
-	/// newly aware of to peers - as in when we update our leaves.
-	pub fn sweep_unknown_queues(&mut self, mut check_known: impl FnMut(&Hash, &Hash) -> bool) {
-		for (topic, &mut (ref queue_root, ref mut known)) in self.expected_queues.iter_mut() {
-			if !*known {
-				*known = check_known(topic, queue_root)
-			}
-		}
 	}
 }
 

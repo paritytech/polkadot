@@ -401,7 +401,6 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 					match crate::collation::produce_receipt_and_chunks(
 						authorities_num,
 						&collation.pov,
-						&outgoing_targeted,
 						fees_charged,
 						&collation.info,
 					) {
@@ -425,7 +424,6 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 								router.local_collation(
 									collation,
 									receipt,
-									outgoing_targeted,
 									(local_id, &chunks),
 								);
 							}

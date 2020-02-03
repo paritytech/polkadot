@@ -28,7 +28,7 @@ use keystore::KeyStorePtr;
 use polkadot_primitives::{
 	Hash, Block,
 	parachain::{
-		Id as ParaId, BlockData, CandidateReceipt, ErasureChunk,
+		Id as ParaId, BlockData, CandidateReceipt, ErasureChunk, PoVBlock,
 		ParachainHost,
 	},
 };
@@ -57,7 +57,6 @@ use worker::{
 };
 
 use store::{Store as InnerStore};
-use polkadot_primitives::parachain::PoVBlock;
 
 const LOG_TARGET: &str = "availability";
 
@@ -125,7 +124,7 @@ pub struct Data {
 	pub relay_parent: Hash,
 	/// The parachain index for this candidate.
 	pub parachain_id: ParaId,
-	/// the block itself.
+	/// The block itself.
 	pub block: PoVBlock,
 }
 

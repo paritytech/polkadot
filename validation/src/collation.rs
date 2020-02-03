@@ -89,7 +89,7 @@ pub async fn collation_fetch<C: Collators, P>(
 		);
 
 		match res {
-			Ok((messages, fees)) => {
+			Ok(fees) => {
 				return Ok((collation, fees))
 			}
 			Err(e) => {
@@ -387,7 +387,7 @@ fn do_validation<P>(
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
-	use parachain::{IncomingMessage, ValidationParams};
+	use parachain::ValidationParams;
 
 	if let Some(max_size) = max_block_data_size {
 		let block_data_size = pov_block.block_data.0.len() as u64;
@@ -407,14 +407,6 @@ fn do_validation<P>(
 	let params = ValidationParams {
 		parent_head: chain_status.head_data.0,
 		block_data: pov_block.block_data.0.clone(),
-		ingress: pov_block.ingress.0.iter()
-			.flat_map(|&(source, ref messages)| {
-				messages.iter().map(move |msg| IncomingMessage {
-					source,
-					data: msg.0.clone(),
-				})
-			})
-			.collect()
 	};
 
 	let ext = Externalities::new(para_id.clone(), chain_status.balance, chain_status.fee_schedule);
@@ -427,13 +419,13 @@ fn do_validation<P>(
 	) {
 		Ok(result) => {
 			if result.head_data == head_data.0 {
-				let (messages, fees) = ext.0.lock().final_checks(
+				let fees = ext.0.lock().final_checks(
 					upward_messages,
 					queue_roots,
 					fees_charged
 				)?;
 
-				Ok((messages, fees))
+				Ok(fees)
 			} else {
 				Err(Error::WrongHeadData {
 					expected: head_data.0.clone(),
@@ -461,7 +453,6 @@ pub fn produce_receipt_and_chunks(
 	let erasure_chunks = erasure::obtain_chunks(
 		n_validators,
 		&pov.block_data,
-		Some(&messages.clone().into())
 	)?;
 
 	let branches = erasure::branches(erasure_chunks.as_ref());
@@ -508,7 +499,7 @@ pub fn validate_receipt<P>(
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
-	let (messages, _fees) = do_validation(
+	let _fees = do_validation(
 		client,
 		relay_parent,
 		pov_block,
@@ -527,7 +518,6 @@ pub fn validate_receipt<P>(
 	let (validated_receipt, chunks) = produce_receipt_and_chunks(
 		n_validators,
 		pov_block,
-		&messages,
 		receipt.fees,
 		&receipt.clone().into(),
 	)?;
@@ -539,7 +529,7 @@ pub fn validate_receipt<P>(
 		});
 	}
 
-	Ok((messages, chunks))
+	Ok(chunks)
 }
 
 /// Check whether a given collation is valid. Returns `Ok` on success, error otherwise.
