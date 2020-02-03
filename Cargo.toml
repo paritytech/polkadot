@@ -49,6 +49,3 @@ maintenance = { status = "actively-developed" }
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
-
-[patch.crates-io]
-"async-std" = { git = "https://github.com/async-rs/async-std" }
