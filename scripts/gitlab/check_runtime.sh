@@ -106,6 +106,7 @@ then
 	spec_version or or impl_version have changed in substrate after updating Cargo.lock
 	please make sure versions are bumped in polkadot accordingly
 	EOT
+	github_label "B2-breaksapi"
 fi
 
 
