@@ -1938,20 +1938,14 @@ mod tests {
 			// which raises the watermark.
 			assert_eq!(
 				Parachains::ingress(ParaId::from(1), None),
-				Some(vec![
-					(9, BlockIngressRoots(vec![
-						(0.into(), [9; 32].into())
-					]))
-				]),
+				Some(vec![(9, vec![])]),
 			);
 
 			// parachain 99 hasn't had any candidates included, so the
 			// ingress is piling up.
 			assert_eq!(
 				Parachains::ingress(ParaId::from(99), None),
-				Some((1..10).map(|i| (i, BlockIngressRoots(
-					vec![(1.into(), [i as u8; 32].into())]
-				))).collect::<Vec<_>>()),
+				Some((1..10).map(|i| (i, vec![])).collect::<Vec<_>>()),
 			);
 
 			assert_ok!(Registrar::deregister_para(Origin::ROOT, 1u32.into()));
@@ -1959,9 +1953,7 @@ mod tests {
 			// after deregistering, there is no ingress to 1, but unrouted messages
 			// from 1 stick around.
 			assert_eq!(Parachains::ingress(ParaId::from(1), None), None);
-			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some((1..10).map(|i| (i, BlockIngressRoots(
-				vec![(1.into(), [i as u8; 32].into())]
-			))).collect::<Vec<_>>()));
+			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some((1..10).map(|i| (i, vec![])).collect::<Vec<_>>()));
 
 			run_to_block(11);
 

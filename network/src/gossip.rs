@@ -740,9 +740,8 @@ mod tests {
 	use parking_lot::Mutex;
 	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
 	use sp_core::crypto::UncheckedInto;
-	use sp_core::sr25519::{Public as Sr25519Public, Signature as Sr25519Signature};
+	use sp_core::sr25519::Signature as Sr25519Signature;
 	use polkadot_validation::GenericStatement;
-	use super::message_routing::queue_topic;
 
 	use crate::tests::TestChainContext;
 
@@ -778,22 +777,6 @@ mod tests {
 		fn send_topic(&mut self, who: &PeerId, topic: Hash, force: bool) {
 			self.events.push(ContextEvent::SendTopic(who.clone(), topic, force));
 		}
-	}
-
-	impl NewLeafActions {
-		fn has_message(&self, who: PeerId, message: GossipMessage) -> bool {
-			let x = NewLeafAction::TargetedMessage(who, message);
-			self.actions.iter().find(|&m| m == &x).is_some()
-		}
-
-		fn has_multicast(&self, topic: Hash, message: GossipMessage) -> bool {
-			let x = NewLeafAction::Multicast(topic, message);
-			self.actions.iter().find(|&m| m == &x).is_some()
-		}
-	}
-
-	fn validator_id(raw: [u8; 32]) -> ValidatorId {
-		Sr25519Public::from_raw(raw).into()
 	}
 
 	#[test]
@@ -1007,12 +990,6 @@ mod tests {
 
 		let hash_a = [1u8; 32].into();
 		let root_a = [11u8; 32].into();
-		let root_a_topic = queue_topic(root_a);
-
-		let root_a_messages = vec![
-			ParachainMessage(vec![1, 2, 3]),
-			ParachainMessage(vec![4, 5, 6]),
-		];
 
 		let chain = {
 			let mut chain = TestChainContext::default();
@@ -1022,8 +999,6 @@ mod tests {
 		};
 
 		let validator = RegisteredMessageValidator::new_test(chain, report_handle);
-
-		let authorities: Vec<ValidatorId> = vec![validator_id([0; 32]), validator_id([10; 32])];
 
 		let peer_a = PeerId::random();
 		let peer_b = PeerId::random();
@@ -1055,275 +1030,6 @@ mod tests {
 					ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_a), false),
 				],
 			);
-		}
-
-		// ensure that we attempt to multicast all relevant queues after noting a leaf.
-		{
-			let actions = validator.new_local_leaf(
-				hash_a,
-				MessageValidationData { authorities },
-				|root| if root == &root_a {
-					Some(root_a_messages.clone())
-				} else {
-					None
-				},
-			);
-
-			assert!(actions.has_message(peer_a.clone(), GossipMessage::from(NeighborPacket {
-				chain_heads: vec![hash_a],
-			})));
-
-			assert!(actions.has_multicast(root_a_topic, GossipMessage::from(GossipParachainMessages {
-				queue_root: root_a,
-				messages: root_a_messages.clone(),
-			})));
-		}
-
-		// ensure that we are allowed to multicast to a peer with same chain head,
-		// but not to one without.
-		{
-			let message = GossipMessage::from(GossipParachainMessages {
-				queue_root: root_a,
-				messages: root_a_messages.clone(),
-			}).encode();
-
-			let mut allowed = validator.inner.message_allowed();
-			let intent = MessageIntent::Broadcast;
-			assert!(allowed(&peer_a, intent, &root_a_topic, &message[..]));
-			assert!(!allowed(&peer_b, intent, &root_a_topic, &message[..]));
-		}
-	}
-
-	#[test]
-	fn multicasts_icmp_queues_on_neighbor_update() {
-		let (tx, _rx) = mpsc::channel();
-		let tx = Mutex::new(tx);
-		let report_handle = Box::new(move |peer: &PeerId, cb: ReputationChange| tx.lock().send((peer.clone(), cb)).unwrap());
-
-		let hash_a = [1u8; 32].into();
-		let root_a = [11u8; 32].into();
-		let root_a_topic = queue_topic(root_a);
-
-		let root_a_messages = vec![
-			ParachainMessage(vec![1, 2, 3]),
-			ParachainMessage(vec![4, 5, 6]),
-		];
-
-		let chain = {
-			let mut chain = TestChainContext::default();
-			chain.known_map.insert(hash_a, Known::Leaf);
-			chain.ingress_roots.insert(hash_a, vec![root_a]);
-			chain
-		};
-
-		let validator = RegisteredMessageValidator::new_test(chain, report_handle);
-
-		let authorities: Vec<ValidatorId> = vec![validator_id([0; 32]), validator_id([10; 32])];
-
-		let peer_a = PeerId::random();
-		let peer_b = PeerId::random();
-
-		let mut validator_context = MockValidatorContext::default();
-		validator.inner.new_peer(&mut validator_context, &peer_a, Roles::FULL);
-		validator.inner.new_peer(&mut validator_context, &peer_b, Roles::FULL);
-		assert!(validator_context.events.is_empty());
-		validator_context.clear();
-
-		// ensure that we attempt to multicast all relevant queues after noting a leaf.
-		{
-			let actions = validator.new_local_leaf(
-				hash_a,
-				MessageValidationData { authorities },
-				|root| if root == &root_a {
-					Some(root_a_messages.clone())
-				} else {
-					None
-				},
-			);
-
-			assert!(actions.has_message(peer_a.clone(), GossipMessage::from(NeighborPacket {
-				chain_heads: vec![hash_a],
-			})));
-
-			assert!(actions.has_multicast(root_a_topic, GossipMessage::from(GossipParachainMessages {
-				queue_root: root_a,
-				messages: root_a_messages.clone(),
-			})));
-		}
-
-		// ensure that we are not allowed to multicast to either peer, as they
-		// don't have the chain head.
-		{
-			let message = GossipMessage::from(GossipParachainMessages {
-				queue_root: root_a,
-				messages: root_a_messages.clone(),
-			});
-
-			let mut allowed = validator.inner.message_allowed();
-			let intent = MessageIntent::Broadcast;
-			assert!(!allowed(&peer_a, intent, &root_a_topic, &message.encode()));
-			assert!(!allowed(&peer_b, intent, &root_a_topic, &message.encode()));
-		}
-
-		// peer A gets updated to the chain head. now we'll attempt to broadcast
-		// all queues to it.
-		{
-			let message = GossipMessage::from(NeighborPacket {
-				chain_heads: vec![hash_a],
-			}).encode();
-			let res = validator.inner.validate(
-				&mut validator_context,
-				&peer_a,
-				&message[..],
-			);
-
-			match res {
-				GossipValidationResult::Discard => {},
-				_ => panic!("wrong result"),
-			}
-			assert_eq!(
-				validator_context.events,
-				vec![
-					ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_a), false),
-					ContextEvent::SendTopic(peer_a.clone(), root_a_topic, false),
-				],
-			);
-		}
-
-		// ensure that we are allowed to multicast to a peer with same chain head,
-		// but not to one without.
-		{
-			let message = GossipMessage::from(GossipParachainMessages {
-				queue_root: root_a,
-				messages: root_a_messages.clone(),
-			}).encode();
-
-			let mut allowed = validator.inner.message_allowed();
-			let intent = MessageIntent::Broadcast;
-			assert!(allowed(&peer_a, intent, &root_a_topic, &message[..]));
-			assert!(!allowed(&peer_b, intent, &root_a_topic, &message[..]));
-		}
-	}
-
-	#[test]
-	fn accepts_needed_unknown_icmp_message_queue() {
-		let (tx, _rx) = mpsc::channel();
-		let tx = Mutex::new(tx);
-		let report_handle = Box::new(move |peer: &PeerId, cb: ReputationChange| tx.lock().send((peer.clone(), cb)).unwrap());
-
-		let hash_a = [1u8; 32].into();
-		let root_a_messages = vec![
-			ParachainMessage(vec![1, 2, 3]),
-			ParachainMessage(vec![4, 5, 6]),
-		];
-		let not_root_a_messages = vec![
-			ParachainMessage(vec![1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
-			ParachainMessage(vec![4, 5, 6]),
-		];
-
-		let root_a = polkadot_validation::message_queue_root(
-			root_a_messages.iter().map(|m| &m.0)
-		);
-		let not_root_a = [69u8; 32].into();
-		let root_a_topic = queue_topic(root_a);
-
-		let chain = {
-			let mut chain = TestChainContext::default();
-			chain.known_map.insert(hash_a, Known::Leaf);
-			chain.ingress_roots.insert(hash_a, vec![root_a]);
-			chain
-		};
-
-		let validator = RegisteredMessageValidator::new_test(chain, report_handle);
-
-		let authorities: Vec<ValidatorId> = vec![validator_id([0; 32]), validator_id([10; 32])];
-
-		let peer_a = PeerId::random();
-		let mut validator_context = MockValidatorContext::default();
-
-		validator.inner.new_peer(&mut validator_context, &peer_a, Roles::FULL);
-		assert!(validator_context.events.is_empty());
-		validator_context.clear();
-
-		let queue_messages = GossipMessage::from(GossipParachainMessages {
-			queue_root: root_a,
-			messages: root_a_messages.clone(),
-		});
-
-		let not_queue_messages = GossipMessage::from(GossipParachainMessages {
-			queue_root: root_a,
-			messages: not_root_a_messages.clone(),
-		});
-
-		let queue_messages_wrong_root = GossipMessage::from(GossipParachainMessages {
-			queue_root: not_root_a,
-			messages: root_a_messages.clone(),
-		});
-
-		// ensure that we attempt to multicast all relevant queues after noting a leaf.
-		{
-			let actions = validator.new_local_leaf(
-				hash_a,
-				MessageValidationData { authorities },
-				|_root| None,
-			);
-
-			assert!(actions.has_message(peer_a.clone(), GossipMessage::from(NeighborPacket {
-				chain_heads: vec![hash_a],
-			})));
-
-			// we don't know this queue! no broadcast :(
-			assert!(!actions.has_multicast(root_a_topic, queue_messages.clone()));
-		}
-
-		// rejects right queue with unknown root.
-		{
-			let res = validator.inner.validate(
-				&mut validator_context,
-				&peer_a,
-				&queue_messages_wrong_root.encode(),
-			);
-
-			match res {
-				GossipValidationResult::Discard => {},
-				_ => panic!("wrong result"),
-			}
-
-			assert_eq!(validator_context.events, Vec::new());
-		}
-
-		// rejects bad queue.
-		{
-			let res = validator.inner.validate(
-				&mut validator_context,
-				&peer_a,
-				&not_queue_messages.encode(),
-			);
-
-			match res {
-				GossipValidationResult::Discard => {},
-				_ => panic!("wrong result"),
-			}
-
-			assert_eq!(validator_context.events, Vec::new());
-		}
-
-		// accepts the right queue.
-		{
-			let res = validator.inner.validate(
-				&mut validator_context,
-				&peer_a,
-				&queue_messages.encode(),
-			);
-
-			match res {
-				GossipValidationResult::ProcessAndKeep(topic) if topic == root_a_topic => {},
-				_ => panic!("wrong result"),
-			}
-
-			assert_eq!(validator_context.events, vec![
-				ContextEvent::BroadcastMessage(root_a_topic, queue_messages.encode(), false),
-			]);
 		}
 	}
 }

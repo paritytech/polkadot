@@ -191,7 +191,6 @@ mod tests {
 	use super::*;
 	use crate::tests::TestChainContext;
 	use crate::gossip::{Known, GossipParachainMessages};
-	use polkadot_primitives::parachain::Message as ParachainMessage;
 
 	fn hash(x: u8) -> Hash {
 		[x; 32].into()
@@ -216,11 +215,10 @@ mod tests {
 	fn check_roots(view: &mut View, our_heads: &[u8], n_heads: u8) -> bool {
 		for i in 0..n_heads {
 			for j in 0..n_heads {
-				if let Some(messages) = message_queue(i, j) {
+				if let Some(_) = message_queue(i, j) {
 					let queue_root = message_queue_root(i, j).unwrap();
 					let messages = GossipParachainMessages {
 						queue_root,
-						messages: messages.iter().map(|m| ParachainMessage(m.to_vec())).collect(),
 					};
 
 					let had_queue = match view.validate_queue_and_note_known(&messages).0 {

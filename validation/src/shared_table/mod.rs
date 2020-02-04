@@ -567,7 +567,7 @@ mod tests {
 	use super::*;
 	use sp_keyring::Sr25519Keyring;
 	use primitives::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::{AvailableMessages, BlockData, ConsolidatedIngress, Collation};
+	use polkadot_primitives::parachain::{BlockData, Collation};
 	use polkadot_erasure_coding::{self as erasure};
 	use availability_store::ProvideGossipMessages;
 	use futures::future;
@@ -577,7 +577,6 @@ mod tests {
 	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
 		PoVBlock {
 			block_data: BlockData(data),
-			ingress: ConsolidatedIngress(Vec::new()),
 		}
 	}
 
@@ -611,7 +610,6 @@ mod tests {
 			&self,
 			_collation: Collation,
 			_candidate: CandidateReceipt,
-			_outgoing: OutgoingMessages,
 			_chunks: (ValidatorIndex, &[ErasureChunk])
 		) {}
 
@@ -773,24 +771,17 @@ mod tests {
 			max_block_data_size: None,
 		};
 
-		let validated = block_on(producer.prime_with(|_, _, _| Ok((
-				OutgoingMessages { outgoing_messages: Vec::new() },
-				ErasureChunk {
-					chunk: vec![1, 2, 3],
-					index: local_index as u32,
-					proof: vec![],
-				},
-			))).validate()).unwrap();
+		let validated = block_on(producer.prime_with(|_, _, _| Ok(
+			ErasureChunk {
+				chunk: vec![1, 2, 3],
+				index: local_index as u32,
+				proof: vec![],
+			}
+		)).validate()).unwrap();
 
 		assert_eq!(validated.0.pov_block(), &pov_block);
 		assert_eq!(validated.0.statement, GenericStatement::Valid(hash));
 
-		if let Some(messages) = validated.0.outgoing_messages() {
-			let available_messages: AvailableMessages = messages.clone().into();
-			for (root, queue) in available_messages.0 {
-				assert_eq!(store.queue_by_root(&root), Some(queue));
-			}
-		}
 		assert!(store.get_erasure_chunk(&relay_parent, block_data_hash, local_index).is_some());
 		assert!(store.get_erasure_chunk(&relay_parent, block_data_hash, local_index + 1).is_none());
 	}
@@ -804,7 +795,6 @@ mod tests {
 		let block_data_hash = pov_block.block_data.hash();
 		let local_index = 0;
 		let n_validators = 2;
-		let ex = Some(AvailableMessages(Vec::new()));
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
@@ -818,7 +808,7 @@ mod tests {
 			erasure_root: [1u8; 32].into(),
 		};
 
-		let chunks = erasure::obtain_chunks(n_validators, &pov_block.block_data, ex.as_ref()).unwrap();
+		let chunks = erasure::obtain_chunks(n_validators, &pov_block.block_data).unwrap();
 
 		store.add_validator_index_and_n_validators(
 			&relay_parent,
@@ -837,23 +827,16 @@ mod tests {
 			max_block_data_size: None,
 		};
 
-		let validated = block_on(producer.prime_with(|_, _, _| Ok((
-				OutgoingMessages { outgoing_messages: Vec::new() },
+		let validated = block_on(producer.prime_with(|_, _, _| Ok(
 				ErasureChunk {
 					chunk: chunks[local_index].clone(),
 					index: local_index as u32,
 					proof: vec![],
 				},
-			))).validate()).unwrap();
+			)).validate()).unwrap();
 
 		assert_eq!(validated.0.pov_block(), &pov_block);
 
-		if let Some(messages) = validated.0.outgoing_messages() {
-			let available_messages: AvailableMessages = messages.clone().into();
-			for (root, queue) in available_messages.0 {
-				assert_eq!(store.queue_by_root(&root), Some(queue));
-			}
-		}
 		// This works since there are only two validators and one erasure chunk should be
 		// enough to reconstruct the block data.
 		assert_eq!(store.block_data(relay_parent, block_data_hash).unwrap(), pov_block.block_data);
@@ -932,7 +915,6 @@ mod tests {
 
 		let para_id = ParaId::from(1);
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
-		let outgoing_messages = OutgoingMessages { outgoing_messages: Vec::new() };
 		let parent_hash = Default::default();
 
 		let local_key = Sr25519Keyring::Alice.pair();
@@ -972,7 +954,6 @@ mod tests {
 		let signed_statement = shared_table.import_validated(Validated::collated_local(
 			candidate,
 			pov_block,
-			outgoing_messages,
 		)).unwrap();
 
 		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_done());

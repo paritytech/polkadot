@@ -60,11 +60,10 @@ struct AdderContext {
 impl ParachainContext for AdderContext {
 	type ProduceCandidate = Ready<Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>>;
 
-	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
+	fn produce_candidate(
 		&mut self,
 		_relay_parent: Hash,
 		status: ParachainStatus,
-		ingress: I,
 	) -> Self::ProduceCandidate
 	{
 		let adder_head = match AdderHead::decode(&mut &status.head_data.0[..]) {
@@ -87,11 +86,7 @@ impl ParachainContext for AdderContext {
 			add: adder_head.number % 100,
 		};
 
-		let from_messages = ::adder::process_messages(
-			ingress.into_iter().map(|(_, msg)| msg.0)
-		);
-
-		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body, from_messages)
+		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body)
 			.expect("good execution params; qed");
 
 		let encoded_head = HeadData(next_head.encode());

@@ -426,14 +426,12 @@ mod tests {
 			relay_parent,
 			parachain_id: para_id_1,
 			block: block_1.clone(),
-			outgoing_queues: None,
 		}).unwrap();
 
 		store.make_available(Data {
 			relay_parent,
 			parachain_id: para_id_2,
 			block: block_2.clone(),
-			outgoing_queues: None,
 		}).unwrap();
 
 		let candidate_1 = CandidateReceipt {
@@ -466,11 +464,11 @@ mod tests {
 		assert!(store.add_erasure_chunks(3, &relay_parent, &candidate_1.hash(), vec![erasure_chunk_1.clone()]).is_ok());
 		assert!(store.add_erasure_chunks(3, &relay_parent, &candidate_2.hash(), vec![erasure_chunk_2.clone()]).is_ok());
 
-		assert_eq!(store.block_data(relay_parent, block_1.block_data.hash()).unwrap(), block_1);
-		assert_eq!(store.block_data(relay_parent, block_2.block_data.hash()).unwrap(), block_2);
+		assert_eq!(store.block_data(relay_parent, block_1.block_data.hash()).unwrap(), block_1.block_data);
+		assert_eq!(store.block_data(relay_parent, block_2.block_data.hash()).unwrap(), block_2.block_data);
 
 		assert_eq!(store.get_erasure_chunk(&relay_parent, block_1.block_data.hash(), 1).as_ref(), Some(&erasure_chunk_1));
-		assert_eq!(store.get_erasure_chunk(&relay_parent, block_2.block_data.hash() 1), Some(erasure_chunk_2));
+		assert_eq!(store.get_erasure_chunk(&relay_parent, block_2.block_data.hash(), 1), Some(erasure_chunk_2));
 
 		assert_eq!(store.get_candidate(&candidate_1.hash()), Some(candidate_1.clone()));
 		assert_eq!(store.get_candidate(&candidate_2.hash()), Some(candidate_2.clone()));
@@ -486,8 +484,8 @@ mod tests {
 		assert_eq!(store.get_candidate(&candidate_1.hash()), Some(candidate_1));
 		assert_eq!(store.get_candidate(&candidate_2.hash()), None);
 
-		assert_eq!(store.block_data(relay_parent, block_2.block_data.hash()).unwrap(), block_1.block_data);
-		assert!(store.block_data(relay_parent, block_2block_data.hash()).is_none());
+		assert_eq!(store.block_data(relay_parent, block_1.block_data.hash()).unwrap(), block_1.block_data);
+		assert!(store.block_data(relay_parent, block_2.block_data.hash()).is_none());
 	}
 
 	#[test]
@@ -496,31 +494,12 @@ mod tests {
 		let para_id = 5.into();
 		let block_data = BlockData(vec![1, 2, 3]);
 
-		let message_queue_root_1 = [0x42; 32].into();
-		let message_queue_root_2 = [0x43; 32].into();
-
-		let outgoing_queues = AvailableMessages(vec![
-			(message_queue_root_1, vec![]),
-			(message_queue_root_2, vec![]),
-		]);
-
 		let store = Store::new_in_memory();
 		store.make_available(Data {
 			relay_parent,
 			parachain_id: para_id,
-			block_data: block_data.clone(),
-			outgoing_queues: Some(outgoing_queues),
+			block: PoVBlock { block_data: block_data.clone() },
 		}).unwrap();
-
-		assert_eq!(
-			store.queue_by_root(&message_queue_root_1),
-			None,
-		);
-
-		assert_eq!(
-			store.queue_by_root(&message_queue_root_2),
-			None,
-		);
 	}
 
 	#[test]
@@ -531,18 +510,10 @@ mod tests {
 		let block_data_hash = block_data.hash();
 		let n_validators = 5;
 
-		let message_queue_root_1 = [0x42; 32].into();
-		let message_queue_root_2 = [0x43; 32].into();
-
-		let outgoing_queues = Some(AvailableMessages(vec![
-				(message_queue_root_1, vec![]),
-				(message_queue_root_2, vec![]),
-		]));
-
 		let erasure_chunks = erasure::obtain_chunks(
 			n_validators,
 			&block_data,
-			outgoing_queues.as_ref()).unwrap();
+		).unwrap();
 
 		let branches = erasure::branches(erasure_chunks.as_ref());
 

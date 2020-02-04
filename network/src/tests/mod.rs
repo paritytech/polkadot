@@ -24,7 +24,6 @@ use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
 	CandidateReceipt, HeadData, PoVBlock, BlockData, CollatorId, ValidatorId,
-	StructuredUnroutedIngress,
 };
 use sp_core::crypto::UncheckedInto;
 use codec::Encode;
@@ -97,7 +96,6 @@ impl crate::gossip::ChainContext for TestChainContext {
 fn make_pov(block_data: Vec<u8>) -> PoVBlock {
 	PoVBlock {
 		block_data: BlockData(block_data),
-		ingress: polkadot_primitives::parachain::ConsolidatedIngress(Vec::new()),
 	}
 }
 
@@ -192,12 +190,10 @@ fn fetches_from_those_with_knowledge() {
 	let knowledge = session.knowledge();
 
 	knowledge.lock().note_statement(a_key.clone(), &GenericStatement::Valid(candidate_hash));
-	let canon_roots = StructuredUnroutedIngress(Vec::new());
 	let recv = protocol.fetch_pov_block(
 		&mut TestContext::default(),
 		&candidate_receipt,
 		parent_hash,
-		canon_roots,
 	);
 
 	// connect peer A

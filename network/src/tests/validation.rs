@@ -28,8 +28,7 @@ use crate::{PolkadotProtocol, NetworkService, GossipMessageStream};
 use polkadot_validation::{SharedTable, Network};
 use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, ParachainHost, TargetedMessage,
-	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
+	Id as ParaId, Chain, DutyRoster, ParachainHost, TargetedMessage, ValidatorId, Status,
 	FeeSchedule, HeadData, Retriable, CollatorId, ErasureChunk, CandidateReceipt,
 };
 use parking_lot::Mutex;
@@ -148,7 +147,6 @@ struct ApiData {
 	validators: Vec<ValidatorId>,
 	duties: Vec<Chain>,
 	active_parachains: Vec<(ParaId, Option<(CollatorId, Retriable)>)>,
-	ingress: HashMap<ParaId, StructuredUnroutedIngress>,
 }
 
 #[derive(Default, Clone)]
@@ -297,17 +295,6 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 
-	fn ParachainHost_ingress_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		id: Option<(ParaId, Option<BlockNumber>)>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<StructuredUnroutedIngress>>> {
-		let (id, _) = id.unwrap();
-		Ok(NativeOrEncoded::Native(self.data.lock().ingress.get(&id).cloned()))
-	}
-
 	fn ParachainHost_get_heads_runtime_api_impl(
 		&self,
 		_at: &BlockId,
@@ -361,34 +348,6 @@ fn build_network<SP: Spawn + Clone>(n: usize, spawner: SP) -> Built<SP> {
 		gossip: gossip_router.boxed(),
 		api_handle,
 		networks,
-	}
-}
-
-#[derive(Default)]
-struct IngressBuilder {
-	egress: HashMap<(ParaId, ParaId), Vec<Vec<u8>>>,
-}
-
-impl IngressBuilder {
-	fn add_messages(&mut self, source: ParaId, messages: &[TargetedMessage]) {
-		for message in messages {
-			let target = message.target;
-			self.egress.entry((source, target)).or_insert_with(Vec::new).push(message.data.clone());
-		}
-	}
-
-	fn build(self) -> HashMap<ParaId, BlockIngressRoots> {
-		let mut map = HashMap::new();
-		for ((source, target), messages) in self.egress {
-			map.entry(target).or_insert_with(Vec::new)
-				.push((source, polkadot_validation::message_queue_root(&messages)));
-		}
-
-		for roots in map.values_mut() {
-			roots.sort_by_key(|&(para_id, _)| para_id);
-		}
-
-		map.into_iter().map(|(k, v)| (k, BlockIngressRoots(v))).collect()
 	}
 }
 
