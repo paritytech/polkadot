@@ -30,20 +30,21 @@ use log::{debug, trace};
 
 use av_store::Store as AvailabilityStore;
 use polkadot_primitives::{
-	Hash,
+	Hash, Block,
 	parachain::{
 		PoVBlock, ValidatorId, ValidatorIndex, Collation, CandidateReceipt, OutgoingMessages,
-		ErasureChunk,
+		ErasureChunk, ParachainHost,
 	},
 };
 use polkadot_validation::{
 	SharedTable, TableRouter, Network as ParachainNetwork, Validated, GenericStatement,
 };
 use sc_network::{config::Roles, Event, PeerId, RequestId};
+use sp_api::ProvideRuntimeApi;
 
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use super::{cost, benefit, PolkadotNetworkService};
 
@@ -101,12 +102,18 @@ pub struct Service {
 ///
 /// You are very strongly encouraged to call this method very early on. Any connection open
 /// will retain the protocols that were registered then, and not any new one.
-pub fn start<C: ChainContext + 'static, SP: Spawn + Clone + Send + 'static>(
+pub fn start<C, Api, SP>(
 	service: Arc<PolkadotNetworkService>,
 	availability_store: AvailabilityStore,
 	chain_context: C,
+	api: Arc<Api>,
 	executor: SP,
-) -> Result<Service, futures::task::SpawnError> {
+) -> Result<Service, futures::task::SpawnError> where
+	C: ChainContext + 'static,
+	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
+	SP: Spawn + Clone + Send + 'static,
+{
 	const SERVICE_TO_WORKER_BUF: usize = 256;
 
 	let mut event_stream = service.event_stream();
@@ -122,6 +129,7 @@ pub fn start<C: ChainContext + 'static, SP: Spawn + Clone + Send + 'static>(
 		availability_store,
 		gossip_validator,
 		worker_sender.clone(),
+		api,
 		worker_receiver,
 		executor.clone(),
 	))?;
@@ -213,14 +221,19 @@ struct ConsensusNetworkingInstance {
 
 type RegisteredMessageValidator = crate::legacy::gossip::RegisteredMessageValidator<crate::PolkadotProtocol>;
 
-async fn worker_loop(
+async fn worker_loop<Api, Sp>(
 	service: Arc<PolkadotNetworkService>,
 	availability_store: AvailabilityStore,
 	gossip_handle: RegisteredMessageValidator,
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
+	api: Arc<Api>,
 	mut receiver: mpsc::Receiver<ServiceToWorkerMsg>,
-	executor: impl Spawn,
-) {
+	executor: Sp,
+) where
+	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
+	Sp: Spawn + Clone + Send + 'static,
+{
 	let mut peers = HashMap::new();
 	let mut consensus_instances = HashMap::new();
 
@@ -259,6 +272,8 @@ async fn worker_loop(
 					|queue_root| availability_store.queue_by_root(queue_root),
 				);
 
+				new_leaf_actions.perform(&gossip_handle);
+
 				let instance = ConsensusNetworkingInstance {
 					statement_table: table,
 					relay_parent,
@@ -267,14 +282,26 @@ async fn worker_loop(
 					_drop_signal: signal,
 				};
 
-				consensus_instances.insert(relay_parent, instance);
+				let weak_router = Arc::downgrade(&router.inner);
 
-				// glue the incoming messages, shared table, and validation
-				// work together.
+				consensus_instances.insert(relay_parent, instance);
+				let consensus_instance = consensus_instances.get(&relay_parent)
+					.expect("just inserted into map; has not been removed; qed");
 
 				// TODO [now]: feed checked statements into table.
 				// process new_leaf_actions
-				unimplemented!()
+
+				// glue the incoming messages, shared table, and validation
+				// work together.
+				let _ = executor.spawn(statement_import_loop(
+					relay_parent,
+					consensus_instance.statement_table.clone(),
+					api.clone(),
+					weak_router,
+					gossip_handle.clone(),
+					exit,
+					executor.clone(),
+				));
 
 			}
 			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
@@ -303,13 +330,18 @@ async fn worker_loop(
 
 // the internal loop of waiting for messages and spawning validation work
 // as a result of those messages.
-async fn statement_import_loop(
+async fn statement_import_loop<Api>(
 	relay_parent: Hash,
 	table: Arc<SharedTable>,
+	api: Arc<Api>,
+	temp_router: Weak<RouterInner>,
 	validator: RegisteredMessageValidator,
 	mut exit: exit_future::Exit,
 	executor: impl Spawn,
-) {
+) where
+	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
+{
 	let topic = crate::legacy::router::attestation_topic(relay_parent);
 	let mut checked_messages = validator.gossip_messages_for(topic)
 		.filter_map(|msg| match msg.0 {
@@ -355,24 +387,33 @@ async fn statement_import_loop(
 		// prepend the candidate statement.
 		debug!(target: "validation", "Importing statements about candidate {:?}", c_hash);
 		statements.insert(0, statement);
-		// let producers: Vec<_> = table.import_remote_statements(
-		// 	self,
-		// 	statements.iter().cloned(),
-		// );
-		// // dispatch future work as necessary.
-		// for (producer, statement) in producers.into_iter().zip(statements) {
-		// 	if let Some(sender) = self.table.index_to_id(statement.sender) {
-		// 		self.fetcher.knowledge().lock().note_statement(sender, &statement.statement);
 
-		// 		if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
-		// 			trace!(target: "validation", "driving statement work to completion");
+		let producers: Vec<_> = {
+			// create a temporary router handle for importing all of these statements
+			let temp_router = match temp_router.upgrade() {
+				None => break,
+				Some(inner) => Router { inner },
+			};
 
-		// 			let work = select(work.boxed(), self.fetcher.exit().clone())
-		// 				.map(drop);
-		// 			let _ = self.fetcher.executor().spawn(work);
-		// 		}
-		// 	}
-		// }
+			table.import_remote_statements(
+				&temp_router,
+				statements.iter().cloned(),
+			)
+		};
+
+		// dispatch future work as necessary.
+		for (producer, statement) in producers.into_iter().zip(statements) {
+			if let Some(sender) = table.index_to_id(statement.sender) {
+				if let Some(producer) = producer {
+					trace!(target: "validation", "driving statement work to completion");
+
+					let work = producer.prime(api.clone()).validate();
+
+					let work = future::select(work.boxed(), exit.clone()).map(drop);
+					let _ = executor.spawn(work);
+				}
+			}
+		}
 	}
 }
 
@@ -474,10 +515,21 @@ impl ParachainNetwork for Service {
 	}
 }
 
+/// Errors when interacting with the statement router.
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum RouterError {
+	#[display(fmt = "Encountered unexpected I/O error: {}", _0)]
+	Io(std::io::Error),
+	#[display(fmt = "Worker hung up while answering request.")]
+	Canceled(oneshot::Canceled),
+	#[display(fmt = "Could not reach worker with request: {}", _0)]
+	SendError(mpsc::SendError),
+}
+
 impl TableRouter for Router {
-	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
-	type SendLocalCollation = Pin<Box<dyn Future<Output = Result<(), Self::Error>>>>;
-	type FetchValidationProof = Pin<Box<dyn Future<Output = Result<PoVBlock, Self::Error>>>>;
+	type Error = RouterError;
+	type SendLocalCollation = Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
+	type FetchValidationProof = Pin<Box<dyn Future<Output = Result<PoVBlock, Self::Error>> + Send>>;
 
 	fn local_collation(
 		&self,
@@ -494,7 +546,7 @@ impl TableRouter for Router {
 		);
 		let mut sender = self.inner.sender.clone();
 		Box::pin(async move {
-			sender.send(message).map_err(future::Either::Left).await
+			sender.send(message).map_err(Into::into).await
 		})
 	}
 
@@ -508,8 +560,8 @@ impl TableRouter for Router {
 
 		let mut sender = self.inner.sender.clone();
 		Box::pin(async move {
-			sender.send(message).map_err(future::Either::Left).await?;
-			rx.map_err(future::Either::Right).await
+			sender.send(message).await?;
+			rx.map_err(Into::into).await
 		})
 	}
 }

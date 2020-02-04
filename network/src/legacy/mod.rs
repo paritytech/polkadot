@@ -58,8 +58,8 @@ type FullStatus = GenericFullStatus<Block>;
 /// Specialization of the network service for the polkadot protocol.
 pub type PolkadotNetworkService = sc_network::NetworkService<Block, PolkadotProtocol, Hash>;
 
-/// Basic functionality that a network has to fulfill.
-pub trait NetworkService: Send + Sync + 'static {
+/// Basic gossip functionality that a network has to fulfill.
+pub trait GossipService: Send + Sync + 'static {
 	/// Get a stream of gossip messages for a given hash.
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream;
 
@@ -68,7 +68,10 @@ pub trait NetworkService: Send + Sync + 'static {
 
 	/// Send a message to a specific peer we're connected to.
 	fn send_message(&self, who: PeerId, message: GossipMessage);
+}
 
+/// Basic functionality that a network has to fulfill.
+pub trait NetworkService: GossipService + Send + Sync + 'static {
 	/// Execute a closure with the polkadot protocol.
 	fn with_spec<F: Send + 'static>(&self, with: F)
 		where Self: Sized, F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>);

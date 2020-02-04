@@ -74,7 +74,7 @@ use futures::prelude::*;
 use parking_lot::RwLock;
 use log::warn;
 
-use crate::legacy::{GossipMessageStream, NetworkService, PolkadotProtocol, router::attestation_topic};
+use crate::legacy::{GossipMessageStream, NetworkService, GossipService, PolkadotProtocol, router::attestation_topic};
 
 use attestation::{View as AttestationView, PeerData as AttestationPeerData};
 use message_routing::{View as MessageRoutingView};
@@ -366,7 +366,7 @@ impl NewLeafActions {
 	/// Perform the queued actions, feeding into gossip.
 	pub fn perform(
 		self,
-		gossip: &dyn crate::legacy::NetworkService,
+		gossip: &dyn crate::legacy::GossipService,
 	) {
 		for action in self.actions {
 			match action {
@@ -513,7 +513,7 @@ impl<S: NetworkSpecialization<Block>> RegisteredMessageValidator<S> {
 	}
 }
 
-impl NetworkService for RegisteredMessageValidator<crate::legacy::PolkadotProtocol> {
+impl<S: NetworkSpecialization<Block>> GossipService for RegisteredMessageValidator<S> {
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		RegisteredMessageValidator::gossip_messages_for(self, topic)
 	}
@@ -525,7 +525,9 @@ impl NetworkService for RegisteredMessageValidator<crate::legacy::PolkadotProtoc
 	fn send_message(&self, who: PeerId, message: GossipMessage) {
 		RegisteredMessageValidator::send_message(self, who, message)
 	}
+}
 
+impl NetworkService for RegisteredMessageValidator<crate::legacy::PolkadotProtocol> {
 	fn with_spec<F: Send + 'static>(&self, with: F)
 		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>)
 	{
