@@ -23,8 +23,11 @@
 
 use codec::{Decode, Encode};
 use futures::channel::{mpsc, oneshot};
+use futures::future::Either;
 use futures::prelude::*;
 use futures::task::{Spawn, SpawnExt};
+use log::{debug, trace};
+
 use av_store::Store as AvailabilityStore;
 use polkadot_primitives::{
 	Hash,
@@ -33,7 +36,9 @@ use polkadot_primitives::{
 		ErasureChunk,
 	},
 };
-use polkadot_validation::{SharedTable, TableRouter, Network as ParachainNetwork, Validated};
+use polkadot_validation::{
+	SharedTable, TableRouter, Network as ParachainNetwork, Validated, GenericStatement,
+};
 use sc_network::{config::Roles, Event, PeerId, RequestId};
 
 use std::collections::HashMap;
@@ -70,7 +75,7 @@ enum ServiceToWorkerMsg {
 	PeerDisconnected(PeerId),
 
 	// service messages.
-	BuildConsensusNetworking(Arc<SharedTable>, Vec<ValidatorId>),
+	BuildConsensusNetworking(Arc<SharedTable>, Vec<ValidatorId>, oneshot::Sender<Router>),
 	DropConsensusNetworking(Hash),
 	LocalCollation(
 		Hash, // relay-parent
@@ -96,7 +101,7 @@ pub struct Service {
 ///
 /// You are very strongly encouraged to call this method very early on. Any connection open
 /// will retain the protocols that were registered then, and not any new one.
-pub fn start<C: ChainContext + 'static, SP: Spawn + Clone + 'static>(
+pub fn start<C: ChainContext + 'static, SP: Spawn + Clone + Send + 'static>(
 	service: Arc<PolkadotNetworkService>,
 	availability_store: AvailabilityStore,
 	chain_context: C,
@@ -116,7 +121,9 @@ pub fn start<C: ChainContext + 'static, SP: Spawn + Clone + 'static>(
 		service.clone(),
 		availability_store,
 		gossip_validator,
+		worker_sender.clone(),
 		worker_receiver,
+		executor.clone(),
 	))?;
 
 	let polkadot_service = Service {
@@ -196,13 +203,26 @@ struct PeerData {
 	roles: Roles,
 }
 
+struct ConsensusNetworkingInstance {
+	statement_table: Arc<SharedTable>,
+	relay_parent: Hash,
+	attestation_topic: Hash,
+	exit: exit_future::Exit,
+	_drop_signal: exit_future::Signal,
+}
+
+type RegisteredMessageValidator = crate::legacy::gossip::RegisteredMessageValidator<crate::PolkadotProtocol>;
+
 async fn worker_loop(
 	service: Arc<PolkadotNetworkService>,
 	availability_store: AvailabilityStore,
-	gossip_validator: crate::legacy::gossip::RegisteredMessageValidator<crate::PolkadotProtocol>,
+	gossip_handle: RegisteredMessageValidator,
+	sender: mpsc::Sender<ServiceToWorkerMsg>,
 	mut receiver: mpsc::Receiver<ServiceToWorkerMsg>,
+	executor: impl Spawn,
 ) {
 	let mut peers = HashMap::new();
+	let mut consensus_instances = HashMap::new();
 
 	while let Some(message) = receiver.next().await {
 		match message {
@@ -224,23 +244,55 @@ async fn worker_loop(
 				}
 			}
 
-			ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities) => {
+			ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities, router_sender) => {
 				// glue: let gossip know about our new local leaf.
-				let new_leaf_actions = gossip_validator.new_local_leaf(
-					table.consensus_parent_hash().clone(),
+				let relay_parent = table.consensus_parent_hash().clone();
+				let (signal, exit) = exit_future::signal();
+
+				let router = Router {
+					inner: Arc::new(RouterInner { relay_parent, sender: sender.clone() }),
+				};
+
+				let new_leaf_actions = gossip_handle.new_local_leaf(
+					relay_parent,
 					crate::legacy::gossip::MessageValidationData { authorities },
 					|queue_root| availability_store.queue_by_root(queue_root),
 				);
 
+				let instance = ConsensusNetworkingInstance {
+					statement_table: table,
+					relay_parent,
+					attestation_topic: crate::legacy::router::attestation_topic(relay_parent),
+					exit: exit.clone(),
+					_drop_signal: signal,
+				};
+
+				consensus_instances.insert(relay_parent, instance);
+
+				// glue the incoming messages, shared table, and validation
+				// work together.
+
 				// TODO [now]: feed checked statements into table.
 				// process new_leaf_actions
 				unimplemented!()
+
 			}
 			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
-				unimplemented!()
+				consensus_instances.remove(&relay_parent);
 			}
 			ServiceToWorkerMsg::LocalCollation(relay_parent, collation, receipt, chunks) => {
-				distribute_local_collation(relay_parent, collation, receipt, chunks, &*service);
+				let instance = match consensus_instances.get(&relay_parent) {
+					None => continue,
+					Some(instance) => instance,
+				};
+
+				distribute_local_collation(
+					instance,
+					collation,
+					receipt,
+					chunks,
+					&gossip_handle,
+				);
 			}
 			ServiceToWorkerMsg::FetchPoVBlock(relay_parent, candidate, sender) => {
 				// create a filter on gossip for it and send to sender.
@@ -249,12 +301,87 @@ async fn worker_loop(
 	}
 }
 
-fn distribute_local_collation(
+// the internal loop of waiting for messages and spawning validation work
+// as a result of those messages.
+async fn statement_import_loop(
 	relay_parent: Hash,
+	table: Arc<SharedTable>,
+	validator: RegisteredMessageValidator,
+	mut exit: exit_future::Exit,
+	executor: impl Spawn,
+) {
+	let topic = crate::legacy::router::attestation_topic(relay_parent);
+	let mut checked_messages = validator.gossip_messages_for(topic)
+		.filter_map(|msg| match msg.0 {
+			crate::legacy::gossip::GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
+			_ => future::ready(None),
+		});
+
+	let mut deferred_statements = crate::legacy::router::DeferredStatements::new();
+
+	loop {
+		let statement = match future::select(exit, checked_messages.next()).await {
+			Either::Left(_) | Either::Right((None, _)) => return,
+			Either::Right((Some(statement), e)) => {
+				exit = e;
+				statement
+			}
+		};
+
+		// defer any statements for which we haven't imported the candidate yet
+		let c_hash = {
+			let candidate_data = match statement.statement {
+				GenericStatement::Candidate(ref c) => Some(c.hash()),
+				GenericStatement::Valid(ref hash)
+					| GenericStatement::Invalid(ref hash)
+					=> table.with_candidate(hash, |c| c.map(|_| *hash)),
+			};
+			match candidate_data {
+				Some(x) => x,
+				None => {
+					deferred_statements.push(statement);
+					continue;
+				}
+			}
+		};
+
+		// import all statements pending on this candidate
+		let (mut statements, _traces) = if let GenericStatement::Candidate(_) = statement.statement {
+			deferred_statements.take_deferred(&c_hash)
+		} else {
+			(Vec::new(), Vec::new())
+		};
+
+		// prepend the candidate statement.
+		debug!(target: "validation", "Importing statements about candidate {:?}", c_hash);
+		statements.insert(0, statement);
+		// let producers: Vec<_> = table.import_remote_statements(
+		// 	self,
+		// 	statements.iter().cloned(),
+		// );
+		// // dispatch future work as necessary.
+		// for (producer, statement) in producers.into_iter().zip(statements) {
+		// 	if let Some(sender) = self.table.index_to_id(statement.sender) {
+		// 		self.fetcher.knowledge().lock().note_statement(sender, &statement.statement);
+
+		// 		if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
+		// 			trace!(target: "validation", "driving statement work to completion");
+
+		// 			let work = select(work.boxed(), self.fetcher.exit().clone())
+		// 				.map(drop);
+		// 			let _ = self.fetcher.executor().spawn(work);
+		// 		}
+		// 	}
+		// }
+	}
+}
+
+fn distribute_local_collation(
+	instance: &ConsensusNetworkingInstance,
 	collation: Collation,
 	receipt: CandidateReceipt,
 	chunks: (ValidatorIndex, Vec<ErasureChunk>),
-	network: &PolkadotNetworkService,
+	gossip_handle: &RegisteredMessageValidator,
 ) {
 	// produce a signed statement.
 	let hash = receipt.hash();
@@ -265,7 +392,29 @@ fn distribute_local_collation(
 		OutgoingMessages { outgoing_messages: Vec::new() },
 	);
 
-	unimplemented!();
+	let statement = crate::legacy::gossip::GossipStatement::new(
+		instance.relay_parent,
+		match instance.statement_table.import_validated(validated) {
+			None => return,
+			Some(s) => s,
+		}
+	);
+
+	gossip_handle.gossip_message(instance.attestation_topic, statement.into());
+
+	for chunk in chunks.1 {
+		let index = chunk.index;
+		let message = crate::legacy::gossip::ErasureChunkMessage {
+			chunk,
+			relay_parent: instance.relay_parent,
+			candidate_hash: hash,
+		};
+
+		gossip_handle.gossip_message(
+			av_store::erasure_coding_topic(instance.relay_parent, erasure_root, index),
+			message.into(),
+		);
+	}
 }
 
 // TODO [now]: implement `Collators`.
@@ -302,7 +451,7 @@ impl Drop for RouterInner  {
 }
 
 impl ParachainNetwork for Service {
-	type Error = mpsc::SendError;
+	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
 	type TableRouter = Router;
 	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router,Self::Error>>>>;
 
@@ -313,17 +462,14 @@ impl ParachainNetwork for Service {
 	) -> Self::BuildTableRouter {
 		let authorities = authorities.to_vec();
 		let mut sender = self.sender.clone();
-		Box::pin(async move {
-			let relay_parent = table.consensus_parent_hash().clone();
-			sender.send(
-				ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities)
-			).await?;
 
-			let inner = Arc::new(RouterInner {
-				sender,
-				relay_parent,
-			});
-			Ok(Router { inner })
+		let (tx, rx) = oneshot::channel();
+		Box::pin(async move {
+			sender.send(
+				ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities, tx)
+			).map_err(future::Either::Left).await?;
+
+			rx.map_err(future::Either::Right).await
 		})
 	}
 }

@@ -160,7 +160,7 @@ impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, E, T> Router<P, E, T> 
 
 		// import all statements pending on this candidate
 		let (mut statements, _traces) = if let GenericStatement::Candidate(_) = statement.statement {
-			self.deferred_statements.lock().get_deferred(&c_hash)
+			self.deferred_statements.lock().take_deferred(&c_hash)
 		} else {
 			(Vec::new(), Vec::new())
 		};
@@ -299,26 +299,29 @@ impl<P, E, T> Drop for Router<P, E, T> {
 
 // A unique trace for valid statements issued by a validator.
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
-enum StatementTrace {
+pub(crate) enum StatementTrace {
 	Valid(ValidatorIndex, Hash),
 	Invalid(ValidatorIndex, Hash),
 }
 
-// helper for deferring statements whose associated candidate is unknown.
-struct DeferredStatements {
+/// Helper for deferring statements whose associated candidate is unknown.
+pub(crate) struct DeferredStatements {
 	deferred: HashMap<Hash, Vec<SignedStatement>>,
 	known_traces: HashSet<StatementTrace>,
 }
 
 impl DeferredStatements {
-	fn new() -> Self {
+	/// Create a new `DeferredStatements`.
+	pub(crate) fn new() -> Self {
 		DeferredStatements {
 			deferred: HashMap::new(),
 			known_traces: HashSet::new(),
 		}
 	}
 
-	fn push(&mut self, statement: SignedStatement) {
+	/// Push a new statement onto the deferred pile. `Candidate` statements
+	/// cannot be deferred and are ignored.
+	pub(crate) fn push(&mut self, statement: SignedStatement) {
 		let (hash, trace) = match statement.statement {
 			GenericStatement::Candidate(_) => return,
 			GenericStatement::Valid(hash) => (hash, StatementTrace::Valid(statement.sender.clone(), hash)),
@@ -330,7 +333,8 @@ impl DeferredStatements {
 		}
 	}
 
-	fn get_deferred(&mut self, hash: &Hash) -> (Vec<SignedStatement>, Vec<StatementTrace>) {
+	/// Take all deferred statements referencing the given candidate hash out.
+	pub(crate) fn take_deferred(&mut self, hash: &Hash) -> (Vec<SignedStatement>, Vec<StatementTrace>) {
 		match self.deferred.remove(hash) {
 			None => (Vec::new(), Vec::new()),
 			Some(deferred) => {
@@ -371,7 +375,7 @@ mod tests {
 
 		// pre-push.
 		{
-			let (signed, traces) = deferred.get_deferred(&hash);
+			let (signed, traces) = deferred.take_deferred(&hash);
 			assert!(signed.is_empty());
 			assert!(traces.is_empty());
 		}
@@ -381,7 +385,7 @@ mod tests {
 
 		// draining: second push should have been ignored.
 		{
-			let (signed, traces) = deferred.get_deferred(&hash);
+			let (signed, traces) = deferred.take_deferred(&hash);
 			assert_eq!(signed.len(), 1);
 
 			assert_eq!(traces.len(), 1);
@@ -391,7 +395,7 @@ mod tests {
 
 		// after draining
 		{
-			let (signed, traces) = deferred.get_deferred(&hash);
+			let (signed, traces) = deferred.take_deferred(&hash);
 			assert!(signed.is_empty());
 			assert!(traces.is_empty());
 		}

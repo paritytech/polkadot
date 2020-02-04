@@ -480,10 +480,8 @@ impl<S: NetworkSpecialization<Block>> RegisteredMessageValidator<S> {
 
 		NewLeafActions { actions }
 	}
-}
 
-impl NetworkService for RegisteredMessageValidator<crate::legacy::PolkadotProtocol> {
-	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
+	pub(crate) fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let topic_stream = if let Some(gossip_engine) = self.gossip_engine.as_ref() {
 			gossip_engine.messages_for(topic)
 		} else {
@@ -494,7 +492,7 @@ impl NetworkService for RegisteredMessageValidator<crate::legacy::PolkadotProtoc
 		GossipMessageStream::new(topic_stream.boxed())
 	}
 
-	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
+	pub(crate) fn gossip_message(&self, topic: Hash, message: GossipMessage) {
 		if let Some(gossip_engine) = self.gossip_engine.as_ref() {
 			gossip_engine.gossip_message(
 				topic,
@@ -506,12 +504,26 @@ impl NetworkService for RegisteredMessageValidator<crate::legacy::PolkadotProtoc
 		}
 	}
 
-	fn send_message(&self, who: PeerId, message: GossipMessage) {
+	pub(crate) fn send_message(&self, who: PeerId, message: GossipMessage) {
 		if let Some(gossip_engine) = self.gossip_engine.as_ref() {
 			gossip_engine.send_message(vec![who], message.encode());
 		} else {
 			log::error!("Called send_message on a test engine");
 		}
+	}
+}
+
+impl NetworkService for RegisteredMessageValidator<crate::legacy::PolkadotProtocol> {
+	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
+		RegisteredMessageValidator::gossip_messages_for(self, topic)
+	}
+
+	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
+		RegisteredMessageValidator::gossip_message(self, topic, message)
+	}
+
+	fn send_message(&self, who: PeerId, message: GossipMessage) {
+		RegisteredMessageValidator::send_message(self, who, message)
 	}
 
 	fn with_spec<F: Send + 'static>(&self, with: F)
