@@ -33,18 +33,19 @@ use polkadot_primitives::{
 	Hash, Block,
 	parachain::{
 		PoVBlock, ValidatorId, ValidatorIndex, Collation, CandidateReceipt, OutgoingMessages,
-		ErasureChunk, ParachainHost,
+		ErasureChunk, ParachainHost, Id as ParaId, CollatorId,
 	},
 };
 use polkadot_validation::{
 	SharedTable, TableRouter, Network as ParachainNetwork, Validated, GenericStatement,
 };
-use sc_network::{config::Roles, Event, PeerId, RequestId};
+use sc_network::{config::Roles, Event, PeerId};
 use sp_api::ProvideRuntimeApi;
 
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, Weak};
+use std::time::Duration;
 
 use super::{cost, benefit, PolkadotNetworkService};
 
@@ -57,16 +58,6 @@ pub const MIN_SUPPORTED_VERSION: u32 = 1;
 pub const POLKADOT_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"dot2";
 
 pub use crate::legacy::gossip::ChainContext;
-
-/// The role of the collator. Whether they're the primary or backup for this parachain.
-// TODO [now]: extract CollatorPool to here.
-#[derive(PartialEq, Debug, Clone, Copy, Encode, Decode)]
-pub enum Role {
-	/// Primary collators should send collations whenever it's time.
-	Primary = 0,
-	/// Backup collators should not.
-	Backup = 1,
-}
 
 // Messages from the service API or network adapter.
 enum ServiceToWorkerMsg {
@@ -89,6 +80,11 @@ enum ServiceToWorkerMsg {
 		CandidateReceipt,
 		oneshot::Sender<PoVBlock>,
 	),
+	AwaitCollation(
+		Hash, // relay-parent,
+		ParaId,
+		oneshot::Sender<Collation>,
+	)
 }
 
 /// An async handle to the network service.
@@ -190,36 +186,181 @@ pub fn start<C, Api, SP>(
 	Ok(polkadot_service)
 }
 
-/// Polkadot-specific messages.
+/// The Polkadot protocol status message.
+#[derive(Debug, Encode, Decode)]
+pub struct Status {
+	version: u32, // protocol version.
+	collating_for: Option<(CollatorId, ParaId)>,
+}
+
+/// Polkadot-specific messages from peer to peer.
 #[derive(Debug, Encode, Decode)]
 pub enum Message {
-	/// As a validator, tell the peer your current session key.
-	// TODO: do this with a cryptographic proof of some kind
-	// https://github.com/paritytech/polkadot/issues/47
-	ValidatorId(ValidatorId),
-	/// Requesting parachain proof-of-validation block (relay_parent, candidate_hash).
-	RequestPovBlock(RequestId, Hash, Hash),
-	/// Provide requested proof-of-validation block data by candidate hash or nothing if unknown.
-	PovBlock(RequestId, Option<PoVBlock>),
-	/// Tell a collator their role.
-	CollatorRole(Role),
-	/// A collation provided by a peer. Relay parent and collation.
+	/// Exchange status with a peer. This should be the first message sent.
+	#[codec(index = "0")]
+	Status(Status),
+	#[codec(index = "2")]
 	Collation(Hash, Collation),
 }
 
+enum ProtocolState {
+	Fresh,
+	Ready(Status),
+}
+
 struct PeerData {
-	roles: Roles,
+	claimed_validator: bool,
+	protocol_state: ProtocolState,
+}
+
+impl PeerData {
+	fn ready_and_collating_for(&self) -> Option<(CollatorId, ParaId)> {
+		match self.protocol_state {
+			ProtocolState::Ready(ref status) => status.collating_for.clone(),
+			_ => None,
+		}
+	}
 }
 
 struct ConsensusNetworkingInstance {
 	statement_table: Arc<SharedTable>,
 	relay_parent: Hash,
 	attestation_topic: Hash,
-	exit: exit_future::Exit,
 	_drop_signal: exit_future::Signal,
 }
 
 type RegisteredMessageValidator = crate::legacy::gossip::RegisteredMessageValidator<crate::PolkadotProtocol>;
+
+struct ProtocolHandler {
+	service: Arc<PolkadotNetworkService>,
+	peers: HashMap<PeerId, PeerData>,
+	collators: crate::legacy::collator_pool::CollatorPool,
+}
+
+impl ProtocolHandler {
+	fn new(service: Arc<PolkadotNetworkService>) -> Self {
+		ProtocolHandler {
+			service,
+			peers: HashMap::new(),
+			collators: Default::default(),
+		}
+	}
+
+	fn on_connect(&mut self, peer: PeerId, roles: Roles) {
+		let claimed_validator = roles.contains(sc_network::config::Roles::AUTHORITY);
+
+		self.peers.insert(peer, PeerData {
+			claimed_validator,
+			protocol_state: ProtocolState::Fresh,
+		});
+
+		// TODO [now]: send status.
+	}
+
+	fn on_disconnect(&mut self, peer: PeerId) {
+		let mut new_primary = None;
+		if let Some(data) = self.peers.remove(&peer) {
+			if let Some((collator_id, _)) = data.ready_and_collating_for() {
+				if self.collators.collator_id_to_peer_id(&collator_id) == Some(&peer) {
+					new_primary = self.collators.on_disconnect(collator_id);
+				}
+			}
+		}
+
+		if let Some(new_primary) = new_primary {
+			// TODO [now]: send collator role.
+		}
+	}
+
+	fn on_raw_messages(&mut self, remote: PeerId, messages: Vec<bytes::Bytes>) {
+		for raw_message in messages {
+			match Message::decode(&mut raw_message.as_ref()) {
+				Ok(message) => {
+					self.service.report_peer(remote.clone(), benefit::VALID_FORMAT);
+					match message {
+						Message::Status(status) => {
+							self.on_status(remote.clone(), status);
+						}
+						Message::Collation(relay_parent, collation) => {
+							self.on_remote_collation(remote.clone(), relay_parent, collation);
+						}
+					}
+				},
+				Err(_) => self.service.report_peer(remote.clone(), cost::INVALID_FORMAT),
+			}
+		}
+	}
+
+	fn on_status(&mut self, remote: PeerId, status: Status) {
+		let peer = match self.peers.get_mut(&remote) {
+			None => { self.service.report_peer(remote, cost::UNKNOWN_PEER); return }
+			Some(p) => p,
+		};
+
+		match peer.protocol_state {
+			ProtocolState::Fresh => {
+				peer.protocol_state = ProtocolState::Ready(status);
+				if let Some((collator_id, para_id)) = peer.ready_and_collating_for() {
+					let collator_attached = self.collators
+						.collator_id_to_peer_id(&collator_id)
+						.map_or(false, |id| id != &remote);
+
+					// we only care about the first connection from this collator.
+					if !collator_attached {
+						let role = self.collators.on_new_collator(collator_id, para_id, remote);
+					}
+				}
+			}
+			ProtocolState::Ready(_) => {
+				self.service.report_peer(remote, cost::UNEXPECTED_MESSAGE);
+			}
+		}
+	}
+
+	fn on_remote_collation(&mut self, remote: PeerId, relay_parent: Hash, collation: Collation) {
+		let peer = match self.peers.get_mut(&remote) {
+			None => { self.service.report_peer(remote, cost::UNKNOWN_PEER); return }
+			Some(p) => p,
+		};
+
+		let (collator_id, para_id) = match peer.ready_and_collating_for() {
+			None => {
+				self.service.report_peer(remote, cost::UNEXPECTED_MESSAGE);
+				return
+			}
+			Some(x) => x,
+		};
+
+		let collation_para = collation.info.parachain_index;
+		let collated_acc = collation.info.collator.clone();
+
+		let structurally_valid = para_id == collation_para && collator_id == collated_acc;
+		if structurally_valid && collation.info.check_signature().is_ok() {
+			debug!(target: "p_net", "Received collation for parachain {:?} from peer {}",
+				para_id, remote);
+
+			if self.collators.collator_id_to_peer_id(&collator_id) == Some(&remote) {
+				self.collators.on_collation(collator_id, relay_parent, collation);
+				self.service.report_peer(remote, benefit::GOOD_COLLATION);
+			}
+		} else {
+			self.service.report_peer(remote, cost::INVALID_FORMAT);
+		}
+	}
+
+	fn await_collation(
+		&mut self,
+		relay_parent: Hash,
+		para_id: ParaId,
+		sender: oneshot::Sender<Collation>,
+	) {
+		self.collators.await_collation(relay_parent, para_id, sender);
+	}
+
+	fn collect_garbage(&mut self) {
+		self.collators.collect_garbage(None);
+	}
+}
 
 async fn worker_loop<Api, Sp>(
 	service: Arc<PolkadotNetworkService>,
@@ -234,27 +375,34 @@ async fn worker_loop<Api, Sp>(
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	Sp: Spawn + Clone + Send + 'static,
 {
-	let mut peers = HashMap::new();
+	const COLLECT_GARBAGE_INTERVAL: Duration = Duration::from_secs(29);
+
+	let mut protocol_handler = ProtocolHandler::new(service);
 	let mut consensus_instances = HashMap::new();
 
-	while let Some(message) = receiver.next().await {
+	let mut collect_garbage = stream::unfold((), move |_| {
+		futures_timer::Delay::new(COLLECT_GARBAGE_INTERVAL).map(|_| Some(((), ())))
+	}).map(drop);
+
+	loop {
+		let message = match future::select(receiver.next(), collect_garbage.next()).await {
+			Either::Left((None, _)) | Either::Right((None, _)) => break,
+			Either::Left((Some(message), _)) => message,
+			Either::Right(_) => {
+				protocol_handler.collect_garbage();
+				continue
+			}
+		};
+
 		match message {
 			ServiceToWorkerMsg::PeerConnected(remote, roles) => {
-				peers.insert(remote, PeerData { roles });
+				protocol_handler.on_connect(remote, roles);
 			}
 			ServiceToWorkerMsg::PeerDisconnected(remote) => {
-				peers.remove(&remote);
+				protocol_handler.on_disconnect(remote);
 			}
 			ServiceToWorkerMsg::PeerMessage(remote, messages) => {
-				for raw_message in messages {
-					match Message::decode(&mut raw_message.as_ref()) {
-						Ok(message) => {
-							service.report_peer(remote.clone(), benefit::VALID_FORMAT);
-							unimplemented!()
-						},
-						Err(_) => service.report_peer(remote.clone(), cost::INVALID_FORMAT),
-					}
-				}
+				protocol_handler.on_raw_messages(remote, messages)
 			}
 
 			ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities, router_sender) => {
@@ -274,25 +422,20 @@ async fn worker_loop<Api, Sp>(
 
 				new_leaf_actions.perform(&gossip_handle);
 
-				let instance = ConsensusNetworkingInstance {
-					statement_table: table,
+				consensus_instances.insert(relay_parent, ConsensusNetworkingInstance {
+					statement_table: table.clone(),
 					relay_parent,
 					attestation_topic: crate::legacy::router::attestation_topic(relay_parent),
-					exit: exit.clone(),
 					_drop_signal: signal,
-				};
+				});
 
 				let weak_router = Arc::downgrade(&router.inner);
-
-				consensus_instances.insert(relay_parent, instance);
-				let consensus_instance = consensus_instances.get(&relay_parent)
-					.expect("just inserted into map; has not been removed; qed");
 
 				// glue the incoming messages, shared table, and validation
 				// work together.
 				let _ = executor.spawn(statement_import_loop(
 					relay_parent,
-					consensus_instance.statement_table.clone(),
+					table,
 					api.clone(),
 					weak_router,
 					gossip_handle.clone(),
@@ -300,6 +443,7 @@ async fn worker_loop<Api, Sp>(
 					executor.clone(),
 				));
 
+				let _ = router_sender.send(router);
 			}
 			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
 				consensus_instances.remove(&relay_parent);
@@ -321,17 +465,21 @@ async fn worker_loop<Api, Sp>(
 			ServiceToWorkerMsg::FetchPoVBlock(relay_parent, candidate, sender) => {
 				// create a filter on gossip for it and send to sender.
 			}
+			ServiceToWorkerMsg::AwaitCollation(relay_parent, para_id, sender) => {
+				debug!(target: "p_net", "Attempting to get collation for parachain {:?} on relay parent {:?}", para_id, relay_parent);
+				protocol_handler.await_collation(relay_parent, para_id, sender)
+			}
 		}
 	}
 }
 
 // the internal loop of waiting for messages and spawning validation work
-// as a result of those messages.
+// as a result of those messages. this future exits when `exit` is ready.
 async fn statement_import_loop<Api>(
 	relay_parent: Hash,
 	table: Arc<SharedTable>,
 	api: Arc<Api>,
-	temp_router: Weak<RouterInner>,
+	weak_router: Weak<RouterInner>,
 	validator: RegisteredMessageValidator,
 	mut exit: exit_future::Exit,
 	executor: impl Spawn,
@@ -387,7 +535,7 @@ async fn statement_import_loop<Api>(
 
 		let producers: Vec<_> = {
 			// create a temporary router handle for importing all of these statements
-			let temp_router = match temp_router.upgrade() {
+			let temp_router = match weak_router.upgrade() {
 				None => break,
 				Some(inner) => Router { inner },
 			};
@@ -400,7 +548,7 @@ async fn statement_import_loop<Api>(
 
 		// dispatch future work as necessary.
 		for (producer, statement) in producers.into_iter().zip(statements) {
-			if let Some(sender) = table.index_to_id(statement.sender) {
+			if let Some(_sender) = table.index_to_id(statement.sender) {
 				if let Some(producer) = producer {
 					trace!(target: "validation", "driving statement work to completion");
 
@@ -414,6 +562,9 @@ async fn statement_import_loop<Api>(
 	}
 }
 
+// distribute a "local collation": this is the collation gotten by a validator
+// from a collator. it needs to be distributed to other validators in the same
+// group.
 fn distribute_local_collation(
 	instance: &ConsensusNetworkingInstance,
 	collation: Collation,

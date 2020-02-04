@@ -47,7 +47,7 @@ use parking_lot::Mutex;
 use crate::legacy::router::Router;
 use crate::legacy::gossip::{RegisteredMessageValidator, MessageValidationData};
 
-use super::{NetworkService, GossipService, PolkadotProtocol};
+use super::{NetworkService, PolkadotProtocol};
 
 pub use polkadot_validation::Incoming;
 

@@ -19,8 +19,8 @@
 //! This manages routing for parachain statements, parachain block and outgoing message
 //! data fetching, communication between collators and validators, and more.
 
-mod collator_pool;
-mod local_collations;
+pub mod collator_pool;
+pub mod local_collations;
 pub mod router;
 pub mod validation;
 pub mod gossip;

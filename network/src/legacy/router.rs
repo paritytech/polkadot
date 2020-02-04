@@ -45,7 +45,7 @@ use std::pin::Pin;
 
 use crate::legacy::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
 use crate::legacy::validation::{LeafWorkDataFetcher, Executor};
-use crate::legacy::{NetworkService, GossipService, PolkadotProtocol};
+use crate::legacy::{NetworkService, PolkadotProtocol};
 
 /// Compute the gossip topic for attestations on the given parent hash.
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
