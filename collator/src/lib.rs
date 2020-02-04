@@ -210,8 +210,8 @@ pub async fn collate<P>(
 	Ok(collation)
 }
 
-/// Run the collator node using the given `service`.
-fn run_collator_node<S, P, Extrinsic>(
+/// Build collator service
+pub fn build_collator_service<S, P, Extrinsic>(
 	service: S,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
@@ -403,7 +403,7 @@ pub fn run_collator<P>(
 	match (config.expect_chain_spec().is_kusama(), config.roles) {
 		(true, Roles::LIGHT) =>
 			sc_cli::run_service_until_exit(config, |config| {
-				run_collator_node(
+				build_collator_service(
 					service::kusama_new_light(config, Some((key.public(), para_id)))?,
 					para_id,
 					key,
@@ -412,7 +412,7 @@ pub fn run_collator<P>(
 			}),
 		(true, _) =>
 			sc_cli::run_service_until_exit(config, |config| {
-				run_collator_node(
+				build_collator_service(
 					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 					para_id,
 					key,
@@ -421,7 +421,7 @@ pub fn run_collator<P>(
 			}),
 		(false, Roles::LIGHT) =>
 			sc_cli::run_service_until_exit(config, |config| {
-				run_collator_node(
+				build_collator_service(
 					service::polkadot_new_light(config, Some((key.public(), para_id)))?,
 					para_id,
 					key,
@@ -430,7 +430,7 @@ pub fn run_collator<P>(
 			}),
 		(false, _) =>
 			sc_cli::run_service_until_exit(config, |config| {
-				run_collator_node(
+				build_collator_service(
 					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 					para_id,
 					key,
