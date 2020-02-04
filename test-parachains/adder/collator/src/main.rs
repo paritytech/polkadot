@@ -16,7 +16,6 @@
 
 //! Collator for polkadot
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -135,16 +134,6 @@ fn main() {
 		println!();
 	}
 
-	// can't use signal directly here because CtrlC takes only `Fn`.
-	let (exit_send, exit) = exit_future::signal();
-
-	let exit_send_cell = RefCell::new(Some(exit_send));
-	ctrlc::set_handler(move || {
-		if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
-			let _ = exit_send.fire();
-		}
-	}).expect("Error setting up ctrl-c handler");
-
 	let context = AdderContext {
 		db: Arc::new(Mutex::new(HashMap::new())),
 		_network: None,
@@ -156,7 +145,6 @@ fn main() {
 	let res = collator::run_collator(
 		context,
 		id,
-		exit,
 		key,
 		config,
 	);

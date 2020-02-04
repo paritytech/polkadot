@@ -371,7 +371,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		// collator connections and validation network both fulfilled by this
 		let validation_network = ValidationNetwork::new(
 			gossip_validator,
-			service.on_exit(),
+			//service.on_exit(),
 			service.client(),
 			service.spawn_task_handle(),
 		);

@@ -115,7 +115,6 @@ pub trait Network {
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],
-		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter;
 }
 
