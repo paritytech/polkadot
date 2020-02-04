@@ -288,9 +288,6 @@ async fn worker_loop<Api, Sp>(
 				let consensus_instance = consensus_instances.get(&relay_parent)
 					.expect("just inserted into map; has not been removed; qed");
 
-				// TODO [now]: feed checked statements into table.
-				// process new_leaf_actions
-
 				// glue the incoming messages, shared table, and validation
 				// work together.
 				let _ = executor.spawn(statement_import_loop(
