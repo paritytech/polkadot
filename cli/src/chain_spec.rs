@@ -65,3 +65,10 @@ impl ChainSpec {
 	}
 }
 
+/// Load the `ChainSpec` for the given `id`.
+pub fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
+	Ok(match ChainSpec::from(id) {
+		Some(spec) => Some(spec.load()?),
+		None => None,
+	})
+}

@@ -22,219 +22,23 @@
 mod chain_spec;
 #[cfg(feature = "browser")]
 mod browser;
-
-use chain_spec::ChainSpec;
-use futures::{Future, future::{select, Either}, channel::oneshot};
 #[cfg(feature = "cli")]
-use tokio::runtime::Runtime;
-use log::info;
-use structopt::StructOpt;
-use sp_api::ConstructRuntimeApi;
+mod cli;
+#[cfg(feature = "cli")]
+mod command;
 
 pub use service::{
-	AbstractService, CustomConfiguration, ProvideRuntimeApi, CoreApi, ParachainHost, IsKusama,
+	AbstractService, ProvideRuntimeApi, CoreApi, ParachainHost, IsKusama,
 	Block, self, RuntimeApiCollection, TFullClient
 };
 
-pub use sc_cli::{VersionInfo, IntoExit, NoCustom, SharedParams};
-pub use sc_cli::{display_role, error};
-
-/// Load the `ChainSpec` for the given `id`.
-pub fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
-	Ok(match ChainSpec::from(id) {
-		Some(spec) => Some(spec.load()?),
-		None => None,
-	})
-}
-
-#[derive(Debug, StructOpt, Clone)]
-enum PolkadotSubCommands {
-	#[structopt(name = "validation-worker", setting = structopt::clap::AppSettings::Hidden)]
-	ValidationWorker(ValidationWorkerCommand),
-}
-
-impl sc_cli::GetSharedParams for PolkadotSubCommands {
-	fn shared_params(&self) -> Option<&sc_cli::SharedParams> { None }
-}
-
-#[derive(Debug, StructOpt, Clone)]
-struct ValidationWorkerCommand {
-	#[structopt()]
-	pub mem_id: String,
-}
-
-#[derive(Debug, StructOpt, Clone)]
-struct PolkadotSubParams {
-	#[structopt(long = "enable-authority-discovery")]
-	pub authority_discovery_enabled: bool,
-}
-
-/// Parses polkadot specific CLI arguments and run the service.
 #[cfg(feature = "cli")]
-pub fn run<E: IntoExit>(exit: E, version: sc_cli::VersionInfo) -> error::Result<()> {
-	let cmd = sc_cli::parse_and_prepare::<PolkadotSubCommands, PolkadotSubParams, _>(
-		&version,
-		"parity-polkadot",
-		std::env::args(),
-	);
-
-	// Preload spec to select native runtime
-	let spec = match cmd.shared_params() {
-		Some(params) => Some(sc_cli::load_spec(params, &load_spec)?),
-		None => None,
-	};
-	if spec.as_ref().map_or(false, |c| c.is_kusama()) {
-		execute_cmd_with_runtime::<
-			service::kusama_runtime::RuntimeApi,
-			service::KusamaExecutor,
-			service::kusama_runtime::UncheckedExtrinsic,
-			_
-		>(exit, &version, cmd, spec)
-	} else {
-		execute_cmd_with_runtime::<
-			service::polkadot_runtime::RuntimeApi,
-			service::PolkadotExecutor,
-			service::polkadot_runtime::UncheckedExtrinsic,
-			_
-		>(exit, &version, cmd, spec)
-	}
-}
+pub use cli::*;
 
 #[cfg(feature = "cli")]
-use sp_core::Blake2Hasher;
+pub use command::*;
+
+pub use chain_spec::*;
 
 #[cfg(feature = "cli")]
-// We can't simply use `service::TLightClient` due to a
-// Rust bug: https://github.com/rust-lang/rust/issues/43580
-type TLightClient<Runtime, Dispatch> = sc_client::Client<
-	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
-	sc_client::light::call_executor::GenesisCallExecutor<
-		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
-		sc_client::LocalCallExecutor<
-			sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
-			sc_executor::NativeExecutor<Dispatch>
-		>
-	>,
-	Block,
-	Runtime
->;
-
-/// Execute the given `cmd` with the given runtime.
-#[cfg(feature = "cli")]
-fn execute_cmd_with_runtime<R, D, E, X>(
-	exit: X,
-	version: &sc_cli::VersionInfo,
-	cmd: sc_cli::ParseAndPrepare<PolkadotSubCommands, PolkadotSubParams>,
-	spec: Option<service::ChainSpec>,
-) -> error::Result<()>
-where
-	R: ConstructRuntimeApi<Block, service::TFullClient<Block, R, D>>
-		+ Send + Sync + 'static,
-	<R as ConstructRuntimeApi<Block, service::TFullClient<Block, R, D>>>::RuntimeApi:
-		RuntimeApiCollection<E, StateBackend = sc_client_api::StateBackendFor<service::TFullBackend<Block>, Block>>,
-	<R as ConstructRuntimeApi<Block, service::TLightClient<Block, R, D>>>::RuntimeApi:
-		RuntimeApiCollection<E, StateBackend = sc_client_api::StateBackendFor<service::TLightBackend<Block>, Block>>,
-	E: service::Codec + Send + Sync + 'static,
-	D: service::NativeExecutionDispatch + 'static,
-	X: IntoExit,
-	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	<<R as ConstructRuntimeApi<Block, TFullClient<Block, R, D>>>::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend:
-		sp_api::StateBackend<Blake2Hasher>,
-	// Rust bug: https://github.com/rust-lang/rust/issues/43580
-	R: ConstructRuntimeApi<
-		Block,
-		TLightClient<R, D>
-	>,
-{
-	let is_kusama = spec.as_ref().map_or(false, |s| s.is_kusama());
-	// Use preloaded spec
-	let load_spec = |_: &str| Ok(spec);
-	match cmd {
-		sc_cli::ParseAndPrepare::Run(cmd) => cmd.run(load_spec, exit,
-			|exit, _cli_args, custom_args, mut config| {
-				info!("{}", version.name);
-				info!("  version {}", config.full_version());
-				info!("  by {}, 2017-2020", version.author);
-				info!("Chain specification: {}", config.chain_spec.name());
-				info!("Native runtime: {}", D::native_version().runtime_version);
-				if is_kusama {
-					info!("----------------------------");
-					info!("This chain is not in any way");
-					info!("      endorsed by the       ");
-					info!("     KUSAMA FOUNDATION      ");
-					info!("----------------------------");
-				}
-				info!("Node name: {}", config.name);
-				info!("Roles: {}", display_role(&config));
-				config.custom = service::CustomConfiguration::default();
-				config.custom.authority_discovery_enabled = custom_args.authority_discovery_enabled;
-				let runtime = Runtime::new().map_err(|e| format!("{:?}", e))?;
-				config.tasks_executor = {
-					let runtime_handle = runtime.handle().clone();
-					Some(Box::new(move |fut| { runtime_handle.spawn(fut); }))
-				};
-				match config.roles {
-					service::Roles::LIGHT =>
-						run_until_exit(
-							runtime,
-							service::new_light::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
-							exit.into_exit(),
-						),
-					_ =>
-						run_until_exit(
-							runtime,
-							service::new_full::<R, D, E>(config).map_err(|e| format!("{:?}", e))?,
-							exit.into_exit(),
-						),
-				}.map_err(|e| format!("{:?}", e))
-			}),
-			sc_cli::ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(load_spec),
-			sc_cli::ParseAndPrepare::ExportBlocks(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
-				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec, exit),
-			sc_cli::ParseAndPrepare::ImportBlocks(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
-				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec, exit),
-			sc_cli::ParseAndPrepare::CheckBlock(cmd) => cmd.run_with_builder::<_, _, _, _, _, _, _>(|config|
-				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec, exit),
-			sc_cli::ParseAndPrepare::PurgeChain(cmd) => cmd.run(load_spec),
-			sc_cli::ParseAndPrepare::RevertChain(cmd) => cmd.run_with_builder::<_, _, _, _, _, _>(|config|
-				Ok(service::new_chain_ops::<R, D, E>(config)?), load_spec),
-			sc_cli::ParseAndPrepare::CustomCommand(PolkadotSubCommands::ValidationWorker(args)) => {
-				if cfg!(feature = "browser") {
-					Err(error::Error::Input("Cannot run validation worker in browser".into()))
-				} else {
-					#[cfg(not(feature = "browser"))]
-					service::run_validation_worker(&args.mem_id)?;
-					Ok(())
-				}
-			}
-	}
-}
-
-/// Run the given `service` using the `runtime` until it exits or `e` fires.
-#[cfg(feature = "cli")]
-pub fn run_until_exit(
-	mut runtime: Runtime,
-	service: impl AbstractService,
-	e: impl Future<Output = ()> + Send + Unpin + 'static,
-) -> error::Result<()> {
-	let (exit_send, exit) = oneshot::channel();
-
-	let informant = sc_cli::informant::build(&service);
-
-	let handle = runtime.spawn(select(exit, informant));
-
-	// we eagerly drop the service so that the internal exit future is fired,
-	// but we need to keep holding a reference to the global telemetry guard
-	let _telemetry = service.telemetry();
-
-	let service_res = runtime.block_on(select(service, e));
-
-	let _ = exit_send.send(());
-
-	runtime.block_on(handle);
-
-	match service_res {
-		Either::Left((res, _)) => res.map_err(error::Error::Service),
-		Either::Right((_, _)) => Ok(())
-	}
-}
+pub use sc_cli::{VersionInfo, error};

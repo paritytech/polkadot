@@ -14,8 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-use wasm_builder_runner::{build_current_project, WasmBuilderSource};
+use wasm_builder_runner::WasmBuilder;
 
 fn main() {
-	build_current_project("wasm_binary.rs", WasmBuilderSource::Crates("1.0.9"));
+	WasmBuilder::new()
+		.with_current_project()
+		.with_wasm_builder_from_crates("1.0.9")
+		.import_memory()
+		.export_heap_base()
+		.build()
 }
