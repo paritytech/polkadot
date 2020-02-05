@@ -18,11 +18,6 @@
 
 pub mod chain_spec;
 
-use futures::{
-	FutureExt, TryFutureExt,
-	task::{Spawn, SpawnError, FutureObj},
-	compat::Future01CompatExt,
-};
 use sc_client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
@@ -60,53 +55,13 @@ pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 
-/// Wrap a futures01 executor as a futures03 spawn.
-#[derive(Clone)]
-pub struct WrappedExecutor<T>(pub T);
-
-impl<T> Spawn for WrappedExecutor<T>
-	where T: futures01::future::Executor<Box<dyn futures01::Future<Item=(),Error=()> + Send + 'static>>
-{
-	fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
-		self.0.execute(Box::new(future.map(Ok).compat()))
-			.map_err(|_| SpawnError::shutdown())
-	}
-}
-/// Polkadot-specific configuration.
-pub struct CustomConfiguration {
-	/// Set to `Some` with a collator `CollatorId` and desired parachain
-	/// if the network protocol should be started in collator mode.
-	pub collating_for: Option<(CollatorId, parachain::Id)>,
-
-	/// Maximal `block_data` size.
-	pub max_block_data_size: Option<u64>,
-
-	/// Whether to enable or disable the authority discovery module.
-	pub authority_discovery_enabled: bool,
-
-	/// Milliseconds per block.
-	pub slot_duration: u64,
-}
-
 /// Configuration type that is being used.
 ///
 /// See [`ChainSpec`] for more information why Polkadot `GenesisConfig` is safe here.
 pub type Configuration = service::Configuration<
-	CustomConfiguration,
 	polkadot_runtime::GenesisConfig,
 	chain_spec::Extensions,
 >;
-
-impl Default for CustomConfiguration {
-	fn default() -> Self {
-		Self {
-			collating_for: None,
-			max_block_data_size: None,
-			authority_discovery_enabled: false,
-			slot_duration: 6000,
-		}
-	}
-}
 
 native_executor_instance!(
 	pub PolkadotExecutor,
@@ -190,10 +145,8 @@ macro_rules! new_full_start {
 			})?
 			.with_transaction_pool(|config, client, _fetcher| {
 				let pool_api = sc_transaction_pool::FullChainApi::new(client.clone());
-				let pool = sc_transaction_pool::BasicPool::new(config, pool_api);
-				let maintainer = sc_transaction_pool::FullBasicPoolMaintainer::new(pool.pool().clone(), client);
-				let maintainable_pool = sp_transaction_pool::MaintainableTransactionPool::new(pool, maintainer);
-				Ok(maintainable_pool)
+				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api));
+				Ok(pool)
 			})?
 			.with_import_queue(|_config, client, mut select_chain, _| {
 				let select_chain = select_chain.take()
@@ -249,7 +202,13 @@ where
 }
 
 /// Create a new Polkadot service for a full node.
-pub fn polkadot_new_full(config: Configuration)
+pub fn polkadot_new_full(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = polkadot_runtime::RuntimeApi,
@@ -259,11 +218,17 @@ pub fn polkadot_new_full(config: Configuration)
 		CallExecutor = TFullCallExecutor<Block, PolkadotExecutor>,
 	>, ServiceError>
 {
-	new_full(config)
+	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
 }
 
 /// Create a new Kusama service for a full node.
-pub fn kusama_new_full(config: Configuration)
+pub fn kusama_new_full(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = kusama_runtime::RuntimeApi,
@@ -273,11 +238,17 @@ pub fn kusama_new_full(config: Configuration)
 		CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
 	>, ServiceError>
 {
-	new_full(config)
+	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
 }
 
 /// Builds a new service for a full client.
-pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
+pub fn new_full<Runtime, Dispatch, Extrinsic>(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = Runtime,
@@ -298,10 +269,10 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	use sc_network::Event;
 	use futures::stream::StreamExt;
 
-	let is_collator = config.custom.collating_for.is_some();
+	let is_collator = collating_for.is_some();
 	let is_authority = config.roles.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
-	let max_block_data_size = config.custom.max_block_data_size;
+	let max_block_data_size = max_block_data_size;
 	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.database {
 		path.clone()
 	} else {
@@ -309,9 +280,9 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	};
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
-	let authority_discovery_enabled = config.custom.authority_discovery_enabled;
+	let authority_discovery_enabled = authority_discovery_enabled;
 	let sentry_nodes = config.network.sentry_nodes.clone();
-	let slot_duration = config.custom.slot_duration;
+	let slot_duration = slot_duration;
 
 	// sentry nodes announce themselves as authorities to the network
 	// and should run the same protocols authorities do, but it should
@@ -323,7 +294,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 	let backend = builder.backend().clone();
 
 	let service = builder
-		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
+		.with_network_protocol(|_config| Ok(PolkadotProtocol::new(collating_for.clone())))?
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
@@ -406,21 +377,21 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 			gossip_validator,
 			service.on_exit(),
 			service.client(),
-			WrappedExecutor(service.spawn_task_handle()),
+			service.spawn_task_handle(),
 		);
 
 		let (validation_service_handle, validation_service) = consensus::ServiceBuilder {
 			client: client.clone(),
 			network: validation_network.clone(),
 			collators: validation_network,
-			task_executor: Arc::new(WrappedExecutor(service.spawn_task_handle())),
+			spawner: service.spawn_task_handle(),
 			availability_store: availability_store.clone(),
 			select_chain: select_chain.clone(),
 			keystore: service.keystore(),
 			max_block_data_size,
 		}.build();
 
-		service.spawn_essential_task(Box::pin(validation_service));
+		service.spawn_essential_task("validation-service", Box::pin(validation_service));
 
 		let proposer = consensus::ProposerFactory::new(
 			client.clone(),
@@ -437,7 +408,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		let block_import = availability_store.block_import(
 			block_import,
 			client.clone(),
-			Arc::new(WrappedExecutor(service.spawn_task_handle())),
+			service.spawn_task_handle(),
 			service.keystore(),
 		)?;
 
@@ -455,7 +426,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		};
 
 		let babe = babe::start_babe(babe_config)?;
-		service.spawn_essential_task(babe);
+		service.spawn_essential_task("babe", babe);
 
 		if authority_discovery_enabled {
 			let network = service.network();
@@ -471,7 +442,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 				service.keystore(),
 				dht_event_stream,
 			);
-			service.spawn_task(authority_discovery);
+			service.spawn_task("authority-discovery", authority_discovery);
 		}
 	}
 
@@ -513,7 +484,8 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 		};
 
 		service.spawn_essential_task(
-			grandpa::run_grandpa_voter(grandpa_config)?.compat().map(drop)
+			"grandpa-voter",
+			grandpa::run_grandpa_voter(grandpa_config)?
 		);
 	} else {
 		grandpa::setup_disabled_grandpa(
@@ -527,7 +499,10 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(config: Configuration)
 }
 
 /// Create a new Polkadot service for a light client.
-pub fn polkadot_new_light(config: Configuration)
+pub fn polkadot_new_light(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = polkadot_runtime::RuntimeApi,
@@ -537,11 +512,14 @@ pub fn polkadot_new_light(config: Configuration)
 		CallExecutor = TLightCallExecutor<Block, PolkadotExecutor>,
 	>, ServiceError>
 {
-	new_light(config)
+	new_light(config, collating_for)
 }
 
 /// Create a new Kusama service for a light client.
-pub fn kusama_new_light(config: Configuration)
+pub fn kusama_new_light(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = kusama_runtime::RuntimeApi,
@@ -551,7 +529,7 @@ pub fn kusama_new_light(config: Configuration)
 		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,
 	>, ServiceError>
 {
-	new_light(config)
+	new_light(config, collating_for)
 }
 
 // We can't use service::TLightClient due to
@@ -573,7 +551,10 @@ type TLocalLightClient<Runtime, Dispatch> =  Client<
 >;
 
 /// Builds a new service for a light client.
-pub fn new_light<Runtime, Dispatch, Extrinsic>(config: Configuration)
+pub fn new_light<Runtime, Dispatch, Extrinsic>(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+)
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = Runtime,
@@ -605,10 +586,10 @@ where
 			let fetcher = fetcher
 				.ok_or_else(|| "Trying to start light transaction pool without active fetcher")?;
 			let pool_api = sc_transaction_pool::LightChainApi::new(client.clone(), fetcher.clone());
-			let pool = sc_transaction_pool::BasicPool::new(config, pool_api);
-			let maintainer = sc_transaction_pool::LightBasicPoolMaintainer::with_defaults(pool.pool().clone(), client, fetcher);
-			let maintainable_pool = sp_transaction_pool::MaintainableTransactionPool::new(pool, maintainer);
-			Ok(maintainable_pool)
+			let pool = sc_transaction_pool::BasicPool::with_revalidation_type(
+				config, Arc::new(pool_api), sc_transaction_pool::RevalidationType::Light,
+			);
+			Ok(pool)
 		})?
 		.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _| {
 			let fetch_checker = fetcher
@@ -642,7 +623,7 @@ where
 
 			Ok((import_queue, finality_proof_request_builder))
 		})?
-		.with_network_protocol(|config| Ok(PolkadotProtocol::new(config.custom.collating_for.clone())))?
+		.with_network_protocol(|_config| Ok(PolkadotProtocol::new(collating_for.clone())))?
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?

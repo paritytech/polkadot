@@ -78,7 +78,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 2,
-	spec_version: 1000,
+	spec_version: 1001,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -99,6 +99,7 @@ pub fn native_version() -> NativeVersion {
 #[derive(Default, Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug)]
 pub struct OnlyStakingAndClaims;
 impl SignedExtension for OnlyStakingAndClaims {
+	const IDENTIFIER: &'static str = "OnlyStakingAndClaims";
 	type AccountId = AccountId;
 	type Call = Call;
 	type AdditionalSigned = ();
@@ -724,6 +725,12 @@ sp_api::impl_runtime_apis! {
 	impl sp_session::SessionKeys<Block> for Runtime {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
 			SessionKeys::generate(seed)
+		}
+
+		fn decode_session_keys(
+			encoded: Vec<u8>,
+		) -> Option<Vec<(Vec<u8>, sp_core::crypto::KeyTypeId)>> {
+			SessionKeys::decode_into_raw_public_keys(&encoded)
 		}
 	}
 

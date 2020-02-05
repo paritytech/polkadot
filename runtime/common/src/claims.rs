@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
-use frame_support::{decl_event, decl_storage, decl_module};
+use frame_support::{decl_event, decl_storage, decl_module, decl_error};
 use frame_support::weights::SimpleDispatchInfo;
 use frame_support::traits::{Currency, Get, VestingCurrency};
 use system::{ensure_root, ensure_none};
@@ -102,6 +102,15 @@ decl_event!(
 	}
 );
 
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// Invalid Ethereum signature.
+		InvalidEthereumSignature,
+		/// Ethereum address has no claim.
+		SignerHasNoClaim,
+	}
+}
+
 decl_storage! {
 	// A macro for the Storage trait, and its implementation, for this module.
 	// This allows for type-safe usage of the Substrate storage database, so you can
@@ -109,7 +118,7 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Claims {
 		Claims get(claims) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>()
-		}): map EthereumAddress => Option<BalanceOf<T>>;
+		}): map hasher(blake2_256) EthereumAddress => Option<BalanceOf<T>>;
 		Total get(total) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().fold(Zero::zero(), |acc: BalanceOf<T>, &(_, n)| acc + n)
 		}): BalanceOf<T>;
@@ -117,7 +126,9 @@ decl_storage! {
 		/// First balance is the total amount that should be held for vesting.
 		/// Second balance is how much should be unlocked per block.
 		/// The block number is when the vesting should start.
-		Vesting get(vesting) config(): map EthereumAddress => Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
+		Vesting get(vesting) config():
+			map hasher(blake2_256) EthereumAddress
+			=> Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
 	}
 	add_extra_genesis {
 		config(claims): Vec<(EthereumAddress, BalanceOf<T>)>;
@@ -126,6 +137,8 @@ decl_storage! {
 
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+		type Error = Error<T>;
+
 		/// The Prefix that is used in signed Ethereum messages for this network
 		const Prefix: &[u8] = T::Prefix::get();
 
@@ -139,10 +152,10 @@ decl_module! {
 
 			let data = dest.using_encoded(to_ascii_hex);
 			let signer = Self::eth_recover(&ethereum_signature, &data)
-				.ok_or("Invalid Ethereum signature")?;
+				.ok_or(Error::<T>::InvalidEthereumSignature)?;
 
 			let balance_due = <Claims<T>>::get(&signer)
-				.ok_or("Ethereum address has no claim")?;
+				.ok_or(Error::<T>::SignerHasNoClaim)?;
 
 			// Check if this claim should have a vesting schedule.
 			if let Some(vs) = <Vesting<T>>::get(&signer) {
@@ -167,7 +180,7 @@ decl_module! {
 		}
 
 		/// Add a new claim, if you are root.
-		#[weight = SimpleDispatchInfo::FreeOperational]
+		#[weight = SimpleDispatchInfo::FixedNormal(30_000)]
 		fn mint_claim(origin,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
@@ -415,7 +428,7 @@ mod tests {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
-				"Ethereum address has no claim"
+				Error::<Test>::SignerHasNoClaim
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
@@ -434,7 +447,7 @@ mod tests {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
-				"Ethereum address has no claim"
+				Error::<Test>::SignerHasNoClaim
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
@@ -459,7 +472,10 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
-			assert_noop!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())), "Ethereum address has no claim");
+			assert_noop!(
+				Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())),
+				Error::<Test>::SignerHasNoClaim
+			);
 		});
 	}
 
@@ -467,7 +483,10 @@ mod tests {
 	fn non_sender_sig_doesnt_work() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_noop!(Claims::claim(Origin::NONE, 42, sig(&alice(), &69u64.encode())), "Ethereum address has no claim");
+			assert_noop!(
+				Claims::claim(Origin::NONE, 42, sig(&alice(), &69u64.encode())),
+				Error::<Test>::SignerHasNoClaim
+			);
 		});
 	}
 
@@ -475,7 +494,10 @@ mod tests {
 	fn non_claimant_doesnt_work() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(&42), 0);
-			assert_noop!(Claims::claim(Origin::NONE, 42, sig(&bob(), &69u64.encode())), "Ethereum address has no claim");
+			assert_noop!(
+				Claims::claim(Origin::NONE, 42, sig(&bob(), &69u64.encode())),
+				Error::<Test>::SignerHasNoClaim
+			);
 		});
 	}
 

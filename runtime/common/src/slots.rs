@@ -25,7 +25,7 @@ use sp_runtime::traits::{
 use frame_support::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode, Codec};
 use frame_support::{
-	decl_module, decl_storage, decl_event, ensure, dispatch::DispatchResult,
+	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
 };
 use primitives::parachain::{
@@ -146,7 +146,7 @@ decl_storage! {
 		/// If a parachain doesn't exist *yet* but is scheduled to exist in the future, then it
 		/// will be left-padded with one or more zeroes to denote the fact that nothing is held on
 		/// deposit for the non-existent chain currently, but is held at some point in the future.
-		pub Deposits get(deposits): map ParaId => Vec<BalanceOf<T>>;
+		pub Deposits get(deposits): map hasher(blake2_256) ParaId => Vec<BalanceOf<T>>;
 
 		/// Information relating to the current auction, if there is one.
 		///
@@ -158,26 +158,28 @@ decl_storage! {
 		/// The winning bids for each of the 10 ranges at each block in the final Ending Period of
 		/// the current auction. The map's key is the 0-based index into the Ending Period. The
 		/// first block of the ending period is 0; the last is `EndingPeriod - 1`.
-		pub Winning get(winning): map T::BlockNumber => Option<WinningData<T>>;
+		pub Winning get(winning): map hasher(blake2_256) T::BlockNumber => Option<WinningData<T>>;
 
 		/// Amounts currently reserved in the accounts of the bidders currently winning
 		/// (sub-)ranges.
-		pub ReservedAmounts get(reserved_amounts): map Bidder<T::AccountId> => Option<BalanceOf<T>>;
+		pub ReservedAmounts get(reserved_amounts):
+			map hasher(blake2_256) Bidder<T::AccountId> => Option<BalanceOf<T>>;
 
 		/// The set of Para IDs that have won and need to be on-boarded at an upcoming lease-period.
 		/// This is cleared out on the first block of the lease period.
-		pub OnboardQueue get(onboard_queue): map LeasePeriodOf<T> => Vec<ParaId>;
+		pub OnboardQueue get(onboard_queue): map hasher(blake2_256) LeasePeriodOf<T> => Vec<ParaId>;
 
 		/// The actual on-boarding information. Only exists when one of the following is true:
 		/// - It is before the lease period that the parachain should be on-boarded.
 		/// - The full on-boarding information has not yet been provided and the parachain is not
 		/// yet due to be off-boarded.
-		pub Onboarding get(onboarding): map ParaId =>
+		pub Onboarding get(onboarding):
+			map hasher(blake2_256) ParaId =>
 			Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId, T::Hash>)>;
 
 		/// Off-boarding account; currency held on deposit for the parachain gets placed here if the
 		/// parachain gets off-boarded; i.e. its lease period is up and it isn't renewed.
-		pub Offboarding get(offboarding): map ParaId => T::AccountId;
+		pub Offboarding get(offboarding): map hasher(blake2_256) ParaId => T::AccountId;
 	}
 }
 
@@ -224,8 +226,37 @@ decl_event!(
 	}
 );
 
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// This auction is already in progress.
+		AuctionInProgress,
+		/// The lease period is in the past.
+		LeasePeriodInPast,
+		/// The origin for this call must be a parachain.
+		NotParaOrigin,
+		/// The parachain ID is not onboarding.
+		ParaNotOnboarding,
+		/// The origin for this call must be the origin who registered the parachain.
+		InvalidOrigin,
+		/// Parachain is already registered.
+		AlreadyRegistered,
+		/// The code must correspond to the hash.
+		InvalidCode,
+		/// Deployment data has not been set for this parachain.
+		UnsetDeployData,
+		/// The bid must overlap all intersecting ranges.
+		NonIntersectingRange,
+		/// Not a current auction.
+		NotCurrentAuction,
+		/// Not an auction.
+		NotAuction,
+	}
+}
+
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+		type Error = Error<T>;
+
 		fn deposit_event() = default;
 
 		fn on_initialize(n: T::BlockNumber) {
@@ -274,8 +305,8 @@ decl_module! {
 			#[compact] lease_period_index: LeasePeriodOf<T>
 		) {
 			ensure_root(origin)?;
-			ensure!(!Self::is_in_progress(), "auction already in progress");
-			ensure!(lease_period_index >= Self::lease_period_index(), "lease period in past");
+			ensure!(!Self::is_in_progress(), Error::<T>::AuctionInProgress);
+			ensure!(lease_period_index >= Self::lease_period_index(), Error::<T>::LeasePeriodInPast);
 
 			// Bump the counter.
 			let n = <AuctionCounter>::mutate(|n| { *n += 1; *n });
@@ -340,7 +371,7 @@ decl_module! {
 		) {
 			let who = ensure_signed(origin)?;
 			let para_id = <ParaId>::try_from_account(&who)
-				.ok_or("account is not a parachain")?;
+				.ok_or(Error::<T>::NotParaOrigin)?;
 			let bidder = Bidder::Existing(para_id);
 			Self::handle_bid(bidder, auction_index, first_slot, last_slot, amount)?;
 		}
@@ -355,7 +386,7 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 			let dest = T::Lookup::lookup(dest)?;
 			let para_id = <ParaId>::try_from_account(&who)
-				.ok_or("not a parachain origin")?;
+				.ok_or(Error::<T>::NotParaOrigin)?;
 			<Offboarding<T>>::insert(para_id, dest);
 		}
 
@@ -375,11 +406,11 @@ decl_module! {
 		) {
 			let who = ensure_signed(origin)?;
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
-				.ok_or("parachain id not in onboarding")?;
+				.ok_or(Error::<T>::ParaNotOnboarding)?;
 			if let IncomingParachain::Unset(ref nb) = details {
-				ensure!(nb.who == who && nb.sub == sub, "parachain not registered by origin");
+				ensure!(nb.who == who && nb.sub == sub, Error::<T>::InvalidOrigin);
 			} else {
-				Err("already registered")?
+				Err(Error::<T>::AlreadyRegistered)?
 			}
 			let item = (starts, IncomingParachain::Fixed{code_hash, initial_head_data});
 			<Onboarding<T>>::insert(&para_id, item);
@@ -400,9 +431,9 @@ decl_module! {
 		#[weight = SimpleDispatchInfo::FixedNormal(5_000_000)]
 		pub fn elaborate_deploy_data(_origin, #[compact] para_id: ParaId, code: Vec<u8>) -> DispatchResult {
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
-				.ok_or("parachain id not in onboarding")?;
+				.ok_or(Error::<T>::ParaNotOnboarding)?;
 			if let IncomingParachain::Fixed{code_hash, initial_head_data} = details {
-				ensure!(<T as system::Trait>::Hashing::hash(&code) == code_hash, "code not doesn't correspond to hash");
+				ensure!(<T as system::Trait>::Hashing::hash(&code) == code_hash, Error::<T>::InvalidCode);
 				if starts > Self::lease_period_index() {
 					// Hasn't yet begun. Replace the on-boarding entry with the new information.
 					let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
@@ -417,7 +448,7 @@ decl_module! {
 
 				Ok(())
 			} else {
-				Err("deploy data not yet fixed".into())
+				Err(Error::<T>::UnsetDeployData)?
 			}
 		}
 	}
@@ -684,9 +715,9 @@ impl<T: Trait> Module<T> {
 		amount: BalanceOf<T>
 	) -> DispatchResult {
 		// Bidding on latest auction.
-		ensure!(auction_index == <AuctionCounter>::get(), "not current auction");
+		ensure!(auction_index == <AuctionCounter>::get(), Error::<T>::NotCurrentAuction);
 		// Assume it's actually an auction (this should never fail because of above).
-		let (first_lease_period, _) = <AuctionInfo<T>>::get().ok_or("not an auction")?;
+		let (first_lease_period, _) = <AuctionInfo<T>>::get().ok_or(Error::<T>::NotAuction)?;
 
 		// Our range.
 		let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
@@ -708,7 +739,7 @@ impl<T: Trait> Module<T> {
 						.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
 					)
 				)),
-				"bidder winning non-intersecting range",
+				Error::<T>::NonIntersectingRange,
 			);
 
 			// Ok; we are the new winner of this range - reserve the additional amount and record.
@@ -1205,7 +1236,7 @@ mod tests {
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 2, 1));
 			assert_noop!(
 				Slots::bid(Origin::signed(1), 0, 1, 3, 3, 1),
-				"bidder winning non-intersecting range"
+				Error::<Test>::NonIntersectingRange
 			);
 		});
 	}

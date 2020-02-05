@@ -150,12 +150,15 @@ fn main() {
 		_network: None,
 	};
 
+	let mut config = Configuration::default();
+	config.chain_spec = load_spec("dev").unwrap();
+
 	let res = collator::run_collator(
 		context,
 		id,
 		exit,
 		key,
-		Configuration::default_with_spec_and_base_path(load_spec("dev").unwrap().unwrap(), None),
+		config,
 	);
 
 	if let Err(e) = res {

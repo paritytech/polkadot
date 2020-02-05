@@ -21,7 +21,9 @@
 
 use rstd::prelude::*;
 use codec::{Encode, Decode};
-use frame_support::{decl_storage, decl_module, ensure, dispatch::DispatchResult, traits::Get};
+use frame_support::{
+	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, traits::Get
+};
 
 use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};
 use sp_runtime::RuntimeDebug;
@@ -96,23 +98,34 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Attestations {
 		/// A mapping from modular block number (n % AttestationPeriod)
 		/// to session index and the list of candidate hashes.
-		pub RecentParaBlocks: map T::BlockNumber => Option<IncludedBlocks<T>>;
+		pub RecentParaBlocks: map hasher(blake2_256) T::BlockNumber => Option<IncludedBlocks<T>>;
 
 		/// Attestations on a recent parachain block.
-		pub ParaBlockAttestations: double_map T::BlockNumber, hasher(blake2_128) Hash => Option<BlockAttestations<T>>;
+		pub ParaBlockAttestations:
+			double_map hasher(blake2_256) T::BlockNumber, hasher(blake2_128) Hash
+			=> Option<BlockAttestations<T>>;
 
 		// Did we already have more attestations included in this block?
 		DidUpdate: bool;
 	}
 }
 
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// More attestations can be added only once in a block.
+		TooManyAttestations,
+	}
+}
+
 decl_module! {
 	/// Parachain-attestations module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+		type Error = Error<T>;
+
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn more_attestations(origin, _more: MoreAttestations) -> DispatchResult {
 			ensure_none(origin)?;
-			ensure!(!<DidUpdate>::exists(), "More attestations can be added only once in a block.");
+			ensure!(!<DidUpdate>::exists(), Error::<T>::TooManyAttestations);
 			<DidUpdate>::put(true);
 
 			Ok(())

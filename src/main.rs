@@ -19,29 +19,6 @@
 #![warn(missing_docs)]
 
 use cli::VersionInfo;
-use futures::{channel::oneshot, future, FutureExt};
-
-use std::cell::RefCell;
-
-// the regular polkadot worker simply does nothing until ctrl-c
-struct Exit;
-impl cli::IntoExit for Exit {
-	type Exit = future::Map<oneshot::Receiver<()>, fn(Result<(), oneshot::Canceled>) -> ()>;
-	fn into_exit(self) -> Self::Exit {
-		// can't use signal directly here because CtrlC takes only `Fn`.
-		let (exit_send, exit) = oneshot::channel();
-
-		let exit_send_cell = RefCell::new(Some(exit_send));
-		#[cfg(not(target_os = "unknown"))]
-		ctrlc::set_handler(move || {
-			if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
-				exit_send.send(()).expect("Error sending exit notification");
-			}
-		}).expect("Error setting Ctrl-C handler");
-
-		exit.map(drop)
-	}
-}
 
 fn main() -> Result<(), cli::error::Error> {
 	let version = VersionInfo {
@@ -52,7 +29,8 @@ fn main() -> Result<(), cli::error::Error> {
 		author: "Parity Team <admin@parity.io>",
 		description: "Polkadot Relay-chain Client Node",
 		support_url: "https://github.com/paritytech/polkadot/issues/new",
+		copyright_start_year: 2017,
 	};
 
-	cli::run(Exit, version)
+	cli::run(version)
 }

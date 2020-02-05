@@ -62,7 +62,7 @@ use polkadot_primitives::{
 	}
 };
 use polkadot_cli::{
-	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama, WrappedExecutor,
+	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
 	service::{self, Roles, SelectChain}
 };
 use polkadot_network::legacy::validation::{LeafWorkParams, ValidationNetwork};
@@ -307,8 +307,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 		Extrinsic: service::Codec + Send + Sync + 'static,
 {
-	let runtime = tokio::runtime::Runtime::new().map_err(|e| format!("{:?}", e))?;
-	let spawner = WrappedExecutor(service.spawn_task_handle());
+	let spawner = service.spawn_task_handle();
 
 	let client = service.client();
 	let network = service.network();
@@ -427,7 +426,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 						);
 
 						let exit = inner_exit_2.clone();
-						tokio::spawn(future::select(res.boxed(), exit).map(drop).map(|_| Ok(())).compat());
+						tokio::spawn(future::select(res.boxed(), exit));
 					});
 				}
 				future::ok(())
@@ -450,13 +449,14 @@ fn run_collator_node<S, E, P, Extrinsic>(
 					inner_exit.clone()
 				).map(drop);
 
-			tokio::spawn(future.map(|_| Ok(())).compat());
+			tokio::spawn(future);
 		}
 	}.boxed();
 
-	service.spawn_essential_task(work);
+	service.spawn_essential_task("collation", work);
 
-	polkadot_cli::run_until_exit(runtime, service, exit)
+	// NOTE: this is not ideal as we should only provide the service
+	sc_cli::run_service_until_exit(Configuration::default(), |_config| Ok(service))
 }
 
 fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRoster) -> HashSet<ValidatorId> {
@@ -469,11 +469,6 @@ fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRo
 		.collect()
 }
 
-/// Set the `collating_for` parameter of the configuration.
-fn prepare_config(config: &mut Configuration, para_id: ParaId, key: &Arc<CollatorPair>) {
-	config.custom.collating_for = Some((key.public(), para_id));
-}
-
 /// Run a collator node with the given `RelayChainContext` and `ParachainContext`
 /// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
@@ -484,24 +479,46 @@ pub fn run_collator<P, E>(
 	para_id: ParaId,
 	exit: E,
 	key: Arc<CollatorPair>,
-	mut config: Configuration,
+	config: Configuration,
 ) -> polkadot_cli::error::Result<()> where
 	P: BuildParachainContext,
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 	E: futures::Future<Output = ()> + Unpin + Send + Clone + Sync + 'static,
 {
-	prepare_config(&mut config, para_id, &key);
-
-	match (config.chain_spec.is_kusama(), config.roles) {
+	match (config.expect_chain_spec().is_kusama(), config.roles) {
 		(true, Roles::LIGHT) =>
-			run_collator_node(service::kusama_new_light(config)?, exit, para_id, key, build_parachain_context),
+			run_collator_node(
+				service::kusama_new_light(config, Some((key.public(), para_id)))?,
+				exit,
+				para_id,
+				key,
+				build_parachain_context,
+			),
 		(true, _) =>
-			run_collator_node(service::kusama_new_full(config)?, exit, para_id, key, build_parachain_context),
+			run_collator_node(
+				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+				exit,
+				para_id,
+				key,
+				build_parachain_context,
+			),
 		(false, Roles::LIGHT) =>
-			run_collator_node(service::polkadot_new_light(config)?, exit, para_id, key, build_parachain_context),
+			run_collator_node(
+				service::polkadot_new_light(config, Some((key.public(), para_id)))?,
+				exit,
+				para_id,
+				key,
+				build_parachain_context,
+			),
 		(false, _) =>
-			run_collator_node(service::polkadot_new_full(config)?, exit, para_id, key, build_parachain_context),
+			run_collator_node(
+				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+				exit,
+				para_id,
+				key,
+				build_parachain_context,
+			),
 	}
 }
 

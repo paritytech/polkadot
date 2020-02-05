@@ -37,12 +37,12 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, ParachainHost, ValidatorId,
 	ValidatorPair, AvailableMessages, BlockData, ErasureChunk,
 };
-use futures::{prelude::*, future::select, channel::{mpsc, oneshot}, task::SpawnExt};
+use futures::{prelude::*, future::select, channel::{mpsc, oneshot}, task::{Spawn, SpawnExt}};
 use keystore::KeyStorePtr;
 
 use tokio::runtime::{Handle, Runtime as LocalRuntime};
 
-use crate::{LOG_TARGET, Data, TaskExecutor, ProvideGossipMessages, erasure_coding_topic};
+use crate::{LOG_TARGET, Data, ProvideGossipMessages, erasure_coding_topic};
 use crate::store::Store;
 
 /// Errors that may occur.
@@ -747,7 +747,7 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 		availability_store: Store,
 		client: Arc<P>,
 		block_import: I,
-		thread_pool: TaskExecutor,
+		spawner: impl Spawn,
 		keystore: KeyStorePtr,
 		to_worker: mpsc::UnboundedSender<WorkerMsg>,
 	) -> Self
@@ -771,7 +771,7 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 			exit.clone()
 		).map(drop);
 
-		if let Err(_) = thread_pool.spawn(Box::new(prune_available)) {
+		if let Err(_) = spawner.spawn(prune_available) {
 			error!(target: LOG_TARGET, "Failed to spawn availability pruning task");
 			exit_signal = None;
 		}

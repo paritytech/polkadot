@@ -155,7 +155,7 @@ pub fn start<C, Api, SP>(
 
 					worker_sender.send(ServiceToWorkerMsg::PeerConnected(remote, roles)).await
 				},
-				Event::NotificationsStreamClosed {
+				Event::NotificationStreamClosed {
 					remote,
 					engine_id,
 				} => {

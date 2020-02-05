@@ -60,6 +60,10 @@ pub fn kusama_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_json_bytes(&include_bytes!("../res/kusama.json")[..])
 }
 
+pub fn westend_config() -> Result<ChainSpec, String> {
+	ChainSpec::from_json_bytes(&include_bytes!("../res/westend.json")[..])
+}
+
 fn session_keys(
 	babe: BabeId,
 	grandpa: GrandpaId,
