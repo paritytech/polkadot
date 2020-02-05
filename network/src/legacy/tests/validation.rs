@@ -23,7 +23,7 @@ use sc_network::{Context as NetContext, PeerId};
 use sc_network_gossip::TopicNotification;
 use sp_core::{NativeOrEncoded, ExecutionContext};
 use sp_keyring::Sr25519Keyring;
-use crate::legacy::{PolkadotProtocol, NetworkService, GossipMessageStream};
+use crate::legacy::{PolkadotProtocol, NetworkService, GossipService, GossipMessageStream};
 
 use polkadot_validation::{SharedTable, Network};
 use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
@@ -119,6 +119,18 @@ struct TestNetwork {
 }
 
 impl NetworkService for TestNetwork {
+	fn with_spec<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn NetContext<Block>)
+	{
+		let mut context = TestContext::default();
+		let res = with(&mut *self.proto.lock(), &mut context);
+		// TODO: send context to worker for message routing.
+		// https://github.com/paritytech/polkadot/issues/215
+		res
+	}
+}
+
+impl GossipService for TestNetwork {
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
@@ -132,16 +144,6 @@ impl NetworkService for TestNetwork {
 	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
 		let notification = TopicNotification { message: message.encode(), sender: None };
 		let _ = self.gossip.send_message.unbounded_send((topic, notification));
-	}
-
-	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut dyn NetContext<Block>)
-	{
-		let mut context = TestContext::default();
-		let res = with(&mut *self.proto.lock(), &mut context);
-		// TODO: send context to worker for message routing.
-		// https://github.com/paritytech/polkadot/issues/215
-		res
 	}
 }
 
