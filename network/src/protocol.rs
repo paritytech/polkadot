@@ -105,6 +105,7 @@ pub struct Service {
 /// will retain the protocols that were registered then, and not any new one.
 pub fn start<C, Api, SP>(
 	service: Arc<PolkadotNetworkService>,
+	config: Config,
 	availability_store: AvailabilityStore,
 	chain_context: C,
 	api: Arc<Api>,
@@ -126,6 +127,7 @@ pub fn start<C, Api, SP>(
 		&executor,
 	);
 	executor.spawn(worker_loop(
+		config,
 		service.clone(),
 		availability_store,
 		gossip_validator,
@@ -283,9 +285,12 @@ struct ConsensusNetworkingInstance {
 
 type RegisteredMessageValidator = crate::legacy::gossip::RegisteredMessageValidator<crate::PolkadotProtocol>;
 
+/// Protocol configuration.
 #[derive(Default)]
-struct Config {
-	collating_for: Option<(CollatorId, ParaId)>,
+pub struct Config {
+	/// Which collator-id to use when collating, and on which parachain.
+	/// `None` if not collating.
+	pub collating_for: Option<(CollatorId, ParaId)>,
 }
 
 struct ProtocolHandler {
@@ -556,6 +561,7 @@ impl ProtocolHandler {
 }
 
 async fn worker_loop<Api, Sp>(
+	config: Config,
 	service: Arc<PolkadotNetworkService>,
 	availability_store: AvailabilityStore,
 	gossip_handle: RegisteredMessageValidator,
@@ -570,8 +576,7 @@ async fn worker_loop<Api, Sp>(
 {
 	const COLLECT_GARBAGE_INTERVAL: Duration = Duration::from_secs(29);
 
-	// TODO [now] config
-	let mut protocol_handler = ProtocolHandler::new(service, Default::default());
+	let mut protocol_handler = ProtocolHandler::new(service, config);
 	let mut consensus_instances = HashMap::new();
 	let mut local_keys = RecentValidatorIds::default();
 
