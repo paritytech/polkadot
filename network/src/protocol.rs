@@ -241,14 +241,6 @@ impl CollatorState {
 			*self = CollatorState::RolePending(role);
 		}
 	}
-
-	fn role(&self) -> Option<CollatorRole> {
-		match *self {
-			CollatorState::Fresh => None,
-			CollatorState::RolePending(role) => Some(role),
-			CollatorState::Primed(role) => role,
-		}
-	}
 }
 
 enum ProtocolState {
@@ -408,7 +400,16 @@ impl ProtocolHandler {
 
 					// we only care about the first connection from this collator.
 					if !collator_attached {
-						let role = self.collators.on_new_collator(collator_id, para_id, remote);
+						let role = self.collators
+							.on_new_collator(collator_id, para_id, remote.clone());
+						let service = &self.service;
+						if let Some(c_state) = peer.collator_state_mut() {
+							c_state.set_role(role, |msg| service.write_notification(
+								remote.clone(),
+								POLKADOT_ENGINE_ID,
+								msg.encode(),
+							));
+						}
 					}
 				}
 			}
