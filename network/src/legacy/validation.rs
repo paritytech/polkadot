@@ -398,7 +398,7 @@ impl RecentValidatorIds {
 		InsertedRecentKey::New(old)
 	}
 
-	/// As a slice.
+	/// As a slice. Most recent is last.
 	pub(crate) fn as_slice(&self) -> &[ValidatorId] {
 		&*self.inner
 	}

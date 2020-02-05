@@ -39,6 +39,12 @@ pub struct LocalCollations<C> {
 	local_collations: HashMap<Hash, LocalCollation<C>>,
 }
 
+impl<C: Clone> Default for LocalCollations<C> {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 impl<C: Clone> LocalCollations<C> {
 	/// Create a new `LocalCollations` tracker.
 	pub fn new() -> Self {
