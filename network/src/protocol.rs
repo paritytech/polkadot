@@ -669,8 +669,9 @@ async fn worker_loop<Api, Sp>(
 					&gossip_handle,
 				);
 			}
-			ServiceToWorkerMsg::FetchPoVBlock(relay_parent, candidate, sender) => {
-				// TODO [now]: create a filter on gossip for it and send to sender.
+			ServiceToWorkerMsg::FetchPoVBlock(_relay_parent, _candidate, _sender) => {
+				// TODO https://github.com/paritytech/polkadot/issues/742:
+				// create a filter on gossip for it and send to sender.
 			}
 			ServiceToWorkerMsg::AwaitCollation(relay_parent, para_id, sender) => {
 				debug!(target: "p_net", "Attempting to get collation for parachain {:?} on relay parent {:?}", para_id, relay_parent);
