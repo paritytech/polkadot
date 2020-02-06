@@ -25,9 +25,7 @@ use sp_core::Pair;
 use codec::{Encode, Decode};
 use primitives::{
 	Hash,
-	parachain::{
-		HeadData, BlockData, Id as ParaId, Message, OutgoingMessages, Status as ParachainStatus,
-	},
+	parachain::{HeadData, BlockData, Id as ParaId, Status as ParachainStatus},
 };
 use collator::{
 	InvalidHead, ParachainContext, Network, BuildParachainContext, load_spec, Configuration,
@@ -58,7 +56,7 @@ struct AdderContext {
 
 /// The parachain context.
 impl ParachainContext for AdderContext {
-	type ProduceCandidate = Ready<Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>>;
+	type ProduceCandidate = Ready<Result<(BlockData, HeadData), InvalidHead>>;
 
 	fn produce_candidate(
 		&mut self,
@@ -96,7 +94,7 @@ impl ParachainContext for AdderContext {
 			next_head.number, next_body.state.overflowing_add(next_body.add).0);
 
 		db.insert(next_head.clone(), next_body);
-		ok((encoded_body, encoded_head, OutgoingMessages { outgoing_messages: Vec::new() }))
+		ok((encoded_body, encoded_head))
 	}
 }
 
