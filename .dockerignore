@@ -1,2 +1,5 @@
 doc
 **/target
+docker/
+**/*.md
+**/*.txt
