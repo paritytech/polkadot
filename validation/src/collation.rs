@@ -148,6 +148,10 @@ pub enum Error {
 	/// Candidate block collation info doesn't match candidate receipt.
 	#[display(fmt = "Got receipt mismatch for candidate {:?}", candidate)]
 	CandidateReceiptMismatch { candidate: Hash },
+	/// The parent header given in the candidate did not match current relay-chain
+	/// state.
+	#[display(fmt = "Got unexpected parachain parent.")]
+	ParentMismatch { expected: HeadData, got: HeadData },
 }
 
 impl std::error::Error for Error {
@@ -560,6 +564,13 @@ pub fn validate_receipt<P>(
 		&receipt.egress_queue_roots,
 		&receipt.upward_messages,
 	)?;
+
+	if parent_head != receipt.parent_head {
+		return Err(Error::ParentMismatch {
+			expected: receipt.parent_head.clone(),
+			got: parent_head,
+		});
+	}
 
 	let api = client.runtime_api();
 	let validators = api.validators(&relay_parent)?;
