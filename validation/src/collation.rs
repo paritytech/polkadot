@@ -68,7 +68,7 @@ pub async fn collation_fetch<C: Collators, P>(
 	collators: C,
 	client: Arc<P>,
 	max_block_data_size: Option<u64>,
-) -> Result<(Collation, OutgoingMessages, Balance),C::Error>
+) -> Result<(Collation, OutgoingMessages, HeadData, Balance),C::Error>
 	where
 		P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 		C: Collators + Unpin,
@@ -89,8 +89,8 @@ pub async fn collation_fetch<C: Collators, P>(
 		);
 
 		match res {
-			Ok((messages, fees)) => {
-				return Ok((collation, messages, fees))
+			Ok((messages, parent_head, fees)) => {
+				return Ok((collation, messages, parent_head, fees))
 			}
 			Err(e) => {
 				debug!("Failed to validate parachain due to API error: {}", e);
@@ -406,7 +406,7 @@ pub fn validate_incoming(
 // A utility function that implements most of the collation validation logic.
 //
 // Reused by `validate_collation` and `validate_receipt`.
-// Returns outgoing messages and fees charged for later reuse.
+// Returns outgoing messages, parent nead data, and fees charged for later reuse.
 fn do_validation<P>(
 	client: &P,
 	relay_parent: &BlockId,
@@ -417,7 +417,7 @@ fn do_validation<P>(
 	head_data: &HeadData,
 	queue_roots: &Vec<(ParaId, Hash)>,
 	upward_messages: &Vec<UpwardMessage>,
-) -> Result<(OutgoingMessages, Balance), Error> where
+) -> Result<(OutgoingMessages, HeadData, Balance), Error> where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
@@ -443,7 +443,7 @@ fn do_validation<P>(
 	validate_incoming(&roots, &pov_block.ingress)?;
 
 	let params = ValidationParams {
-		parent_head: chain_status.head_data.0,
+		parent_head: chain_status.head_data.0.clone(),
 		block_data: pov_block.block_data.0.clone(),
 		ingress: pov_block.ingress.0.iter()
 			.flat_map(|&(source, ref messages)| {
@@ -471,7 +471,7 @@ fn do_validation<P>(
 					fees_charged
 				)?;
 
-				Ok((messages, fees))
+				Ok((messages, chain_status.head_data, fees))
 			} else {
 				Err(Error::WrongHeadData {
 					expected: head_data.0.clone(),
@@ -491,6 +491,7 @@ fn do_validation<P>(
 /// encoding's root returning both for re-use.
 pub fn produce_receipt_and_chunks(
 	n_validators: usize,
+	parent_head: HeadData,
 	pov: &PoVBlock,
 	messages: &OutgoingMessages,
 	fees: Balance,
@@ -523,6 +524,7 @@ pub fn produce_receipt_and_chunks(
 		collator: info.collator.clone(),
 		signature: info.signature.clone(),
 		head_data: info.head_data.clone(),
+		parent_head,
 		egress_queue_roots: info.egress_queue_roots.clone(),
 		fees,
 		block_data_hash: info.block_data_hash.clone(),
@@ -547,7 +549,7 @@ pub fn validate_receipt<P>(
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
-	let (messages, _fees) = do_validation(
+	let (messages, parent_head, _fees) = do_validation(
 		client,
 		relay_parent,
 		pov_block,
@@ -565,6 +567,7 @@ pub fn validate_receipt<P>(
 
 	let (validated_receipt, chunks) = produce_receipt_and_chunks(
 		n_validators,
+		parent_head,
 		pov_block,
 		&messages,
 		receipt.fees,
@@ -582,6 +585,7 @@ pub fn validate_receipt<P>(
 }
 
 /// Check whether a given collation is valid. Returns `Ok` on success, error otherwise.
+/// Returns outgoing messages, parent head-data, and fees.
 ///
 /// This assumes that basic validity checks have been done:
 ///   - Block data hash is the same as linked in collation info.
@@ -590,7 +594,7 @@ pub fn validate_collation<P>(
 	relay_parent: &BlockId,
 	collation: &Collation,
 	max_block_data_size: Option<u64>,
-) -> Result<(OutgoingMessages, Balance), Error> where
+) -> Result<(OutgoingMessages, HeadData, Balance), Error> where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
@@ -698,6 +702,7 @@ mod tests {
 			collator: Default::default(),
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
+			parent_head: HeadData(Vec::new()),
 			egress_queue_roots: Vec::new(),
 			fees: 0,
 			block_data_hash: Default::default(),
@@ -717,6 +722,7 @@ mod tests {
 			collator: Default::default(),
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
+			parent_head: HeadData(Vec::new()),
 			egress_queue_roots: Vec::new(),
 			fees: 0,
 			block_data_hash: Default::default(),
@@ -735,6 +741,7 @@ mod tests {
 			collator: Default::default(),
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
+			parent_head: HeadData(Vec::new()),
 			egress_queue_roots: Vec::new(),
 			fees: 0,
 			block_data_hash: Default::default(),
@@ -753,6 +760,7 @@ mod tests {
 			collator: Default::default(),
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
+			parent_head: HeadData(Vec::new()),
 			egress_queue_roots: Vec::new(),
 			fees: 0,
 			block_data_hash: Default::default(),
