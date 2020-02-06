@@ -24,7 +24,6 @@ FROM phusion/baseimage:0.11
 LABEL maintainer "chevdor@gmail.com"
 LABEL description="This is the 2nd stage: a very small image where we copy the Polkadot binary."
 ARG PROFILE=release
-COPY --from=builder /polkadot/target/$PROFILE/polkadot /usr/local/bin
 
 RUN mv /usr/share/ca* /tmp && \
     rm -rf /usr/share/*  && \
@@ -39,5 +38,7 @@ RUN mv /usr/share/ca* /tmp && \
 USER polkadot
 EXPOSE 30333 9933 9944
 VOLUME ["/data"]
+
+COPY --from=builder /polkadot/target/$PROFILE/polkadot /usr/local/bin
 
 CMD ["/usr/local/bin/polkadot"]
