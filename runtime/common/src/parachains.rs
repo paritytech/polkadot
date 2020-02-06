@@ -231,6 +231,8 @@ decl_error! {
 		InvalidSignature,
 		/// Extra untagged validity votes along with candidate.
 		UntaggedVotes,
+		/// Wrong parent head for parachain receipt.
+		ParentMismatch,
 	}
 }
 
@@ -781,6 +783,14 @@ impl<T: Trait> Module<T> {
 			let validator_group = validator_groups.group_for(para_id)
 				.ok_or(Error::<T>::NoValidatorGroup)?;
 
+			let actual_head = Self::parachain_head(&para_id)
+				.map(primitives::parachain::HeadData);
+
+			ensure!(
+				actual_head.as_ref() == Some(&candidate.candidate.parent_head),
+				Error::<T>::ParentMismatch,
+			);
+
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
 				Error::<T>::NotEnoughValidityVotes,
@@ -1291,6 +1301,7 @@ mod tests {
 				collator: Default::default(),
 				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
+				parent_head: HeadData(vec![]),
 				egress_queue_roots,
 				fees: 0,
 				block_data_hash: Default::default(),
@@ -1312,6 +1323,7 @@ mod tests {
 				collator: Default::default(),
 				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
+				parent_head: HeadData(vec![]),
 				egress_queue_roots: vec![],
 				fees: 0,
 				block_data_hash: Default::default(),
@@ -1722,6 +1734,7 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
+					parent_head: HeadData(vec![]),
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
@@ -1754,6 +1767,7 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
+					parent_head: HeadData(vec![]),
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
@@ -1770,6 +1784,7 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![2, 3, 4]),
+					parent_head: HeadData(vec![]),
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
@@ -1810,6 +1825,7 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
+					parent_head: HeadData(vec![]),
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
@@ -1848,6 +1864,7 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
+					parent_head: HeadData(vec![]),
 					egress_queue_roots: vec![],
 					fees: 0,
 					block_data_hash: Default::default(),
@@ -1882,10 +1899,18 @@ mod tests {
 			assert_eq!(Parachains::ingress(ParaId::from(99), None), Some(Vec::new()));
 
 			init_block();
+
 			for i in 1..10 {
 				run_to_block(i);
 
 				let from_a = vec![(1.into(), [i as u8; 32].into())];
+
+				let parent_head = HeadData(if i == 1 {
+					vec![]
+				} else {
+					vec![1, 2, 3]
+				});
+
 				let mut candidate_a = AttestedCandidate {
 					validity_votes: vec![],
 					validator_indices: BitVec::new(),
@@ -1894,6 +1919,7 @@ mod tests {
 						collator: Default::default(),
 						signature: Default::default(),
 						head_data: HeadData(vec![1, 2, 3]),
+						parent_head:	parent_head.clone(),
 						egress_queue_roots: from_a.clone(),
 						fees: 0,
 						block_data_hash: Default::default(),
@@ -1911,6 +1937,7 @@ mod tests {
 						collator: Default::default(),
 						signature: Default::default(),
 						head_data: HeadData(vec![1, 2, 3]),
+						parent_head,
 						egress_queue_roots: from_b.clone(),
 						fees: 0,
 						block_data_hash: Default::default(),
@@ -1973,6 +2000,7 @@ mod tests {
 					collator: Default::default(),
 					signature: Default::default(),
 					head_data: HeadData(vec![1, 2, 3]),
+					parent_head: HeadData(vec![4, 5, 6]),
 					egress_queue_roots: Vec::new(),
 					fees: 0,
 					block_data_hash: Default::default(),
