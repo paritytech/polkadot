@@ -158,6 +158,10 @@ impl babe::Trait for Runtime {
 	type EpochChangeTrigger = babe::ExternalTrigger;
 }
 
+parameter_types! {
+	pub const IndexDeposit: Balance = 1 * DOLLARS;
+}
+
 impl indices::Trait for Runtime {
 	type AccountIndex = AccountIndex;
 	type Currency = Balances;
@@ -520,12 +524,6 @@ impl sudo::Trait for Runtime {
 	type Proposal = Call;
 }
 
-impl vesting::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type BlockNumberToBalance = ConvertInto;
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -533,7 +531,7 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: system::{Module, Call, Storage, Config, Event},
+		System: system::{Module, Call, Storage, Config, Event<T>},
 		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Storage},
 
 		// Must be before session.
