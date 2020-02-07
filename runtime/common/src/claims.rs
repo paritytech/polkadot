@@ -268,7 +268,7 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 					).into();
 				};
 
-				if !<Claims<T>>::exists(&signer) {
+				if !<Claims<T>>::contains_key(&signer) {
 					return Err(InvalidTransaction::Custom(
 						ValidityError::SignerHasNoClaim.into(),
 					).into());
