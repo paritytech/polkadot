@@ -605,7 +605,6 @@ mod tests {
 	}
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnFreeBalanceZero = ();
 		type OnReapAccount = System;
 		type OnNewAccount = ();
 		type Event = ();
@@ -726,7 +725,6 @@ mod tests {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}

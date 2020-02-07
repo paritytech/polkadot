@@ -326,8 +326,8 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
-		pub const TransferFee: u64 = 0;
-}
+		pub const CreationFee: u64 = 0;
+	}
 
 	impl balances::Trait for Test {
 		type Balance = u64;
@@ -408,9 +408,9 @@ mod tests {
 	#[test]
 	fn claiming_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
-			assert_eq!(Balances::free_balance(&42), 100);
+			assert_eq!(Balances::free_balance(42), 100);
 			assert_eq!(Balances::vesting_balance(&42), 50);
 		});
 	}
@@ -422,14 +422,14 @@ mod tests {
 				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, None),
 				sp_runtime::traits::BadOrigin,
 			);
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
-			assert_eq!(Balances::free_balance(&69), 200);
+			assert_eq!(Balances::free_balance(69), 200);
 			assert_eq!(Balances::vesting_balance(&69), 0);
 		});
 	}
@@ -441,14 +441,14 @@ mod tests {
 				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, Some((50, 10, 1))),
 				sp_runtime::traits::BadOrigin,
 			);
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
-			assert_eq!(Balances::free_balance(&69), 200);
+			assert_eq!(Balances::free_balance(69), 200);
 			assert_eq!(Balances::vesting_balance(&69), 50);
 		});
 	}
@@ -456,7 +456,7 @@ mod tests {
 	#[test]
 	fn origin_signed_claiming_fail() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_err!(
 				Claims::claim(Origin::signed(42), 42, sig(&alice(), &42u64.encode())),
 				sp_runtime::traits::BadOrigin,
@@ -467,7 +467,7 @@ mod tests {
 	#[test]
 	fn double_claiming_doesnt_work() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
 			assert_noop!(
 				Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())),
@@ -479,7 +479,7 @@ mod tests {
 	#[test]
 	fn non_sender_sig_doesnt_work() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 42, sig(&alice(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim
@@ -490,7 +490,7 @@ mod tests {
 	#[test]
 	fn non_claimant_doesnt_work() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 42, sig(&bob(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim

@@ -1064,7 +1064,6 @@ mod tests {
 
 	impl balances::Trait for Test {
 		type Balance = Balance;
-		type OnFreeBalanceZero = ();
 		type OnReapAccount = System;
 		type OnNewAccount = ();
 		type Event = ();
@@ -1214,7 +1213,6 @@ mod tests {
 
 		balances::GenesisConfig::<Test> {
 			balances,
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 
 		staking::GenesisConfig::<Test> {

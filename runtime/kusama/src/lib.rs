@@ -77,7 +77,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1045,
+	spec_version: 1046,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -138,7 +138,7 @@ impl system::Trait for Runtime {
 	type ModuleToIndex = ModuleToIndex;
 	type AccountData = balances::AccountData<Balance>;
 	type OnNewAccount = ();
-	type OnReapAccount = (Balances, Staking, Session, Recovery);
+	type OnReapAccount = (Balances, Staking, Session, Recovery, Democracy);
 }
 
 parameter_types! {
@@ -655,7 +655,7 @@ construct_runtime! {
 		// Social recovery module.
 		Recovery: recovery::{Module, Call, Storage, Event<T>},
 
-		// Claims vesting module.
+		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
 	}
 }
