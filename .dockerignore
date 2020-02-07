@@ -3,3 +3,4 @@ doc
 docker/
 **/*.md
 **/*.txt
+.git/
