@@ -41,4 +41,4 @@ VOLUME ["/data"]
 
 COPY --from=builder /polkadot/target/$PROFILE/polkadot /usr/local/bin
 
-CMD ["/usr/local/bin/polkadot"]
+CMD ["/usr/local/bin/polkadot", "--rpc-external"]
