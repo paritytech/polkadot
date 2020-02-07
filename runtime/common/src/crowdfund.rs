@@ -596,13 +596,12 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
+		type AccountData = pallet_balances::AccountData<u64>;
+		type OnNewAccount = ();
+		type OnReapAccount = Balances;
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
-		// We want to make sure these fees are non zero, so we can check
-		// that our module correctly avoids these fees :)
-		pub const TransferFee: u64 = 10;
-		pub const CreationFee: u64 = 10;
 	}
 	impl balances::Trait for Test {
 		type Balance = u64;
@@ -611,11 +610,8 @@ mod tests {
 		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
-		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
-		type CreationFee = CreationFee;
-	}
+}
 
 	parameter_types! {
 		pub const ProposalBond: Permill = Permill::from_percent(5);

@@ -20,7 +20,7 @@ use rstd::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error};
 use frame_support::weights::SimpleDispatchInfo;
-use frame_support::traits::{Currency, Get, VestingCurrency};
+use frame_support::traits::{Currency, Get, VestingSchedule};
 use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
@@ -35,14 +35,14 @@ use sp_runtime::{
 use primitives::ValidityError;
 use system;
 
-type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
+type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as system::Trait>::AccountId>>::Currency;
+type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as system::Trait>::AccountId>>::Balance;
 
 /// Configuration trait.
 pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-	type Currency: Currency<Self::AccountId>
-		+ VestingCurrency<Self::AccountId, Moment=Self::BlockNumber>;
+	type VestingSchedule: VestingSchedule<Self::AccountId, Moment=Self::BlockNumber>;
 	type Prefix: Get<&'static [u8]>;
 }
 
@@ -161,7 +161,7 @@ decl_module! {
 			if let Some(vs) = <Vesting<T>>::get(&signer) {
 				// If this fails, destination account already has a vesting schedule
 				// applied to it, and this claim should not be processed.
-				T::Currency::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)?;
+				T::VestingSchedule::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)?;
 			}
 
 			<Claims<T>>::remove(&signer);
@@ -173,7 +173,7 @@ decl_module! {
 				*t -= balance_due
 			});
 
-			T::Currency::deposit_creating(&dest, balance_due);
+			CurrencyOf::<T>::deposit_creating(&dest, balance_due);
 
 			// Let's deposit an event to let the outside world know this happened.
 			Self::deposit_event(RawEvent::Claimed(dest, signer, balance_due));
@@ -319,25 +319,22 @@ mod tests {
 		type MaximumBlockLength = MaximumBlockLength;
 		type Version = ();
 		type ModuleToIndex = ();
+		type AccountData = pallet_balances::AccountData<u64>;
+		type OnNewAccount = ();
+		type OnReapAccount = Balances;
 	}
 
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
 		pub const TransferFee: u64 = 0;
-		pub const CreationFee: u64 = 0;
-	}
+}
 
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnFreeBalanceZero = ();
-		type OnReapAccount = System;
-		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
-		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
-		type CreationFee = CreationFee;
+		type AccountStore = System;
 	}
 
 	parameter_types!{

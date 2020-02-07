@@ -58,6 +58,7 @@ system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "http
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 utility = { package = "pallet-utility", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
@@ -124,6 +125,7 @@ std = [
 	"treasury/std",
 	"version/std",
 	"utility/std",
+	"vesting/std",
 	"serde_derive",
 	"serde/std",
 	"log",
