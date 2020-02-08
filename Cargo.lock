@@ -2056,7 +2056,7 @@ dependencies = [
  "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "trie-db 0.19.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "trie-db 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3914,7 +3914,7 @@ dependencies = [
  "sp-version 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "trie-db 0.19.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "trie-db 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3953,7 +3953,7 @@ dependencies = [
  "sp-std 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "tiny-keccak 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "trie-db 0.19.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "trie-db 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
