@@ -596,12 +596,10 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = pallet_balances::AccountData<u64>;
-		type OnNewAccount = ();
-		type OnReapAccount = Balances;
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
+		pub const CreationFee: u64 = 0;
 	}
 	impl balances::Trait for Test {
 		type Balance = u64;
@@ -610,6 +608,8 @@ mod tests {
 		type Event = ();
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
+		type TransferPayment = ();
+		type CreationFee = CreationFee;
 }
 
 	parameter_types! {

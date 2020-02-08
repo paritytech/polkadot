@@ -286,7 +286,10 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup}, testing::Header};
 	use balances;
-	use frame_support::{impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types};
+	use frame_support::{
+		impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types,
+		traits::VestingSchedule,
+	};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -319,9 +322,6 @@ mod tests {
 		type MaximumBlockLength = MaximumBlockLength;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = pallet_balances::AccountData<u64>;
-		type OnNewAccount = ();
-		type OnReapAccount = Balances;
 	}
 
 	parameter_types! {
@@ -334,7 +334,16 @@ mod tests {
 		type Event = ();
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type AccountStore = System;
+		type OnReapAccount = System;
+		type OnNewAccount = ();
+		type TransferPayment = ();
+		type CreationFee = CreationFee;
+	}
+
+	impl pallet_vesting::Trait for Test {
+		type Event = ();
+		type Currency = Balances;
+		type BlockNumberToBalance = ();
 	}
 
 	parameter_types!{
@@ -343,12 +352,13 @@ mod tests {
 
 	impl Trait for Test {
 		type Event = ();
-		type Currency = Balances;
 		type Prefix = Prefix;
+		type VestingSchedule = Vesting;
 	}
 	type System = system::Module<Test>;
 	type Balances = balances::Module<Test>;
 	type Claims = Module<Test>;
+	type Vesting = pallet_vesting::Module<Test>;
 
 	fn alice() -> secp256k1::SecretKey {
 		secp256k1::SecretKey::parse(&keccak256(b"Alice")).unwrap()
@@ -411,7 +421,7 @@ mod tests {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
 			assert_eq!(Balances::free_balance(42), 100);
-			assert_eq!(Balances::vesting_balance(&42), 50);
+			assert_eq!(Vesting::vesting_balance(&42), 50);
 		});
 	}
 
@@ -430,7 +440,7 @@ mod tests {
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
 			assert_eq!(Balances::free_balance(69), 200);
-			assert_eq!(Balances::vesting_balance(&69), 0);
+			assert_eq!(Vesting::vesting_balance(&69), 0);
 		});
 	}
 
@@ -449,7 +459,7 @@ mod tests {
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
 			assert_eq!(Balances::free_balance(69), 200);
-			assert_eq!(Balances::vesting_balance(&69), 50);
+			assert_eq!(Vesting::vesting_balance(&69), 50);
 		});
 	}
 

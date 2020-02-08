@@ -1001,9 +1001,6 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = pallet_balances::AccountData<u64>;
-		type OnNewAccount = ();
-		type OnReapAccount = Balances;
 	}
 
 	parameter_types! {
@@ -1060,16 +1057,19 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: Balance = 0;
+		pub const CreationFee: u64 = 0;
 	}
 
 	impl balances::Trait for Test {
 		type Balance = Balance;
-		type OnReapAccount = System;
-		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
-}
+		type OnReapAccount = System;
+		type OnNewAccount = ();
+		type TransferPayment = ();
+		type CreationFee = CreationFee;
+	}
 
 	pallet_staking_reward_curve::build! {
 		const REWARD_CURVE: PiecewiseLinear<'static> = curve!(

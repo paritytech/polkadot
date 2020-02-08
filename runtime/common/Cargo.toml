@@ -38,6 +38,7 @@ tiny-keccak = "1.5.0"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
