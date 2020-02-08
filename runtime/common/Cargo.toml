@@ -41,7 +41,7 @@ babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate
 randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-trie-db = "0.19.2"
+trie-db = "0.20.0"
 serde_json = "1.0.41"
 
 [features]

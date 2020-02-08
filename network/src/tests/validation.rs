@@ -319,15 +319,15 @@ impl ParachainHost<Block> for RuntimeApi {
 	}
 }
 
-type TestValidationNetwork = crate::validation::ValidationNetwork<TestApi, NeverExit>;
+type TestValidationNetwork<SP> = crate::validation::ValidationNetwork<TestApi, SP>;
 
-struct Built {
+struct Built<SP> {
 	gossip: Pin<Box<dyn Future<Output = ()>>>,
 	api_handle: Arc<Mutex<ApiData>>,
-	networks: Vec<TestValidationNetwork>,
+	networks: Vec<TestValidationNetwork<SP>>,
 }
 
-fn build_network<SP: Spawn + Clone>(n: usize, spawner: SP) -> Built {
+fn build_network<SP: Spawn + Clone>(n: usize, spawner: SP) -> Built<SP> {
 	let (gossip_router, gossip_handle) = make_gossip();
 	let api_handle = Arc::new(Mutex::new(Default::default()));
 	let runtime_api = Arc::new(TestApi { data: api_handle.clone() });
@@ -345,7 +345,6 @@ fn build_network<SP: Spawn + Clone>(n: usize, spawner: SP) -> Built {
 
 		TestValidationNetwork::new(
 			message_val,
-			NeverExit,
 			runtime_api.clone(),
 			spawner.clone(),
 		)
