@@ -140,9 +140,6 @@ impl system::Trait for Runtime {
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
 	type ModuleToIndex = ModuleToIndex;
-	type AccountData = balances::AccountData<Balance>;
-	type OnNewAccount = ();
-	type OnReapAccount = (Balances, Staking, Session, Democracy);
 }
 
 parameter_types! {
@@ -164,13 +161,14 @@ parameter_types! {
 
 impl indices::Trait for Runtime {
 	type AccountIndex = AccountIndex;
-	type Currency = Balances;
-	type Deposit = IndexDeposit;
 	type Event = Event;
+	type IsDeadAccount = Balances;
+	type ResolveHint = indices::SimpleResolveHint<Self::AccountId, Self::AccountIndex>;
 }
 
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 100 * CENTS;
+	pub const CreationFee: Balance = 1 * CENTS;
 }
 
 /// Splits fees 80/20 between treasury and block author.
@@ -186,7 +184,10 @@ impl balances::Trait for Runtime {
 	type Event = Event;
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
-	type AccountStore = System;
+	type OnReapAccount = (Staking, Session, Democracy);
+	type OnNewAccount = ();
+	type TransferPayment = ();
+	type CreationFee = CreationFee;
 }
 
 parameter_types! {
