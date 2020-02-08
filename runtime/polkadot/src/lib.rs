@@ -38,7 +38,10 @@ use sp_runtime::{
 	ApplyExtrinsicResult, Percent, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	curve::PiecewiseLinear,
-	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto},
+	traits::{
+		BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto,
+		IdentityLookup
+	},
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
@@ -131,7 +134,7 @@ impl system::Trait for Runtime {
 	type Hash = Hash;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
-	type Lookup = Indices;
+	type Lookup = IdentityLookup<AccountId>;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
@@ -578,7 +581,7 @@ construct_runtime! {
 }
 
 /// The address format for describing accounts.
-pub type Address = <Indices as StaticLookup>::Source;
+pub type Address = AccountId;
 /// Block header type as expected by this runtime.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
