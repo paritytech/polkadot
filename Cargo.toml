@@ -11,7 +11,7 @@ edition = "2018"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
-futures = "0.3.1"
+futures = "0.3.4"
 service = { package = "polkadot-service", path = "service" }
 
 [build-dependencies]
