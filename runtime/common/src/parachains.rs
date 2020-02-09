@@ -1001,9 +1001,6 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = pallet_balances::AccountData<u64>;
-		type OnNewAccount = ();
-		type OnReapAccount = Balances;
 	}
 
 	parameter_types! {
@@ -1013,13 +1010,13 @@ mod tests {
 	}
 
 	impl session::Trait for Test {
-		type SessionManager = ();
-		type Keys = UintAuthorityId;
-		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
-		type SessionHandler = session::TestSessionHandler;
 		type Event = ();
 		type ValidatorId = u64;
 		type ValidatorIdOf = staking::StashOf<Self>;
+		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+		type SessionManager = ();
+		type SessionHandler = session::TestSessionHandler;
+		type Keys = UintAuthorityId;
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	}
 
@@ -1060,6 +1057,7 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: Balance = 0;
+		pub const CreationFee: Balance = 0;
 	}
 
 	impl balances::Trait for Test {
@@ -1069,7 +1067,9 @@ mod tests {
 		type Event = ();
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
-}
+		type TransferPayment = ();
+		type CreationFee = CreationFee;
+	}
 
 	pallet_staking_reward_curve::build! {
 		const REWARD_CURVE: PiecewiseLinear<'static> = curve!(

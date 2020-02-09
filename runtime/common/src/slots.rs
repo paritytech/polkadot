@@ -894,21 +894,22 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = pallet_balances::AccountData<u64>;
-		type OnNewAccount = ();
-		type OnReapAccount = Balances;
 	}
 
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
+		pub const CreationFee: u64 = 0;
 	}
 
 	impl balances::Trait for Test {
 		type Balance = u64;
 		type Event = ();
+		type OnNewAccount = ();
+		type OnReapAccount = System;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type AccountStore = System;
+		type CreationFee = CreationFee;
+		type TransferPayment = ();
 	}
 
 	thread_local! {
@@ -1377,13 +1378,13 @@ mod tests {
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 3));
 
 			run_to_block(20);
-			assert_eq!(Balances::free_balance(ParaId::from(0).into_account()), 2);
+			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 2);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 4));
 
 			run_to_block(30);
-			assert_eq!(Balances::free_balance(ParaId::from(0).into_account()), 1);
+			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 1);
 		});
 	}
 
