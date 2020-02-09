@@ -654,20 +654,17 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: Balance = 0;
-		pub const TransferFee: Balance = 0;
 		pub const CreationFee: Balance = 0;
 	}
 
 	impl balances::Trait for Test {
-		type Balance = Balance;
-		type OnFreeBalanceZero = ();
-		type OnReapAccount = System;
 		type OnNewAccount = ();
+		type OnReapAccount = System;
+		type Balance = Balance;
 		type Event = ();
 		type DustRemoval = ();
-		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
+		type TransferPayment = ();
 		type CreationFee = CreationFee;
 	}
 
@@ -793,7 +790,6 @@ mod tests {
 
 		balances::GenesisConfig::<Test> {
 			balances,
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 
 		t.into()
@@ -1060,8 +1056,8 @@ mod tests {
 				vec![3; 3],
 			));
 			// deposit should be taken (reserved)
-			assert_eq!(Balances::free_balance(&3u64) + ParathreadDeposit::get(), orig_bal);
-			assert_eq!(Balances::reserved_balance(&3u64), ParathreadDeposit::get());
+			assert_eq!(Balances::free_balance(3u64) + ParathreadDeposit::get(), orig_bal);
+			assert_eq!(Balances::reserved_balance(3u64), ParathreadDeposit::get());
 
 			run_to_block(3);
 
@@ -1083,8 +1079,8 @@ mod tests {
 				parachains::Origin::Parachain(user_id(0)).into()
 			));
 			// reserved balance should be returned.
-			assert_eq!(Balances::free_balance(&3u64), orig_bal);
-			assert_eq!(Balances::reserved_balance(&3u64), 0);
+			assert_eq!(Balances::free_balance(3u64), orig_bal);
+			assert_eq!(Balances::reserved_balance(3u64), 0);
 
 			run_to_block(4);
 
