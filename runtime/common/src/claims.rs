@@ -25,7 +25,6 @@ use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
-#[cfg(feature = "std")]
 use sp_runtime::traits::{Zero, CheckedSub};
 use sp_runtime::{
 	RuntimeDebug, transaction_validity::{
@@ -301,7 +300,7 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
 	use frame_support::{
-		impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types, dispatch::Dispatchable
+		impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types
 	};
 	use balances;
 
