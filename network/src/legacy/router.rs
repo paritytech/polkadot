@@ -34,7 +34,7 @@ use polkadot_primitives::parachain::{
 use sp_api::ProvideRuntimeApi;
 
 use futures::prelude::*;
-use futures::{task::SpawnExt, future::{ready, select}};
+use futures::{task::SpawnExt, future::ready};
 use parking_lot::Mutex;
 use log::{debug, trace};
 
@@ -73,19 +73,19 @@ pub(crate) fn checked_statements<N: NetworkService>(network: &N, topic: Hash) ->
 }
 
 /// Table routing implementation.
-pub struct Router<P, E, T> {
+pub struct Router<P, T> {
 	table: Arc<SharedTable>,
 	attestation_topic: Hash,
-	fetcher: LeafWorkDataFetcher<P, E, T>,
+	fetcher: LeafWorkDataFetcher<P, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
 	message_validator: RegisteredMessageValidator<PolkadotProtocol>,
 	drop_signal: Arc<exit_future::Signal>,
 }
 
-impl<P, E, T> Router<P, E, T> {
+impl<P, T> Router<P, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
-		fetcher: LeafWorkDataFetcher<P, E, T>,
+		fetcher: LeafWorkDataFetcher<P, T>,
 		message_validator: RegisteredMessageValidator<PolkadotProtocol>,
 		drop_signal: exit_future::Signal,
 	) -> Self {
@@ -119,7 +119,7 @@ impl<P, E, T> Router<P, E, T> {
 	}
 }
 
-impl<P, E: Clone, T: Clone> Clone for Router<P, E, T> {
+impl<P, T: Clone> Clone for Router<P, T> {
 	fn clone(&self) -> Self {
 		Router {
 			table: self.table.clone(),
@@ -132,10 +132,9 @@ impl<P, E: Clone, T: Clone> Clone for Router<P, E, T> {
 	}
 }
 
-impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, E, T> Router<P, E, T> where
+impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, T> Router<P, T> where
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	T: Clone + Executor + Send + 'static,
-	E: Future<Output=()> + Clone + Send + Unpin + 'static,
 {
 	/// Import a statement whose signature has been checked already.
 	pub(crate) fn import_statement(&self, statement: SignedStatement) {
@@ -180,8 +179,7 @@ impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, E, T> Router<P, E, T> 
 				if let Some(work) = producer.map(|p| self.create_work(c_hash, p)) {
 					trace!(target: "validation", "driving statement work to completion");
 
-					let work = select(work.boxed(), self.fetcher.exit().clone())
-						.map(drop);
+					let work = work.boxed().map(drop);
 					let _ = self.fetcher.executor().spawn(work);
 				}
 			}
@@ -230,10 +228,9 @@ impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, E, T> Router<P, E, T> 
 	}
 }
 
-impl<P: ProvideRuntimeApi<Block> + Send, E, T> TableRouter for Router<P, E, T> where
+impl<P: ProvideRuntimeApi<Block> + Send, T> TableRouter for Router<P, T> where
 	P::Api: ParachainHost<Block>,
 	T: Clone + Executor + Send + 'static,
-	E: Future<Output=()> + Clone + Send + 'static,
 {
 	type Error = io::Error;
 	type SendLocalCollation = future::Ready<Result<(), Self::Error>>;
@@ -290,7 +287,7 @@ impl<P: ProvideRuntimeApi<Block> + Send, E, T> TableRouter for Router<P, E, T> w
 	}
 }
 
-impl<P, E, T> Drop for Router<P, E, T> {
+impl<P, T> Drop for Router<P, T> {
 	fn drop(&mut self) {
 		let parent_hash = self.parent_hash();
 		self.network().with_spec(move |spec, _| { spec.remove_validation_session(parent_hash); });

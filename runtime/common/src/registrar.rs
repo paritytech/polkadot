@@ -654,20 +654,17 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: Balance = 0;
-		pub const TransferFee: Balance = 0;
 		pub const CreationFee: Balance = 0;
 	}
 
 	impl balances::Trait for Test {
-		type Balance = Balance;
-		type OnFreeBalanceZero = ();
-		type OnReapAccount = System;
 		type OnNewAccount = ();
+		type OnReapAccount = System;
+		type Balance = Balance;
 		type Event = ();
 		type DustRemoval = ();
-		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
+		type TransferPayment = ();
 		type CreationFee = CreationFee;
 	}
 
@@ -793,7 +790,6 @@ mod tests {
 
 		balances::GenesisConfig::<Test> {
 			balances,
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 
 		t.into()
@@ -840,13 +836,14 @@ mod tests {
 		LOWEST_USER_ID + i
 	}
 
-	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], block_data: &[u8]) -> AttestedCandidate {
+	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], parent_head: &[u8], block_data: &[u8]) -> AttestedCandidate {
 		let block_data_hash = BlakeTwo256::hash(block_data);
 		let candidate = CandidateReceipt {
 			parachain_index: id,
 			collator: collator.public(),
 			signature: block_data_hash.using_encoded(|d| collator.sign(d)),
 			head_data: HeadData(head_data.to_vec()),
+			parent_head: HeadData(parent_head.to_vec()),
 			egress_queue_roots: vec![],
 			fees: 0,
 			block_data_hash,
@@ -1060,8 +1057,8 @@ mod tests {
 				vec![3; 3],
 			));
 			// deposit should be taken (reserved)
-			assert_eq!(Balances::free_balance(&3u64) + ParathreadDeposit::get(), orig_bal);
-			assert_eq!(Balances::reserved_balance(&3u64), ParathreadDeposit::get());
+			assert_eq!(Balances::free_balance(3u64) + ParathreadDeposit::get(), orig_bal);
+			assert_eq!(Balances::reserved_balance(3u64), ParathreadDeposit::get());
 
 			run_to_block(3);
 
@@ -1083,8 +1080,8 @@ mod tests {
 				parachains::Origin::Parachain(user_id(0)).into()
 			));
 			// reserved balance should be returned.
-			assert_eq!(Balances::free_balance(&3u64), orig_bal);
-			assert_eq!(Balances::reserved_balance(&3u64), 0);
+			assert_eq!(Balances::free_balance(3u64), orig_bal);
+			assert_eq!(Balances::reserved_balance(3u64), 0);
 
 			run_to_block(4);
 
@@ -1121,7 +1118,7 @@ mod tests {
 				(user_id(0), Some((col.clone(), Retriable::WithRetries(0))))
 			]);
 			assert_ok!(Parachains::set_heads(Origin::NONE, vec![
-				attest(user_id(0), &Sr25519Keyring::One.pair().into(), &[3; 3], &[0; 0])
+				attest(user_id(0), &Sr25519Keyring::One.pair().into(), &[3; 3], &[3; 3], &[0; 0])
 			]));
 
 			run_to_block(6);

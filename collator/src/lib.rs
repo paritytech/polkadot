@@ -90,9 +90,8 @@ pub trait Network: Send + Sync {
 	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement>>;
 }
 
-impl<P, E, SP> Network for ValidationNetwork<P, E, SP> where
+impl<P, SP> Network for ValidationNetwork<P, SP> where
 	P: 'static + Send + Sync,
-	E: 'static + Send + Sync,
 	SP: 'static + Spawn + Clone + Send + Sync,
 {
 	fn collator_id_to_peer_id(&self, collator_id: CollatorId) ->
@@ -239,16 +238,15 @@ pub async fn collate<R, P>(
 }
 
 /// Polkadot-api context.
-struct ApiContext<P, E, SP> {
-	network: Arc<ValidationNetwork<P, E, SP>>,
+struct ApiContext<P, SP> {
+	network: Arc<ValidationNetwork<P, SP>>,
 	parent_hash: Hash,
 	validators: Vec<ValidatorId>,
 }
 
-impl<P: 'static, E: 'static, SP: 'static> RelayChainContext for ApiContext<P, E, SP> where
+impl<P: 'static, SP: 'static> RelayChainContext for ApiContext<P, SP> where
 	P: ProvideRuntimeApi<Block> + Send + Sync,
 	P::Api: ParachainHost<Block>,
-	E: futures::Future<Output=()> + Clone + Send + Sync + 'static,
 	SP: Spawn + Clone + Send + Sync
 {
 	type Error = String;
@@ -276,13 +274,12 @@ impl<P: 'static, E: 'static, SP: 'static> RelayChainContext for ApiContext<P, E,
 }
 
 /// Run the collator node using the given `service`.
-fn run_collator_node<S, E, P, Extrinsic>(
+fn run_collator_node<S, P, Extrinsic>(
 	service: S,
-	exit: E,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
-) -> polkadot_cli::error::Result<()>
+) -> Result<S, polkadot_service::Error>
 	where
 		S: AbstractService<Block = service::Block, NetworkSpecialization = service::PolkadotProtocol>,
 		sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi>: ProvideRuntimeApi<Block>,
@@ -301,7 +298,6 @@ fn run_collator_node<S, E, P, Extrinsic>(
 		S::CallExecutor: service::CallExecutor<service::Block>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
 		S::SelectChain: service::SelectChain<service::Block>,
-		E: futures::Future<Output=()> + Clone + Unpin + Send + Sync + 'static,
 		P: BuildParachainContext,
 		P::ParachainContext: Send + 'static,
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
@@ -315,7 +311,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 	let select_chain = if let Some(select_chain) = service.select_chain() {
 		select_chain
 	} else {
-		return Err(polkadot_cli::error::Error::Other("The node cannot work because it can't select chain.".into()))
+		return Err("The node cannot work because it can't select chain.".into())
 	};
 
 	let is_known = move |block_hash: &Hash| {
@@ -345,7 +341,6 @@ fn run_collator_node<S, E, P, Extrinsic>(
 
 	let validation_network = Arc::new(ValidationNetwork::new(
 		message_validator,
-		exit.clone(),
 		client.clone(),
 		spawner.clone(),
 	));
@@ -357,11 +352,10 @@ fn run_collator_node<S, E, P, Extrinsic>(
 	) {
 		Ok(ctx) => ctx,
 		Err(()) => {
-			return Err(polkadot_cli::error::Error::Other("Could not build the parachain context!".into()))
+			return Err("Could not build the parachain context!".into())
 		}
 	};
 
-	let inner_exit = exit.clone();
 	let work = async move {
 		let mut notification_stream = client.import_notification_stream();
 
@@ -385,7 +379,6 @@ fn run_collator_node<S, E, P, Extrinsic>(
 			let key = key.clone();
 			let parachain_context = parachain_context.clone();
 			let validation_network = validation_network.clone();
-			let inner_exit_2 = inner_exit.clone();
 
 			let work = future::lazy(move |_| async move {
 				let api = client.runtime_api();
@@ -425,8 +418,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 							outgoing,
 						);
 
-						let exit = inner_exit_2.clone();
-						tokio::spawn(future::select(res.boxed(), exit));
+						tokio::spawn(res.boxed());
 					});
 				}
 				future::ok(())
@@ -444,10 +436,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 					}
 				});
 
-				let future = future::select(
-					silenced,
-					inner_exit.clone()
-				).map(drop);
+				let future = silenced.map(drop);
 
 			tokio::spawn(future);
 		}
@@ -455,8 +444,7 @@ fn run_collator_node<S, E, P, Extrinsic>(
 
 	service.spawn_essential_task("collation", work);
 
-	// NOTE: this is not ideal as we should only provide the service
-	sc_cli::run_service_until_exit(Configuration::default(), |_config| Ok(service))
+	Ok(service)
 }
 
 fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRoster) -> HashSet<ValidatorId> {
@@ -472,53 +460,54 @@ fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRo
 /// Run a collator node with the given `RelayChainContext` and `ParachainContext`
 /// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
-/// Provide a future which resolves when the node should exit.
 /// This function blocks until done.
-pub fn run_collator<P, E>(
+pub fn run_collator<P>(
 	build_parachain_context: P,
 	para_id: ParaId,
-	exit: E,
 	key: Arc<CollatorPair>,
 	config: Configuration,
 ) -> polkadot_cli::error::Result<()> where
 	P: BuildParachainContext,
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
-	E: futures::Future<Output = ()> + Unpin + Send + Clone + Sync + 'static,
 {
 	match (config.expect_chain_spec().is_kusama(), config.roles) {
 		(true, Roles::LIGHT) =>
-			run_collator_node(
-				service::kusama_new_light(config, Some((key.public(), para_id)))?,
-				exit,
-				para_id,
-				key,
-				build_parachain_context,
-			),
+			sc_cli::run_service_until_exit(config, |config| {
+				run_collator_node(
+					service::kusama_new_light(config, Some((key.public(), para_id)))?,
+					para_id,
+					key,
+					build_parachain_context,
+				)
+			}),
 		(true, _) =>
-			run_collator_node(
-				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
-				exit,
-				para_id,
-				key,
-				build_parachain_context,
-			),
+			sc_cli::run_service_until_exit(config, |config| {
+				run_collator_node(
+					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+					para_id,
+					key,
+					build_parachain_context,
+				)
+			}),
 		(false, Roles::LIGHT) =>
-			run_collator_node(
-				service::polkadot_new_light(config, Some((key.public(), para_id)))?,
-				exit,
-				para_id,
-				key,
-				build_parachain_context,
-			),
+			sc_cli::run_service_until_exit(config, |config| {
+				run_collator_node(
+					service::polkadot_new_light(config, Some((key.public(), para_id)))?,
+					para_id,
+					key,
+					build_parachain_context,
+				)
+			}),
 		(false, _) =>
-			run_collator_node(
-				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
-				exit,
-				para_id,
-				key,
-				build_parachain_context,
-			),
+			sc_cli::run_service_until_exit(config, |config| {
+				run_collator_node(
+					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+					para_id,
+					key,
+					build_parachain_context,
+				)
+			}),
 	}
 }
 

@@ -55,6 +55,7 @@ system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "http
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
@@ -66,7 +67,7 @@ libsecp256k1 = "0.3.2"
 tiny-keccak = "1.5.0"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-trie-db = "0.19.2"
+trie-db = "0.20.0"
 serde_json = "1.0.41"
 
 [build-dependencies]
@@ -126,4 +127,5 @@ std = [
 	"randomness-collective-flip/std",
 	"runtime-common/std",
 	"sudo/std",
+	"vesting/std",
 ]

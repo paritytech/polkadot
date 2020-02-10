@@ -321,11 +321,7 @@ impl ParachainHost<Block> for RuntimeApi {
 	}
 }
 
-type TestValidationNetwork<SP> = crate::legacy::validation::ValidationNetwork<
-	TestApi,
-	NeverExit,
-	SP,
->;
+type TestValidationNetwork<SP> = crate::legacy::validation::ValidationNetwork<TestApi, SP>;
 
 struct Built<SP> {
 	gossip: Pin<Box<dyn Future<Output = ()>>>,
@@ -352,7 +348,6 @@ fn build_network<SP: Spawn + Clone>(n: usize, spawner: SP)-> Built<SP> {
 
 		TestValidationNetwork::new(
 			message_val,
-			NeverExit,
 			runtime_api.clone(),
 			spawner.clone(),
 		)
