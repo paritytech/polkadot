@@ -1593,4 +1593,88 @@ mod tests {
 		];
 		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
 	}
+
+	#[test]
+	fn deploy_code_too_large() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; (MAX_CODE_SIZE + 1) as _];
+			let h = BlakeTwo256::hash(&code[..]);
+			assert!(Slots::fix_deploy_data(
+				Origin::signed(1), 0, 0.into(), h, code.len() as _, vec![1],
+			).is_err());
+		});
+	}
+
+	#[test]
+	fn deploy_maximum_ok() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; MAX_HEAD_DATA_SIZE as _];
+			let h = BlakeTwo256::hash(&code[..]);
+			assert_ok!(Slots::fix_deploy_data(
+				Origin::signed(1), 0, 0.into(), h, code.len() as _, head_data,
+			));
+		});
+	}
+
+	#[test]
+	fn deploy_head_data_too_large() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; (MAX_HEAD_DATA_SIZE + 1) as _];
+			let h = BlakeTwo256::hash(&code[..]);
+			assert!(Slots::fix_deploy_data(
+				Origin::signed(1), 0, 0.into(), h, code.len() as _, head_data,
+			).is_err());
+		});
+	}
+
+	#[test]
+	fn code_size_must_be_correct() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; MAX_HEAD_DATA_SIZE as _];
+			let h = BlakeTwo256::hash(&code[..]);
+			assert_ok!(Slots::fix_deploy_data(
+				Origin::signed(1), 0, 0.into(), h, (code.len() - 1) as _, head_data,
+			));
+			assert!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), code).is_err());
+		});
+	}
 }
