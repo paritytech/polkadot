@@ -292,6 +292,8 @@ pub struct CandidateReceipt {
 	pub signature: CollatorSignature,
 	/// The head-data
 	pub head_data: HeadData,
+	/// The parent head-data.
+	pub parent_head: HeadData,
 	/// Egress queue roots. Must be sorted lexicographically (ascending)
 	/// by parachain ID.
 	pub egress_queue_roots: Vec<(Id, Hash)>,
