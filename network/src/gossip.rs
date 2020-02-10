@@ -71,16 +71,13 @@ use std::sync::Arc;
 use arrayvec::ArrayVec;
 use futures::prelude::*;
 use parking_lot::RwLock;
-use log::warn;
 
 use super::PolkadotNetworkService;
 use crate::{GossipMessageStream, NetworkService, PolkadotProtocol, router::attestation_topic};
 
 use attestation::{View as AttestationView, PeerData as AttestationPeerData};
-use message_routing::{View as MessageRoutingView};
 
 mod attestation;
-mod message_routing;
 
 /// The engine ID of the polkadot attestation system.
 pub const POLKADOT_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"dot1";
@@ -99,8 +96,6 @@ mod benefit {
 	pub const NEW_ATTESTATION: Rep = Rep::new(50, "Polkadot: New attestation");
 	/// When a peer sends us a previously-unknown erasure chunk.
 	pub const NEW_ERASURE_CHUNK: Rep = Rep::new(10, "Polkadot: New erasure chunk");
-	/// When a peer sends us a previously-unknown message packet.
-	pub const NEW_ICMP_MESSAGES: Rep = Rep::new(50, "Polkadot: New ICMP messages");
 }
 
 mod cost {
@@ -119,8 +114,6 @@ mod cost {
 	pub const BAD_SIGNATURE: Rep = Rep::new(-500, "Polkadot: Bad signature");
 	/// A peer sent us a bad neighbor packet.
 	pub const BAD_NEIGHBOR_PACKET: Rep = Rep::new(-300, "Polkadot: Bad neighbor");
-	/// A peer sent us an ICMP queue we haven't advertised a need for.
-	pub const UNNEEDED_ICMP_MESSAGES: Rep = Rep::new(-100, "Polkadot: Unexpected ICMP message");
 	/// A peer sent us an erasure chunk referring to a candidate that we are not aware of.
 	pub const ORPHANED_ERASURE_CHUNK: Rep = Rep::new(-10, "An erasure chunk from unknown candidate");
 	/// A peer sent us an erasure chunk that does not match candidate's erasure root.
@@ -137,12 +130,9 @@ pub enum GossipMessage {
 	/// Non-candidate statements should only be sent to peers who are aware of the candidate.
 	#[codec(index = "2")]
 	Statement(GossipStatement),
-	/// A packet of messages from one parachain to another.
-	#[codec(index = "3")]
-	ParachainMessages(GossipParachainMessages),
 	// TODO: https://github.com/paritytech/polkadot/issues/253
 	/// A packet containing one of the erasure-coding chunks of one candidate.
-	#[codec(index = "4")]
+	#[codec(index = "3")]
 	ErasureChunk(ErasureChunkMessage),
 }
 
@@ -285,7 +275,6 @@ pub fn register_validator<C: ChainContext + 'static>(
 		inner: RwLock::new(Inner {
 			peers: HashMap::new(),
 			attestation_view: Default::default(),
-			message_routing_view: Default::default(),
 			availability_store: None,
 			chain,
 		})
@@ -385,7 +374,6 @@ impl RegisteredMessageValidator {
 			let &mut Inner {
 				ref chain,
 				ref mut attestation_view,
-				ref mut message_routing_view,
 				..
 			} = &mut *inner;
 
@@ -393,10 +381,6 @@ impl RegisteredMessageValidator {
 				Some(Known::Leaf) => true,
 				_ => false,
 			});
-
-			if let Err(e) = message_routing_view.update_leaves(chain, attestation_view.neighbor_info()) {
-				warn!("Unable to fully update leaf-state: {:?}", e);
-			}
 		}
 
 
@@ -488,16 +472,9 @@ struct PeerData {
 	attestation: AttestationPeerData,
 }
 
-impl PeerData {
-	fn leaves(&self) -> impl Iterator<Item = &Hash> {
-		self.attestation.leaves()
-	}
-}
-
 struct Inner<C: ?Sized> {
 	peers: HashMap<PeerId, PeerData>,
 	attestation_view: AttestationView,
-	message_routing_view: MessageRoutingView,
 	availability_store: Option<av_store::Store>,
 	chain: C,
 }
@@ -515,11 +492,7 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 				let new_leaves = peer.attestation.update_leaves(&chain_heads);
 				let new_attestation_topics = new_leaves.iter().cloned().map(attestation_topic);
 
-				// find all topics which are from the intersection of our leaves with the peer's
-				// new leaves.
-				let new_message_routing_topics = self.message_routing_view.intersection_topics(&new_leaves);
-
-				new_attestation_topics.chain(new_message_routing_topics).collect()
+				new_attestation_topics.collect()
 			} else {
 				Vec::new()
 			};
@@ -605,7 +578,6 @@ impl<C: ChainContext + ?Sized> MessageValidator<C> {
 			inner: RwLock::new(Inner {
 				peers: HashMap::new(),
 				attestation_view: Default::default(),
-				message_routing_view: Default::default(),
 				availability_store: None,
 				chain,
 			}),
@@ -653,18 +625,6 @@ impl<C: ChainContext + ?Sized> sc_network_gossip::Validator<Block> for MessageVa
 				}
 				(res, cb)
 			}
-			Ok(GossipMessage::ParachainMessages(messages)) => {
-				let (res, cb) = {
-					let mut inner = self.inner.write();
-					let inner = &mut *inner;
-					inner.message_routing_view.validate_queue_and_note_known(&messages)
-				};
-
-				if let GossipValidationResult::ProcessAndKeep(ref topic) = res {
-					context.broadcast_message(topic.clone(), data.to_vec(), false);
-				}
-				(res, cb)
-			}
 			Ok(GossipMessage::ErasureChunk(chunk)) => {
 				self.inner.write().validate_erasure_chunk_packet(chunk)
 			}
@@ -680,8 +640,7 @@ impl<C: ChainContext + ?Sized> sc_network_gossip::Validator<Block> for MessageVa
 		Box::new(move |topic, _data| {
 			// check that messages from this topic are considered live by one of our protocols.
 			// everything else is expired
-			let live = inner.attestation_view.is_topic_live(&topic)
-				|| !inner.message_routing_view.is_topic_live(&topic);
+			let live = inner.attestation_view.is_topic_live(&topic);
 
 			!live // = expired
 		})
@@ -693,7 +652,6 @@ impl<C: ChainContext + ?Sized> sc_network_gossip::Validator<Block> for MessageVa
 			let &mut Inner {
 				ref mut peers,
 				ref mut attestation_view,
-				ref mut message_routing_view,
 				..
 			} = &mut *inner;
 
@@ -718,13 +676,6 @@ impl<C: ChainContext + ?Sized> sc_network_gossip::Validator<Block> for MessageVa
 							knowledge,
 						)
 					})
-				}
-				Ok(GossipMessage::ParachainMessages(_)) => match peer {
-					None => false,
-					Some(peer) => {
-						let their_leaves: LeavesVec = peer.leaves().cloned().collect();
-						message_routing_view.allowed_intersecting(&their_leaves, topic)
-					}
 				}
 				_ => false,
 			}
