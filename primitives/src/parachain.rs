@@ -516,7 +516,7 @@ pub struct AttestedCandidate {
 	/// Validity attestations.
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// Indices of the corresponding validity votes.
-	pub validator_indices: BitVec,
+	pub validator_indices: BitVec<bitvec::cursor::LittleEndian, u8>,
 }
 
 impl AttestedCandidate {

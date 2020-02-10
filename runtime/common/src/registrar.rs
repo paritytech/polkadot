@@ -862,7 +862,7 @@ mod tests {
 				.collect(),
 			validator_indices: roster.iter()
 				.map(|i| i == &Chain::Parachain(id))
-				.collect::<BitVec>(),
+				.collect::<BitVec::<_, _>>(),
 		}
 	}
 
