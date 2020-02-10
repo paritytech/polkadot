@@ -379,9 +379,8 @@ impl<T: Trait> Module<T> {
 		for id in queueds.iter() {
 			drained_count += 1;
 
-			let (count, size) = <RelayDispatchQueueSize>::get(id);
+			let (count, _size) = <RelayDispatchQueueSize>::get(id);
 			let count = count as usize;
-			let size = size as usize;
 			if dispatched_count == 0 || dispatched_count + count <= max_queue_count {
 				if count > 0 {
 					// still dispatching messages...

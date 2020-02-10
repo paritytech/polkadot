@@ -20,7 +20,7 @@
 //! a validator changes his session key, or when they are generated.
 
 use polkadot_primitives::{Hash, parachain::{ValidatorId}};
-use crate::collator_pool::Role;
+use crate::legacy::collator_pool::Role;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use wasm_timer::Instant;
@@ -37,6 +37,12 @@ struct LocalCollation<C> {
 pub struct LocalCollations<C> {
 	primary_for: HashSet<ValidatorId>,
 	local_collations: HashMap<Hash, LocalCollation<C>>,
+}
+
+impl<C: Clone> Default for LocalCollations<C> {
+	fn default() -> Self {
+		Self::new()
+	}
 }
 
 impl<C: Clone> LocalCollations<C> {

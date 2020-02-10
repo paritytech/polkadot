@@ -118,6 +118,7 @@ struct ParachainCollators {
 }
 
 /// Manages connected collators and role assignments from the perspective of a validator.
+#[derive(Default)]
 pub struct CollatorPool {
 	collators: HashMap<CollatorId, (ParaId, PeerId)>,
 	parachain_collators: HashMap<ParaId, ParachainCollators>,

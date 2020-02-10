@@ -38,7 +38,7 @@ use polkadot_primitives::Hash;
 use std::collections::{HashMap, HashSet};
 
 use log::warn;
-use crate::router::attestation_topic;
+use crate::legacy::router::attestation_topic;
 
 use super::{cost, benefit, MAX_CHAIN_HEADS, LeavesVec,
 	ChainContext, Known, MessageValidationData, GossipStatement

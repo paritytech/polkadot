@@ -608,6 +608,7 @@ mod tests {
 	struct DummyRouter;
 	impl TableRouter for DummyRouter {
 		type Error = ::std::io::Error;
+		type SendLocalCollation = future::Ready<Result<(),Self::Error>>;
 		type FetchValidationProof = future::Ready<Result<PoVBlock,Self::Error>>;
 
 		fn local_collation(
@@ -615,7 +616,7 @@ mod tests {
 			_collation: Collation,
 			_candidate: CandidateReceipt,
 			_chunks: (ValidatorIndex, &[ErasureChunk])
-		) {}
+		) -> Self::SendLocalCollation { future::ready(Ok(())) }
 
 		fn fetch_pov_block(&self, _candidate: &CandidateReceipt) -> Self::FetchValidationProof {
 			future::ok(pov_block_with_data(vec![1, 2, 3, 4, 5]))
