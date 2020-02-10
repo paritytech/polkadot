@@ -906,6 +906,7 @@ mod tests {
 			parachain_index: 5.into(),
 			collator: [255; 32].unchecked_into(),
 			head_data: HeadData(vec![9, 9, 9]),
+			parent_head: HeadData(vec![]),
 			signature: Default::default(),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,

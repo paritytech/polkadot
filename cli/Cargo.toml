@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 log = "0.4.8"
-futures = { version = "0.3.1", features = ["compat"] }
+futures = { version = "0.3.4", features = ["compat"] }
 structopt = "0.3.8"
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

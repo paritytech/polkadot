@@ -1377,13 +1377,13 @@ mod tests {
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 3));
 
 			run_to_block(20);
-			assert_eq!(Balances::free_balance(ParaId::from(0).into_account()), 2);
+			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 2);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 4));
 
 			run_to_block(30);
-			assert_eq!(Balances::free_balance(ParaId::from(0).into_account()), 1);
+			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 1);
 		});
 	}
 

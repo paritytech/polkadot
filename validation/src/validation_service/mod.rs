@@ -396,10 +396,11 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 				max_block_data_size,
 			).await {
 				Ok(collation_work) => {
-					let (collation, outgoing_targeted, fees_charged) = collation_work;
+					let (collation, outgoing_targeted, parent_head, fees_charged) = collation_work;
 
 					match crate::collation::produce_receipt_and_chunks(
 						authorities_num,
+						parent_head,
 						&collation.pov,
 						&outgoing_targeted,
 						fees_charged,

@@ -284,7 +284,7 @@ decl_module! {
 
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
-		/// slot is
+		/// slot is unable to be purchased and the timeout expires.
 		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>) {
 			let who = ensure_signed(origin)?;
 
@@ -607,6 +607,8 @@ mod tests {
 		type Balance = u64;
 		type OnReapAccount = System;
 		type OnNewAccount = ();
+		type TransferPayment = ();
+		type DustRemoval = ();
 		type Event = ();
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
@@ -824,7 +826,7 @@ mod tests {
 			// User 1 contributes to their own crowdfund
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
 			// User 1 has spent some funds to do this, transfer fees **are** taken
-			assert_eq!(Balances::free_balance(1), 940);
+			assert_eq!(Balances::free_balance(1), 950);
 			// Contributions are stored in the trie
 			assert_eq!(Crowdfund::contribution_get(0, &1), 49);
 			// Contributions appear in free balance of crowdfund
@@ -1102,13 +1104,13 @@ mod tests {
 
 			// User can withdraw their full balance without fees
 			assert_ok!(Crowdfund::withdraw(Origin::signed(1), 0));
-			assert_eq!(Balances::free_balance(1), 989);
+			assert_eq!(Balances::free_balance(1), 999);
 
 			assert_ok!(Crowdfund::withdraw(Origin::signed(2), 0));
-			assert_eq!(Balances::free_balance(2), 1990);
+			assert_eq!(Balances::free_balance(2), 2000);
 
 			assert_ok!(Crowdfund::withdraw(Origin::signed(3), 0));
-			assert_eq!(Balances::free_balance(3), 2990);
+			assert_eq!(Balances::free_balance(3), 3000);
 		});
 	}
 
@@ -1120,7 +1122,7 @@ mod tests {
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
-			assert_eq!(Balances::free_balance(1), 940);
+			assert_eq!(Balances::free_balance(1), 950);
 
 			run_to_block(5);
 
@@ -1150,6 +1152,8 @@ mod tests {
 			// Skip all the way to the end
 			run_to_block(50);
 
+			// Check initiator's balance.
+			assert_eq!(Balances::free_balance(1), 899);
 			// Check current funds (contributions + deposit)
 			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 601);
 
@@ -1159,7 +1163,7 @@ mod tests {
 			// Fund account is emptied
 			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 0);
 			// Deposit is returned
-			assert_eq!(Balances::free_balance(1), 890);
+			assert_eq!(Balances::free_balance(1), 900);
 			// Treasury account is filled
 			assert_eq!(Balances::free_balance(Treasury::account_id()), 600);
 

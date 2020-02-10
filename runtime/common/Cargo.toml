@@ -27,6 +27,7 @@ frame-support = { git = "https://github.com/paritytech/substrate", branch = "pol
 staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
@@ -67,6 +68,7 @@ std = [
 	"staking/std",
 	"system/std",
 	"timestamp/std",
+	"vesting/std",
 	"serde_derive",
 	"serde/std",
 	"log",
