@@ -19,7 +19,7 @@ vergen = "3.0.4"
 
 [dev-dependencies]
 assert_cmd = "0.12"
-libc = "0.2"
+nix = "0.17"
 
 [workspace]
 members = [
