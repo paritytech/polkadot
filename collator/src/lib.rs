@@ -65,10 +65,10 @@ use polkadot_cli::{
 	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
 	service::{self, Roles, SelectChain}
 };
-use polkadot_network::validation::{LeafWorkParams, ValidationNetwork};
+use polkadot_network::legacy::validation::{LeafWorkParams, ValidationNetwork};
 
 pub use polkadot_cli::{VersionInfo, load_spec, service::Configuration};
-pub use polkadot_network::validation::Incoming;
+pub use polkadot_network::legacy::validation::Incoming;
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
 pub use sc_network::PeerId;
@@ -316,7 +316,7 @@ fn run_collator_node<S, P, Extrinsic>(
 
 	let is_known = move |block_hash: &Hash| {
 		use consensus_common::BlockStatus;
-		use polkadot_network::gossip::Known;
+		use polkadot_network::legacy::gossip::Known;
 
 		match known_oracle.block_status(&BlockId::hash(*block_hash)) {
 			Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
@@ -333,7 +333,7 @@ fn run_collator_node<S, P, Extrinsic>(
 		}
 	};
 
-	let message_validator = polkadot_network::gossip::register_validator(
+	let message_validator = polkadot_network::legacy::gossip::register_validator(
 		network.clone(),
 		(is_known, client.clone()),
 		&spawner,

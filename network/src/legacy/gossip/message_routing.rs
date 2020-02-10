@@ -210,8 +210,8 @@ impl View {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::tests::TestChainContext;
-	use crate::gossip::{Known, GossipParachainMessages};
+	use crate::legacy::tests::TestChainContext;
+	use crate::legacy::gossip::{Known, GossipParachainMessages};
 	use polkadot_primitives::parachain::Message as ParachainMessage;
 
 	fn hash(x: u8) -> Hash {
