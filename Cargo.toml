@@ -17,6 +17,10 @@ service = { package = "polkadot-service", path = "service" }
 [build-dependencies]
 vergen = "3.0.4"
 
+[dev-dependencies]
+assert_cmd = "0.12"
+nix = "0.17"
+
 [workspace]
 members = [
 	"availability-store",
