@@ -596,7 +596,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = pallet_balances::AccountData<u64>;
+		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnReapAccount = Balances;
 	}
@@ -605,14 +605,11 @@ mod tests {
 	}
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnReapAccount = System;
-		type OnNewAccount = ();
-		type TransferPayment = ();
-		type DustRemoval = ();
 		type Event = ();
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
-}
+		type AccountStore = System;
+	}
 
 	parameter_types! {
 		pub const ProposalBond: Permill = Permill::from_percent(5);

@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
-use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
+use frame_support::{decl_event, decl_storage, decl_module, decl_error};
 use frame_support::{dispatch::DispatchResult, weights::SimpleDispatchInfo};
 use frame_support::traits::{Currency, Get, VestingSchedule};
 use system::{ensure_root, ensure_none};
@@ -327,7 +327,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = pallet_balances::AccountData<u64>;
+		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnReapAccount = Balances;
 	}
@@ -339,15 +339,10 @@ mod tests {
 
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnFreeBalanceZero = ();
-		type OnReapAccount = System;
-		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
-		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
-		type CreationFee = CreationFee;
+		type AccountStore = System;
 	}
 
 	impl vesting::Trait for Test {
@@ -431,7 +426,7 @@ mod tests {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
 			assert_eq!(Balances::free_balance(&42), 100);
-			assert_eq!(Balances::vesting_balance(&42), 50);
+			assert_eq!(Vesting::vesting_balance(&42), 50);
 		});
 	}
 
@@ -450,7 +445,7 @@ mod tests {
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
 			assert_eq!(Balances::free_balance(&69), 200);
-			assert_eq!(Balances::vesting_balance(&69), 0);
+			assert_eq!(Vesting::vesting_balance(&69), 0);
 		});
 	}
 
@@ -469,7 +464,7 @@ mod tests {
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
 			assert_eq!(Balances::free_balance(&69), 200);
-			assert_eq!(Balances::vesting_balance(&69), 50);
+			assert_eq!(Vesting::vesting_balance(&69), 50);
 		});
 	}
 

@@ -894,7 +894,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = pallet_balances::AccountData<u64>;
+		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnReapAccount = Balances;
 	}
