@@ -291,6 +291,10 @@ decl_module! {
 		///
 		/// Must be sent from a Signed origin that is able to have ParathreadDeposit reserved.
 		/// `code` and `initial_head_data` are used to initialize the parathread's state.
+		///
+		/// Unlike `register_para`, this function does check that the maximum code size
+		/// and head data size are respected, as parathread registration is an atomic
+		/// action.
 		fn register_parathread(origin,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>,
@@ -1422,6 +1426,28 @@ mod tests {
 					(user_id(2), Some((CollatorId::default(), Retriable::WithRetries(0)))),
 				]
 			);
+		});
+	}
+
+	#[test]
+	fn register_does_not_enforce_limits_when_registering() {
+		new_test_ext(vec![]).execute_with(|| {
+			let bad_code_size = <Test as parachains::Trait>::MaxCodeSize::get() + 1;
+			let bad_head_size = <Test as parachains::Trait>::MaxHeadDataSize::get() + 1;
+
+			let code = vec![1u8; bad_code_size as _];
+			let head_data = vec![2u8; bad_head_size as _];
+
+			assert!(!<Registrar as super::Registrar<u64>>::code_size_allowed(bad_code_size));
+			assert!(!<Registrar as super::Registrar<u64>>::head_data_size_allowed(bad_head_size));
+
+			let id = <Registrar as super::Registrar<u64>>::new_id();
+			assert_ok!(<Registrar as super::Registrar<u64>>::register_para(
+				id,
+				ParaInfo { scheduling: Scheduling::Always },
+				code,
+				head_data,
+			));
 		});
 	}
 }
