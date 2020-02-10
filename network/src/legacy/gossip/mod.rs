@@ -52,6 +52,7 @@
 use sp_runtime::{generic::BlockId, traits::{BlakeTwo256, Hash as HashT}};
 use sp_blockchain::Error as ClientError;
 use sc_network::{config::Roles, Context, PeerId, ReputationChange};
+use sc_network::{NetworkService as SubstrateNetworkService, specialization::NetworkSpecialization};
 use sc_network_gossip::{
 	ValidationResult as GossipValidationResult,
 	ValidatorContext, MessageIntent,
@@ -73,8 +74,7 @@ use futures::prelude::*;
 use parking_lot::RwLock;
 use log::warn;
 
-use super::PolkadotNetworkService;
-use crate::{GossipMessageStream, NetworkService, PolkadotProtocol, router::attestation_topic};
+use crate::legacy::{GossipMessageStream, NetworkService, GossipService, PolkadotProtocol, router::attestation_topic};
 
 use attestation::{View as AttestationView, PeerData as AttestationPeerData};
 use message_routing::{View as MessageRoutingView};
@@ -308,11 +308,11 @@ impl<F, P> ChainContext for (F, P) where
 // NOTE: since RegisteredMessageValidator is meant to be a type-safe proof
 // that we've actually done the registration, this should be the only way
 // to construct it outside of tests.
-pub fn register_validator<C: ChainContext + 'static>(
-	service: Arc<PolkadotNetworkService>,
+pub fn register_validator<C: ChainContext + 'static, S: NetworkSpecialization<Block>>(
+	service: Arc<SubstrateNetworkService<Block, S, Hash>>,
 	chain: C,
 	executor: &impl futures::task::Spawn,
-) -> RegisteredMessageValidator
+) -> RegisteredMessageValidator<S>
 {
 	let s = service.clone();
 	let report_handle = Box::new(move |peer: &PeerId, cost_benefit: ReputationChange| {
@@ -366,7 +366,7 @@ impl NewLeafActions {
 	/// Perform the queued actions, feeding into gossip.
 	pub fn perform(
 		self,
-		gossip: &dyn crate::NetworkService,
+		gossip: &dyn crate::legacy::GossipService,
 	) {
 		for action in self.actions {
 			match action {
@@ -382,16 +382,25 @@ impl NewLeafActions {
 /// A registered message validator.
 ///
 /// Create this using `register_validator`.
-#[derive(Clone)]
-pub struct RegisteredMessageValidator {
+pub struct RegisteredMessageValidator<S: NetworkSpecialization<Block>> {
 	inner: Arc<MessageValidator<dyn ChainContext>>,
 	// Note: this is always `Some` in real code and `None` in tests.
-	service: Option<Arc<PolkadotNetworkService>>,
+	service: Option<Arc<SubstrateNetworkService<Block, S, Hash>>>,
 	// Note: this is always `Some` in real code and `None` in tests.
 	gossip_engine: Option<sc_network_gossip::GossipEngine<Block>>,
 }
 
-impl RegisteredMessageValidator {
+impl<S: NetworkSpecialization<Block>> Clone for RegisteredMessageValidator<S> {
+	fn clone(&self) -> Self {
+		RegisteredMessageValidator {
+			inner: self.inner.clone(),
+			service: self.service.clone(),
+			gossip_engine: self.gossip_engine.clone(),
+		}
+	}
+}
+
+impl RegisteredMessageValidator<crate::legacy::PolkadotProtocol> {
 	#[cfg(test)]
 	pub(crate) fn new_test<C: ChainContext + 'static>(
 		chain: C,
@@ -405,7 +414,9 @@ impl RegisteredMessageValidator {
 			gossip_engine: None,
 		}
 	}
+}
 
+impl<S: NetworkSpecialization<Block>> RegisteredMessageValidator<S> {
 	pub fn register_availability_store(&mut self, availability_store: av_store::Store) {
 		self.inner.inner.write().availability_store = Some(availability_store);
 	}
@@ -469,10 +480,8 @@ impl RegisteredMessageValidator {
 
 		NewLeafActions { actions }
 	}
-}
 
-impl NetworkService for RegisteredMessageValidator {
-	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
+	pub(crate) fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let topic_stream = if let Some(gossip_engine) = self.gossip_engine.as_ref() {
 			gossip_engine.messages_for(topic)
 		} else {
@@ -483,7 +492,7 @@ impl NetworkService for RegisteredMessageValidator {
 		GossipMessageStream::new(topic_stream.boxed())
 	}
 
-	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
+	pub(crate) fn gossip_message(&self, topic: Hash, message: GossipMessage) {
 		if let Some(gossip_engine) = self.gossip_engine.as_ref() {
 			gossip_engine.gossip_message(
 				topic,
@@ -495,14 +504,30 @@ impl NetworkService for RegisteredMessageValidator {
 		}
 	}
 
-	fn send_message(&self, who: PeerId, message: GossipMessage) {
+	pub(crate) fn send_message(&self, who: PeerId, message: GossipMessage) {
 		if let Some(gossip_engine) = self.gossip_engine.as_ref() {
 			gossip_engine.send_message(vec![who], message.encode());
 		} else {
 			log::error!("Called send_message on a test engine");
 		}
 	}
+}
 
+impl<S: NetworkSpecialization<Block>> GossipService for RegisteredMessageValidator<S> {
+	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
+		RegisteredMessageValidator::gossip_messages_for(self, topic)
+	}
+
+	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
+		RegisteredMessageValidator::gossip_message(self, topic, message)
+	}
+
+	fn send_message(&self, who: PeerId, message: GossipMessage) {
+		RegisteredMessageValidator::send_message(self, who, message)
+	}
+}
+
+impl NetworkService for RegisteredMessageValidator<crate::legacy::PolkadotProtocol> {
 	fn with_spec<F: Send + 'static>(&self, with: F)
 		where F: FnOnce(&mut PolkadotProtocol, &mut dyn Context<Block>)
 	{
@@ -806,7 +831,7 @@ mod tests {
 	use polkadot_validation::GenericStatement;
 	use super::message_routing::queue_topic;
 
-	use crate::tests::TestChainContext;
+	use crate::legacy::tests::TestChainContext;
 
 	#[derive(PartialEq, Clone, Debug)]
 	enum ContextEvent {

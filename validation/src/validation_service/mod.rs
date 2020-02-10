@@ -34,7 +34,7 @@ use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
 use futures::prelude::*;
-use futures::{future::select, task::{Spawn, SpawnExt}};
+use futures::task::{Spawn, SpawnExt};
 use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
 	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
@@ -57,14 +57,14 @@ pub type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 // They send a oneshot channel.
 type ValidationInstanceRequest = (
 	Hash,
-	futures::channel::oneshot::Sender<Result<Arc<ValidationInstanceHandle>, Error>>,
+	futures::channel::oneshot::Sender<Result<ValidationInstanceHandle, Error>>,
 );
 
 /// A handle to a single instance of parachain validation, which is pinned to
 /// a specific relay-chain block. This is the instance that should be used when
 /// constructing any
+#[derive(Clone)]
 pub(crate) struct ValidationInstanceHandle {
-	_drop_signal: exit_future::Signal,
 	table: Arc<SharedTable>,
 	started: Instant,
 }
@@ -92,7 +92,7 @@ impl ServiceHandle {
 	///
 	/// This can fail if the service task has shut down for some reason.
 	pub(crate) async fn get_validation_instance(self, relay_parent: Hash)
-		-> Result<Arc<ValidationInstanceHandle>, Error>
+		-> Result<ValidationInstanceHandle, Error>
 	{
 		let mut sender = self.sender;
 		let instance_rx = loop {
@@ -261,7 +261,7 @@ pub(crate) struct ParachainValidationInstances<C, N, P, SP> {
 	availability_store: AvailabilityStore,
 	/// Live agreements. Maps relay chain parent hashes to attestation
 	/// instances.
-	live_instances: HashMap<Hash, Arc<ValidationInstanceHandle>>,
+	live_instances: HashMap<Hash, ValidationInstanceHandle>,
 }
 
 impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
@@ -289,7 +289,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		keystore: &KeyStorePtr,
 		max_block_data_size: Option<u64>,
 	)
-		-> Result<Arc<ValidationInstanceHandle>, Error>
+		-> Result<ValidationInstanceHandle, Error>
 	{
 		use primitives::Pair;
 
@@ -344,23 +344,19 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 			max_block_data_size,
 		));
 
-		let (_drop_signal, exit) = exit_future::signal();
-
-		let router = self.network.communication_for(
+		let router = self.network.build_table_router(
 			table.clone(),
 			&validators,
-			exit.clone(),
 		);
 
 		if let Some((Chain::Parachain(id), index)) = local_duty.as_ref().map(|d| (d.validation, d.index)) {
-			self.launch_work(parent_hash, id, router, max_block_data_size, validators.len(), index, exit);
+			self.launch_work(parent_hash, id, router, max_block_data_size, validators.len(), index);
 		}
 
-		let tracker = Arc::new(ValidationInstanceHandle {
+		let tracker = ValidationInstanceHandle {
 			table,
 			started: Instant::now(),
-			_drop_signal,
-		});
+		};
 
 		self.live_instances.insert(parent_hash, tracker.clone());
 
@@ -381,7 +377,6 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		max_block_data_size: Option<u64>,
 		authorities_num: usize,
 		local_id: ValidatorIndex,
-		exit: exit_future::Exit,
 	) {
 		let (collators, client) = (self.collators.clone(), self.client.clone());
 		let availability_store = self.availability_store.clone();
@@ -423,13 +418,20 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 									"Failed to add erasure chunks: {}", e
 								);
 							} else {
-								router.local_collation(
+								let res = router.local_collation(
 									collation,
 									receipt,
 									outgoing_targeted,
 									(local_id, &chunks),
-								);
-							}
+								).await;
+
+								if let Err(e) = res {
+									warn!(
+										target: "validation",
+										"Failed to notify network of local collation: {:?}", e
+									);
+								}
+							};
 						}
 						Err(e) => {
 							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
@@ -442,17 +444,17 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 			}
 		};
 
-		let router = build_router
+		let router_work = build_router
 			.map_ok(with_router)
 			.map_err(|e| {
 				warn!(target: "validation" , "Failed to build table router: {:?}", e);
-			});
+			})
+			.map(|_| ());
 
-		let cancellable_work = select(exit, router).map(drop);
 
 		// spawn onto thread pool.
-		if self.spawner.spawn(cancellable_work).is_err() {
-			error!("Failed to spawn cancellable work task");
+		if self.spawner.spawn(router_work).is_err() {
+			error!("Failed to spawn router work task");
 		}
 	}
 }

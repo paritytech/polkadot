@@ -44,10 +44,10 @@ use std::pin::Pin;
 use arrayvec::ArrayVec;
 use parking_lot::Mutex;
 
-use crate::router::Router;
-use crate::gossip::{RegisteredMessageValidator, MessageValidationData};
+use crate::legacy::router::Router;
+use crate::legacy::gossip::{RegisteredMessageValidator, MessageValidationData};
 
-use super::NetworkService;
+use super::{NetworkService, PolkadotProtocol};
 
 pub use polkadot_validation::Incoming;
 
@@ -65,13 +65,13 @@ pub struct LeafWorkParams {
 pub struct ValidationNetwork<P, T> {
 	api: Arc<P>,
 	executor: T,
-	network: RegisteredMessageValidator,
+	network: RegisteredMessageValidator<PolkadotProtocol>,
 }
 
 impl<P, T> ValidationNetwork<P, T> {
 	/// Create a new consensus networking object.
 	pub fn new(
-		network: RegisteredMessageValidator,
+		network: RegisteredMessageValidator<PolkadotProtocol>,
 		api: Arc<P>,
 		executor: T,
 	) -> Self {
@@ -165,7 +165,7 @@ impl<P, T> ValidationNetwork<P, T> {
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
 	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=SignedStatement> {
-		crate::router::checked_statements(&self.network, crate::router::attestation_topic(relay_parent))
+		crate::legacy::router::checked_statements(&self.network, crate::legacy::router::attestation_topic(relay_parent))
 	}
 }
 
@@ -179,12 +179,12 @@ impl<P, T> ParachainNetwork for ValidationNetwork<P, T> where
 	type TableRouter = Router<P, T>;
 	type BuildTableRouter = Box<dyn Future<Output=Result<Self::TableRouter, String>> + Send + Unpin>;
 
-	fn communication_for(
+	fn build_table_router(
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],
-		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter {
+		let (signal, exit) = exit_future::signal();
 		let parent_hash = *table.consensus_parent_hash();
 		let local_session_key = table.session_key();
 
@@ -203,6 +203,7 @@ impl<P, T> ParachainNetwork for ValidationNetwork<P, T> where
 					table,
 					fetcher,
 					network,
+					signal,
 				);
 
 				let table_router_clone = table_router.clone();
@@ -390,7 +391,7 @@ impl RecentValidatorIds {
 		InsertedRecentKey::New(old)
 	}
 
-	/// As a slice.
+	/// As a slice. Most recent is last.
 	pub(crate) fn as_slice(&self) -> &[ValidatorId] {
 		&*self.inner
 	}
@@ -512,7 +513,7 @@ impl LiveValidationLeaves {
 
 /// Can fetch data for a given validation leaf-work instance.
 pub struct LeafWorkDataFetcher<P, T> {
-	network: RegisteredMessageValidator,
+	network: RegisteredMessageValidator<PolkadotProtocol>,
 	api: Arc<P>,
 	task_executor: T,
 	knowledge: Arc<Mutex<Knowledge>>,
@@ -531,7 +532,7 @@ impl<P, T> LeafWorkDataFetcher<P, T> {
 	}
 
 	/// Get the network service.
-	pub(crate) fn network(&self) -> &RegisteredMessageValidator {
+	pub(crate) fn network(&self) -> &RegisteredMessageValidator<PolkadotProtocol> {
 		&self.network
 	}
 
