@@ -1010,13 +1010,13 @@ mod tests {
 	}
 
 	impl session::Trait for Test {
-		type SessionManager = ();
-		type Keys = UintAuthorityId;
-		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
-		type SessionHandler = session::TestSessionHandler;
 		type Event = ();
 		type ValidatorId = u64;
 		type ValidatorIdOf = staking::StashOf<Self>;
+		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+		type SessionManager = ();
+		type SessionHandler = session::TestSessionHandler;
+		type Keys = UintAuthorityId;
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	}
 
@@ -1057,20 +1057,17 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: Balance = 0;
-		pub const TransferFee: Balance = 0;
 		pub const CreationFee: Balance = 0;
 	}
 
 	impl balances::Trait for Test {
 		type Balance = Balance;
-		type OnFreeBalanceZero = ();
 		type OnReapAccount = System;
 		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
-		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
+		type TransferPayment = ();
 		type CreationFee = CreationFee;
 	}
 
@@ -1216,7 +1213,6 @@ mod tests {
 
 		balances::GenesisConfig::<Test> {
 			balances,
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 
 		staking::GenesisConfig::<Test> {

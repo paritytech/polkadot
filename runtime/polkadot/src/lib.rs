@@ -38,7 +38,7 @@ use sp_runtime::{
 	ApplyExtrinsicResult, Percent, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	curve::PiecewiseLinear,
-	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys},
+	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto},
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
@@ -155,16 +155,19 @@ impl babe::Trait for Runtime {
 	type EpochChangeTrigger = babe::ExternalTrigger;
 }
 
+parameter_types! {
+	pub const IndexDeposit: Balance = 1 * DOLLARS;
+}
+
 impl indices::Trait for Runtime {
-	type IsDeadAccount = Balances;
 	type AccountIndex = AccountIndex;
-	type ResolveHint = indices::SimpleResolveHint<Self::AccountId, Self::AccountIndex>;
 	type Event = Event;
+	type IsDeadAccount = Balances;
+	type ResolveHint = indices::SimpleResolveHint<Self::AccountId, Self::AccountIndex>;
 }
 
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 100 * CENTS;
-	pub const TransferFee: Balance = 1 * CENTS;
 	pub const CreationFee: Balance = 1 * CENTS;
 }
 
@@ -178,14 +181,12 @@ pub type DealWithFees = SplitTwoWays<
 
 impl balances::Trait for Runtime {
 	type Balance = Balance;
-	type OnFreeBalanceZero = Staking;
-	type OnReapAccount = System;
-	type OnNewAccount = Indices;
 	type Event = Event;
 	type DustRemoval = ();
-	type TransferPayment = ();
 	type ExistentialDeposit = ExistentialDeposit;
-	type TransferFee = TransferFee;
+	type OnReapAccount = (Staking, Session, Democracy);
+	type OnNewAccount = ();
+	type TransferPayment = ();
 	type CreationFee = CreationFee;
 }
 
@@ -246,13 +247,13 @@ parameter_types! {
 }
 
 impl session::Trait for Runtime {
-	type SessionManager = Staking;
-	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
-	type ShouldEndSession = Babe;
 	type Event = Event;
-	type Keys = SessionKeys;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = staking::StashOf<Self>;
+	type ShouldEndSession = Babe;
+	type SessionManager = Staking;
+	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 }
 
@@ -282,10 +283,11 @@ parameter_types! {
 }
 
 impl staking::Trait for Runtime {
-	type RewardRemainder = Treasury;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
-	type Event = Event;
 	type Currency = Balances;
+	type Time = Timestamp;
+	type CurrencyToVote = CurrencyToVoteHandler<Self>;
+	type RewardRemainder = Treasury;
+	type Event = Event;
 	type Slash = Treasury;
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
@@ -294,7 +296,6 @@ impl staking::Trait for Runtime {
 	// A super-majority of the council can cancel the slash.
 	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
 	type SessionInterface = Self;
-	type Time = Timestamp;
 	type RewardCurve = RewardCurve;
 }
 
@@ -316,7 +317,6 @@ impl democracy::Trait for Runtime {
 	type EnactmentPeriod = EnactmentPeriod;
 	type LaunchPeriod = LaunchPeriod;
 	type VotingPeriod = VotingPeriod;
-	type EmergencyVotingPeriod = EmergencyVotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
 	/// A straight majority of the council can decide what their next motion is.
 	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
@@ -328,6 +328,7 @@ impl democracy::Trait for Runtime {
 	/// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
 	/// be tabled immediately and with a shorter voting/enactment period.
 	type FastTrackOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>;
+	type EmergencyVotingPeriod = EmergencyVotingPeriod;
 	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
 	type CancellationOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>;
 	// Any single technical committee member may veto a coming council proposal, however they can
@@ -362,12 +363,12 @@ impl elections_phragmen::Trait for Runtime {
 	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type CandidacyBond = CandidacyBond;
 	type VotingBond = VotingBond;
-	type TermDuration = TermDuration;
-	type DesiredMembers = DesiredMembers;
-	type DesiredRunnersUp = DesiredRunnersUp;
 	type LoserCandidate = Treasury;
 	type BadReport = Treasury;
 	type KickedMember = Treasury;
+	type DesiredMembers = DesiredMembers;
+	type DesiredRunnersUp = DesiredRunnersUp;
+	type TermDuration = TermDuration;
 }
 
 type TechnicalCollective = collective::Instance2;
@@ -403,17 +404,17 @@ impl treasury::Trait for Runtime {
 	type Currency = Balances;
 	type ApproveOrigin = collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
 	type RejectOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type Tippers = ElectionsPhragmen;
+	type TipCountdown = TipCountdown;
+	type TipFindersFee = TipFindersFee;
+	type TipReportDepositBase = TipReportDepositBase;
+	type TipReportDepositPerByte = TipReportDepositPerByte;
 	type Event = Event;
 	type ProposalRejection = Treasury;
 	type ProposalBond = ProposalBond;
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
-	type Tippers = ElectionsPhragmen;
-	type TipCountdown = TipCountdown;
-	type TipFindersFee = TipFindersFee;
-	type TipReportDepositBase = TipReportDepositBase;
-	type TipReportDepositPerByte = TipReportDepositPerByte;
 }
 
 impl offences::Trait for Runtime {
@@ -435,8 +436,8 @@ impl im_online::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type SubmitTransaction = SubmitTransaction;
-	type ReportUnresponsiveness = Offences;
 	type SessionDuration = SessionDuration;
+	type ReportUnresponsiveness = Offences;
 }
 
 impl grandpa::Trait for Runtime {
@@ -498,8 +499,8 @@ impl slots::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type Parachains = Registrar;
-	type LeasePeriod = LeasePeriod;
 	type EndingPeriod = EndingPeriod;
+	type LeasePeriod = LeasePeriod;
 	type Randomness = RandomnessCollectiveFlip;
 }
 
@@ -509,8 +510,14 @@ parameter_types! {
 
 impl claims::Trait for Runtime {
 	type Event = Event;
-	type Currency = Balances;
+	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
+}
+
+impl vesting::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type BlockNumberToBalance = ConvertInto;
 }
 
 impl sudo::Trait for Runtime {
@@ -525,7 +532,7 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: system::{Module, Call, Storage, Config, Event},
+		System: system::{Module, Call, Storage, Config, Event<T>},
 		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Storage},
 
 		// Must be before session.
@@ -546,9 +553,6 @@ construct_runtime! {
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
-		// Sudo. Usable initially.
-		Sudo: sudo,
-
 		// Governance stuff; uncallable initially.
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
@@ -557,15 +561,20 @@ construct_runtime! {
 		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
 
-		// Claims. Usable initially.
-		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
-
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
 		// have no public dispatchables.
 		Parachains: parachains::{Module, Call, Storage, Config, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
+
+		// Claims. Usable initially.
+		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
+		// Vesting. Usable initially, but removed once all vesting is finished.
+		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
+
+		// Sudo. Last module. Usable initially, but removed once governance enabled.
+		Sudo: sudo,
 	}
 }
 

@@ -898,21 +898,18 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;
-		pub const TransferFee: u64 = 0;
 		pub const CreationFee: u64 = 0;
 	}
 
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnFreeBalanceZero = ();
-		type OnReapAccount = System;
-		type OnNewAccount = ();
 		type Event = ();
+		type OnNewAccount = ();
+		type OnReapAccount = System;
 		type DustRemoval = ();
-		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
+		type TransferPayment = ();
 	}
 
 	thread_local! {
@@ -987,7 +984,6 @@ mod tests {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
@@ -1086,8 +1082,8 @@ mod tests {
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
-			assert_eq!(Balances::reserved_balance(&1), 1);
-			assert_eq!(Balances::free_balance(&1), 9);
+			assert_eq!(Balances::reserved_balance(1), 1);
+			assert_eq!(Balances::free_balance(1), 9);
 
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
@@ -1095,8 +1091,8 @@ mod tests {
 				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
-			assert_eq!(Balances::reserved_balance(&1), 0);
-			assert_eq!(Balances::free_balance(&1), 9);
+			assert_eq!(Balances::reserved_balance(1), 0);
+			assert_eq!(Balances::free_balance(1), 9);
 		});
 	}
 
@@ -1106,7 +1102,7 @@ mod tests {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
-			assert_eq!(Balances::free_balance(&1), 9);
+			assert_eq!(Balances::free_balance(1), 9);
 
 			run_to_block(9);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
@@ -1114,7 +1110,7 @@ mod tests {
 
 			run_to_block(50);
 			assert_eq!(Slots::deposit_held(&0.into()), 0);
-			assert_eq!(Balances::free_balance(&1), 10);
+			assert_eq!(Balances::free_balance(1), 10);
 		});
 	}
 
@@ -1135,7 +1131,7 @@ mod tests {
 
 			run_to_block(50);
 			assert_eq!(Slots::deposit_held(&0.into()), 0);
-			assert_eq!(Balances::free_balance(&10), 1);
+			assert_eq!(Balances::free_balance(10), 1);
 		});
 	}
 
@@ -1189,8 +1185,8 @@ mod tests {
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 5));
 			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 1, 4, 1));
-			assert_eq!(Balances::reserved_balance(&2), 0);
-			assert_eq!(Balances::free_balance(&2), 20);
+			assert_eq!(Balances::reserved_balance(2), 0);
+			assert_eq!(Balances::free_balance(2), 20);
 			assert_eq!(
 				Slots::winning(0).unwrap()[SlotRange::ZeroThree as u8 as usize],
 				Some((Bidder::New(NewBidder{who: 1, sub: 0}), 5))
@@ -1382,13 +1378,13 @@ mod tests {
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 3));
 
 			run_to_block(20);
-			assert_eq!(Balances::free_balance::<u64>(ParaId::from(0).into_account()), 2);
+			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 2);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 4));
 
 			run_to_block(30);
-			assert_eq!(Balances::free_balance::<u64>(ParaId::from(0).into_account()), 1);
+			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 1);
 		});
 	}
 
@@ -1424,8 +1420,8 @@ mod tests {
 				run_to_block(i);
 				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
 				for j in 1..6 {
-					assert_eq!(Balances::reserved_balance(&j), if j == i { j } else { 0 });
-					assert_eq!(Balances::free_balance(&j), if j == i { j * 9 } else { j * 10 });
+					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
+					assert_eq!(Balances::free_balance(j), if j == i { j * 9 } else { j * 10 });
 				}
 			}
 
@@ -1436,8 +1432,8 @@ mod tests {
 				Some((1, IncomingParachain::Unset(NewBidder { who: 5, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 5);
-			assert_eq!(Balances::reserved_balance(&5), 0);
-			assert_eq!(Balances::free_balance(&5), 45);
+			assert_eq!(Balances::reserved_balance(5), 0);
+			assert_eq!(Balances::free_balance(5), 45);
 		});
 	}
 
@@ -1452,8 +1448,8 @@ mod tests {
 				run_to_block(i + 3);
 				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
 				for j in 1..6 {
-					assert_eq!(Balances::reserved_balance(&j), if j == i { j } else { 0 });
-					assert_eq!(Balances::free_balance(&j), if j == i { j * 9 } else { j * 10 });
+					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
+					assert_eq!(Balances::free_balance(j), if j == i { j * 9 } else { j * 10 });
 				}
 			}
 
@@ -1464,8 +1460,8 @@ mod tests {
 				Some((1, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 3);
-			assert_eq!(Balances::reserved_balance(&3), 0);
-			assert_eq!(Balances::free_balance(&3), 27);
+			assert_eq!(Balances::reserved_balance(3), 0);
+			assert_eq!(Balances::free_balance(3), 27);
 		});
 	}
 
