@@ -34,8 +34,8 @@ use consensus_common::{
 };
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
-	CandidateReceipt, ParachainHost, ValidatorId, PoVBlock,
-	ValidatorPair, ErasureChunk,
+	CandidateReceipt, ParachainHost, ValidatorId,
+	ValidatorPair, BlockData, ErasureChunk
 };
 use futures::{prelude::*, future::select, channel::{mpsc, oneshot}, task::{Spawn, SpawnExt}};
 use keystore::KeyStorePtr;
@@ -90,7 +90,7 @@ pub(crate) struct ParachainBlocks {
 	/// The relay parent of the block these parachain blocks belong to.
 	pub relay_parent: Hash,
 	/// The blocks themselves.
-	pub blocks: Vec<(CandidateReceipt, Option<PoVBlock>)>,
+	pub blocks: Vec<(CandidateReceipt, Option<BlockData>)>,
 	/// A sender to signal the result asynchronously.
 	pub result: oneshot::Sender<Result<(), Error>>,
 }
@@ -367,7 +367,7 @@ where
 		runtime_handle: &Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 		relay_parent: Hash,
-		blocks: Vec<(CandidateReceipt, Option<PoVBlock>)>,
+		blocks: Vec<(CandidateReceipt, Option<BlockData>)>,
 	) -> Result<(), Error> {
 		let hashes: Vec<_> = blocks.iter().map(|(c, _)| c.hash()).collect();
 

@@ -28,8 +28,7 @@ use keystore::KeyStorePtr;
 use polkadot_primitives::{
 	Hash, Block,
 	parachain::{
-		Id as ParaId, BlockData, CandidateReceipt, ErasureChunk, PoVBlock,
-		ParachainHost,
+		Id as ParaId, BlockData, CandidateReceipt, ErasureChunk, ParachainHost
 	},
 };
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, HasherFor};
@@ -124,8 +123,8 @@ pub struct Data {
 	pub relay_parent: Hash,
 	/// The parachain index for this candidate.
 	pub parachain_id: ParaId,
-	/// The block itself.
-	pub block: PoVBlock,
+	/// Block data.
+    pub block_data: BlockData,
 }
 
 /// Handle to the availability store.
