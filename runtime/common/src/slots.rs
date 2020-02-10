@@ -185,7 +185,7 @@ decl_storage! {
 
 impl<T: Trait> SwapAux for Module<T> {
 	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
-		if <Onboarding<T>>::exists(one) || <Onboarding<T>>::exists(other) {
+		if <Onboarding<T>>::contains_key(one) || <Onboarding<T>>::contains_key(other) {
 			Err("can't swap an undeployed parachain")?
 		}
 		Ok(())
@@ -284,7 +284,7 @@ decl_module! {
 			// winner information is duplicated from the previous block in case no bids happened
 			// in this block.
 			if let Some(offset) = Self::is_ending(now) {
-				if !<Winning<T>>::exists(&offset) {
+				if !<Winning<T>>::contains_key(&offset) {
 					<Winning<T>>::insert(offset,
 						offset.checked_sub(&One::one())
 							.and_then(<Winning<T>>::get)

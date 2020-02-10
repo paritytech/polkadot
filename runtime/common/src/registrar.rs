@@ -70,7 +70,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		code: Vec<u8>,
 		initial_head_data: Vec<u8>,
 	) -> DispatchResult {
-		ensure!(!Paras::exists(id), Error::<T>::ParaAlreadyExists);
+		ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
 		if let Scheduling::Always = info.scheduling {
 			Parachains::mutate(|parachains|
 				match parachains.binary_search(&id) {
