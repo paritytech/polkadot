@@ -74,7 +74,7 @@ pub fn run(version: VersionInfo) -> error::Result<()> {
 		},
 		Some(Subcommand::Base(cmd)) => {
 			sc_cli::init(cmd.get_shared_params(), &version)?;
-			sc_cli::init_config(&mut config, &opt.run.shared_params, &version, load_spec)?;
+			sc_cli::init_config(&mut config, &cmd.get_shared_params(), &version, load_spec)?;
 
 			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
 
