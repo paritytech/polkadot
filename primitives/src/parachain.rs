@@ -232,6 +232,8 @@ pub struct CandidateReceipt {
 	pub signature: CollatorSignature,
 	/// The head-data
 	pub head_data: HeadData,
+	/// The parent head-data.
+	pub parent_head: HeadData,
 	/// Egress queue roots. Must be sorted lexicographically (ascending)
 	/// by parachain ID.
 	pub egress_queue_roots: Vec<(Id, Hash)>,
@@ -394,7 +396,7 @@ pub struct AttestedCandidate {
 	/// Validity attestations.
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// Indices of the corresponding validity votes.
-	pub validator_indices: BitVec,
+	pub validator_indices: BitVec<bitvec::cursor::LittleEndian, u8>,
 }
 
 impl AttestedCandidate {
