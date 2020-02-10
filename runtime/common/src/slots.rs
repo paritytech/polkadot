@@ -1177,7 +1177,7 @@ mod tests {
 
 			run_to_block(9);
 			let h = BlakeTwo256::hash(&[42u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![69]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![69]));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42]));
 
 			run_to_block(10);
@@ -1202,7 +1202,7 @@ mod tests {
 
 			run_to_block(11);
 			let h = BlakeTwo256::hash(&[42u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![69]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![69]));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42]));
 			with_parachains(|p| {
 				assert_eq!(p.len(), 1);
@@ -1312,7 +1312,7 @@ mod tests {
 
 			for &(para, sub, acc) in &[(0, 0, 1), (1, 0, 2), (2, 0, 3), (3, 1, 4), (4, 1, 5)] {
 				let h = BlakeTwo256::hash(&[acc][..]);
-				assert_ok!(Slots::fix_deploy_data(Origin::signed(acc as _), sub, para.into(), h, vec![acc]));
+				assert_ok!(Slots::fix_deploy_data(Origin::signed(acc as _), sub, para.into(), h, 1, vec![acc]));
 				assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), para.into(), vec![acc]));
 			}
 
@@ -1359,7 +1359,7 @@ mod tests {
 
 			run_to_block(10);
 			let h = BlakeTwo256::hash(&[1u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![1]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![1]));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1]));
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
@@ -1404,7 +1404,7 @@ mod tests {
 
 			run_to_block(10);
 			let h = BlakeTwo256::hash(&[1u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![1]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![1]));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1]));
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));

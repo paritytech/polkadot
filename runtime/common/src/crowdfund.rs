@@ -659,6 +659,9 @@ mod tests {
 			RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
 	}
 
+	const MAX_CODE_SIZE: u32 = 100;
+	const MAX_HEAD_DATA_SIZE: u32 = 10;
+
 	pub struct TestParachains;
 	impl Registrar<u64> for TestParachains {
 		fn new_id() -> ParaId {
@@ -666,6 +669,14 @@ mod tests {
 				*p.borrow_mut() += 1;
 				(*p.borrow() - 1).into()
 			})
+		}
+
+		fn head_data_size_allowed(head_data_size: u32) -> bool {
+			head_data_size <= MAX_HEAD_DATA_SIZE
+		}
+
+		fn code_size_allowed(code_size: u32) -> bool {
+			code_size <= MAX_CODE_SIZE
 		}
 
 		fn register_para(
@@ -884,13 +895,14 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
 			let fund = Crowdfund::funds(0).unwrap();
 
 			// Confirm deploy data is stored correctly
-			assert_eq!(fund.deploy_data, Some((<Test as system::Trait>::Hash::default(), vec![0])));
+			assert_eq!(fund.deploy_data, Some((<Test as system::Trait>::Hash::default(), 0, vec![0])));
 		});
 	}
 
@@ -906,6 +918,7 @@ mod tests {
 				Origin::signed(2),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]),
 				Error::<Test>::InvalidOrigin
 			);
@@ -915,6 +928,7 @@ mod tests {
 				Origin::signed(1),
 				1,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]),
 				Error::<Test>::InvalidFundIndex
 			);
@@ -924,6 +938,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -931,6 +946,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![1]),
 				Error::<Test>::ExistingDeployData
 			);
@@ -950,6 +966,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -995,6 +1012,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -1022,6 +1040,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -1064,6 +1083,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -1205,6 +1225,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
@@ -1233,6 +1254,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 			// Move to the end of auction...
@@ -1271,12 +1293,14 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(2),
 				1,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 

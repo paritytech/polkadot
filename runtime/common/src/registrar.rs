@@ -973,7 +973,7 @@ mod tests {
 
 			run_to_block(10);
 			let h = BlakeTwo256::hash(&[2u8; 3]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, user_id(1), h, vec![2; 3]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, user_id(1), h, 3, vec![2; 3]));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), user_id(1), vec![2; 3]));
 			assert_ok!(Slots::set_offboarding(Origin::signed(user_id(1).into_account()), 1));
 
