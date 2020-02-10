@@ -150,8 +150,8 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// BlockNumber.
 	last_slot: BlockNumber,
 	/// The deployment data associated with this fund, if any. Once set it may not be reset. First
-	/// is the code hash, second is the initial head data.
-	deploy_data: Option<(Hash, Vec<u8>)>,
+	/// is the code hash, second is the code size, third is the initial head data.
+	deploy_data: Option<(Hash, u32, Vec<u8>)>,
 }
 
 decl_storage! {
@@ -346,6 +346,7 @@ decl_module! {
 		fn fix_deploy_data(origin,
 			#[compact] index: FundIndex,
 			code_hash: T::Hash,
+			code_size: u32,
 			initial_head_data: Vec<u8>
 		) {
 			let who = ensure_signed(origin)?;
@@ -354,7 +355,7 @@ decl_module! {
 			ensure!(fund.owner == who, Error::<T>::InvalidOrigin); // must be fund owner
 			ensure!(fund.deploy_data.is_none(), Error::<T>::ExistingDeployData);
 
-			fund.deploy_data = Some((code_hash, initial_head_data));
+			fund.deploy_data = Some((code_hash, code_size, initial_head_data));
 
 			<Funds<T>>::insert(index, &fund);
 
@@ -374,12 +375,20 @@ decl_module! {
 			let _ = ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
-			let (code_hash, initial_head_data) = fund.clone().deploy_data.ok_or(Error::<T>::UnsetDeployData)?;
+			let (code_hash, code_size, initial_head_data)
+				= fund.clone().deploy_data.ok_or(Error::<T>::UnsetDeployData)?;
 			ensure!(fund.parachain.is_none(), Error::<T>::AlreadyOnboard);
 			fund.parachain = Some(para_id);
 
 			let fund_origin = system::RawOrigin::Signed(Self::fund_account_id(index)).into();
-			<slots::Module<T>>::fix_deploy_data(fund_origin, index, para_id, code_hash, initial_head_data)?;
+			<slots::Module<T>>::fix_deploy_data(
+				fund_origin,
+				index,
+				para_id,
+				code_hash,
+				code_size,
+				initial_head_data,
+			)?;
 
 			<Funds<T>>::insert(index, &fund);
 

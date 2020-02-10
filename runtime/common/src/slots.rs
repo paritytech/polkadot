@@ -108,8 +108,12 @@ impl<AccountId: Clone + Default + Codec> Bidder<AccountId> {
 pub enum IncomingParachain<AccountId, Hash> {
 	/// Deploy information not yet set; just the bidder identity.
 	Unset(NewBidder<AccountId>),
-	/// Deploy information set only by code hash; so we store the code hash and head data.
-	Fixed { code_hash: Hash, initial_head_data: Vec<u8> },
+	/// Deploy information set only by code hash; so we store the code hash, code size, and head data.
+	///
+	/// The code size must be included so that checks against a maximum code size
+	/// can be done. If the size of the preimage of the code hash does not match
+	/// the given code size, it will not be possible to register the parachain.
+	Fixed { code_hash: Hash, code_size: u32, initial_head_data: Vec<u8> },
 	/// Deploy information fully set; so we store the code and head data.
 	Deploy { code: Vec<u8>, initial_head_data: Vec<u8> },
 }
@@ -250,6 +254,10 @@ decl_error! {
 		NotCurrentAuction,
 		/// Not an auction.
 		NotAuction,
+		/// Given code size is too large.
+		CodeTooLarge,
+		/// Given initial head data is too large.
+		HeadDataTooLarge,
 	}
 }
 
@@ -402,6 +410,7 @@ decl_module! {
 			#[compact] sub: SubId,
 			#[compact] para_id: ParaId,
 			code_hash: T::Hash,
+			code_size: u32,
 			initial_head_data: Vec<u8>
 		) {
 			let who = ensure_signed(origin)?;
@@ -412,7 +421,17 @@ decl_module! {
 			} else {
 				Err(Error::<T>::AlreadyRegistered)?
 			}
-			let item = (starts, IncomingParachain::Fixed{code_hash, initial_head_data});
+
+			ensure!(
+				T::Parachains::head_data_size_allowed(initial_head_data.len() as _),
+				Error::<T>::HeadDataTooLarge,
+			);
+			ensure!(
+				T::Parachains::code_size_allowed(code_size),
+				Error::<T>::CodeTooLarge,
+			);
+
+			let item = (starts, IncomingParachain::Fixed{code_hash, code_size, initial_head_data});
 			<Onboarding<T>>::insert(&para_id, item);
 		}
 
@@ -432,8 +451,10 @@ decl_module! {
 		pub fn elaborate_deploy_data(_origin, #[compact] para_id: ParaId, code: Vec<u8>) -> DispatchResult {
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
 				.ok_or(Error::<T>::ParaNotOnboarding)?;
-			if let IncomingParachain::Fixed{code_hash, initial_head_data} = details {
+			if let IncomingParachain::Fixed{code_hash, code_size, initial_head_data} = details {
+				ensure!(code.len() as u32 == code_size, Error::<T>::InvalidCode);
 				ensure!(<T as system::Trait>::Hashing::hash(&code) == code_hash, Error::<T>::InvalidCode);
+
 				if starts > Self::lease_period_index() {
 					// Hasn't yet begun. Replace the on-boarding entry with the new information.
 					let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
@@ -918,6 +939,9 @@ mod tests {
 			RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
 	}
 
+	const MAX_CODE_SIZE: u32 = 100;
+	const MAX_HEAD_DATA_SIZE: u32 = 10;
+
 	pub struct TestParachains;
 	impl Registrar<u64> for TestParachains {
 		fn new_id() -> ParaId {
@@ -926,6 +950,15 @@ mod tests {
 				(*p.borrow() - 1).into()
 			})
 		}
+
+		fn head_data_size_allowed(head_data_size: u32) -> bool {
+			head_data_size <= MAX_HEAD_DATA_SIZE
+		}
+
+		fn code_size_allowed(code_size: u32) -> bool {
+			code_size <= MAX_CODE_SIZE
+		}
+
 		fn register_para(
 			id: ParaId,
 			_info: ParaInfo,

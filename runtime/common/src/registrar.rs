@@ -46,8 +46,19 @@ pub trait Registrar<AccountId> {
 	/// Create a new unique parachain identity for later registration.
 	fn new_id() -> ParaId;
 
+	/// Checks whether the given initial head data size falls within the limit.
+	fn head_data_size_allowed(head_data_size: u32) -> bool;
+
+	/// Checks whether the given validation code falls within the limit.
+	fn code_size_allowed(code_size: u32) -> bool;
+
 	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
 	/// result in a error.
+	///
+	/// This does not enforce any code size or initial head data limits, as these
+	/// are governable and parameters for parachain initialization are often
+	/// determined long ahead-of-time. Not checking these values ensures that changes to limits
+	/// do not invalidate in-progress auction winners.
 	fn register_para(
 		id: ParaId,
 		info: ParaInfo,
@@ -64,6 +75,14 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		<NextFreeId>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
 	}
 
+	fn head_data_size_allowed(head_data_size: u32) -> bool {
+		head_data_size <= <T as parachains::Trait>::MaxHeadDataSize::get()
+	}
+
+	fn code_size_allowed(code_size: u32) -> bool {
+		code_size <= <T as parachains::Trait>::MaxCodeSize::get()
+	}
+
 	fn register_para(
 		id: ParaId,
 		info: ParaInfo,
@@ -71,6 +90,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		initial_head_data: Vec<u8>,
 	) -> DispatchResult {
 		ensure!(!Paras::exists(id), Error::<T>::ParaAlreadyExists);
+
 		if let Scheduling::Always = info.scheduling {
 			Parachains::mutate(|parachains|
 				match parachains.binary_search(&id) {
@@ -222,6 +242,10 @@ decl_error! {
 		InvalidChainId,
 		/// Invalid parathread ID.
 		InvalidThreadId,
+		/// Invalid para code size.
+		CodeTooLarge,
+		/// Invalid para head data size.
+		HeadDataTooLarge,
 	}
 }
 
@@ -278,6 +302,19 @@ decl_module! {
 			let info = ParaInfo {
 				scheduling: Scheduling::Dynamic,
 			};
+
+			ensure!(
+				<Self as Registrar<T::AccountId>>::code_size_allowed(code.len() as _),
+				Error::<T>::CodeTooLarge,
+			);
+
+			ensure!(
+				<Self as Registrar<T::AccountId>>::head_data_size_allowed(
+					initial_head_data.len() as _
+				),
+				Error::<T>::HeadDataTooLarge,
+			);
+
 			let id = <Self as Registrar<T::AccountId>>::new_id();
 
 			let _ = <Self as Registrar<T::AccountId>>::
@@ -709,6 +746,11 @@ mod tests {
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	}
 
+	parameter_types! {
+		pub const MaxHeadDataSize: u32 = 100;
+		pub const MaxCodeSize: u32 = 100;
+	}
+
 	impl parachains::Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
@@ -716,6 +758,8 @@ mod tests {
 		type ActiveParachains = Registrar;
 		type Registrar = Registrar;
 		type Randomness = RandomnessCollectiveFlip;
+		type MaxCodeSize = MaxCodeSize;
+		type MaxHeadDataSize = MaxHeadDataSize;
 	}
 
 	parameter_types! {
