@@ -34,7 +34,7 @@ use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
 use futures::prelude::*;
-use futures::{future::{ready, select}, task::{Spawn, SpawnExt}};
+use futures::{future::select, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
 	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
@@ -118,7 +118,7 @@ fn interval(duration: Duration) -> impl Stream<Item=()> + Send + Unpin {
 }
 
 /// A builder for the validation service.
-pub struct ServiceBuilder<C, N, P, SC> {
+pub struct ServiceBuilder<C, N, P, SC, SP> {
 	/// The underlying blockchain client.
 	pub client: Arc<P>,
 	/// A handle to the network object used to communicate.
@@ -126,7 +126,7 @@ pub struct ServiceBuilder<C, N, P, SC> {
 	/// A handle to the collator pool we are using.
 	pub collators: C,
 	/// A handle to a background executor.
-	pub task_executor: TaskExecutor,
+	pub spawner: SP,
 	/// A handle to the availability store.
 	pub availability_store: AvailabilityStore,
 	/// A chain selector for determining active leaves in the block-DAG.
@@ -137,7 +137,7 @@ pub struct ServiceBuilder<C, N, P, SC> {
 	pub max_block_data_size: Option<u64>,
 }
 
-impl<C, N, P, SC> ServiceBuilder<C, N, P, SC> where
+impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 	C: Collators + Send + Sync + Unpin + 'static,
 	C::Collation: Send + Unpin + 'static,
 	P: BlockchainEvents<Block> + BlockBody<Block>,
@@ -150,6 +150,7 @@ impl<C, N, P, SC> ServiceBuilder<C, N, P, SC> where
 	N::TableRouter: Send + 'static,
 	N::BuildTableRouter: Send + Unpin + 'static,
 	SC: SelectChain<Block> + 'static,
+	SP: Spawn + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
 {
@@ -171,7 +172,7 @@ impl<C, N, P, SC> ServiceBuilder<C, N, P, SC> where
 			client: self.client.clone(),
 			network: self.network,
 			collators: self.collators,
-			handle: self.task_executor,
+			spawner: self.spawner,
 			availability_store: self.availability_store,
 			live_instances: HashMap::new(),
 		};
@@ -247,15 +248,15 @@ fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc
 }
 
 /// Constructs parachain-agreement instances.
-pub(crate) struct ParachainValidationInstances<C, N, P> {
+pub(crate) struct ParachainValidationInstances<C, N, P, SP> {
 	/// The client instance.
 	client: Arc<P>,
 	/// The backing network handle.
 	network: N,
 	/// Parachain collators.
 	collators: C,
-	/// handle to remote task executor
-	handle: TaskExecutor,
+	/// handle to spawner
+	spawner: SP,
 	/// Store for extrinsic data.
 	availability_store: AvailabilityStore,
 	/// Live agreements. Maps relay chain parent hashes to attestation
@@ -263,7 +264,7 @@ pub(crate) struct ParachainValidationInstances<C, N, P> {
 	live_instances: HashMap<Hash, Arc<ValidationInstanceHandle>>,
 }
 
-impl<C, N, P> ParachainValidationInstances<C, N, P> where
+impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 	C: Collators + Send + Unpin + 'static,
 	N: Network,
 	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
@@ -271,6 +272,7 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 	C::Collation: Send + Unpin + 'static,
 	N::TableRouter: Send + 'static,
 	N::BuildTableRouter: Unpin + Send + 'static,
+	SP: Spawn + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
 {
@@ -384,20 +386,21 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 		let (collators, client) = (self.collators.clone(), self.client.clone());
 		let availability_store = self.availability_store.clone();
 
-		let with_router = move |router: N::TableRouter| {
+		let with_router = move |router: N::TableRouter| async move {
 			// fetch a local collation from connected collators.
-			let collation_work = crate::collation::collation_fetch(
+			match crate::collation::collation_fetch(
 				validation_para,
 				relay_parent,
 				collators,
 				client.clone(),
 				max_block_data_size,
-			);
+			).await {
+				Ok(collation_work) => {
+					let (collation, outgoing_targeted, parent_head, fees_charged) = collation_work;
 
-			collation_work.map(move |result| match result {
-				Ok((collation, outgoing_targeted, fees_charged)) => {
 					match crate::collation::produce_receipt_and_chunks(
 						authorities_num,
+						parent_head,
 						&collation.pov,
 						&outgoing_targeted,
 						fees_charged,
@@ -410,41 +413,33 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 							let chunks_clone = chunks.clone();
 							let receipt_clone = receipt.clone();
 
-							let res = async move {
-								if let Err(e) = av_clone.clone().add_erasure_chunks(
-									relay_parent.clone(),
-									receipt_clone,
-									chunks_clone,
-								).await {
-									warn!(target: "validation", "Failed to add erasure chunks: {}", e);
-								}
-							}
-							.unit_error()
-							.boxed()
-							.then(move |_| {
+							if let Err(e) = av_clone.clone().add_erasure_chunks(
+								relay_parent.clone(),
+								receipt_clone,
+								chunks_clone,
+							).await {
+								warn!(
+									target: "validation",
+									"Failed to add erasure chunks: {}", e
+								);
+							} else {
 								router.local_collation(
 									collation,
 									receipt,
 									outgoing_targeted,
 									(local_id, &chunks),
 								);
-								ready(())
-							});
-
-
-							Some(res)
+							}
 						}
 						Err(e) => {
 							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
-							None
 						}
-					}
+					};
 				}
 				Err(e) => {
-					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
-					None
+					warn!(target: "validation", "Failed to fetch a candidate: {:?}", e);
 				}
-			})
+			}
 		};
 
 		let router = build_router
@@ -456,7 +451,7 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 		let cancellable_work = select(exit, router).map(drop);
 
 		// spawn onto thread pool.
-		if self.handle.spawn(cancellable_work).is_err() {
+		if self.spawner.spawn(cancellable_work).is_err() {
 			error!("Failed to spawn cancellable work task");
 		}
 	}

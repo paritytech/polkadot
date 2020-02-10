@@ -1,5 +1,5 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
-// This file is part of Polkadot.
+// Copyright 2020 Parity Technologies (UK) Ltd.
+// This file is part of Substrate.
 
 // Substrate is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -14,13 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-use wasm_builder_runner::WasmBuilder;
+use std::{process::{Child, ExitStatus}, thread, time::Duration};
 
-fn main() {
-	WasmBuilder::new()
-		.with_current_project()
-		.with_wasm_builder_from_crates("1.0.9")
-		.import_memory()
-		.export_heap_base()
-		.build()
+/// Wait for the given `child` the given ammount of `secs`.
+///
+/// Returns the `Some(exit status)` or `None` if the process did not finish in the given time.
+pub fn wait_for(child: &mut Child, secs: usize) -> Option<ExitStatus> {
+	for _ in 0..secs {
+		match child.try_wait().unwrap() {
+			Some(status) => return Some(status),
+			None => thread::sleep(Duration::from_secs(1)),
+		}
+	}
+	eprintln!("Took to long to exit. Killing...");
+	let _ = child.kill();
+	child.wait().unwrap();
+
+	None
 }

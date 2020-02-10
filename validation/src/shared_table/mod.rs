@@ -519,7 +519,11 @@ impl SharedTable {
 				}).collect();
 				validity_votes.sort_by(|(id1, _), (id2, _)| id1.cmp(id2));
 
-				let mut validator_indices = bitvec![0; validity_votes.last().map(|(i, _)| i + 1).unwrap_or_default()];
+				let mut validator_indices = bitvec![
+					bitvec::cursor::LittleEndian, u8;
+					0;
+					validity_votes.last().map(|(i, _)| i + 1).unwrap_or_default()
+				];
 				for (id, _) in &validity_votes {
 					validator_indices.set(*id, true);
 				}
@@ -576,7 +580,9 @@ mod tests {
 	use super::*;
 	use sp_keyring::Sr25519Keyring;
 	use primitives::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::{AvailableMessages, BlockData, ConsolidatedIngress, Collation};
+	use polkadot_primitives::parachain::{
+		AvailableMessages, BlockData, ConsolidatedIngress, Collation, HeadData,
+	};
 	use polkadot_erasure_coding::{self as erasure};
 	use availability_store::ProvideGossipMessages;
 	use futures::future;
@@ -662,7 +668,8 @@ mod tests {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
-			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
+			head_data: HeadData(vec![1, 2, 3, 4]),
+			parent_head: HeadData(vec![]),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
@@ -718,7 +725,8 @@ mod tests {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
-			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
+			head_data: HeadData(vec![1, 2, 3, 4]),
+			parent_head: HeadData(vec![]),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
@@ -755,7 +763,8 @@ mod tests {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
-			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
+			head_data: HeadData(vec![1, 2, 3, 4]),
+			parent_head: HeadData(vec![]),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash,
@@ -819,7 +828,8 @@ mod tests {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
-			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
+			head_data: HeadData(vec![1, 2, 3, 4]),
+			parent_head: HeadData(vec![]),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
@@ -902,7 +912,8 @@ mod tests {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
-			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
+			head_data: HeadData(vec![1, 2, 3, 4]),
+			parent_head: HeadData(vec![]),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
@@ -969,7 +980,8 @@ mod tests {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
-			head_data: ::polkadot_primitives::parachain::HeadData(vec![1, 2, 3, 4]),
+			head_data: HeadData(vec![1, 2, 3, 4]),
+			parent_head: HeadData(vec![]),
 			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),

@@ -58,9 +58,6 @@ use worker::{
 
 use store::{Store as InnerStore};
 
-/// Abstraction over an executor that lets you spawn tasks in the background.
-pub(crate) type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
-
 const LOG_TARGET: &str = "availability";
 
 /// Configuration for the availability store.
@@ -197,7 +194,7 @@ impl Store {
 		&self,
 		wrapped_block_import: I,
 		client: Arc<P>,
-		thread_pool: TaskExecutor,
+		spawner: impl Spawn,
 		keystore: KeyStorePtr,
 	) -> ClientResult<AvailabilityBlockImport<I, P>>
 	where
@@ -213,7 +210,7 @@ impl Store {
 			self.inner.clone(),
 			client,
 			wrapped_block_import,
-			thread_pool,
+			spawner,
 			keystore,
 			to_worker,
 		);

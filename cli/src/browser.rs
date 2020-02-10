@@ -16,44 +16,48 @@
 
 use crate::ChainSpec;
 use log::info;
-use substrate_service::Configuration;
 use wasm_bindgen::prelude::*;
-use service::CustomConfiguration;
+use service::IsKusama;
 
 /// Starts the client.
 ///
 /// You must pass a libp2p transport that supports .
 #[wasm_bindgen]
-pub async fn start_client(wasm_ext: browser_utils::Transport) -> Result<browser_utils::Client, JsValue> {
-	start_inner(wasm_ext)
+pub async fn start_client(chain_spec: String, wasm_ext: browser_utils::Transport) -> Result<browser_utils::Client, JsValue> {
+	start_inner(chain_spec, wasm_ext)
 		.await
 		.map_err(|err| JsValue::from_str(&err.to_string()))
 }
 
-async fn start_inner(wasm_ext: browser_utils::Transport) -> Result<browser_utils::Client, Box<dyn std::error::Error>> {
+async fn start_inner(chain_spec: String, wasm_ext: browser_utils::Transport) -> Result<browser_utils::Client, Box<dyn std::error::Error>> {
 	browser_utils::set_console_error_panic_hook();
 	browser_utils::init_console_log(log::Level::Info)?;
 
-	let chain_spec = ChainSpec::Kusama.load().map_err(|e| format!("{:?}", e))?;
-	let config: Configuration<CustomConfiguration, _, _> = browser_utils::browser_configuration(wasm_ext, chain_spec)
+	let chain_spec = ChainSpec::from(&chain_spec)
+		.ok_or_else(|| format!("Chain spec: {:?} doesn't exist.", chain_spec))?
+		.load()
+		.map_err(|e| format!("{:?}", e))?;
+	let config = browser_utils::browser_configuration(wasm_ext, chain_spec)
 		.await?;
 
 	info!("Polkadot browser node");
 	info!("  version {}", config.full_version());
 	info!("  by Parity Technologies, 2017-2019");
-	info!("Chain specification: {}", config.chain_spec.name());
-	if config.chain_spec.name().starts_with("Kusama") {
-		info!("----------------------------");
-		info!("This chain is not in any way");
-		info!("      endorsed by the       ");
-		info!("     KUSAMA FOUNDATION      ");
-		info!("----------------------------");
+	if let Some(chain_spec) = &config.chain_spec {
+		info!("Chain specification: {}", chain_spec.name());
+		if chain_spec.is_kusama() {
+			info!("----------------------------");
+			info!("This chain is not in any way");
+			info!("      endorsed by the       ");
+			info!("     KUSAMA FOUNDATION      ");
+			info!("----------------------------");
+		}
 	}
 	info!("Node name: {}", config.name);
 	info!("Roles: {:?}", config.roles);
 
 	// Create the service. This is the most heavy initialization step.
-	let service = service::kusama_new_light(config).map_err(|e| format!("{:?}", e))?;
+	let service = service::kusama_new_light(config, None).map_err(|e| format!("{:?}", e))?;
 
 	Ok(browser_utils::start_client(service))
 }
