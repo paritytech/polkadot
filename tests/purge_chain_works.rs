@@ -41,13 +41,6 @@ fn purge_chain_works() {
 	kill(Pid::from_raw(cmd.id().try_into().unwrap()), SIGINT).unwrap();
 	assert!(common::wait_for(&mut cmd, 30).map(|x| x.success()).unwrap_or_default());
 
-	// Does not accept invalid argument order
-	let status = Command::new(cargo_bin("polkadot"))
-		.args(&["--dev", "purge-chain", "-d", base_path, "-y"])
-		.status()
-		.unwrap();
-	assert!(!status.success());
-
 	// Purge chain
 	let status = Command::new(cargo_bin("polkadot"))
 		.args(&["purge-chain", "--dev", "-d", base_path, "-y"])
