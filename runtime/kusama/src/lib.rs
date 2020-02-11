@@ -462,7 +462,7 @@ impl attestations::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const MaxCodeSize: u32 = 50 * 1024 * 1024; // 50 MB
+	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
 	pub const MaxHeadDataSize: u32 = 20 * 1024; // 20 KB
 }
 

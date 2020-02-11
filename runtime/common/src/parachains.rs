@@ -243,8 +243,6 @@ decl_error! {
 		ParentMismatch,
 		/// Head data was too large.
 		HeadDataTooLarge,
-		/// Para validation code was too large.
-		CodeTooLarge,
 	}
 }
 

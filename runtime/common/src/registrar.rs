@@ -256,8 +256,11 @@ decl_module! {
 
 		fn deposit_event() = default;
 
-		/// Register a parachain with given code.
+		/// Register a parachain with given code. Must be called by root.
 		/// Fails if given ID is already used.
+		///
+		/// Unlike the `Registrar` trait function of the same name, this
+		/// checks the code and head data against size limits.
 		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
 		pub fn register_para(origin,
 			#[compact] id: ParaId,
@@ -266,6 +269,18 @@ decl_module! {
 			initial_head_data: Vec<u8>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
+
+			ensure!(
+				<Self as Registrar<T::AccountId>>::code_size_allowed(code.len() as _),
+				Error::<T>::CodeTooLarge,
+			);
+
+			ensure!(
+				<Self as Registrar<T::AccountId>>::head_data_size_allowed(
+					initial_head_data.len() as _
+				),
+				Error::<T>::HeadDataTooLarge,
+			);
 			<Self as Registrar<T::AccountId>>::
 				register_para(id, info, code, initial_head_data)
 		}

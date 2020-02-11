@@ -1608,9 +1608,12 @@ mod tests {
 
 			let code = vec![0u8; (MAX_CODE_SIZE + 1) as _];
 			let h = BlakeTwo256::hash(&code[..]);
-			assert!(Slots::fix_deploy_data(
-				Origin::signed(1), 0, 0.into(), h, code.len() as _, vec![1],
-			).is_err());
+			assert_eq!(
+				Slots::fix_deploy_data(
+					Origin::signed(1), 0, 0.into(), h, code.len() as _, vec![1],
+				),
+				Err(Error::<Test>::CodeTooLarge.into()),
+			);
 		});
 	}
 
@@ -1650,9 +1653,12 @@ mod tests {
 			let code = vec![0u8; MAX_CODE_SIZE as _];
 			let head_data = vec![1u8; (MAX_HEAD_DATA_SIZE + 1) as _];
 			let h = BlakeTwo256::hash(&code[..]);
-			assert!(Slots::fix_deploy_data(
-				Origin::signed(1), 0, 0.into(), h, code.len() as _, head_data,
-			).is_err());
+			assert_eq!(
+				Slots::fix_deploy_data(
+					Origin::signed(1), 0, 0.into(), h, code.len() as _, head_data,
+				),
+				Err(Error::<Test>::HeadDataTooLarge.into()),
+			);
 		});
 	}
 
