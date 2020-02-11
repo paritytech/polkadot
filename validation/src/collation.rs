@@ -614,6 +614,8 @@ pub fn validate_collation<P>(
 {
 	let para_id = collation.info.parachain_index;
 
+	debug!("Validating collation for parachain {} at relay parent: {}", para_id, relay_parent);
+
 	do_validation(
 		client,
 		relay_parent,

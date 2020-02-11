@@ -81,9 +81,9 @@ pub struct ValidationResult {
 /// Unique identifier of a parachain.
 #[derive(
 	Clone, CompactAs, Copy, Decode, Default, Encode, Eq,
-	Hash, Ord, PartialEq, PartialOrd, RuntimeDebug
+	Hash, Ord, PartialEq, PartialOrd, RuntimeDebug,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, derive_more::Display))]
 pub struct Id(u32);
 
 impl TypeId for Id {
