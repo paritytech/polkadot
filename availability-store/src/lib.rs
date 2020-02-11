@@ -124,7 +124,7 @@ pub struct Data {
 	/// The parachain index for this candidate.
 	pub parachain_id: ParaId,
 	/// Block data.
-    pub block_data: BlockData,
+	pub block_data: BlockData,
 }
 
 /// Handle to the availability store.
