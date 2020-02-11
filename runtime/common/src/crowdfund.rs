@@ -119,6 +119,7 @@ pub enum LastContribution<BlockNumber> {
 	Ending(BlockNumber),
 }
 
+/// An internal record. This is public only due to a bug in the `Encode` derivation.
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug))]
 struct DeployData<Hash> {
@@ -129,6 +130,7 @@ struct DeployData<Hash> {
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug))]
+#[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// The parachain that this fund has funded, if there is one. As long as this is `Some`, then
 	/// the funds may not be withdrawn and the fund cannot be dissolved.
