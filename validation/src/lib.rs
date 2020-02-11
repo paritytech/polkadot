@@ -34,7 +34,6 @@ use std::{
 	sync::Arc,
 };
 
-use codec::Encode;
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, CandidateReceipt,
@@ -148,7 +147,8 @@ pub fn sign_table_statement(statement: &Statement, key: &ValidatorPair, parent_h
 	// we sign using the primitive statement type because that's what the runtime
 	// expects. These types probably encode the same way so this clone could be optimized
 	// out in the future.
-	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
+	let mut encoded = PrimitiveStatement::from(statement.clone()).signing_payload();
+
 	encoded.extend(parent_hash.as_ref());
 
 	key.sign(&encoded)
@@ -163,7 +163,7 @@ pub fn check_statement(
 ) -> bool {
 	use runtime_primitives::traits::AppVerify;
 
-	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
+	let mut encoded = PrimitiveStatement::from(statement.clone()).signing_payload();
 	encoded.extend(parent_hash.as_ref());
 
 	signature.verify(&encoded[..], &signer)

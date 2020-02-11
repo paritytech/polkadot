@@ -19,7 +19,7 @@
 use rstd::prelude::*;
 use rstd::result;
 use rstd::collections::btree_map::BTreeMap;
-use codec::{Encode, Decode};
+use codec::Decode;
 
 use sp_runtime::traits::{
 	Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
@@ -327,7 +327,7 @@ fn majority_of(list_len: usize) -> usize {
 }
 
 fn localized_payload<H: AsRef<[u8]>>(statement: Statement, parent_hash: H) -> Vec<u8> {
-	let mut encoded = statement.encode();
+	let mut encoded = statement.signing_payload();
 	encoded.extend(parent_hash.as_ref());
 	encoded
 }

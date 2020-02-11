@@ -493,6 +493,30 @@ pub enum Statement {
 	Invalid(Hash),
 }
 
+impl Statement {
+	/// Compute the compact payload of the statement used for signing.
+	pub fn signing_payload(&self) -> Vec<u8> {
+		#[derive(Clone, PartialEq, Eq, Encode)]
+		#[cfg_attr(feature = "std", derive(Debug))]
+		enum StatementToSign {
+			#[codec(index = "1")]
+			Candidate(Hash),
+			#[codec(index = "2")]
+			Valid(Hash),
+			#[codec(index = "3")]
+			Invalid(Hash),
+		}
+
+		let new_statement = match *self {
+			Statement::Candidate(ref c) => StatementToSign::Candidate(c.hash()),
+			Statement::Valid(ref d) => StatementToSign::Valid(d.clone()),
+			Statement::Invalid(ref d) => StatementToSign::Invalid(d.clone()),
+		};
+
+		new_statement.encode()
+	}
+}
+
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
 #[derive(Clone, PartialEq, Decode, Encode)]
