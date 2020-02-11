@@ -119,7 +119,6 @@ pub enum LastContribution<BlockNumber> {
 	Ending(BlockNumber),
 }
 
-/// An internal record. This is public only due to a bug in the `Encode` derivation.
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug))]
 struct DeployData<Hash> {
