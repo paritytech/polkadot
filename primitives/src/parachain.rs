@@ -232,79 +232,103 @@ impl From<OutgoingMessages> for AvailableMessages {
 	}
 }
 
-/// Candidate receipt type.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct CollationInfo {
-	/// The ID of the parachain this is a candidate for.
-	pub parachain_index: Id,
-	/// The collator's relay-chain account ID
-	pub collator: CollatorId,
-	/// Signature on blake2-256 of the block data by collator.
-	pub signature: CollatorSignature,
-	/// Egress queue roots. Must be sorted lexicographically (ascending)
-	/// by parachain ID.
-	pub egress_queue_roots: Vec<(Id, Hash)>,
-	/// The head-data
-	pub head_data: HeadData,
-	/// blake2-256 Hash of block data.
-	pub block_data_hash: Hash,
-	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<UpwardMessage>,
-}
-
-impl From<CandidateReceipt> for CollationInfo {
-	fn from(receipt: CandidateReceipt) -> Self {
-		CollationInfo {
-			parachain_index: receipt.parachain_index,
-			collator: receipt.collator,
-			signature: receipt.signature,
-			egress_queue_roots: receipt.egress_queue_roots,
-			head_data: receipt.head_data,
-			block_data_hash: receipt.block_data_hash,
-			upward_messages: receipt.upward_messages,
-		}
-	}
-}
-
-impl CollationInfo {
-	/// Check integrity vs. provided block data.
-	pub fn check_signature(&self) -> Result<(), ()> {
-		use runtime_primitives::traits::AppVerify;
-
-		if self.signature.verify(self.block_data_hash.as_ref(), &self.collator) {
-			Ok(())
-		} else {
-			Err(())
-		}
-	}
-}
-
-/// Candidate receipt type.
+/// Extra data which is needed along with the other fields in a `CandidateReceipt`
+/// to fully validate the candidate.
+///
+/// These are global parameters that apply to all parachain candidates in a block.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct CandidateReceipt {
-	/// The ID of the parachain this is a candidate for.
-	pub parachain_index: Id,
-	/// The collator's relay-chain account ID
-	pub collator: CollatorId,
-	/// Signature on blake2-256 of the block data by collator.
-	pub signature: CollatorSignature,
-	/// The head-data
-	pub head_data: HeadData,
+pub struct GlobalValidationSchedule {
+	/// The maximum code size permitted, in bytes.
+	pub max_code_size: u32,
+	/// The maximum head-data size permitted, in bytes.
+	pub max_head_data_size: u32,
+}
+
+/// Extra data which is needed along with the other fields in a `CandidateReceipt`
+/// to fully validate the candidate. These fields are parachain-specific.
+///
+/// Some of these are simply hashes referencing larger data that will appear
+/// in the `PoVBlock`
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct LocalValidationData {
 	/// The parent head-data.
 	pub parent_head: HeadData,
+	/// The block-data hash. The block-data itself is in the PoVBlock.
+	pub block_data_hash: Hash,
+}
+
+/// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct CandidateCommitments {
 	/// Egress queue roots. Must be sorted lexicographically (ascending)
 	/// by parachain ID.
 	pub egress_queue_roots: Vec<(Id, Hash)>,
 	/// Fees paid from the chain to the relay chain validators
 	pub fees: Balance,
-	/// blake2-256 Hash of block data.
-	pub block_data_hash: Hash,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: Hash,
+}
+
+/// Get a collator signature payload on a relay-parent, block-data combo.
+pub fn collator_signature_payload(
+	relay_parent: &Hash,
+	parachain_index: &Id,
+	block_data_hash: &Hash,
+) -> [u8; 68] {
+	// 32-byte hash length is protected in a test below.
+	let mut payload = [0u8; 68];
+
+	payload[0..32].copy_from_slice(relay_parent.as_ref());
+	u32::from(*parachain_index).using_encoded(|s| payload[32..32 + s.len()].copy_from_slice(s));
+	payload[36..68].copy_from_slice(block_data_hash.as_ref());
+
+	payload
+}
+
+fn check_collator_signature(
+	relay_parent: &Hash,
+	parachain_index: &Id,
+	block_data_hash: &Hash,
+	collator: &CollatorId,
+	signature: &CollatorSignature,
+) -> Result<(),()> {
+	use runtime_primitives::traits::AppVerify;
+
+
+	let payload = collator_signature_payload(relay_parent, parachain_index, block_data_hash);
+	if signature.verify(&payload[..], collator) {
+		Ok(())
+	} else {
+		Err(())
+	}
+}
+
+/// All data pertaining to the execution of a parachain candidate.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct CandidateReceipt {
+	/// The ID of the parachain this is a candidate for.
+	pub parachain_index: Id,
+	/// The hash of the relay-chain block this should be executed in
+	/// the context of.
+	pub relay_parent: Hash,
+	/// The head-data
+	pub head_data: HeadData,
+	/// The collator's relay-chain account ID
+	pub collator: CollatorId,
+	/// Signature on blake2-256 of the block data by collator.
+	pub signature: CollatorSignature,
+	/// The global validation schedule.
+	pub global_validation: GlobalValidationSchedule,
+	/// The local validation data.
+	pub local_validation: LocalValidationData,
+	/// Commitments made as a result of validation.
+	pub commitments: CandidateCommitments,
 }
 
 impl CandidateReceipt {
@@ -316,13 +340,13 @@ impl CandidateReceipt {
 
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
-		use runtime_primitives::traits::AppVerify;
-
-		if self.signature.verify(self.block_data_hash.as_ref(), &self.collator) {
-			Ok(())
-		} else {
-			Err(())
-		}
+		check_collator_signature(
+			&self.relay_parent,
+			&self.parachain_index,
+			&self.local_validation.block_data_hash,
+			&self.collator,
+			&self.signature,
+		)
 	}
 }
 
@@ -332,24 +356,44 @@ impl PartialOrd for CandidateReceipt {
 	}
 }
 
-impl PartialEq<CollationInfo> for CandidateReceipt {
-	fn eq(&self, info: &CollationInfo) -> bool {
-		self.parachain_index == info.parachain_index &&
-		self.collator == info.collator &&
-		self.signature == info.signature &&
-		self.egress_queue_roots == info.egress_queue_roots &&
-		self.head_data == info.head_data &&
-		self.block_data_hash == info.block_data_hash &&
-		self.upward_messages == info.upward_messages
-	}
-}
-
 impl Ord for CandidateReceipt {
 	fn cmp(&self, other: &Self) -> Ordering {
 		// TODO: compare signatures or something more sane
 		// https://github.com/paritytech/polkadot/issues/222
 		self.parachain_index.cmp(&other.parachain_index)
 			.then_with(|| self.head_data.cmp(&other.head_data))
+	}
+}
+
+/// A collation sent by a collator.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct CollationInfo {
+	/// The ID of the parachain this is a candidate for.
+	pub parachain_index: Id,
+	/// The relay-chain block hash this block should execute in the
+	/// context of.
+	pub relay_parent: Hash,
+	/// The collator's relay-chain account ID
+	pub collator: CollatorId,
+	/// Signature on blake2-256 of the block data by collator.
+	pub signature: CollatorSignature,
+	/// The head-data
+	pub head_data: HeadData,
+	/// blake2-256 Hash of block data.
+	pub block_data_hash: Hash,
+}
+
+impl CollationInfo {
+	/// Check integrity vs. provided block data.
+	pub fn check_signature(&self) -> Result<(), ()> {
+		check_collator_signature(
+			&self.relay_parent,
+			&self.parachain_index,
+			&self.block_data_hash,
+			&self.collator,
+			&self.signature,
+		)
 	}
 }
 
@@ -633,5 +677,18 @@ mod tests {
 		let zero_u: usize = 0;
 
 		assert!(zero_b.leading_zeros() >= zero_u.leading_zeros());
+	}
+
+	#[test]
+	fn collator_signature_payload_is_valid() {
+		// if this fails, collator signature verification code has to be updated.
+		let h = Hash::default();
+		assert_eq!(h.as_ref().len(), 32);
+
+		let _payload = collator_signature_payload(
+			&[1; 32].into(),
+			&5u32.into(),
+			&[2; 32].into(),
+		);
 	}
 }
