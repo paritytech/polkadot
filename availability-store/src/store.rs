@@ -498,7 +498,7 @@ mod tests {
 		store.make_available(Data {
 			relay_parent,
 			parachain_id: para_id,
-			block: PoVBlock { block_data: block_data.clone() },
+			block_data,
 		}).unwrap();
 	}
 
