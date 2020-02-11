@@ -33,8 +33,7 @@ use sc_client_api::{BlockchainEvents, BlockBody};
 use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
-use futures::prelude::*;
-use futures::task::{Spawn, SpawnExt};
+use futures::{prelude::*, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
 	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
@@ -288,9 +287,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		parent_hash: Hash,
 		keystore: &KeyStorePtr,
 		max_block_data_size: Option<u64>,
-	)
-		-> Result<ValidationInstanceHandle, Error>
-	{
+	) -> Result<ValidationInstanceHandle, Error> {
 		use primitives::Pair;
 
 		if let Some(tracker) = self.live_instances.get(&parent_hash) {
@@ -381,18 +378,18 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		let (collators, client) = (self.collators.clone(), self.client.clone());
 		let availability_store = self.availability_store.clone();
 
-		let with_router = move |router: N::TableRouter| async move {
+		let with_router = move |router: N::TableRouter| {
 			// fetch a local collation from connected collators.
-			match crate::collation::collation_fetch(
+			let collation_work = crate::collation::collation_fetch(
 				validation_para,
 				relay_parent,
 				collators,
 				client.clone(),
 				max_block_data_size,
-			).await {
-				Ok(collation_work) => {
-					let (collation, outgoing_targeted, parent_head, fees_charged) = collation_work;
+			);
 
+			collation_work.map(move |result| match result {
+				Ok((collation, outgoing_targeted, parent_head, fees_charged)) => {
 					match crate::collation::produce_receipt_and_chunks(
 						authorities_num,
 						parent_head,
@@ -408,40 +405,39 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 							let chunks_clone = chunks.clone();
 							let receipt_clone = receipt.clone();
 
-							if let Err(e) = av_clone.clone().add_erasure_chunks(
-								relay_parent.clone(),
-								receipt_clone,
-								chunks_clone,
-							).await {
-								warn!(
-									target: "validation",
-									"Failed to add erasure chunks: {}", e
-								);
-							} else {
-								let res = router.local_collation(
+							let res = async move {
+								if let Err(e) = av_clone.clone().add_erasure_chunks(
+									relay_parent.clone(),
+									receipt_clone,
+									chunks_clone,
+								).await {
+									warn!(target: "validation", "Failed to add erasure chunks: {}", e);
+								}
+							}
+							.unit_error()
+							.boxed()
+							.then(move |_| {
+								router.local_collation(
 									collation,
 									receipt,
 									outgoing_targeted,
 									(local_id, &chunks),
-								).await;
+								)
+							});
 
-								if let Err(e) = res {
-									warn!(
-										target: "validation",
-										"Failed to notify network of local collation: {:?}", e
-									);
-								}
-							};
+							Some(res)
 						}
 						Err(e) => {
 							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
+							None
 						}
-					};
+					}
 				}
 				Err(e) => {
-					warn!(target: "validation", "Failed to fetch a candidate: {:?}", e);
+					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
+					None
 				}
-			}
+			})
 		};
 
 		let router_work = build_router
