@@ -77,7 +77,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1047,
+	spec_version: 1048,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -461,6 +461,11 @@ impl attestations::Trait for Runtime {
 	type RewardAttestation = Staking;
 }
 
+parameter_types! {
+	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
+	pub const MaxHeadDataSize: u32 = 20 * 1024; // 20 KB
+}
+
 impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
@@ -468,6 +473,8 @@ impl parachains::Trait for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 	type ActiveParachains = Registrar;
 	type Registrar = Registrar;
+	type MaxCodeSize = MaxCodeSize;
+	type MaxHeadDataSize = MaxHeadDataSize;
 }
 
 parameter_types! {
