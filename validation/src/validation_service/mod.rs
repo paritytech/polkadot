@@ -33,7 +33,7 @@ use sc_client_api::{BlockchainEvents, BlockBody};
 use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
-use futures::{prelude::*, task::{Spawn, SpawnExt}};
+use futures::{future::ready, prelude::*, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
 	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
@@ -148,6 +148,7 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	N::BuildTableRouter: Send + Unpin + 'static,
+	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	SC: SelectChain<Block> + 'static,
 	SP: Spawn + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -264,12 +265,13 @@ pub(crate) struct ParachainValidationInstances<C, N, P, SP> {
 }
 
 impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
-	C: Collators + Send + Unpin + 'static,
+	C: Collators + Send + Unpin + 'static + Sync,
 	N: Network,
 	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	C::Collation: Send + Unpin + 'static,
 	N::TableRouter: Send + 'static,
+	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	N::BuildTableRouter: Unpin + Send + 'static,
 	SP: Spawn + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -388,7 +390,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 				max_block_data_size,
 			);
 
-			collation_work.map(move |result| match result {
+			collation_work.then(move |result| match result {
 				Ok((collation, outgoing_targeted, parent_head, fees_charged)) => {
 					match crate::collation::produce_receipt_and_chunks(
 						authorities_num,
@@ -415,27 +417,26 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 								}
 							}
 							.unit_error()
-							.boxed()
 							.then(move |_| {
 								router.local_collation(
 									collation,
 									receipt,
 									outgoing_targeted,
 									(local_id, &chunks),
-								)
+								).map_err(|e| warn!(target: "validation", "Failed to send local collation: {:?}", e))
 							});
 
-							Some(res)
+							res.boxed()
 						}
 						Err(e) => {
 							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
-							None
+							Box::pin(ready(Ok(())))
 						}
 					}
 				}
 				Err(e) => {
 					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
-					None
+					Box::pin(ready(Ok(())))
 				}
 			})
 		};
@@ -445,6 +446,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 			.map_err(|e| {
 				warn!(target: "validation" , "Failed to build table router: {:?}", e);
 			})
+			.and_then(|r| r)
 			.map(|_| ());
 
 
