@@ -191,14 +191,10 @@ pub async fn collate<P>(
 
 	let block_data_hash = block_data.hash();
 	let signature = key.sign(block_data_hash.as_ref());
-	let egress_queue_roots =
-		polkadot_validation::egress_roots(&mut []);
-
 	let info = parachain::CollationInfo {
 		parachain_index: local_id,
 		collator: key.public(),
 		signature,
-		egress_queue_roots,
 		head_data,
 		block_data_hash,
 		upward_messages: Vec::new(),
@@ -467,30 +463,5 @@ mod tests {
 				HeadData(vec![9, 9, 9]),
 			))
 		}
-	}
-
-	#[test]
-	fn collates_correct_queue_roots() {
-		let id = ParaId::from(100);
-
-		let future = collate(
-			Default::default(),
-			id,
-			ParachainStatus {
-				head_data: HeadData(vec![5]),
-				balance: 10,
-				fee_schedule: FeeSchedule {
-					base: 0,
-					per_byte: 1,
-				},
-			},
-			DummyParachainContext,
-			Arc::new(Sr25519Keyring::Alice.pair().into()),
-		);
-
-		let collation = futures::executor::block_on(future).unwrap();
-
-		// ascending order by root.
-		assert_eq!(collation.info.egress_queue_roots, vec![]);
 	}
 }

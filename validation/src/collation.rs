@@ -199,59 +199,6 @@ pub fn egress_roots(outgoing: &mut [TargetedMessage]) -> Vec<(ParaId, Hash)> {
 	egress_roots
 }
 
-fn check_egress(
-	mut outgoing: Vec<TargetedMessage>,
-	expected_egress_roots: &[(ParaId, Hash)],
-) -> Result<(), Error> {
-	// stable sort messages by parachain ID.
-	outgoing.sort_by_key(|msg| ParaId::from(msg.target));
-
-	{
-		let mut messages_iter = outgoing.iter().peekable();
-		let mut expected_egress_roots = expected_egress_roots.iter();
-		while let Some(batch_target) = messages_iter.peek().map(|o| o.target) {
-			let expected_root = match expected_egress_roots.next() {
-				None => return Err(Error::MissingEgressRoot {
-					expected: Some(batch_target),
-					got: None
-				}),
-				Some(&(id, ref root)) => if id == batch_target {
-					root
-				} else {
-					return Err(Error::MissingEgressRoot{
-						expected: Some(batch_target),
-						got: Some(id)
-					});
-				}
-			};
-
- 			// we borrow the iterator mutably to ensure it advances so the
-			// next iteration of the loop starts with `messages_iter` pointing to
-			// the next batch.
-			let messages_to = messages_iter
-				.clone()
-				.take_while(|o| o.target == batch_target)
-				.map(|o| { let _ = messages_iter.next(); &o.data[..] });
-
-			let computed_root = message_queue_root(messages_to);
-			if &computed_root != expected_root {
-				return Err(Error::EgressRootMismatch {
-					id: batch_target,
-					expected: expected_root.clone(),
-					got: computed_root,
-				});
-			}
-		}
-
-		// also check that there are no more additional expected roots.
-		if let Some((next_target, _)) = expected_egress_roots.next() {
-			return Err(Error::MissingEgressRoot { expected: None, got: Some(*next_target) });
-		}
-	}
-
-	Ok(())
-}
-
 struct ExternalitiesInner {
 	parachain_index: ParaId,
 	outgoing: Vec<TargetedMessage>,
@@ -309,7 +256,6 @@ impl ExternalitiesInner {
 	fn final_checks(
 		&mut self,
 		upward_messages: &[UpwardMessage],
-		egress_queue_roots: &[(ParaId, Hash)],
 		fees_charged: Option<Balance>,
 	) -> Result<Balance, Error> {
 		if self.upward != upward_messages {
@@ -328,10 +274,6 @@ impl ExternalitiesInner {
 			}
 		}
 
-		check_egress(
-			std::mem::replace(&mut self.outgoing, Vec::new()),
-			&egress_queue_roots[..],
-		)?;
 
 		Ok(self.fees_charged)
 	}
@@ -388,7 +330,6 @@ fn do_validation<P>(
 	max_block_data_size: Option<u64>,
 	fees_charged: Option<Balance>,
 	head_data: &HeadData,
-	queue_roots: &Vec<(ParaId, Hash)>,
 	upward_messages: &Vec<UpwardMessage>,
 ) -> Result<(HeadData, Balance), Error> where
 	P: ProvideRuntimeApi<Block>,
@@ -428,7 +369,6 @@ fn do_validation<P>(
 			if result.head_data == head_data.0 {
 				let fees = ext.0.lock().final_checks(
 					upward_messages,
-					queue_roots,
 					fees_charged
 				)?;
 
@@ -484,7 +424,6 @@ pub fn produce_receipt_and_chunks(
 		signature: info.signature.clone(),
 		head_data: info.head_data.clone(),
 		parent_head,
-		egress_queue_roots: info.egress_queue_roots.clone(),
 		fees,
 		block_data_hash: info.block_data_hash.clone(),
 		upward_messages: info.upward_messages.clone(),
@@ -516,7 +455,6 @@ pub fn validate_receipt<P>(
 		max_block_data_size,
 		Some(receipt.fees),
 		&receipt.head_data,
-		&receipt.egress_queue_roots,
 		&receipt.upward_messages,
 	)?;
 
@@ -575,7 +513,6 @@ pub fn validate_collation<P>(
 		max_block_data_size,
 		None,
 		&collation.info.head_data,
-		&collation.info.egress_queue_roots,
 		&collation.info.upward_messages,
 	)
 }
@@ -586,50 +523,6 @@ mod tests {
 	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
 	use parachain::ParachainDispatchOrigin;
 	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
-
-	#[test]
-	fn compute_and_check_egress() {
-		let messages = vec![
-			TargetedMessage { target: 3.into(), data: vec![1, 1, 1] },
-			TargetedMessage { target: 1.into(), data: vec![1, 2, 3] },
-			TargetedMessage { target: 2.into(), data: vec![4, 5, 6] },
-			TargetedMessage { target: 1.into(), data: vec![7, 8, 9] },
-		];
-
-		let root_1 = message_queue_root(&[vec![1, 2, 3], vec![7, 8, 9]]);
-		let root_2 = message_queue_root(&[vec![4, 5, 6]]);
-		let root_3 = message_queue_root(&[vec![1, 1, 1]]);
-
-		assert!(check_egress(
-			messages.clone(),
-			&[(1.into(), root_1), (2.into(), root_2), (3.into(), root_3)],
-		).is_ok());
-
-		let egress_roots = egress_roots(&mut messages.clone()[..]);
-
-		assert!(check_egress(
-			messages.clone(),
-			&egress_roots[..],
-		).is_ok());
-
-		// missing root.
-		assert!(check_egress(
-			messages.clone(),
-			&[(1.into(), root_1), (3.into(), root_3)],
-		).is_err());
-
-		// extra root.
-		assert!(check_egress(
-			messages.clone(),
-			&[(1.into(), root_1), (2.into(), root_2), (3.into(), root_3), (4.into(), Default::default())],
-		).is_err());
-
-		// root mismatch.
-		assert!(check_egress(
-			messages.clone(),
-			&[(1.into(), root_2), (2.into(), root_1), (3.into(), root_3)],
-		).is_err());
-	}
 
 	#[test]
 	fn ext_rejects_local_message() {
@@ -670,7 +563,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
 			parent_head: HeadData(Vec::new()),
-			egress_queue_roots: Vec::new(),
 			fees: 0,
 			block_data_hash: Default::default(),
 			upward_messages: vec![
@@ -681,7 +573,6 @@ mod tests {
 		};
 		assert!(ext().final_checks(
 			&receipt.upward_messages,
-			&receipt.egress_queue_roots,
 			Some(receipt.fees),
 		).is_err());
 		let receipt = CandidateReceipt {
@@ -690,7 +581,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
 			parent_head: HeadData(Vec::new()),
-			egress_queue_roots: Vec::new(),
 			fees: 0,
 			block_data_hash: Default::default(),
 			upward_messages: vec![
@@ -700,7 +590,6 @@ mod tests {
 		};
 		assert!(ext().final_checks(
 			&receipt.upward_messages,
-			&receipt.egress_queue_roots,
 			Some(receipt.fees),
 		).is_err());
 		let receipt = CandidateReceipt {
@@ -709,7 +598,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
 			parent_head: HeadData(Vec::new()),
-			egress_queue_roots: Vec::new(),
 			fees: 0,
 			block_data_hash: Default::default(),
 			upward_messages: vec![
@@ -719,7 +607,6 @@ mod tests {
 		};
 		assert!(ext().final_checks(
 			&receipt.upward_messages,
-			&receipt.egress_queue_roots,
 			Some(receipt.fees),
 		).is_err());
 		let receipt = CandidateReceipt {
@@ -728,7 +615,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
 			parent_head: HeadData(Vec::new()),
-			egress_queue_roots: Vec::new(),
 			fees: 0,
 			block_data_hash: Default::default(),
 			upward_messages: vec![
@@ -738,7 +624,6 @@ mod tests {
 		};
 		assert!(ext().final_checks(
 			&receipt.upward_messages,
-			&receipt.egress_queue_roots,
 			Some(receipt.fees),
 		).is_ok());
 	}

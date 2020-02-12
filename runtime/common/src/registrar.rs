@@ -904,7 +904,6 @@ mod tests {
 			signature: block_data_hash.using_encoded(|d| collator.sign(d)),
 			head_data: HeadData(head_data.to_vec()),
 			parent_head: HeadData(parent_head.to_vec()),
-			egress_queue_roots: vec![],
 			fees: 0,
 			block_data_hash,
 			upward_messages: vec![],

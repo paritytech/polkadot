@@ -805,7 +805,6 @@ mod tests {
 			head_data: HeadData(vec![9, 9, 9]),
 			parent_head: HeadData(vec![]),
 			signature: Default::default(),
-			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [20u8; 32].into(),
 			upward_messages: Vec::new(),

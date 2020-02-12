@@ -182,9 +182,6 @@ pub struct CollationInfo {
 	pub collator: CollatorId,
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CollatorSignature,
-	/// Egress queue roots. Must be sorted lexicographically (ascending)
-	/// by parachain ID.
-	pub egress_queue_roots: Vec<(Id, Hash)>,
 	/// The head-data
 	pub head_data: HeadData,
 	/// blake2-256 Hash of block data.
@@ -199,7 +196,6 @@ impl From<CandidateReceipt> for CollationInfo {
 			parachain_index: receipt.parachain_index,
 			collator: receipt.collator,
 			signature: receipt.signature,
-			egress_queue_roots: receipt.egress_queue_roots,
 			head_data: receipt.head_data,
 			block_data_hash: receipt.block_data_hash,
 			upward_messages: receipt.upward_messages,
@@ -234,9 +230,6 @@ pub struct CandidateReceipt {
 	pub head_data: HeadData,
 	/// The parent head-data.
 	pub parent_head: HeadData,
-	/// Egress queue roots. Must be sorted lexicographically (ascending)
-	/// by parachain ID.
-	pub egress_queue_roots: Vec<(Id, Hash)>,
 	/// Fees paid from the chain to the relay chain validators
 	pub fees: Balance,
 	/// blake2-256 Hash of block data.
@@ -277,7 +270,6 @@ impl PartialEq<CollationInfo> for CandidateReceipt {
 		self.parachain_index == info.parachain_index &&
 		self.collator == info.collator &&
 		self.signature == info.signature &&
-		self.egress_queue_roots == info.egress_queue_roots &&
 		self.head_data == info.head_data &&
 		self.block_data_hash == info.block_data_hash &&
 		self.upward_messages == info.upward_messages
