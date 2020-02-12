@@ -349,7 +349,7 @@ impl CandidateReceipt {
 
 	/// Abridge this `CandidateReceipt`, splitting it into an `AbridgedCandidateReceipt`
 	/// and its omitted component.
-	pub fn abridge(self) -> (AbridgedCandidateReceipt, OmittedInAbridged) {
+	pub fn abridge(self) -> (AbridgedCandidateReceipt, OmittedValidationData) {
 		let CandidateReceipt {
 			parachain_index,
 			relay_parent,
@@ -375,7 +375,7 @@ impl CandidateReceipt {
 			commitments,
 		};
 
-		let omitted = OmittedInAbridged {
+		let omitted = OmittedValidationData {
 			global_validation,
 			parent_head,
 			balance,
@@ -400,8 +400,11 @@ impl Ord for CandidateReceipt {
 	}
 }
 
-/// All the data which is omitted in an `AbridgedCandidateReceipt`.
-pub struct OmittedInAbridged {
+/// All the data which is omitted in an `AbridgedCandidateReceipt`, but that
+/// is necessary for validation of the parachain candidate.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct OmittedValidationData {
 	/// The global validation schedule.
 	pub global_validation: GlobalValidationSchedule,
 	/// The parent head data.
@@ -438,7 +441,7 @@ pub struct AbridgedCandidateReceipt {
 impl AbridgedCandidateReceipt {
 	/// Combine the abridged candidate receipt with the omitted data,
 	/// forming a full `CandidateReceipt`.
-	pub fn complete(self, omitted: OmittedInAbridged) -> CandidateReceipt {
+	pub fn complete(self, omitted: OmittedValidationData) -> CandidateReceipt {
 		let AbridgedCandidateReceipt {
 			parachain_index,
 			relay_parent,
@@ -449,7 +452,7 @@ impl AbridgedCandidateReceipt {
 			commitments,
 		} = self;
 
-		let OmittedInAbridged {
+		let OmittedValidationData {
 			global_validation,
 			parent_head,
 			balance,
@@ -522,6 +525,17 @@ pub struct PoVBlock {
 	pub block_data: BlockData,
 	/// Ingress for the parachain.
 	pub ingress: ConsolidatedIngress,
+}
+
+/// The data which is kept available about a particular parachain block.
+#[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
+pub struct AvailableData {
+	/// The PoV block.
+	pub pov_block: PoVBlock,
+	/// Data which is omitted from an abridged candidate receipt
+	/// that is necessary for validation.
+	pub omitted_validation: OmittedValidationData,
 }
 
 /// Parachain ingress queue message.

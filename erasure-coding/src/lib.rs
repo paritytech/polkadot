@@ -27,7 +27,7 @@
 use codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::{Hash as H256, BlakeTwo256, HashT};
-use primitives::parachain::{CandidateReceipt, PoVBlock};
+use primitives::parachain::AvailableData;
 use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 
@@ -125,11 +125,11 @@ fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 /// Obtain erasure-coded chunks, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-pub fn obtain_chunks(n_validators: usize, candidate: &CandidateReceipt, pov_block: &PoVBlock)
+pub fn obtain_chunks(n_validators: usize, available_data: &AvailableData)
 	-> Result<Vec<Vec<u8>>, Error>
 {
 	let params = code_params(n_validators)?;
-	let encoded = (candidate, pov_block).encode();
+	let encoded = available_data.encode();
 
 	if encoded.is_empty() {
 		return Err(Error::BadPayload);
@@ -151,7 +151,7 @@ pub fn obtain_chunks(n_validators: usize, candidate: &CandidateReceipt, pov_bloc
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
 pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
-	-> Result<(CandidateReceipt, PoVBlock), Error>
+	-> Result<AvailableData, Error>
 	where I: IntoIterator<Item=(&'a [u8], usize)>
 {
 	let params = code_params(n_validators)?;
@@ -341,7 +341,7 @@ impl<'a, I: Iterator<Item=&'a [u8]>> codec::Input for ShardInput<'a, I> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use primitives::parachain::BlockData;
+	use primitives::parachain::{BlockData, PoVBlock};
 
 	#[test]
 	fn field_order_is_right_size() {
@@ -407,11 +407,13 @@ mod tests {
 			ingress: Default::default(),
 		};
 
-		let candidate = Default::default();
+		let available_data = AvailableData {
+			pov_block,
+			omitted_validation: Default::default(),
+		};
 		let chunks = obtain_chunks(
 			10,
-			&candidate,
-			&pov_block,
+			&available_data,
 		).unwrap();
 
 		assert_eq!(chunks.len(), 10);
@@ -427,7 +429,7 @@ mod tests {
 			].iter().cloned(),
 		).unwrap();
 
-		assert_eq!(reconstructed, (candidate, pov_block));
+		assert_eq!(reconstructed, available_data);
 	}
 
 	#[test]
@@ -436,12 +438,15 @@ mod tests {
 			block_data: BlockData(vec![2; 256]),
 			ingress: Default::default(),
 		};
-		let candidate = Default::default();
+
+		let available_data = AvailableData {
+			pov_block,
+			omitted_validation: Default::default(),
+		};
 
 		let chunks = obtain_chunks(
 			10,
-			&candidate,
-			&pov_block,
+			&available_data,
 		).unwrap();
 
 		assert_eq!(chunks.len(), 10);
