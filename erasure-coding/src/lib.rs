@@ -27,7 +27,7 @@
 use codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::{Hash as H256, BlakeTwo256, HashT};
-use primitives::parachain::{BlockData, AvailableMessages};
+use primitives::parachain::{CandidateReceipt, PoVBlock};
 use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 
@@ -125,11 +125,11 @@ fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 /// Obtain erasure-coded chunks, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, outgoing: Option<&AvailableMessages>)
+pub fn obtain_chunks(n_validators: usize, candidate: &CandidateReceipt, pov_block: &PoVBlock)
 	-> Result<Vec<Vec<u8>>, Error>
 {
 	let params = code_params(n_validators)?;
-	let encoded = (block_data, outgoing).encode();
+	let encoded = (candidate, pov_block).encode();
 
 	if encoded.is_empty() {
 		return Err(Error::BadPayload);
@@ -151,7 +151,7 @@ pub fn obtain_chunks(n_validators: usize, block_data: &BlockData, outgoing: Opti
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
 pub fn reconstruct<'a, I: 'a>(n_validators: usize, chunks: I)
-	-> Result<(BlockData, Option<AvailableMessages>), Error>
+	-> Result<(CandidateReceipt, PoVBlock), Error>
 	where I: IntoIterator<Item=(&'a [u8], usize)>
 {
 	let params = code_params(n_validators)?;
@@ -341,6 +341,7 @@ impl<'a, I: Iterator<Item=&'a [u8]>> codec::Input for ShardInput<'a, I> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use primitives::parachain::BlockData;
 
 	#[test]
 	fn field_order_is_right_size() {
@@ -400,13 +401,17 @@ mod tests {
 	}
 
     #[test]
-	fn round_trip_block_data() {
-		let block_data = BlockData((0..255).collect());
-		let ex = Some(AvailableMessages(Vec::new()));
+	fn round_trip_works() {
+		let pov_block = PoVBlock {
+			block_data: BlockData((0..255).collect()),
+			ingress: Default::default(),
+		};
+
+		let candidate = Default::default();
 		let chunks = obtain_chunks(
 			10,
-			&block_data,
-			ex.as_ref(),
+			&candidate,
+			&pov_block,
 		).unwrap();
 
 		assert_eq!(chunks.len(), 10);
@@ -422,18 +427,21 @@ mod tests {
 			].iter().cloned(),
 		).unwrap();
 
-		assert_eq!(reconstructed, (block_data, ex));
+		assert_eq!(reconstructed, (candidate, pov_block));
 	}
 
 	#[test]
 	fn construct_valid_branches() {
-		let block_data = BlockData(vec![2; 256]);
-		let ex = Some(AvailableMessages(Vec::new()));
+		let pov_block = PoVBlock {
+			block_data: BlockData(vec![2; 256]),
+			ingress: Default::default(),
+		};
+		let candidate = Default::default();
 
 		let chunks = obtain_chunks(
 			10,
-			&block_data,
-			ex.as_ref(),
+			&candidate,
+			&pov_block,
 		).unwrap();
 
 		assert_eq!(chunks.len(), 10);
