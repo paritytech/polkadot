@@ -364,7 +364,7 @@ fn run_collator_node<S, P, Extrinsic>(
 				($e:expr) => {
 					match $e {
 						Ok(x) => x,
-						Err(e) => return (future::err(Error::Polkadot(
+						Err(e) => return future::Either::Left(future::err(Error::Polkadot(
 							format!("{:?}", e)
 						))),
 					}
@@ -380,11 +380,11 @@ fn run_collator_node<S, P, Extrinsic>(
 			let parachain_context = parachain_context.clone();
 			let validation_network = validation_network.clone();
 
-			let work = future::lazy(move |_| async move {
+			let work = future::lazy(move |_| {
 				let api = client.runtime_api();
 				let status = match try_fr!(api.parachain_status(&id, para_id)) {
 					Some(status) => status,
-					None => return future::ok(()),
+					None => return future::Either::Left(future::ok(())),
 				};
 
 				let validators = try_fr!(api.validators(&id));
@@ -401,14 +401,14 @@ fn run_collator_node<S, P, Extrinsic>(
 					validators,
 				};
 
-				if let Ok((collation, outgoing)) = collate(
+				let collation_work = collate(
 					relay_parent,
 					para_id,
 					status,
 					context,
 					parachain_context,
 					key,
-				).await {
+				).map_ok(move |(collation, outgoing)| {
 					network.with_spec(move |spec, ctx| {
 						let res = spec.add_local_collation(
 							ctx,
@@ -419,9 +419,10 @@ fn run_collator_node<S, P, Extrinsic>(
 						);
 
 						tokio::spawn(res.boxed());
-					});
-				}
-				future::ok(())
+					})
+				});
+
+				future::Either::Right(collation_work)
 			});
 
 			let deadlined = future::select(
@@ -436,7 +437,7 @@ fn run_collator_node<S, P, Extrinsic>(
 					}
 				});
 
-				let future = silenced.map(drop);
+			let future = silenced.map(drop);
 
 			tokio::spawn(future);
 		}
