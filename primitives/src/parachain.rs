@@ -247,16 +247,15 @@ pub struct GlobalValidationSchedule {
 
 /// Extra data which is needed along with the other fields in a `CandidateReceipt`
 /// to fully validate the candidate. These fields are parachain-specific.
-///
-/// Some of these are simply hashes referencing larger data that will appear
-/// in the `PoVBlock`
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct LocalValidationData {
 	/// The parent head-data.
 	pub parent_head: HeadData,
-	/// The block-data hash. The block-data itself is in the PoVBlock.
-	pub block_data_hash: Hash,
+	/// The hash of the pov-block used to prove validity.
+	pub pov_block_hash: Hash,
+	/// The balance of the parachain at the moment of validation.
+	pub balance: Balance,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
@@ -278,14 +277,14 @@ pub struct CandidateCommitments {
 pub fn collator_signature_payload(
 	relay_parent: &Hash,
 	parachain_index: &Id,
-	block_data_hash: &Hash,
+	pov_block_hash: &Hash,
 ) -> [u8; 68] {
 	// 32-byte hash length is protected in a test below.
 	let mut payload = [0u8; 68];
 
 	payload[0..32].copy_from_slice(relay_parent.as_ref());
 	u32::from(*parachain_index).using_encoded(|s| payload[32..32 + s.len()].copy_from_slice(s));
-	payload[36..68].copy_from_slice(block_data_hash.as_ref());
+	payload[36..68].copy_from_slice(pov_block_hash.as_ref());
 
 	payload
 }
@@ -293,14 +292,13 @@ pub fn collator_signature_payload(
 fn check_collator_signature(
 	relay_parent: &Hash,
 	parachain_index: &Id,
-	block_data_hash: &Hash,
+	pov_block_hash: &Hash,
 	collator: &CollatorId,
 	signature: &CollatorSignature,
 ) -> Result<(),()> {
 	use runtime_primitives::traits::AppVerify;
 
-
-	let payload = collator_signature_payload(relay_parent, parachain_index, block_data_hash);
+	let payload = collator_signature_payload(relay_parent, parachain_index, pov_block_hash);
 	if signature.verify(&payload[..], collator) {
 		Ok(())
 	} else {
@@ -343,10 +341,47 @@ impl CandidateReceipt {
 		check_collator_signature(
 			&self.relay_parent,
 			&self.parachain_index,
-			&self.local_validation.block_data_hash,
+			&self.local_validation.pov_block_hash,
 			&self.collator,
 			&self.signature,
 		)
+	}
+
+	/// Abridge this `CandidateReceipt`, splitting it into an `AbridgedCandidateReceipt`
+	/// and its omitted component.
+	pub fn abridge(self) -> (AbridgedCandidateReceipt, OmittedInAbridged) {
+		let CandidateReceipt {
+			parachain_index,
+			relay_parent,
+			head_data,
+			collator,
+			signature,
+			global_validation,
+			local_validation: LocalValidationData {
+				parent_head,
+				pov_block_hash,
+				balance,
+			},
+			commitments,
+		} = self;
+
+		let abridged = AbridgedCandidateReceipt {
+			parachain_index,
+			relay_parent,
+			head_data,
+			collator,
+			signature,
+			pov_block_hash,
+			commitments,
+		};
+
+		let omitted = OmittedInAbridged {
+			global_validation,
+			parent_head,
+			balance,
+		};
+
+		(abridged, omitted)
 	}
 }
 
@@ -365,6 +400,78 @@ impl Ord for CandidateReceipt {
 	}
 }
 
+/// All the data which is omitted in an `AbridgedCandidateReceipt`.
+pub struct OmittedInAbridged {
+	/// The global validation schedule.
+	pub global_validation: GlobalValidationSchedule,
+	/// The parent head data.
+	pub parent_head: HeadData,
+	/// The balance of the parachain.
+	pub balance: Balance,
+}
+
+/// An abridged candidate-receipt.
+///
+/// Much info in a candidate-receipt is duplicated from the relay-chain state.
+/// When submitting to the relay-chain, this data should be omitted as it can
+/// be re-generated from relay-chain state.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct AbridgedCandidateReceipt {
+	/// The ID of the parachain this is a candidate for.
+	pub parachain_index: Id,
+	/// The hash of the relay-chain block this should be executed in
+	/// the context of.
+	pub relay_parent: Hash,
+	/// The head-data
+	pub head_data: HeadData,
+	/// The collator's relay-chain account ID
+	pub collator: CollatorId,
+	/// Signature on blake2-256 of the block data by collator.
+	pub signature: CollatorSignature,
+	/// The hash of the pov-block.
+	pub pov_block_hash: Hash,
+	/// Commitments made as a result of validation.
+	pub commitments: CandidateCommitments,
+}
+
+impl AbridgedCandidateReceipt {
+	/// Combine the abridged candidate receipt with the omitted data,
+	/// forming a full `CandidateReceipt`.
+	pub fn complete(self, omitted: OmittedInAbridged) -> CandidateReceipt {
+		let AbridgedCandidateReceipt {
+			parachain_index,
+			relay_parent,
+			head_data,
+			collator,
+			signature,
+			pov_block_hash,
+			commitments,
+		} = self;
+
+		let OmittedInAbridged {
+			global_validation,
+			parent_head,
+			balance,
+		} = omitted;
+
+		CandidateReceipt {
+			parachain_index,
+			relay_parent,
+			head_data,
+			collator,
+			signature,
+			local_validation: LocalValidationData {
+				parent_head,
+				pov_block_hash,
+				balance,
+			},
+			global_validation,
+			commitments,
+		}
+	}
+}
+
 /// A collation sent by a collator.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
@@ -380,17 +487,17 @@ pub struct CollationInfo {
 	pub signature: CollatorSignature,
 	/// The head-data
 	pub head_data: HeadData,
-	/// blake2-256 Hash of block data.
-	pub block_data_hash: Hash,
+	/// blake2-256 Hash of the pov-block
+	pub pov_block_hash: Hash,
 }
 
 impl CollationInfo {
-	/// Check integrity vs. provided block data.
+	/// Check integrity vs. a pov-block.
 	pub fn check_signature(&self) -> Result<(), ()> {
 		check_collator_signature(
 			&self.relay_parent,
 			&self.parachain_index,
-			&self.block_data_hash,
+			&self.pov_block_hash,
 			&self.collator,
 			&self.signature,
 		)
@@ -576,11 +683,12 @@ pub enum ValidityAttestation {
 	Explicit(ValidatorSignature),
 }
 
-/// An attested candidate.
+/// An attested candidate. This is submitted to the relay chain by a block author.
 #[derive(Clone, PartialEq, Decode, Encode, RuntimeDebug)]
 pub struct AttestedCandidate {
-	/// The candidate data.
-	pub candidate: CandidateReceipt,
+	/// The candidate data. This is abridged, because the omitted data
+	/// is already present within the relay chain state.
+	pub candidate: AbridgedCandidateReceipt,
 	/// Validity attestations.
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// Indices of the corresponding validity votes.
@@ -589,7 +697,7 @@ pub struct AttestedCandidate {
 
 impl AttestedCandidate {
 	/// Get the candidate.
-	pub fn candidate(&self) -> &CandidateReceipt {
+	pub fn candidate(&self) -> &AbridgedCandidateReceipt {
 		&self.candidate
 	}
 
