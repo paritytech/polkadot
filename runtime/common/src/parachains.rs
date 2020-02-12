@@ -123,6 +123,14 @@ pub trait Trait: attestations::Trait {
 
 	/// The way that we are able to register parachains.
 	type Registrar: Registrar<Self::AccountId>;
+
+	/// Maximum code size for parachains, in bytes. Note that this is not
+	/// the entire storage burden of the parachain, as old code is stored for
+	/// `SlashPeriod` blocks.
+	type MaxCodeSize: Get<u32>;
+
+	/// Max head data size.
+	type MaxHeadDataSize: Get<u32>;
 }
 
 /// Origin for the parachains module.
@@ -210,6 +218,8 @@ decl_error! {
 		UntaggedVotes,
 		/// Wrong parent head for parachain receipt.
 		ParentMismatch,
+		/// Head data was too large.
+		HeadDataTooLarge,
 	}
 }
 
@@ -605,6 +615,8 @@ impl<T: Trait> Module<T> {
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
 
 		let mut para_block_hashes = Vec::new();
+
+		let max_head_data_size = T::MaxHeadDataSize::get();
 		for candidate in attested_candidates {
 			let para_id = candidate.parachain_index();
 			let validator_group = validator_groups.group_for(para_id)
@@ -626,6 +638,11 @@ impl<T: Trait> Module<T> {
 			ensure!(
 				candidate.validity_votes.len() <= authorities.len(),
 				Error::<T>::VotesExceedsAuthorities,
+			);
+
+			ensure!(
+				max_head_data_size >= candidate.candidate().head_data.0.len() as _,
+				Error::<T>::HeadDataTooLarge,
 			);
 
 			let fees = candidate.candidate().fees;
@@ -979,6 +996,11 @@ mod tests {
 		type MaxRetries = MaxRetries;
 	}
 
+	parameter_types! {
+		pub const MaxHeadDataSize: u32 = 100;
+		pub const MaxCodeSize: u32 = 100;
+	}
+
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
@@ -986,6 +1008,8 @@ mod tests {
 		type Randomness = RandomnessCollectiveFlip;
 		type ActiveParachains = registrar::Module<Test>;
 		type Registrar = registrar::Module<Test>;
+		type MaxCodeSize = MaxCodeSize;
+		type MaxHeadDataSize = MaxHeadDataSize;
 	}
 
 	type Parachains = Module<Test>;
