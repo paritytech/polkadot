@@ -195,14 +195,6 @@ decl_error! {
 		QueueFull,
 		/// The message origin is invalid.
 		InvalidMessageOrigin,
-		/// Egress routes should be in ascending order by parachain ID without duplicates.
-		EgressOutOfOrder,
-		/// A parachain cannot route a message to itself.
-		SelfAddressed,
-		/// The trie root cannot be empty.
-		EmptyTrieRoot,
-		/// Cannot route to a non-existing parachain.
-		DestinationDoesNotExist,
 		/// No validator group for parachain.
 		NoValidatorGroup,
 		/// Not enough validity votes for candidate.
