@@ -141,12 +141,6 @@ pub enum Origin {
 	Parachain(ParaId),
 }
 
-// result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
-const EMPTY_TRIE_ROOT: [u8; 32] = [
-	3, 23, 10, 46, 117, 151, 183, 183, 227, 216, 76, 5, 57, 29, 19, 154,
-	98, 177, 87, 231, 135, 134, 216, 192, 130, 242, 157, 207, 76, 17, 19, 20
-];
-
 /// Total number of individual messages allowed in the parachain -> relay-chain message queue.
 const MAX_QUEUE_COUNT: usize = 100;
 /// Total size of messages allowed in the parachain -> relay-chain message queue before which no
@@ -163,7 +157,8 @@ decl_storage! {
 		pub Code get(parachain_code): map hasher(blake2_256) ParaId => Option<Vec<u8>>;
 		/// The heads of the parachains registered at present.
 		pub Heads get(parachain_head): map hasher(blake2_256) ParaId => Option<Vec<u8>>;
-		/// Messages ready to be dispatched onto the relay chain.
+		/// Messages ready to be dispatched onto the relay chain. It is subject to
+		/// `MAX_MESSAGE_COUNT` and `WATERMARK_MESSAGE_SIZE`.
 		pub RelayDispatchQueue: map hasher(blake2_256) ParaId => Vec<UpwardMessage>;
 		/// Size of the dispatch queues. Separated from actual data in order to avoid costly
 		/// decoding when checking receipt validity. First item in tuple is the count of messages
@@ -284,6 +279,10 @@ decl_module! {
 
 				<attestations::Module<T>>::note_included(&heads, para_blocks);
 
+				Self::update_routing(
+					&heads,
+				);
+				
 				Self::dispatch_upward_messages(
 					MAX_QUEUE_COUNT,
 					WATERMARK_QUEUE_SIZE,
@@ -394,7 +393,6 @@ impl<T: Trait> Module<T> {
 	/// Update routing information from the parachain heads. This queues upwards
 	/// messages to the relay chain as well.
 	fn update_routing(
-		now: T::BlockNumber,
 		heads: &[AttestedCandidate],
 	) {
 		// we sort them in order to provide a fast lookup to ensure we can avoid duplicates in the
@@ -849,11 +847,17 @@ mod tests {
 	};
 	use keyring::Sr25519Keyring;
 	use frame_support::{
-		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, assert_noop, parameter_types,
+		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 	};
 	use crate::parachains;
 	use crate::registrar;
 	use crate::slots;
+
+	// result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
+	const EMPTY_TRIE_ROOT: [u8; 32] = [
+		3, 23, 10, 46, 117, 151, 183, 183, 227, 216, 76, 5, 57, 29, 19, 154,
+		98, 177, 87, 231, 135, 134, 216, 192, 130, 242, 157, 207, 76, 17, 19, 20
+	];
 
 	impl_outer_origin! {
 		pub enum Origin for Test {
@@ -1175,24 +1179,6 @@ mod tests {
 			validator_indices.set(idx, true);
 		}
 		candidate.validator_indices = validator_indices;
-	}
-
-	fn new_candidate() -> AttestedCandidate {
-		AttestedCandidate {
-			validity_votes: vec![],
-			validator_indices: BitVec::new(),
-			candidate: CandidateReceipt {
-				parachain_index: 0.into(),
-				collator: Default::default(),
-				signature: Default::default(),
-				head_data: HeadData(vec![1, 2, 3]),
-				parent_head: HeadData(vec![]),
-				fees: 0,
-				block_data_hash: Default::default(),
-				upward_messages: vec![],
-				erasure_root: [1u8; 32].into(),
-			}
-		}
 	}
 
 	fn new_candidate_with_upward_messages(
@@ -1761,90 +1747,6 @@ mod tests {
 				set_heads(vec![candidate]),
 				Origin::NONE,
 			).is_err());
-		});
-	}
-
-	#[test]
-	fn egress_routed_to_non_existent_parachain_is_rejected() {
-		// That no parachain is routed to which doesn't exist
-		let parachains = vec![
-			(0u32.into(), vec![], vec![]),
-			(1u32.into(), vec![], vec![]),
-		];
-
-		new_test_ext(parachains.clone()).execute_with(|| {
-			run_to_block(2);
-			let mut candidate = new_candidate();
-
-			make_attestations(&mut candidate);
-
-			assert_noop!(
-				Parachains::set_heads(Origin::NONE, vec![candidate.clone()]),
-				Error::<Test>::DestinationDoesNotExist
-			);
-		});
-	}
-
-	#[test]
-	fn egress_routed_to_self_is_rejected() {
-		// That the parachain doesn't route to self
-		let parachains = vec![
-			(0u32.into(), vec![], vec![]),
-			(1u32.into(), vec![], vec![]),
-		];
-
-		new_test_ext(parachains.clone()).execute_with(|| {
-			run_to_block(2);
-			let mut candidate = new_candidate();
-
-			make_attestations(&mut candidate);
-
-			assert_noop!(
-				Parachains::set_heads(Origin::NONE, vec![candidate.clone()]),
-				Error::<Test>::SelfAddressed
-			);
-		});
-	}
-
-	#[test]
-	fn egress_queue_roots_out_of_order_rejected() {
-		// That the list of egress queue roots is in ascending order by `ParaId`.
-		let parachains = vec![
-			(0u32.into(), vec![], vec![]),
-			(1u32.into(), vec![], vec![]),
-		];
-
-		new_test_ext(parachains.clone()).execute_with(|| {
-			run_to_block(2);
-			let mut candidate = new_candidate();
-
-			make_attestations(&mut candidate);
-
-			assert_noop!(
-				Parachains::set_heads(Origin::NONE, vec![candidate.clone()]),
-				Error::<Test>::EgressOutOfOrder
-			);
-		});
-	}
-
-	#[test]
-	fn egress_queue_roots_empty_trie_roots_rejected() {
-		let parachains = vec![
-			(0u32.into(), vec![], vec![]),
-			(1u32.into(), vec![], vec![]),
-			(2u32.into(), vec![], vec![]),
-		];
-
-		new_test_ext(parachains.clone()).execute_with(|| {
-			run_to_block(2);
-			let mut candidate = new_candidate();
-
-			make_attestations(&mut candidate);
-
-			assert_noop!(
-				Parachains::set_heads(Origin::NONE, vec![candidate.clone()]),
-				Error::<Test>::EmptyTrieRoot
-			);
 		});
 	}
 
