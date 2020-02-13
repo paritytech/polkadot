@@ -17,7 +17,7 @@
 set -e # fail on any error
 
 
-SUBSTRATE_REPO="https://github.com/paritytech/substrate"
+SUBSTRATE_REPO="https://github.com/tomaka/polkadot"
 SUBSTRATE_REPO_CARGO="git\+${SUBSTRATE_REPO}\?branch=polkadot-master"
 SUBSTRATE_VERSIONS_FILE="bin/node/runtime/src/lib.rs"
 

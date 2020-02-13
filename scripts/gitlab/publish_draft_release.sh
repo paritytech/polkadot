@@ -47,7 +47,7 @@ curl -XPOST -d "$1" "https://matrix.parity.io/_matrix/client/r0/rooms/$2/send/m.
 
 # Set initial variables
 api_base="https://api.github.com/repos/paritytech/polkadot"
-substrate_repo="https://github.com/paritytech/substrate"
+substrate_repo="https://github.com/tomaka/polkadot"
 substrate_dir='./substrate'
 
 # Cloning repos to ensure freshness
@@ -67,7 +67,7 @@ case $? in
     ;;
   1) echo '[!] Tag found but has not been signed. Aborting release.'; exit 1
     ;;
-  2) echo '[!] Tag not found. Aborting release.'; exit 
+  2) echo '[!] Tag not found. Aborting release.'; exit
 esac
 
 # Start with referencing current native runtime

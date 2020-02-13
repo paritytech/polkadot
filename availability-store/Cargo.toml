@@ -15,15 +15,15 @@ futures = "0.3.4"
 tokio = { version = "0.2.10", features = ["rt-core"] }
 exit-future = "0.2.0"
 codec = { package = "parity-scale-codec", version = "1.1.0", features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-network = { git = "https://github.com/tomaka/polkadot", branch = "libp2p-0.16" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/tomaka/polkadot", branch = "libp2p-0.16" }
+client = { package = "sc-client-api", git = "https://github.com/tomaka/polkadot", branch = "libp2p-0.16" }
+sc-client = { git = "https://github.com/tomaka/polkadot", branch = "libp2p-0.16" }
+sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "libp2p-0.16" }
+sp-blockchain = { git = "https://github.com/tomaka/polkadot", branch = "libp2p-0.16" }
+sp-api = { git = "https://github.com/tomaka/polkadot", branch = "libp2p-0.16" }
+keystore = { package = "sc-keystore", git = "https://github.com/tomaka/polkadot", branch = "libp2p-0.16" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "libp2p-0.16" }
 kvdb = "0.3.1"
 kvdb-memorydb = "0.3.1"
 
