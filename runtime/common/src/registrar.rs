@@ -198,8 +198,6 @@ decl_storage! {
 
 #[cfg(feature = "std")]
 fn build<T: Trait>(config: &GenesisConfig<T>) {
-	use sp_runtime::traits::Zero;
-
 	let mut p = config.parachains.clone();
 	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
 	p.dedup_by_key(|&mut (ref id, _, _)| *id);
@@ -213,7 +211,6 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 		// no ingress -- a chain cannot be routed to until it is live.
 		<parachains::Code>::insert(&id, &code);
 		<parachains::Heads>::insert(&id, &genesis);
-		<parachains::Watermarks<T>>::insert(&id, T::BlockNumber::zero());
 		// Save initial parachains in registrar
 		Paras::insert(id, ParaInfo { scheduling: Scheduling::Always })
 	}
@@ -907,7 +904,6 @@ mod tests {
 			signature: block_data_hash.using_encoded(|d| collator.sign(d)),
 			head_data: HeadData(head_data.to_vec()),
 			parent_head: HeadData(parent_head.to_vec()),
-			egress_queue_roots: vec![],
 			fees: 0,
 			block_data_hash,
 			upward_messages: vec![],

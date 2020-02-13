@@ -20,7 +20,7 @@ use rstd::prelude::*;
 use rstd::cmp::Ordering;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
-use super::{Hash, Balance, BlockNumber};
+use super::{Hash, Balance};
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -164,72 +164,12 @@ pub struct DutyRoster {
 	pub validator_duty: Vec<Chain>,
 }
 
-/// Outgoing message data for a parachain candidate.
-///
-/// This is data produced by evaluating the candidate. It contains
-/// full records of all outgoing messages to other parachains.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
-#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
-pub struct OutgoingMessages {
-	/// The outgoing messages from the execution of the parachain.
-	///
-	/// This must be sorted in ascending order by parachain ID.
-	pub outgoing_messages: Vec<TargetedMessage>
-}
-
-impl OutgoingMessages {
-	/// Returns an iterator of slices of all outgoing message queues.
-	///
-	/// All messages in a given slice are guaranteed to have the same target.
-	pub fn message_queues(&'_ self) -> impl Iterator<Item=&'_ [TargetedMessage]> + '_ {
-		let mut outgoing = &self.outgoing_messages[..];
-
-		rstd::iter::from_fn(move || {
-			if outgoing.is_empty() { return None }
-			let target = outgoing[0].target;
-			let mut end = 1; // the index of the last matching item + 1.
-			loop {
-				match outgoing.get(end) {
-					None => break,
-					Some(x) => if x.target != target { break },
-				}
-				end += 1;
-			}
-
-			let item = &outgoing[..end];
-			outgoing = &outgoing[end..];
-			Some(item)
-		})
-	}
-}
-
-/// Messages by queue root that are stored in the availability store.
-#[derive(PartialEq, Clone, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
-pub struct AvailableMessages(pub Vec<(Hash, Vec<Message>)>);
-
-
 /// Compute a trie root for a set of messages, given the raw message data.
 #[cfg(feature = "std")]
 pub fn message_queue_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
 	where A: AsRef<[u8]>
 {
 	trie::trie_types::Layout::<primitives::Blake2Hasher>::ordered_trie_root(messages)
-}
-
-#[cfg(feature = "std")]
-impl From<OutgoingMessages> for AvailableMessages {
-	fn from(outgoing: OutgoingMessages) -> Self {
-		let queues = outgoing.message_queues().filter_map(|queue| {
-			let queue_root = message_queue_root(queue);
-			let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
-			Some((queue_root, queue_data))
-		}).collect();
-
-		AvailableMessages(queues)
-	}
 }
 
 /// Candidate receipt type.
@@ -242,9 +182,6 @@ pub struct CollationInfo {
 	pub collator: CollatorId,
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CollatorSignature,
-	/// Egress queue roots. Must be sorted lexicographically (ascending)
-	/// by parachain ID.
-	pub egress_queue_roots: Vec<(Id, Hash)>,
 	/// The head-data
 	pub head_data: HeadData,
 	/// blake2-256 Hash of block data.
@@ -259,7 +196,6 @@ impl From<CandidateReceipt> for CollationInfo {
 			parachain_index: receipt.parachain_index,
 			collator: receipt.collator,
 			signature: receipt.signature,
-			egress_queue_roots: receipt.egress_queue_roots,
 			head_data: receipt.head_data,
 			block_data_hash: receipt.block_data_hash,
 			upward_messages: receipt.upward_messages,
@@ -294,9 +230,6 @@ pub struct CandidateReceipt {
 	pub head_data: HeadData,
 	/// The parent head-data.
 	pub parent_head: HeadData,
-	/// Egress queue roots. Must be sorted lexicographically (ascending)
-	/// by parachain ID.
-	pub egress_queue_roots: Vec<(Id, Hash)>,
 	/// Fees paid from the chain to the relay chain validators
 	pub fees: Balance,
 	/// blake2-256 Hash of block data.
@@ -337,7 +270,6 @@ impl PartialEq<CollationInfo> for CandidateReceipt {
 		self.parachain_index == info.parachain_index &&
 		self.collator == info.collator &&
 		self.signature == info.signature &&
-		self.egress_queue_roots == info.egress_queue_roots &&
 		self.head_data == info.head_data &&
 		self.block_data_hash == info.block_data_hash &&
 		self.upward_messages == info.upward_messages
@@ -369,67 +301,7 @@ pub struct Collation {
 pub struct PoVBlock {
 	/// Block data.
 	pub block_data: BlockData,
-	/// Ingress for the parachain.
-	pub ingress: ConsolidatedIngress,
 }
-
-/// Parachain ingress queue message.
-#[derive(PartialEq, Eq, Clone, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
-pub struct Message(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-impl AsRef<[u8]> for Message {
-	fn as_ref(&self) -> &[u8] {
-		&self.0[..]
-	}
-}
-
-impl From<TargetedMessage> for Message {
-	fn from(targeted: TargetedMessage) -> Self {
-		Message(targeted.data)
-	}
-}
-
-/// All ingress roots at one block.
-///
-/// This is an ordered vector of other parachain's egress queue roots from a specific block.
-/// empty roots are omitted. Each parachain may appear once at most.
-#[derive(Default, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
-pub struct BlockIngressRoots(pub Vec<(Id, Hash)>);
-
-/// All ingress roots, grouped by block number (ascending). To properly
-/// interpret this struct, the user must have knowledge of which fork of the relay
-/// chain all block numbers correspond to.
-#[derive(Default, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
-pub struct StructuredUnroutedIngress(pub Vec<(BlockNumber, BlockIngressRoots)>);
-
-#[cfg(feature = "std")]
-impl StructuredUnroutedIngress {
-	/// Get the length of all the ingress roots across all blocks.
-	pub fn len(&self) -> usize {
-		self.0.iter().fold(0, |a, (_, roots)| a + roots.0.len())
-	}
-
-	/// Returns an iterator over all ingress roots. The block number indicates
-	/// the height at which that root was posted to the relay chain. The parachain ID is the
-	/// message sender.
-	pub fn iter(&self) -> impl Iterator<Item=(BlockNumber, &Id, &Hash)> {
-		self.0.iter().flat_map(|&(n, ref roots)|
-			roots.0.iter().map(move |&(ref from, ref root)| (n, from, root))
-		)
-	}
-}
-
-/// Consolidated ingress queue data.
-///
-/// This is just an ordered vector of other parachains' egress queues,
-/// obtained according to the routing rules. The same parachain may appear
-/// more than once.
-#[derive(Default, PartialEq, Eq, Clone, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
-pub struct ConsolidatedIngress(pub Vec<(Id, Vec<Message>)>);
 
 /// Parachain block data.
 ///
@@ -580,12 +452,6 @@ sp_api::decl_runtime_apis! {
 		fn parachain_status(id: Id) -> Option<Status>;
 		/// Get the given parachain's head code blob.
 		fn parachain_code(id: Id) -> Option<Vec<u8>>;
-		/// Get all the unrouted ingress roots at the given block that
-		/// are targeting the given parachain.
-		///
-		/// If `since` is provided, only messages since (including those in) that block
-		/// will be included.
-		fn ingress(to: Id, since: Option<BlockNumber>) -> Option<StructuredUnroutedIngress>;
 		/// Extract the heads that were set by this set of extrinsics.
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>>;
 	}

@@ -688,11 +688,6 @@ sp_api::impl_runtime_apis! {
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)
 		}
-		fn ingress(to: parachain::Id, since: Option<BlockNumber>)
-			-> Option<parachain::StructuredUnroutedIngress>
-		{
-			Parachains::ingress(to, since).map(parachain::StructuredUnroutedIngress)
-		}
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>> {
 			extrinsics
 				.into_iter()

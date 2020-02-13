@@ -48,7 +48,6 @@ use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
-use std::pin::Pin;
 
 use futures::{future, Future, Stream, FutureExt, TryFutureExt, StreamExt, task::Spawn};
 use log::warn;
@@ -57,18 +56,17 @@ use sp_core::{Pair, Blake2Hasher};
 use polkadot_primitives::{
 	BlockId, Hash, Block,
 	parachain::{
-		self, BlockData, DutyRoster, HeadData, ConsolidatedIngress, Message, Id as ParaId,
-		OutgoingMessages, PoVBlock, Status as ParachainStatus, ValidatorId, CollatorPair,
+		self, BlockData, DutyRoster, HeadData, Id as ParaId,
+		PoVBlock, Status as ParachainStatus, ValidatorId, CollatorPair,
 	}
 };
 use polkadot_cli::{
 	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
 	service::{self, Roles, SelectChain}
 };
-use polkadot_network::legacy::validation::{LeafWorkParams, ValidationNetwork};
+use polkadot_network::legacy::validation::ValidationNetwork;
 
 pub use polkadot_cli::{VersionInfo, load_spec, service::Configuration};
-pub use polkadot_network::legacy::validation::Incoming;
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
 pub use sc_network::PeerId;
@@ -111,14 +109,14 @@ pub struct InvalidHead;
 
 /// Collation errors.
 #[derive(Debug)]
-pub enum Error<R> {
+pub enum Error {
 	/// Error on the relay-chain side of things.
-	Polkadot(R),
+	Polkadot(String),
 	/// Error on the collator side of things.
 	Collator(InvalidHead),
 }
 
-impl<R: fmt::Display> fmt::Display for Error<R> {
+impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
 			Error::Polkadot(ref err) => write!(f, "Polkadot node error: {}", err),
@@ -162,65 +160,41 @@ pub trait BuildParachainContext {
 /// This can be implemented through an externally attached service or a stub.
 /// This is expected to be a lightweight, shared type like an Arc.
 pub trait ParachainContext: Clone {
-	type ProduceCandidate: Future<Output = Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>>;
+	type ProduceCandidate: Future<Output = Result<(BlockData, HeadData), InvalidHead>>;
 
 	/// Produce a candidate, given the relay parent hash, the latest ingress queue information
 	/// and the last parachain head.
-	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
+	fn produce_candidate(
 		&mut self,
 		relay_parent: Hash,
 		status: ParachainStatus,
-		ingress: I,
 	) -> Self::ProduceCandidate;
 }
 
-/// Relay chain context needed to collate.
-/// This encapsulates a network and local database which may store
-/// some of the input.
-pub trait RelayChainContext {
-	type Error: std::fmt::Debug;
-
-	/// Future that resolves to the un-routed egress queues of a parachain.
-	/// The first item is the oldest.
-	type FutureEgress: Future<Output = Result<ConsolidatedIngress, Self::Error>>;
-
-	/// Get un-routed egress queues from a parachain to the local parachain.
-	fn unrouted_egress(&self, _id: ParaId) -> Self::FutureEgress;
-}
-
 /// Produce a candidate for the parachain, with given contexts, parent head, and signing key.
-pub async fn collate<R, P>(
+pub async fn collate<P>(
 	relay_parent: Hash,
 	local_id: ParaId,
 	parachain_status: ParachainStatus,
-	relay_context: R,
 	mut para_context: P,
 	key: Arc<CollatorPair>,
 )
-	-> Result<(parachain::Collation, OutgoingMessages), Error<R::Error>>
+	-> Result<parachain::Collation, Error>
 	where
-		R: RelayChainContext,
 		P: ParachainContext,
 		P::ProduceCandidate: Send,
 {
-	let ingress = relay_context.unrouted_egress(local_id).await.map_err(Error::Polkadot)?;
-
-	let (block_data, head_data, mut outgoing) = para_context.produce_candidate(
+	let (block_data, head_data) = para_context.produce_candidate(
 		relay_parent,
 		parachain_status,
-		ingress.0.iter().flat_map(|&(id, ref msgs)| msgs.iter().cloned().map(move |msg| (id, msg)))
 	).map_err(Error::Collator).await?;
 
 	let block_data_hash = block_data.hash();
 	let signature = key.sign(block_data_hash.as_ref());
-	let egress_queue_roots =
-		polkadot_validation::egress_roots(&mut outgoing.outgoing_messages);
-
 	let info = parachain::CollationInfo {
 		parachain_index: local_id,
 		collator: key.public(),
 		signature,
-		egress_queue_roots,
 		head_data,
 		block_data_hash,
 		upward_messages: Vec::new(),
@@ -230,47 +204,10 @@ pub async fn collate<R, P>(
 		info,
 		pov: PoVBlock {
 			block_data,
-			ingress,
 		},
 	};
 
-	Ok((collation, outgoing))
-}
-
-/// Polkadot-api context.
-struct ApiContext<P, SP> {
-	network: Arc<ValidationNetwork<P, SP>>,
-	parent_hash: Hash,
-	validators: Vec<ValidatorId>,
-}
-
-impl<P: 'static, SP: 'static> RelayChainContext for ApiContext<P, SP> where
-	P: ProvideRuntimeApi<Block> + Send + Sync,
-	P::Api: ParachainHost<Block>,
-	SP: Spawn + Clone + Send + Sync
-{
-	type Error = String;
-	type FutureEgress = Pin<Box<dyn Future<Output=Result<ConsolidatedIngress, String>> + Send>>;
-
-	fn unrouted_egress(&self, _id: ParaId) -> Self::FutureEgress {
-		let network = self.network.clone();
-		let parent_hash = self.parent_hash;
-		let authorities = self.validators.clone();
-
-		async move {
-			// TODO: https://github.com/paritytech/polkadot/issues/253
-			//
-			// Fetch ingress and accumulate all unrounted egress
-			let _session = network.instantiate_leaf_work(LeafWorkParams {
-				local_session_key: None,
-				parent_hash,
-				authorities,
-			})
-				.map_err(|e| format!("unable to instantiate validation session: {:?}", e));
-
-			Ok(ConsolidatedIngress(Vec::new()))
-		}.boxed()
-	}
+	Ok(collation)
 }
 
 /// Run the collator node using the given `service`.
@@ -378,7 +315,6 @@ fn run_collator_node<S, P, Extrinsic>(
 			let client = client.clone();
 			let key = key.clone();
 			let parachain_context = parachain_context.clone();
-			let validation_network = validation_network.clone();
 
 			let work = future::lazy(move |_| {
 				let api = client.runtime_api();
@@ -395,27 +331,19 @@ fn run_collator_node<S, P, Extrinsic>(
 					try_fr!(api.duty_roster(&id)),
 				);
 
-				let context = ApiContext {
-					network: validation_network,
-					parent_hash: relay_parent,
-					validators,
-				};
-
 				let collation_work = collate(
 					relay_parent,
 					para_id,
 					status,
-					context,
 					parachain_context,
 					key,
-				).map_ok(move |(collation, outgoing)| {
+				).map_ok(move |collation| {
 					network.with_spec(move |spec, ctx| {
 						let res = spec.add_local_collation(
 							ctx,
 							relay_parent,
 							targets,
 							collation,
-							outgoing,
 						);
 
 						tokio::spawn(res.boxed());
@@ -514,104 +442,26 @@ pub fn run_collator<P>(
 
 #[cfg(test)]
 mod tests {
-	use std::collections::HashMap;
-	use polkadot_primitives::parachain::{TargetedMessage, FeeSchedule};
+	use polkadot_primitives::parachain::FeeSchedule;
 	use keyring::Sr25519Keyring;
 	use super::*;
-
-	#[derive(Default, Clone)]
-	struct DummyRelayChainContext {
-		ingress: HashMap<ParaId, ConsolidatedIngress>
-	}
-
-	impl RelayChainContext for DummyRelayChainContext {
-		type Error = ();
-		type FutureEgress = Box<dyn Future<Output=Result<ConsolidatedIngress,()>> + Unpin>;
-
-		fn unrouted_egress(&self, para_id: ParaId) -> Self::FutureEgress {
-			match self.ingress.get(&para_id) {
-				Some(ingress) => Box::new(future::ok(ingress.clone())),
-				None => Box::new(future::pending()),
-			}
-		}
-	}
 
 	#[derive(Clone)]
 	struct DummyParachainContext;
 
 	impl ParachainContext for DummyParachainContext {
-		type ProduceCandidate = future::Ready<Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>>;
+		type ProduceCandidate = future::Ready<Result<(BlockData, HeadData), InvalidHead>>;
 
-		fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
+		fn produce_candidate(
 			&mut self,
 			_relay_parent: Hash,
 			_status: ParachainStatus,
-			ingress: I,
 		) -> Self::ProduceCandidate {
 			// send messages right back.
 			future::ok((
 				BlockData(vec![1, 2, 3, 4, 5,]),
 				HeadData(vec![9, 9, 9]),
-				OutgoingMessages {
-					outgoing_messages: ingress.into_iter().map(|(id, msg)| TargetedMessage {
-						target: id,
-						data: msg.0,
-					}).collect(),
-				}
 			))
 		}
-	}
-
-	#[test]
-	fn collates_correct_queue_roots() {
-		let mut context = DummyRelayChainContext::default();
-
-		let id = ParaId::from(100);
-
-		let a = ParaId::from(123);
-		let b = ParaId::from(456);
-
-		let messages_from_a = vec![
-			Message(vec![1, 1, 1]),
-			Message(b"helloworld".to_vec()),
-		];
-		let messages_from_b = vec![
-			Message(b"dogglesworth".to_vec()),
-			Message(b"buy_1_chili_con_carne_here_is_my_cash".to_vec()),
-		];
-
-		let root_a = ::polkadot_validation::message_queue_root(
-			messages_from_a.iter().map(|msg| &msg.0)
-		);
-
-		let root_b = ::polkadot_validation::message_queue_root(
-			messages_from_b.iter().map(|msg| &msg.0)
-		);
-
-		context.ingress.insert(id, ConsolidatedIngress(vec![
-			(b, messages_from_b),
-			(a, messages_from_a),
-		]));
-
-		let future = collate(
-			Default::default(),
-			id,
-			ParachainStatus {
-				head_data: HeadData(vec![5]),
-				balance: 10,
-				fee_schedule: FeeSchedule {
-					base: 0,
-					per_byte: 1,
-				},
-			},
-			context.clone(),
-			DummyParachainContext,
-			Arc::new(Sr25519Keyring::Alice.pair().into()),
-		);
-
-		let collation = futures::executor::block_on(future).unwrap().0;
-
-		// ascending order by root.
-		assert_eq!(collation.info.egress_queue_roots, vec![(a, root_a), (b, root_b)]);
 	}
 }

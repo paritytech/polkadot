@@ -29,7 +29,7 @@ use polkadot_validation::{
 };
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	OutgoingMessages, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
+	CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
 };
 use sp_api::ProvideRuntimeApi;
 
@@ -203,9 +203,8 @@ impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, T> Router<P, T> where
 				Ok(validated) => {
 					// store the data before broadcasting statements, so other peers can fetch.
 					knowledge.lock().note_candidate(
-					candidate_hash,
-					Some(validated.0.pov_block().clone()),
-					validated.0.outgoing_messages().cloned(),
+						candidate_hash,
+						Some(validated.0.pov_block().clone()),
 					);
 
 					// propagate the statement.
@@ -241,7 +240,6 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> TableRouter for Router<P, T> where
 		&self,
 		collation: Collation,
 		receipt: CandidateReceipt,
-		outgoing: OutgoingMessages,
 		chunks: (ValidatorIndex, &[ErasureChunk])
 	) -> Self::SendLocalCollation {
 		// produce a signed statement
@@ -250,7 +248,6 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> TableRouter for Router<P, T> where
 		let validated = Validated::collated_local(
 			receipt,
 			collation.pov.clone(),
-			outgoing.clone(),
 		);
 
 		let statement = GossipStatement::new(
@@ -262,7 +259,7 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> TableRouter for Router<P, T> where
 		);
 
 		// give to network to make available.
-		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov), Some(outgoing));
+		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov));
 		self.network().gossip_message(self.attestation_topic, statement.into());
 
 		for chunk in chunks.1 {

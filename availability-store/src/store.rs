@@ -21,9 +21,7 @@ use codec::{Encode, Decode};
 use polkadot_erasure_coding::{self as erasure};
 use polkadot_primitives::{
 	Hash,
-	parachain::{
-		BlockData, CandidateReceipt, Message, ErasureChunk
-	},
+	parachain::{BlockData, CandidateReceipt, ErasureChunk},
 };
 
 use log::{trace, warn};
@@ -129,18 +127,6 @@ impl Store {
 			block_data_key(&data.relay_parent, &data.block_data.hash()).as_slice(),
 			data.block_data.encode()
 		);
-
-		if let Some(outgoing_queues) = data.outgoing_queues {
-			// This is kept forever and not pruned.
-			for (root, messages) in outgoing_queues.0 {
-				tx.put_vec(
-					columns::DATA,
-					root.as_ref(),
-					messages.encode(),
-				);
-			}
-
-		}
 
 		self.inner.write(tx)
 	}
@@ -287,14 +273,13 @@ impl Store {
 				columns::DATA,
 				&block_data_key(&relay_parent, &receipt.block_data_hash)
 			) {
-				if let Ok((block_data, outgoing_queues)) = erasure::reconstruct(
+				if let Ok(block_data) = erasure::reconstruct(
 					n_validators as usize,
 					v.iter().map(|chunk| (chunk.chunk.as_ref(), chunk.index as usize))) {
 					self.make_available(Data {
 						relay_parent: *relay_parent,
 						parachain_id: receipt.parachain_index,
 						block_data,
-						outgoing_queues,
 					})?;
 				}
 			}
@@ -387,11 +372,6 @@ impl Store {
 		})
 	}
 
-	/// Query message queue data by message queue root hash.
-	pub fn queue_by_root(&self, queue_root: &Hash) -> Option<Vec<Message>> {
-		self.query_inner(columns::DATA, queue_root.as_ref())
-	}
-
 	fn block_hash_to_candidate_hash(&self, block_hash: Hash) -> Option<Hash> {
 		self.query_inner(columns::META, &block_to_candidate_key(&block_hash))
 	}
@@ -414,8 +394,8 @@ impl Store {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_erasure_coding::{self as erasure};
-	use polkadot_primitives::parachain::{Id as ParaId, AvailableMessages};
+	use polkadot_erasure_coding as erasure;
+	use polkadot_primitives::parachain::Id as ParaId;
 
 	#[test]
 	fn finalization_removes_unneeded() {
@@ -444,14 +424,12 @@ mod tests {
 			relay_parent,
 			parachain_id: para_id_1,
 			block_data: block_data_1.clone(),
-			outgoing_queues: None,
 		}).unwrap();
 
 		store.make_available(Data {
 			relay_parent,
 			parachain_id: para_id_2,
 			block_data: block_data_2.clone(),
-			outgoing_queues: None,
 		}).unwrap();
 
 		let candidate_1 = CandidateReceipt {
@@ -460,7 +438,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: Default::default(),
 			parent_head: Default::default(),
-			egress_queue_roots: Vec::new(),
 			fees: 0,
 			block_data_hash: block_data_1.hash(),
 			upward_messages: Vec::new(),
@@ -473,7 +450,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: Default::default(),
 			parent_head: Default::default(),
-			egress_queue_roots: Vec::new(),
 			fees: 0,
 			block_data_hash: block_data_2.hash(),
 			upward_messages: Vec::new(),
@@ -516,34 +492,12 @@ mod tests {
 		let para_id = 5.into();
 		let block_data = BlockData(vec![1, 2, 3]);
 
-		let message_queue_root_1 = [0x42; 32].into();
-		let message_queue_root_2 = [0x43; 32].into();
-
-		let message_a = Message(vec![1, 2, 3, 4]);
-		let message_b = Message(vec![4, 5, 6, 7]);
-
-		let outgoing_queues = AvailableMessages(vec![
-			(message_queue_root_1, vec![message_a.clone()]),
-			(message_queue_root_2, vec![message_b.clone()]),
-		]);
-
 		let store = Store::new_in_memory();
 		store.make_available(Data {
 			relay_parent,
 			parachain_id: para_id,
-			block_data: block_data.clone(),
-			outgoing_queues: Some(outgoing_queues),
+			block_data,
 		}).unwrap();
-
-		assert_eq!(
-			store.queue_by_root(&message_queue_root_1),
-			Some(vec![message_a]),
-		);
-
-		assert_eq!(
-			store.queue_by_root(&message_queue_root_2),
-			Some(vec![message_b]),
-		);
 	}
 
 	#[test]
@@ -554,21 +508,10 @@ mod tests {
 		let block_data_hash = block_data.hash();
 		let n_validators = 5;
 
-		let message_queue_root_1 = [0x42; 32].into();
-		let message_queue_root_2 = [0x43; 32].into();
-
-		let message_a = Message(vec![1, 2, 3, 4]);
-		let message_b = Message(vec![5, 6, 7, 8]);
-
-		let outgoing_queues = Some(AvailableMessages(vec![
-				(message_queue_root_1, vec![message_a.clone()]),
-				(message_queue_root_2, vec![message_b.clone()]),
-		]));
-
 		let erasure_chunks = erasure::obtain_chunks(
 			n_validators,
 			&block_data,
-			outgoing_queues.as_ref()).unwrap();
+		).unwrap();
 
 		let branches = erasure::branches(erasure_chunks.as_ref());
 
@@ -578,7 +521,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: Default::default(),
 			parent_head: Default::default(),
-			egress_queue_roots: Vec::new(),
 			fees: 0,
 			block_data_hash: block_data.hash(),
 			upward_messages: Vec::new(),

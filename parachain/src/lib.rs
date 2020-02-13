@@ -65,8 +65,6 @@ pub struct ValidationParams {
 	pub block_data: Vec<u8>,
 	/// Previous head-data.
 	pub parent_head: Vec<u8>,
-	/// Incoming messages.
-	pub ingress: Vec<IncomingMessage>,
 }
 
 /// The result of parachain validation.
