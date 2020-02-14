@@ -121,6 +121,15 @@ pub enum LastContribution<BlockNumber> {
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug))]
+struct DeployData<Hash> {
+	code_hash: Hash,
+	code_size: u32,
+	initial_head_data: Vec<u8>,
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug))]
+#[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// The parachain that this fund has funded, if there is one. As long as this is `Some`, then
 	/// the funds may not be withdrawn and the fund cannot be dissolved.
@@ -150,8 +159,8 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// BlockNumber.
 	last_slot: BlockNumber,
 	/// The deployment data associated with this fund, if any. Once set it may not be reset. First
-	/// is the code hash, second is the initial head data.
-	deploy_data: Option<(Hash, Vec<u8>)>,
+	/// is the code hash, second is the code size, third is the initial head data.
+	deploy_data: Option<DeployData<Hash>>,
 }
 
 decl_storage! {
@@ -346,6 +355,7 @@ decl_module! {
 		fn fix_deploy_data(origin,
 			#[compact] index: FundIndex,
 			code_hash: T::Hash,
+			code_size: u32,
 			initial_head_data: Vec<u8>
 		) {
 			let who = ensure_signed(origin)?;
@@ -354,7 +364,7 @@ decl_module! {
 			ensure!(fund.owner == who, Error::<T>::InvalidOrigin); // must be fund owner
 			ensure!(fund.deploy_data.is_none(), Error::<T>::ExistingDeployData);
 
-			fund.deploy_data = Some((code_hash, initial_head_data));
+			fund.deploy_data = Some(DeployData { code_hash, code_size, initial_head_data });
 
 			<Funds<T>>::insert(index, &fund);
 
@@ -374,12 +384,20 @@ decl_module! {
 			let _ = ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
-			let (code_hash, initial_head_data) = fund.clone().deploy_data.ok_or(Error::<T>::UnsetDeployData)?;
+			let DeployData { code_hash, code_size, initial_head_data }
+				= fund.clone().deploy_data.ok_or(Error::<T>::UnsetDeployData)?;
 			ensure!(fund.parachain.is_none(), Error::<T>::AlreadyOnboard);
 			fund.parachain = Some(para_id);
 
 			let fund_origin = system::RawOrigin::Signed(Self::fund_account_id(index)).into();
-			<slots::Module<T>>::fix_deploy_data(fund_origin, index, para_id, code_hash, initial_head_data)?;
+			<slots::Module<T>>::fix_deploy_data(
+				fund_origin,
+				index,
+				para_id,
+				code_hash,
+				code_size,
+				initial_head_data,
+			)?;
 
 			<Funds<T>>::insert(index, &fund);
 
@@ -650,6 +668,9 @@ mod tests {
 			RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
 	}
 
+	const MAX_CODE_SIZE: u32 = 100;
+	const MAX_HEAD_DATA_SIZE: u32 = 10;
+
 	pub struct TestParachains;
 	impl Registrar<u64> for TestParachains {
 		fn new_id() -> ParaId {
@@ -657,6 +678,14 @@ mod tests {
 				*p.borrow_mut() += 1;
 				(*p.borrow() - 1).into()
 			})
+		}
+
+		fn head_data_size_allowed(head_data_size: u32) -> bool {
+			head_data_size <= MAX_HEAD_DATA_SIZE
+		}
+
+		fn code_size_allowed(code_size: u32) -> bool {
+			code_size <= MAX_CODE_SIZE
 		}
 
 		fn register_para(
@@ -875,13 +904,21 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
 			let fund = Crowdfund::funds(0).unwrap();
 
 			// Confirm deploy data is stored correctly
-			assert_eq!(fund.deploy_data, Some((<Test as system::Trait>::Hash::default(), vec![0])));
+			assert_eq!(
+				fund.deploy_data,
+				Some(DeployData {
+					code_hash: <Test as system::Trait>::Hash::default(),
+					code_size: 0,
+					initial_head_data: vec![0],
+				}),
+			);
 		});
 	}
 
@@ -897,6 +934,7 @@ mod tests {
 				Origin::signed(2),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]),
 				Error::<Test>::InvalidOrigin
 			);
@@ -906,6 +944,7 @@ mod tests {
 				Origin::signed(1),
 				1,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]),
 				Error::<Test>::InvalidFundIndex
 			);
@@ -915,6 +954,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -922,6 +962,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![1]),
 				Error::<Test>::ExistingDeployData
 			);
@@ -941,6 +982,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -986,6 +1028,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -1013,6 +1056,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -1055,6 +1099,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -1196,6 +1241,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
@@ -1224,6 +1270,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 			// Move to the end of auction...
@@ -1262,12 +1309,14 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(2),
 				1,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 

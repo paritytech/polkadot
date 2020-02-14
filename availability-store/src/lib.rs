@@ -382,5 +382,8 @@ impl Store {
 	{
 		self.inner.execution_data(relay_parent, candidate_hash)
 	}
+<<<<<<< HEAD
 
+=======
+>>>>>>> master
 }

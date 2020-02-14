@@ -48,13 +48,7 @@ pub extern fn validate_block(params: *const u8, len: usize) -> u64 {
 
 	let parent_hash = tiny_keccak::keccak256(&params.parent_head[..]);
 
-	// we also add based on incoming data from messages. ignoring unknown message
-	// kinds.
-	let from_messages = crate::process_messages(
-		params.ingress.iter().map(|incoming| &incoming.data[..])
-	);
-
-	match crate::execute(parent_hash, parent_head, &block_data, from_messages) {
+	match crate::execute(parent_hash, parent_head, &block_data) {
 		Ok(new_head) => parachain::write_result(
 			&ValidationResult { head_data: new_head.encode() }
 		),
