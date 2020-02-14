@@ -1,0 +1,29 @@
+[package]
+name = "polkadot-network-test"
+version = "0.8.0"
+license = "GPL-3.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+log = "0.4.8"
+parking_lot = "0.10.0"
+futures = "0.1.29"
+futures03 = { package = "futures", version = "0.3.1", features = ["compat"] }
+futures-timer = "3.0.1"
+rand = "0.7.2"
+libp2p = { version = "0.15.0", default-features = false, features = ["libp2p-websocket"] }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+env_logger = "0.7.0"
+substrate-test-runtime-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-test-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+tempfile = "3.1.0"
+tokio = "0.1.22"
