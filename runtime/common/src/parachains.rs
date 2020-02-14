@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use rstd::result;
-use codec::Decode;
+use codec::{Decode, Encode};
 
 use sp_runtime::traits::{
 	Hash as HashT, BlakeTwo256, Saturating, One, Dispatchable,
@@ -214,6 +214,8 @@ decl_error! {
 		HeadDataTooLarge,
 		/// Para does not have enough balance to pay fees.
 		CannotPayFees,
+		/// `AttestedCandidate` set the wrong candidate hash.
+		AttestedCandidateHashMismatch,
 	}
 }
 
@@ -287,6 +289,9 @@ decl_module! {
 					&heads,
 				);
 
+				// note: we dispatch new messages _after_ the call to `check_candidates`
+				// which deducts any fees. if that were not the case, an upward message
+				// could be dispatched and spend money that invalidated a candidate.
 				Self::dispatch_upward_messages(
 					MAX_QUEUE_COUNT,
 					WATERMARK_QUEUE_SIZE,
@@ -314,7 +319,7 @@ fn majority_of(list_len: usize) -> usize {
 }
 
 fn localized_payload<H: AsRef<[u8]>>(statement: Statement, parent_hash: H) -> Vec<u8> {
-	let mut encoded = statement.signing_payload();
+	let mut encoded = statement.encode();
 	encoded.extend(parent_hash.as_ref());
 	encoded
 }
@@ -445,7 +450,8 @@ impl<T: Trait> Module<T> {
 		}
 	}
 
-	/// Simple FIFO dispatcher.
+	/// Simple FIFO dispatcher. This must be called after parachain fees are checked,
+	/// as dispatched messages may spend parachain funds.
 	fn dispatch_upward_messages(
 		max_queue_count: usize,
 		watermark_queue_size: usize,
@@ -733,8 +739,12 @@ impl<T: Trait> Module<T> {
 
 				let (payload, sig) = match validity_attestation {
 					ValidityAttestation::Implicit(sig) => {
+						let hash = candidate_hash
+							.get_or_insert_with(|| full_candidate.hash())
+							.clone();
+
 						let payload = encoded_implicit.get_or_insert_with(|| localized_payload(
-							Statement::Candidate(full_candidate.clone()),
+							Statement::Candidate(hash),
 						));
 
 						(payload, sig)
@@ -758,12 +768,18 @@ impl<T: Trait> Module<T> {
 				);
 			}
 
-			para_block_hashes.push(candidate_hash.unwrap_or_else(|| full_candidate.hash()));
+			let candidate_hash = candidate_hash.unwrap_or_else(|| full_candidate.hash());
+			ensure!(
+				candidate_hash == candidate.candidate_hash,
+				Error::<T>::AttestedCandidateHashMismatch
+			);
 
 			ensure!(
 				candidate.validity_votes.len() == expected_votes_len,
 				Error::<T>::UntaggedVotes
 			);
+
+			para_block_hashes.push(candidate_hash);
 		}
 
 		Ok(IncludedBlocks {
@@ -865,7 +881,7 @@ mod tests {
 	use primitives::{
 		parachain::{
 			CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo,
-			Scheduling,
+			Scheduling, LocalValidationData, CandidateCommitments,
 		},
 		BlockNumber,
 	};
@@ -1014,7 +1030,7 @@ mod tests {
 		type RewardRemainder = ();
 		type CurrencyToVote = ();
 		type Event = ();
-		type Currency = balances::Module<Test>;
+		type Currency = Balances;
 		type Slash = ();
 		type Reward = ();
 		type SessionsPerEra = SessionsPerEra;
@@ -1039,7 +1055,7 @@ mod tests {
 
 	impl slots::Trait for Test {
 		type Event = ();
-		type Currency = balances::Module<Test>;
+		type Currency = Balances;
 		type Parachains = registrar::Module<Test>;
 		type EndingPeriod = EndingPeriod;
 		type LeasePeriod = LeasePeriod;
@@ -1055,7 +1071,7 @@ mod tests {
 	impl registrar::Trait for Test {
 		type Event = ();
 		type Origin = Origin;
-		type Currency = balances::Module<Test>;
+		type Currency = Balances;
 		type ParathreadDeposit = ParathreadDeposit;
 		type SwapAux = slots::Module<Test>;
 		type QueueSize = QueueSize;
@@ -1070,7 +1086,7 @@ mod tests {
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
-		type ParachainCurrency = balances::Module<Test>;
+		type ParachainCurrency = Balances;
 		type Randomness = RandomnessCollectiveFlip;
 		type ActiveParachains = registrar::Module<Test>;
 		type Registrar = registrar::Module<Test>;
@@ -1079,6 +1095,7 @@ mod tests {
 	}
 
 	type Parachains = Module<Test>;
+	type Balances = balances::Module<Test>;
 	type System = system::Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 	type Registrar = registrar::Module<Test>;
@@ -1158,12 +1175,46 @@ mod tests {
 		ParachainsCall::set_heads(v)
 	}
 
+	// creates a template candidate which pins to correct relay-chain state.
+	fn raw_candidate(para_id: ParaId) -> CandidateReceipt {
+		CandidateReceipt {
+			parachain_index: para_id,
+			relay_parent: System::parent_hash(),
+			head_data: Default::default(),
+			collator: Default::default(),
+			signature: Default::default(),
+			global_validation: GlobalValidationSchedule {
+				max_code_size: <Test as Trait>::MaxCodeSize::get(),
+				max_head_data_size: <Test as Trait>::MaxHeadDataSize::get(),
+			},
+			local_validation: LocalValidationData {
+				parent_head: HeadData(Parachains::parachain_head(&para_id).unwrap()),
+				pov_block_hash: Default::default(),
+				balance: <Balances as ParachainCurrency<u64>>::free_balance(para_id),
+			},
+			commitments: CandidateCommitments::default(),
+		}
+	}
+
+	// makes a blank attested candidate from a `CandidateReceipt`.
+	fn make_blank_attested(candidate: CandidateReceipt) -> AttestedCandidate {
+		let candidate_hash = candidate.hash();
+		let (candidate, _) = candidate.abridge();
+
+		AttestedCandidate {
+			validity_votes: vec![],
+			validator_indices: BitVec::new(),
+			candidate,
+			candidate_hash,
+		}
+	}
+
 	fn make_attestations(candidate: &mut AttestedCandidate) {
 		let mut vote_implicit = false;
 		let parent_hash = <system::Module<Test>>::parent_hash();
 
 		let (duty_roster, _) = Parachains::calculate_duty_roster();
-		let candidate_hash = candidate.candidate.hash();
+		let candidate_hash = candidate.candidate_hash;
 
 		let authorities = Parachains::authorities();
 		let extract_key = |public: ValidatorId| {
@@ -1183,7 +1234,7 @@ mod tests {
 			let key = extract_key(authorities[idx].clone());
 
 			let statement = if vote_implicit {
-				Statement::Candidate(candidate.candidate.clone())
+				Statement::Candidate(candidate_hash.clone())
 			} else {
 				Statement::Valid(candidate_hash.clone())
 			};
@@ -1209,23 +1260,12 @@ mod tests {
 		id: u32,
 		upward_messages: Vec<(ParachainDispatchOrigin, Vec<u8>)>
 	) -> AttestedCandidate {
-		AttestedCandidate {
-			validity_votes: vec![],
-			validator_indices: BitVec::new(),
-			candidate: CandidateReceipt {
-				parachain_index: id.into(),
-				collator: Default::default(),
-				signature: Default::default(),
-				head_data: HeadData(vec![1, 2, 3]),
-				parent_head: HeadData(vec![]),
-				fees: 0,
-				block_data_hash: Default::default(),
-				upward_messages: upward_messages.into_iter()
-					.map(|x| UpwardMessage { origin: x.0, data: x.1 })
-					.collect(),
-				erasure_root: [1u8; 32].into(),
-			}
-		}
+		let mut raw_candidate = raw_candidate(id.into());
+		raw_candidate.commitments.upward_messages = upward_messages.into_iter()
+			.map(|x| UpwardMessage { origin: x.0, data: x.1 })
+			.collect();
+
+		make_blank_attested(raw_candidate)
 	}
 
 	fn init_block() {
@@ -1619,23 +1659,7 @@ mod tests {
 
 		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
-			let candidate = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				},
-
-			};
-
+			let candidate = make_blank_attested(raw_candidate(0.into()));
 			assert!(Parachains::dispatch(set_heads(vec![candidate]), Origin::NONE).is_err());
 		})
 	}
@@ -1651,37 +1675,8 @@ mod tests {
 			run_to_block(2);
 			assert_eq!(Parachains::active_parachains().len(), 2);
 
-			let mut candidate_a = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
-
-			let mut candidate_b = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 1.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![2, 3, 4]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
+			let mut candidate_a = make_blank_attested(raw_candidate(0.into()));
+			let mut candidate_b = make_blank_attested(raw_candidate(1.into()));
 
 			make_attestations(&mut candidate_a);
 			make_attestations(&mut candidate_b);
@@ -1707,22 +1702,8 @@ mod tests {
 
 		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
-			let mut candidate = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
 
+			let mut candidate = make_blank_attested(raw_candidate(0.into()));
 			make_attestations(&mut candidate);
 
 			let mut double_validity = candidate.clone();
@@ -1745,22 +1726,8 @@ mod tests {
 
 		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
-			let mut candidate = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
 
+			let mut candidate = make_blank_attested(raw_candidate(0.into()));
 			make_attestations(&mut candidate);
 
 			// Change the last vote index to make it not corresponding to the assigned group.
