@@ -132,7 +132,7 @@ pub struct Data {
 
 /// Data which, when combined with an `AbridgedCandidateReceipt`, is enough
 /// to fully re-execute a block.
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, PartialEq)]
 pub struct ExecutionData {
 	/// The `PoVBlock`.
 	pub pov_block: PoVBlock,

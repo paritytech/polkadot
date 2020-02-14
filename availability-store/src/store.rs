@@ -182,6 +182,10 @@ impl Store {
 		let mut tx = DBTransaction::new();
 		let dbkey = candidates_with_relay_parent_key(relay_parent);
 
+		// This call can race against another call to `note_candidates_with_relay_parent`
+		// with a different set of descendents.
+		let _lock = self.candidate_descendents_lock.lock();
+
 		if let Some((validator_index, _)) = self.get_validator_index_and_n_validators(relay_parent) {
 			let candidates = candidates.clone();
 			let awaited_frontier: Vec<AwaitedFrontierEntry> = self
@@ -202,9 +206,6 @@ impl Store {
 			tx.put_vec(columns::META, &awaited_chunks_key(), awaited_frontier.encode());
 		}
 
-		// This call can race against another call to `note_candidates_with_relay_parent`
-		// with a different set of descendents.
-		let _lock = self.candidate_descendents_lock.lock();
 		let mut descendent_candidates = self.get_candidates_with_relay_parent(relay_parent);
 		descendent_candidates.extend(candidates);
 		tx.put_vec(columns::DATA, &dbkey, descendent_candidates.encode());
@@ -416,7 +417,28 @@ impl Store {
 mod tests {
 	use super::*;
 	use polkadot_erasure_coding::{self as erasure};
-	use polkadot_primitives::parachain::{Id as ParaId, AvailableMessages};
+	use polkadot_primitives::parachain::{
+		Id as ParaId, BlockData, AvailableData, PoVBlock, OmittedValidationData,
+	};
+
+	fn available_data(block_data: &[u8]) -> AvailableData {
+		AvailableData {
+			pov_block: PoVBlock {
+				block_data: BlockData(block_data.to_vec()),
+				ingress: Default::default(),
+			},
+			omitted_validation: OmittedValidationData {
+				global_validation: Default::default(),
+				parent_head: Default::default(),
+				balance: 0,
+			}
+		}
+	}
+
+	fn execution_data(available: &AvailableData) -> ExecutionData {
+		let AvailableData { pov_block, omitted_validation } = available.clone();
+		ExecutionData { pov_block, omitted_validation }
+	}
 
 	#[test]
 	fn finalization_removes_unneeded() {
@@ -425,8 +447,20 @@ mod tests {
 		let para_id_1 = 5.into();
 		let para_id_2 = 6.into();
 
-		let block_data_1 = BlockData(vec![1, 2, 3]);
-		let block_data_2 = BlockData(vec![4, 5, 6]);
+		let mut candidate_1 = AbridgedCandidateReceipt::default();
+		let mut candidate_2 = AbridgedCandidateReceipt::default();
+
+		candidate_1.parachain_index = para_id_1;
+		candidate_1.commitments.erasure_root = [6; 32].into();
+
+		candidate_2.parachain_index = para_id_2;
+		candidate_2.commitments.erasure_root = [6; 32].into();
+
+		let candidate_1_hash = [1; 32].into();
+		let candidate_2_hash = [2; 32].into();
+
+		let available_data_1 = available_data(&[1, 2, 3]);
+		let available_data_2 = available_data(&[4, 5, 6]);
 
 		let erasure_chunk_1 = ErasureChunk {
 			chunk: vec![10, 20, 30],
@@ -443,111 +477,64 @@ mod tests {
 		let store = Store::new_in_memory();
 		store.make_available(Data {
 			relay_parent,
-			parachain_id: para_id_1,
-			block_data: block_data_1.clone(),
+			candidate_hash: candidate_1_hash,
+			available_data: available_data_1.clone(),
 		}).unwrap();
 
 		store.make_available(Data {
 			relay_parent,
-			parachain_id: para_id_2,
-			block_data: block_data_2.clone(),
+			candidate_hash: candidate_2_hash,
+			available_data: available_data_2.clone(),
 		}).unwrap();
 
-		let candidate_1 = CandidateReceipt {
-			parachain_index: para_id_1,
-			collator: Default::default(),
-			signature: Default::default(),
-			head_data: Default::default(),
-			parent_head: Default::default(),
-			egress_queue_roots: Vec::new(),
-			fees: 0,
-			pov_block_hash: block_data_1.hash(),
-			upward_messages: Vec::new(),
-			erasure_root: [6; 32].into(),
-		};
+		store.add_candidate(&relay_parent, &candidate_1_hash, &candidate_1).unwrap();
+		store.add_candidate(&relay_parent, &candidate_2_hash, &candidate_2).unwrap();
 
-		let candidate_2 = CandidateReceipt {
-			parachain_index: para_id_2,
-			collator: Default::default(),
-			signature: Default::default(),
-			head_data: Default::default(),
-			parent_head: Default::default(),
-			egress_queue_roots: Vec::new(),
-			fees: 0,
-			pov_block_hash: block_data_2.hash(),
-			upward_messages: Vec::new(),
-			erasure_root: [6; 32].into(),
-		};
+		store.note_candidates_with_relay_parent(&relay_parent, vec![candidate_1_hash, candidate_2_hash]).unwrap();
 
-		store.add_candidate(&candidate_1).unwrap();
-		store.add_candidate(&candidate_2).unwrap();
+		assert!(store.add_erasure_chunks(3, &relay_parent, &candidate_1_hash, vec![erasure_chunk_1.clone()]).is_ok());
+		assert!(store.add_erasure_chunks(3, &relay_parent, &candidate_2_hash, vec![erasure_chunk_2.clone()]).is_ok());
 
-		assert!(store.add_erasure_chunks(3, &relay_parent, &candidate_1.hash(), vec![erasure_chunk_1.clone()]).is_ok());
-		assert!(store.add_erasure_chunks(3, &relay_parent, &candidate_2.hash(), vec![erasure_chunk_2.clone()]).is_ok());
+		assert_eq!(store.execution_data(&relay_parent, &candidate_1_hash).unwrap(), execution_data(&available_data_1));
+		assert_eq!(store.execution_data(&relay_parent, &candidate_2_hash).unwrap(), execution_data(&available_data_2));
 
-		assert_eq!(store.block_data(relay_parent, block_data_1.hash()).unwrap(), block_data_1);
-		assert_eq!(store.block_data(relay_parent, block_data_2.hash()).unwrap(), block_data_2);
+		assert_eq!(store.get_erasure_chunk(&relay_parent, &candidate_1_hash, 1).as_ref(), Some(&erasure_chunk_1));
+		assert_eq!(store.get_erasure_chunk(&relay_parent, &candidate_2_hash, 1), Some(erasure_chunk_2));
 
-		assert_eq!(store.get_erasure_chunk(&relay_parent, block_data_1.hash(), 1).as_ref(), Some(&erasure_chunk_1));
-		assert_eq!(store.get_erasure_chunk(&relay_parent, block_data_2.hash(), 1), Some(erasure_chunk_2));
+		assert_eq!(store.get_candidate(&relay_parent, &candidate_1_hash), Some(candidate_1.clone()));
+		assert_eq!(store.get_candidate(&relay_parent, &candidate_2_hash), Some(candidate_2.clone()));
 
-		assert_eq!(store.get_candidate(&candidate_1.hash()), Some(candidate_1.clone()));
-		assert_eq!(store.get_candidate(&candidate_2.hash()), Some(candidate_2.clone()));
+		store.candidates_finalized(relay_parent, [candidate_1_hash].iter().cloned().collect()).unwrap();
 
-		assert_eq!(store.block_data_by_candidate(relay_parent, candidate_1.hash()).unwrap(), block_data_1);
-		assert_eq!(store.block_data_by_candidate(relay_parent, candidate_2.hash()).unwrap(), block_data_2);
+		assert_eq!(store.get_erasure_chunk(&relay_parent, &candidate_1_hash, 1).as_ref(), Some(&erasure_chunk_1));
+		assert!(store.get_erasure_chunk(&relay_parent, &candidate_2_hash, 1).is_none());
 
-		store.candidates_finalized(relay_parent, [candidate_1.hash()].iter().cloned().collect()).unwrap();
+		assert_eq!(store.get_candidate(&relay_parent, &candidate_1_hash), Some(candidate_1));
+		assert_eq!(store.get_candidate(&relay_parent, &candidate_2_hash), None);
 
-		assert_eq!(store.get_erasure_chunk(&relay_parent, block_data_1.hash(), 1).as_ref(), Some(&erasure_chunk_1));
-		assert!(store.get_erasure_chunk(&relay_parent, block_data_2.hash(), 1).is_none());
-
-		assert_eq!(store.get_candidate(&candidate_1.hash()), Some(candidate_1));
-		assert_eq!(store.get_candidate(&candidate_2.hash()), None);
-
-		assert_eq!(store.block_data(relay_parent, block_data_1.hash()).unwrap(), block_data_1);
-		assert!(store.block_data(relay_parent, block_data_2.hash()).is_none());
+		assert_eq!(store.execution_data(&relay_parent, &candidate_1_hash).unwrap(), execution_data(&available_data_1));
+		assert!(store.execution_data(&relay_parent, &candidate_2_hash).is_none());
 	}
 
 	#[test]
 	fn erasure_coding() {
 		let relay_parent: Hash = [1; 32].into();
 		let para_id: ParaId = 5.into();
-		let block_data = BlockData(vec![42; 8]);
-		let pov_block_hash = block_data.hash();
+		let available_data = available_data(&[42; 8]);
 		let n_validators = 5;
-
-		let message_queue_root_1 = [0x42; 32].into();
-		let message_queue_root_2 = [0x43; 32].into();
-
-		let message_a = Message(vec![1, 2, 3, 4]);
-		let message_b = Message(vec![5, 6, 7, 8]);
-
-		let outgoing_queues = Some(AvailableMessages(vec![
-			(message_queue_root_1, vec![message_a.clone()]),
-			(message_queue_root_2, vec![message_b.clone()]),
-		]));
 
 		let erasure_chunks = erasure::obtain_chunks(
 			n_validators,
-			&block_data,
-			outgoing_queues.as_ref()
+			&available_data,
 		).unwrap();
 
 		let branches = erasure::branches(erasure_chunks.as_ref());
 
-		let candidate = CandidateReceipt {
-			parachain_index: para_id,
-			collator: Default::default(),
-			signature: Default::default(),
-			head_data: Default::default(),
-			parent_head: Default::default(),
-			egress_queue_roots: Vec::new(),
-			fees: 0,
-			pov_block_hash: block_data.hash(),
-			upward_messages: Vec::new(),
-			erasure_root: [6; 32].into(),
-		};
+		let mut candidate = AbridgedCandidateReceipt::default();
+		candidate.parachain_index = para_id;
+		candidate.commitments.erasure_root = [6; 32].into();
+
+		let candidate_hash = [1u8; 32].into();
 
 		let chunks: Vec<_> = erasure_chunks
 			.iter()
@@ -562,14 +549,14 @@ mod tests {
 
 		let store = Store::new_in_memory();
 
-		store.add_candidate(&candidate).unwrap();
-		store.add_erasure_chunks(n_validators as u32, &relay_parent, &candidate.hash(), vec![chunks[0].clone()]).unwrap();
-		assert_eq!(store.get_erasure_chunk(&relay_parent, pov_block_hash, 0), Some(chunks[0].clone()));
+		store.add_candidate(&relay_parent, &candidate_hash, &candidate).unwrap();
+		store.add_erasure_chunks(n_validators as u32, &relay_parent, &candidate_hash, vec![chunks[0].clone()]).unwrap();
+		assert_eq!(store.get_erasure_chunk(&relay_parent, &candidate_hash, 0), Some(chunks[0].clone()));
 
-		assert!(store.block_data(relay_parent, pov_block_hash).is_none());
+		assert!(store.execution_data(&relay_parent, &candidate_hash).is_none());
 
-		store.add_erasure_chunks(n_validators as u32, &relay_parent, &candidate.hash(), chunks).unwrap();
-		assert_eq!(store.block_data(relay_parent, pov_block_hash), Some(block_data));
+		store.add_erasure_chunks(n_validators as u32, &relay_parent, &candidate_hash, chunks).unwrap();
+		assert_eq!(store.execution_data(&relay_parent, &candidate_hash), Some(execution_data(&available_data)));
 	}
 
 	#[test]
@@ -589,7 +576,7 @@ mod tests {
 		let candidates = vec![[1; 32].into(), [2; 32].into(), [3; 32].into()];
 
 		store.note_candidates_with_relay_parent(&relay_parent, candidates.clone()).unwrap();
-		assert_eq!(store.get_candidates_with_relay_parent(&relay_parent).unwrap(), candidates);
+		assert_eq!(store.get_candidates_with_relay_parent(&relay_parent), candidates);
 	}
 
 	#[test]
@@ -600,8 +587,10 @@ mod tests {
 		let relay_parent = [42; 32].into();
 		let erasure_root_1 = [11; 32].into();
 		let erasure_root_2 = [12; 32].into();
-		let mut receipt_1 = CandidateReceipt::default();
-		let mut receipt_2 = CandidateReceipt::default();
+		let mut receipt_1 = AbridgedCandidateReceipt::default();
+		let mut receipt_2 = AbridgedCandidateReceipt::default();
+		let receipt_1_hash = [1; 32].into();
+		let receipt_2_hash = [2; 32].into();
 
 		receipt_1.parachain_index = 1.into();
 		receipt_1.commitments.erasure_root = erasure_root_1;
@@ -613,7 +602,7 @@ mod tests {
 			index: validator_index,
 			proof: Vec::new(),
 		};
-		let candidates = vec![receipt_1.hash(), receipt_2.hash()];
+		let candidates = vec![receipt_1_hash, receipt_2_hash];
 		let erasure_roots = vec![erasure_root_1, erasure_root_2];
 
 		let store = Store::new_in_memory();
@@ -623,8 +612,8 @@ mod tests {
 			validator_index,
 			n_validators
 		).unwrap();
-		store.add_candidate(&receipt_1).unwrap();
-		store.add_candidate(&receipt_2).unwrap();
+		store.add_candidate(&relay_parent, &receipt_1_hash, &receipt_1).unwrap();
+		store.add_candidate(&relay_parent, &receipt_2_hash, &receipt_2).unwrap();
 
 		// We are waiting for chunks from two candidates.
 		store.note_candidates_with_relay_parent(&relay_parent, candidates.clone()).unwrap();
@@ -635,18 +624,24 @@ mod tests {
 			.clone()
 			.into_iter()
 			.zip(erasure_roots.iter())
-			.map(|(c, e)| (relay_parent, *e, c, validator_index))
+			.map(|(_c, &e)| AwaitedFrontierEntry {
+				relay_parent,
+				erasure_root: e,
+				validator_index,
+			})
 			.collect();
 		assert_eq!(awaited_frontier, expected);
 
 		// We add chunk from one of the candidates.
-		store.add_erasure_chunks(n_validators, &relay_parent, &receipt_1.hash(), vec![chunk]).unwrap();
+		store.add_erasure_chunks(n_validators, &relay_parent, &receipt_1_hash, vec![chunk]).unwrap();
 
 		let awaited_frontier = store.awaited_chunks().unwrap();
 		// Now we wait for the other chunk that we haven't received yet.
-		let expected: HashSet<_> = vec![
-			(relay_parent, erasure_roots[1], candidates[1], validator_index)
-		].into_iter().collect();
+		let expected: HashSet<_> = vec![AwaitedFrontierEntry {
+			relay_parent,
+			erasure_root: erasure_roots[1],
+			validator_index,
+		}].into_iter().collect();
 
 		assert_eq!(awaited_frontier, expected);
 

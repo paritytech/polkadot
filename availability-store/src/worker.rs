@@ -842,6 +842,7 @@ mod tests {
 	use std::sync::{Arc, Mutex, Condvar};
 	use std::pin::Pin;
 	use tokio::runtime::Runtime;
+	use crate::store::AwaitedFrontierEntry;
 
 	// Just contains topic->channel mapping to give to outer code on `gossip_messages_for` calls.
 	struct TestGossipMessages {
@@ -915,10 +916,10 @@ mod tests {
 			].into_iter().collect()))
 		};
 
-		let mut candidate = CandidateReceipt::default();
+		let mut candidate = AbridgedCandidateReceipt::default();
 
 		candidate.commitments.erasure_root = erasure_root;
-		let candidate_hash = candidate.hash();
+		let candidate_hash = [1u8; 32].into();
 
 		// At this point we shouldn't be waiting for any chunks.
 		assert!(store.awaited_chunks().is_none());
@@ -927,7 +928,11 @@ mod tests {
 
 		let msg = WorkerMsg::IncludedParachainBlocks(IncludedParachainBlocks {
 			relay_parent,
-			blocks: vec![(candidate, None)],
+			blocks: vec![IncludedParachainBlock {
+				candidate,
+				candidate_hash,
+				available_data: None,
+			}],
 			result: s,
 		});
 
@@ -943,7 +948,11 @@ mod tests {
 		// Make sure that at this point we are waiting for the appropriate chunk.
 		assert_eq!(
 			store.awaited_chunks().unwrap(),
-			vec![(relay_parent, erasure_root, candidate_hash, local_id)].into_iter().collect()
+			vec![AwaitedFrontierEntry {
+				relay_parent,
+				erasure_root,
+				validator_index: local_id,
+			}].into_iter().collect()
 		);
 
 		let msg = (
@@ -982,15 +991,15 @@ mod tests {
 		let local_id = 2;
 		let n_validators = 4;
 
-		let mut candidate_1 = CandidateReceipt::default();
+		let mut candidate_1 = AbridgedCandidateReceipt::default();
 		candidate_1.commitments.erasure_root = erasure_root_1;
 		candidate_1.pov_block_hash = pov_block_hash_1;
-		let candidate_1_hash = candidate_1.hash();
+		let candidate_1_hash = [1u8; 32].into();
 
-		let mut candidate_2 = CandidateReceipt::default();
+		let mut candidate_2 = AbridgedCandidateReceipt::default();
 		candidate_2.commitments.erasure_root = erasure_root_2;
 		candidate_2.pov_block_hash = pov_block_hash_2;
-		let candidate_2_hash = candidate_2.hash();
+		let candidate_2_hash = [2u8; 32].into();
 
 		let store = Store::new_in_memory();
 
@@ -998,8 +1007,8 @@ mod tests {
 		store.note_validator_index_and_n_validators(&relay_parent, local_id, n_validators).unwrap();
 
 		// Let the store know about the candidates
-		store.add_candidate(&candidate_1).unwrap();
-		store.add_candidate(&candidate_2).unwrap();
+		store.add_candidate(&relay_parent, &candidate_1_hash, &candidate_1).unwrap();
+		store.add_candidate(&relay_parent, &candidate_2_hash, &candidate_2).unwrap();
 
 		// And let the store know about the chunk from the second candidate.
 		store.add_erasure_chunks(
