@@ -536,6 +536,7 @@ pub struct AvailableData {
 	/// Data which is omitted from an abridged candidate receipt
 	/// that is necessary for validation.
 	pub omitted_validation: OmittedValidationData,
+	// In the future, outgoing messages as well.
 }
 
 /// Parachain ingress queue message.
@@ -703,6 +704,10 @@ pub struct AttestedCandidate {
 	/// The candidate data. This is abridged, because the omitted data
 	/// is already present within the relay chain state.
 	pub candidate: AbridgedCandidateReceipt,
+	/// The full candidate hash. This is included in the attested candidate so
+	/// block scrapers can get the full `CandidateReceipt` hash without having
+	/// the `OmittedValidationData`.
+	pub candidate_hash: Hash,
 	/// Validity attestations.
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// Indices of the corresponding validity votes.
@@ -776,8 +781,10 @@ sp_api::decl_runtime_apis! {
 		/// If `since` is provided, only messages since (including those in) that block
 		/// will be included.
 		fn ingress(to: Id, since: Option<BlockNumber>) -> Option<StructuredUnroutedIngress>;
-		/// Extract the heads that were set by this set of extrinsics.
-		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>>;
+		/// Extract the abridged head that was set in the extrinsics, along with the candidate
+		/// hashes.
+		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
+			-> Option<Vec<(AbridgedCandidateReceipt, Hash)>>;
 	}
 }
 
