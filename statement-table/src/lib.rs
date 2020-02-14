@@ -69,12 +69,12 @@ impl<C: Context> generic::Context for C {
 	}
 }
 
-impl From<Statement> for PrimitiveStatement {
-	fn from(s: Statement) -> PrimitiveStatement {
-		match s {
+impl<'a> From<&'a Statement> for PrimitiveStatement {
+	fn from(s: &'a Statement) -> PrimitiveStatement {
+		match *s {
 			generic::Statement::Valid(s) => PrimitiveStatement::Valid(s),
 			generic::Statement::Invalid(s) => PrimitiveStatement::Invalid(s),
-			generic::Statement::Candidate(s) => PrimitiveStatement::Candidate(s),
+			generic::Statement::Candidate(ref s) => PrimitiveStatement::Candidate(s.hash()),
 		}
 	}
 }

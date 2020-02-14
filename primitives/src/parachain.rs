@@ -510,43 +510,20 @@ pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub 
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
-/// Statements which can be made about parachain candidates.
+/// Statements which can be made about parachain candidates. These are the
+/// actual values which are signed by
 #[derive(Clone, PartialEq, Eq, Encode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum Statement {
 	/// Proposal of a parachain candidate.
 	#[codec(index = "1")]
-	Candidate(CandidateReceipt),
+	Candidate(Hash),
 	/// State that a parachain candidate is valid.
 	#[codec(index = "2")]
 	Valid(Hash),
 	/// State a candidate is invalid.
 	#[codec(index = "3")]
 	Invalid(Hash),
-}
-
-impl Statement {
-	/// Compute the compact payload of the statement used for signing.
-	pub fn signing_payload(&self) -> Vec<u8> {
-		#[derive(Clone, PartialEq, Eq, Encode)]
-		#[cfg_attr(feature = "std", derive(Debug))]
-		enum StatementToSign {
-			#[codec(index = "1")]
-			Candidate(Hash),
-			#[codec(index = "2")]
-			Valid(Hash),
-			#[codec(index = "3")]
-			Invalid(Hash),
-		}
-
-		let new_statement = match *self {
-			Statement::Candidate(ref c) => StatementToSign::Candidate(c.hash()),
-			Statement::Valid(ref d) => StatementToSign::Valid(d.clone()),
-			Statement::Invalid(ref d) => StatementToSign::Invalid(d.clone()),
-		};
-
-		new_statement.encode()
-	}
 }
 
 /// An either implicit or explicit attestation to the validity of a parachain
