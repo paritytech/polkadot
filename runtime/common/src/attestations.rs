@@ -25,7 +25,7 @@ use frame_support::{
 	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, traits::Get
 };
 
-use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};
+use primitives::{Hash, parachain::{AttestedCandidate, AbridgedCandidateReceipt, Id as ParaId}};
 use sp_runtime::RuntimeDebug;
 use sp_staking::SessionIndex;
 
@@ -50,7 +50,7 @@ pub struct IncludedBlocks<T: Trait> {
 /// Attestations kept over time on a parachain block.
 #[derive(Encode, Decode)]
 pub struct BlockAttestations<T: Trait> {
-	receipt: CandidateReceipt,
+	receipt: AbridgedCandidateReceipt,
 	valid: Vec<T::AccountId>, // stash account ID of voter.
 	invalid: Vec<T::AccountId>, // stash account ID of voter.
 }

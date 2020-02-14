@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use rstd::result;
-use codec::{Encode, Decode};
+use codec::Decode;
 
 use sp_runtime::traits::{
 	Hash as HashT, BlakeTwo256, Saturating, One, Dispatchable,
@@ -29,7 +29,8 @@ use primitives::{
 	Balance,
 	parachain::{
 		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
-		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable,
+		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
+		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
 		NEW_HEADS_IDENTIFIER,
 	},
 };
@@ -211,6 +212,8 @@ decl_error! {
 		ParentMismatch,
 		/// Head data was too large.
 		HeadDataTooLarge,
+		/// Para does not have enough balance to pay fees.
+		CannotPayFees,
 	}
 }
 
@@ -231,6 +234,11 @@ decl_module! {
 			ensure!(heads.len() <= parachain_count, Error::<T>::TooManyParaCandidates);
 
 			let mut proceeded = Vec::with_capacity(heads.len());
+
+			let schedule = GlobalValidationSchedule {
+				max_code_size: T::MaxCodeSize::get(),
+				max_head_data_size: T::MaxHeadDataSize::get(),
+			};
 
 			if !active_parachains.is_empty() {
 				// perform integrity checks before writing to storage.
@@ -256,7 +264,7 @@ decl_module! {
 
 						Self::check_upward_messages(
 							id,
-							&head.candidate.upward_messages,
+							&head.candidate.commitments.upward_messages,
 							MAX_QUEUE_COUNT,
 							WATERMARK_QUEUE_SIZE,
 						)?;
@@ -267,7 +275,11 @@ decl_module! {
 					}
 				}
 
-				let para_blocks = Self::check_candidates(&heads, &active_parachains)?;
+				let para_blocks = Self::check_candidates(
+					&schedule,
+					&heads,
+					&active_parachains,
+				)?;
 
 				<attestations::Module<T>>::note_included(&heads, para_blocks);
 
@@ -397,7 +409,7 @@ impl<T: Trait> Module<T> {
 			// Queue up upwards messages (from parachains to relay chain).
 			Self::queue_upward_messages(
 				id,
-				&head.candidate.upward_messages,
+				&head.candidate.commitments.upward_messages,
 				&mut ordered_needs_dispatch,
 			);
 		}
@@ -563,6 +575,7 @@ impl<T: Trait> Module<T> {
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
 	fn check_candidates(
+		schedule: &GlobalValidationSchedule,
 		attested_candidates: &[AttestedCandidate],
 		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
 	) -> rstd::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError>
@@ -635,6 +648,27 @@ impl<T: Trait> Module<T> {
 			sorted_duties
 		};
 
+		// computes the omitted validation data for a particular parachain.
+		let full_candidate = |abridged: &AbridgedCandidateReceipt|
+			-> rstd::result::Result<CandidateReceipt, sp_runtime::DispatchError>
+		{
+			let para_id = abridged.parachain_index;
+			let parent_head = match Self::parachain_head(&para_id)
+				.map(primitives::parachain::HeadData)
+			{
+				Some(p) => p,
+				None => Err(Error::<T>::ParentMismatch)?,
+			};
+
+			let omitted = OmittedValidationData {
+				global_validation: schedule.clone(),
+				parent_head,
+				balance: T::ParachainCurrency::free_balance(para_id),
+			};
+
+			Ok(abridged.clone().complete(omitted))
+		};
+
 		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
 
 		let parent_hash = <system::Module<T>>::parent_hash();
@@ -644,19 +678,10 @@ impl<T: Trait> Module<T> {
 
 		let mut para_block_hashes = Vec::new();
 
-		let max_head_data_size = T::MaxHeadDataSize::get();
 		for candidate in attested_candidates {
 			let para_id = candidate.parachain_index();
 			let validator_group = validator_groups.group_for(para_id)
 				.ok_or(Error::<T>::NoValidatorGroup)?;
-
-			let actual_head = Self::parachain_head(&para_id)
-				.map(primitives::parachain::HeadData);
-
-			ensure!(
-				actual_head.as_ref() == Some(&candidate.candidate.parent_head),
-				Error::<T>::ParentMismatch,
-			);
 
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
@@ -669,11 +694,18 @@ impl<T: Trait> Module<T> {
 			);
 
 			ensure!(
-				max_head_data_size >= candidate.candidate().head_data.0.len() as _,
+				schedule.max_head_data_size >= candidate.candidate().head_data.0.len() as _,
 				Error::<T>::HeadDataTooLarge,
 			);
 
-			let fees = candidate.candidate().fees;
+			let full_candidate = full_candidate(candidate.candidate())?;
+			let fees = full_candidate.commitments.fees;
+
+			ensure!(
+				full_candidate.local_validation.balance >= full_candidate.commitments.fees,
+				Error::<T>::CannotPayFees,
+			);
+
 			T::ParachainCurrency::deduct(para_id, fees)?;
 
 			let mut candidate_hash = None;
@@ -702,14 +734,14 @@ impl<T: Trait> Module<T> {
 				let (payload, sig) = match validity_attestation {
 					ValidityAttestation::Implicit(sig) => {
 						let payload = encoded_implicit.get_or_insert_with(|| localized_payload(
-							Statement::Candidate(candidate.candidate.clone()),
+							Statement::Candidate(full_candidate.clone()),
 						));
 
 						(payload, sig)
 					}
 					ValidityAttestation::Explicit(sig) => {
 						let hash = candidate_hash
-							.get_or_insert_with(|| candidate.candidate.hash())
+							.get_or_insert_with(|| full_candidate.hash())
 							.clone();
 
 						let payload = encoded_explicit.get_or_insert_with(|| localized_payload(
@@ -726,7 +758,7 @@ impl<T: Trait> Module<T> {
 				);
 			}
 
-			para_block_hashes.push(candidate_hash.unwrap_or_else(|| candidate.candidate().hash()));
+			para_block_hashes.push(candidate_hash.unwrap_or_else(|| full_candidate.hash()));
 
 			ensure!(
 				candidate.validity_votes.len() == expected_votes_len,

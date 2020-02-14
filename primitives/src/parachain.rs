@@ -31,9 +31,6 @@ use primitives::RuntimeDebug;
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
-#[cfg(feature = "std")]
-use trie::TrieConfiguration;
-
 pub use polkadot_parachain::{
 	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage,
 };
@@ -162,27 +159,6 @@ pub enum Chain {
 pub struct DutyRoster {
 	/// Lookup from validator index to chain on which that validator has a duty to validate.
 	pub validator_duty: Vec<Chain>,
-}
-
-/// Compute a trie root for a set of messages, given the raw message data.
-#[cfg(feature = "std")]
-pub fn message_queue_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
-	where A: AsRef<[u8]>
-{
-	trie::trie_types::Layout::<primitives::Blake2Hasher>::ordered_trie_root(messages)
-}
-
-#[cfg(feature = "std")]
-impl From<OutgoingMessages> for AvailableMessages {
-	fn from(outgoing: OutgoingMessages) -> Self {
-		let queues = outgoing.message_queues().filter_map(|queue| {
-			let queue_root = message_queue_root(queue);
-			let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
-			Some((queue_root, queue_data))
-		}).collect();
-
-		AvailableMessages(queues)
-	}
 }
 
 /// Extra data which is needed along with the other fields in a `CandidateReceipt`
