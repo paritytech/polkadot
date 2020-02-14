@@ -262,30 +262,6 @@ impl Store {
 		self.inner.awaited_chunks()
 	}
 
-	/// Make a validator's index and a number of validators at a relay parent available.
-	///
-	/// This information is needed before the `add_candidates_in_relay_block` is called
-	/// since that call forms the awaited frontier of chunks.
-	/// In the current implementation this function is called in the `get_or_instantiate` at
-	/// the start of the parachain agreement process on top of some parent hash.
-	pub fn add_validator_index_and_n_validators(
-		&self,
-		relay_parent: &Hash,
-		validator_index: u32,
-		n_validators: u32,
-	) -> io::Result<()> {
-		self.inner.add_validator_index_and_n_validators(
-			relay_parent,
-			validator_index,
-			n_validators,
-		)
-	}
-
-	/// Query a validator's index and n_validators by relay parent.
-	pub fn get_validator_index_and_n_validators(&self, relay_parent: &Hash) -> Option<(u32, u32)> {
-		self.inner.get_validator_index_and_n_validators(relay_parent)
-	}
-
 	/// Adds an erasure chunk to storage.
 	///
 	/// The chunk should be checked for validity against the root of encoding
@@ -342,10 +318,27 @@ impl Store {
 	pub fn get_erasure_chunk(
 		&self,
 		relay_parent: &Hash,
-		erasure_root: &Hash,
+		candidate_hash: &Hash,
 		index: usize,
 	) -> Option<ErasureChunk> {
-		self.inner.get_erasure_chunk(relay_parent, erasure_root, index)
+		self.inner.get_erasure_chunk(relay_parent, candidate_hash, index)
+	}
+
+	/// Note a validator's index and a number of validators at a relay parent in the
+	/// store.
+	///
+	/// This should be done before adding erasure chunks with this relay parent.
+	pub fn note_validator_index_and_n_validators(
+		&self,
+		relay_parent: &Hash,
+		validator_index: u32,
+		n_validators: u32,
+	) -> io::Result<()> {
+		self.inner.note_validator_index_and_n_validators(
+			relay_parent,
+			validator_index,
+			n_validators,
+		)
 	}
 
 	/// Stores a candidate receipt.
@@ -384,11 +377,10 @@ impl Store {
 	}
 
 	/// Query execution data by pov-block hash.
-	// TODO: [now] change nomenclature to `execution_data`.
-	pub fn pov_block(&self, relay_parent: &Hash, pov_block_hash: &Hash)
+	pub fn execution_data(&self, relay_parent: &Hash, candidate_hash: &Hash)
 		-> Option<ExecutionData>
 	{
-		self.inner.pov_block(relay_parent, pov_block_hash)
+		self.inner.execution_data(relay_parent, candidate_hash)
 	}
 
 }

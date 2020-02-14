@@ -25,6 +25,7 @@ use polkadot_primitives::{
 		ErasureChunk, AvailableData, AbridgedCandidateReceipt,
 	},
 };
+use parking_lot::Mutex;
 
 use log::{trace, warn};
 use std::collections::HashSet;
@@ -43,15 +44,16 @@ mod columns {
 #[derive(Clone)]
 pub struct Store {
 	inner: Arc<dyn KeyValueDB>,
+	candidate_descendents_lock: Arc<Mutex<()>>
 }
 
 // data keys
-fn pov_block_key(relay_parent: &Hash, candidate_hash: &Hash) -> Vec<u8> {
+fn execution_data_key(relay_parent: &Hash, candidate_hash: &Hash) -> Vec<u8> {
 	(relay_parent, candidate_hash, 0i8).encode()
 }
 
-fn erasure_chunks_key(relay_parent: &Hash, erasure_root: &Hash) -> Vec<u8> {
-	(relay_parent, erasure_root, 1i8).encode()
+fn erasure_chunks_key(relay_parent: &Hash, candidate_hash: &Hash) -> Vec<u8> {
+	(relay_parent, candidate_hash, 1i8).encode()
 }
 
 fn candidate_key(relay_parent: &Hash, candidate_hash: &Hash) -> Vec<u8> {
@@ -62,11 +64,11 @@ fn available_chunks_key(relay_parent: &Hash, erasure_root: &Hash) -> Vec<u8> {
 	(relay_parent, erasure_root, 4i8).encode()
 }
 
-fn candidates_in_relay_chain_block_key(relay_block: &Hash) -> Vec<u8> {
+fn candidates_with_relay_parent_key(relay_block: &Hash) -> Vec<u8> {
 	(relay_block, 5i8).encode()
 }
 
-fn erasure_roots_in_relay_chain_block_key(relay_block: &Hash) -> Vec<u8> {
+fn erasure_roots_with_relay_parent_key(relay_block: &Hash) -> Vec<u8> {
 	(relay_block, 6i8).encode()
 }
 
@@ -117,6 +119,7 @@ impl Store {
 
 		Ok(Store {
 			inner: Arc::new(db),
+			candidate_descendents_lock: Arc::new(Mutex::new(())),
 		})
 	}
 
@@ -124,6 +127,7 @@ impl Store {
 	pub(super) fn new_in_memory() -> Self {
 		Store {
 			inner: Arc::new(::kvdb_memorydb::create(columns::NUM_COLUMNS)),
+			candidate_descendents_lock: Arc::new(Mutex::new(())),
 		}
 	}
 
@@ -145,7 +149,7 @@ impl Store {
 
 		tx.put_vec(
 			columns::DATA,
-			pov_block_key(&relay_parent, &candidate_hash).as_slice(),
+			execution_data_key(&relay_parent, &candidate_hash).as_slice(),
 			execution_data.encode(),
 		);
 
@@ -168,15 +172,15 @@ impl Store {
 	/// This method modifies the erasure chunks awaited frontier by adding this validator's
 	/// chunks from `candidates` to it. In order to do so the information about this validator's
 	/// position at parent `relay_parent` should be known to the store prior to calling this
-	/// method, in other words `add_validator_index_and_n_validators` should be called for
+	/// method, in other words `note_validator_index_and_n_validators` should be called for
 	/// the given `relay_parent` before calling this function.
-	pub(crate) fn add_candidates_in_relay_block(
+	pub(crate) fn note_candidates_with_relay_parent(
 		&self,
 		relay_parent: &Hash,
 		candidates: Vec<Hash>,
 	) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
-		let dbkey = candidates_in_relay_chain_block_key(relay_parent);
+		let dbkey = candidates_with_relay_parent_key(relay_parent);
 
 		if let Some((validator_index, _)) = self.get_validator_index_and_n_validators(relay_parent) {
 			let candidates = candidates.clone();
@@ -197,19 +201,25 @@ impl Store {
 			let awaited_frontier = Vec::from_iter(awaited_frontier.into_iter());
 			tx.put_vec(columns::META, &awaited_chunks_key(), awaited_frontier.encode());
 		}
-		tx.put_vec(columns::DATA, &dbkey, candidates.encode());
+
+		// This call can race against another call to `note_candidates_with_relay_parent`
+		// with a different set of descendents.
+		let _lock = self.candidate_descendents_lock.lock();
+		let mut descendent_candidates = self.get_candidates_with_relay_parent(relay_parent);
+		descendent_candidates.extend(candidates);
+		tx.put_vec(columns::DATA, &dbkey, descendent_candidates.encode());
 
 		self.inner.write(tx)
 	}
 
 	/// Adds a set of erasure chunk roots that were included in a relay block by block's parent.
-	pub(crate) fn add_erasure_roots_in_relay_block(
+	pub(crate) fn add_erasure_roots_with_relay_parent(
 		&self,
 		relay_parent: &Hash,
 		erasure_roots: Vec<Hash>,
 	) -> io::Result<()> {
 		let mut tx = DBTransaction::new();
-		let dbkey = erasure_roots_in_relay_chain_block_key(relay_parent);
+		let dbkey = erasure_roots_with_relay_parent_key(relay_parent);
 
 		tx.put_vec(columns::DATA, &dbkey, erasure_roots.encode());
 
@@ -217,7 +227,7 @@ impl Store {
 	}
 
 	/// Make a validator's index and a number of validators at a relay parent available.
-	pub(crate) fn add_validator_index_and_n_validators(
+	pub(crate) fn note_validator_index_and_n_validators(
 		&self,
 		relay_parent: &Hash,
 		validator_index: u32,
@@ -232,7 +242,7 @@ impl Store {
 	}
 
 	/// Query a validator's index and n_validators by relay parent.
-	pub fn get_validator_index_and_n_validators(&self, relay_parent: &Hash) -> Option<(u32, u32)> {
+	pub(crate) fn get_validator_index_and_n_validators(&self, relay_parent: &Hash) -> Option<(u32, u32)> {
 		let dbkey = validator_index_and_n_validators_key(relay_parent);
 
 		self.query_inner(columns::META, &dbkey)
@@ -253,7 +263,7 @@ impl Store {
 	{
 		if let Some(receipt) = self.get_candidate(relay_parent, candidate_hash) {
 			let mut tx = DBTransaction::new();
-			let dbkey = erasure_chunks_key(relay_parent, &receipt.commitments.erasure_root);
+			let dbkey = erasure_chunks_key(relay_parent, candidate_hash);
 
 			let mut v = self.query_inner(columns::DATA, &dbkey).unwrap_or(Vec::new());
 
@@ -288,7 +298,7 @@ impl Store {
 
 			// If therea are no block data in the store at this point,
 			// check that they can be reconstructed now and add them to store if they can.
-			if self.pov_block(&relay_parent, &candidate_hash).is_none() {
+			if self.execution_data(&relay_parent, &candidate_hash).is_none() {
 				if let Ok(available_data) = erasure::reconstruct(
 					n_validators as usize,
 					v.iter().map(|chunk| (chunk.chunk.as_ref(), chunk.index as usize))) {
@@ -310,14 +320,14 @@ impl Store {
 		}
 	}
 
-	/// Queries an erasure chunk by its block's relay-parent, the erasure trie root, and index.
+	/// Queries an erasure chunk by its block's relay-parent, the candidate hash, and index.
 	pub fn get_erasure_chunk(
 		&self,
 		relay_parent: &Hash,
-		erasure_root: &Hash,
+		candidate_hash: &Hash,
 		index: usize,
 	) -> Option<ErasureChunk> {
-		self.query_inner(columns::DATA, &erasure_chunks_key(&relay_parent, erasure_root))
+		self.query_inner(columns::DATA, &erasure_chunks_key(&relay_parent, candidate_hash))
 			.and_then(|chunks: Vec<ErasureChunk>| {
 				chunks.iter()
 				.find(|chunk: &&ErasureChunk| chunk.index == index as u32)
@@ -341,7 +351,7 @@ impl Store {
 	}
 
 	/// Queries a candidate receipt by the relay parent hash and its hash.
-	pub fn get_candidate(&self, relay_parent: &Hash, candidate_hash: &Hash)
+	pub(crate) fn get_candidate(&self, relay_parent: &Hash, candidate_hash: &Hash)
 		-> Option<AbridgedCandidateReceipt>
 	{
 		self.query_inner(columns::DATA, &candidate_key(relay_parent, candidate_hash))
@@ -363,24 +373,28 @@ impl Store {
 			tx.put_vec(columns::META, &awaited_chunks_key(), awaited_frontier.encode());
 		}
 
-		// TODO [now]: load all candidates that were included with this relay-parent
-		// and prune their data as well.
+		let candidates = self.get_candidates_with_relay_parent(&relay_parent);
 
-		for finalized_candidate in finalized_candidates {
-			tx.delete(columns::DATA, pov_block_key(&relay_parent, &finalized_candidate).as_slice());
-
-			// TODO [now]: get candidate & erasure root. Also only prune this stuff
-			// for unfinalized candidates!
-			tx.delete(columns::DATA, &erasure_chunks_key(&relay_parent, unimplemented!()));
-			tx.delete(columns::DATA, &candidate_key(&relay_parent, &finalized_candidate));
+		for candidate in candidates.into_iter().filter(|c| !finalized_candidates.contains(c)) {
+			// we only delete this data for candidates which were not finalized.
+			// we keep all data for the finalized chain forever at the moment.
+			tx.delete(columns::DATA, execution_data_key(&relay_parent, &candidate).as_slice());
+			tx.delete(columns::DATA, &erasure_chunks_key(&relay_parent, &candidate));
+			tx.delete(columns::DATA, &candidate_key(&relay_parent, &candidate));
 		}
 
 		self.inner.write(tx)
 	}
 
-	/// Query PoV block by relay parent and candidate hash.
-	pub fn pov_block(&self, relay_parent: &Hash, candidate_hash: &Hash) -> Option<ExecutionData> {
-		self.query_inner(columns::DATA, &pov_block_key(relay_parent, candidate_hash))
+	/// Query execution data by relay parent and candidate hash.
+	pub(crate) fn execution_data(&self, relay_parent: &Hash, candidate_hash: &Hash) -> Option<ExecutionData> {
+		self.query_inner(columns::DATA, &execution_data_key(relay_parent, candidate_hash))
+	}
+
+	/// Get candidates in direct descendents of a relay cahin block.
+	fn get_candidates_with_relay_parent(&self, relay_parent: &Hash) -> Vec<Hash> {
+		let key = candidates_with_relay_parent_key(relay_parent);
+		self.query_inner(columns::DATA, &key[..]).unwrap_or_default()
 	}
 
 	fn query_inner<T: Decode>(&self, column: u32, key: &[u8]) -> Option<T> {
@@ -563,7 +577,7 @@ mod tests {
 		let relay_parent = [42; 32].into();
 		let store = Store::new_in_memory();
 
-		store.add_validator_index_and_n_validators(&relay_parent, 42, 24).unwrap();
+		store.note_validator_index_and_n_validators(&relay_parent, 42, 24).unwrap();
 		assert_eq!(store.get_validator_index_and_n_validators(&relay_parent).unwrap(), (42, 24));
 	}
 
@@ -574,8 +588,8 @@ mod tests {
 
 		let candidates = vec![[1; 32].into(), [2; 32].into(), [3; 32].into()];
 
-		store.add_candidates_in_relay_block(&relay_parent, candidates.clone()).unwrap();
-		assert_eq!(store.get_candidates_in_relay_block(&relay_parent).unwrap(), candidates);
+		store.note_candidates_with_relay_parent(&relay_parent, candidates.clone()).unwrap();
+		assert_eq!(store.get_candidates_with_relay_parent(&relay_parent).unwrap(), candidates);
 	}
 
 	#[test]
@@ -604,7 +618,7 @@ mod tests {
 
 		let store = Store::new_in_memory();
 
-		store.add_validator_index_and_n_validators(
+		store.note_validator_index_and_n_validators(
 			&relay_parent,
 			validator_index,
 			n_validators
@@ -613,7 +627,7 @@ mod tests {
 		store.add_candidate(&receipt_2).unwrap();
 
 		// We are waiting for chunks from two candidates.
-		store.add_candidates_in_relay_block(&relay_parent, candidates.clone()).unwrap();
+		store.note_candidates_with_relay_parent(&relay_parent, candidates.clone()).unwrap();
 
 		let awaited_frontier = store.awaited_chunks().unwrap();
 		warn!(target: "availability", "awaited {:?}", awaited_frontier);

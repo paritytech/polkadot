@@ -409,7 +409,7 @@ where
 			}
 		}
 
-		let _ = self.availability_store.add_candidates_in_relay_block(
+		let _ = self.availability_store.note_candidates_with_relay_parent(
 			&relay_parent,
 			hashes,
 		);
@@ -462,7 +462,10 @@ where
 		relay_parent: Hash,
 		erasure_roots: Vec<Hash>
 	) -> Result<(), Error> {
-		self.availability_store.add_erasure_roots_in_relay_block(&relay_parent, erasure_roots)?;
+		self.availability_store.add_erasure_roots_with_relay_parent(
+			&relay_parent,
+			erasure_roots,
+		)?;
 
 		Ok(())
 	}
@@ -483,7 +486,7 @@ where
 			.ok_or(Error::CandidateNotFound { candidate_hash })?;
 
 		if self.availability_store
-			.get_erasure_chunk(&relay_parent, &candidate.commitments.erasure_root, id)
+			.get_erasure_chunk(&relay_parent, &candidate_hash, id)
 			.is_none() {
 			if let Err(e) = self.register_chunks_listener(
 				runtime_handle,
@@ -698,12 +701,12 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 								candidates,
 							);
 
-							for &(ref candidate, candidate_hash) in &candidates {
+							for &(_, candidate_hash) in &candidates {
 								// If we don't yet have our chunk of this candidate,
 								// tell the worker to listen for one.
 								if self.availability_store.get_erasure_chunk(
 									&relay_parent,
-									&candidate.commitments.erasure_root,
+									&candidate_hash,
 									our_id as usize,
 								).is_none() {
 									let msg = WorkerMsg::ListenForChunks(ListenForChunks {
@@ -899,7 +902,7 @@ mod tests {
 		let store = Store::new_in_memory();
 
 		// Tell the store our validator's position and the number of validators at given point.
-		store.add_validator_index_and_n_validators(&relay_parent, local_id, n_validators).unwrap();
+		store.note_validator_index_and_n_validators(&relay_parent, local_id, n_validators).unwrap();
 
 		let (gossip_sender, gossip_receiver) = mpsc::unbounded();
 
@@ -992,7 +995,7 @@ mod tests {
 		let store = Store::new_in_memory();
 
 		// Tell the store our validator's position and the number of validators at given point.
-		store.add_validator_index_and_n_validators(&relay_parent, local_id, n_validators).unwrap();
+		store.note_validator_index_and_n_validators(&relay_parent, local_id, n_validators).unwrap();
 
 		// Let the store know about the candidates
 		store.add_candidate(&candidate_1).unwrap();
