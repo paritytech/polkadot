@@ -278,7 +278,7 @@ pub fn build_collator_service<S, P, Extrinsic>(
 	service: S,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
-	build_parachain: Box<dyn Fn() -> P>,
+	build_parachain: Box<dyn FnOnce() -> P>,
 ) -> Result<S, polkadot_service::Error>
 	where
 		S: AbstractService<Block = service::Block, NetworkSpecialization = service::PolkadotProtocol>,
@@ -457,7 +457,7 @@ pub async fn build_collator<P>(
 	config: Configuration,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
-	build_parachain: Box<dyn Fn() -> P>,
+	build_parachain: Box<dyn FnOnce() -> P>,
 ) -> Result<(), polkadot_service::Error>
 where
 	P: BuildParachainContext,
