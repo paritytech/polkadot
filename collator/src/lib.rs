@@ -278,7 +278,7 @@ pub fn build_collator_service<S, P, Extrinsic>(
 	service: S,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
-	build_parachain_context: P,
+	build_parachain: Box<dyn Fn() -> P>,
 ) -> Result<S, polkadot_service::Error>
 	where
 		S: AbstractService<Block = service::Block, NetworkSpecialization = service::PolkadotProtocol>,
@@ -344,6 +344,8 @@ pub fn build_collator_service<S, P, Extrinsic>(
 		client.clone(),
 		spawner.clone(),
 	));
+
+	let build_parachain_context = build_parachain();
 
 	let parachain_context = match build_parachain_context.build(
 		client.clone(),
@@ -455,7 +457,7 @@ pub async fn build_collator<P>(
 	config: Configuration,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
-	build_parachain_context: P,
+	build_parachain: Box<dyn Fn() -> P>,
 ) -> Result<(), polkadot_service::Error>
 where
 	P: BuildParachainContext,
@@ -468,28 +470,28 @@ where
 				service::kusama_new_light(config, Some((key.public(), para_id)))?,
 				para_id,
 				key,
-				build_parachain_context,
+				build_parachain,
 			)?.await,
 		(true, _) =>
 			build_collator_service(
 				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 				para_id,
 				key,
-				build_parachain_context,
+				build_parachain,
 			)?.await,
 		(false, Roles::LIGHT) =>
 			build_collator_service(
 				service::polkadot_new_light(config, Some((key.public(), para_id)))?,
 				para_id,
 				key,
-				build_parachain_context,
+				build_parachain,
 			)?.await,
 		(false, _) =>
 			build_collator_service(
 				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 				para_id,
 				key,
-				build_parachain_context,
+				build_parachain,
 			)?.await,
 	}
 }
@@ -508,6 +510,7 @@ fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRo
 /// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
 /// This function blocks until done.
+/*
 pub fn run_collator<P>(
 	build_parachain_context: P,
 	para_id: ParaId,
@@ -557,6 +560,7 @@ pub fn run_collator<P>(
 			}),
 	}
 }
+*/
 
 #[cfg(test)]
 mod tests {
