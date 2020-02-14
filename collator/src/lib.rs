@@ -451,64 +451,46 @@ pub fn build_collator_service<S, P, Extrinsic>(
 /// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
 /// This function does not block. It returns an `AbstractService` that can be used as a future
-pub fn build_collator<S, P, Extrinsic>(
+pub async fn build_collator<P>(
 	config: Configuration,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
-) -> Result<S, polkadot_service::Error>
-	where
-		S: AbstractService<Block = service::Block, NetworkSpecialization = service::PolkadotProtocol>,
-		sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi>: ProvideRuntimeApi<Block>,
-		<sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi> as ProvideRuntimeApi<Block>>::Api:
-			RuntimeApiCollection<
-				Extrinsic,
-				Error = sp_blockchain::Error,
-				StateBackend = sc_client_api::StateBackendFor<S::Backend, Block>
-			>,
-		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		S::Backend: service::Backend<service::Block>,
-		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		<S::Backend as service::Backend<service::Block>>::State:
-			sp_api::StateBackend<sp_runtime::traits::HasherFor<Block>>,
-		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		S::CallExecutor: service::CallExecutor<service::Block>,
-		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		S::SelectChain: service::SelectChain<service::Block>,
-		P: BuildParachainContext,
-		P::ParachainContext: Send + 'static,
-		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
-		Extrinsic: service::Codec + Send + Sync + 'static,
+) -> Result<(), polkadot_service::Error>
+where
+	P: BuildParachainContext,
+	P::ParachainContext: Send + 'static,
+	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
 	match (config.expect_chain_spec().is_kusama(), config.roles) {
 		(true, Roles::LIGHT) =>
-			run_collator_node(
+			build_collator_service(
 				service::kusama_new_light(config, Some((key.public(), para_id)))?,
 				para_id,
 				key,
 				build_parachain_context,
-			),
+			)?.await,
 		(true, _) =>
-			run_collator_node(
+			build_collator_service(
 				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 				para_id,
 				key,
 				build_parachain_context,
-			),
+			)?.await,
 		(false, Roles::LIGHT) =>
-			run_collator_node(
+			build_collator_service(
 				service::polkadot_new_light(config, Some((key.public(), para_id)))?,
 				para_id,
 				key,
 				build_parachain_context,
-			),
+			)?.await,
 		(false, _) =>
-			run_collator_node(
+			build_collator_service(
 				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 				para_id,
 				key,
 				build_parachain_context,
-			),
+			)?.await,
 	}
 }
 
