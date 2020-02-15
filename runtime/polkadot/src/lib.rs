@@ -467,6 +467,11 @@ impl attestations::Trait for Runtime {
 	type RewardAttestation = Staking;
 }
 
+parameter_types! {
+	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
+	pub const MaxHeadDataSize: u32 = 20 * 1024; // 20 KB
+}
+
 impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
@@ -474,6 +479,8 @@ impl parachains::Trait for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 	type ActiveParachains = Registrar;
 	type Registrar = Registrar;
+	type MaxCodeSize = MaxCodeSize;
+	type MaxHeadDataSize = MaxHeadDataSize;
 }
 
 parameter_types! {
@@ -682,11 +689,6 @@ sp_api::impl_runtime_apis! {
 		}
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)
-		}
-		fn ingress(to: parachain::Id, since: Option<BlockNumber>)
-			-> Option<parachain::StructuredUnroutedIngress>
-		{
-			Parachains::ingress(to, since).map(parachain::StructuredUnroutedIngress)
 		}
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>> {
 			extrinsics

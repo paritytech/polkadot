@@ -38,7 +38,7 @@ use codec::Encode;
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, CandidateReceipt,
-	Statement as PrimitiveStatement, Message, OutgoingMessages,
+	Statement as PrimitiveStatement,
 	Collation, PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
 	ValidatorPair, ValidatorId,
 };
@@ -48,7 +48,7 @@ use futures::prelude::*;
 
 pub use self::block_production::ProposerFactory;
 pub use self::collation::{
-	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
+	validate_collation, message_queue_root, egress_roots, Collators,
 	produce_receipt_and_chunks,
 };
 pub use self::error::Error;
@@ -70,9 +70,6 @@ pub mod collation;
 pub mod validation_service;
 pub mod block_production;
 
-/// Incoming messages; a series of sorted (ParaId, Message) pairs.
-pub type Incoming = Vec<(ParaId, Vec<Message>)>;
-
 /// A handle to a statement table router.
 ///
 /// This is expected to be a lightweight, shared type like an `Arc`.
@@ -92,7 +89,6 @@ pub trait TableRouter: Clone {
 		&self,
 		collation: Collation,
 		receipt: CandidateReceipt,
-		outgoing: OutgoingMessages,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
 	) -> Self::SendLocalCollation;
 
@@ -216,18 +212,6 @@ pub fn make_group_info(
 
 	Ok((map, local_duty))
 
-}
-
-/// Compute the (target, root, messages) of all outgoing queues.
-pub fn outgoing_queues(outgoing_targeted: &'_ OutgoingMessages)
-	-> impl Iterator<Item=(ParaId, Hash, Vec<Message>)> + '_
-{
-	outgoing_targeted.message_queues().filter_map(|queue| {
-		let target = queue.get(0)?.target;
-		let queue_root = message_queue_root(queue);
-		let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
-		Some((target, queue_root, queue_data))
-	})
 }
 
 #[cfg(test)]

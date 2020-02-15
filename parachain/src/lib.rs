@@ -65,8 +65,6 @@ pub struct ValidationParams {
 	pub block_data: Vec<u8>,
 	/// Previous head-data.
 	pub parent_head: Vec<u8>,
-	/// Incoming messages.
-	pub ingress: Vec<IncomingMessage>,
 }
 
 /// The result of parachain validation.
@@ -81,9 +79,9 @@ pub struct ValidationResult {
 /// Unique identifier of a parachain.
 #[derive(
 	Clone, CompactAs, Copy, Decode, Default, Encode, Eq,
-	Hash, Ord, PartialEq, PartialOrd, RuntimeDebug
+	Hash, Ord, PartialEq, PartialOrd, RuntimeDebug,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, derive_more::Display))]
 pub struct Id(u32);
 
 impl TypeId for Id {
