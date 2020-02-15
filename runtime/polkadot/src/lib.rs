@@ -548,13 +548,13 @@ construct_runtime! {
 		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
 
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
-		Indices: indices,
+		Indices: indices::{Module, Call, Storage, Config<T>, Event<T>},
 		Balances: balances::{Module, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: transaction_payment::{Module, Storage},
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
-		Staking: staking::{default},
+		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>},
 		Offences: offences::{Module, Call, Storage, Event},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
@@ -583,7 +583,7 @@ construct_runtime! {
 		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
 
 		// Sudo. Last module. Usable initially, but removed once governance enabled.
-		Sudo: sudo,
+		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 }
 

@@ -274,7 +274,7 @@ decl_module! {
 				Self::update_routing(
 					&heads,
 				);
-				
+
 				Self::dispatch_upward_messages(
 					MAX_QUEUE_COUNT,
 					WATERMARK_QUEUE_SIZE,
@@ -1069,7 +1069,7 @@ mod tests {
 
 		// stashes are the index.
 		let session_keys: Vec<_> = authority_keys.iter().enumerate()
-			.map(|(i, _k)| (i as u64, i as u64, UintAuthorityId(i as u64)))
+			.map(|(i, _k)| (i as u64, UintAuthorityId(i as u64)))
 			.collect();
 
 		let authorities: Vec<_> = authority_keys.iter().map(|k| ValidatorId::from(k.public())).collect();
