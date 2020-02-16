@@ -3970,6 +3970,7 @@ dependencies = [
  "pallet-authorship 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-babe 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-balances 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-offences 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-randomness-collective-flip 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-session 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-staking 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",

@@ -1129,14 +1129,13 @@ pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, B
 mod tests {
 	use super::*;
 	use super::Call as ParachainsCall;
-	use std::cell::RefCell;
 	use bitvec::{bitvec, vec::BitVec};
 	use sp_io::TestExternalities;
 	use sp_core::{H256, Blake2Hasher};
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
 		Perbill, curve::PiecewiseLinear, testing::{UintAuthorityId, Header},
-		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},
+		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, SaturatedConversion},
 	};
 	use primitives::{
 		parachain::{
@@ -1152,6 +1151,8 @@ mod tests {
 	use crate::parachains;
 	use crate::registrar;
 	use crate::slots;
+	use session::SessionManager;
+	use staking::EraIndex;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {
@@ -1275,16 +1276,26 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const SessionsPerEra: sp_staking::SessionIndex = 6;
-		pub const BondingDuration: staking::EraIndex = 28;
-		pub const SlashDeferDuration: staking::EraIndex = 7;
+		pub const SessionsPerEra: sp_staking::SessionIndex = 3;
+		pub const BondingDuration: staking::EraIndex = 3;
+		pub const SlashDeferDuration: staking::EraIndex = 0;
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	}
 
+	pub struct CurrencyToVoteHandler;
+
+	impl Convert<u128, u128> for CurrencyToVoteHandler {
+		fn convert(x: u128) -> u128 { x }
+	}
+
+	impl Convert<u128, u64> for CurrencyToVoteHandler {
+		fn convert(x: u128) -> u64 { x.saturated_into() }
+	}
+
 	impl staking::Trait for Test {
 		type RewardRemainder = ();
-		type CurrencyToVote = ();
+		type CurrencyToVote = CurrencyToVoteHandler;
 		type Event = ();
 		type Currency = balances::Module<Test>;
 		type Slash = ();
@@ -1334,6 +1345,12 @@ mod tests {
 		type MaxRetries = MaxRetries;
 	}
 
+	impl offences::Trait for Test {
+		type Event = ();
+		type IdentificationTuple = session::historical::IdentificationTuple<Self>;
+		type OnOffenceHandler = Staking;
+	}
+
 	parameter_types! {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
@@ -1348,22 +1365,16 @@ mod tests {
 		type Registrar = registrar::Module<Test>;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
-		type ReportDoubleVote = OffenceHandler;
-	}
-
-	thread_local! {
-		pub static OFFENCES: RefCell<Vec<(Vec<u64>, DoubleVoteOffence<IdentificationTuple<Test>>)>> = RefCell::new(vec![]);
-	}
-
-	pub struct OffenceHandler;
-	impl ReportOffence<u64, IdentificationTuple<Test>, DoubleVoteOffence<IdentificationTuple<Test>>> for OffenceHandler {
-		fn report_offence(reporters: Vec<u64>, offence: DoubleVoteOffence<IdentificationTuple<Test>>) {
-			OFFENCES.with(|l| l.borrow_mut().push((reporters, offence)));
-		}
+		type ReportDoubleVote = Offences;
 	}
 
 	type Parachains = Module<Test>;
 	type System = system::Module<Test>;
+	type Offences = offences::Module<Test>;
+	type Staking = staking::Module<Test>;
+	type Balances = balances::Module<Test>;
+	type Session = session::Module<Test>;
+	type Timestamp = timestamp::Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 	type Registrar = registrar::Module<Test>;
 
@@ -1429,8 +1440,9 @@ mod tests {
 		staking::GenesisConfig::<Test> {
 			current_era: 0,
 			stakers,
-			validator_count: 10,
-			minimum_validator_count: 8,
+			validator_count: 8,
+			force_era: staking::Forcing::ForceNew,
+			minimum_validator_count: 0,
 			invulnerables: vec![],
 			.. Default::default()
 		}.assimilate_storage(&mut t).unwrap();
@@ -1538,6 +1550,26 @@ mod tests {
 		}
 	}
 
+	fn start_session(session_index: SessionIndex) {
+		// Compensate for session delay
+		let session_index = session_index + 1;
+		for i in Session::current_index()..session_index {
+			println!("session index {}", i);
+			Staking::new_session(i);
+			System::set_block_number((i + 1).into());
+			Timestamp::set_timestamp(System::block_number() * 6000);
+			println!("block {:?}", System::block_number());
+			Session::on_initialize(System::block_number());
+		}
+
+		assert_eq!(Session::current_index(), session_index);
+	}
+
+	fn start_era(era_index: EraIndex) {
+		start_session((era_index * 3).into());
+		assert_eq!(Staking::current_era(), era_index);
+	}
+
 	fn init_block() {
 		println!("Initializing {}", System::block_number());
 		System::on_initialize(System::block_number());
@@ -1553,6 +1585,7 @@ mod tests {
 				Registrar::on_finalize(System::block_number());
 				System::on_finalize(System::block_number());
 			}
+			Staking::new_session(System::block_number() as u32);
 			System::set_block_number(System::block_number() + 1);
 			init_block();
 		}
@@ -2352,7 +2385,11 @@ mod tests {
 
 		// Test that a Candidate and Valid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
-			init_block();
+			assert_eq!(Staking::current_era(), 0);
+			assert_eq!(Session::current_index(), 0);
+
+			start_era(1);
+
 			let authorities = Parachains::authorities();
 			let authority_index = 0;
 			let key = extract_key(authorities[authority_index].clone());
@@ -2377,26 +2414,61 @@ mod tests {
 				second: (statement_valid, attestation_2),
 			};
 
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
 			assert_ok!(Parachains::dispatch(
 				report_double_vote(report),
 				Origin::NONE,
 			));
 
-			let offences = OFFENCES.with(|l| l.replace(vec![]));
-			assert_eq!(offences, vec![(vec![], DoubleVoteOffence {
-				session_index: 0,
-				validator_set_count: 8,
-				offender: (authority_index as u64, staking::Exposure {
+			start_era(2);
+
+			// Check that the balance of 0-th validator is slashed 100%.
+			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
+			assert_eq!(Staking::slashable_balance_of(&0), 0);
+
+			assert_eq!(
+				Staking::stakers(0),
+				staking::Exposure {
 					total: 0,
 					own: 0,
 					others: vec![],
-				}),
-			})]);
+				},
+			);
+
+			// Check that the balances of all other validators are left intact.
+			for i in 1..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
 		});
 
 		// Test that a Candidate and Invalid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
-			init_block();
+			start_era(1);
+
 			let authorities = Parachains::authorities();
 			let authority_index = 0;
 			let key = extract_key(authorities[authority_index].clone());
@@ -2421,27 +2493,63 @@ mod tests {
 				second: (statement_invalid, attestation_2),
 			};
 
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
 			assert_ok!(Parachains::dispatch(
 				report_double_vote(report),
 				Origin::NONE,
 			));
 
-			let offences = OFFENCES.with(|l| l.replace(vec![]));
-			assert_eq!(offences, vec![(vec![], DoubleVoteOffence {
-				session_index: 0,
-				validator_set_count: 8,
-				offender: (authority_index as u64, staking::Exposure {
+			start_era(2);
+
+			// Check that the balance of 0-th validator is slashed 100%.
+			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
+			assert_eq!(Staking::slashable_balance_of(&0), 0);
+
+			assert_eq!(
+				Staking::stakers(0),
+				staking::Exposure {
 					total: 0,
 					own: 0,
 					others: vec![],
-				}),
-			})]);
+				},
+			);
+
+			// Check that the balances of all other validators are left intact.
+			for i in 1..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
 		});
 
 
 		// Test that an Invalid and Valid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
-			init_block();
+			start_era(1);
+
 			let authorities = Parachains::authorities();
 			let authority_index = 0;
 			let key = extract_key(authorities[authority_index].clone());
@@ -2466,21 +2574,55 @@ mod tests {
 				second: (statement_valid, attestation_2),
 			};
 
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
 			assert_ok!(Parachains::dispatch(
 				report_double_vote(report),
 				Origin::NONE,
 			));
 
-			let offences = OFFENCES.with(|l| l.replace(vec![]));
-			assert_eq!(offences, vec![(vec![], DoubleVoteOffence {
-				session_index: 0,
-				validator_set_count: 8,
-				offender: (authority_index as u64, staking::Exposure {
+			start_era(2);
+
+			// Check that the balance of 0-th validator is slashed 100%.
+			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
+			assert_eq!(Staking::slashable_balance_of(&0), 0);
+
+			assert_eq!(
+				Staking::stakers(0),
+				staking::Exposure {
 					total: 0,
 					own: 0,
 					others: vec![],
-				}),
-			})]);
+				},
+			);
+
+			// Check that the balances of all other validators are left intact.
+			for i in 1..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
 		});
 	}
 }
