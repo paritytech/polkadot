@@ -79,7 +79,6 @@ use frame_support::weights::SimpleDispatchInfo;
 use crate::slots;
 use codec::{Encode, Decode};
 use rstd::vec::Vec;
-use sp_core::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
 use primitives::parachain::Id as ParaId;
 
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
@@ -522,46 +521,36 @@ impl<T: Trait> Module<T> {
 		MODULE_ID.into_sub_account(index)
 	}
 
-	pub fn id_from_index(index: FundIndex) -> Vec<u8> {
+	pub fn id_from_index(index: FundIndex) -> child::OwnedChildInfo {
 		let mut buf = Vec::new();
 		buf.extend_from_slice(b"crowdfund");
 		buf.extend_from_slice(&index.to_le_bytes()[..]);
-
-		CHILD_STORAGE_KEY_PREFIX.into_iter()
-			.chain(b"default:")
-			.chain(T::Hashing::hash(&buf[..]).as_ref().into_iter())
-			.cloned()
-			.collect()
+		let id = T::Hashing::hash(&buf[..]);
+		child::OwnedChildInfo::new_default(id.as_ref().to_vec())
 	}
 
 	/// Child trie unique id for a crowdfund is built from the hash part of the fund id.
 	pub fn trie_unique_id(fund_id: &[u8]) -> child::ChildInfo {
-		let start = CHILD_STORAGE_KEY_PREFIX.len() + b"default:".len();
-		child::ChildInfo::new_default(&fund_id[start..])
+		child::ChildInfo::default_unchecked(&fund_id[..])
 	}
 
 	pub fn contribution_put(index: FundIndex, who: &T::AccountId, balance: &BalanceOf<T>) {
-		let id = Self::id_from_index(index);
-		who.using_encoded(|b| child::put(id.as_ref(), Self::trie_unique_id(id.as_ref()), b, balance));
+		who.using_encoded(|b| child::put(Self::id_from_index(index).as_ref(), b, balance));
 	}
 
 	pub fn contribution_get(index: FundIndex, who: &T::AccountId) -> BalanceOf<T> {
-		let id = Self::id_from_index(index);
 		who.using_encoded(|b| child::get_or_default::<BalanceOf<T>>(
-			id.as_ref(),
-			Self::trie_unique_id(id.as_ref()),
+			Self::id_from_index(index).as_ref(),
 			b,
 		))
 	}
 
 	pub fn contribution_kill(index: FundIndex, who: &T::AccountId) {
-		let id = Self::id_from_index(index);
-		who.using_encoded(|b| child::kill(id.as_ref(), Self::trie_unique_id(id.as_ref()), b));
+		who.using_encoded(|b| child::kill(Self::id_from_index(index).as_ref(), b));
 	}
 
 	pub fn crowdfund_kill(index: FundIndex) {
-		let id = Self::id_from_index(index);
-		child::kill_storage(id.as_ref(), Self::trie_unique_id(id.as_ref()));
+		child::kill_storage(Self::id_from_index(index).as_ref());
 	}
 }
 
@@ -614,20 +603,19 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
+		type AccountData = balances::AccountData<u64>;
+		type OnNewAccount = ();
+		type OnReapAccount = Balances;
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
-		pub const CreationFee: u64 = 0;
 	}
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnReapAccount = System;
-		type OnNewAccount = ();
-		type TransferPayment = ();
-		type DustRemoval = ();
 		type Event = ();
+		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type CreationFee = CreationFee;
+		type AccountStore = System;
 	}
 
 	parameter_types! {
