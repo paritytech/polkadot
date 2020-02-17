@@ -706,7 +706,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const ExistentialDeposit: Balance = 0;
+		pub const ExistentialDeposit: Balance = 1;
 		pub const CreationFee: Balance = 0;
 	}
 
