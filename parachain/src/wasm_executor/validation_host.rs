@@ -18,7 +18,7 @@
 
 use std::{process, env, sync::Arc, sync::atomic, mem};
 use codec::{Decode, Encode, EncodeAppend};
-use crate::{ValidationParams, ValidationResult, UpwardMessage, TargetedMessage};
+use crate::{ValidationParams, ValidationResult, UpwardMessage};
 use super::{validate_candidate_internal, Error, Externalities};
 use super::{MAX_CODE_MEM, MAX_RUNTIME_MEM};
 use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
@@ -54,15 +54,6 @@ struct WorkerExternalities {
 }
 
 impl Externalities for WorkerExternalities {
-	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String> {
-		let mut inner = self.inner.lock();
-		inner.egress_data = <Vec::<TargetedMessage> as EncodeAppend>::append_or_new(
-			mem::replace(&mut inner.egress_data, Vec::new()),
-			std::iter::once(message),
-		).map_err(|e| e.what())?;
-		Ok(())
-	}
-
 	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
 		let mut inner = self.inner.lock();
 		inner.up_data = <Vec::<UpwardMessage> as EncodeAppend>::append_or_new(
@@ -334,14 +325,6 @@ impl ValidationHost {
 			let header = ValidationResultHeader::decode(&mut header_buf).unwrap();
 			match header {
 				ValidationResultHeader::Ok(result) => {
-					let egress = Vec::<TargetedMessage>::decode(&mut message_data)
-						.map_err(|e|
-							Error::External(
-								format!("Could not decode egress messages: {}", e.what())
-							)
-						)?;
-					egress.into_iter().try_for_each(|msg| externalities.post_message(msg))?;
-
 					let upwards = Vec::<UpwardMessage>::decode(&mut message_data)
 						.map_err(|e|
 							Error::External(
