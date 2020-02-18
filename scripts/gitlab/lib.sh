@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 api_base="https://api.github.com/repos"
 
