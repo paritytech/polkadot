@@ -274,11 +274,11 @@ impl<P: 'static, SP: 'static> RelayChainContext for ApiContext<P, SP> where
 }
 
 /// Build collator service
-pub fn build_collator_service<S, P, Extrinsic>(
+pub fn build_collator_service<S, P, Extrinsic, B>(
 	service: S,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
-	build_parachain: Box<dyn FnOnce() -> P>,
+	build_parachain: B,
 ) -> Result<S, polkadot_service::Error>
 	where
 		S: AbstractService<Block = service::Block, NetworkSpecialization = service::PolkadotProtocol>,
@@ -302,6 +302,7 @@ pub fn build_collator_service<S, P, Extrinsic>(
 		P::ParachainContext: Send + 'static,
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 		Extrinsic: service::Codec + Send + Sync + 'static,
+		B: FnOnce() -> P,
 {
 	let spawner = service.spawn_task_handle();
 
@@ -453,16 +454,17 @@ pub fn build_collator_service<S, P, Extrinsic>(
 /// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
 /// This function does not block. It returns an `AbstractService` that can be used as a future
-pub async fn build_collator<P>(
+pub async fn build_collator<P, B>(
 	config: Configuration,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
-	build_parachain: Box<dyn FnOnce() -> P>,
+	build_parachain: B,
 ) -> Result<(), polkadot_service::Error>
 where
 	P: BuildParachainContext,
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
+	B: FnOnce() -> P,
 {
 	match (config.expect_chain_spec().is_kusama(), config.roles) {
 		(true, Roles::LIGHT) =>
