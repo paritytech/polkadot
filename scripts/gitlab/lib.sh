@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 api_base="https://api.github.com/repos"
 
@@ -24,11 +24,11 @@ check_tag () {
   tag_out=$(curl -H "Authorization: token $GITHUB_RELEASE_TOKEN" -s "$api_base/$repo/git/refs/tags/$tagver")
   tag_sha=$(echo "$tag_out" | jq -r .object.sha)
   object_url=$(echo "$tag_out" | jq -r .object.url)
-  if [ "$tag_sha" == "null" ]; then
+  if [ "$tag_sha" = "null" ]; then
     return 2
   fi
   verified_str=$(curl -H "Authorization: token $GITHUB_RELEASE_TOKEN" -s "$object_url" | jq -r .verification.verified)
-  if [ "$verified_str" == "true" ]; then
+  if [ "$verified_str" = "true" ]; then
     # Verified, everything is good
     return 0
   else
