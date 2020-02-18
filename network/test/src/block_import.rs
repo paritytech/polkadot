@@ -20,13 +20,13 @@ use sp_consensus::ImportedAux;
 use sp_consensus::import_queue::{
 	import_single_block, BasicQueue, BlockImportError, BlockImportResult, IncomingBlock,
 };
-use substrate_test_runtime_client::{self, prelude::*};
-use substrate_test_runtime_client::runtime::{Block, Hash};
+use polkadot_test_runtime_client::{self, prelude::*};
+use polkadot_test_runtime_client::runtime::{Block, Hash};
 use sp_runtime::generic::BlockId;
 use super::*;
 
 fn prepare_good_block() -> (TestClient, Hash, u64, PeerId, IncomingBlock<Block>) {
-	let mut client = substrate_test_runtime_client::new();
+	let mut client = polkadot_test_runtime_client::new();
 	let block = client.new_block(Default::default()).unwrap().build().unwrap().block;
 	client.import(BlockOrigin::File, block).unwrap();
 
@@ -52,9 +52,9 @@ fn import_single_good_block_works() {
 	let mut expected_aux = ImportedAux::default();
 	expected_aux.is_new_best = true;
 
-	match import_single_block(&mut substrate_test_runtime_client::new(), BlockOrigin::File, block, &mut PassThroughVerifier(true)) {
+	match import_single_block(&mut polkadot_test_runtime_client::new(), BlockOrigin::File, block, &mut PassThroughVerifier(true)) {
 		Ok(BlockImportResult::ImportedUnknown(ref num, ref aux, ref org))
-			if *num == number && *aux == expected_aux && *org == Some(peer_id) => {}
+			if *num == number as u32 && *aux == expected_aux && *org == Some(peer_id) => {}
 		r @ _ => panic!("{:?}", r)
 	}
 }
@@ -63,7 +63,7 @@ fn import_single_good_block_works() {
 fn import_single_good_known_block_is_ignored() {
 	let (mut client, _hash, number, _, block) = prepare_good_block();
 	match import_single_block(&mut client, BlockOrigin::File, block, &mut PassThroughVerifier(true)) {
-		Ok(BlockImportResult::ImportedKnown(ref n)) if *n == number => {}
+		Ok(BlockImportResult::ImportedKnown(ref n)) if *n == number as u32 => {}
 		_ => panic!()
 	}
 }
@@ -72,7 +72,7 @@ fn import_single_good_known_block_is_ignored() {
 fn import_single_good_block_without_header_fails() {
 	let (_, _, _, peer_id, mut block) = prepare_good_block();
 	block.header = None;
-	match import_single_block(&mut substrate_test_runtime_client::new(), BlockOrigin::File, block, &mut PassThroughVerifier(true)) {
+	match import_single_block(&mut polkadot_test_runtime_client::new(), BlockOrigin::File, block, &mut PassThroughVerifier(true)) {
 		Err(BlockImportError::IncompleteHeader(ref org)) if *org == Some(peer_id) => {}
 		_ => panic!()
 	}
@@ -83,7 +83,7 @@ fn async_import_queue_drops() {
 	// Perform this test multiple times since it exhibits non-deterministic behavior.
 	for _ in 0..100 {
 		let verifier = PassThroughVerifier(true);
-		let queue = BasicQueue::new(verifier, Box::new(substrate_test_runtime_client::new()), None, None);
+		let queue = BasicQueue::new(verifier, Box::new(polkadot_test_runtime_client::new()), None, None);
 		drop(queue);
 	}
 }

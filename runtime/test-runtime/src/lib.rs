@@ -24,7 +24,7 @@ use rstd::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
+	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
 	parachain::{self, ActiveParas, CandidateReceipt}, ValidityError,
 };
 use runtime_common::{attestations, claims, parachains, registrar, slots,
@@ -124,7 +124,7 @@ impl system::Trait for Runtime {
 	type Call = Call;
 	type Index = Nonce;
 	type BlockNumber = BlockNumber;
-	type Hash = Hash;
+	type Hash = HashT;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = Indices;
@@ -695,6 +695,9 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
+
+pub type Hash = <Block as BlockT>::Hash;
+pub type Extrinsic = <Block as BlockT>::Extrinsic;
 
 sp_api::impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {

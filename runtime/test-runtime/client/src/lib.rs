@@ -18,37 +18,26 @@
 
 #![warn(missing_docs)]
 
-pub mod trait_tests;
-
-mod block_builder_ext;
-
 use std::sync::Arc;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 pub use substrate_test_client::*;
-pub use substrate_test_runtime as runtime;
+pub use polkadot_test_runtime as runtime;
 pub use sc_client::LongestChain;
 
-pub use self::block_builder_ext::BlockBuilderExt;
-
-use sp_core::{sr25519, ChangesTrieConfiguration};
+use sp_core::{sr25519, ChangesTrieConfiguration, map, twox_128};
 use sp_core::storage::{ChildInfo, Storage, StorageChild};
-use substrate_test_runtime::genesismap::{GenesisConfig, additional_storage_with_genesis};
-use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Hash as HashT, NumberFor, HasherFor};
+use substrate_test_runtime::genesismap::{GenesisConfig};
+use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Hash as HashT, HasherFor};
 use sc_client::{
 	light::fetcher::{
-		Fetcher,
-		RemoteHeaderRequest, RemoteReadRequest, RemoteReadChildRequest,
-		RemoteCallRequest, RemoteChangesRequest, RemoteBodyRequest,
+		RemoteCallRequest, RemoteBodyRequest,
 	},
 };
 
 /// A prelude to import in tests.
 pub mod prelude {
 	// Trait extensions
-	pub use super::{
-		BlockBuilderExt, DefaultTestClientBuilderExt, TestClientBuilderExt, ClientExt,
-		ClientBlockImportExt,
-	};
+	pub use super::{ClientExt, ClientBlockImportExt};
 	// Client structs
 	pub use super::{
 		TestClient, TestClientBuilder, Backend, LightBackend,
@@ -60,12 +49,12 @@ pub mod prelude {
 
 sc_executor::native_executor_instance! {
 	pub LocalExecutor,
-	substrate_test_runtime::api::dispatch,
-	substrate_test_runtime::native_version,
+	polkadot_test_runtime::api::dispatch,
+	polkadot_test_runtime::native_version,
 }
 
 /// Test client database backend.
-pub type Backend = substrate_test_client::Backend<substrate_test_runtime::Block>;
+pub type Backend = substrate_test_client::Backend<polkadot_test_runtime::Block>;
 
 /// Test client executor.
 pub type Executor = sc_client::LocalCallExecutor<
@@ -74,15 +63,15 @@ pub type Executor = sc_client::LocalCallExecutor<
 >;
 
 /// Test client light database backend.
-pub type LightBackend = substrate_test_client::LightBackend<substrate_test_runtime::Block>;
+pub type LightBackend = substrate_test_client::LightBackend<polkadot_test_runtime::Block>;
 
 /// Test client light executor.
 pub type LightExecutor = sc_client::light::call_executor::GenesisCallExecutor<
 	LightBackend,
 	sc_client::LocalCallExecutor<
 		sc_client::light::backend::Backend<
-			sc_client_db::light::LightStorage<substrate_test_runtime::Block>,
-			HasherFor<substrate_test_runtime::Block>
+			sc_client_db::light::LightStorage<polkadot_test_runtime::Block>,
+			HasherFor<polkadot_test_runtime::Block>
 		>,
 		NativeExecutor<LocalExecutor>
 	>
@@ -117,6 +106,12 @@ impl GenesisParameters {
 	}
 }
 
+fn additional_storage_with_genesis(genesis_block: &polkadot_test_runtime::Block) -> BTreeMap<Vec<u8>, Vec<u8>> {
+	map![
+		twox_128(&b"latest"[..]).to_vec() => genesis_block.hash().as_fixed_bytes().to_vec()
+	]
+}
+
 impl substrate_test_client::GenesisInit for GenesisParameters {
 	fn genesis_storage(&self) -> Storage {
 		use codec::Encode;
@@ -141,7 +136,7 @@ impl substrate_test_client::GenesisInit for GenesisParameters {
 
 /// A `TestClient` with `test-runtime` builder.
 pub type TestClientBuilder<E, B> = substrate_test_client::TestClientBuilder<
-	substrate_test_runtime::Block,
+	polkadot_test_runtime::Block,
 	E,
 	B,
 	GenesisParameters,
@@ -151,8 +146,8 @@ pub type TestClientBuilder<E, B> = substrate_test_client::TestClientBuilder<
 pub type Client<B> = sc_client::Client<
 	B,
 	sc_client::LocalCallExecutor<B, sc_executor::NativeExecutor<LocalExecutor>>,
-	substrate_test_runtime::Block,
-	substrate_test_runtime::RuntimeApi,
+	polkadot_test_runtime::Block,
+	polkadot_test_runtime::RuntimeApi,
 >;
 
 /// A test client with default backend.
@@ -230,30 +225,25 @@ pub trait TestClientBuilderExt<B>: Sized {
 	}
 
 	/// Build the test client and longest chain selector.
-	fn build_with_longest_chain(self) -> (Client<B>, sc_client::LongestChain<B, substrate_test_runtime::Block>);
+	fn build_with_longest_chain(self) -> (Client<B>, sc_client::LongestChain<B, polkadot_test_runtime::Block>);
 
 	/// Build the test client and the backend.
 	fn build_with_backend(self) -> (Client<B>, Arc<B>);
 }
 
-impl<B> TestClientBuilderExt<B> for TestClientBuilder<
-	sc_client::LocalCallExecutor<B, sc_executor::NativeExecutor<LocalExecutor>>,
-	B
-> where
-	B: sc_client_api::backend::Backend<substrate_test_runtime::Block> + 'static,
-	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	<B as sc_client_api::backend::Backend<substrate_test_runtime::Block>>::State:
-		sp_api::StateBackend<HasherFor<substrate_test_runtime::Block>>,
-{
+impl TestClientBuilderExt<Backend> for TestClientBuilder<
+	sc_client::LocalCallExecutor<Backend, sc_executor::NativeExecutor<LocalExecutor>>,
+	Backend
+> {
 	fn genesis_init_mut(&mut self) -> &mut GenesisParameters {
 		Self::genesis_init_mut(self)
 	}
 
-	fn build_with_longest_chain(self) -> (Client<B>, sc_client::LongestChain<B, substrate_test_runtime::Block>) {
+	fn build_with_longest_chain(self) -> (Client<Backend>, sc_client::LongestChain<Backend, polkadot_test_runtime::Block>) {
 		self.build_with_native_executor(None)
 	}
 
-	fn build_with_backend(self) -> (Client<B>, Arc<B>) {
+	fn build_with_backend(self) -> (Client<Backend>, Arc<Backend>) {
 		let backend = self.backend();
 		(self.build_with_native_executor(None).0, backend)
 	}
@@ -262,21 +252,18 @@ impl<B> TestClientBuilderExt<B> for TestClientBuilder<
 /// Type of optional fetch callback.
 type MaybeFetcherCallback<Req, Resp> = Option<Box<dyn Fn(Req) -> Result<Resp, sp_blockchain::Error> + Send + Sync>>;
 
-/// Type of fetcher future result.
-type FetcherFutureResult<Resp> = futures::future::Ready<Result<Resp, sp_blockchain::Error>>;
-
 /// Implementation of light client fetcher used in tests.
 #[derive(Default)]
 pub struct LightFetcher {
-	call: MaybeFetcherCallback<RemoteCallRequest<substrate_test_runtime::Header>, Vec<u8>>,
-	body: MaybeFetcherCallback<RemoteBodyRequest<substrate_test_runtime::Header>, Vec<substrate_test_runtime::Extrinsic>>,
+	call: MaybeFetcherCallback<RemoteCallRequest<polkadot_test_runtime::Header>, Vec<u8>>,
+	body: MaybeFetcherCallback<RemoteBodyRequest<polkadot_test_runtime::Header>, Vec<substrate_test_runtime::Extrinsic>>,
 }
 
 impl LightFetcher {
 	/// Sets remote call callback.
 	pub fn with_remote_call(
 		self,
-		call: MaybeFetcherCallback<RemoteCallRequest<substrate_test_runtime::Header>, Vec<u8>>,
+		call: MaybeFetcherCallback<RemoteCallRequest<polkadot_test_runtime::Header>, Vec<u8>>,
 	) -> Self {
 		LightFetcher {
 			call,
@@ -287,49 +274,11 @@ impl LightFetcher {
 	/// Sets remote body callback.
 	pub fn with_remote_body(
 		self,
-		body: MaybeFetcherCallback<RemoteBodyRequest<substrate_test_runtime::Header>, Vec<substrate_test_runtime::Extrinsic>>,
+		body: MaybeFetcherCallback<RemoteBodyRequest<polkadot_test_runtime::Header>, Vec<substrate_test_runtime::Extrinsic>>,
 	) -> Self {
 		LightFetcher {
 			call: self.call,
 			body,
-		}
-	}
-}
-
-impl Fetcher<substrate_test_runtime::Block> for LightFetcher {
-	type RemoteHeaderResult = FetcherFutureResult<substrate_test_runtime::Header>;
-	type RemoteReadResult = FetcherFutureResult<HashMap<Vec<u8>, Option<Vec<u8>>>>;
-	type RemoteCallResult = FetcherFutureResult<Vec<u8>>;
-	type RemoteChangesResult = FetcherFutureResult<Vec<(NumberFor<substrate_test_runtime::Block>, u32)>>;
-	type RemoteBodyResult = FetcherFutureResult<Vec<substrate_test_runtime::Extrinsic>>;
-
-	fn remote_header(&self, _: RemoteHeaderRequest<substrate_test_runtime::Header>) -> Self::RemoteHeaderResult {
-		unimplemented!()
-	}
-
-	fn remote_read(&self, _: RemoteReadRequest<substrate_test_runtime::Header>) -> Self::RemoteReadResult {
-		unimplemented!()
-	}
-
-	fn remote_read_child(&self, _: RemoteReadChildRequest<substrate_test_runtime::Header>) -> Self::RemoteReadResult {
-		unimplemented!()
-	}
-
-	fn remote_call(&self, req: RemoteCallRequest<substrate_test_runtime::Header>) -> Self::RemoteCallResult {
-		match self.call {
-			Some(ref call) => futures::future::ready(call(req)),
-			None => unimplemented!(),
-		}
-	}
-
-	fn remote_changes(&self, _: RemoteChangesRequest<substrate_test_runtime::Header>) -> Self::RemoteChangesResult {
-		unimplemented!()
-	}
-
-	fn remote_body(&self, req: RemoteBodyRequest<substrate_test_runtime::Header>) -> Self::RemoteBodyResult {
-		match self.body {
-			Some(ref body) => futures::future::ready(body(req)),
-			None => unimplemented!(),
 		}
 	}
 }
@@ -341,7 +290,7 @@ pub fn new() -> Client<Backend> {
 
 /// Creates new light client instance used for tests.
 pub fn new_light() -> (
-	sc_client::Client<LightBackend, LightExecutor, substrate_test_runtime::Block, substrate_test_runtime::RuntimeApi>,
+	sc_client::Client<LightBackend, LightExecutor, polkadot_test_runtime::Block, polkadot_test_runtime::RuntimeApi>,
 	Arc<LightBackend>,
 ) {
 

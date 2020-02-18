@@ -9,6 +9,7 @@ license = "GPL-3.0"
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+polkadot-test-runtime = { path = ".." }
 substrate-test-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

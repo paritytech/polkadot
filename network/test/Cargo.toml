@@ -23,7 +23,6 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 env_logger = "0.7.0"
-substrate-test-runtime-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-test-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+polkadot-test-runtime-client = { path = "../../runtime/test-runtime/client" }
 tempfile = "3.1.0"
 tokio = "0.1.22"
