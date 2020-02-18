@@ -512,9 +512,8 @@ fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRo
 /// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
 /// This function blocks until done.
-/*
-pub fn run_collator<P>(
-	build_parachain_context: P,
+pub fn run_collator<P, B>(
+	build_parachain: B,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	config: Configuration,
@@ -522,6 +521,7 @@ pub fn run_collator<P>(
 	P: BuildParachainContext,
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
+	B: FnOnce() -> P,
 {
 	match (config.expect_chain_spec().is_kusama(), config.roles) {
 		(true, Roles::LIGHT) =>
@@ -530,7 +530,7 @@ pub fn run_collator<P>(
 					service::kusama_new_light(config, Some((key.public(), para_id)))?,
 					para_id,
 					key,
-					build_parachain_context,
+					build_parachain,
 				)
 			}),
 		(true, _) =>
@@ -539,7 +539,7 @@ pub fn run_collator<P>(
 					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 					para_id,
 					key,
-					build_parachain_context,
+					build_parachain,
 				)
 			}),
 		(false, Roles::LIGHT) =>
@@ -548,7 +548,7 @@ pub fn run_collator<P>(
 					service::polkadot_new_light(config, Some((key.public(), para_id)))?,
 					para_id,
 					key,
-					build_parachain_context,
+					build_parachain,
 				)
 			}),
 		(false, _) =>
@@ -557,12 +557,11 @@ pub fn run_collator<P>(
 					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 					para_id,
 					key,
-					build_parachain_context,
+					build_parachain,
 				)
 			}),
 	}
 }
-*/
 
 #[cfg(test)]
 mod tests {
