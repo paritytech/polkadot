@@ -521,36 +521,30 @@ impl<T: Trait> Module<T> {
 		MODULE_ID.into_sub_account(index)
 	}
 
-	pub fn id_from_index(index: FundIndex) -> child::OwnedChildInfo {
+	pub fn id_from_index(index: FundIndex) -> child::ChildInfo {
 		let mut buf = Vec::new();
 		buf.extend_from_slice(b"crowdfund");
 		buf.extend_from_slice(&index.to_le_bytes()[..]);
-		let id = T::Hashing::hash(&buf[..]);
-		child::OwnedChildInfo::new_default(id.as_ref().to_vec())
-	}
-
-	/// Child trie unique id for a crowdfund is built from the hash part of the fund id.
-	pub fn trie_unique_id(fund_id: &[u8]) -> child::ChildInfo {
-		child::ChildInfo::default_unchecked(&fund_id[..])
+		child::ChildInfo::new_default(T::Hashing::hash(&buf[..]).as_ref())
 	}
 
 	pub fn contribution_put(index: FundIndex, who: &T::AccountId, balance: &BalanceOf<T>) {
-		who.using_encoded(|b| child::put(Self::id_from_index(index).as_ref(), b, balance));
+		who.using_encoded(|b| child::put(&Self::id_from_index(index), b, balance));
 	}
 
 	pub fn contribution_get(index: FundIndex, who: &T::AccountId) -> BalanceOf<T> {
 		who.using_encoded(|b| child::get_or_default::<BalanceOf<T>>(
-			Self::id_from_index(index).as_ref(),
+			&Self::id_from_index(index),
 			b,
 		))
 	}
 
 	pub fn contribution_kill(index: FundIndex, who: &T::AccountId) {
-		who.using_encoded(|b| child::kill(Self::id_from_index(index).as_ref(), b));
+		who.using_encoded(|b| child::kill(&Self::id_from_index(index), b));
 	}
 
 	pub fn crowdfund_kill(index: FundIndex) {
-		child::kill_storage(Self::id_from_index(index).as_ref());
+		child::kill_storage(&Self::id_from_index(index));
 	}
 }
 
