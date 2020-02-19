@@ -59,8 +59,7 @@ pub use self::shared_table::{
 #[cfg(not(target_os = "unknown"))]
 pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
-// mod dynamic_inclusion;
-// mod evaluation;
+mod dynamic_inclusion;
 mod error;
 mod pipeline;
 mod shared_table;

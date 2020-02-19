@@ -339,16 +339,6 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 				.join(", ")
 		);
 
-		// TODO: full re-evaluation (https://github.com/paritytech/polkadot/issues/216)
-		let active_parachains = runtime_api.active_parachains(&self.parent_id)?;
-		assert!(crate::evaluation::evaluate_initial(
-			&new_block,
-			self.believed_minimum_timestamp,
-			&self.parent_hash,
-			self.parent_number,
-			&active_parachains[..],
-		).is_ok());
-
 		Ok(Proposal { block: new_block, storage_changes, proof })
 	}
 }
