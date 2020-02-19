@@ -24,7 +24,7 @@ use std::sync::Arc;
 use polkadot_primitives::{
 	BlakeTwo256, Block, Hash, HashT,
 	parachain::{
-		CollatorId, ParachainHost, Id as ParaId, Collation, ErasureChunk,
+		CollatorId, ParachainHost, Id as ParaId, Collation, ErasureChunk, CollationInfo,
 	},
 };
 use polkadot_erasure_coding as erasure;
@@ -65,7 +65,7 @@ pub async fn collation_fetch<C: Collators, P>(
 	client: Arc<P>,
 	max_block_data_size: Option<u64>,
 	n_validators: usize,
-) -> Result<crate::pipeline::FullOutput, C::Error>
+) -> Result<(CollationInfo, crate::pipeline::FullOutput), C::Error>
 	where
 		P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 		C: Collators + Unpin,
@@ -86,7 +86,7 @@ pub async fn collation_fetch<C: Collators, P>(
 
 		match res {
 			Ok(full_output) => {
-				return Ok(full_output)
+				return Ok((info, full_output))
 			}
 			Err(e) => {
 				debug!("Failed to validate parachain due to API error: {}", e);

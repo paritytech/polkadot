@@ -479,6 +479,28 @@ impl CollationInfo {
 			&self.signature,
 		)
 	}
+
+	/// Turn this into an `AbridgedCandidateReceipt` by supplying a set of commitments.
+	pub fn into_receipt(self, commitments: CandidateCommitments) -> AbridgedCandidateReceipt {
+		let CollationInfo {
+			parachain_index,
+			relay_parent,
+			collator,
+			signature,
+			head_data,
+			pov_block_hash,
+		} = self;
+
+		AbridgedCandidateReceipt {
+			parachain_index,
+			relay_parent,
+			collator,
+			signature,
+			head_data,
+			pov_block_hash,
+			commitments,
+		}
+	}
 }
 
 /// A full collation.

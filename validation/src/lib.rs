@@ -38,23 +38,21 @@ use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, AbridgedCandidateReceipt,
 	Statement as PrimitiveStatement,
-	Collation, PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
+	PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
 	ValidatorPair, ValidatorId,
 };
 use primitives::Pair;
 
 use futures::prelude::*;
 
-// pub use self::block_production::ProposerFactory;
-// pub use self::collation::{
-// 	validate_collation, message_queue_root, egress_roots, Collators,
-// };
+pub use self::block_production::ProposerFactory;
+pub use self::collation::{Collators};
 pub use self::error::Error;
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
 };
-// pub use self::validation_service::{ServiceHandle, ServiceBuilder};
+pub use self::validation_service::{ServiceHandle, ServiceBuilder};
 
 #[cfg(not(target_os = "unknown"))]
 pub use parachain::wasm_executor::{run_worker as run_validation_worker};
@@ -63,10 +61,10 @@ mod dynamic_inclusion;
 mod error;
 mod shared_table;
 
-// pub mod block_production;
+pub mod block_production;
 pub mod collation;
 pub mod pipeline;
-// pub mod validation_service;
+pub mod validation_service;
 
 /// A handle to a statement table router.
 ///
@@ -81,12 +79,11 @@ pub trait TableRouter: Clone {
 	/// Future that resolves when candidate data is fetched.
 	type FetchValidationProof: Future<Output=Result<PoVBlock, Self::Error>>;
 
-	/// Call with local candidate data. This will make the data available on the network,
-	/// and sign, import, and broadcast a statement about the candidate.
+	/// Call with local candidate data. This will sign, import, and broadcast a statement about the candidate.
 	fn local_collation(
 		&self,
-		collation: Collation,
 		receipt: AbridgedCandidateReceipt,
+		pov_block: PoVBlock,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
 	) -> Self::SendLocalCollation;
 

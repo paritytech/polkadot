@@ -79,7 +79,7 @@ pub enum Error {
 	#[display(fmt = "IO error: {}", _0)]
 	Io(std::io::Error),
 	#[display(fmt = "System error: {}", _0)]
-	System(Box<dyn std::error::Error>),
+	System(Box<dyn std::error::Error + Send>),
 	#[display(fmt = "WASM worker error: {}", _0)]
 	External(String),
 	#[display(fmt = "Shared memory error: {}", _0)]
