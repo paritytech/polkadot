@@ -29,7 +29,7 @@ use polkadot_primitives::parachain::{
 use polkadot_primitives::{Block, BlockId, Balance, Hash};
 use parachain::{
 	wasm_executor::{self, ExecutionMode},
-	TargetedMessage, UpwardMessage, ValidationParams,
+	UpwardMessage, ValidationParams,
 };
 use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 use sp_api::ProvideRuntimeApi;
@@ -73,10 +73,6 @@ struct ExternalitiesInner {
 }
 
 impl wasm_executor::Externalities for ExternalitiesInner {
-	fn post_message(&mut self, _message: TargetedMessage) -> Result<(), String> {
-		Ok(())
-	}
-
 	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
 		self.apply_message_fee(message.data.len())?;
 
@@ -125,10 +121,6 @@ impl Externalities {
 }
 
 impl wasm_executor::Externalities for Externalities {
-	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String> {
-		self.0.lock().post_message(message)
-	}
-
 	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
 		self.0.lock().post_upward_message(message)
 	}

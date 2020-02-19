@@ -46,7 +46,7 @@ use primitives::Pair;
 use futures::prelude::*;
 
 pub use self::block_production::ProposerFactory;
-pub use self::collation::{Collators};
+pub use self::collation::Collators;
 pub use self::error::Error;
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
