@@ -22,7 +22,7 @@
 use polkadot_primitives::{Block, Hash};
 
 pub mod legacy;
-pub mod protocol;
+//pub mod protocol;
 
 sc_network::construct_simple_protocol! {
 	/// Stub until https://github.com/paritytech/substrate/pull/4665 is merged

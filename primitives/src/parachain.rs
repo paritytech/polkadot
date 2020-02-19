@@ -451,7 +451,7 @@ impl Ord for AbridgedCandidateReceipt {
 
 /// A collation sent by a collator.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct CollationInfo {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
