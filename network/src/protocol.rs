@@ -686,7 +686,7 @@ async fn statement_import_loop<Api>(
 	table: Arc<SharedTable>,
 	api: Arc<Api>,
 	weak_router: Weak<RouterInner>,
-	validator: RegisteredMessageValidator,
+	gossip_handle: RegisteredMessageValidator,
 	mut exit: exit_future::Exit,
 	executor: impl Spawn,
 ) where
@@ -694,7 +694,7 @@ async fn statement_import_loop<Api>(
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	let topic = crate::legacy::router::attestation_topic(relay_parent);
-	let mut checked_messages = validator.gossip_messages_for(topic)
+	let mut checked_messages = gossip_handle.gossip_messages_for(topic)
 		.filter_map(|msg| match msg.0 {
 			crate::legacy::gossip::GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
 			_ => future::ready(None),
@@ -758,7 +758,29 @@ async fn statement_import_loop<Api>(
 				if let Some(producer) = producer {
 					trace!(target: "validation", "driving statement work to completion");
 
-					let work = producer.prime(api.clone()).validate();
+					let table = table.clone();
+					let gossip_handle = gossip_handle.clone();
+
+					let work = producer.prime(api.clone()).validate().map(move |res| {
+						let validated = match res {
+							Err(e) => {
+								debug!(target: "p_net", "Failed to act on statement: {}", e);
+								return
+							}
+							Ok(v) => v,
+						};
+
+						// propagate the statement.
+						let statement = crate::legacy::gossip::GossipStatement::new(
+							relay_parent,
+							match table.import_validated(validated) {
+								Some(s) => s,
+								None => return,
+							}
+						);
+
+						gossip_handle.gossip_message(topic, statement.into());
+					});
 
 					let work = future::select(work.boxed(), exit.clone()).map(drop);
 					let _ = executor.spawn(work);
