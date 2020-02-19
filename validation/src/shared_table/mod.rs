@@ -592,8 +592,9 @@ impl SharedTable {
 mod tests {
 	use super::*;
 	use sp_keyring::Sr25519Keyring;
-	use primitives::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::{BlockData, Collation, HeadData};
+	use polkadot_primitives::parachain::{
+		BlockData, ErasureChunk, AvailableData,
+	};
 	use polkadot_erasure_coding::{self as erasure};
 	use availability_store::ProvideGossipMessages;
 	use futures::future;
@@ -635,8 +636,8 @@ mod tests {
 
 		fn local_collation(
 			&self,
-			_collation: Collation,
 			_candidate: AbridgedCandidateReceipt,
+			_pov_block: PoVBlock,
 			_chunks: (ValidatorIndex, &[ErasureChunk])
 		) -> Self::SendLocalCollation { future::ready(Ok(())) }
 
@@ -674,17 +675,9 @@ mod tests {
 			None,
 		);
 
-		let candidate = AbridgedCandidateReceipt {
-			parachain_index: para_id,
-			collator: [1; 32].unchecked_into(),
-			signature: Default::default(),
-			head_data: HeadData(vec![1, 2, 3, 4]),
-			parent_head: HeadData(vec![]),
-			fees: 1_000_000,
-			block_data_hash: [2; 32].into(),
-			upward_messages: Vec::new(),
-			erasure_root: [1u8; 32].into(),
-		};
+		let mut candidate = AbridgedCandidateReceipt::default();
+		candidate.parachain_index = para_id;
+		candidate.relay_parent = parent_hash;
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
@@ -730,17 +723,9 @@ mod tests {
 			None,
 		);
 
-		let candidate = AbridgedCandidateReceipt {
-			parachain_index: para_id,
-			collator: [1; 32].unchecked_into(),
-			signature: Default::default(),
-			head_data: HeadData(vec![1, 2, 3, 4]),
-			parent_head: HeadData(vec![]),
-			fees: 1_000_000,
-			block_data_hash: [2; 32].into(),
-			upward_messages: Vec::new(),
-			erasure_root: [1u8; 32].into(),
-		};
+		let mut candidate = AbridgedCandidateReceipt::default();
+		candidate.parachain_index = para_id;
+		candidate.relay_parent = parent_hash;
 
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
@@ -763,25 +748,18 @@ mod tests {
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
-		let block_data_hash = [2; 32].into();
+		let pov_block_hash = pov_block.hash();
 		let local_index = 0;
 		let n_validators = 2;
 
-		let candidate = AbridgedCandidateReceipt {
-			parachain_index: para_id,
-			collator: [1; 32].unchecked_into(),
-			signature: Default::default(),
-			head_data: HeadData(vec![1, 2, 3, 4]),
-			parent_head: HeadData(vec![]),
-			fees: 1_000_000,
-			block_data_hash,
-			upward_messages: Vec::new(),
-			erasure_root: [1u8; 32].into(),
-		};
+		let mut candidate = AbridgedCandidateReceipt::default();
+		candidate.parachain_index = para_id;
+		candidate.relay_parent = relay_parent;
+		candidate.pov_block_hash = pov_block_hash;
 
-		let hash = candidate.hash();
+		let candidate_hash = candidate.hash();
 
-		store.add_validator_index_and_n_validators(
+		store.note_validator_index_and_n_validators(
 			&relay_parent,
 			local_index as u32,
 			n_validators as u32,
@@ -792,25 +770,37 @@ mod tests {
 				candidate_receipt: candidate,
 				fetch: future::ok(pov_block.clone()),
 			},
-			local_index,
 			relay_parent,
 			availability_store: store.clone(),
 			max_block_data_size: None,
+			n_validators,
 		};
 
-		let validated = block_on(producer.prime_with(|_, _, _| Ok(
-			ErasureChunk {
-				chunk: vec![1, 2, 3],
-				index: local_index as u32,
-				proof: vec![],
+		for i in 0..n_validators {
+			assert!(store.get_erasure_chunk(&candidate_hash, i).is_none());
+		}
+
+		let validated = block_on(producer.prime_with(|_, _| Ok(
+			FullOutput {
+				available_data: AvailableData {
+					pov_block: pov_block.clone(),
+					omitted_validation: Default::default(),
+				},
+				erasure_chunks: (0..n_validators).map(|i| ErasureChunk {
+					chunk: vec![1, 2, 3],
+					index: i as u32,
+					proof: vec![],
+				}).collect(),
+				commitments: Default::default(),
 			}
 		)).validate()).unwrap();
 
-		assert_eq!(validated.0.pov_block(), &pov_block);
-		assert_eq!(validated.0.statement, GenericStatement::Valid(hash));
+		assert_eq!(validated.pov_block(), &pov_block);
+		assert_eq!(validated.statement, GenericStatement::Valid(candidate_hash));
 
-		assert!(store.get_erasure_chunk(&relay_parent, block_data_hash, local_index).is_some());
-		assert!(store.get_erasure_chunk(&relay_parent, block_data_hash, local_index + 1).is_none());
+		for i in 0..n_validators {
+			assert!(store.get_erasure_chunk(&candidate_hash, i).is_some());
+		}
 	}
 
 	#[test]
@@ -819,25 +809,25 @@ mod tests {
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
-		let block_data_hash = pov_block.block_data.hash();
+		let pov_block_hash = pov_block.hash();
 		let local_index = 0;
 		let n_validators = 2;
 
-		let candidate = AbridgedCandidateReceipt {
-			parachain_index: para_id,
-			collator: [1; 32].unchecked_into(),
-			signature: Default::default(),
-			head_data: HeadData(vec![1, 2, 3, 4]),
-			parent_head: HeadData(vec![]),
-			fees: 1_000_000,
-			block_data_hash: [2; 32].into(),
-			upward_messages: Vec::new(),
-			erasure_root: [1u8; 32].into(),
+		let mut candidate = AbridgedCandidateReceipt::default();
+		candidate.parachain_index = para_id;
+		candidate.pov_block_hash = pov_block_hash;
+		candidate.relay_parent = relay_parent;
+
+		let candidate_hash = candidate.hash();
+
+		let available_data = AvailableData {
+			pov_block: pov_block.clone(),
+			omitted_validation: Default::default(),
 		};
 
-		let chunks = erasure::obtain_chunks(n_validators, &pov_block.block_data).unwrap();
+		let chunks = erasure::obtain_chunks(n_validators, &available_data).unwrap();
 
-		store.add_validator_index_and_n_validators(
+		store.note_validator_index_and_n_validators(
 			&relay_parent,
 			local_index as u32,
 			n_validators as u32,
@@ -848,25 +838,30 @@ mod tests {
 				candidate_receipt: candidate,
 				fetch: future::ok::<_, ::std::io::Error>(pov_block.clone()),
 			},
-			local_index,
 			relay_parent,
 			availability_store: store.clone(),
 			max_block_data_size: None,
+			n_validators,
 		};
 
-		let validated = block_on(producer.prime_with(|_, _, _| Ok(
-				ErasureChunk {
-					chunk: chunks[local_index].clone(),
-					index: local_index as u32,
-					proof: vec![],
+		let validated = block_on(producer.prime_with(|_, _| Ok(
+			FullOutput {
+				available_data: AvailableData {
+					pov_block: pov_block.clone(),
+					omitted_validation: Default::default(),
 				},
-			)).validate()).unwrap();
+				erasure_chunks: (0..n_validators).map(|i| ErasureChunk {
+					chunk: chunks[i].clone(),
+					index: i as u32,
+					proof: vec![],
+				}).collect(),
+				commitments: Default::default(),
+			}
+		)).validate()).unwrap();
 
-		assert_eq!(validated.0.pov_block(), &pov_block);
+		assert_eq!(validated.pov_block(), &pov_block);
 
-		// This works since there are only two validators and one erasure chunk should be
-		// enough to reconstruct the block data.
-		assert_eq!(store.block_data(relay_parent, block_data_hash).unwrap(), pov_block.block_data);
+		assert_eq!(store.execution_data(&candidate_hash).unwrap().pov_block, pov_block);
 	}
 
 	#[test]
@@ -898,19 +893,11 @@ mod tests {
 			None,
 		);
 
-		let candidate = AbridgedCandidateReceipt {
-			parachain_index: para_id,
-			collator: [1; 32].unchecked_into(),
-			signature: Default::default(),
-			head_data: HeadData(vec![1, 2, 3, 4]),
-			parent_head: HeadData(vec![]),
-			fees: 1_000_000,
-			block_data_hash: [2; 32].into(),
-			upward_messages: Vec::new(),
-			erasure_root: [1u8; 32].into(),
-		};
+		let mut candidate = AbridgedCandidateReceipt::default();
+		candidate.parachain_index = para_id;
+		candidate.relay_parent = parent_hash;
 
-		let hash = candidate.hash();
+		let candidate_hash = candidate.hash();
 		let candidate_statement = GenericStatement::Candidate(candidate);
 
 		let signature = crate::sign_table_statement(&candidate_statement, &validity_other_key.into(), &parent_hash);
@@ -925,7 +912,8 @@ mod tests {
 			signed_statement.clone(),
 		).expect("should produce work");
 
-		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_in_progress());
+		assert!(shared_table.inner.lock().validated.get(&candidate_hash)
+			.expect("validation has started").is_in_progress());
 
 		let b = shared_table.import_remote_statement(
 			&DummyRouter,
@@ -964,25 +952,18 @@ mod tests {
 			None,
 		);
 
-		let candidate = AbridgedCandidateReceipt {
-			parachain_index: para_id,
-			collator: [1; 32].unchecked_into(),
-			signature: Default::default(),
-			head_data: HeadData(vec![1, 2, 3, 4]),
-			parent_head: HeadData(vec![]),
-			fees: 1_000_000,
-			block_data_hash: [2; 32].into(),
-			upward_messages: Vec::new(),
-			erasure_root: [1u8; 32].into(),
-		};
+		let mut candidate = AbridgedCandidateReceipt::default();
+		candidate.parachain_index = para_id;
+		candidate.relay_parent = parent_hash;
 
-		let hash = candidate.hash();
+		let candidate_hash = candidate.hash();
 		let signed_statement = shared_table.import_validated(Validated::collated_local(
 			candidate,
 			pov_block,
 		)).unwrap();
 
-		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_done());
+		assert!(shared_table.inner.lock().validated.get(&candidate_hash)
+			.expect("validation has started").is_done());
 
 		let a = shared_table.import_remote_statement(
 			&DummyRouter,

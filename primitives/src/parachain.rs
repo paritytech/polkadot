@@ -521,6 +521,15 @@ pub struct PoVBlock {
 	pub block_data: BlockData,
 }
 
+impl PoVBlock {
+	/// Compute hash of block data.
+	#[cfg(feature = "std")]
+	pub fn hash(&self) -> Hash {
+		use runtime_primitives::traits::{BlakeTwo256, Hash};
+		BlakeTwo256::hash_of(&self)
+	}
+}
+
 /// The data which is kept available about a particular parachain block.
 #[derive(PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
