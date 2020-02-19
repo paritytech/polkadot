@@ -19,7 +19,7 @@
 use rstd::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error};
-use frame_support::{dispatch::DispatchResult, weights::SimpleDispatchInfo};
+use frame_support::weights::SimpleDispatchInfo;
 use frame_support::traits::{Currency, Get, VestingSchedule};
 use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
@@ -161,10 +161,7 @@ decl_module! {
 			let balance_due = <Claims<T>>::get(&signer)
 				.ok_or(Error::<T>::SignerHasNoClaim)?;
 
-			<Total<T>>::mutate(|t| -> DispatchResult {
-				*t = t.checked_sub(&balance_due).ok_or(Error::<T>::PotUnderflow)?;
-				Ok(())
-			})?;
+			let new_total = Self::total().checked_sub(&balance_due).ok_or(Error::<T>::PotUnderflow)?;
 
 			// Check if this claim should have a vesting schedule.
 			if let Some(vs) = <Vesting<T>>::get(&signer) {
@@ -174,10 +171,8 @@ decl_module! {
 					.map_err(|_| Error::<T>::DestinationVesting)?;
 			}
 
-			// This must happen before the add_vesting_schedule otherwise the schedule will be
-			// nullified.
 			CurrencyOf::<T>::deposit_creating(&dest, balance_due);
-
+			<Total<T>>::put(new_total);
 			<Claims<T>>::remove(&signer);
 			<Vesting<T>>::remove(&signer);
 
@@ -488,6 +483,30 @@ mod tests {
 				Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())),
 				Error::<Test>::SignerHasNoClaim
 			);
+		});
+	}
+
+	#[test]
+	fn claiming_while_vested_doesnt_work() {
+		new_test_ext().execute_with(|| {
+			assert_eq!(Claims::total(), 100);
+			// A user is already vested
+			assert_ok!(<Test as Trait>::VestingSchedule::add_vesting_schedule(&69, 1000, 100, 10));
+			CurrencyOf::<Test>::make_free_balance_be(&69, 1000);
+			assert_eq!(Balances::free_balance(69), 1000);
+			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
+			// New total
+			assert_eq!(Claims::total(), 300);
+
+			// They should not be able to claim
+			assert_noop!(
+				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
+				Error::<Test>::DestinationVesting
+			);
+			// Everything should be unchanged
+			assert_eq!(Claims::total(), 300);
+			assert_eq!(Balances::free_balance(69), 1000);
+			assert_eq!(Vesting::vesting_balance(&69), 1000);
 		});
 	}
 
