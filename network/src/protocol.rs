@@ -28,11 +28,10 @@ use futures::prelude::*;
 use futures::task::{Spawn, SpawnExt};
 use log::{debug, trace};
 
-use av_store::Store as AvailabilityStore;
 use polkadot_primitives::{
 	Hash, Block,
 	parachain::{
-		PoVBlock, ValidatorId, ValidatorIndex, Collation, CandidateReceipt, OutgoingMessages,
+		PoVBlock, ValidatorId, ValidatorIndex, Collation, CandidateReceipt,
 		ErasureChunk, ParachainHost, Id as ParaId, CollatorId,
 	},
 };
@@ -106,7 +105,6 @@ pub struct Service {
 pub fn start<C, Api, SP>(
 	service: Arc<PolkadotNetworkService>,
 	config: Config,
-	availability_store: AvailabilityStore,
 	chain_context: C,
 	api: Arc<Api>,
 	executor: SP,
@@ -129,7 +127,6 @@ pub fn start<C, Api, SP>(
 	executor.spawn(worker_loop(
 		config,
 		service.clone(),
-		availability_store,
 		gossip_validator,
 		worker_sender.clone(),
 		api,
@@ -563,7 +560,6 @@ impl ProtocolHandler {
 async fn worker_loop<Api, Sp>(
 	config: Config,
 	service: Arc<PolkadotNetworkService>,
-	availability_store: AvailabilityStore,
 	gossip_handle: RegisteredMessageValidator,
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
 	api: Arc<Api>,
@@ -624,7 +620,6 @@ async fn worker_loop<Api, Sp>(
 				let new_leaf_actions = gossip_handle.new_local_leaf(
 					relay_parent,
 					crate::legacy::gossip::MessageValidationData { authorities },
-					|queue_root| availability_store.queue_by_root(queue_root),
 				);
 
 				new_leaf_actions.perform(&gossip_handle);
@@ -789,7 +784,6 @@ fn distribute_local_collation(
 	let validated = Validated::collated_local(
 		receipt,
 		collation.pov.clone(),
-		OutgoingMessages { outgoing_messages: Vec::new() },
 	);
 
 	let statement = crate::legacy::gossip::GossipStatement::new(
@@ -914,7 +908,6 @@ impl TableRouter for Router {
 		&self,
 		collation: Collation,
 		receipt: CandidateReceipt,
-		_outgoing: OutgoingMessages,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
 	) -> Self::SendLocalCollation {
 		let message = ServiceToWorkerMsg::LocalCollation(

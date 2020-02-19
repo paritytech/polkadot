@@ -23,9 +23,9 @@ use sc_network::PeerId;
 use polkadot_validation::{
 	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, SignedStatement,
 };
-use polkadot_primitives::{Block, BlockId, Hash};
+use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Collation, OutgoingMessages, ParachainHost, CandidateReceipt, CollatorId,
+	Id as ParaId, Collation, ParachainHost, CandidateReceipt, CollatorId,
 	ValidatorId, PoVBlock,
 };
 use sp_api::ProvideRuntimeApi;
@@ -48,8 +48,6 @@ use crate::legacy::router::Router;
 use crate::legacy::gossip::{RegisteredMessageValidator, MessageValidationData};
 
 use super::{NetworkService, PolkadotProtocol};
-
-pub use polkadot_validation::Incoming;
 
 /// Params to instantiate validation work on a block-DAG leaf.
 pub struct LeafWorkParams {
@@ -123,8 +121,6 @@ impl<P, T> ValidationNetwork<P, T> where
 			let actions = network.new_local_leaf(
 				parent_hash,
 				MessageValidationData { authorities },
-				|queue_root| spec.availability_store.as_ref()
-					.and_then(|store| store.queue_by_root(queue_root))
 			);
 
 			actions.perform(&network);
@@ -264,7 +260,6 @@ struct KnowledgeEntry {
 	knows_block_data: Vec<ValidatorId>,
 	knows_outgoing: Vec<ValidatorId>,
 	pov: Option<PoVBlock>,
-	outgoing_messages: Option<OutgoingMessages>,
 }
 
 /// Tracks knowledge of peers.
@@ -308,11 +303,9 @@ impl Knowledge {
 		&mut self,
 		hash: Hash,
 		pov: Option<PoVBlock>,
-		outgoing_messages: Option<OutgoingMessages>,
 	) {
 		let entry = self.candidates.entry(hash).or_insert_with(Default::default);
 		entry.pov = entry.pov.take().or(pov);
-		entry.outgoing_messages = entry.outgoing_messages.take().or(outgoing_messages);
 	}
 }
 
@@ -567,32 +560,15 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> LeafWorkDataFetcher<P, T> where
 	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt)
 		-> Pin<Box<dyn Future<Output = Result<PoVBlock, io::Error>> + Send>> {
 
-		let parachain = candidate.parachain_index;
 		let parent_hash = self.parent_hash;
 		let network = self.network.clone();
 		let candidate = candidate.clone();
 		let (tx, rx) = oneshot::channel();
 
-		let canon_roots = self.api.runtime_api().ingress(
-			&BlockId::hash(parent_hash),
-			parachain,
-			None,
-		)
-			.map_err(|e|
-				format!(
-					"Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
-					parachain,
-					parent_hash,
-					e,
-				)
-			);
-
 		async move {
 			network.with_spec(move |spec, ctx| {
-				if let Ok(Some(canon_roots)) = canon_roots {
-					let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash, canon_roots);
-					let _ = tx.send(inner_rx);
-				}
+				let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash);
+				let _ = tx.send(inner_rx);
 			});
 
 			let map_err = |_| io::Error::new(

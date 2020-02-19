@@ -30,7 +30,6 @@ fn terminates_on_timeout() {
 		ValidationParams {
 			parent_head: Default::default(),
 			block_data: Vec::new(),
-			ingress: Vec::new(),
 		},
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
@@ -53,7 +52,6 @@ fn parallel_execution() {
 		ValidationParams {
 			parent_head: Default::default(),
 			block_data: Vec::new(),
-			ingress: Vec::new(),
 		},
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
@@ -63,7 +61,6 @@ fn parallel_execution() {
 		ValidationParams {
 			parent_head: Default::default(),
 			block_data: Vec::new(),
-			ingress: Vec::new(),
 		},
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,

@@ -65,6 +65,7 @@ impl CollationSlot {
 	}
 }
 
+#[derive(Debug)]
 enum SlotEntries {
 	Blank,
 	// not queried yet
@@ -75,7 +76,7 @@ enum SlotEntries {
 
 impl SlotEntries {
 	fn received_collation(&mut self, collation: Collation) {
-		*self = match ::std::mem::replace(self, SlotEntries::Blank) {
+		*self = match std::mem::replace(self, SlotEntries::Blank) {
 			SlotEntries::Blank => SlotEntries::Pending(vec![collation]),
 			SlotEntries::Pending(mut cs) => {
 				cs.push(collation);
@@ -185,6 +186,12 @@ impl CollatorPool {
 	/// The collator should be registered for the parachain of the collation as a precondition of this function.
 	/// The collation should have been checked for integrity of signature before passing to this function.
 	pub fn on_collation(&mut self, collator_id: CollatorId, relay_parent: Hash, collation: Collation) {
+		log::debug!(
+			target: "collator-pool", "On collation from collator {} for relay parent {}",
+			collator_id,
+			relay_parent,
+		);
+
 		if let Some((para_id, _)) = self.collators.get(&collator_id) {
 			debug_assert_eq!(para_id, &collation.info.parachain_index);
 
@@ -229,15 +236,12 @@ impl CollatorPool {
 mod tests {
 	use super::*;
 	use sp_core::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::{
-		CandidateReceipt, BlockData, PoVBlock, HeadData, ConsolidatedIngress,
-	};
+	use polkadot_primitives::parachain::{CandidateReceipt, BlockData, PoVBlock, HeadData};
 	use futures::executor::block_on;
 
 	fn make_pov(block_data: Vec<u8>) -> PoVBlock {
 		PoVBlock {
 			block_data: BlockData(block_data),
-			ingress: ConsolidatedIngress(Vec::new()),
 		}
 	}
 
@@ -287,7 +291,6 @@ mod tests {
 				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
 				parent_head: HeadData(vec![]),
-				egress_queue_roots: vec![],
 				fees: 0,
 				block_data_hash: [3; 32].into(),
 				upward_messages: Vec::new(),
@@ -317,7 +320,6 @@ mod tests {
 				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
 				parent_head: HeadData(vec![]),
-				egress_queue_roots: vec![],
 				fees: 0,
 				block_data_hash: [3; 32].into(),
 				upward_messages: Vec::new(),

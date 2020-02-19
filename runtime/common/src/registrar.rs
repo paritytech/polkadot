@@ -89,8 +89,7 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		code: Vec<u8>,
 		initial_head_data: Vec<u8>,
 	) -> DispatchResult {
-		ensure!(!Paras::exists(id), Error::<T>::ParaAlreadyExists);
-
+		ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
 		if let Scheduling::Always = info.scheduling {
 			Parachains::mutate(|parachains|
 				match parachains.binary_search(&id) {
@@ -198,8 +197,6 @@ decl_storage! {
 
 #[cfg(feature = "std")]
 fn build<T: Trait>(config: &GenesisConfig<T>) {
-	use sp_runtime::traits::Zero;
-
 	let mut p = config.parachains.clone();
 	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
 	p.dedup_by_key(|&mut (ref id, _, _)| *id);
@@ -213,7 +210,6 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 		// no ingress -- a chain cannot be routed to until it is live.
 		<parachains::Code>::insert(&id, &code);
 		<parachains::Heads>::insert(&id, &genesis);
-		<parachains::Watermarks<T>>::insert(&id, T::BlockNumber::zero());
 		// Save initial parachains in registrar
 		Paras::insert(id, ParaInfo { scheduling: Scheduling::Always })
 	}
@@ -706,22 +702,21 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
+		type AccountData = balances::AccountData<u128>;
+		type OnNewAccount = ();
+		type OnReapAccount = Balances;
 	}
 
 	parameter_types! {
-		pub const ExistentialDeposit: Balance = 0;
-		pub const CreationFee: Balance = 0;
+		pub const ExistentialDeposit: Balance = 1;
 	}
 
 	impl balances::Trait for Test {
-		type OnNewAccount = ();
-		type OnReapAccount = System;
-		type Balance = Balance;
-		type Event = ();
+		type Balance = u128;
 		type DustRemoval = ();
+		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferPayment = ();
-		type CreationFee = CreationFee;
+		type AccountStore = System;
 	}
 
 	parameter_types!{
@@ -907,7 +902,6 @@ mod tests {
 			signature: block_data_hash.using_encoded(|d| collator.sign(d)),
 			head_data: HeadData(head_data.to_vec()),
 			parent_head: HeadData(parent_head.to_vec()),
-			egress_queue_roots: vec![],
 			fees: 0,
 			block_data_hash,
 			upward_messages: vec![],
