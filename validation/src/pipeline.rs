@@ -19,26 +19,34 @@
 
 use std::sync::Arc;
 
+use codec::Encode;
 use polkadot_erasure_coding as erasure;
 use polkadot_primitives::parachain::{
 	CollationInfo, PoVBlock, LocalValidationData, GlobalValidationSchedule, OmittedValidationData,
-	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, HeadData,
+	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, HeadData, ParachainHost,
+	Id as ParaId, AbridgedCandidateReceipt,
 };
-use polkadot_primitives::Balance;
+use polkadot_primitives::{Block, BlockId, Balance, Hash};
 use parachain::{
 	wasm_executor::{self, ExecutionMode},
 	TargetedMessage, UpwardMessage, ValidationParams,
 };
-use runtime_primitives::traits::{BlakeTwo256, Hash};
+use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
+use sp_api::ProvideRuntimeApi;
 use parking_lot::Mutex;
 use crate::Error;
 
 /// Does basic checks of a collation. Provide the encoded PoV-block.
 pub fn basic_checks(
 	collation: &CollationInfo,
+	expected_relay_parent: &Hash,
 	max_block_data_size: Option<u64>,
 	encoded_pov: &[u8],
 ) -> Result<(), Error> {
+	if &collation.relay_parent != expected_relay_parent {
+		return Err(Error::DisallowedRelayParent(collation.relay_parent));
+	}
+
 	if let Some(max_size) = max_block_data_size {
 		if encoded_pov.len() as u64 > max_size {
 			return Err(Error::BlockDataTooBig { size: encoded_pov.len() as _, max_size });
@@ -139,8 +147,20 @@ pub struct FullOutput {
 	pub erasure_chunks: Vec<ErasureChunk>,
 }
 
+impl FullOutput {
+	/// Check consistency of the outputs produced by the validation pipeline against
+	/// data contained within a candidate receipt.
+	pub fn check_consistency(&self, receipt: &AbridgedCandidateReceipt) -> Result<(), Error> {
+		if self.commitments == receipt.commitments {
+			Err(Error::CommitmentsMismatch)
+		} else {
+			Ok(())
+		}
+	}
+}
+
 /// The successful result of validating a collation. If the full commitments of the
-/// validation are needed, call `full_commit`. Otherwise, safely drop this value.
+/// validation are needed, call `full_output`. Otherwise, safely drop this value.
 pub struct ValidatedCandidate<'a> {
 	pov_block: &'a PoVBlock,
 	global_validation: &'a GlobalValidationSchedule,
@@ -264,6 +284,62 @@ pub fn validate<'a>(
 		}
 		Err(e) => Err(e.into()),
 	}
+}
+
+/// Extracts validation parameters from a Polkadot runtime API for a specific parachain.
+pub fn validation_params<P>(api: &P, relay_parent: Hash, para_id: ParaId)
+	-> Result<(LocalValidationData, GlobalValidationSchedule, Vec<u8>), Error>
+where
+	P: ProvideRuntimeApi<Block>,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
+{
+	let api = api.runtime_api();
+	let relay_parent = BlockId::hash(relay_parent);
+
+	// fetch all necessary data from runtime.
+	let local_validation = api.local_validation_data(&relay_parent, para_id)?
+		.ok_or_else(|| Error::InactiveParachain(para_id))?;
+
+	let global_validation = api.global_validation_schedule(&relay_parent)?;
+	let validation_code = api.parachain_code(&relay_parent, para_id)?
+		.ok_or_else(|| Error::InactiveParachain(para_id))?;
+
+	Ok((local_validation, global_validation, validation_code))
+}
+
+/// Does full-pipeline validation of a collation with provided contextual parameters.
+pub fn full_output_validation_with_api<P>(
+	api: &P,
+	collation: &CollationInfo,
+	pov_block: &PoVBlock,
+	expected_relay_parent: &Hash,
+	max_block_data_size: Option<u64>,
+	n_validators: usize,
+) -> Result<FullOutput, Error> where
+	P: ProvideRuntimeApi<Block>,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
+{
+	let para_id = collation.parachain_index;
+	let (local_validation, global_validation, validation_code)
+		= validation_params(&*api, collation.relay_parent, para_id)?;
+
+	// put the parameters through the validation pipeline, producing
+	// erasure chunks.
+	let encoded_pov = pov_block.encode();
+	basic_checks(
+		&collation,
+		&expected_relay_parent,
+		max_block_data_size,
+		&encoded_pov,
+	)
+		.and_then(|()| validate(
+			&collation,
+			&pov_block,
+			&local_validation,
+			&global_validation,
+			&validation_code,
+		))
+		.and_then(|validated| validated.full_output(n_validators))
 }
 
 #[cfg(test)]

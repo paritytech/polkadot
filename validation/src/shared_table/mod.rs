@@ -21,9 +21,8 @@ use std::collections::hash_map::{HashMap, Entry};
 use std::sync::Arc;
 
 use availability_store::{Store as AvailabilityStore};
-use codec::Encode;
 use table::{self, Table, Context as TableContextTrait};
-use polkadot_primitives::{Block, BlockId, Hash};
+use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
 	Id as ParaId, AbridgedCandidateReceipt, ValidatorPair, ValidatorId,
 	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex,
@@ -277,38 +276,21 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 	{
 		let max_block_data_size = self.max_block_data_size;
 		let n_validators = self.n_validators;
+		let expected_relay_parent = self.relay_parent;
 
-		let validate = move |pov_block: &PoVBlock, receipt: &AbridgedCandidateReceipt| {
-			let relay_parent = BlockId::hash(receipt.relay_parent);
-			let api = api.runtime_api();
-			let para_id = receipt.parachain_index;
-
-			// fetch all necessary data from runtime.
-			let local_validation = api.local_validation_data(&relay_parent, para_id)?
-				.ok_or_else(|| Error::InactiveParachain(para_id))?;
-
-			let global_validation = api.global_validation_schedule(&relay_parent)?;
-			let validation_code = api.parachain_code(&relay_parent, para_id)?
-				.ok_or_else(|| Error::InactiveParachain(para_id))?;
-
-
-			// put the parameters through the validation pipeline, producing
-			// erasure chunks.
-			let collation_info = receipt.to_collation_info();
-			let encoded_pov = pov_block.encode();
-			crate::pipeline::basic_checks(
+		let validate = move |pov_block: &PoVBlock, candidate: &AbridgedCandidateReceipt| {
+			let collation_info = candidate.to_collation_info();
+			let full_output = crate::pipeline::full_output_validation_with_api(
+				&*api,
 				&collation_info,
+				pov_block,
+				&expected_relay_parent,
 				max_block_data_size,
-				&encoded_pov,
-			)
-				.and_then(|()| crate::pipeline::validate(
-					&collation_info,
-					&pov_block,
-					&local_validation,
-					&global_validation,
-					&validation_code,
-				))
-				.and_then(|validated| validated.full_output(n_validators))
+				n_validators,
+			)?;
+
+			full_output.check_consistency(candidate)?;
+			Ok(full_output)
 		};
 
 		PrimedParachainWork { inner: self, validate }
