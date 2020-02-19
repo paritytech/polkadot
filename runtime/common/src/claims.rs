@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
-use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
+use frame_support::{decl_event, decl_storage, decl_module, decl_error};
 use frame_support::{dispatch::DispatchResult, weights::SimpleDispatchInfo};
 use frame_support::traits::{Currency, Get, VestingSchedule};
 use system::{ensure_root, ensure_none};
@@ -161,30 +161,22 @@ decl_module! {
 			let balance_due = <Claims<T>>::get(&signer)
 				.ok_or(Error::<T>::SignerHasNoClaim)?;
 
-			let maybe_vested = <Vesting<T>>::get(&signer);
-
-			// If this fails, destination account already has a vesting schedule
-			// applied to it, and this claim should not be processed.
-			ensure!(
-				maybe_vested.is_none() || T::VestingSchedule::vesting_balance(&dest).is_zero(),
-				Error::<T>::DestinationVesting
-			);
-
 			<Total<T>>::mutate(|t| -> DispatchResult {
 				*t = t.checked_sub(&balance_due).ok_or(Error::<T>::PotUnderflow)?;
 				Ok(())
 			})?;
 
+			// Check if this claim should have a vesting schedule.
+			if let Some(vs) = <Vesting<T>>::get(&signer) {
+				// If this fails, destination account already has a vesting schedule
+				// applied to it, and this claim should not be processed.
+				T::VestingSchedule::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)
+					.map_err(|_| Error::<T>::DestinationVesting)?;
+			}
+
 			// This must happen before the add_vesting_schedule otherwise the schedule will be
 			// nullified.
 			CurrencyOf::<T>::deposit_creating(&dest, balance_due);
-
-			// Check if this claim should have a vesting schedule.
-			if let Some(vs) = maybe_vested {
-				// Should never fail since we ensured that the destination is not already vesting.
-				// However, we already deposited, so can't error out here anyway.
-				let _ = T::VestingSchedule::add_vesting_schedule(&dest, vs.0, vs.1, vs.2);
-			}
 
 			<Claims<T>>::remove(&signer);
 			<Vesting<T>>::remove(&signer);
@@ -335,6 +327,9 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
+		type AccountData = balances::AccountData<u64>;
+		type OnNewAccount = ();
+		type OnReapAccount = Balances;
 	}
 
 	parameter_types! {
@@ -344,13 +339,10 @@ mod tests {
 
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnReapAccount = System;
-		type OnNewAccount = ();
-		type TransferPayment = ();
-		type DustRemoval = ();
 		type Event = ();
+		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type CreationFee = CreationFee;
+		type AccountStore = System;
 	}
 
 	impl vesting::Trait for Test {
@@ -431,7 +423,7 @@ mod tests {
 	#[test]
 	fn claiming_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
 			assert_eq!(Balances::free_balance(&42), 100);
 			assert_eq!(Vesting::vesting_balance(&42), 50);
@@ -445,14 +437,14 @@ mod tests {
 				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, None),
 				sp_runtime::traits::BadOrigin,
 			);
-			assert_eq!(Balances::free_balance(&42), 0);
+			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
-			assert_eq!(Balances::free_balance(69), 200);
+			assert_eq!(Balances::free_balance(&69), 200);
 			assert_eq!(Vesting::vesting_balance(&69), 0);
 		});
 	}
@@ -471,7 +463,7 @@ mod tests {
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
-			assert_eq!(Balances::free_balance(69), 200);
+			assert_eq!(Balances::free_balance(&69), 200);
 			assert_eq!(Vesting::vesting_balance(&69), 50);
 		});
 	}

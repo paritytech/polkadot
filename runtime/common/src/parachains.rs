@@ -274,7 +274,7 @@ decl_module! {
 				Self::update_routing(
 					&heads,
 				);
-				
+
 				Self::dispatch_upward_messages(
 					MAX_QUEUE_COUNT,
 					WATERMARK_QUEUE_SIZE,
@@ -889,6 +889,9 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
+		type AccountData = balances::AccountData<u128>;
+		type OnNewAccount = ();
+		type OnReapAccount = ();
 	}
 
 	parameter_types! {
@@ -945,18 +948,14 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: Balance = 1;
-		pub const CreationFee: Balance = 0;
 	}
 
 	impl balances::Trait for Test {
-		type Balance = Balance;
-		type OnReapAccount = System;
-		type OnNewAccount = ();
-		type Event = ();
+		type Balance = u128;
 		type DustRemoval = ();
+		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferPayment = ();
-		type CreationFee = CreationFee;
+		type AccountStore = System;
 	}
 
 	pallet_staking_reward_curve::build! {
