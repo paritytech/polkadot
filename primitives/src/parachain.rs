@@ -433,6 +433,22 @@ impl AbridgedCandidateReceipt {
 	}
 }
 
+
+impl PartialOrd for AbridgedCandidateReceipt {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl Ord for AbridgedCandidateReceipt {
+	fn cmp(&self, other: &Self) -> Ordering {
+		// TODO: compare signatures or something more sane
+		// https://github.com/paritytech/polkadot/issues/222
+		self.parachain_index.cmp(&other.parachain_index)
+			.then_with(|| self.head_data.cmp(&other.head_data))
+	}
+}
+
 /// A collation sent by a collator.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
