@@ -42,7 +42,7 @@ use keystore::KeyStorePtr;
 
 use tokio::runtime::{Handle, Runtime as LocalRuntime};
 
-use crate::{LOG_TARGET, Data, ProvideGossipMessages, erasure_coding_topic};
+use crate::{LOG_TARGET, ProvideGossipMessages, erasure_coding_topic};
 use crate::store::Store;
 
 /// Errors that may occur.
@@ -126,8 +126,10 @@ pub(crate) struct CandidatesFinalized {
 /// The message that corresponds to `make_available` call of the crate API.
 #[derive(Debug)]
 pub(crate) struct MakeAvailable {
-	/// The data being made available.
-	pub data: Data,
+	/// The hash of the candidate for which we are publishing data.
+	pub candidate_hash: Hash,
+	/// The data to make available.
+	pub available_data: AvailableData,
 	/// A sender to signal the result asynchronously.
 	pub result: oneshot::Sender<Result<(), Error>>,
 }
@@ -550,8 +552,9 @@ where
 							)
 						}
 						WorkerMsg::MakeAvailable(msg) => {
-							let MakeAvailable { data, result } = msg;
-							let res = worker.availability_store.make_available(data)
+							let MakeAvailable { candidate_hash, available_data, result } = msg;
+							let res = worker.availability_store
+								.make_available(candidate_hash, available_data)
 								.map_err(|e| e.into());
 							let _ = result.send(res);
 							Ok(())

@@ -119,15 +119,6 @@ pub trait ProvideGossipMessages {
 	);
 }
 
-/// Some data to keep available about a parachain block candidate.
-#[derive(Debug)]
-pub struct Data {
-	/// The hash of the candidate.
-	pub candidate_hash: Hash,
-	/// The data about the parachain block to be kept available.
-	pub available_data: AvailableData,
-}
-
 /// Data which, when combined with an `AbridgedCandidateReceipt`, is enough
 /// to fully re-execute a block.
 #[derive(Debug, Encode, Decode, PartialEq)]
@@ -231,17 +222,17 @@ impl Store {
 	/// in order to persist that data to disk and so it can be queried and provided
 	/// to other nodes in the network.
 	///
-	/// The message data of `Data` is optional but is expected
-	/// to be present with the exception of the case where there is no message data
-	/// due to the block's invalidity. Determination of invalidity is beyond the
-	/// scope of this function.
+	/// Determination of invalidity is beyond the scope of this function.
 	///
-	/// This method will send the `Data` to the background worker, allowing caller to
-	/// asynchrounously wait for the result.
-	pub async fn make_available(&self, data: Data) -> io::Result<()> {
+	/// This method will send the data to the background worker, allowing the caller to
+	/// asynchronously wait for the result.
+	pub async fn make_available(&self, candidate_hash: Hash, available_data: AvailableData)
+		-> io::Result<()>
+	{
 		let (s, r) = oneshot::channel();
 		let msg = WorkerMsg::MakeAvailable(MakeAvailable {
-			data,
+			candidate_hash,
+			available_data,
 			result: s,
 		});
 

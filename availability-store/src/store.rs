@@ -33,7 +33,7 @@ use std::sync::Arc;
 use std::iter::FromIterator;
 use std::io;
 
-use crate::{LOG_TARGET, Data, Config, ExecutionData};
+use crate::{LOG_TARGET, Config, ExecutionData};
 
 mod columns {
 	pub const DATA: u32 = 0;
@@ -128,11 +128,10 @@ impl Store {
 	}
 
 	/// Make some data available provisionally.
-	pub(crate) fn make_available(&self, data: Data) -> io::Result<()> {
+	pub(crate) fn make_available(&self, candidate_hash: Hash, available_data: AvailableData)
+		-> io::Result<()>
+	{
 		let mut tx = DBTransaction::new();
-
-		// note the meta key.
-		let Data { candidate_hash, available_data } = data;
 
 		// at the moment, these structs are identical. later, we will also
 		// keep outgoing message queues available, and these are not needed
@@ -282,10 +281,7 @@ impl Store {
 				if let Ok(available_data) = erasure::reconstruct(
 					n_validators as usize,
 					v.iter().map(|chunk| (chunk.chunk.as_ref(), chunk.index as usize))) {
-					self.make_available(Data {
-						candidate_hash: *candidate_hash,
-						available_data,
-					})?;
+					self.make_available(*candidate_hash, available_data)?;
 				}
 			}
 
@@ -455,15 +451,9 @@ mod tests {
 		};
 
 		let store = Store::new_in_memory();
-		store.make_available(Data {
-			candidate_hash: candidate_1_hash,
-			available_data: available_data_1.clone(),
-		}).unwrap();
+		store.make_available(candidate_1_hash, available_data_1.clone()).unwrap();
 
-		store.make_available(Data {
-			candidate_hash: candidate_2_hash,
-			available_data: available_data_2.clone(),
-		}).unwrap();
+		store.make_available(candidate_2_hash, available_data_2.clone()).unwrap();
 
 		store.add_candidate(&candidate_1).unwrap();
 		store.add_candidate(&candidate_2).unwrap();
