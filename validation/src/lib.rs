@@ -36,7 +36,7 @@ use std::{
 use codec::Encode;
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, CandidateReceipt,
+	Id as ParaId, Chain, DutyRoster, AbridgedCandidateReceipt,
 	Statement as PrimitiveStatement,
 	Collation, PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
 	ValidatorPair, ValidatorId,
@@ -61,12 +61,12 @@ pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
 mod dynamic_inclusion;
 mod error;
-mod pipeline;
 mod shared_table;
 
-// pub mod collation;
-// pub mod validation_service;
 // pub mod block_production;
+// pub mod collation;
+pub mod pipeline;
+// pub mod validation_service;
 
 /// A handle to a statement table router.
 ///
@@ -86,7 +86,7 @@ pub trait TableRouter: Clone {
 	fn local_collation(
 		&self,
 		collation: Collation,
-		receipt: CandidateReceipt,
+		receipt: AbridgedCandidateReceipt,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
 	) -> Self::SendLocalCollation;
 
@@ -94,7 +94,7 @@ pub trait TableRouter: Clone {
 	///
 	/// This future must conclude once all `Clone`s of this `TableRouter` have
 	/// been cleaned up.
-	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
+	fn fetch_pov_block(&self, candidate: &AbridgedCandidateReceipt) -> Self::FetchValidationProof;
 }
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.

@@ -21,11 +21,12 @@ use std::collections::hash_map::{HashMap, Entry};
 use std::sync::Arc;
 
 use availability_store::{Store as AvailabilityStore};
+use codec::Encode;
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
-	Id as ParaId, CandidateReceipt, ValidatorPair, ValidatorId,
-	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, ErasureChunk,
+	Id as ParaId, AbridgedCandidateReceipt, ValidatorPair, ValidatorId,
+	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex,
 };
 
 use parking_lot::Mutex;
@@ -38,6 +39,9 @@ use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
 use primitives::Pair;
 use sp_api::ProvideRuntimeApi;
+
+use crate::pipeline::FullOutput;
+use crate::Error;
 
 mod includable;
 
@@ -188,8 +192,8 @@ impl SharedTableInner {
 			availability_store: self.availability_store.clone(),
 			relay_parent: context.parent_hash.clone(),
 			work,
-			local_index: local_index as usize,
 			max_block_data_size,
+			n_validators: context.validators.len(),
 		})
 	}
 
@@ -232,7 +236,7 @@ impl Validated {
 	/// Note that we've collated a candidate.
 	/// outgoing message required.
 	pub fn collated_local(
-		receipt: CandidateReceipt,
+		receipt: AbridgedCandidateReceipt,
 		collation: PoVBlock,
 	) -> Self {
 		Validated {
@@ -253,9 +257,9 @@ impl Validated {
 pub struct ParachainWork<Fetch> {
 	work: Work<Fetch>,
 	relay_parent: Hash,
-	local_index: usize,
 	availability_store: AvailabilityStore,
 	max_block_data_size: Option<u64>,
+	n_validators: usize,
 }
 
 impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
@@ -264,51 +268,64 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 	pub fn prime<P: ProvideRuntimeApi<Block>>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			Fetch,
-			impl Send + FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<ErasureChunk, ()> + Unpin,
+			impl Send + FnMut(&PoVBlock, &AbridgedCandidateReceipt)
+				-> Result<FullOutput, Error> + Unpin,
 		>
 		where
 			P: Send + Sync + 'static,
 			P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	{
 		let max_block_data_size = self.max_block_data_size;
-		let local_index = self.local_index;
+		let n_validators = self.n_validators;
 
-		let validate = move |id: &_, pov_block: &_, receipt: &_| {
-			// let res = crate::collation::validate_receipt(
-			// 	&*api,
-			// 	id,
-			// 	pov_block,
-			// 	receipt,
-			// 	max_block_data_size,
-			// );
+		let validate = move |pov_block: &PoVBlock, receipt: &AbridgedCandidateReceipt| {
+			let relay_parent = BlockId::hash(receipt.relay_parent);
+			let api = api.runtime_api();
+			let para_id = receipt.parachain_index;
 
-			// TODO [now]: use new validation pipeline.
-			let res: Result<Vec<_>, crate::Error> = unimplemented!();
+			// fetch all necessary data from runtime.
+			let local_validation = api.local_validation_data(&relay_parent, para_id)?
+				.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
-			match res {
-				Ok(mut chunks) => {
-					Ok(chunks.swap_remove(local_index))
-				}
-				Err(e) => {
-					debug!(target: "validation", "Encountered bad collation: {}", e);
-					Err(())
-				}
-			}
+			let global_validation = api.global_validation_schedule(&relay_parent)?;
+			let validation_code = api.parachain_code(&relay_parent, para_id)?
+				.ok_or_else(|| Error::InactiveParachain(para_id))?;
+
+
+			// put the parameters through the validation pipeline, producing
+			// erasure chunks.
+			let collation_info = receipt.to_collation_info();
+			let encoded_pov = pov_block.encode();
+			crate::pipeline::basic_checks(
+				&collation_info,
+				max_block_data_size,
+				&encoded_pov,
+			)
+				.and_then(|()| crate::pipeline::validate(
+					&collation_info,
+					&pov_block,
+					&local_validation,
+					&global_validation,
+					&validation_code,
+				))
+				.and_then(|validated| validated.full_output(n_validators))
 		};
 
 		PrimedParachainWork { inner: self, validate }
 	}
 
 	/// Prime the parachain work with a custom validation function.
+	#[cfg(test)]
 	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<Fetch, F>
-		where F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<ErasureChunk, ()>
+		where F: FnMut(&PoVBlock, &AbridgedCandidateReceipt)
+			-> Result<FullOutput, Error>
 	{
 		PrimedParachainWork { inner: self, validate }
 	}
 }
 
 struct Work<Fetch> {
-	candidate_receipt: CandidateReceipt,
+	candidate_receipt: AbridgedCandidateReceipt,
 	fetch: Fetch
 }
 
@@ -321,48 +338,62 @@ pub struct PrimedParachainWork<Fetch, F> {
 impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 	where
 		Fetch: Future<Output=Result<PoVBlock,Err>> + Unpin,
-		F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<ErasureChunk, ()> + Unpin,
-		Err: From<::std::io::Error>,
+		F: FnMut(&PoVBlock, &AbridgedCandidateReceipt) -> Result<FullOutput, Error> + Unpin,
+		Err: From<std::io::Error>,
 {
-	pub async fn validate(mut self) -> Result<(Validated, Option<ErasureChunk>), Err> {
-		let candidate = &self.inner.work.candidate_receipt;
+	pub async fn validate(self) -> Result<Validated, Err> {
+		let candidate = self.inner.work.candidate_receipt;
 		let pov_block = self.inner.work.fetch.await?;
 
-		let validation_res = (self.validate)(
-			&BlockId::hash(self.inner.relay_parent),
-			&pov_block,
-			&candidate,
-		);
+		let mut validate = self.validate;
+		let relay_parent = self.inner.relay_parent;
 
+		// create a wrapper around the custom validation function that does
+		// some more general pre and post checks.
+		let mut validate = move |pov_block: &_, candidate: &AbridgedCandidateReceipt| {
+			if candidate.relay_parent != relay_parent {
+				return Err(Error::DisallowedRelayParent(candidate.relay_parent));
+			}
+
+			let full_output = validate(pov_block, candidate)?;
+
+			if full_output.commitments != candidate.commitments {
+				return Err(Error::CommitmentsMismatch);
+			}
+
+			Ok(full_output)
+		};
+
+		let validation_res = (validate)(&pov_block, &candidate);
 		let candidate_hash = candidate.hash();
 
 		debug!(target: "validation", "Making validity statement about candidate {}: is_good? {:?}",
 			candidate_hash, validation_res.is_ok());
 
 		match validation_res {
-			Err(()) => Ok((
-				Validated {
+			Err(err) => {
+				debug!(target: "validation", "candidate is invalid: {}", err);
+				Ok(Validated {
 					statement: GenericStatement::Invalid(candidate_hash),
 					result: Validation::Invalid(pov_block),
-				},
-				None,
-			)),
-			Ok(our_chunk) => {
-				let (abridged, _) = candidate.clone().abridge();
-				self.inner.availability_store.add_erasure_chunk(
-					self.inner.relay_parent,
-					abridged,
+				})
+			}
+			Ok(full_output) => {
+				// make data and all erasure chunks available. The chunk
+				// must be fully available before we add the chunks.
+				self.inner.availability_store.make_available(
 					candidate_hash,
-					our_chunk.clone(),
+					full_output.available_data,
+				).await?;
+				self.inner.availability_store.add_erasure_chunks(
+					candidate,
+					full_output.erasure_chunks,
 				).await?;
 
-				Ok((
-					Validated {
-						statement: GenericStatement::Valid(candidate_hash),
-						result: Validation::Valid(pov_block),
-					},
-					Some(our_chunk),
-				))
+				Ok(Validated {
+					statement: GenericStatement::Valid(candidate_hash),
+					result: Validation::Valid(pov_block),
+				})
 			}
 		}
 	}
@@ -466,7 +497,8 @@ impl SharedTable {
 	}
 
 	/// Sign and import the result of candidate validation. Returns `None` if the table
-	/// was instantiated without a local key.
+	/// was instantiated without a local key. Otherwise, returns a copy of the signed
+	/// statement.
 	pub fn import_validated(&self, validated: Validated)
 		-> Option<SignedStatement>
 	{
@@ -490,7 +522,7 @@ impl SharedTable {
 	///
 	/// Deadlocks if called recursively.
 	pub fn with_candidate<F, U>(&self, digest: &Hash, f: F) -> U
-		where F: FnOnce(Option<&CandidateReceipt>) -> U
+		where F: FnOnce(Option<&AbridgedCandidateReceipt>) -> U
 	{
 		let inner = self.inner.lock();
 		f(inner.table.get_candidate(digest))
@@ -525,10 +557,9 @@ impl SharedTable {
 				}
 
 				let candidate_hash = attested.candidate.hash();
-				let (candidate, _) = attested.candidate.abridge();
 
 				AttestedCandidate {
-					candidate,
+					candidate: attested.candidate,
 					candidate_hash,
 					validity_votes: validity_votes.into_iter().map(|(_, a)| a).collect(),
 					validator_indices,
@@ -623,11 +654,11 @@ mod tests {
 		fn local_collation(
 			&self,
 			_collation: Collation,
-			_candidate: CandidateReceipt,
+			_candidate: AbridgedCandidateReceipt,
 			_chunks: (ValidatorIndex, &[ErasureChunk])
 		) -> Self::SendLocalCollation { future::ready(Ok(())) }
 
-		fn fetch_pov_block(&self, _candidate: &CandidateReceipt) -> Self::FetchValidationProof {
+		fn fetch_pov_block(&self, _candidate: &AbridgedCandidateReceipt) -> Self::FetchValidationProof {
 			future::ok(pov_block_with_data(vec![1, 2, 3, 4, 5]))
 		}
 	}
@@ -661,7 +692,7 @@ mod tests {
 			None,
 		);
 
-		let candidate = CandidateReceipt {
+		let candidate = AbridgedCandidateReceipt {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
@@ -717,7 +748,7 @@ mod tests {
 			None,
 		);
 
-		let candidate = CandidateReceipt {
+		let candidate = AbridgedCandidateReceipt {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
@@ -754,7 +785,7 @@ mod tests {
 		let local_index = 0;
 		let n_validators = 2;
 
-		let candidate = CandidateReceipt {
+		let candidate = AbridgedCandidateReceipt {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
@@ -810,7 +841,7 @@ mod tests {
 		let local_index = 0;
 		let n_validators = 2;
 
-		let candidate = CandidateReceipt {
+		let candidate = AbridgedCandidateReceipt {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
@@ -854,7 +885,6 @@ mod tests {
 		// This works since there are only two validators and one erasure chunk should be
 		// enough to reconstruct the block data.
 		assert_eq!(store.block_data(relay_parent, block_data_hash).unwrap(), pov_block.block_data);
-		// TODO: check that a message queue is included by root.
 	}
 
 	#[test]
@@ -886,7 +916,7 @@ mod tests {
 			None,
 		);
 
-		let candidate = CandidateReceipt {
+		let candidate = AbridgedCandidateReceipt {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),
@@ -952,7 +982,7 @@ mod tests {
 			None,
 		);
 
-		let candidate = CandidateReceipt {
+		let candidate = AbridgedCandidateReceipt {
 			parachain_index: para_id,
 			collator: [1; 32].unchecked_into(),
 			signature: Default::default(),

@@ -22,7 +22,7 @@ use std::sync::Arc;
 use polkadot_erasure_coding as erasure;
 use polkadot_primitives::parachain::{
 	CollationInfo, PoVBlock, LocalValidationData, GlobalValidationSchedule, OmittedValidationData,
-	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, HeadData, Id as ParaId,
+	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, HeadData,
 };
 use polkadot_primitives::Balance;
 use parachain::{
@@ -34,7 +34,17 @@ use parking_lot::Mutex;
 use crate::Error;
 
 /// Does basic checks of a collation. Provide the encoded PoV-block.
-pub fn basic_checks(collation: &CollationInfo, encoded_pov: &[u8]) -> Result<(), Error> {
+pub fn basic_checks(
+	collation: &CollationInfo,
+	max_block_data_size: Option<u64>,
+	encoded_pov: &[u8],
+) -> Result<(), Error> {
+	if let Some(max_size) = max_block_data_size {
+		if encoded_pov.len() as u64 > max_size {
+			return Err(Error::BlockDataTooBig { size: encoded_pov.len() as _, max_size });
+		}
+	}
+
 	let hash = BlakeTwo256::hash(encoded_pov);
 	if hash != collation.pov_block_hash {
 		return Err(Error::PoVHashMismatch(collation.pov_block_hash, hash));
@@ -48,7 +58,6 @@ pub fn basic_checks(collation: &CollationInfo, encoded_pov: &[u8]) -> Result<(),
 }
 
 struct ExternalitiesInner {
-	parachain_index: ParaId,
 	upward: Vec<UpwardMessage>,
 	fees_charged: Balance,
 	free_balance: Balance,
@@ -70,9 +79,8 @@ impl wasm_executor::Externalities for ExternalitiesInner {
 }
 
 impl ExternalitiesInner {
-	fn new(parachain_index: ParaId, free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
+	fn new(free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
 		Self {
-			parachain_index,
 			free_balance,
 			fee_schedule,
 			fees_charged: 0,
@@ -101,9 +109,9 @@ impl ExternalitiesInner {
 struct Externalities(Arc<Mutex<ExternalitiesInner>>);
 
 impl Externalities {
-	fn new(parachain_index: ParaId, free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
+	fn new(free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
 		Self(Arc::new(Mutex::new(
-			ExternalitiesInner::new(parachain_index, free_balance, fee_schedule)
+			ExternalitiesInner::new(free_balance, fee_schedule)
 		)))
 	}
 }
@@ -116,6 +124,19 @@ impl wasm_executor::Externalities for Externalities {
 	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
 		self.0.lock().post_upward_message(message)
 	}
+}
+
+/// Data from a fully-outputted validation of a parachain candidate. This contains
+/// all outputs and commitments of the validation as well as all additional data to make available.
+pub struct FullOutput {
+	/// Data about the candidate to keep available in the network.
+	pub available_data: AvailableData,
+	/// Commitments issued alongside the candidate to be placed on-chain.
+	pub commitments: CandidateCommitments,
+	/// All erasure-chunks associated with the available data. Each validator
+	/// should keep their chunk (by index). Other chunks do not need to be
+	/// kept available long-term, but should be distributed to other validators.
+	pub erasure_chunks: Vec<ErasureChunk>,
 }
 
 /// The successful result of validating a collation. If the full commitments of the
@@ -131,10 +152,8 @@ pub struct ValidatedCandidate<'a> {
 
 impl<'a> ValidatedCandidate<'a> {
 	/// Fully-compute the commitments and outputs of the candidate. Provide the number
-	/// of validators.
-	pub fn full_commit(self, n_validators: usize)
-		-> Result<(OmittedValidationData, CandidateCommitments, Vec<ErasureChunk>), Error>
-	{
+	/// of validators. This computes the erasure-coding.
+	pub fn full_output(self, n_validators: usize) -> Result<FullOutput, Error> {
 		let ValidatedCandidate {
 			pov_block,
 			global_validation,
@@ -150,14 +169,14 @@ impl<'a> ValidatedCandidate<'a> {
 			balance,
 		};
 
-		let available = AvailableData {
+		let available_data = AvailableData {
 			pov_block: pov_block.clone(),
 			omitted_validation,
 		};
 
 		let erasure_chunks = erasure::obtain_chunks(
 			n_validators,
-			&available,
+			&available_data,
 		)?;
 
 		let branches = erasure::branches(erasure_chunks.as_ref());
@@ -181,7 +200,11 @@ impl<'a> ValidatedCandidate<'a> {
 			erasure_root,
 		};
 
-		Ok((available.omitted_validation, commitments, chunks))
+		Ok(FullOutput {
+			available_data,
+			commitments,
+			erasure_chunks: chunks,
+		})
 	}
 }
 
@@ -211,7 +234,7 @@ pub fn validate<'a>(
 		per_byte: 0,
 	};
 
-	let ext = Externalities::new(collation.parachain_index, local_validation.balance, fee_schedule);
+	let ext = Externalities::new(local_validation.balance, fee_schedule);
 	match wasm_executor::validate_candidate(
 		&validation_code,
 		params,
@@ -240,5 +263,156 @@ pub fn validate<'a>(
 			}
 		}
 		Err(e) => Err(e.into()),
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
+	use parachain::ParachainDispatchOrigin;
+	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
+
+	#[test]
+	fn ext_rejects_local_message() {
+		let mut ext = ExternalitiesInner {
+			parachain_index: 5.into(),
+			outgoing: Vec::new(),
+			upward: Vec::new(),
+			fees_charged: 0,
+			free_balance: 1_000_000,
+			fee_schedule: FeeSchedule {
+				base: 1000,
+				per_byte: 10,
+			},
+		};
+
+		assert!(ext.post_message(TargetedMessage { target: 1.into(), data: Vec::new() }).is_ok());
+		assert!(ext.post_message(TargetedMessage { target: 5.into(), data: Vec::new() }).is_err());
+	}
+
+	#[test]
+	fn ext_checks_upward_messages() {
+		let ext = || ExternalitiesInner {
+			parachain_index: 5.into(),
+			outgoing: Vec::new(),
+			upward: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
+			],
+			fees_charged: 0,
+			free_balance: 1_000_000,
+			fee_schedule: FeeSchedule {
+				base: 1000,
+				per_byte: 10,
+			},
+		};
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			parent_head: HeadData(Vec::new()),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Signed },
+				UpwardMessage{ data: vec![69], origin: ParachainDispatchOrigin::Parachain },
+			],
+			erasure_root: [1u8; 32].into(),
+		};
+		assert!(ext().final_checks(
+			&receipt.upward_messages,
+			Some(receipt.fees),
+		).is_err());
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			parent_head: HeadData(Vec::new()),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Signed },
+			],
+			erasure_root: [1u8; 32].into(),
+		};
+		assert!(ext().final_checks(
+			&receipt.upward_messages,
+			Some(receipt.fees),
+		).is_err());
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			parent_head: HeadData(Vec::new()),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![69], origin: ParachainDispatchOrigin::Parachain },
+			],
+			erasure_root: [1u8; 32].into(),
+		};
+		assert!(ext().final_checks(
+			&receipt.upward_messages,
+			Some(receipt.fees),
+		).is_err());
+		let receipt = CandidateReceipt {
+			parachain_index: 5.into(),
+			collator: Default::default(),
+			signature: Default::default(),
+			head_data: HeadData(Vec::new()),
+			parent_head: HeadData(Vec::new()),
+			fees: 0,
+			block_data_hash: Default::default(),
+			upward_messages: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
+			],
+			erasure_root: [1u8; 32].into(),
+		};
+		assert!(ext().final_checks(
+			&receipt.upward_messages,
+			Some(receipt.fees),
+		).is_ok());
+	}
+
+	#[test]
+	fn ext_checks_fees_and_updates_correctly() {
+		let mut ext = ExternalitiesInner {
+			parachain_index: 5.into(),
+			outgoing: Vec::new(),
+			upward: vec![
+				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
+			],
+			fees_charged: 0,
+			free_balance: 1_000_000,
+			fee_schedule: FeeSchedule {
+				base: 1000,
+				per_byte: 10,
+			},
+		};
+
+		ext.apply_message_fee(100).unwrap();
+		assert_eq!(ext.fees_charged, 2000);
+
+		ext.post_message(TargetedMessage {
+			target: 1.into(),
+			data: vec![0u8; 100],
+		}).unwrap();
+		assert_eq!(ext.fees_charged, 4000);
+
+		ext.post_upward_message(UpwardMessage {
+			origin: ParachainDispatchOrigin::Signed,
+			data: vec![0u8; 100],
+		}).unwrap();
+		assert_eq!(ext.fees_charged, 6000);
+
+
+		ext.apply_message_fee((1_000_000 - 6000 - 1000) / 10).unwrap();
+		assert_eq!(ext.fees_charged, 1_000_000);
+
+		// cannot pay fee.
+		assert!(ext.apply_message_fee(1).is_err());
 	}
 }

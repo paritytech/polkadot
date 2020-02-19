@@ -204,17 +204,17 @@ impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, T> Router<P, T> where
 					// store the data before broadcasting statements, so other peers can fetch.
 					knowledge.lock().note_candidate(
 						candidate_hash,
-						Some(validated.0.pov_block().clone()),
+						Some(validated.pov_block().clone()),
 					);
 
 					// propagate the statement.
 					// consider something more targeted than gossip in the future.
 					let statement = GossipStatement::new(
-					parent_hash,
-					match table.import_validated(validated.0) {
-					None => return,
-					Some(s) => s,
-					}
+						parent_hash,
+						match table.import_validated(validated) {
+							None => return,
+							Some(s) => s,
+						}
 					);
 
 					network.gossip_message(attestation_topic, statement.into());

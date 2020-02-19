@@ -27,6 +27,8 @@ pub enum Error {
 	Consensus(consensus::error::Error),
 	/// A wasm-validation error.
 	WasmValidation(parachain::wasm_executor::Error),
+	/// An I/O error.
+	Io(std::io::Error),
 	/// An error in the availability erasure-coding.
 	ErasureCoding(polkadot_erasure_coding::Error),
 	#[display(fmt = "Invalid duty roster length: expected {}, got {}", expected, got)]
@@ -64,6 +66,18 @@ pub enum Error {
 	/// Head-data mismatch after validation.
 	#[display(fmt = "Validation produced a different parachain header")]
 	HeadDataMismatch,
+	/// Relay parent of candidate not allowed.
+	#[display(fmt = "Relay parent {} of candidate not allowed in this context.", _0)]
+	DisallowedRelayParent(Hash),
+	/// Commitments in candidate match commitments produced by validation.
+	#[display(fmt = "Commitments in candidate receipt do not match those produced by validation")]
+	CommitmentsMismatch,
+	/// The parachain for which validation work is being done is not active.
+	#[display(fmt = "Parachain {:?} is not active", _0)]
+	InactiveParachain(polkadot_primitives::parachain::Id),
+	/// Block data is too big
+	#[display(fmt = "Block data is too big (maximum allowed size: {}, actual size: {})", size, max_size)]
+	BlockDataTooBig { size: u64, max_size: u64 },
 	Join(tokio::task::JoinError)
 }
 
@@ -74,6 +88,7 @@ impl std::error::Error for Error {
 			Error::Consensus(ref err) => Some(err),
 			Error::WasmValidation(ref err) => Some(err),
 			Error::ErasureCoding(ref err) => Some(err),
+			Error::Io(ref err) => Some(err),
 			_ => None,
 		}
 	}
