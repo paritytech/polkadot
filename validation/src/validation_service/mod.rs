@@ -406,9 +406,19 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 					let av_clone = availability_store.clone();
 					let receipt_clone = receipt.clone();
 					let erasure_chunks_clone = erasure_chunks.clone();
+					let pov_block = available_data.pov_block.clone();
 
 					let res = async move {
-						// TODO [now]: make available.
+						if let Err(e) = av_clone.make_available(
+							receipt_clone.hash(),
+							available_data,
+						).await {
+							warn!(
+								target: "validation",
+								"Failed to make parachain block data available: {}",
+								e,
+							);
+						}
 						if let Err(e) = av_clone.clone().add_erasure_chunks(
 							receipt_clone,
 							erasure_chunks_clone,
@@ -420,7 +430,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 					.then(move |_| {
 						router.local_collation(
 							receipt,
-							available_data.pov_block,
+							pov_block,
 							(local_id, &erasure_chunks),
 						).map_err(|e| warn!(target: "validation", "Failed to send local collation: {:?}", e))
 					});
