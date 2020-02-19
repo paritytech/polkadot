@@ -538,11 +538,8 @@ impl SharedTable {
 					validator_indices.set(*id, true);
 				}
 
-				let candidate_hash = attested.candidate.hash();
-
 				AttestedCandidate {
 					candidate: attested.candidate,
-					candidate_hash,
 					validity_votes: validity_votes.into_iter().map(|(_, a)| a).collect(),
 					validator_indices,
 				}

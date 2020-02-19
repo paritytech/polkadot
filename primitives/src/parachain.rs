@@ -616,10 +616,6 @@ pub struct AttestedCandidate {
 	/// The candidate data. This is abridged, because the omitted data
 	/// is already present within the relay chain state.
 	pub candidate: AbridgedCandidateReceipt,
-	/// The full candidate hash. This is included in the attested candidate so
-	/// block scrapers can get the full `CandidateReceipt` hash without having
-	/// the `OmittedValidationData`.
-	pub candidate_hash: Hash,
 	/// Validity attestations.
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// Indices of the corresponding validity votes.

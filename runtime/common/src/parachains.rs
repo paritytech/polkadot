@@ -31,7 +31,7 @@ use primitives::{
 		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
-		NEW_HEADS_IDENTIFIER,
+		LocalValidationData, NEW_HEADS_IDENTIFIER,
 	},
 };
 use frame_support::{
@@ -214,8 +214,8 @@ decl_error! {
 		HeadDataTooLarge,
 		/// Para does not have enough balance to pay fees.
 		CannotPayFees,
-		/// `AttestedCandidate` set the wrong candidate hash.
-		AttestedCandidateHashMismatch,
+		/// Unexpected relay-parent for a candidate receipt.
+		UnexpectedRelayParent,
 	}
 }
 
@@ -558,18 +558,19 @@ impl<T: Trait> Module<T> {
 		(DutyRoster { validator_duty: roles_val, }, orig_seed)
 	}
 
-	/// Get the parachain status necessary for validation.
-	pub fn parachain_status(id: &parachain::Id) -> Option<parachain::Status> {
-		let balance = T::ParachainCurrency::free_balance(*id);
-		Self::parachain_head(id).map(|head_data| parachain::Status {
-			head_data: parachain::HeadData(head_data),
-			balance,
-			// TODO: https://github.com/paritytech/polkadot/issues/92
-			// plug in some real values here. most likely governable.
-			fee_schedule: parachain::FeeSchedule {
-				base: 0,
-				per_byte: 0,
-			}
+	/// Get the global validation schedule for all parachains.
+	pub fn global_validation_schedule() -> GlobalValidationSchedule {
+		GlobalValidationSchedule {
+			max_code_size: T::MaxCodeSize::get(),
+			max_head_data_size: T::MaxHeadDataSize::get(),
+		}
+	}
+
+	/// Get the local validation schedule for a particular parachain.
+	pub fn local_validation_data(id: &parachain::Id) -> Option<LocalValidationData> {
+		Self::parachain_head(id).map(|parent_head| LocalValidationData {
+			parent_head: primitives::parachain::HeadData(parent_head),
+			balance: T::ParachainCurrency::free_balance(*id),
 		})
 	}
 
@@ -668,8 +669,10 @@ impl<T: Trait> Module<T> {
 
 			let omitted = OmittedValidationData {
 				global_validation: schedule.clone(),
-				parent_head,
-				balance: T::ParachainCurrency::free_balance(para_id),
+				local_validation: LocalValidationData {
+					parent_head,
+					balance: T::ParachainCurrency::free_balance(para_id),
+				},
 			};
 
 			Ok(abridged.clone().complete(omitted))
@@ -696,9 +699,9 @@ impl<T: Trait> Module<T> {
 			// not to prune the data for C simply because an orphaned block contained
 			// it.
 			ensure!(
-				candidate.relay_parent == parent_hash,
-
-			)
+				candidate.candidate().relay_parent.as_ref() == parent_hash.as_ref(),
+				Error::<T>::UnexpectedRelayParent,
+			);
 
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
@@ -725,7 +728,7 @@ impl<T: Trait> Module<T> {
 
 			T::ParachainCurrency::deduct(para_id, fees)?;
 
-			let mut candidate_hash = None;
+			let candidate_hash = candidate.candidate().hash();
 			let mut encoded_implicit = None;
 			let mut encoded_explicit = None;
 
@@ -750,23 +753,15 @@ impl<T: Trait> Module<T> {
 
 				let (payload, sig) = match validity_attestation {
 					ValidityAttestation::Implicit(sig) => {
-						let hash = candidate_hash
-							.get_or_insert_with(|| full_candidate.hash())
-							.clone();
-
 						let payload = encoded_implicit.get_or_insert_with(|| localized_payload(
-							Statement::Candidate(hash),
+							Statement::Candidate(candidate_hash),
 						));
 
 						(payload, sig)
 					}
 					ValidityAttestation::Explicit(sig) => {
-						let hash = candidate_hash
-							.get_or_insert_with(|| full_candidate.hash())
-							.clone();
-
 						let payload = encoded_explicit.get_or_insert_with(|| localized_payload(
-							Statement::Valid(hash),
+							Statement::Valid(candidate_hash),
 						));
 
 						(payload, sig)
@@ -778,12 +773,6 @@ impl<T: Trait> Module<T> {
 					Error::<T>::InvalidSignature,
 				);
 			}
-
-			let candidate_hash = candidate_hash.unwrap_or_else(|| full_candidate.hash());
-			ensure!(
-				candidate_hash == candidate.candidate_hash,
-				Error::<T>::AttestedCandidateHashMismatch
-			);
 
 			ensure!(
 				candidate.validity_votes.len() == expected_votes_len,
@@ -1194,13 +1183,13 @@ mod tests {
 			head_data: Default::default(),
 			collator: Default::default(),
 			signature: Default::default(),
+			pov_block_hash: Default::default(),
 			global_validation: GlobalValidationSchedule {
 				max_code_size: <Test as Trait>::MaxCodeSize::get(),
 				max_head_data_size: <Test as Trait>::MaxHeadDataSize::get(),
 			},
 			local_validation: LocalValidationData {
 				parent_head: HeadData(Parachains::parachain_head(&para_id).unwrap()),
-				pov_block_hash: Default::default(),
 				balance: <Balances as ParachainCurrency<u64>>::free_balance(para_id),
 			},
 			commitments: CandidateCommitments::default(),
@@ -1225,7 +1214,7 @@ mod tests {
 		let parent_hash = <system::Module<Test>>::parent_hash();
 
 		let (duty_roster, _) = Parachains::calculate_duty_roster();
-		let candidate_hash = candidate.candidate_hash;
+		let candidate_hash = candidate.candidate.hash();
 
 		let authorities = Parachains::authorities();
 		let extract_key = |public: ValidatorId| {
