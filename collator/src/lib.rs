@@ -274,7 +274,7 @@ impl<P: 'static, SP: 'static> RelayChainContext for ApiContext<P, SP> where
 }
 
 /// Build a collator service with the given `RelayChainContext` and `ParachainContext`
-/// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
+/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
 /// This function does not block. It returns an `AbstractService` that can be used as a future
 pub fn build_collator_service<S, P, Extrinsic>(
@@ -453,7 +453,7 @@ pub fn build_collator_service<S, P, Extrinsic>(
 }
 
 /// Async function that will run the collator node with the given `RelayChainContext` and `ParachainContext`
-/// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
+/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 pub async fn start_collator<P>(
 	build_parachain: impl FnOnce() -> P,
 	para_id: ParaId,
@@ -508,7 +508,7 @@ fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRo
 }
 
 /// Run a collator node with the given `RelayChainContext` and `ParachainContext`
-/// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
+/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
 /// This function blocks until done.
 pub fn run_collator<P, B>(
