@@ -809,6 +809,10 @@ sp_api::impl_runtime_apis! {
 				secondary_slots: true,
 			}
 		}
+
+		fn current_epoch_start() -> babe_primitives::SlotNumber {
+			Babe::current_epoch_start()
+		}
 	}
 
 	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {

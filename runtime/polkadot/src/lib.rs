@@ -531,7 +531,7 @@ impl vesting::Trait for Runtime {
 
 impl sudo::Trait for Runtime {
 	type Event = Event;
-	type Proposal = Call;
+	type Call = Call;
 }
 
 construct_runtime! {
@@ -730,6 +730,10 @@ sp_api::impl_runtime_apis! {
 				randomness: Babe::randomness(),
 				secondary_slots: true,
 			}
+		}
+
+		fn current_epoch_start() -> babe_primitives::SlotNumber {
+			Babe::current_epoch_start()
 		}
 	}
 
