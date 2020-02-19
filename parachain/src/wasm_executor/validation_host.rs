@@ -44,7 +44,6 @@ pub const EXECUTION_TIMEOUT_SEC: u64 =  5;
 
 #[derive(Default)]
 struct WorkerExternalitiesInner {
-	egress_data: Vec<u8>,
 	up_data: Vec<u8>,
 }
 
@@ -132,9 +131,8 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 				debug!("{} Candidate header: {:?}", process::id(), header);
 				let (code, rest) = rest.split_at_mut(MAX_CODE_MEM);
 				let (code, _) = code.split_at_mut(header.code_size as usize);
-				let (call_data, rest) = rest.split_at_mut(MAX_RUNTIME_MEM);
+				let (call_data, _) = rest.split_at_mut(MAX_RUNTIME_MEM);
 				let (call_data, _) = call_data.split_at_mut(header.params_size as usize);
-				let message_data = rest;
 
 				let result = validate_candidate_internal(code, call_data, worker_ext.clone());
 				debug!("{} Candidate validated: {:?}", process::id(), result);
@@ -142,18 +140,12 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 				match result {
 					Ok(r) => {
 						let inner = worker_ext.inner.lock();
-						let egress_data = &inner.egress_data;
-						let e_len = egress_data.len();
 						let up_data = &inner.up_data;
 						let up_len = up_data.len();
 
-						if e_len + up_len > MAX_MESSAGE_MEM {
+						if up_len > MAX_MESSAGE_MEM {
 							ValidationResultHeader::Error("Message data is too large".into())
 						} else {
-							message_data[0..e_len].copy_from_slice(egress_data);
-
-							message_data[e_len..(e_len + up_len)].copy_from_slice(&up_data);
-
 							ValidationResultHeader::Ok(r)
 						}
 					},

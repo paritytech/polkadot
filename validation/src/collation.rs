@@ -476,6 +476,7 @@ pub fn validate_collation<P>(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
 	use parachain::ParachainDispatchOrigin;
 	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
 
@@ -580,7 +581,13 @@ mod tests {
 		ext.apply_message_fee(100).unwrap();
 		assert_eq!(ext.fees_charged, 2000);
 
-		ext.apply_message_fee((1_000_000 - 2000 - 1000) / 10).unwrap();
+		ext.post_upward_message(UpwardMessage {
+			origin: ParachainDispatchOrigin::Signed,
+			data: vec![0u8; 100],
+		}).unwrap();
+		assert_eq!(ext.fees_charged, 4000);
+
+		ext.apply_message_fee((1_000_000 - 4000 - 1000) / 10).unwrap();
 		assert_eq!(ext.fees_charged, 1_000_000);
 
 		// cannot pay fee.
