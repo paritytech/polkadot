@@ -363,7 +363,6 @@ impl AbridgedCandidateReceipt {
 	/// receipt is comitted to in the abridged receipt; this receipt references
 	/// the relay-chain block in which context it should be executed, which implies
 	/// any blockchain state that must be referenced.
-	#[cfg(feature = "std")]
 	pub fn hash(&self) -> Hash {
 		use runtime_primitives::traits::{BlakeTwo256, Hash};
 		BlakeTwo256::hash_of(self)
