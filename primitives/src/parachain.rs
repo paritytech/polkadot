@@ -182,8 +182,6 @@ pub struct GlobalValidationSchedule {
 pub struct LocalValidationData {
 	/// The parent head-data.
 	pub parent_head: HeadData,
-	/// The hash of the pov-block used to prove validity.
-	pub pov_block_hash: Hash,
 	/// The balance of the parachain at the moment of validation.
 	pub balance: Balance,
 }
@@ -248,6 +246,8 @@ pub struct CandidateReceipt {
 	pub collator: CollatorId,
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CollatorSignature,
+	/// The hash of the PoV-block.
+	pub pov_block_hash: Hash,
 	/// The global validation schedule.
 	pub global_validation: GlobalValidationSchedule,
 	/// The local validation data.
@@ -262,7 +262,7 @@ impl CandidateReceipt {
 		check_collator_signature(
 			&self.relay_parent,
 			&self.parachain_index,
-			&self.local_validation.pov_block_hash,
+			&self.pov_block_hash,
 			&self.collator,
 			&self.signature,
 		)
@@ -277,12 +277,9 @@ impl CandidateReceipt {
 			head_data,
 			collator,
 			signature,
+			pov_block_hash,
 			global_validation,
-			local_validation: LocalValidationData {
-				parent_head,
-				pov_block_hash,
-				balance,
-			},
+			local_validation,
 			commitments,
 		} = self;
 
@@ -298,8 +295,7 @@ impl CandidateReceipt {
 
 		let omitted = OmittedValidationData {
 			global_validation,
-			parent_head,
-			balance,
+			local_validation,
 		};
 
 		(abridged, omitted)
@@ -328,10 +324,8 @@ impl Ord for CandidateReceipt {
 pub struct OmittedValidationData {
 	/// The global validation schedule.
 	pub global_validation: GlobalValidationSchedule,
-	/// The parent head data.
-	pub parent_head: HeadData,
-	/// The balance of the parachain.
-	pub balance: Balance,
+	/// The local validation data.
+	pub local_validation: LocalValidationData,
 }
 
 /// An abridged candidate-receipt.
@@ -390,8 +384,7 @@ impl AbridgedCandidateReceipt {
 
 		let OmittedValidationData {
 			global_validation,
-			parent_head,
-			balance,
+			local_validation,
 		} = omitted;
 
 		CandidateReceipt {
@@ -400,11 +393,8 @@ impl AbridgedCandidateReceipt {
 			head_data,
 			collator,
 			signature,
-			local_validation: LocalValidationData {
-				parent_head,
-				pov_block_hash,
-				balance,
-			},
+			pov_block_hash,
+			local_validation,
 			global_validation,
 			commitments,
 		}

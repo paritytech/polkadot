@@ -185,8 +185,10 @@ impl<'a> ValidatedCandidate<'a> {
 
 		let omitted_validation = OmittedValidationData {
 			global_validation: global_validation.clone(),
-			parent_head: parent_head.clone(),
-			balance,
+			local_validation: LocalValidationData {
+				parent_head: parent_head.clone(),
+				balance,
+			},
 		};
 
 		let available_data = AvailableData {

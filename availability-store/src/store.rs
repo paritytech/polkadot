@@ -402,8 +402,7 @@ mod tests {
 			},
 			omitted_validation: OmittedValidationData {
 				global_validation: Default::default(),
-				parent_head: Default::default(),
-				balance: 0,
+				local_validation: Default::default(),
 			}
 		}
 	}
