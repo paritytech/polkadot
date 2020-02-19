@@ -374,7 +374,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		validation_para: ParaId,
 		build_router: N::BuildTableRouter,
 		max_block_data_size: Option<u64>,
-		authorities_num: usize,
+		n_validators: usize,
 		local_id: ValidatorIndex,
 	) {
 		let (collators, client) = (self.collators.clone(), self.client.clone());
@@ -388,6 +388,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 				collators,
 				client.clone(),
 				max_block_data_size,
+				n_validators,
 			);
 
 			collation_work.then(move |result| match result {

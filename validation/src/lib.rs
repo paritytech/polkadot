@@ -64,7 +64,7 @@ mod error;
 mod shared_table;
 
 // pub mod block_production;
-// pub mod collation;
+pub mod collation;
 pub mod pipeline;
 // pub mod validation_service;
 
