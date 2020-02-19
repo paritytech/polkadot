@@ -399,6 +399,28 @@ impl AbridgedCandidateReceipt {
 			commitments,
 		}
 	}
+
+	/// Clone the relevant portions of the `CandidateReceipt` to form a `CollationInfo`.
+	pub fn to_collation_info(&self) -> CollationInfo {
+		let AbridgedCandidateReceipt {
+			parachain_index,
+			relay_parent,
+			head_data,
+			collator,
+			signature,
+			pov_block_hash,
+			commitments: _commitments,
+		} = self;
+
+		CollationInfo {
+			parachain_index: *parachain_index,
+			relay_parent: *relay_parent,
+			head_data: head_data.clone(),
+			collator: collator.clone(),
+			signature: signature.clone(),
+			pov_block_hash: *pov_block_hash,
+		}
+	}
 }
 
 /// A collation sent by a collator.

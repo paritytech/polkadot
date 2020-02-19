@@ -404,12 +404,13 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 							// the compiler that we are not moving values out of borrowed context.
 							let av_clone = availability_store.clone();
 							let chunks_clone = chunks.clone();
-							let receipt_clone = receipt.clone();
+							let (abridged, _) = receipt.clone().abridge();
 
 							let res = async move {
 								if let Err(e) = av_clone.clone().add_erasure_chunks(
 									relay_parent.clone(),
-									receipt_clone,
+									abridged,
+									receipt.hash(),
 									chunks_clone,
 								).await {
 									warn!(target: "validation", "Failed to add erasure chunks: {}", e);

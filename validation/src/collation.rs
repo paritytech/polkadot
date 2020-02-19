@@ -26,7 +26,7 @@ use polkadot_primitives::{
 	parachain::{
 		CollatorId, CandidateReceipt, CollationInfo,
 		ParachainHost, Id as ParaId, Collation, FeeSchedule, ErasureChunk,
-		HeadData, PoVBlock,
+		HeadData, PoVBlock, AvailableData, LocalValidationData,
 	},
 };
 use polkadot_erasure_coding as erasure;
@@ -165,38 +165,6 @@ impl std::error::Error for Error {
 			_ => None,
 		}
 	}
-}
-
-/// Compute a trie root for a set of messages, given the raw message data.
-pub fn message_queue_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
-	where A: AsRef<[u8]>
-{
-	trie::trie_types::Layout::<primitives::Blake2Hasher>::ordered_trie_root(messages)
-}
-
-/// Compute the set of egress roots for all given outgoing messages.
-pub fn egress_roots(outgoing: &mut [TargetedMessage]) -> Vec<(ParaId, Hash)> {
-	// stable sort messages by parachain ID.
-	outgoing.sort_by_key(|msg| ParaId::from(msg.target));
-
-	let mut egress_roots = Vec::new();
-	{
-		let mut messages_iter = outgoing.iter().peekable();
-		while let Some(batch_target) = messages_iter.peek().map(|o| o.target) {
- 			// we borrow the iterator mutably to ensure it advances so the
-			// next iteration of the loop starts with `messages_iter` pointing to
-			// the next batch.
-			let messages_to = messages_iter
-				.clone()
-				.take_while(|o| o.target == batch_target)
-				.map(|o| { let _ = messages_iter.next(); &o.data[..] });
-
-			let computed_root = message_queue_root(messages_to);
-			egress_roots.push((batch_target, computed_root));
-		}
-	}
-
-	egress_roots
 }
 
 struct ExternalitiesInner {
@@ -369,7 +337,7 @@ fn do_validation<P>(
 			if result.head_data == head_data.0 {
 				let fees = ext.0.lock().final_checks(
 					upward_messages,
-					fees_charged
+					fees_charged,
 				)?;
 
 				Ok((chain_status.head_data, fees))
@@ -390,10 +358,10 @@ fn do_validation<P>(
 /// the block data and messages needs to be known. To avoid redundant re-computations
 /// of erasure encoding this method creates an encoding and produces a candidate with
 /// encoding's root returning both for re-use.
-pub fn produce_receipt_and_chunks(
+pub(crate) fn produce_receipt_and_chunks(
 	n_validators: usize,
 	parent_head: HeadData,
-	pov: &PoVBlock,
+	pov: &AvailableData,
 	fees: Balance,
 	info: &CollationInfo,
 ) -> Result<(CandidateReceipt, Vec<ErasureChunk>), Error>
@@ -492,12 +460,12 @@ pub fn validate_receipt<P>(
 ///
 /// This assumes that basic validity checks have been done:
 ///   - Block data hash is the same as linked in collation info.
-pub fn validate_collation<P>(
+pub(crate) fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
 	collation: &Collation,
 	max_block_data_size: Option<u64>,
-) -> Result<(HeadData, Balance), Error> where
+) -> Result<LocalValidationData, Error> where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {

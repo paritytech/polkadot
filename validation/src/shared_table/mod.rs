@@ -274,13 +274,16 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 		let local_index = self.local_index;
 
 		let validate = move |id: &_, pov_block: &_, receipt: &_| {
-			let res = crate::collation::validate_receipt(
-				&*api,
-				id,
-				pov_block,
-				receipt,
-				max_block_data_size,
-			);
+			// let res = crate::collation::validate_receipt(
+			// 	&*api,
+			// 	id,
+			// 	pov_block,
+			// 	receipt,
+			// 	max_block_data_size,
+			// );
+
+			// TODO [now]: use new validation pipeline.
+			let res: Result<Vec<_>, crate::Error> = unimplemented!();
 
 			match res {
 				Ok(mut chunks) => {
@@ -345,9 +348,11 @@ impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 				None,
 			)),
 			Ok(our_chunk) => {
+				let (abridged, _) = candidate.clone().abridge();
 				self.inner.availability_store.add_erasure_chunk(
 					self.inner.relay_parent,
-					candidate.clone(),
+					abridged,
+					candidate_hash,
 					our_chunk.clone(),
 				).await?;
 
@@ -519,8 +524,12 @@ impl SharedTable {
 					validator_indices.set(*id, true);
 				}
 
+				let candidate_hash = attested.candidate.hash();
+				let (candidate, _) = attested.candidate.abridge();
+
 				AttestedCandidate {
-					candidate: attested.candidate,
+					candidate,
+					candidate_hash,
 					validity_votes: validity_votes.into_iter().map(|(_, a)| a).collect(),
 					validator_indices,
 				}

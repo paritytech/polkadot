@@ -66,6 +66,8 @@ pub enum Error {
 	BranchOutOfBounds,
 }
 
+impl std::error::Error for Error { }
+
 #[derive(Debug, PartialEq)]
 struct CodeParams {
 	data_shards: usize,

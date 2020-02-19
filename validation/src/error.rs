@@ -16,7 +16,7 @@
 
 //! Errors that can occur during the validation process.
 
-use polkadot_primitives::parachain::ValidatorId;
+use polkadot_primitives::{parachain::ValidatorId, Hash};
 
 /// Error type for validation
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -25,6 +25,10 @@ pub enum Error {
 	Client(sp_blockchain::Error),
 	/// Consensus error
 	Consensus(consensus::error::Error),
+	/// A wasm-validation error.
+	WasmValidation(parachain::wasm_executor::Error),
+	/// An error in the availability erasure-coding.
+	ErasureCoding(polkadot_erasure_coding::Error),
 	#[display(fmt = "Invalid duty roster length: expected {}, got {}", expected, got)]
 	InvalidDutyRosterLength {
 		/// Expected roster length
@@ -48,6 +52,18 @@ pub enum Error {
 	DeadlineComputeFailure(std::time::Duration),
 	#[display(fmt = "Validation service is down.")]
 	ValidationServiceDown,
+	/// PoV-block in collation doesn't match provided.
+	#[display(fmt = "PoV hash mismatch. Expected {:?}, got {:?}", _0, _1)]
+	PoVHashMismatch(Hash, Hash),
+	/// Collator signature is invalid.
+	#[display(fmt = "Invalid collator signature on collation")]
+	InvalidCollatorSignature,
+	/// Head-data too large.
+	#[display(fmt = "Head data size of {} exceeded maximum of {}", _0, _1)]
+	HeadDataTooLarge(usize, usize),
+	/// Head-data mismatch after validation.
+	#[display(fmt = "Validation produced a different parachain header")]
+	HeadDataMismatch,
 	Join(tokio::task::JoinError)
 }
 
@@ -56,6 +72,8 @@ impl std::error::Error for Error {
 		match self {
 			Error::Client(ref err) => Some(err),
 			Error::Consensus(ref err) => Some(err),
+			Error::WasmValidation(ref err) => Some(err),
+			Error::ErasureCoding(ref err) => Some(err),
 			_ => None,
 		}
 	}

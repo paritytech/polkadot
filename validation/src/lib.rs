@@ -33,7 +33,7 @@ use std::{
 	collections::{HashMap, HashSet},
 	sync::Arc,
 };
-
+use codec::Encode;
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, CandidateReceipt,
@@ -45,29 +45,29 @@ use primitives::Pair;
 
 use futures::prelude::*;
 
-pub use self::block_production::ProposerFactory;
-pub use self::collation::{
-	validate_collation, message_queue_root, egress_roots, Collators,
-	produce_receipt_and_chunks,
-};
+// pub use self::block_production::ProposerFactory;
+// pub use self::collation::{
+// 	validate_collation, message_queue_root, egress_roots, Collators,
+// };
 pub use self::error::Error;
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
 	GenericStatement,
 };
-pub use self::validation_service::{ServiceHandle, ServiceBuilder};
+// pub use self::validation_service::{ServiceHandle, ServiceBuilder};
 
 #[cfg(not(target_os = "unknown"))]
 pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
-mod dynamic_inclusion;
-mod evaluation;
+// mod dynamic_inclusion;
+// mod evaluation;
 mod error;
+mod pipeline;
 mod shared_table;
 
-pub mod collation;
-pub mod validation_service;
-pub mod block_production;
+// pub mod collation;
+// pub mod validation_service;
+// pub mod block_production;
 
 /// A handle to a statement table router.
 ///
@@ -140,11 +140,7 @@ pub struct GroupInfo {
 /// The actual message signed is the encoded statement concatenated with the
 /// parent hash.
 pub fn sign_table_statement(statement: &Statement, key: &ValidatorPair, parent_hash: &Hash) -> ValidatorSignature {
-	// we sign using the primitive statement type because that's what the runtime
-	// expects. These types probably encode the same way so this clone could be optimized
-	// out in the future.
-	let mut encoded = PrimitiveStatement::from(statement.clone()).signing_payload();
-
+	let mut encoded = PrimitiveStatement::from(statement).encode();
 	encoded.extend(parent_hash.as_ref());
 
 	key.sign(&encoded)
@@ -159,7 +155,7 @@ pub fn check_statement(
 ) -> bool {
 	use runtime_primitives::traits::AppVerify;
 
-	let mut encoded = PrimitiveStatement::from(statement.clone()).signing_payload();
+	let mut encoded = PrimitiveStatement::from(statement).encode();
 	encoded.extend(parent_hash.as_ref());
 
 	signature.verify(&encoded[..], &signer)
@@ -211,7 +207,6 @@ pub fn make_group_info(
 	});
 
 	Ok((map, local_duty))
-
 }
 
 #[cfg(test)]
