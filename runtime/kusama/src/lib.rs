@@ -28,7 +28,7 @@ use primitives::{
 	parachain::{self, ActiveParas, CandidateReceipt}, ValidityError,
 };
 use runtime_common::{attestations, claims, parachains, registrar, slots,
-	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor, WeightToFee},
+	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength,
 };
@@ -65,7 +65,7 @@ pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
-use constants::{time::*, currency::*};
+use constants::{time::*, currency::*, fee::*};
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -77,7 +77,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
 	spec_version: 1049,
-	impl_version: 1,
+	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
 

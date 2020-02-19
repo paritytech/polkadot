@@ -51,7 +51,28 @@ pub mod time {
 /// Fee-related.
 pub mod fee {
 	pub use sp_runtime::Perbill;
+	use primitives::Balance;
+	use frame_support::weights::Weight;
+	use sp_runtime::traits::Convert;
 
 	/// The block saturation level. Fees will be updates based on this value.
 	pub const TARGET_BLOCK_FULLNESS: Perbill = Perbill::from_percent(25);
+
+	/// Handles converting a weight scalar to a fee value, based on the scale and granularity of the
+	/// node's balance type.
+	///
+	/// This should typically create a mapping between the following ranges:
+	///   - [0, system::MaximumBlockWeight]
+	///   - [Balance::min, Balance::max]
+	///
+	/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:
+	///   - Setting it to `0` will essentially disable the weight fee.
+	///   - Setting it to `1` will cause the literal `#[weight = x]` values to be charged.
+	pub struct WeightToFee;
+	impl Convert<Weight, Balance> for WeightToFee {
+		fn convert(x: Weight) -> Balance {
+			// in Kusama a weight of 10_000 (smallest non-zero weight) is mapped to 1/10 CENT:
+			Balance::from(x).saturating_mul(super::currency::CENTS / (10 * 10_000))
+		}
+	}
 }
