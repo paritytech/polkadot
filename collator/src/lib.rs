@@ -454,8 +454,8 @@ pub fn build_collator_service<S, P, Extrinsic>(
 
 /// Async function that will run the collator node with the given `RelayChainContext` and `ParachainContext`
 /// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
-pub async fn start_collator<P, B>(
-	build_parachain: B,
+pub async fn start_collator<P>(
+	build_parachain: impl FnOnce() -> P,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	config: Configuration,
@@ -464,7 +464,6 @@ where
 	P: BuildParachainContext,
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
-	B: FnOnce() -> P,
 {
 	match (config.expect_chain_spec().is_kusama(), config.roles) {
 		(true, Roles::LIGHT) =>
