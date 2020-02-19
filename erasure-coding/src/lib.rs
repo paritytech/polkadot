@@ -406,7 +406,6 @@ mod tests {
 	fn round_trip_works() {
 		let pov_block = PoVBlock {
 			block_data: BlockData((0..255).collect()),
-			ingress: Default::default(),
 		};
 
 		let available_data = AvailableData {
@@ -438,7 +437,6 @@ mod tests {
 	fn construct_valid_branches() {
 		let pov_block = PoVBlock {
 			block_data: BlockData(vec![2; 256]),
-			ingress: Default::default(),
 		};
 
 		let available_data = AvailableData {

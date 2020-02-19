@@ -906,12 +906,12 @@ mod tests {
 			head_data: HeadData(head_data.to_vec()),
 			collator: collator.public(),
 			signature: pov_block_hash.using_encoded(|d| collator.sign(d)),
+			pov_block_hash,
 			global_validation: GlobalValidationSchedule {
 				max_code_size: <Test as parachains::Trait>::MaxCodeSize::get(),
 				max_head_data_size: <Test as parachains::Trait>::MaxHeadDataSize::get(),
 			},
 			local_validation: LocalValidationData {
-				pov_block_hash,
 				balance: Balances::free_balance(&id.into_account()),
 				parent_head: HeadData(Parachains::parachain_head(&id).unwrap()),
 			},
@@ -921,13 +921,12 @@ mod tests {
 				erasure_root: [1; 32].into(),
 			},
 		};
-		let candidate_hash = candidate.hash();
 		let (candidate, _) = candidate.abridge();
+		let candidate_hash = candidate.hash();
 		let payload = (Statement::Valid(candidate_hash), System::parent_hash()).encode();
 		let roster = Parachains::calculate_duty_roster().0.validator_duty;
 		AttestedCandidate {
 			candidate,
-			candidate_hash,
 			validity_votes: AUTHORITY_KEYS.iter()
 				.enumerate()
 				.filter(|(i, _)| roster[*i] == Chain::Parachain(id))

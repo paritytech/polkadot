@@ -1198,14 +1198,12 @@ mod tests {
 
 	// makes a blank attested candidate from a `CandidateReceipt`.
 	fn make_blank_attested(candidate: CandidateReceipt) -> AttestedCandidate {
-		let candidate_hash = candidate.hash();
 		let (candidate, _) = candidate.abridge();
 
 		AttestedCandidate {
 			validity_votes: vec![],
 			validator_indices: BitVec::new(),
 			candidate,
-			candidate_hash,
 		}
 	}
 
