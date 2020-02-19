@@ -28,7 +28,7 @@ use crate::legacy::{PolkadotProtocol, NetworkService, GossipService, GossipMessa
 use polkadot_validation::{SharedTable, Network};
 use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, ParachainHost, TargetedMessage, ValidatorId, Status,
+	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId, Status,
 	FeeSchedule, HeadData, Retriable, CollatorId, ErasureChunk, CandidateReceipt,
 };
 use parking_lot::Mutex;
