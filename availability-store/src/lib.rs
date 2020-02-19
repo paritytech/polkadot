@@ -122,8 +122,6 @@ pub trait ProvideGossipMessages {
 /// Some data to keep available about a parachain block candidate.
 #[derive(Debug)]
 pub struct Data {
-	/// The relay chain parent hash this should be localized to.
-	pub relay_parent: Hash,
 	/// The hash of the candidate.
 	pub candidate_hash: Hash,
 	/// The data about the parachain block to be kept available.
@@ -271,12 +269,10 @@ impl Store {
 	/// asynchrounously wait for the result.
 	pub async fn add_erasure_chunk(
 		&self,
-		relay_parent: Hash,
 		candidate: AbridgedCandidateReceipt,
-		candidate_hash: Hash,
 		chunk: ErasureChunk,
 	) -> io::Result<()> {
-		self.add_erasure_chunks(relay_parent, candidate, candidate_hash, vec![chunk]).await
+		self.add_erasure_chunks(candidate, vec![chunk]).await
 	}
 
 	/// Adds a set of erasure chunks to storage.
@@ -288,14 +284,15 @@ impl Store {
 	/// asynchrounously waiting for the result.
 	pub async fn add_erasure_chunks<I>(
 		&self,
-		relay_parent: Hash,
 		candidate: AbridgedCandidateReceipt,
-		candidate_hash: Hash,
 		chunks: I,
 	) -> io::Result<()>
 		where I: IntoIterator<Item = ErasureChunk>
 	{
-		self.add_candidate(relay_parent, candidate.clone(), candidate_hash).await?;
+		let candidate_hash = candidate.hash();
+		let relay_parent = candidate.relay_parent;
+
+		self.add_candidate(candidate).await?;
 		let (s, r) = oneshot::channel();
 		let chunks = chunks.into_iter().collect();
 		let msg = WorkerMsg::Chunks(Chunks {
@@ -314,14 +311,13 @@ impl Store {
 		}
 	}
 
-	/// Queries an erasure chunk by its block's parent and hash and index.
+	/// Queries an erasure chunk by the candidate hash and validator index.
 	pub fn get_erasure_chunk(
 		&self,
-		relay_parent: &Hash,
 		candidate_hash: &Hash,
-		index: usize,
+		validator_index: usize,
 	) -> Option<ErasureChunk> {
-		self.inner.get_erasure_chunk(relay_parent, candidate_hash, index)
+		self.inner.get_erasure_chunk(candidate_hash, validator_index)
 	}
 
 	/// Note a validator's index and a number of validators at a relay parent in the
@@ -341,20 +337,16 @@ impl Store {
 		)
 	}
 
-	/// Stores a candidate receipt.
-	pub async fn add_candidate(
+	// Stores a candidate receipt.
+	async fn add_candidate(
 		&self,
-		relay_parent: Hash,
 		candidate: AbridgedCandidateReceipt,
-		candidate_hash: Hash,
 	) -> io::Result<()> {
 		let (s, r) = oneshot::channel();
 
 		let msg = WorkerMsg::IncludedParachainBlocks(IncludedParachainBlocks {
-			relay_parent,
 			blocks: vec![crate::worker::IncludedParachainBlock {
 				candidate,
-				candidate_hash,
 				available_data: None,
 			}],
 			result: s,
@@ -369,17 +361,17 @@ impl Store {
 		}
 	}
 
-	/// Queries a candidate receipt by its relay-parent and hash.
-	pub fn get_candidate(&self, relay_parent: &Hash, candidate_hash: &Hash)
+	/// Queries a candidate receipt by its hash.
+	pub fn get_candidate(&self, candidate_hash: &Hash)
 		-> Option<AbridgedCandidateReceipt>
 	{
-		self.inner.get_candidate(relay_parent, candidate_hash)
+		self.inner.get_candidate(candidate_hash)
 	}
 
 	/// Query execution data by pov-block hash.
-	pub fn execution_data(&self, relay_parent: &Hash, candidate_hash: &Hash)
+	pub fn execution_data(&self, candidate_hash: &Hash)
 		-> Option<ExecutionData>
 	{
-		self.inner.execution_data(relay_parent, candidate_hash)
+		self.inner.execution_data(candidate_hash)
 	}
 }

@@ -689,6 +689,17 @@ impl<T: Trait> Module<T> {
 			let validator_group = validator_groups.group_for(para_id)
 				.ok_or(Error::<T>::NoValidatorGroup)?;
 
+			// NOTE: when changing this to allow older blocks,
+			// care must be taken in the availability store pruning to ensure that
+			// data is stored correctly. A block containing a candidate C can be
+			// orphaned before a block containing C is finalized. Care must be taken
+			// not to prune the data for C simply because an orphaned block contained
+			// it.
+			ensure!(
+				candidate.relay_parent == parent_hash,
+
+			)
+
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
 				Error::<T>::NotEnoughValidityVotes,

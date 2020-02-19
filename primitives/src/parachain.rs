@@ -28,6 +28,7 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use primitives::bytes;
 use primitives::RuntimeDebug;
+use runtime_primitives::traits::{Block as BlockT};
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
@@ -256,12 +257,6 @@ pub struct CandidateReceipt {
 }
 
 impl CandidateReceipt {
-	/// Get the blake2_256 hash
-	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
-		BlakeTwo256::hash_of(self)
-	}
-
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
 		check_collator_signature(
@@ -351,6 +346,8 @@ pub struct AbridgedCandidateReceipt {
 	pub parachain_index: Id,
 	/// The hash of the relay-chain block this should be executed in
 	/// the context of.
+	// NOTE: the fact that the hash includes this value means that code depends
+	// on this for deduplication. Removing this field is likely to break things.
 	pub relay_parent: Hash,
 	/// The head-data
 	pub head_data: HeadData,
@@ -365,6 +362,19 @@ pub struct AbridgedCandidateReceipt {
 }
 
 impl AbridgedCandidateReceipt {
+	/// Compute the hash of the abridged candidate receipt.
+	///
+	/// This is often used as the canonical hash of the receipt, rather than
+	/// the hash of the full receipt. The reason being that all data in the full
+	/// receipt is comitted to in the abridged receipt; this receipt references
+	/// the relay-chain block in which context it should be executed, which implies
+	/// any blockchain state that must be referenced.
+	#[cfg(feature = "std")]
+	pub fn hash(&self) -> Hash {
+		use runtime_primitives::traits::{BlakeTwo256, Hash};
+		BlakeTwo256::hash_of(self)
+	}
+
 	/// Combine the abridged candidate receipt with the omitted data,
 	/// forming a full `CandidateReceipt`.
 	pub fn complete(self, omitted: OmittedValidationData) -> CandidateReceipt {
@@ -612,20 +622,6 @@ impl FeeSchedule {
 	}
 }
 
-/// Current Status of a parachain.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct Status {
-	/// The head of the parachain.
-	pub head_data: HeadData,
-	/// The current balance of the parachain.
-	pub balance: Balance,
-	/// The fee schedule for messages coming from this parachain.
-	pub fee_schedule: FeeSchedule,
-}
-
-use runtime_primitives::traits::{Block as BlockT};
-
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	#[api_version(2)]
@@ -636,14 +632,16 @@ sp_api::decl_runtime_apis! {
 		fn duty_roster() -> DutyRoster;
 		/// Get the currently active parachains.
 		fn active_parachains() -> Vec<(Id, Option<(CollatorId, Retriable)>)>;
-		/// Get the given parachain's status.
-		fn parachain_status(id: Id) -> Option<Status>;
+		/// Get the global validation schedule that all parachains should
+		/// be validated under.
+		fn global_validation_schedule() -> GlobalValidationSchedule;
+		/// Get the local validation data for a particular parachain.
+		fn local_validation_data(id: Id) -> Option<LocalValidationData>;
 		/// Get the given parachain's head code blob.
 		fn parachain_code(id: Id) -> Option<Vec<u8>>;
-		/// Extract the abridged head that was set in the extrinsics, along with the candidate
-		/// hashes.
+		/// Extract the abridged head that was set in the extrinsics.
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
-			-> Option<Vec<(AbridgedCandidateReceipt, Hash)>>;
+			-> Option<Vec<AbridgedCandidateReceipt>>;
 	}
 }
 

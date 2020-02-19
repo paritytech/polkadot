@@ -65,7 +65,6 @@ pub(crate) enum Error {
 ///   * when the `Store` api is used by outside code.
 #[derive(Debug)]
 pub(crate) enum WorkerMsg {
-	ErasureRoots(ErasureRoots),
 	IncludedParachainBlocks(IncludedParachainBlocks),
 	ListenForChunks(ListenForChunks),
 	Chunks(Chunks),
@@ -73,24 +72,11 @@ pub(crate) enum WorkerMsg {
 	MakeAvailable(MakeAvailable),
 }
 
-/// The erasure roots of the heads included in the block with a given parent.
-#[derive(Debug)]
-pub(crate) struct ErasureRoots {
-	/// The relay parent of the block these roots belong to.
-	pub relay_parent: Hash,
-	/// The roots themselves.
-	pub erasure_roots: Vec<Hash>,
-	/// A sender to signal the result asynchronously.
-	pub result: oneshot::Sender<Result<(), Error>>,
-}
-
 /// A notification of a parachain block included in the relay chain.
 #[derive(Debug)]
 pub(crate) struct IncludedParachainBlock {
 	/// The abridged candidate receipt, extracted from a relay-chain block.
 	pub candidate: AbridgedCandidateReceipt,
-	/// The hash of the full candidate.
-	pub candidate_hash: Hash,
 	/// The data to keep available from the candidate, if known.
 	pub available_data: Option<AvailableData>,
 }
@@ -98,8 +84,6 @@ pub(crate) struct IncludedParachainBlock {
 /// The receipts of the heads included into the block with a given parent.
 #[derive(Debug)]
 pub(crate) struct IncludedParachainBlocks {
-	/// The relay parent of the block these parachain blocks belong to.
-	pub relay_parent: Hash,
 	/// The blocks themselves.
 	pub blocks: Vec<IncludedParachainBlock>,
 	/// A sender to signal the result asynchronously.
@@ -109,8 +93,6 @@ pub(crate) struct IncludedParachainBlocks {
 /// Listen gossip for these chunks.
 #[derive(Debug)]
 pub(crate) struct ListenForChunks {
-	/// The relay parent of the block the chunks from we want to listen to.
-	pub relay_parent: Hash,
 	/// The hash of the candidate chunk belongs to.
 	pub candidate_hash: Hash,
 	/// The index of the chunk we need.
@@ -216,7 +198,7 @@ where
 
 
 fn fetch_candidates<P>(client: &P, extrinsics: Vec<<Block as BlockT>::Extrinsic>, parent: &BlockId)
-	-> ClientResult<Option<Vec<(AbridgedCandidateReceipt, Hash)>>>
+	-> ClientResult<Option<Vec<AbridgedCandidateReceipt>>>
 where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
@@ -280,7 +262,7 @@ where
 		) {
 			Ok(Some(candidates)) => candidates
 				.into_iter()
-				.map(|(_c, h)| h)
+				.map(|c| c.hash())
 				.collect(),
 			Ok(None) => {
 				warn!(
@@ -380,20 +362,13 @@ where
 		&mut self,
 		runtime_handle: &Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
-		relay_parent: Hash,
 		blocks: Vec<IncludedParachainBlock>,
 	) -> Result<(), Error> {
-		let hashes: Vec<_> = blocks.iter().map(|c| c.candidate_hash).collect();
-
 		// First we have to add the receipts themselves.
-		for IncludedParachainBlock { candidate, candidate_hash, available_data }
+		for IncludedParachainBlock { candidate, available_data }
 			in blocks.into_iter()
 		{
-			let _ = self.availability_store.add_candidate(
-				&relay_parent,
-				&candidate_hash,
-				&candidate,
-			);
+			let _ = self.availability_store.add_candidate(&candidate);
 
 			if let Some(_available_data) = available_data {
 				// Should we be breaking block into chunks here and gossiping it and so on?
@@ -402,17 +377,21 @@ where
 			if let Err(e) = self.register_chunks_listener(
 				runtime_handle,
 				sender,
-				relay_parent,
+				candidate.relay_parent,
 				candidate.commitments.erasure_root,
 			) {
 				warn!(target: LOG_TARGET, "Failed to register chunk listener: {}", e);
 			}
-		}
 
-		let _ = self.availability_store.note_candidates_with_relay_parent(
-			&relay_parent,
-			hashes,
-		);
+			// This leans on the codebase-wide assumption that the `relay_parent`
+			// of all candidates in a block matches the parent hash of that block.
+			//
+			// In the future this will not always be true.
+			let _ = self.availability_store.note_candidates_with_relay_parent(
+				&candidate.relay_parent,
+				&[candidate.hash()],
+			);
+		}
 
 		Ok(())
 	}
@@ -431,7 +410,7 @@ where
 			.get_validator_index_and_n_validators(&relay_parent)
 			.ok_or(Error::IdAndNValidatorsNotFound { relay_parent })?;
 
-		let receipt = self.availability_store.get_candidate(&relay_parent, &candidate_hash)
+		let receipt = self.availability_store.get_candidate(&candidate_hash)
 			.ok_or(Error::CandidateNotFound { candidate_hash })?;
 
 		for chunk in &chunks {
@@ -448,23 +427,8 @@ where
 
 		self.availability_store.add_erasure_chunks(
 			n_validators,
-			&relay_parent,
 			&candidate_hash,
 			chunks,
-		)?;
-
-		Ok(())
-	}
-
-	// Adds the erasure roots into the store.
-	fn on_erasure_roots_received(
-		&mut self,
-		relay_parent: Hash,
-		erasure_roots: Vec<Hash>
-	) -> Result<(), Error> {
-		self.availability_store.add_erasure_roots_with_relay_parent(
-			&relay_parent,
-			erasure_roots,
 		)?;
 
 		Ok(())
@@ -478,20 +442,19 @@ where
 		&mut self,
 		runtime_handle: &Handle,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
-		relay_parent: Hash,
 		candidate_hash: Hash,
 		id: usize
 	) -> Result<(), Error> {
-		let candidate = self.availability_store.get_candidate(&relay_parent, &candidate_hash)
+		let candidate = self.availability_store.get_candidate(&candidate_hash)
 			.ok_or(Error::CandidateNotFound { candidate_hash })?;
 
 		if self.availability_store
-			.get_erasure_chunk(&relay_parent, &candidate_hash, id)
+			.get_erasure_chunk(&candidate_hash, id)
 			.is_none() {
 			if let Err(e) = self.register_chunks_listener(
 				runtime_handle,
 				sender,
-				relay_parent,
+				candidate.relay_parent,
 				candidate.commitments.erasure_root
 			) {
 				warn!(target: LOG_TARGET, "Failed to register a gossip listener: {}", e);
@@ -525,7 +488,7 @@ where
 			let runtime_handle = runtime.handle().clone();
 
 			// On startup, registers listeners (gossip streams) for all
-			// (relay_parent, erasure-root, i) in the awaited frontier.
+			// entries in the awaited frontier.
 			worker.register_listeners(runtime.handle(), &mut sender);
 
 			let process_notification = async move {
@@ -533,18 +496,8 @@ where
 					trace!(target: LOG_TARGET, "Received message {:?}", msg);
 
 					let res = match msg {
-						WorkerMsg::ErasureRoots(msg) => {
-							let ErasureRoots { relay_parent, erasure_roots, result} = msg;
-							let res = worker.on_erasure_roots_received(
-								relay_parent,
-								erasure_roots,
-							);
-							let _ = result.send(res);
-							Ok(())
-						}
 						WorkerMsg::ListenForChunks(msg) => {
 							let ListenForChunks {
-								relay_parent,
 								candidate_hash,
 								index,
 								result,
@@ -553,7 +506,6 @@ where
 							let res = worker.on_listen_for_chunks_received(
 								&runtime_handle,
 								&mut sender,
-								relay_parent,
 								candidate_hash,
 								index as usize,
 							);
@@ -565,7 +517,6 @@ where
 						}
 						WorkerMsg::IncludedParachainBlocks(msg) => {
 							let IncludedParachainBlocks {
-								relay_parent,
 								blocks,
 								result,
 							} = msg;
@@ -573,7 +524,6 @@ where
 							let res = worker.on_parachain_blocks_received(
 								&runtime_handle,
 								&mut sender,
-								relay_parent,
 								blocks,
 							);
 
@@ -678,7 +628,6 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 		);
 
 		if let Some(ref extrinsics) = block.body {
-			let relay_parent = *block.header.parent_hash();
 			let parent_id = BlockId::hash(*block.header.parent_hash());
 			// Extract our local position i from the validator set of the parent.
 			let validators = self.client.runtime_api().validators(&parent_id)
@@ -701,16 +650,15 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 								candidates,
 							);
 
-							for &(_, candidate_hash) in &candidates {
+							for candidate in &candidates {
+								let candidate_hash = candidate.hash();
 								// If we don't yet have our chunk of this candidate,
 								// tell the worker to listen for one.
 								if self.availability_store.get_erasure_chunk(
-									&relay_parent,
 									&candidate_hash,
 									our_id as usize,
 								).is_none() {
 									let msg = WorkerMsg::ListenForChunks(ListenForChunks {
-										relay_parent,
 										candidate_hash,
 										index: our_id as u32,
 										result: None,
@@ -720,35 +668,18 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 								}
 							}
 
-							let erasure_roots: Vec<_> = candidates
-								.iter()
-								.map(|(c, _)| c.commitments.erasure_root)
-								.collect();
-
-							// Inform the worker about new (relay_parent, erasure_roots) pairs
-							let (s, _) = oneshot::channel();
-							let msg = WorkerMsg::ErasureRoots(ErasureRoots {
-								relay_parent,
-								erasure_roots,
-								result: s,
-							});
-
-							let _ = self.to_worker.unbounded_send(msg);
-
 							let (s, _) = oneshot::channel();
 
 							// Inform the worker about the included parachain blocks.
 							let blocks = candidates
 								.into_iter()
-								.map(|(c, h)| IncludedParachainBlock {
+								.map(|c| IncludedParachainBlock {
 									candidate: c,
-									candidate_hash: h,
 									available_data: None,
 								})
 								.collect();
 
 							let msg = WorkerMsg::IncludedParachainBlocks(IncludedParachainBlocks {
-								relay_parent,
 								blocks,
 								result: s,
 							});
@@ -919,7 +850,8 @@ mod tests {
 		let mut candidate = AbridgedCandidateReceipt::default();
 
 		candidate.commitments.erasure_root = erasure_root;
-		let candidate_hash = [1u8; 32].into();
+		candidate.relay_parent = relay_parent;
+		let candidate_hash = candidate.hash();
 
 		// At this point we shouldn't be waiting for any chunks.
 		assert!(store.awaited_chunks().is_none());
@@ -927,10 +859,8 @@ mod tests {
 		let (s, r) = oneshot::channel();
 
 		let msg = WorkerMsg::IncludedParachainBlocks(IncludedParachainBlocks {
-			relay_parent,
 			blocks: vec![IncludedParachainBlock {
 				candidate,
-				candidate_hash,
 				available_data: None,
 			}],
 			result: s,
@@ -994,12 +924,14 @@ mod tests {
 		let mut candidate_1 = AbridgedCandidateReceipt::default();
 		candidate_1.commitments.erasure_root = erasure_root_1;
 		candidate_1.pov_block_hash = pov_block_hash_1;
-		let candidate_1_hash = [1u8; 32].into();
+		candidate_1.relay_parent = relay_parent;
+		let candidate_1_hash = candidate_1.hash();
 
 		let mut candidate_2 = AbridgedCandidateReceipt::default();
 		candidate_2.commitments.erasure_root = erasure_root_2;
 		candidate_2.pov_block_hash = pov_block_hash_2;
-		let candidate_2_hash = [2u8; 32].into();
+		candidate_2.relay_parent = relay_parent;
+		let candidate_2_hash = candidate_2.hash();
 
 		let store = Store::new_in_memory();
 
@@ -1007,13 +939,12 @@ mod tests {
 		store.note_validator_index_and_n_validators(&relay_parent, local_id, n_validators).unwrap();
 
 		// Let the store know about the candidates
-		store.add_candidate(&relay_parent, &candidate_1_hash, &candidate_1).unwrap();
-		store.add_candidate(&relay_parent, &candidate_2_hash, &candidate_2).unwrap();
+		store.add_candidate(&candidate_1).unwrap();
+		store.add_candidate(&candidate_2).unwrap();
 
 		// And let the store know about the chunk from the second candidate.
 		store.add_erasure_chunks(
 			n_validators,
-			&relay_parent,
 			&candidate_2_hash,
 			vec![ErasureChunk {
 				chunk: vec![1, 2, 3],
@@ -1044,7 +975,6 @@ mod tests {
 		let (s2, r2) = oneshot::channel();
 		// Tell the worker to listen for chunks from candidate 2 (we alredy have a chunk from it).
 		let listen_msg_2 = WorkerMsg::ListenForChunks(ListenForChunks {
-			relay_parent,
 			candidate_hash: candidate_2_hash,
 			index: local_id as u32,
 			result: Some(s2),
@@ -1061,7 +991,6 @@ mod tests {
 		// Tell the worker to listen for chunks from candidate 1.
 		// (we don't have a chunk from it yet).
 		let listen_msg_1 = WorkerMsg::ListenForChunks(ListenForChunks {
-			relay_parent,
 			candidate_hash: candidate_1_hash,
 			index: local_id as u32,
 			result: Some(s1),
