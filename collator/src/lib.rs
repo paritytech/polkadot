@@ -277,11 +277,11 @@ impl<P: 'static, SP: 'static> RelayChainContext for ApiContext<P, SP> where
 /// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
 /// This function does not block. It returns an `AbstractService` that can be used as a future
-pub fn build_collator_service<S, P, Extrinsic, B>(
+pub fn build_collator_service<S, P, Extrinsic>(
 	service: S,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
-	build_parachain: B,
+	build_parachain: impl FnOnce() -> P,
 ) -> Result<S, polkadot_service::Error>
 	where
 		S: AbstractService<Block = service::Block, NetworkSpecialization = service::PolkadotProtocol>,
@@ -305,7 +305,6 @@ pub fn build_collator_service<S, P, Extrinsic, B>(
 		P::ParachainContext: Send + 'static,
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 		Extrinsic: service::Codec + Send + Sync + 'static,
-		B: FnOnce() -> P,
 {
 	let spawner = service.spawn_task_handle();
 
