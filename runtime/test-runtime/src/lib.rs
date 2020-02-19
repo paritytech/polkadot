@@ -21,15 +21,14 @@
 #![recursion_limit="256"]
 
 use rstd::prelude::*;
-use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
 	parachain::{self, ActiveParas, CandidateReceipt}, ValidityError,
 };
 use runtime_common::{attestations, claims, parachains, registrar, slots,
-	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor, WeightToFee},
-	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
+	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, WeightToFee},
+	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength,
 };
 
@@ -47,7 +46,7 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Randomness},
+	parameter_types, construct_runtime, traits::Randomness,
 	weights::DispatchInfo,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
@@ -167,20 +166,12 @@ parameter_types! {
 	pub const CreationFee: Balance = 1 * CENTS;
 }
 
-/// Splits fees 80/20 between treasury and block author.
-pub type DealWithFees = SplitTwoWays<
-	Balance,
-	NegativeImbalance<Runtime>,
-	_4, Treasury,   // 4 parts (80%) goes to the treasury.
-	_1, ToAuthor<Runtime>,   // 1 part (20%) goes to the block author.
->;
-
 impl balances::Trait for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
-	type OnReapAccount = (Staking, Session, Democracy);
+	type OnReapAccount = (Staking, Session, ());
 	type OnNewAccount = ();
 	type TransferPayment = ();
 	type CreationFee = CreationFee;
@@ -195,7 +186,7 @@ parameter_types! {
 
 impl transaction_payment::Trait for Runtime {
 	type Currency = Balances;
-	type OnTransactionPayment = DealWithFees;
+	type OnTransactionPayment = ();
 	type TransactionBaseFee = TransactionBaseFee;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
@@ -283,135 +274,19 @@ impl staking::Trait for Runtime {
 	type Currency = Balances;
 	type Time = Timestamp;
 	type CurrencyToVote = CurrencyToVoteHandler<Self>;
-	type RewardRemainder = Treasury;
+	type RewardRemainder = ();
 	type Event = Event;
-	type Slash = Treasury;
+	type Slash = ();
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	// A majority of the council can cancel the slash.
-	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
+	type SlashCancelOrigin = system::EnsureNever<()>;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
 }
 
-parameter_types! {
-	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
-	pub const VotingPeriod: BlockNumber = 7 * DAYS;
-	pub const EmergencyVotingPeriod: BlockNumber = 3 * HOURS;
-	pub const MinimumDeposit: Balance = 1 * DOLLARS;
-	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
-	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
-	// One cent: $10,000 / MB
-	pub const PreimageByteDeposit: Balance = 10 * MILLICENTS;
-}
-
-impl democracy::Trait for Runtime {
-	type Proposal = Call;
-	type Event = Event;
-	type Currency = Balances;
-	type EnactmentPeriod = EnactmentPeriod;
-	type LaunchPeriod = LaunchPeriod;
-	type VotingPeriod = VotingPeriod;
-	type MinimumDeposit = MinimumDeposit;
-	/// A straight majority of the council can decide what their next motion is.
-	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
-	/// A majority can have the next scheduled referendum be a straight majority-carries vote.
-	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
-	/// A unanimous council can have the next scheduled referendum be a straight default-carries
-	/// (NTB) vote.
-	type ExternalDefaultOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>;
-	/// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
-	/// be tabled immediately and with a shorter voting/enactment period.
-	type FastTrackOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>;
-	type EmergencyVotingPeriod = EmergencyVotingPeriod;
-	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
-	type CancellationOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>;
-	// Any single technical committee member may veto a coming council proposal, however they can
-	// only do it once and it lasts only for the cooloff period.
-	type VetoOrigin = collective::EnsureMember<AccountId, TechnicalCollective>;
-	type CooloffPeriod = CooloffPeriod;
-	type PreimageByteDeposit = PreimageByteDeposit;
-	type Slash = Treasury;
-}
-
-type CouncilCollective = collective::Instance1;
-impl collective::Trait<CouncilCollective> for Runtime {
-	type Origin = Origin;
-	type Proposal = Call;
-	type Event = Event;
-}
-
-parameter_types! {
-	pub const CandidacyBond: Balance = 1 * DOLLARS;
-	pub const VotingBond: Balance = 5 * CENTS;
-	/// Daily council elections.
-	pub const TermDuration: BlockNumber = 24 * HOURS;
-	pub const DesiredMembers: u32 = 13;
-	pub const DesiredRunnersUp: u32 = 7;
-}
-
-impl elections_phragmen::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type ChangeMembers = Council;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
-	type CandidacyBond = CandidacyBond;
-	type VotingBond = VotingBond;
-	type LoserCandidate = Treasury;
-	type BadReport = Treasury;
-	type KickedMember = Treasury;
-	type DesiredMembers = DesiredMembers;
-	type DesiredRunnersUp = DesiredRunnersUp;
-	type TermDuration = TermDuration;
-}
-
-type TechnicalCollective = collective::Instance2;
-impl collective::Trait<TechnicalCollective> for Runtime {
-	type Origin = Origin;
-	type Proposal = Call;
-	type Event = Event;
-}
-
-impl membership::Trait<membership::Instance1> for Runtime {
-	type Event = Event;
-	type AddOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type RemoveOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type SwapOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type ResetOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type MembershipInitialized = TechnicalCommittee;
-	type MembershipChanged = TechnicalCommittee;
-}
-
-parameter_types! {
-	pub const ProposalBond: Permill = Permill::from_percent(5);
-	pub const ProposalBondMinimum: Balance = 20 * DOLLARS;
-	pub const SpendPeriod: BlockNumber = 6 * DAYS;
-	pub const Burn: Permill = Permill::from_percent(0);
-
-	pub const TipCountdown: BlockNumber = 1 * DAYS;
-	pub const TipFindersFee: Percent = Percent::from_percent(20);
-	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
-	pub const TipReportDepositPerByte: Balance = 1 * CENTS;
-}
-
-impl treasury::Trait for Runtime {
-	type Currency = Balances;
-	type ApproveOrigin = collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
-	type RejectOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type Tippers = ElectionsPhragmen;
-	type TipCountdown = TipCountdown;
-	type TipFindersFee = TipFindersFee;
-	type TipReportDepositBase = TipReportDepositBase;
-	type TipReportDepositPerByte = TipReportDepositPerByte;
-	type Event = Event;
-	type ProposalRejection = Treasury;
-	type ProposalBond = ProposalBond;
-	type ProposalBondMinimum = ProposalBondMinimum;
-	type SpendPeriod = SpendPeriod;
-	type Burn = Burn;
-}
 
 impl offences::Trait for Runtime {
 	type Event = Event;
@@ -517,88 +392,6 @@ impl claims::Trait for Runtime {
 	type Prefix = Prefix;
 }
 
-parameter_types! {
-	// Minimum 100 bytes/KSM deposited (1 CENT/byte)
-	pub const BasicDeposit: Balance = 10 * DOLLARS;       // 258 bytes on-chain
-	pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
-	pub const SubAccountDeposit: Balance = 2 * DOLLARS;   // 53 bytes on-chain
-	pub const MaxSubAccounts: u32 = 100;
-	pub const MaxAdditionalFields: u32 = 100;
-}
-
-impl identity::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type Slashed = Treasury;
-	type BasicDeposit = BasicDeposit;
-	type FieldDeposit = FieldDeposit;
-	type SubAccountDeposit = SubAccountDeposit;
-	type MaxSubAccounts = MaxSubAccounts;
-	type MaxAdditionalFields = MaxAdditionalFields;
-	type RegistrarOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type ForceOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-}
-
-parameter_types! {
-	// One storage item; value is size 4+4+16+32 bytes = 56 bytes.
-	pub const MultisigDepositBase: Balance = 30 * CENTS;
-	// Additional storage item size of 32 bytes.
-	pub const MultisigDepositFactor: Balance = 5 * CENTS;
-	pub const MaxSignatories: u16 = 100;
-}
-
-impl utility::Trait for Runtime {
-	type Event = Event;
-	type Call = Call;
-	type Currency = Balances;
-	type MultisigDepositBase = MultisigDepositBase;
-	type MultisigDepositFactor = MultisigDepositFactor;
-	type MaxSignatories = MaxSignatories;
-}
-
-parameter_types! {
-	pub const ConfigDepositBase: Balance = 5 * DOLLARS;
-	pub const FriendDepositFactor: Balance = 50 * CENTS;
-	pub const MaxFriends: u16 = 9;
-	pub const RecoveryDeposit: Balance = 5 * DOLLARS;
-}
-
-impl recovery::Trait for Runtime {
-	type Event = Event;
-	type Call = Call;
-	type Currency = Balances;
-	type ConfigDepositBase = ConfigDepositBase;
-	type FriendDepositFactor = FriendDepositFactor;
-	type MaxFriends = MaxFriends;
-	type RecoveryDeposit = RecoveryDeposit;
-}
-
-parameter_types! {
-	pub const CandidateDeposit: Balance = 10 * DOLLARS;
-	pub const WrongSideDeduction: Balance = 2 * DOLLARS;
-	pub const MaxStrikes: u32 = 10;
-	pub const RotationPeriod: BlockNumber = 80 * HOURS;
-	pub const PeriodSpend: Balance = 500 * DOLLARS;
-	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
-	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
-}
-
-impl society::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type Randomness = RandomnessCollectiveFlip;
-	type CandidateDeposit = CandidateDeposit;
-	type WrongSideDeduction = WrongSideDeduction;
-	type MaxStrikes = MaxStrikes;
-	type PeriodSpend = PeriodSpend;
-	type MembershipChanged = ();
-	type RotationPeriod = RotationPeriod;
-	type MaxLockDuration = MaxLockDuration;
-	type FounderSetOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type SuspensionJudgementOrigin = society::EnsureFounder<Runtime>;
-	type ChallengePeriod = ChallengePeriod;
-}
-
 impl vesting::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
@@ -633,14 +426,6 @@ construct_runtime! {
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
-		// Governance stuff; uncallable initially.
-		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
-		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		ElectionsPhragmen: elections_phragmen::{Module, Call, Storage, Event<T>},
-		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
-		Treasury: treasury::{Module, Call, Storage, Event<T>},
-
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 
@@ -650,18 +435,6 @@ construct_runtime! {
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
-
-		// Utility module.
-		Utility: utility::{Module, Call, Storage, Event<T>},
-
-		// Less simple identity module.
-		Identity: identity::{Module, Call, Storage, Event<T>},
-
-		// Society module.
-		Society: society::{Module, Call, Storage, Event<T>},
-
-		// Social recovery module.
-		Recovery: recovery::{Module, Call, Storage, Event<T>},
 
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},

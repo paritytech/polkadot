@@ -18,8 +18,6 @@
 
 #[cfg(test)]
 mod block_import;
-#[cfg(test)]
-mod sync;
 
 use std::{collections::HashMap, pin::Pin, sync::Arc, marker::PhantomData};
 
