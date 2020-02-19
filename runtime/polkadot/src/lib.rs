@@ -38,7 +38,10 @@ use sp_runtime::{
 	ApplyExtrinsicResult, Percent, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	curve::PiecewiseLinear,
-	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto},
+	traits::{
+		BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto,
+		IdentityLookup
+	},
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
@@ -78,7 +81,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 2,
-	spec_version: 1003,
+	spec_version: 1004,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -131,7 +134,7 @@ impl system::Trait for Runtime {
 	type Hash = Hash;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
-	type Lookup = Indices;
+	type Lookup = IdentityLookup<AccountId>;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
@@ -140,6 +143,9 @@ impl system::Trait for Runtime {
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
 	type ModuleToIndex = ModuleToIndex;
+	type AccountData = balances::AccountData<Balance>;
+	type OnNewAccount = ();
+	type OnReapAccount = (Balances, Staking, Session, Democracy);
 }
 
 parameter_types! {
@@ -161,14 +167,13 @@ parameter_types! {
 
 impl indices::Trait for Runtime {
 	type AccountIndex = AccountIndex;
+	type Currency = Balances;
+	type Deposit = IndexDeposit;
 	type Event = Event;
-	type IsDeadAccount = Balances;
-	type ResolveHint = indices::SimpleResolveHint<Self::AccountId, Self::AccountIndex>;
 }
 
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 100 * CENTS;
-	pub const CreationFee: Balance = 1 * CENTS;
 }
 
 /// Splits fees 80/20 between treasury and block author.
@@ -184,10 +189,7 @@ impl balances::Trait for Runtime {
 	type Event = Event;
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
-	type OnReapAccount = (Staking, Session, Democracy);
-	type OnNewAccount = ();
-	type TransferPayment = ();
-	type CreationFee = CreationFee;
+	type AccountStore = System;
 }
 
 parameter_types! {
@@ -529,7 +531,7 @@ impl vesting::Trait for Runtime {
 
 impl sudo::Trait for Runtime {
 	type Event = Event;
-	type Proposal = Call;
+	type Call = Call;
 }
 
 construct_runtime! {
@@ -546,13 +548,13 @@ construct_runtime! {
 		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
 
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
-		Indices: indices,
+		Indices: indices::{Module, Call, Storage, Config<T>, Event<T>},
 		Balances: balances::{Module, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: transaction_payment::{Module, Storage},
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
-		Staking: staking::{default},
+		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>},
 		Offences: offences::{Module, Call, Storage, Event},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
@@ -581,12 +583,12 @@ construct_runtime! {
 		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
 
 		// Sudo. Last module. Usable initially, but removed once governance enabled.
-		Sudo: sudo,
+		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 }
 
 /// The address format for describing accounts.
-pub type Address = <Indices as StaticLookup>::Source;
+pub type Address = AccountId;
 /// Block header type as expected by this runtime.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
@@ -637,6 +639,10 @@ sp_api::impl_runtime_apis! {
 
 	impl block_builder_api::BlockBuilder<Block> for Runtime {
 		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
+			Executive::apply_extrinsic(extrinsic)
+		}
+
+		fn apply_trusted_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
 			Executive::apply_extrinsic(extrinsic)
 		}
 
@@ -724,6 +730,10 @@ sp_api::impl_runtime_apis! {
 				randomness: Babe::randomness(),
 				secondary_slots: true,
 			}
+		}
+
+		fn current_epoch_start() -> babe_primitives::SlotNumber {
+			Babe::current_epoch_start()
 		}
 	}
 

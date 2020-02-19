@@ -189,7 +189,7 @@ decl_storage! {
 
 impl<T: Trait> SwapAux for Module<T> {
 	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
-		if <Onboarding<T>>::exists(one) || <Onboarding<T>>::exists(other) {
+		if <Onboarding<T>>::contains_key(one) || <Onboarding<T>>::contains_key(other) {
 			Err("can't swap an undeployed parachain")?
 		}
 		Ok(())
@@ -292,7 +292,7 @@ decl_module! {
 			// winner information is duplicated from the previous block in case no bids happened
 			// in this block.
 			if let Some(offset) = Self::is_ending(now) {
-				if !<Winning<T>>::exists(&offset) {
+				if !<Winning<T>>::contains_key(&offset) {
 					<Winning<T>>::insert(offset,
 						offset.checked_sub(&One::one())
 							.and_then(<Winning<T>>::get)
@@ -915,22 +915,21 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
+		type AccountData = balances::AccountData<u64>;
+		type OnNewAccount = ();
+		type OnReapAccount = Balances;
 	}
 
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
-		pub const CreationFee: u64 = 0;
 	}
 
 	impl balances::Trait for Test {
 		type Balance = u64;
 		type Event = ();
-		type OnNewAccount = ();
-		type OnReapAccount = System;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type CreationFee = CreationFee;
-		type TransferPayment = ();
+		type AccountStore = System;
 	}
 
 	thread_local! {

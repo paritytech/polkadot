@@ -647,7 +647,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 			target: LOG_TARGET,
 			"Importing block #{}, ({})",
 			block.header.number(),
-			block.post_header().hash()
+			block.post_hash(),
 		);
 
 		if let Some(ref extrinsics) = block.body {
