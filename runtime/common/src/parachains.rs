@@ -26,14 +26,18 @@ use sp_runtime::{
 	Perbill, RuntimeDebug,
 	traits::{
 		Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
-		AccountIdConversion, BadOrigin, Convert,
+		AccountIdConversion, BadOrigin, Convert, SignedExtension,
 	},
+	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
 };
 use sp_staking::{
 	SessionIndex,
 	offence::{ReportOffence, Offence, Kind},
 };
-use frame_support::weights::SimpleDispatchInfo;
+use frame_support::{
+	dispatch::{IsSubType},
+	weights::{DispatchInfo, SimpleDispatchInfo},
+};
 use primitives::{
 	Hash, Balance,
 	parachain::{
@@ -43,13 +47,14 @@ use primitives::{
 	},
 };
 use frame_support::{
-	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure, fail,
+	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
+use sp_runtime::transaction_validity::InvalidTransaction;
 
 use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
 
-use system::ensure_none;
+use system::{ensure_none, ensure_signed};
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
 
@@ -430,12 +435,19 @@ decl_module! {
 		}
 
 		/// Provide a proof that some validator has commited a double-vote.
+		///
+		/// The weight is 0; in order to avoid DoS a `SignedExtension` validation
+		/// is implemented.
+		#[weight = SimpleDispatchInfo::FixedNormal(0)]
 		pub fn report_double_vote(
 			origin,
 			report: DoubleVoteReport,
 		) -> DispatchResult {
-			ensure_none(origin)?;
+			let reporter = ensure_signed(origin)?;
 
+			// The following code duplicates the logic in `ValidateDoubeVoteReports::validate`
+			// since we still need to do all these steps to derermine which one of the offenders
+			// gets slashed.
 			let session_index = <session::Module<T>>::current_index();
 			let validators = <session::Module<T>>::validators();
 			let validator_set_count = validators.len() as u32;
@@ -459,28 +471,9 @@ decl_module! {
 				"Report verification failed.",
 			);
 
-			match (report.first.0, report.second.0) {
-				// If issuing a `Candidate` message on a parachain block, neither a `Valid` or
-				// `Invalid` vote cannot be issued on that parachain block, as the `Candidate`
-				// message is an implicit validity vote.
-				(Statement::Candidate(candidate), Statement::Valid(hash)) |
-				(Statement::Candidate(candidate), Statement::Invalid(hash)) |
-				(Statement::Valid(hash), Statement::Candidate(candidate)) |
-				(Statement::Invalid(hash), Statement::Candidate(candidate))
-				if candidate.hash() == hash => {
-					T::ReportDoubleVote::report_offence(vec![], offence);
-				},
-				// Otherwise, it is illegal to cast both a `Valid` and
-				// `Invalid` vote on a given parachain block.
-				(Statement::Valid(hash_1), Statement::Invalid(hash_2)) |
-				(Statement::Invalid(hash_1), Statement::Valid(hash_2))
-				if hash_1 == hash_2 => {
-					T::ReportDoubleVote::report_offence(vec![], offence);
-				},
-				_ => {
-					fail!("Not a case of a double vote");
-				}
-			}
+			// Checks if this is actually a double vote are
+			// implemented in `ValidateDoubleVoteReports::validete`.
+			T::ReportDoubleVote::report_offence(vec![reporter], offence);
 
 			Ok(())
 		}
@@ -1124,6 +1117,117 @@ pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, B
 		_ => Err(BadOrigin),
 	}
 }
+
+
+/// Ensure that double vote reports are only processed if valid.
+#[derive(Encode, Decode, Clone, Eq, PartialEq)]
+pub struct ValidateDoubleVoteReports<T: Trait + Send + Sync>(rstd::marker::PhantomData<T>) where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
+
+impl<T: Trait + Send + Sync> rstd::fmt::Debug for ValidateDoubleVoteReports<T> where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+{
+	fn fmt(&self, f: &mut rstd::fmt::Formatter) -> rstd::fmt::Result {
+		write!(f, "ValidateDoubleVoteReports<T>")
+	}
+}
+
+/// Custom validity error used while validating double vote reports.
+#[repr(u8)]
+pub enum DoubleVoteValidityError {
+	/// The authority being reported is not in the authority set.
+	NotAnAuthority = 0,
+
+	/// Failed to convert offender's `FullIdentificationOf`.
+	FailedToConvertId = 1,
+
+	/// The signature on one or both of the statements in the report is wrong.
+	InvalidSignature = 2,
+
+	/// The two statements in the report are not conflicting.
+	NotDoubleVote = 3,
+}
+
+impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+{
+	const IDENTIFIER: &'static str = "ValidateDoubleVoteReports";
+	type AccountId = T::AccountId;
+	type Call = <T as system::Trait>::Call;
+	type AdditionalSigned = ();
+	type Pre = ();
+	type DispatchInfo = DispatchInfo;
+
+	fn additional_signed(&self)
+		-> rstd::result::Result<Self::AdditionalSigned, TransactionValidityError>
+	{
+		Ok(())
+	}
+
+	fn validate(
+		&self,
+		_who: &Self::AccountId,
+		call: &Self::Call,
+		_info: DispatchInfo,
+		_len: usize,
+	) -> TransactionValidity {
+		let r = ValidTransaction::default();
+
+		if let Some(local_call) = call.is_sub_type() {
+			if let Call::report_double_vote(report) = local_call {
+				let e = TransactionValidityError::from(
+					InvalidTransaction::Custom(DoubleVoteValidityError::NotAnAuthority as u8)
+				);
+
+				let validators = <session::Module<T>>::validators();
+				let parent_hash = <system::Module<T>>::block_hash(<system::Module<T>>::block_number());
+
+				let authorities = Module::<T>::authorities();
+				let offender_idx = match authorities.iter().position(|a| *a == report.identity) {
+					Some(idx) => idx,
+					None => return Err(e),
+				};
+
+				let e = TransactionValidityError::from(
+					InvalidTransaction::Custom(DoubleVoteValidityError::FailedToConvertId as u8)
+				);
+				if T::FullIdentificationOf::convert(validators[offender_idx].clone()).is_none() {
+					return Err(e);
+				}
+
+				let e = TransactionValidityError::from(
+					InvalidTransaction::Custom(DoubleVoteValidityError::InvalidSignature as u8)
+				);
+				report.verify(parent_hash).map_err(|_| e)?;
+
+				let e = TransactionValidityError::from(
+					InvalidTransaction::Custom(DoubleVoteValidityError::NotDoubleVote as u8)
+				);
+				match (&report.first.0, &report.second.0) {
+					// If issuing a `Candidate` message on a parachain block, neither a `Valid` or
+					// `Invalid` vote cannot be issued on that parachain block, as the `Candidate`
+					// message is an implicit validity vote.
+					(Statement::Candidate(candidate), Statement::Valid(hash)) |
+					(Statement::Candidate(candidate), Statement::Invalid(hash)) |
+					(Statement::Valid(hash), Statement::Candidate(candidate)) |
+					(Statement::Invalid(hash), Statement::Candidate(candidate))
+					if candidate.hash() == *hash => {},
+					// Otherwise, it is illegal to cast both a `Valid` and
+					// `Invalid` vote on a given parachain block.
+					(Statement::Valid(hash_1), Statement::Invalid(hash_2)) |
+					(Statement::Invalid(hash_1), Statement::Valid(hash_2))
+					if *hash_1 == *hash_2 => {},
+					_ => {
+						return Err(e);
+					}
+				}
+			}
+		}
+
+		Ok(r)
+	}
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -2431,7 +2535,7 @@ mod tests {
 
 			assert_ok!(Parachains::dispatch(
 				report_double_vote(report),
-				Origin::NONE,
+				Origin::signed(1),
 			));
 
 			start_era(2);
@@ -2510,7 +2614,7 @@ mod tests {
 
 			assert_ok!(Parachains::dispatch(
 				report_double_vote(report),
-				Origin::NONE,
+				Origin::signed(1),
 			));
 
 			start_era(2);
@@ -2591,7 +2695,7 @@ mod tests {
 
 			assert_ok!(Parachains::dispatch(
 				report_double_vote(report),
-				Origin::NONE,
+				Origin::signed(1),
 			));
 
 			start_era(2);
