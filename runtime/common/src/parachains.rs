@@ -2082,7 +2082,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: HeadData(vec![1, 2, 3]),
 			parent_head: HeadData(vec![1, 2, 3]),
-			egress_queue_roots: vec![],
 			fees: 0,
 			block_data_hash: Default::default(),
 			upward_messages: vec![],
