@@ -143,7 +143,7 @@ fn main() {
 	config.chain_spec = load_spec("dev").unwrap();
 
 	let res = collator::run_collator(
-		|| context,
+		context,
 		id,
 		key,
 		config,
