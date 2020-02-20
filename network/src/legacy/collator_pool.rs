@@ -236,15 +236,12 @@ impl CollatorPool {
 mod tests {
 	use super::*;
 	use sp_core::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::{
-		CandidateReceipt, BlockData, PoVBlock, HeadData, ConsolidatedIngress,
-	};
+	use polkadot_primitives::parachain::{CandidateReceipt, BlockData, PoVBlock, HeadData};
 	use futures::executor::block_on;
 
 	fn make_pov(block_data: Vec<u8>) -> PoVBlock {
 		PoVBlock {
 			block_data: BlockData(block_data),
-			ingress: ConsolidatedIngress(Vec::new()),
 		}
 	}
 
@@ -294,7 +291,6 @@ mod tests {
 				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
 				parent_head: HeadData(vec![]),
-				egress_queue_roots: vec![],
 				fees: 0,
 				block_data_hash: [3; 32].into(),
 				upward_messages: Vec::new(),
@@ -324,7 +320,6 @@ mod tests {
 				signature: Default::default(),
 				head_data: HeadData(vec![1, 2, 3]),
 				parent_head: HeadData(vec![]),
-				egress_queue_roots: vec![],
 				fees: 0,
 				block_data_hash: [3; 32].into(),
 				upward_messages: Vec::new(),

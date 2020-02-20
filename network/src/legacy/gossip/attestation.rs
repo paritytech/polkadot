@@ -93,11 +93,6 @@ impl PeerData {
 	pub(super) fn knowledge_at_mut(&mut self, parent_hash: &Hash) -> Option<&mut Knowledge> {
 		self.live.get_mut(parent_hash)
 	}
-
-	/// Get an iterator over all live leaves of this peer.
-	pub(super) fn leaves(&self) -> impl Iterator<Item = &Hash> {
-		self.live.keys()
-	}
 }
 
 /// An impartial view of what topics and data are valid based on attestation session data.

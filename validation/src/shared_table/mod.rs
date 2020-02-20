@@ -24,7 +24,7 @@ use availability_store::{Store as AvailabilityStore};
 use table::{self, Table, Context as TableContextTrait};
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
-	Id as ParaId, OutgoingMessages, CandidateReceipt, ValidatorPair, ValidatorId,
+	Id as ParaId, CandidateReceipt, ValidatorPair, ValidatorId,
 	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, ErasureChunk,
 };
 
@@ -91,7 +91,7 @@ impl TableContext {
 }
 
 pub(crate) enum Validation {
-	Valid(PoVBlock, OutgoingMessages),
+	Valid(PoVBlock),
 	Invalid(PoVBlock), // should take proof.
 }
 
@@ -222,10 +222,10 @@ impl Validated {
 
 	/// Note that we've validated a candidate with given hash and it is good.
 	/// outgoing message required.
-	pub fn known_good(hash: Hash, collation: PoVBlock, outgoing: OutgoingMessages) -> Self {
+	pub fn known_good(hash: Hash, collation: PoVBlock) -> Self {
 		Validated {
 			statement: GenericStatement::Valid(hash),
-			result: Validation::Valid(collation, outgoing),
+			result: Validation::Valid(collation),
 		}
 	}
 
@@ -234,26 +234,17 @@ impl Validated {
 	pub fn collated_local(
 		receipt: CandidateReceipt,
 		collation: PoVBlock,
-		outgoing: OutgoingMessages,
 	) -> Self {
 		Validated {
 			statement: GenericStatement::Candidate(receipt),
-			result: Validation::Valid(collation, outgoing),
+			result: Validation::Valid(collation),
 		}
 	}
 
 	/// Get a reference to the proof-of-validation block.
 	pub fn pov_block(&self) -> &PoVBlock {
 		match self.result {
-			Validation::Valid(ref b, _) | Validation::Invalid(ref b) => b,
-		}
-	}
-
-	/// Get a reference to the outgoing messages data, if any.
-	pub fn outgoing_messages(&self) -> Option<&OutgoingMessages> {
-		match self.result {
-			Validation::Valid(_, ref ex) => Some(ex),
-			Validation::Invalid(_) => None,
+			Validation::Valid(ref b) | Validation::Invalid(ref b) => b,
 		}
 	}
 }
@@ -273,7 +264,7 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 	pub fn prime<P: ProvideRuntimeApi<Block>>(self, api: Arc<P>)
 		-> PrimedParachainWork<
 			Fetch,
-			impl Send + FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()> + Unpin,
+			impl Send + FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<ErasureChunk, ()> + Unpin,
 		>
 		where
 			P: Send + Sync + 'static,
@@ -292,8 +283,8 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 			);
 
 			match res {
-				Ok((messages, mut chunks)) => {
-					Ok((messages, chunks.swap_remove(local_index)))
+				Ok(mut chunks) => {
+					Ok(chunks.swap_remove(local_index))
 				}
 				Err(e) => {
 					debug!(target: "validation", "Encountered bad collation: {}", e);
@@ -307,7 +298,7 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 
 	/// Prime the parachain work with a custom validation function.
 	pub fn prime_with<F>(self, validate: F) -> PrimedParachainWork<Fetch, F>
-		where F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()>
+		where F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<ErasureChunk, ()>
 	{
 		PrimedParachainWork { inner: self, validate }
 	}
@@ -327,7 +318,7 @@ pub struct PrimedParachainWork<Fetch, F> {
 impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 	where
 		Fetch: Future<Output=Result<PoVBlock,Err>> + Unpin,
-		F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<(OutgoingMessages, ErasureChunk), ()> + Unpin,
+		F: FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<ErasureChunk, ()> + Unpin,
 		Err: From<::std::io::Error>,
 {
 	pub async fn validate(mut self) -> Result<(Validated, Option<ErasureChunk>), Err> {
@@ -353,7 +344,7 @@ impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 				},
 				None,
 			)),
-			Ok((outgoing_targeted, our_chunk)) => {
+			Ok(our_chunk) => {
 				self.inner.availability_store.add_erasure_chunk(
 					self.inner.relay_parent,
 					candidate.clone(),
@@ -363,7 +354,7 @@ impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 				Ok((
 					Validated {
 						statement: GenericStatement::Valid(candidate_hash),
-						result: Validation::Valid(pov_block, outgoing_targeted),
+						result: Validation::Valid(pov_block),
 					},
 					Some(our_chunk),
 				))
@@ -580,9 +571,7 @@ mod tests {
 	use super::*;
 	use sp_keyring::Sr25519Keyring;
 	use primitives::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::{
-		AvailableMessages, BlockData, ConsolidatedIngress, Collation, HeadData,
-	};
+	use polkadot_primitives::parachain::{BlockData, Collation, HeadData};
 	use polkadot_erasure_coding::{self as erasure};
 	use availability_store::ProvideGossipMessages;
 	use futures::future;
@@ -592,7 +581,6 @@ mod tests {
 	fn pov_block_with_data(data: Vec<u8>) -> PoVBlock {
 		PoVBlock {
 			block_data: BlockData(data),
-			ingress: ConsolidatedIngress(Vec::new()),
 		}
 	}
 
@@ -627,7 +615,6 @@ mod tests {
 			&self,
 			_collation: Collation,
 			_candidate: CandidateReceipt,
-			_outgoing: OutgoingMessages,
 			_chunks: (ValidatorIndex, &[ErasureChunk])
 		) -> Self::SendLocalCollation { future::ready(Ok(())) }
 
@@ -671,7 +658,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: HeadData(vec![1, 2, 3, 4]),
 			parent_head: HeadData(vec![]),
-			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
@@ -728,7 +714,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: HeadData(vec![1, 2, 3, 4]),
 			parent_head: HeadData(vec![]),
-			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
@@ -766,7 +751,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: HeadData(vec![1, 2, 3, 4]),
 			parent_head: HeadData(vec![]),
-			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash,
 			upward_messages: Vec::new(),
@@ -792,24 +776,17 @@ mod tests {
 			max_block_data_size: None,
 		};
 
-		let validated = block_on(producer.prime_with(|_, _, _| Ok((
-				OutgoingMessages { outgoing_messages: Vec::new() },
-				ErasureChunk {
-					chunk: vec![1, 2, 3],
-					index: local_index as u32,
-					proof: vec![],
-				},
-			))).validate()).unwrap();
+		let validated = block_on(producer.prime_with(|_, _, _| Ok(
+			ErasureChunk {
+				chunk: vec![1, 2, 3],
+				index: local_index as u32,
+				proof: vec![],
+			}
+		)).validate()).unwrap();
 
 		assert_eq!(validated.0.pov_block(), &pov_block);
 		assert_eq!(validated.0.statement, GenericStatement::Valid(hash));
 
-		if let Some(messages) = validated.0.outgoing_messages() {
-			let available_messages: AvailableMessages = messages.clone().into();
-			for (root, queue) in available_messages.0 {
-				assert_eq!(store.queue_by_root(&root), Some(queue));
-			}
-		}
 		assert!(store.get_erasure_chunk(&relay_parent, block_data_hash, local_index).is_some());
 		assert!(store.get_erasure_chunk(&relay_parent, block_data_hash, local_index + 1).is_none());
 	}
@@ -823,7 +800,6 @@ mod tests {
 		let block_data_hash = pov_block.block_data.hash();
 		let local_index = 0;
 		let n_validators = 2;
-		let ex = Some(AvailableMessages(Vec::new()));
 
 		let candidate = CandidateReceipt {
 			parachain_index: para_id,
@@ -831,14 +807,13 @@ mod tests {
 			signature: Default::default(),
 			head_data: HeadData(vec![1, 2, 3, 4]),
 			parent_head: HeadData(vec![]),
-			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
 			erasure_root: [1u8; 32].into(),
 		};
 
-		let chunks = erasure::obtain_chunks(n_validators, &pov_block.block_data, ex.as_ref()).unwrap();
+		let chunks = erasure::obtain_chunks(n_validators, &pov_block.block_data).unwrap();
 
 		store.add_validator_index_and_n_validators(
 			&relay_parent,
@@ -857,23 +832,16 @@ mod tests {
 			max_block_data_size: None,
 		};
 
-		let validated = block_on(producer.prime_with(|_, _, _| Ok((
-				OutgoingMessages { outgoing_messages: Vec::new() },
+		let validated = block_on(producer.prime_with(|_, _, _| Ok(
 				ErasureChunk {
 					chunk: chunks[local_index].clone(),
 					index: local_index as u32,
 					proof: vec![],
 				},
-			))).validate()).unwrap();
+			)).validate()).unwrap();
 
 		assert_eq!(validated.0.pov_block(), &pov_block);
 
-		if let Some(messages) = validated.0.outgoing_messages() {
-			let available_messages: AvailableMessages = messages.clone().into();
-			for (root, queue) in available_messages.0 {
-				assert_eq!(store.queue_by_root(&root), Some(queue));
-			}
-		}
 		// This works since there are only two validators and one erasure chunk should be
 		// enough to reconstruct the block data.
 		assert_eq!(store.block_data(relay_parent, block_data_hash).unwrap(), pov_block.block_data);
@@ -915,7 +883,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: HeadData(vec![1, 2, 3, 4]),
 			parent_head: HeadData(vec![]),
-			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
@@ -953,7 +920,6 @@ mod tests {
 
 		let para_id = ParaId::from(1);
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
-		let outgoing_messages = OutgoingMessages { outgoing_messages: Vec::new() };
 		let parent_hash = Default::default();
 
 		let local_key = Sr25519Keyring::Alice.pair();
@@ -983,7 +949,6 @@ mod tests {
 			signature: Default::default(),
 			head_data: HeadData(vec![1, 2, 3, 4]),
 			parent_head: HeadData(vec![]),
-			egress_queue_roots: Vec::new(),
 			fees: 1_000_000,
 			block_data_hash: [2; 32].into(),
 			upward_messages: Vec::new(),
@@ -994,7 +959,6 @@ mod tests {
 		let signed_statement = shared_table.import_validated(Validated::collated_local(
 			candidate,
 			pov_block,
-			outgoing_messages,
 		)).unwrap();
 
 		assert!(shared_table.inner.lock().validated.get(&hash).expect("validation has started").is_done());

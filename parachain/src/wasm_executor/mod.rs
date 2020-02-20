@@ -21,7 +21,7 @@
 //! a WASM VM for re-execution of a parachain candidate.
 
 use std::any::{TypeId, Any};
-use crate::{ValidationParams, ValidationResult, UpwardMessage, TargetedMessage};
+use crate::{ValidationParams, ValidationResult, UpwardMessage};
 use codec::{Decode, Encode};
 use sp_core::storage::{ChildStorageKey, ChildInfo};
 
@@ -102,9 +102,6 @@ impl std::error::Error for Error {
 
 /// Externalities for parachain validation.
 pub trait Externalities: Send {
-	/// Called when a message is to be posted to another parachain.
-	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String>;
-
 	/// Called when a message is to be posted to the parachain's relay chain.
 	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String>;
 }

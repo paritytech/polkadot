@@ -306,7 +306,7 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 					break;
 				}
 
-				match block_builder.push(ready.data().clone()) {
+				match block_builder.push_trusted(ready.data().clone()) {
 					Ok(()) => {
 						debug!("[{:?}] Pushed to the block.", ready.hash());
 						pending_size += encoded_size;

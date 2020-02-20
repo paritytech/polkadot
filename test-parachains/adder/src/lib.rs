@@ -90,7 +90,6 @@ pub fn execute(
 	parent_hash: [u8; 32],
 	parent_head: HeadData,
 	block_data: &BlockData,
-	from_messages: u64,
 ) -> Result<HeadData, StateMismatch> {
 	debug_assert_eq!(parent_hash, parent_head.hash());
 
@@ -99,7 +98,6 @@ pub fn execute(
 	}
 
 	let new_state = block_data.state.overflowing_add(block_data.add).0;
-	let new_state = new_state.overflowing_add(from_messages).0;
 
 	Ok(HeadData {
 		number: parent_head.number + 1,

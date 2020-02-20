@@ -20,19 +20,13 @@ use std::collections::HashMap;
 use super::{PolkadotProtocol, Status, Message, FullStatus};
 use crate::legacy::validation::LeafWorkParams;
 
-use polkadot_validation::GenericStatement;
 use polkadot_primitives::{Block, Hash};
-use polkadot_primitives::parachain::{
-	CandidateReceipt, HeadData, PoVBlock, BlockData, CollatorId, ValidatorId,
-	StructuredUnroutedIngress,
-};
+use polkadot_primitives::parachain::{CollatorId, ValidatorId};
 use sp_core::crypto::UncheckedInto;
 use codec::Encode;
 use sc_network::{
 	PeerId, Context, ReputationChange, config::Roles, specialization::NetworkSpecialization,
 };
-
-use futures::executor::block_on;
 
 mod validation;
 
@@ -94,13 +88,6 @@ impl crate::legacy::gossip::ChainContext for TestChainContext {
 	}
 }
 
-fn make_pov(block_data: Vec<u8>) -> PoVBlock {
-	PoVBlock {
-		block_data: BlockData(block_data),
-		ingress: polkadot_primitives::parachain::ConsolidatedIngress(Vec::new()),
-	}
-}
-
 fn make_status(status: &Status, roles: Roles) -> FullStatus {
 	FullStatus {
 		version: 1,
@@ -119,11 +106,6 @@ fn make_validation_leaf_work(parent_hash: Hash, local_key: ValidatorId) -> LeafW
 		parent_hash,
 		authorities: Vec::new(),
 	}
-}
-
-fn on_message(protocol: &mut PolkadotProtocol, ctx: &mut TestContext, from: PeerId, message: Message) {
-	let encoded = message.encode();
-	protocol.on_message(ctx, from, encoded);
 }
 
 #[test]
@@ -155,93 +137,6 @@ fn sends_session_key() {
 		let mut ctx = TestContext::default();
 		protocol.on_connect(&mut ctx, peer_b.clone(), make_status(&collator_status, Roles::NONE));
 		assert!(ctx.has_message(peer_b.clone(), Message::ValidatorId(local_key)));
-	}
-}
-
-#[test]
-fn fetches_from_those_with_knowledge() {
-	let mut protocol = PolkadotProtocol::new(None);
-
-	let peer_a = PeerId::random();
-	let peer_b = PeerId::random();
-	let parent_hash = [0; 32].into();
-	let local_key: ValidatorId = [1; 32].unchecked_into();
-
-	let block_data = BlockData(vec![1, 2, 3, 4]);
-	let block_data_hash = block_data.hash();
-	let candidate_receipt = CandidateReceipt {
-		parachain_index: 5.into(),
-		collator: [255; 32].unchecked_into(),
-		head_data: HeadData(vec![9, 9, 9]),
-		parent_head: HeadData(vec![]),
-		signature: Default::default(),
-		egress_queue_roots: Vec::new(),
-		fees: 1_000_000,
-		block_data_hash,
-		upward_messages: Vec::new(),
-		erasure_root: [1u8; 32].into(),
-	};
-
-	let candidate_hash = candidate_receipt.hash();
-	let a_key: ValidatorId = [3; 32].unchecked_into();
-	let b_key: ValidatorId = [4; 32].unchecked_into();
-
-	let status = Status { collating_for: None };
-
-	let params = make_validation_leaf_work(parent_hash, local_key.clone());
-	let session = protocol.new_validation_leaf_work(&mut TestContext::default(), params);
-	let knowledge = session.knowledge();
-
-	knowledge.lock().note_statement(a_key.clone(), &GenericStatement::Valid(candidate_hash));
-	let canon_roots = StructuredUnroutedIngress(Vec::new());
-	let recv = protocol.fetch_pov_block(
-		&mut TestContext::default(),
-		&candidate_receipt,
-		parent_hash,
-		canon_roots,
-	);
-
-	// connect peer A
-	{
-		let mut ctx = TestContext::default();
-		protocol.on_connect(&mut ctx, peer_a.clone(), make_status(&status, Roles::AUTHORITY));
-		assert!(ctx.has_message(peer_a.clone(), Message::ValidatorId(local_key)));
-	}
-
-	// peer A gives session key and gets asked for data.
-	{
-		let mut ctx = TestContext::default();
-		on_message(&mut protocol, &mut ctx, peer_a.clone(), Message::ValidatorId(a_key.clone()));
-		assert!(protocol.validators.contains_key(&a_key));
-		assert!(ctx.has_message(peer_a.clone(), Message::RequestPovBlock(1, parent_hash, candidate_hash)));
-	}
-
-	knowledge.lock().note_statement(b_key.clone(), &GenericStatement::Valid(candidate_hash));
-
-	// peer B connects and sends session key. request already assigned to A
-	{
-		let mut ctx = TestContext::default();
-		protocol.on_connect(&mut ctx, peer_b.clone(), make_status(&status, Roles::AUTHORITY));
-		on_message(&mut protocol, &mut ctx, peer_b.clone(), Message::ValidatorId(b_key.clone()));
-		assert!(!ctx.has_message(peer_b.clone(), Message::RequestPovBlock(2, parent_hash, candidate_hash)));
-
-	}
-
-	// peer A disconnects, triggering reassignment
-	{
-		let mut ctx = TestContext::default();
-		protocol.on_disconnect(&mut ctx, peer_a.clone());
-		assert!(!protocol.validators.contains_key(&a_key));
-		assert!(ctx.has_message(peer_b.clone(), Message::RequestPovBlock(2, parent_hash, candidate_hash)));
-	}
-
-	// peer B comes back with block data.
-	{
-		let mut ctx = TestContext::default();
-		let pov_block = make_pov(block_data.0);
-		on_message(&mut protocol, &mut ctx, peer_b, Message::PovBlock(2, Some(pov_block.clone())));
-		drop(protocol);
-		assert_eq!(block_on(recv).unwrap(), pov_block);
 	}
 }
 
