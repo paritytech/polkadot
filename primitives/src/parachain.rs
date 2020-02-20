@@ -35,7 +35,7 @@ use application_crypto::KeyTypeId;
 use trie::TrieConfiguration;
 
 pub use polkadot_parachain::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, TargetedMessage,
+	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage,
 };
 
 /// The key type ID for a collator key.

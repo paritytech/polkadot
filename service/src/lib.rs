@@ -177,9 +177,8 @@ macro_rules! new_full_start {
 				import_setup = Some((block_import, grandpa_link, babe_link));
 				Ok(import_queue)
 			})?
-			.with_rpc_extensions(|client, pool, _backend, _fetcher, _remote_blockchain|
-				-> Result<polkadot_rpc::RpcExtension, _> {
-				Ok(polkadot_rpc::create_full(client, pool))
+			.with_rpc_extensions(|builder| -> Result<polkadot_rpc::RpcExtension, _> {
+				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool()))
 			})?;
 
 		(builder, import_setup, inherent_data_providers)
@@ -479,7 +478,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			on_exit: service.on_exit(),
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 			voting_rule: grandpa::VotingRulesBuilder::default().build(),
-			executor: service.spawn_task_handle(),
 		};
 
 		service.spawn_essential_task(
@@ -626,13 +624,14 @@ where
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
-		.with_rpc_extensions(|client, pool, _backend, fetcher, remote_blockchain|
+		.with_rpc_extensions(|builder|
 			-> Result<polkadot_rpc::RpcExtension, _> {
-			let fetcher = fetcher
+			let fetcher = builder.fetcher()
 				.ok_or_else(|| "Trying to start node RPC without active fetcher")?;
-			let remote_blockchain = remote_blockchain
+			let remote_blockchain = builder.remote_backend()
 				.ok_or_else(|| "Trying to start node RPC without active remote blockchain")?;
-			Ok(polkadot_rpc::create_light(client, remote_blockchain, fetcher, pool))
+
+			Ok(polkadot_rpc::create_light(builder.client().clone(), remote_blockchain, fetcher, builder.pool()))
 		})?
 		.build()
 }

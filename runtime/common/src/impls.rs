@@ -16,10 +16,8 @@
 
 //! Auxillary struct/enums for polkadot runtime.
 
-use primitives::Balance;
 use sp_runtime::traits::{Convert, Saturating};
 use sp_runtime::{Fixed64, Perbill};
-use frame_support::weights::Weight;
 use frame_support::traits::{OnUnbalanced, Imbalance, Currency, Get};
 use crate::{MaximumBlockWeight, NegativeImbalance};
 
@@ -73,25 +71,6 @@ where
 	R::Balance: Into<u128>,
 {
 	fn convert(x: u128) -> u128 { x * Self::factor() }
-}
-
-/// Handles converting a weight scalar to a fee value, based on the scale and granularity of the
-/// node's balance type.
-///
-/// This should typically create a mapping between the following ranges:
-///   - [0, system::MaximumBlockWeight]
-///   - [Balance::min, Balance::max]
-///
-/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:
-///   - Setting it to `0` will essentially disable the weight fee.
-///   - Setting it to `1` will cause the literal `#[weight = x]` values to be charged.
-pub struct WeightToFee;
-impl Convert<Weight, Balance> for WeightToFee {
-	fn convert(x: Weight) -> Balance {
-		// in Polkadot a weight of 10_000 (smallest non-zero weight) to be mapped to 10^7 units of
-		// fees (1/10 CENT), hence:
-		Balance::from(x).saturating_mul(1_000)
-	}
 }
 
 /// Update the given multiplier based on the following formula
