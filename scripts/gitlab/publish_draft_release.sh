@@ -103,7 +103,7 @@ data=$(jq -Rs --arg version "$version" \
   "prerelease": false
 }' < /dev/null)
 
-out=$(curl -s -X POST --data "$data" -H "Authorization: token $GITHUB_RELEASE_TOKEN" "$api_base/releases")
+out=$(curl -s -X POST --data "$data" -H "Authorization: token $GITHUB_RELEASE_TOKEN" "$api_base/paritytech/polkadot/releases")
 
 html_url=$(echo "$out" | jq -r .html_url)
 
@@ -111,6 +111,8 @@ if [ "$html_url" == "null" ]
 then
   echo "[!] Something went wrong posting:"
   echo "$out"
+  # If we couldn't post, don't want to announce in Matrix
+  exit 1
 else
   echo "[+] Release draft created: $html_url"
 fi
