@@ -21,6 +21,7 @@
 //! We handle events from `sc-network` in a thin wrapper that forwards to a
 //! background worker which also handles commands from other parts of the node.
 
+use arrayvec::ArrayVec;
 use codec::{Decode, Encode};
 use futures::channel::{mpsc, oneshot};
 use futures::future::Either;
@@ -37,17 +38,17 @@ use polkadot_primitives::{
 };
 use polkadot_validation::{
 	SharedTable, TableRouter, Network as ParachainNetwork, Validated, GenericStatement, Collators,
+	SignedStatement,
 };
 use sc_network::{config::Roles, Event, PeerId};
 use sp_api::ProvideRuntimeApi;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::pin::Pin;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use super::{cost, benefit, PolkadotNetworkService};
-use crate::legacy::validation::{RecentValidatorIds, InsertedRecentKey};
 use crate::legacy::collator_pool::Role as CollatorRole;
 
 /// The current protocol version.
@@ -288,6 +289,48 @@ pub struct Config {
 	/// Which collator-id to use when collating, and on which parachain.
 	/// `None` if not collating.
 	pub collating_for: Option<(CollatorId, ParaId)>,
+}
+
+// 3 is chosen because sessions change infrequently and usually
+// only the last 2 (current session and "last" session) are relevant.
+// the extra is an error boundary.
+const RECENT_SESSIONS: usize = 3;
+
+/// Result when inserting recent session key.
+#[derive(PartialEq, Eq)]
+pub(crate) enum InsertedRecentKey {
+	/// Key was already known.
+	AlreadyKnown,
+	/// Key was new and pushed out optional old item.
+	New(Option<ValidatorId>),
+}
+
+/// Wrapper for managing recent session keys.
+#[derive(Default)]
+struct RecentValidatorIds {
+	inner: ArrayVec<[ValidatorId; RECENT_SESSIONS]>,
+}
+
+impl RecentValidatorIds {
+	/// Insert a new session key. This returns one to be pushed out if the
+	/// set is full.
+	fn insert(&mut self, key: ValidatorId) -> InsertedRecentKey {
+		if self.inner.contains(&key) { return InsertedRecentKey::AlreadyKnown }
+
+		let old = if self.inner.len() == RECENT_SESSIONS {
+			Some(self.inner.remove(0))
+		} else {
+			None
+		};
+
+		self.inner.push(key);
+		InsertedRecentKey::New(old)
+	}
+
+	/// As a slice. Most recent is last.
+	fn as_slice(&self) -> &[ValidatorId] {
+		&*self.inner
+	}
 }
 
 struct ProtocolHandler {
@@ -627,7 +670,7 @@ async fn worker_loop<Api, Sp>(
 				consensus_instances.insert(relay_parent, ConsensusNetworkingInstance {
 					statement_table: table.clone(),
 					relay_parent,
-					attestation_topic: crate::legacy::router::attestation_topic(relay_parent),
+					attestation_topic: crate::legacy::gossip::attestation_topic(relay_parent),
 					_drop_signal: signal,
 				});
 
@@ -679,6 +722,65 @@ async fn worker_loop<Api, Sp>(
 	}
 }
 
+// A unique trace for valid statements issued by a validator.
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub(crate) enum StatementTrace {
+	Valid(ValidatorIndex, Hash),
+	Invalid(ValidatorIndex, Hash),
+}
+
+/// Helper for deferring statements whose associated candidate is unknown.
+struct DeferredStatements {
+	deferred: HashMap<Hash, Vec<SignedStatement>>,
+	known_traces: HashSet<StatementTrace>,
+}
+
+impl DeferredStatements {
+	/// Create a new `DeferredStatements`.
+	fn new() -> Self {
+		DeferredStatements {
+			deferred: HashMap::new(),
+			known_traces: HashSet::new(),
+		}
+	}
+
+	/// Push a new statement onto the deferred pile. `Candidate` statements
+	/// cannot be deferred and are ignored.
+	fn push(&mut self, statement: SignedStatement) {
+		let (hash, trace) = match statement.statement {
+			GenericStatement::Candidate(_) => return,
+			GenericStatement::Valid(hash) => (hash, StatementTrace::Valid(statement.sender.clone(), hash)),
+			GenericStatement::Invalid(hash) => (hash, StatementTrace::Invalid(statement.sender.clone(), hash)),
+		};
+
+		if self.known_traces.insert(trace) {
+			self.deferred.entry(hash).or_insert_with(Vec::new).push(statement);
+		}
+	}
+
+	/// Take all deferred statements referencing the given candidate hash out.
+	fn take_deferred(&mut self, hash: &Hash) -> (Vec<SignedStatement>, Vec<StatementTrace>) {
+		match self.deferred.remove(hash) {
+			None => (Vec::new(), Vec::new()),
+			Some(deferred) => {
+				let mut traces = Vec::new();
+				for statement in deferred.iter() {
+					let trace = match statement.statement {
+						GenericStatement::Candidate(_) => continue,
+						GenericStatement::Valid(hash) => StatementTrace::Valid(statement.sender.clone(), hash),
+						GenericStatement::Invalid(hash) => StatementTrace::Invalid(statement.sender.clone(), hash),
+					};
+
+					self.known_traces.remove(&trace);
+					traces.push(trace);
+				}
+
+				(deferred, traces)
+			}
+		}
+	}
+}
+
 // the internal loop of waiting for messages and spawning validation work
 // as a result of those messages. this future exits when `exit` is ready.
 async fn statement_import_loop<Api>(
@@ -693,14 +795,14 @@ async fn statement_import_loop<Api>(
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
-	let topic = crate::legacy::router::attestation_topic(relay_parent);
+	let topic = crate::legacy::gossip::attestation_topic(relay_parent);
 	let mut checked_messages = gossip_handle.gossip_messages_for(topic)
 		.filter_map(|msg| match msg.0 {
 			crate::legacy::gossip::GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
 			_ => future::ready(None),
 		});
 
-	let mut deferred_statements = crate::legacy::router::DeferredStatements::new();
+	let mut deferred_statements = DeferredStatements::new();
 
 	loop {
 		let statement = match future::select(exit, checked_messages.next()).await {

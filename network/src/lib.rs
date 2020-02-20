@@ -35,23 +35,15 @@ pub type PolkadotNetworkService = sc_network::NetworkService<Block, PolkadotProt
 mod cost {
 	use sc_network::ReputationChange as Rep;
 	pub(super) const UNEXPECTED_MESSAGE: Rep = Rep::new(-200, "Polkadot: Unexpected message");
-	pub(super) const UNEXPECTED_ROLE: Rep = Rep::new(-200, "Polkadot: Unexpected role");
 	pub(super) const INVALID_FORMAT: Rep = Rep::new(-200, "Polkadot: Bad message");
 
 	pub(super) const UNKNOWN_PEER: Rep = Rep::new(-50, "Polkadot: Unknown peer");
-	pub(super) const COLLATOR_ALREADY_KNOWN: Rep = Rep::new(-100, "Polkadot: Known collator");
 	pub(super) const BAD_COLLATION: Rep = Rep::new(-1000, "Polkadot: Bad collation");
-	pub(super) const BAD_POV_BLOCK: Rep = Rep::new(-1000, "Polkadot: Bad POV block");
 }
 
 mod benefit {
 	use sc_network::ReputationChange as Rep;
-	pub(super) const EXPECTED_MESSAGE: Rep = Rep::new(20, "Polkadot: Expected message");
 	pub(super) const VALID_FORMAT: Rep = Rep::new(20, "Polkadot: Valid message format");
-
-	pub(super) const KNOWN_PEER: Rep = Rep::new(5, "Polkadot: Known peer");
-	pub(super) const NEW_COLLATOR: Rep = Rep::new(10, "Polkadot: New collator");
 	pub(super) const GOOD_COLLATION: Rep = Rep::new(100, "Polkadot: Good collation");
-	pub(super) const GOOD_POV_BLOCK: Rep = Rep::new(100, "Polkadot: Good POV block");
 }
 
