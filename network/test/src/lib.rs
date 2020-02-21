@@ -42,7 +42,7 @@ use sp_consensus::import_queue::{
 };
 use sp_consensus::block_import::{BlockImport, ImportResult};
 use sp_consensus::Error as ConsensusError;
-use sp_consensus::{BlockOrigin, ForkChoiceStrategy, BlockImportParams, BlockCheckParams, JustificationImport};
+use sp_consensus::{BlockOrigin, BlockImportParams, BlockCheckParams, JustificationImport};
 use futures::prelude::*;
 use futures03::{Future as _, FutureExt as _, TryFutureExt as _, StreamExt as _, TryStreamExt as _};
 use sc_network::{NetworkWorker, NetworkStateInfo, NetworkService, ReportHandle, config::ProtocolId};
@@ -51,53 +51,15 @@ use libp2p::PeerId;
 use parking_lot::Mutex;
 use sp_core::H256;
 use sc_network::ProtocolConfig;
-use sp_runtime::generic::{BlockId, OpaqueDigestItemId};
-use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
+use sp_runtime::generic::BlockId;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_runtime::Justification;
 use sc_network::TransactionPool;
 use sc_network::specialization::NetworkSpecialization;
 pub use polkadot_test_runtime_client::runtime::{Block, Extrinsic, Hash};
 pub use polkadot_test_runtime_client::{TestClient, TestClientBuilder, TestClientBuilderExt};
 pub use sc_network::specialization::DummySpecialization;
-
-type AuthorityId = sp_consensus_babe::AuthorityId;
-
-/// A Verifier that accepts all blocks and passes them on with the configured
-/// finality to be imported.
-#[derive(Clone)]
-pub struct PassThroughVerifier(pub bool);
-
-/// This `Verifier` accepts all data as valid.
-impl<B: BlockT> Verifier<B> for PassThroughVerifier {
-	fn verify(
-		&mut self,
-		origin: BlockOrigin,
-		header: B::Header,
-		justification: Option<Justification>,
-		body: Option<Vec<B::Extrinsic>>
-	) -> Result<(BlockImportParams<B, ()>, Option<Vec<(CacheKeyId, Vec<u8>)>>), String> {
-		let maybe_keys = header.digest()
-			.log(|l| l.try_as_raw(OpaqueDigestItemId::Consensus(b"aura"))
-				.or_else(|| l.try_as_raw(OpaqueDigestItemId::Consensus(b"babe")))
-			)
-			.map(|blob| vec![(well_known_cache_keys::AUTHORITIES, blob.to_vec())]);
-
-		Ok((BlockImportParams {
-			origin,
-			header,
-			body,
-			storage_changes: None,
-			finalized: self.0,
-			justification,
-			post_digests: vec![],
-			auxiliary: Vec::new(),
-			intermediates: Default::default(),
-			fork_choice: Some(ForkChoiceStrategy::LongestChain),
-			allow_missing_state: false,
-			import_existing: false,
-		}, maybe_keys))
-	}
-}
+pub use sc_network_test::{SpecializationFactory, PassThroughVerifier};
 
 pub type PeersFullClient =
 	sc_client::Client<polkadot_test_runtime_client::Backend, polkadot_test_runtime_client::Executor, Block, polkadot_test_runtime_client::runtime::RuntimeApi>;
@@ -296,48 +258,19 @@ impl<D, S: NetworkSpecialization<Block>> Peer<D, S> {
 	}
 
 	/// Push blocks to the peer (simplified: with or without a TX)
-	pub fn push_blocks(&mut self, count: usize, with_tx: bool) -> H256 {
+	pub fn push_blocks(&mut self, count: usize) -> H256 {
 		let best_hash = self.client.info().best_hash;
-		self.push_blocks_at(BlockId::Hash(best_hash), count, with_tx)
+		self.push_blocks_at(BlockId::Hash(best_hash), count)
 	}
 
-	/// Push blocks to the peer (simplified: with or without a TX) starting from
-	/// given hash.
-	pub fn push_blocks_at(&mut self, at: BlockId<Block>, count: usize, with_tx: bool) -> H256 {
-		let mut nonce = 0;
-		if with_tx {
-			self.generate_blocks_at(at, count, BlockOrigin::File, |mut builder| {
-				// TODO: find a way to re-enable this.
-				/*
-				let transfer = Transfer {
-					from: AccountKeyring::Alice.into(),
-					to: AccountKeyring::Alice.into(),
-					amount: 1,
-					nonce,
-				};
-				builder.push(transfer.into_signed_tx()).unwrap();
-				*/
-				nonce = nonce + 1;
-				builder.build().unwrap().block
-			})
-		} else {
-			self.generate_blocks_at(
-				at,
-				count,
-				BlockOrigin::File,
-				|builder| builder.build().unwrap().block,
-			)
-		}
-	}
-
-	pub fn push_authorities_change_block(&mut self, new_authorities: Vec<AuthorityId>) -> H256 {
-		self.generate_blocks(1, BlockOrigin::File, |mut builder| {
-			// TODO: find a way to re-enable this.
-			/*
-			builder.push(Extrinsic::AuthoritiesChange(new_authorities.clone())).unwrap();
-			*/
-			builder.build().unwrap().block
-		})
+	/// Push blocks to the peer starting from given hash.
+	pub fn push_blocks_at(&mut self, at: BlockId<Block>, count: usize) -> H256 {
+		self.generate_blocks_at(
+			at,
+			count,
+			BlockOrigin::File,
+			|builder| builder.build().unwrap().block,
+		)
 	}
 
 	/// Get a reference to the client.
@@ -396,17 +329,6 @@ impl TransactionPool<Hash, Block> for EmptyTransactionPool {
 
 	fn transaction(&self, _h: &Hash) -> Option<Extrinsic> { None }
 }
-
-pub trait SpecializationFactory {
-	fn create() -> Self;
-}
-
-impl SpecializationFactory for DummySpecialization {
-	fn create() -> DummySpecialization {
-		DummySpecialization
-	}
-}
-
 /// Implements `BlockImport` for any `Transaction`. Internally the transaction is
 /// "converted", aka the field is set to `None`.
 ///
