@@ -278,6 +278,7 @@ parameter_types! {
 	// 28 eras in which slashes can be cancelled (7 days).
 	pub const SlashDeferDuration: staking::EraIndex = 28;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
+	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 }
 
 impl staking::Trait for Runtime {
@@ -295,6 +296,7 @@ impl staking::Trait for Runtime {
 	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
+	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 }
 
 parameter_types! {
