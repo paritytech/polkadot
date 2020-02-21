@@ -34,7 +34,7 @@ use polkadot_primitives::parachain::{
 	ValidatorId, ErasureChunk,
 };
 use sc_network::{
-	PeerId, RequestId, Context, StatusMessage as GenericFullStatus,
+	PeerId, Context, StatusMessage as GenericFullStatus,
 	specialization::NetworkSpecialization as Specialization,
 };
 use sc_network_gossip::TopicNotification;
@@ -54,6 +54,7 @@ use crate::{cost, benefit};
 mod tests;
 
 type FullStatus = GenericFullStatus<Block>;
+type RequestId = u64;
 
 /// Specialization of the network service for the polkadot protocol.
 pub type PolkadotNetworkService = sc_network::NetworkService<Block, PolkadotProtocol, Hash>;
