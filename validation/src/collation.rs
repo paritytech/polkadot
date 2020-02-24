@@ -24,8 +24,8 @@ use std::sync::Arc;
 use polkadot_primitives::{
 	BlakeTwo256, Block, Hash, HashT, BlockId, Balance,
 	parachain::{
-		CollatorId, ConsolidatedIngress, StructuredUnroutedIngress, CandidateReceipt, CollationInfo,
-		ParachainHost, Id as ParaId, Collation, OutgoingMessages, FeeSchedule, ErasureChunk,
+		CollatorId, CandidateReceipt, CollationInfo,
+		ParachainHost, Id as ParaId, Collation, FeeSchedule, ErasureChunk,
 		HeadData, PoVBlock,
 	},
 };
@@ -55,6 +55,9 @@ pub trait Collators: Clone {
 	///
 	/// This does not have to guarantee local availability, as a valid collation
 	/// will be passed to the `TableRouter` instance.
+	///
+	/// The returned future may be prematurely concluded if the `relay_parent` goes
+	/// out of date.
 	fn collate(&self, parachain: ParaId, relay_parent: Hash) -> Self::Collation;
 
 	/// Note a bad collator. TODO: take proof (https://github.com/paritytech/polkadot/issues/217)
@@ -68,7 +71,7 @@ pub async fn collation_fetch<C: Collators, P>(
 	collators: C,
 	client: Arc<P>,
 	max_block_data_size: Option<u64>,
-) -> Result<(Collation, OutgoingMessages, Balance),C::Error>
+) -> Result<(Collation, HeadData, Balance),C::Error>
 	where
 		P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 		C: Collators + Unpin,
@@ -89,8 +92,8 @@ pub async fn collation_fetch<C: Collators, P>(
 		);
 
 		match res {
-			Ok((messages, fees)) => {
-				return Ok((collation, messages, fees))
+			Ok((parent_head, fees)) => {
+				return Ok((collation, parent_head, fees))
 			}
 			Err(e) => {
 				debug!("Failed to validate parachain due to API error: {}", e);
@@ -148,6 +151,10 @@ pub enum Error {
 	/// Candidate block collation info doesn't match candidate receipt.
 	#[display(fmt = "Got receipt mismatch for candidate {:?}", candidate)]
 	CandidateReceiptMismatch { candidate: Hash },
+	/// The parent header given in the candidate did not match current relay-chain
+	/// state.
+	#[display(fmt = "Got unexpected parachain parent.")]
+	ParentMismatch { expected: HeadData, got: HeadData },
 }
 
 impl std::error::Error for Error {
@@ -190,59 +197,6 @@ pub fn egress_roots(outgoing: &mut [TargetedMessage]) -> Vec<(ParaId, Hash)> {
 	}
 
 	egress_roots
-}
-
-fn check_egress(
-	mut outgoing: Vec<TargetedMessage>,
-	expected_egress_roots: &[(ParaId, Hash)],
-) -> Result<OutgoingMessages, Error> {
-	// stable sort messages by parachain ID.
-	outgoing.sort_by_key(|msg| ParaId::from(msg.target));
-
-	{
-		let mut messages_iter = outgoing.iter().peekable();
-		let mut expected_egress_roots = expected_egress_roots.iter();
-		while let Some(batch_target) = messages_iter.peek().map(|o| o.target) {
-			let expected_root = match expected_egress_roots.next() {
-				None => return Err(Error::MissingEgressRoot {
-					expected: Some(batch_target),
-					got: None
-				}),
-				Some(&(id, ref root)) => if id == batch_target {
-					root
-				} else {
-					return Err(Error::MissingEgressRoot{
-						expected: Some(batch_target),
-						got: Some(id)
-					});
-				}
-			};
-
- 			// we borrow the iterator mutably to ensure it advances so the
-			// next iteration of the loop starts with `messages_iter` pointing to
-			// the next batch.
-			let messages_to = messages_iter
-				.clone()
-				.take_while(|o| o.target == batch_target)
-				.map(|o| { let _ = messages_iter.next(); &o.data[..] });
-
-			let computed_root = message_queue_root(messages_to);
-			if &computed_root != expected_root {
-				return Err(Error::EgressRootMismatch {
-					id: batch_target,
-					expected: expected_root.clone(),
-					got: computed_root,
-				});
-			}
-		}
-
-		// also check that there are no more additional expected roots.
-		if let Some((next_target, _)) = expected_egress_roots.next() {
-			return Err(Error::MissingEgressRoot { expected: None, got: Some(*next_target) });
-		}
-	}
-
-	Ok(OutgoingMessages { outgoing_messages: outgoing })
 }
 
 struct ExternalitiesInner {
@@ -302,9 +256,8 @@ impl ExternalitiesInner {
 	fn final_checks(
 		&mut self,
 		upward_messages: &[UpwardMessage],
-		egress_queue_roots: &[(ParaId, Hash)],
 		fees_charged: Option<Balance>,
-	) -> Result<(OutgoingMessages, Balance), Error> {
+	) -> Result<Balance, Error> {
 		if self.upward != upward_messages {
 			return Err(Error::UpwardMessagesInvalid {
 				expected: upward_messages.to_vec(),
@@ -321,12 +274,8 @@ impl ExternalitiesInner {
 			}
 		}
 
-		let messages = check_egress(
-			std::mem::replace(&mut self.outgoing, Vec::new()),
-			&egress_queue_roots[..],
-		)?;
 
-		Ok((messages, self.fees_charged))
+		Ok(self.fees_charged)
 	}
 }
 
@@ -369,44 +318,10 @@ pub fn validate_chunk(
 	Ok(())
 }
 
-/// Validate incoming messages against expected roots.
-pub fn validate_incoming(
-	roots: &StructuredUnroutedIngress,
-	ingress: &ConsolidatedIngress,
-) -> Result<(), Error> {
-	if roots.len() != ingress.0.len() {
-		return Err(Error::IngressCanonicalityMismatch {
-			expected: roots.0.len(),
-			got: ingress.0.len()
-		});
-	}
-
-	let all_iter = roots.iter().zip(&ingress.0);
-	for ((_, expected_from, root), (got_id, messages)) in all_iter {
-		if expected_from != got_id {
-			return Err(Error::IngressChainMismatch {
-				expected: *expected_from,
-				got: *got_id
-			});
-		}
-
-		let got_root = message_queue_root(messages.iter().map(|msg| &msg.0[..]));
-		if &got_root != root {
-			return Err(Error::IngressRootMismatch{
-				id: *expected_from,
-				expected: *root,
-				got: got_root
-			});
-		}
-	}
-
-	Ok(())
-}
-
 // A utility function that implements most of the collation validation logic.
 //
 // Reused by `validate_collation` and `validate_receipt`.
-// Returns outgoing messages and fees charged for later reuse.
+// Returns outgoing messages, parent nead data, and fees charged for later reuse.
 fn do_validation<P>(
 	client: &P,
 	relay_parent: &BlockId,
@@ -415,13 +330,12 @@ fn do_validation<P>(
 	max_block_data_size: Option<u64>,
 	fees_charged: Option<Balance>,
 	head_data: &HeadData,
-	queue_roots: &Vec<(ParaId, Hash)>,
 	upward_messages: &Vec<UpwardMessage>,
-) -> Result<(OutgoingMessages, Balance), Error> where
+) -> Result<(HeadData, Balance), Error> where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
-	use parachain::{IncomingMessage, ValidationParams};
+	use parachain::ValidationParams;
 
 	if let Some(max_size) = max_block_data_size {
 		let block_data_size = pov_block.block_data.0.len() as u64;
@@ -437,22 +351,10 @@ fn do_validation<P>(
 	let chain_status = api.parachain_status(relay_parent, para_id)?
 		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
-	let roots = api.ingress(relay_parent, para_id, None)?
-		.ok_or_else(|| Error::InactiveParachain(para_id))?;
-
-	validate_incoming(&roots, &pov_block.ingress)?;
 
 	let params = ValidationParams {
-		parent_head: chain_status.head_data.0,
+		parent_head: chain_status.head_data.0.clone(),
 		block_data: pov_block.block_data.0.clone(),
-		ingress: pov_block.ingress.0.iter()
-			.flat_map(|&(source, ref messages)| {
-				messages.iter().map(move |msg| IncomingMessage {
-					source,
-					data: msg.0.clone(),
-				})
-			})
-			.collect()
 	};
 
 	let ext = Externalities::new(para_id.clone(), chain_status.balance, chain_status.fee_schedule);
@@ -465,13 +367,12 @@ fn do_validation<P>(
 	) {
 		Ok(result) => {
 			if result.head_data == head_data.0 {
-				let (messages, fees) = ext.0.lock().final_checks(
+				let fees = ext.0.lock().final_checks(
 					upward_messages,
-					queue_roots,
 					fees_charged
 				)?;
 
-				Ok((messages, fees))
+				Ok((chain_status.head_data, fees))
 			} else {
 				Err(Error::WrongHeadData {
 					expected: head_data.0.clone(),
@@ -491,8 +392,8 @@ fn do_validation<P>(
 /// encoding's root returning both for re-use.
 pub fn produce_receipt_and_chunks(
 	n_validators: usize,
+	parent_head: HeadData,
 	pov: &PoVBlock,
-	messages: &OutgoingMessages,
 	fees: Balance,
 	info: &CollationInfo,
 ) -> Result<(CandidateReceipt, Vec<ErasureChunk>), Error>
@@ -500,7 +401,6 @@ pub fn produce_receipt_and_chunks(
 	let erasure_chunks = erasure::obtain_chunks(
 		n_validators,
 		&pov.block_data,
-		Some(&messages.clone().into())
 	)?;
 
 	let branches = erasure::branches(erasure_chunks.as_ref());
@@ -523,7 +423,7 @@ pub fn produce_receipt_and_chunks(
 		collator: info.collator.clone(),
 		signature: info.signature.clone(),
 		head_data: info.head_data.clone(),
-		egress_queue_roots: info.egress_queue_roots.clone(),
+		parent_head,
 		fees,
 		block_data_hash: info.block_data_hash.clone(),
 		upward_messages: info.upward_messages.clone(),
@@ -543,11 +443,11 @@ pub fn validate_receipt<P>(
 	pov_block: &PoVBlock,
 	receipt: &CandidateReceipt,
 	max_block_data_size: Option<u64>,
-) -> Result<(OutgoingMessages, Vec<ErasureChunk>), Error> where
+) -> Result<Vec<ErasureChunk>, Error> where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
-	let (messages, _fees) = do_validation(
+	let (parent_head, _fees) = do_validation(
 		client,
 		relay_parent,
 		pov_block,
@@ -555,9 +455,15 @@ pub fn validate_receipt<P>(
 		max_block_data_size,
 		Some(receipt.fees),
 		&receipt.head_data,
-		&receipt.egress_queue_roots,
 		&receipt.upward_messages,
 	)?;
+
+	if parent_head != receipt.parent_head {
+		return Err(Error::ParentMismatch {
+			expected: receipt.parent_head.clone(),
+			got: parent_head,
+		});
+	}
 
 	let api = client.runtime_api();
 	let validators = api.validators(&relay_parent)?;
@@ -565,8 +471,8 @@ pub fn validate_receipt<P>(
 
 	let (validated_receipt, chunks) = produce_receipt_and_chunks(
 		n_validators,
+		parent_head,
 		pov_block,
-		&messages,
 		receipt.fees,
 		&receipt.clone().into(),
 	)?;
@@ -578,10 +484,11 @@ pub fn validate_receipt<P>(
 		});
 	}
 
-	Ok((messages, chunks))
+	Ok(chunks)
 }
 
 /// Check whether a given collation is valid. Returns `Ok` on success, error otherwise.
+/// Returns outgoing messages, parent head-data, and fees.
 ///
 /// This assumes that basic validity checks have been done:
 ///   - Block data hash is the same as linked in collation info.
@@ -590,11 +497,13 @@ pub fn validate_collation<P>(
 	relay_parent: &BlockId,
 	collation: &Collation,
 	max_block_data_size: Option<u64>,
-) -> Result<(OutgoingMessages, Balance), Error> where
+) -> Result<(HeadData, Balance), Error> where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	let para_id = collation.info.parachain_index;
+
+	debug!("Validating collation for parachain {} at relay parent: {}", para_id, relay_parent);
 
 	do_validation(
 		client,
@@ -604,7 +513,6 @@ pub fn validate_collation<P>(
 		max_block_data_size,
 		None,
 		&collation.info.head_data,
-		&collation.info.egress_queue_roots,
 		&collation.info.upward_messages,
 	)
 }
@@ -615,50 +523,6 @@ mod tests {
 	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
 	use parachain::ParachainDispatchOrigin;
 	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
-
-	#[test]
-	fn compute_and_check_egress() {
-		let messages = vec![
-			TargetedMessage { target: 3.into(), data: vec![1, 1, 1] },
-			TargetedMessage { target: 1.into(), data: vec![1, 2, 3] },
-			TargetedMessage { target: 2.into(), data: vec![4, 5, 6] },
-			TargetedMessage { target: 1.into(), data: vec![7, 8, 9] },
-		];
-
-		let root_1 = message_queue_root(&[vec![1, 2, 3], vec![7, 8, 9]]);
-		let root_2 = message_queue_root(&[vec![4, 5, 6]]);
-		let root_3 = message_queue_root(&[vec![1, 1, 1]]);
-
-		assert!(check_egress(
-			messages.clone(),
-			&[(1.into(), root_1), (2.into(), root_2), (3.into(), root_3)],
-		).is_ok());
-
-		let egress_roots = egress_roots(&mut messages.clone()[..]);
-
-		assert!(check_egress(
-			messages.clone(),
-			&egress_roots[..],
-		).is_ok());
-
-		// missing root.
-		assert!(check_egress(
-			messages.clone(),
-			&[(1.into(), root_1), (3.into(), root_3)],
-		).is_err());
-
-		// extra root.
-		assert!(check_egress(
-			messages.clone(),
-			&[(1.into(), root_1), (2.into(), root_2), (3.into(), root_3), (4.into(), Default::default())],
-		).is_err());
-
-		// root mismatch.
-		assert!(check_egress(
-			messages.clone(),
-			&[(1.into(), root_2), (2.into(), root_1), (3.into(), root_3)],
-		).is_err());
-	}
 
 	#[test]
 	fn ext_rejects_local_message() {
@@ -698,7 +562,7 @@ mod tests {
 			collator: Default::default(),
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
-			egress_queue_roots: Vec::new(),
+			parent_head: HeadData(Vec::new()),
 			fees: 0,
 			block_data_hash: Default::default(),
 			upward_messages: vec![
@@ -709,7 +573,6 @@ mod tests {
 		};
 		assert!(ext().final_checks(
 			&receipt.upward_messages,
-			&receipt.egress_queue_roots,
 			Some(receipt.fees),
 		).is_err());
 		let receipt = CandidateReceipt {
@@ -717,7 +580,7 @@ mod tests {
 			collator: Default::default(),
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
-			egress_queue_roots: Vec::new(),
+			parent_head: HeadData(Vec::new()),
 			fees: 0,
 			block_data_hash: Default::default(),
 			upward_messages: vec![
@@ -727,7 +590,6 @@ mod tests {
 		};
 		assert!(ext().final_checks(
 			&receipt.upward_messages,
-			&receipt.egress_queue_roots,
 			Some(receipt.fees),
 		).is_err());
 		let receipt = CandidateReceipt {
@@ -735,7 +597,7 @@ mod tests {
 			collator: Default::default(),
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
-			egress_queue_roots: Vec::new(),
+			parent_head: HeadData(Vec::new()),
 			fees: 0,
 			block_data_hash: Default::default(),
 			upward_messages: vec![
@@ -745,7 +607,6 @@ mod tests {
 		};
 		assert!(ext().final_checks(
 			&receipt.upward_messages,
-			&receipt.egress_queue_roots,
 			Some(receipt.fees),
 		).is_err());
 		let receipt = CandidateReceipt {
@@ -753,7 +614,7 @@ mod tests {
 			collator: Default::default(),
 			signature: Default::default(),
 			head_data: HeadData(Vec::new()),
-			egress_queue_roots: Vec::new(),
+			parent_head: HeadData(Vec::new()),
 			fees: 0,
 			block_data_hash: Default::default(),
 			upward_messages: vec![
@@ -763,7 +624,6 @@ mod tests {
 		};
 		assert!(ext().final_checks(
 			&receipt.upward_messages,
-			&receipt.egress_queue_roots,
 			Some(receipt.fees),
 		).is_ok());
 	}

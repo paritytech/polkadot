@@ -22,7 +22,10 @@ use sc_client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
-use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
+use polkadot_network::legacy::{
+	gossip::{self as network_gossip, Known},
+	validation::ValidationNetwork,
+};
 use service::{error::{Error as ServiceError}, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
@@ -39,7 +42,7 @@ pub use sc_client_api::backend::Backend;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::HasherFor;
 pub use consensus_common::SelectChain;
-pub use polkadot_network::PolkadotProtocol;
+pub use polkadot_network::legacy::PolkadotProtocol;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_core::Blake2Hasher;
@@ -270,7 +273,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let is_authority = config.roles.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = max_block_data_size;
-	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.database {
+	let db_path = if let Some(DatabaseConfig::Path { ref path, .. }) = config.database {
 		path.clone()
 	} else {
 		return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into());
@@ -342,7 +345,8 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let mut path = PathBuf::from(db_path);
 			path.push("availability");
 
-			let gossip = polkadot_network::AvailabilityNetworkShim(gossip_validator.clone());
+			let gossip = polkadot_network::legacy
+				::AvailabilityNetworkShim(gossip_validator.clone());
 
 			#[cfg(not(target_os = "unknown"))]
 			{
@@ -371,7 +375,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		// collator connections and validation network both fulfilled by this
 		let validation_network = ValidationNetwork::new(
 			gossip_validator,
-			service.on_exit(),
 			service.client(),
 			service.spawn_task_handle(),
 		);

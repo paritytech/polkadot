@@ -108,8 +108,12 @@ impl<AccountId: Clone + Default + Codec> Bidder<AccountId> {
 pub enum IncomingParachain<AccountId, Hash> {
 	/// Deploy information not yet set; just the bidder identity.
 	Unset(NewBidder<AccountId>),
-	/// Deploy information set only by code hash; so we store the code hash and head data.
-	Fixed { code_hash: Hash, initial_head_data: Vec<u8> },
+	/// Deploy information set only by code hash; so we store the code hash, code size, and head data.
+	///
+	/// The code size must be included so that checks against a maximum code size
+	/// can be done. If the size of the preimage of the code hash does not match
+	/// the given code size, it will not be possible to register the parachain.
+	Fixed { code_hash: Hash, code_size: u32, initial_head_data: Vec<u8> },
 	/// Deploy information fully set; so we store the code and head data.
 	Deploy { code: Vec<u8>, initial_head_data: Vec<u8> },
 }
@@ -250,6 +254,10 @@ decl_error! {
 		NotCurrentAuction,
 		/// Not an auction.
 		NotAuction,
+		/// Given code size is too large.
+		CodeTooLarge,
+		/// Given initial head data is too large.
+		HeadDataTooLarge,
 	}
 }
 
@@ -402,6 +410,7 @@ decl_module! {
 			#[compact] sub: SubId,
 			#[compact] para_id: ParaId,
 			code_hash: T::Hash,
+			code_size: u32,
 			initial_head_data: Vec<u8>
 		) {
 			let who = ensure_signed(origin)?;
@@ -412,7 +421,17 @@ decl_module! {
 			} else {
 				Err(Error::<T>::AlreadyRegistered)?
 			}
-			let item = (starts, IncomingParachain::Fixed{code_hash, initial_head_data});
+
+			ensure!(
+				T::Parachains::head_data_size_allowed(initial_head_data.len() as _),
+				Error::<T>::HeadDataTooLarge,
+			);
+			ensure!(
+				T::Parachains::code_size_allowed(code_size),
+				Error::<T>::CodeTooLarge,
+			);
+
+			let item = (starts, IncomingParachain::Fixed{code_hash, code_size, initial_head_data});
 			<Onboarding<T>>::insert(&para_id, item);
 		}
 
@@ -432,8 +451,10 @@ decl_module! {
 		pub fn elaborate_deploy_data(_origin, #[compact] para_id: ParaId, code: Vec<u8>) -> DispatchResult {
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
 				.ok_or(Error::<T>::ParaNotOnboarding)?;
-			if let IncomingParachain::Fixed{code_hash, initial_head_data} = details {
+			if let IncomingParachain::Fixed{code_hash, code_size, initial_head_data} = details {
+				ensure!(code.len() as u32 == code_size, Error::<T>::InvalidCode);
 				ensure!(<T as system::Trait>::Hashing::hash(&code) == code_hash, Error::<T>::InvalidCode);
+
 				if starts > Self::lease_period_index() {
 					// Hasn't yet begun. Replace the on-boarding entry with the new information.
 					let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
@@ -897,22 +918,19 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const ExistentialDeposit: u64 = 0;
-		pub const TransferFee: u64 = 0;
+		pub const ExistentialDeposit: u64 = 1;
 		pub const CreationFee: u64 = 0;
 	}
 
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnFreeBalanceZero = ();
-		type OnReapAccount = System;
-		type OnNewAccount = ();
 		type Event = ();
+		type OnNewAccount = ();
+		type OnReapAccount = System;
 		type DustRemoval = ();
-		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
+		type TransferPayment = ();
 	}
 
 	thread_local! {
@@ -920,6 +938,9 @@ mod tests {
 		pub static PARACHAINS:
 			RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
 	}
+
+	const MAX_CODE_SIZE: u32 = 100;
+	const MAX_HEAD_DATA_SIZE: u32 = 10;
 
 	pub struct TestParachains;
 	impl Registrar<u64> for TestParachains {
@@ -929,6 +950,15 @@ mod tests {
 				(*p.borrow() - 1).into()
 			})
 		}
+
+		fn head_data_size_allowed(head_data_size: u32) -> bool {
+			head_data_size <= MAX_HEAD_DATA_SIZE
+		}
+
+		fn code_size_allowed(code_size: u32) -> bool {
+			code_size <= MAX_CODE_SIZE
+		}
+
 		fn register_para(
 			id: ParaId,
 			_info: ParaInfo,
@@ -987,7 +1017,6 @@ mod tests {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
@@ -1086,8 +1115,8 @@ mod tests {
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
-			assert_eq!(Balances::reserved_balance(&1), 1);
-			assert_eq!(Balances::free_balance(&1), 9);
+			assert_eq!(Balances::reserved_balance(1), 1);
+			assert_eq!(Balances::free_balance(1), 9);
 
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
@@ -1095,8 +1124,8 @@ mod tests {
 				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
-			assert_eq!(Balances::reserved_balance(&1), 0);
-			assert_eq!(Balances::free_balance(&1), 9);
+			assert_eq!(Balances::reserved_balance(1), 0);
+			assert_eq!(Balances::free_balance(1), 9);
 		});
 	}
 
@@ -1106,7 +1135,7 @@ mod tests {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
-			assert_eq!(Balances::free_balance(&1), 9);
+			assert_eq!(Balances::free_balance(1), 9);
 
 			run_to_block(9);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
@@ -1114,7 +1143,7 @@ mod tests {
 
 			run_to_block(50);
 			assert_eq!(Slots::deposit_held(&0.into()), 0);
-			assert_eq!(Balances::free_balance(&1), 10);
+			assert_eq!(Balances::free_balance(1), 10);
 		});
 	}
 
@@ -1135,7 +1164,7 @@ mod tests {
 
 			run_to_block(50);
 			assert_eq!(Slots::deposit_held(&0.into()), 0);
-			assert_eq!(Balances::free_balance(&10), 1);
+			assert_eq!(Balances::free_balance(10), 1);
 		});
 	}
 
@@ -1148,7 +1177,7 @@ mod tests {
 
 			run_to_block(9);
 			let h = BlakeTwo256::hash(&[42u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![69]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![69]));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42]));
 
 			run_to_block(10);
@@ -1173,7 +1202,7 @@ mod tests {
 
 			run_to_block(11);
 			let h = BlakeTwo256::hash(&[42u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![69]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![69]));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42]));
 			with_parachains(|p| {
 				assert_eq!(p.len(), 1);
@@ -1189,8 +1218,8 @@ mod tests {
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 5));
 			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 1, 4, 1));
-			assert_eq!(Balances::reserved_balance(&2), 0);
-			assert_eq!(Balances::free_balance(&2), 20);
+			assert_eq!(Balances::reserved_balance(2), 0);
+			assert_eq!(Balances::free_balance(2), 20);
 			assert_eq!(
 				Slots::winning(0).unwrap()[SlotRange::ZeroThree as u8 as usize],
 				Some((Bidder::New(NewBidder{who: 1, sub: 0}), 5))
@@ -1283,7 +1312,7 @@ mod tests {
 
 			for &(para, sub, acc) in &[(0, 0, 1), (1, 0, 2), (2, 0, 3), (3, 1, 4), (4, 1, 5)] {
 				let h = BlakeTwo256::hash(&[acc][..]);
-				assert_ok!(Slots::fix_deploy_data(Origin::signed(acc as _), sub, para.into(), h, vec![acc]));
+				assert_ok!(Slots::fix_deploy_data(Origin::signed(acc as _), sub, para.into(), h, 1, vec![acc]));
 				assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), para.into(), vec![acc]));
 			}
 
@@ -1330,7 +1359,7 @@ mod tests {
 
 			run_to_block(10);
 			let h = BlakeTwo256::hash(&[1u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![1]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![1]));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1]));
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
@@ -1375,20 +1404,20 @@ mod tests {
 
 			run_to_block(10);
 			let h = BlakeTwo256::hash(&[1u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![1]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![1]));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1]));
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 3));
 
 			run_to_block(20);
-			assert_eq!(Balances::free_balance::<u64>(ParaId::from(0).into_account()), 2);
+			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 2);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 4));
 
 			run_to_block(30);
-			assert_eq!(Balances::free_balance::<u64>(ParaId::from(0).into_account()), 1);
+			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 1);
 		});
 	}
 
@@ -1424,8 +1453,8 @@ mod tests {
 				run_to_block(i);
 				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
 				for j in 1..6 {
-					assert_eq!(Balances::reserved_balance(&j), if j == i { j } else { 0 });
-					assert_eq!(Balances::free_balance(&j), if j == i { j * 9 } else { j * 10 });
+					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
+					assert_eq!(Balances::free_balance(j), if j == i { j * 9 } else { j * 10 });
 				}
 			}
 
@@ -1436,8 +1465,8 @@ mod tests {
 				Some((1, IncomingParachain::Unset(NewBidder { who: 5, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 5);
-			assert_eq!(Balances::reserved_balance(&5), 0);
-			assert_eq!(Balances::free_balance(&5), 45);
+			assert_eq!(Balances::reserved_balance(5), 0);
+			assert_eq!(Balances::free_balance(5), 45);
 		});
 	}
 
@@ -1452,8 +1481,8 @@ mod tests {
 				run_to_block(i + 3);
 				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
 				for j in 1..6 {
-					assert_eq!(Balances::reserved_balance(&j), if j == i { j } else { 0 });
-					assert_eq!(Balances::free_balance(&j), if j == i { j * 9 } else { j * 10 });
+					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
+					assert_eq!(Balances::free_balance(j), if j == i { j * 9 } else { j * 10 });
 				}
 			}
 
@@ -1464,8 +1493,8 @@ mod tests {
 				Some((1, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 3);
-			assert_eq!(Balances::reserved_balance(&3), 0);
-			assert_eq!(Balances::free_balance(&3), 27);
+			assert_eq!(Balances::reserved_balance(3), 0);
+			assert_eq!(Balances::free_balance(3), 27);
 		});
 	}
 
@@ -1563,5 +1592,95 @@ mod tests {
 			(Some(NewBidder{who: 5,sub: 0}), 2.into(), 1, SlotRange::ThreeThree)
 		];
 		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
+	}
+
+	#[test]
+	fn deploy_code_too_large() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; (MAX_CODE_SIZE + 1) as _];
+			let h = BlakeTwo256::hash(&code[..]);
+			assert_eq!(
+				Slots::fix_deploy_data(
+					Origin::signed(1), 0, 0.into(), h, code.len() as _, vec![1],
+				),
+				Err(Error::<Test>::CodeTooLarge.into()),
+			);
+		});
+	}
+
+	#[test]
+	fn deploy_maximum_ok() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; MAX_HEAD_DATA_SIZE as _];
+			let h = BlakeTwo256::hash(&code[..]);
+			assert_ok!(Slots::fix_deploy_data(
+				Origin::signed(1), 0, 0.into(), h, code.len() as _, head_data,
+			));
+		});
+	}
+
+	#[test]
+	fn deploy_head_data_too_large() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; (MAX_HEAD_DATA_SIZE + 1) as _];
+			let h = BlakeTwo256::hash(&code[..]);
+			assert_eq!(
+				Slots::fix_deploy_data(
+					Origin::signed(1), 0, 0.into(), h, code.len() as _, head_data,
+				),
+				Err(Error::<Test>::HeadDataTooLarge.into()),
+			);
+		});
+	}
+
+	#[test]
+	fn code_size_must_be_correct() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; MAX_HEAD_DATA_SIZE as _];
+			let h = BlakeTwo256::hash(&code[..]);
+			assert_ok!(Slots::fix_deploy_data(
+				Origin::signed(1), 0, 0.into(), h, (code.len() - 1) as _, head_data,
+			));
+			assert!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), code).is_err());
+		});
 	}
 }

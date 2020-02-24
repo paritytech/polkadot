@@ -28,8 +28,7 @@ use keystore::KeyStorePtr;
 use polkadot_primitives::{
 	Hash, Block,
 	parachain::{
-		Id as ParaId, BlockData, CandidateReceipt, Message, AvailableMessages, ErasureChunk,
-		ParachainHost,
+		Id as ParaId, BlockData, CandidateReceipt, ErasureChunk, ParachainHost
 	},
 };
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, HasherFor};
@@ -126,10 +125,6 @@ pub struct Data {
 	pub parachain_id: ParaId,
 	/// Block data.
 	pub block_data: BlockData,
-	/// Outgoing message queues from execution of the block, if any.
-	///
-	/// The tuple pairs the message queue root and the queue data.
-	pub outgoing_queues: Option<AvailableMessages>,
 }
 
 /// Handle to the availability store.
@@ -383,10 +378,5 @@ impl Store {
 		-> Option<BlockData>
 	{
 		self.inner.block_data_by_candidate(relay_parent, candidate_hash)
-	}
-
-	/// Query message queue data by message queue root hash.
-	pub fn queue_by_root(&self, queue_root: &Hash) -> Option<Vec<Message>> {
-		self.inner.queue_by_root(queue_root)
 	}
 }

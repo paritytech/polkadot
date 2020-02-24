@@ -16,7 +16,6 @@
 
 //! Collator for polkadot
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -25,9 +24,7 @@ use sp_core::Pair;
 use codec::{Encode, Decode};
 use primitives::{
 	Hash,
-	parachain::{
-		HeadData, BlockData, Id as ParaId, Message, OutgoingMessages, Status as ParachainStatus,
-	},
+	parachain::{HeadData, BlockData, Id as ParaId, Status as ParachainStatus},
 };
 use collator::{
 	InvalidHead, ParachainContext, Network, BuildParachainContext, load_spec, Configuration,
@@ -58,13 +55,12 @@ struct AdderContext {
 
 /// The parachain context.
 impl ParachainContext for AdderContext {
-	type ProduceCandidate = Ready<Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>>;
+	type ProduceCandidate = Ready<Result<(BlockData, HeadData), InvalidHead>>;
 
-	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
+	fn produce_candidate(
 		&mut self,
 		_relay_parent: Hash,
 		status: ParachainStatus,
-		ingress: I,
 	) -> Self::ProduceCandidate
 	{
 		let adder_head = match AdderHead::decode(&mut &status.head_data.0[..]) {
@@ -87,11 +83,7 @@ impl ParachainContext for AdderContext {
 			add: adder_head.number % 100,
 		};
 
-		let from_messages = ::adder::process_messages(
-			ingress.into_iter().map(|(_, msg)| msg.0)
-		);
-
-		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body, from_messages)
+		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body)
 			.expect("good execution params; qed");
 
 		let encoded_head = HeadData(next_head.encode());
@@ -101,7 +93,7 @@ impl ParachainContext for AdderContext {
 			next_head.number, next_body.state.overflowing_add(next_body.add).0);
 
 		db.insert(next_head.clone(), next_body);
-		ok((encoded_body, encoded_head, OutgoingMessages { outgoing_messages: Vec::new() }))
+		ok((encoded_body, encoded_head))
 	}
 }
 
@@ -135,16 +127,6 @@ fn main() {
 		println!();
 	}
 
-	// can't use signal directly here because CtrlC takes only `Fn`.
-	let (exit_send, exit) = exit_future::signal();
-
-	let exit_send_cell = RefCell::new(Some(exit_send));
-	ctrlc::set_handler(move || {
-		if let Some(exit_send) = exit_send_cell.try_borrow_mut().expect("signal handler not reentrant; qed").take() {
-			let _ = exit_send.fire();
-		}
-	}).expect("Error setting up ctrl-c handler");
-
 	let context = AdderContext {
 		db: Arc::new(Mutex::new(HashMap::new())),
 		_network: None,
@@ -156,7 +138,6 @@ fn main() {
 	let res = collator::run_collator(
 		context,
 		id,
-		exit,
 		key,
 		config,
 	);

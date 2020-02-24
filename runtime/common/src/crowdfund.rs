@@ -121,6 +121,15 @@ pub enum LastContribution<BlockNumber> {
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug))]
+struct DeployData<Hash> {
+	code_hash: Hash,
+	code_size: u32,
+	initial_head_data: Vec<u8>,
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug))]
+#[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// The parachain that this fund has funded, if there is one. As long as this is `Some`, then
 	/// the funds may not be withdrawn and the fund cannot be dissolved.
@@ -150,8 +159,8 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// BlockNumber.
 	last_slot: BlockNumber,
 	/// The deployment data associated with this fund, if any. Once set it may not be reset. First
-	/// is the code hash, second is the initial head data.
-	deploy_data: Option<(Hash, Vec<u8>)>,
+	/// is the code hash, second is the code size, third is the initial head data.
+	deploy_data: Option<DeployData<Hash>>,
 }
 
 decl_storage! {
@@ -284,7 +293,7 @@ decl_module! {
 
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
-		/// slot is
+		/// slot is unable to be purchased and the timeout expires.
 		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>) {
 			let who = ensure_signed(origin)?;
 
@@ -346,6 +355,7 @@ decl_module! {
 		fn fix_deploy_data(origin,
 			#[compact] index: FundIndex,
 			code_hash: T::Hash,
+			code_size: u32,
 			initial_head_data: Vec<u8>
 		) {
 			let who = ensure_signed(origin)?;
@@ -354,7 +364,7 @@ decl_module! {
 			ensure!(fund.owner == who, Error::<T>::InvalidOrigin); // must be fund owner
 			ensure!(fund.deploy_data.is_none(), Error::<T>::ExistingDeployData);
 
-			fund.deploy_data = Some((code_hash, initial_head_data));
+			fund.deploy_data = Some(DeployData { code_hash, code_size, initial_head_data });
 
 			<Funds<T>>::insert(index, &fund);
 
@@ -374,12 +384,20 @@ decl_module! {
 			let _ = ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
-			let (code_hash, initial_head_data) = fund.clone().deploy_data.ok_or(Error::<T>::UnsetDeployData)?;
+			let DeployData { code_hash, code_size, initial_head_data }
+				= fund.clone().deploy_data.ok_or(Error::<T>::UnsetDeployData)?;
 			ensure!(fund.parachain.is_none(), Error::<T>::AlreadyOnboard);
 			fund.parachain = Some(para_id);
 
 			let fund_origin = system::RawOrigin::Signed(Self::fund_account_id(index)).into();
-			<slots::Module<T>>::fix_deploy_data(fund_origin, index, para_id, code_hash, initial_head_data)?;
+			<slots::Module<T>>::fix_deploy_data(
+				fund_origin,
+				index,
+				para_id,
+				code_hash,
+				code_size,
+				initial_head_data,
+			)?;
 
 			<Funds<T>>::insert(index, &fund);
 
@@ -598,22 +616,17 @@ mod tests {
 		type ModuleToIndex = ();
 	}
 	parameter_types! {
-		pub const ExistentialDeposit: u64 = 0;
-		// We want to make sure these fees are non zero, so we can check
-		// that our module correctly avoids these fees :)
-		pub const TransferFee: u64 = 10;
-		pub const CreationFee: u64 = 10;
+		pub const ExistentialDeposit: u64 = 1;
+		pub const CreationFee: u64 = 0;
 	}
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnFreeBalanceZero = ();
 		type OnReapAccount = System;
 		type OnNewAccount = ();
-		type Event = ();
-		type DustRemoval = ();
 		type TransferPayment = ();
+		type DustRemoval = ();
+		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
 		type CreationFee = CreationFee;
 	}
 
@@ -655,6 +668,9 @@ mod tests {
 			RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
 	}
 
+	const MAX_CODE_SIZE: u32 = 100;
+	const MAX_HEAD_DATA_SIZE: u32 = 10;
+
 	pub struct TestParachains;
 	impl Registrar<u64> for TestParachains {
 		fn new_id() -> ParaId {
@@ -662,6 +678,14 @@ mod tests {
 				*p.borrow_mut() += 1;
 				(*p.borrow() - 1).into()
 			})
+		}
+
+		fn head_data_size_allowed(head_data_size: u32) -> bool {
+			head_data_size <= MAX_HEAD_DATA_SIZE
+		}
+
+		fn code_size_allowed(code_size: u32) -> bool {
+			code_size <= MAX_CODE_SIZE
 		}
 
 		fn register_para(
@@ -730,7 +754,6 @@ mod tests {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
@@ -830,7 +853,7 @@ mod tests {
 			// User 1 contributes to their own crowdfund
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
 			// User 1 has spent some funds to do this, transfer fees **are** taken
-			assert_eq!(Balances::free_balance(1), 940);
+			assert_eq!(Balances::free_balance(1), 950);
 			// Contributions are stored in the trie
 			assert_eq!(Crowdfund::contribution_get(0, &1), 49);
 			// Contributions appear in free balance of crowdfund
@@ -881,13 +904,21 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
 			let fund = Crowdfund::funds(0).unwrap();
 
 			// Confirm deploy data is stored correctly
-			assert_eq!(fund.deploy_data, Some((<Test as system::Trait>::Hash::default(), vec![0])));
+			assert_eq!(
+				fund.deploy_data,
+				Some(DeployData {
+					code_hash: <Test as system::Trait>::Hash::default(),
+					code_size: 0,
+					initial_head_data: vec![0],
+				}),
+			);
 		});
 	}
 
@@ -903,6 +934,7 @@ mod tests {
 				Origin::signed(2),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]),
 				Error::<Test>::InvalidOrigin
 			);
@@ -912,6 +944,7 @@ mod tests {
 				Origin::signed(1),
 				1,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]),
 				Error::<Test>::InvalidFundIndex
 			);
@@ -921,6 +954,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -928,6 +962,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![1]),
 				Error::<Test>::ExistingDeployData
 			);
@@ -947,6 +982,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -992,6 +1028,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -1019,6 +1056,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -1061,6 +1099,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 
@@ -1108,13 +1147,13 @@ mod tests {
 
 			// User can withdraw their full balance without fees
 			assert_ok!(Crowdfund::withdraw(Origin::signed(1), 0));
-			assert_eq!(Balances::free_balance(1), 989);
+			assert_eq!(Balances::free_balance(1), 999);
 
 			assert_ok!(Crowdfund::withdraw(Origin::signed(2), 0));
-			assert_eq!(Balances::free_balance(2), 1990);
+			assert_eq!(Balances::free_balance(2), 2000);
 
 			assert_ok!(Crowdfund::withdraw(Origin::signed(3), 0));
-			assert_eq!(Balances::free_balance(3), 2990);
+			assert_eq!(Balances::free_balance(3), 3000);
 		});
 	}
 
@@ -1126,7 +1165,7 @@ mod tests {
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
-			assert_eq!(Balances::free_balance(1), 940);
+			assert_eq!(Balances::free_balance(1), 950);
 
 			run_to_block(5);
 
@@ -1156,6 +1195,8 @@ mod tests {
 			// Skip all the way to the end
 			run_to_block(50);
 
+			// Check initiator's balance.
+			assert_eq!(Balances::free_balance(1), 899);
 			// Check current funds (contributions + deposit)
 			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 601);
 
@@ -1165,7 +1206,7 @@ mod tests {
 			// Fund account is emptied
 			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 0);
 			// Deposit is returned
-			assert_eq!(Balances::free_balance(1), 890);
+			assert_eq!(Balances::free_balance(1), 900);
 			// Treasury account is filled
 			assert_eq!(Balances::free_balance(Treasury::account_id()), 600);
 
@@ -1200,6 +1241,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
@@ -1228,6 +1270,7 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 			// Move to the end of auction...
@@ -1266,12 +1309,14 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(2),
 				1,
 				<Test as system::Trait>::Hash::default(),
+				0,
 				vec![0]
 			));
 

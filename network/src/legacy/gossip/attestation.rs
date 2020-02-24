@@ -38,7 +38,7 @@ use polkadot_primitives::Hash;
 use std::collections::{HashMap, HashSet};
 
 use log::warn;
-use crate::router::attestation_topic;
+use crate::legacy::router::attestation_topic;
 
 use super::{cost, benefit, MAX_CHAIN_HEADS, LeavesVec,
 	ChainContext, Known, MessageValidationData, GossipStatement
@@ -92,11 +92,6 @@ impl PeerData {
 
 	pub(super) fn knowledge_at_mut(&mut self, parent_hash: &Hash) -> Option<&mut Knowledge> {
 		self.live.get_mut(parent_hash)
-	}
-
-	/// Get an iterator over all live leaves of this peer.
-	pub(super) fn leaves(&self) -> impl Iterator<Item = &Hash> {
-		self.live.keys()
 	}
 }
 
