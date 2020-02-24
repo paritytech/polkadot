@@ -863,7 +863,27 @@ async fn statement_import_loop<Api>(
 					let table = table.clone();
 					let gossip_handle = gossip_handle.clone();
 
-					let work = producer.prime(api.clone()).validate();
+					let work = producer.prime(api.clone()).validate().map(move |res| {
+						let validated = match res {
+							Err(e) => {
+								debug!(target: "p_net", "Failed to act on statement: {}", e);
+								return
+							}
+							Ok(v) => v,
+						};
+
+						// propagate the statement.
+						let statement = crate::legacy::gossip::GossipStatement::new(
+							relay_parent,
+							match table.import_validated(validated) {
+								Some(s) => s,
+								None => return,
+							}
+						);
+
+						gossip_handle.gossip_message(topic, statement.into());
+					});
+
 					let work = future::select(work.boxed(), exit.clone()).map(drop);
 					let _ = executor.spawn(work);
 				}
