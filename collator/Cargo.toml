@@ -7,15 +7,15 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.4"
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-cli = { path = "../cli" }
 polkadot-network = { path = "../network" }
@@ -27,4 +27,4 @@ futures-timer = "2.0"
 codec = { package = "parity-scale-codec", version = "1.1.0" }
 
 [dev-dependencies]
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }

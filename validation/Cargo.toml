@@ -18,22 +18,22 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
