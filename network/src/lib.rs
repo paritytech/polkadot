@@ -26,6 +26,7 @@ pub mod protocol;
 
 sc_network::construct_simple_protocol! {
 	/// Stub until https://github.com/paritytech/substrate/pull/4665 is merged
+	#[derive(Clone)]
 	pub struct PolkadotProtocol where Block = Block { }
 }
 

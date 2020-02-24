@@ -24,8 +24,8 @@ use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
 use polkadot_network::legacy::{
 	gossip::{self as network_gossip, Known},
-	validation::ValidationNetwork,
 };
+use polkadot_network::{protocol as network_protocol, PolkadotProtocol as StubSpecialization};
 use service::{error::{Error as ServiceError}, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
@@ -42,7 +42,6 @@ pub use sc_client_api::backend::Backend;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::HasherFor;
 pub use consensus_common::SelectChain;
-pub use polkadot_network::legacy::PolkadotProtocol;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_core::Blake2Hasher;
@@ -211,7 +210,7 @@ pub fn polkadot_new_full(
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = polkadot_runtime::RuntimeApi,
-		NetworkSpecialization = PolkadotProtocol,
+		NetworkSpecialization = StubSpecialization,
 		Backend = TFullBackend<Block>,
 		SelectChain = LongestChain<TFullBackend<Block>, Block>,
 		CallExecutor = TFullCallExecutor<Block, PolkadotExecutor>,
@@ -231,7 +230,7 @@ pub fn kusama_new_full(
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = kusama_runtime::RuntimeApi,
-		NetworkSpecialization = PolkadotProtocol,
+		NetworkSpecialization = StubSpecialization,
 		Backend = TFullBackend<Block>,
 		SelectChain = LongestChain<TFullBackend<Block>, Block>,
 		CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
@@ -251,7 +250,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = Runtime,
-		NetworkSpecialization = PolkadotProtocol,
+		NetworkSpecialization = StubSpecialization,
 		Backend = TFullBackend<Block>,
 		SelectChain = LongestChain<TFullBackend<Block>, Block>,
 		CallExecutor = TFullCallExecutor<Block, Dispatch>,
@@ -293,7 +292,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let backend = builder.backend().clone();
 
 	let service = builder
-		.with_network_protocol(|_config| Ok(PolkadotProtocol::new(collating_for.clone())))?
+		.with_network_protocol(|_config| Ok(StubSpecialization::new()))?
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
@@ -331,11 +330,15 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		}
 	};
 
-	let mut gossip_validator = network_gossip::register_validator(
+	let polkadot_network_service = network_protocol::start(
 		service.network(),
+		network_protocol::Config {
+			collating_for,
+		},
 		(is_known, client.clone()),
-		&service.spawn_task_handle(),
-	);
+		client.clone(),
+		service.spawn_task_handle(),
+	).map_err(|e| format!("Could not spawn network worker: {:?}", e))?;
 
 	if participates_in_consensus {
 		let availability_store = {
@@ -344,44 +347,30 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let mut path = PathBuf::from(db_path);
 			path.push("availability");
 
-			let gossip = polkadot_network::legacy
-				::AvailabilityNetworkShim(gossip_validator.clone());
+			let gossip: polkadot_network::legacy::AvailabilityNetworkShim<StubSpecialization>
+				= unimplemented!();
 
 			#[cfg(not(target_os = "unknown"))]
 			{
-				av_store::Store::new(::av_store::Config {
-					cache_size: None,
-					path,
-				}, gossip)?
+				av_store::Store::new(
+					::av_store::Config {
+						cache_size: None,
+						path,
+					},
+					gossip,
+				)?
 			}
 
 			#[cfg(target_os = "unknown")]
 			av_store::Store::new_in_memory(gossip)
 		};
 
-		{
-			let availability_store = availability_store.clone();
-			service.network().with_spec(
-				|spec, _ctx| spec.register_availability_store(availability_store)
-			);
-		}
-
-		{
-			let availability_store = availability_store.clone();
-			gossip_validator.register_availability_store(availability_store);
-		}
-
-		// collator connections and validation network both fulfilled by this
-		let validation_network = ValidationNetwork::new(
-			gossip_validator,
-			service.client(),
-			service.spawn_task_handle(),
-		);
-
+		// TODO: [now] ensure protocol availability service is registered.
+		let network: network_protocol::Service = unimplemented!();
 		let (validation_service_handle, validation_service) = consensus::ServiceBuilder {
 			client: client.clone(),
-			network: validation_network.clone(),
-			collators: validation_network,
+			network: network.clone(),
+			collators: network,
 			spawner: service.spawn_task_handle(),
 			availability_store: availability_store.clone(),
 			select_chain: select_chain.clone(),
@@ -498,35 +487,33 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 /// Create a new Polkadot service for a light client.
 pub fn polkadot_new_light(
 	config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
 )
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = polkadot_runtime::RuntimeApi,
-		NetworkSpecialization = PolkadotProtocol,
+		NetworkSpecialization = StubSpecialization,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, PolkadotExecutor>,
 	>, ServiceError>
 {
-	new_light(config, collating_for)
+	new_light(config)
 }
 
 /// Create a new Kusama service for a light client.
 pub fn kusama_new_light(
 	config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
 )
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = kusama_runtime::RuntimeApi,
-		NetworkSpecialization = PolkadotProtocol,
+		NetworkSpecialization = StubSpecialization,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,
 	>, ServiceError>
 {
-	new_light(config, collating_for)
+	new_light(config)
 }
 
 // We can't use service::TLightClient due to
@@ -550,12 +537,11 @@ type TLocalLightClient<Runtime, Dispatch> =  Client<
 /// Builds a new service for a light client.
 pub fn new_light<Runtime, Dispatch, Extrinsic>(
 	config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
 )
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = Runtime,
-		NetworkSpecialization = PolkadotProtocol,
+		NetworkSpecialization = StubSpecialization,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, Dispatch>,
@@ -575,6 +561,7 @@ where
 {
 	let inherent_data_providers = InherentDataProviders::new();
 
+	// TODO [now]: launch new network protocol.
 	ServiceBuilder::new_light::<Block, Runtime, Dispatch>(config)?
 		.with_select_chain(|_, backend| {
 			Ok(LongestChain::new(backend.clone()))
@@ -620,7 +607,7 @@ where
 
 			Ok((import_queue, finality_proof_request_builder))
 		})?
-		.with_network_protocol(|_config| Ok(PolkadotProtocol::new(collating_for.clone())))?
+		.with_network_protocol(|_config| Ok(StubSpecialization::new()))?
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?

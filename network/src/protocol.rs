@@ -949,7 +949,7 @@ impl Drop for RouterInner  {
 impl ParachainNetwork for Service {
 	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
 	type TableRouter = Router;
-	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router,Self::Error>>>>;
+	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router,Self::Error>> + Send>>;
 
 	fn build_table_router(
 		&self,

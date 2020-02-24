@@ -96,7 +96,7 @@ impl<S: NetworkSpecialization<Block>> av_store::ProvideGossipMessages
 		relay_parent: Hash,
 		candidate_hash: Hash,
 		erasure_root: Hash,
-		chunk: ErasureChunk
+		chunk: ErasureChunk,
 	) {
 		let topic = av_store::erasure_coding_topic(relay_parent, erasure_root, chunk.index);
 		self.0.gossip_message(
