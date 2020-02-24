@@ -18,22 +18,22 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
