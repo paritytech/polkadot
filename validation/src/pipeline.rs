@@ -143,7 +143,7 @@ impl FullOutput {
 	/// Check consistency of the outputs produced by the validation pipeline against
 	/// data contained within a candidate receipt.
 	pub fn check_consistency(&self, receipt: &AbridgedCandidateReceipt) -> Result<(), Error> {
-		if self.commitments == receipt.commitments {
+		if self.commitments != receipt.commitments {
 			Err(Error::CommitmentsMismatch)
 		} else {
 			Ok(())
