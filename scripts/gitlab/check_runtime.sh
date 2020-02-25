@@ -118,8 +118,9 @@ then
 			pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
 
 			if has_label 'paritytech/substrate' "$pr_id" 'B2-breaksapi'; then
-				echo "Substrate change labelled with B2-breaksapi. Labelling..."
+				boldprint "Substrate change labelled with B2-breaksapi. Labelling..."
 				github_label "B2-breaksapi"
+				exit 1
 			fi
 		done
 	)
