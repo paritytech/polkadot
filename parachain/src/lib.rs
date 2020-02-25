@@ -48,7 +48,7 @@ pub mod wasm_executor;
 
 mod wasm_api;
 
-use rstd::{vec::Vec, cmp::Ordering};
+use rstd::vec::Vec;
 
 use codec::{Encode, Decode, CompactAs};
 use sp_core::{RuntimeDebug, TypeId};
@@ -223,34 +223,4 @@ pub struct IncomingMessage {
 	pub source: Id,
 	/// The data of the message.
 	pub data: Vec<u8>,
-}
-
-/// A message targeted to a specific parachain.
-#[derive(Clone, PartialEq, Eq, Encode, Decode, sp_runtime_interface::pass_by::PassByCodec)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, Debug))]
-#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
-#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
-pub struct TargetedMessage {
-	/// The target parachain.
-	pub target: Id,
-	/// The message data.
-	pub data: Vec<u8>,
-}
-
-impl AsRef<[u8]> for TargetedMessage {
-	fn as_ref(&self) -> &[u8] {
-		&self.data[..]
-	}
-}
-
-impl PartialOrd for TargetedMessage {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-		Some(self.target.cmp(&other.target))
-	}
-}
-
-impl Ord for TargetedMessage {
-	fn cmp(&self, other: &Self) -> Ordering {
-		self.target.cmp(&other.target)
-	}
 }

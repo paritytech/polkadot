@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.7.20"
+version = "0.7.21"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -48,7 +48,7 @@ offences = { package = "pallet-offences", git = "https://github.com/paritytech/s
 randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 session = { package = "pallet-session", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false, features = ["migrate"] }
+staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }

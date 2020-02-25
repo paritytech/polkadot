@@ -32,7 +32,7 @@ use polkadot_primitives::{
 use polkadot_erasure_coding as erasure;
 use sp_api::ProvideRuntimeApi;
 use parachain::{
-	wasm_executor::{self, ExecutionMode}, TargetedMessage, UpwardMessage,
+	wasm_executor::{self, ExecutionMode}, UpwardMessage,
 };
 use trie::TrieConfiguration;
 use futures::prelude::*;
@@ -174,34 +174,7 @@ pub fn message_queue_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
 	trie::trie_types::Layout::<primitives::Blake2Hasher>::ordered_trie_root(messages)
 }
 
-/// Compute the set of egress roots for all given outgoing messages.
-pub fn egress_roots(outgoing: &mut [TargetedMessage]) -> Vec<(ParaId, Hash)> {
-	// stable sort messages by parachain ID.
-	outgoing.sort_by_key(|msg| ParaId::from(msg.target));
-
-	let mut egress_roots = Vec::new();
-	{
-		let mut messages_iter = outgoing.iter().peekable();
-		while let Some(batch_target) = messages_iter.peek().map(|o| o.target) {
- 			// we borrow the iterator mutably to ensure it advances so the
-			// next iteration of the loop starts with `messages_iter` pointing to
-			// the next batch.
-			let messages_to = messages_iter
-				.clone()
-				.take_while(|o| o.target == batch_target)
-				.map(|o| { let _ = messages_iter.next(); &o.data[..] });
-
-			let computed_root = message_queue_root(messages_to);
-			egress_roots.push((batch_target, computed_root));
-		}
-	}
-
-	egress_roots
-}
-
 struct ExternalitiesInner {
-	parachain_index: ParaId,
-	outgoing: Vec<TargetedMessage>,
 	upward: Vec<UpwardMessage>,
 	fees_charged: Balance,
 	free_balance: Balance,
@@ -209,17 +182,6 @@ struct ExternalitiesInner {
 }
 
 impl wasm_executor::Externalities for ExternalitiesInner {
-	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String> {
-		if message.target == self.parachain_index {
-			return Err("posted message to self".into())
-		}
-
-		self.apply_message_fee(message.data.len())?;
-		self.outgoing.push(message);
-
-		Ok(())
-	}
-
 	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
 		self.apply_message_fee(message.data.len())?;
 
@@ -230,14 +192,12 @@ impl wasm_executor::Externalities for ExternalitiesInner {
 }
 
 impl ExternalitiesInner {
-	fn new(parachain_index: ParaId, free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
+	fn new(free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
 		Self {
-			parachain_index,
 			free_balance,
 			fee_schedule,
 			fees_charged: 0,
 			upward: Vec::new(),
-			outgoing: Vec::new(),
 		}
 	}
 
@@ -283,18 +243,14 @@ impl ExternalitiesInner {
 struct Externalities(Arc<Mutex<ExternalitiesInner>>);
 
 impl Externalities {
-	fn new(parachain_index: ParaId, free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
+	fn new(free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
 		Self(Arc::new(Mutex::new(
-			ExternalitiesInner::new(parachain_index, free_balance, fee_schedule)
+			ExternalitiesInner::new(free_balance, fee_schedule)
 		)))
 	}
 }
 
 impl wasm_executor::Externalities for Externalities {
-	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String> {
-		self.0.lock().post_message(message)
-	}
-
 	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
 		self.0.lock().post_upward_message(message)
 	}
@@ -357,7 +313,7 @@ fn do_validation<P>(
 		block_data: pov_block.block_data.0.clone(),
 	};
 
-	let ext = Externalities::new(para_id.clone(), chain_status.balance, chain_status.fee_schedule);
+	let ext = Externalities::new(chain_status.balance, chain_status.fee_schedule);
 
 	match wasm_executor::validate_candidate(
 		&validation_code,
@@ -525,28 +481,8 @@ mod tests {
 	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
 
 	#[test]
-	fn ext_rejects_local_message() {
-		let mut ext = ExternalitiesInner {
-			parachain_index: 5.into(),
-			outgoing: Vec::new(),
-			upward: Vec::new(),
-			fees_charged: 0,
-			free_balance: 1_000_000,
-			fee_schedule: FeeSchedule {
-				base: 1000,
-				per_byte: 10,
-			},
-		};
-
-		assert!(ext.post_message(TargetedMessage { target: 1.into(), data: Vec::new() }).is_ok());
-		assert!(ext.post_message(TargetedMessage { target: 5.into(), data: Vec::new() }).is_err());
-	}
-
-	#[test]
 	fn ext_checks_upward_messages() {
 		let ext = || ExternalitiesInner {
-			parachain_index: 5.into(),
-			outgoing: Vec::new(),
 			upward: vec![
 				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
 			],
@@ -631,8 +567,6 @@ mod tests {
 	#[test]
 	fn ext_checks_fees_and_updates_correctly() {
 		let mut ext = ExternalitiesInner {
-			parachain_index: 5.into(),
-			outgoing: Vec::new(),
 			upward: vec![
 				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
 			],
@@ -647,20 +581,13 @@ mod tests {
 		ext.apply_message_fee(100).unwrap();
 		assert_eq!(ext.fees_charged, 2000);
 
-		ext.post_message(TargetedMessage {
-			target: 1.into(),
-			data: vec![0u8; 100],
-		}).unwrap();
-		assert_eq!(ext.fees_charged, 4000);
-
 		ext.post_upward_message(UpwardMessage {
 			origin: ParachainDispatchOrigin::Signed,
 			data: vec![0u8; 100],
 		}).unwrap();
-		assert_eq!(ext.fees_charged, 6000);
+		assert_eq!(ext.fees_charged, 4000);
 
-
-		ext.apply_message_fee((1_000_000 - 6000 - 1000) / 10).unwrap();
+		ext.apply_message_fee((1_000_000 - 4000 - 1000) / 10).unwrap();
 		assert_eq!(ext.fees_charged, 1_000_000);
 
 		// cannot pay fee.

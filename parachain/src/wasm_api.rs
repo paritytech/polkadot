@@ -16,7 +16,7 @@
 
 //! Utilities for writing parachain WASM.
 
-use crate::{TargetedMessage, UpwardMessage};
+use crate::UpwardMessage;
 use sp_runtime_interface::runtime_interface;
 #[cfg(feature = "std")]
 use sp_externalities::ExternalitiesExt;
@@ -27,14 +27,6 @@ use sp_externalities::ExternalitiesExt;
 #[cfg(any(feature = "std", all(not(feature = "std"), feature = "wasm-api")))]
 #[runtime_interface]
 pub trait Parachain {
-	/// Post a message to another parachain.
-	fn post_message(&mut self, msg: TargetedMessage) {
-		self.extension::<crate::wasm_executor::ParachainExt>()
-			.expect("No `ParachainExt` associated with the current context.")
-			.post_message(msg)
-			.expect("Failed to post message")
-	}
-
 	/// Post a message to this parachain's relay chain.
 	fn post_upward_message(&mut self, msg: UpwardMessage) {
 		self.extension::<crate::wasm_executor::ParachainExt>()

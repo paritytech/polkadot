@@ -48,7 +48,7 @@ use futures::prelude::*;
 
 pub use self::block_production::ProposerFactory;
 pub use self::collation::{
-	validate_collation, message_queue_root, egress_roots, Collators,
+	validate_collation, message_queue_root, Collators,
 	produce_receipt_and_chunks,
 };
 pub use self::error::Error;
