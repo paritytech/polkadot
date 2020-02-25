@@ -57,15 +57,15 @@ fn erasure_chunks_key(candidate_hash: &Hash) -> Vec<u8> {
 }
 
 fn candidate_key(candidate_hash: &Hash) -> Vec<u8> {
-	(candidate_hash, 3i8).encode()
+	(candidate_hash, 2i8).encode()
 }
 
 fn available_chunks_key(relay_parent: &Hash, erasure_root: &Hash) -> Vec<u8> {
-	(relay_parent, erasure_root, 4i8).encode()
+	(relay_parent, erasure_root, 3i8).encode()
 }
 
 fn candidates_with_relay_parent_key(relay_block: &Hash) -> Vec<u8> {
-	(relay_block, 5i8).encode()
+	(relay_block, 4i8).encode()
 }
 
 // meta keys
@@ -189,7 +189,7 @@ impl Store {
 			let mut awaited_frontier: HashSet<AwaitedFrontierEntry> =
 				HashSet::from_iter(awaited_frontier.into_iter());
 
-			awaited_frontier.extend(candidates.iter().cloned().filter_map(|candidate| {
+			awaited_frontier.extend(candidates.iter().filter_map(|candidate| {
 				self.get_candidate(&candidate).map(|receipt| AwaitedFrontierEntry {
 					relay_parent: relay_parent.clone(),
 					erasure_root: receipt.commitments.erasure_root,
