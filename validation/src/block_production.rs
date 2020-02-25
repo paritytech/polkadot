@@ -29,7 +29,7 @@ use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use codec::Encode;
 use consensus::{Proposal, RecordProof};
-use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
+use polkadot_primitives::{Hash, Block, BlockId, Header};
 use polkadot_primitives::parachain::{
 	ParachainHost, AttestedCandidate, NEW_HEADS_IDENTIFIER,
 };
@@ -46,6 +46,9 @@ use sp_api::{ApiExt, ProvideRuntimeApi};
 use crate::validation_service::ServiceHandle;
 use crate::dynamic_inclusion::DynamicInclusion;
 use crate::Error;
+
+// block size limit.
+pub(crate) const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
 
 // Polkadot proposer factory.
 pub struct ProposerFactory<Client, TxPool, Backend> {
@@ -100,7 +103,6 @@ where
 		parent_header: &Header,
 	) -> Self::CreateProposer {
 		let parent_hash = parent_header.hash();
-		let parent_number = parent_header.number;
 		let parent_id = BlockId::hash(parent_hash);
 
 		let client = self.client.clone();
@@ -114,9 +116,7 @@ where
 			.and_then(move |tracker| future::ready(Ok(Proposer {
 				client,
 				tracker,
-				parent_hash,
 				parent_id,
-				parent_number,
 				transaction_pool,
 				slot_duration,
 				backend,
@@ -129,9 +129,7 @@ where
 /// The Polkadot proposer logic.
 pub struct Proposer<Client, TxPool, Backend> {
 	client: Arc<Client>,
-	parent_hash: Hash,
 	parent_id: BlockId,
-	parent_number: BlockNumber,
 	tracker: crate::validation_service::ValidationInstanceHandle,
 	transaction_pool: Arc<TxPool>,
 	slot_duration: u64,
@@ -172,8 +170,6 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 			Duration::from_millis(self.slot_duration / SLOT_DURATION_DENOMINATOR),
 		);
 
-		let parent_hash = self.parent_hash.clone();
-		let parent_number = self.parent_number.clone();
 		let parent_id = self.parent_id.clone();
 		let client = self.client.clone();
 		let transaction_pool = self.transaction_pool.clone();
@@ -198,13 +194,10 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 			};
 
 			let data = CreateProposalData {
-				parent_hash,
-				parent_number,
 				parent_id,
 				client,
 				transaction_pool,
 				table,
-				believed_minimum_timestamp: believed_timestamp,
 				inherent_data: Some(inherent_data),
 				inherent_digests,
 				// leave some time for the proposal finalisation
@@ -239,13 +232,10 @@ fn current_timestamp() -> u64 {
 
 /// Inner data of the create proposal.
 struct CreateProposalData<Client, TxPool, Backend> {
-	parent_hash: Hash,
-	parent_number: BlockNumber,
 	parent_id: BlockId,
 	client: Arc<Client>,
 	transaction_pool: Arc<TxPool>,
 	table: Arc<crate::SharedTable>,
-	believed_minimum_timestamp: u64,
 	inherent_data: Option<InherentData>,
 	inherent_digests: DigestFor<Block>,
 	deadline: Instant,
@@ -298,7 +288,7 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 			let ready_iter = self.transaction_pool.ready();
 			for ready in ready_iter.take(MAX_TRANSACTIONS) {
 				let encoded_size = ready.data().encode().len();
-				if pending_size + encoded_size >= crate::evaluation::MAX_TRANSACTIONS_SIZE {
+				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
 					break;
 				}
 				if Instant::now() > self.deadline {
@@ -338,16 +328,6 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 				.collect::<Vec<_>>()
 				.join(", ")
 		);
-
-		// TODO: full re-evaluation (https://github.com/paritytech/polkadot/issues/216)
-		let active_parachains = runtime_api.active_parachains(&self.parent_id)?;
-		assert!(crate::evaluation::evaluate_initial(
-			&new_block,
-			self.believed_minimum_timestamp,
-			&self.parent_hash,
-			self.parent_number,
-			&active_parachains[..],
-		).is_ok());
 
 		Ok(Proposal { block: new_block, storage_changes, proof })
 	}

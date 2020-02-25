@@ -540,7 +540,7 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 		if let Some(store) = &self.availability_store {
 			if let Some(receipt) = store.get_candidate(&msg.candidate_hash) {
 				let chunk_hash = erasure::branch_hash(
-					&receipt.erasure_root,
+					&receipt.commitments.erasure_root,
 					&msg.chunk.proof,
 					msg.chunk.index as usize
 				);
@@ -552,15 +552,15 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 					)
 				} else {
 					if let Some(awaited_chunks) = store.awaited_chunks() {
-						if awaited_chunks.contains(&(
-								msg.relay_parent,
-								receipt.erasure_root,
-								receipt.hash(),
-								msg.chunk.index,
-							)) {
+						let frontier_entry = av_store::AwaitedFrontierEntry {
+							relay_parent: msg.relay_parent,
+							erasure_root: receipt.commitments.erasure_root,
+							validator_index: msg.chunk.index,
+						};
+						if awaited_chunks.contains(&frontier_entry) {
 							let topic = av_store::erasure_coding_topic(
 								msg.relay_parent,
-								receipt.erasure_root,
+								receipt.commitments.erasure_root,
 								msg.chunk.index,
 							);
 
@@ -722,8 +722,7 @@ mod tests {
 	use sc_network_gossip::Validator as ValidatorT;
 	use std::sync::mpsc;
 	use parking_lot::Mutex;
-	use polkadot_primitives::parachain::{CandidateReceipt, HeadData};
-	use sp_core::crypto::UncheckedInto;
+	use polkadot_primitives::parachain::AbridgedCandidateReceipt;
 	use sp_core::sr25519::Signature as Sr25519Signature;
 	use polkadot_validation::GenericStatement;
 
@@ -807,18 +806,7 @@ mod tests {
 
 		validator_context.clear();
 
-		let candidate_receipt = CandidateReceipt {
-			parachain_index: 5.into(),
-			collator: [255; 32].unchecked_into(),
-			head_data: HeadData(vec![9, 9, 9]),
-			parent_head: HeadData(vec![]),
-			signature: Default::default(),
-			fees: 1_000_000,
-			block_data_hash: [20u8; 32].into(),
-			upward_messages: Vec::new(),
-			erasure_root: [1u8; 32].into(),
-		};
-
+		let candidate_receipt = AbridgedCandidateReceipt::default();
 		let statement = GossipMessage::Statement(GossipStatement {
 			relay_chain_leaf: hash_a,
 			signed_statement: SignedStatement {

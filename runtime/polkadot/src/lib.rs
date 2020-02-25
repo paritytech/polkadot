@@ -31,7 +31,7 @@ use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas, CandidateReceipt}, ValidityError,
+	parachain::{self, ActiveParas, AbridgedCandidateReceipt}, ValidityError,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -688,13 +688,18 @@ sp_api::impl_runtime_apis! {
 		fn active_parachains() -> Vec<(parachain::Id, Option<(parachain::CollatorId, parachain::Retriable)>)> {
 			Registrar::active_paras()
 		}
-		fn parachain_status(id: parachain::Id) -> Option<parachain::Status> {
-			Parachains::parachain_status(&id)
+		fn global_validation_schedule() -> parachain::GlobalValidationSchedule {
+			Parachains::global_validation_schedule()
+		}
+		fn local_validation_data(id: parachain::Id) -> Option<parachain::LocalValidationData> {
+			Parachains::local_validation_data(&id)
 		}
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)
 		}
-		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>> {
+		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
+			-> Option<Vec<AbridgedCandidateReceipt>>
+		{
 			extrinsics
 				.into_iter()
 				.find_map(|ex| match UncheckedExtrinsic::decode(&mut ex.encode().as_slice()) {

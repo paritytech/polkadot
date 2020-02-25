@@ -30,7 +30,7 @@ use futures::channel::oneshot;
 use futures::prelude::*;
 use polkadot_primitives::{Block, Hash, Header};
 use polkadot_primitives::parachain::{
-	Id as ParaId, CollatorId, CandidateReceipt, Collation, PoVBlock,
+	Id as ParaId, CollatorId, AbridgedCandidateReceipt, Collation, PoVBlock,
 	ValidatorId, ErasureChunk,
 };
 use sc_network::{
@@ -168,7 +168,7 @@ struct PoVBlockRequest {
 	attempted_peers: HashSet<ValidatorId>,
 	validation_leaf: Hash,
 	candidate_hash: Hash,
-	block_data_hash: Hash,
+	pov_block_hash: Hash,
 	sender: oneshot::Sender<PoVBlock>,
 }
 
@@ -178,7 +178,7 @@ impl PoVBlockRequest {
 	//
 	// If `Ok(())` is returned, that indicates that the request has been processed.
 	fn process_response(self, pov_block: PoVBlock) -> Result<(), Self> {
-		if pov_block.block_data.hash() != self.block_data_hash {
+		if pov_block.hash() != self.pov_block_hash {
 			return Err(self);
 		}
 
@@ -292,7 +292,7 @@ impl PolkadotProtocol {
 	fn fetch_pov_block(
 		&mut self,
 		ctx: &mut dyn Context<Block>,
-		candidate: &CandidateReceipt,
+		candidate: &AbridgedCandidateReceipt,
 		relay_parent: Hash,
 	) -> oneshot::Receiver<PoVBlock> {
 		let (tx, rx) = oneshot::channel();
@@ -301,7 +301,7 @@ impl PolkadotProtocol {
 			attempted_peers: Default::default(),
 			validation_leaf: relay_parent,
 			candidate_hash: candidate.hash(),
-			block_data_hash: candidate.block_data_hash,
+			pov_block_hash: candidate.pov_block_hash,
 			sender: tx,
 		});
 
@@ -608,7 +608,7 @@ impl Specialization<Block> for PolkadotProtocol {
 							attempted_peers: Default::default(),
 							validation_leaf: Default::default(),
 							candidate_hash: Default::default(),
-							block_data_hash: Default::default(),
+							pov_block_hash: Default::default(),
 							sender,
 						}));
 					}
@@ -738,7 +738,7 @@ impl PolkadotProtocol {
 		relay_parent: Hash,
 		targets: HashSet<ValidatorId>,
 		collation: Collation,
-	) -> impl Future<Output = ()> {
+	) {
 		debug!(target: "p_net", "Importing local collation on relay parent {:?} and parachain {:?}",
 			relay_parent, collation.info.parachain_index);
 
@@ -754,19 +754,6 @@ impl PolkadotProtocol {
 				},
 				None =>
 					warn!(target: "polkadot_network", "Encountered tracked but disconnected validator {:?}", primary),
-			}
-		}
-
-		let availability_store = self.availability_store.clone();
-		let collation_cloned = collation.clone();
-
-		async move {
-			if let Some(availability_store) = availability_store {
-				let _ = availability_store.make_available(av_store::Data {
-					relay_parent,
-					parachain_id: collation_cloned.info.parachain_index,
-					block_data: collation_cloned.pov.block_data.clone(),
-				}).await;
 			}
 		}
 	}

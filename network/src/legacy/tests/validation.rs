@@ -28,8 +28,9 @@ use crate::legacy::{PolkadotProtocol, NetworkService, GossipService, GossipMessa
 use polkadot_validation::{SharedTable, Network};
 use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId, Status,
-	FeeSchedule, HeadData, Retriable, CollatorId, ErasureChunk, CandidateReceipt,
+	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
+	FeeSchedule, HeadData, Retriable, CollatorId, ErasureChunk, AbridgedCandidateReceipt,
+	GlobalValidationSchedule, LocalValidationData,
 };
 use parking_lot::Mutex;
 use sp_blockchain::Result as ClientResult;
@@ -270,23 +271,6 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
 	}
 
-	fn ParachainHost_parachain_status_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<ParaId>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<Status>>> {
-		Ok(NativeOrEncoded::Native(Some(Status {
-			head_data: HeadData(Vec::new()),
-			balance: 0,
-			fee_schedule: FeeSchedule {
-				base: 0,
-				per_byte: 0,
-			}
-		})))
-	}
-
 	fn ParachainHost_parachain_code_runtime_api_impl(
 		&self,
 		_at: &BlockId,
@@ -297,13 +281,33 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 
+	fn ParachainHost_global_validation_schedule_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_: Option<()>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<GlobalValidationSchedule>> {
+		Ok(NativeOrEncoded::Native(Default::default()))
+	}
+
+	fn ParachainHost_local_validation_data_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_: Option<ParaId>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<Option<LocalValidationData>>> {
+		Ok(NativeOrEncoded::Native(Some(Default::default())))
+	}
+
 	fn ParachainHost_get_heads_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
 		_extrinsics: Option<Vec<<Block as BlockT>::Extrinsic>>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<Vec<CandidateReceipt>>>> {
+	) -> ClientResult<NativeOrEncoded<Option<Vec<AbridgedCandidateReceipt>>>> {
 		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 }
