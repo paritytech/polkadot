@@ -174,8 +174,6 @@ impl GossipStatement {
 pub struct ErasureChunkMessage {
 	/// The chunk itself.
 	pub chunk: PrimitiveChunk,
-	/// The relay parent of the block this chunk belongs to.
-	pub relay_parent: Hash,
 	/// The hash of the candidate receipt of the block this chunk belongs to.
 	pub candidate_hash: Hash,
 }
@@ -534,15 +532,13 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 				} else {
 					if let Some(awaited_chunks) = store.awaited_chunks() {
 						let frontier_entry = av_store::AwaitedFrontierEntry {
-							relay_parent: msg.relay_parent,
-							erasure_root: receipt.commitments.erasure_root,
+							candidate_hash: msg.candidate_hash,
+							relay_parent: receipt.relay_parent,
 							validator_index: msg.chunk.index,
 						};
 						if awaited_chunks.contains(&frontier_entry) {
-							let topic = av_store::erasure_coding_topic(
-								msg.relay_parent,
-								receipt.commitments.erasure_root,
-								msg.chunk.index,
+							let topic = crate::legacy::erasure_coding_topic(
+								candidate_hash
 							);
 
 							return (

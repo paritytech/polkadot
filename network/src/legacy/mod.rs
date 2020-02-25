@@ -61,49 +61,60 @@ pub trait GossipService: Send + Sync + 'static {
 	fn send_message(&self, who: PeerId, message: GossipMessage);
 }
 
-/// This is a newtype that implements a [`ProvideGossipMessages`] shim trait.
+/// Compute gossip topic for the erasure chunk messages given the hash of the
+/// candidate they correspond to.
+fn erasure_coding_topic(candidate_hash: &Hash) -> Hash {
+	let mut v = candidate_hash.as_ref().to_vec();
+	v.extend(b"erasure_chunks");
+
+	BlakeTwo256::hash(&v[..])
+}
+
+/// This is a newtype that implements a [`ErasureNetworking`] shim trait.
 ///
-/// For any wrapped [`NetworkService`] type it implements a [`ProvideGossipMessages`].
-/// For more details see documentation of [`ProvideGossipMessages`].
+/// For any wrapped [`NetworkService`] type it implements a [`ErasureNetworking`].
+/// For more details see documentation of [`ErasureNetworking`].
 ///
 /// [`NetworkService`]: ./trait.NetworkService.html
-/// [`ProvideGossipMessages`]: ../polkadot_availability_store/trait.ProvideGossipMessages.html
+/// [`ErasureNetworking`]: ../polkadot_availability_store/trait.ErasureNetworking.html
 #[derive(Clone)]
 pub struct AvailabilityNetworkShim<S: NetworkSpecialization<Block>>(
-	pub RegisteredMessageValidator<S>
+	pub RegisteredMessageValidator<S>,
 );
 
-impl<S: NetworkSpecialization<Block>> av_store::ProvideGossipMessages
+impl<S: NetworkSpecialization<Block>> av_store::ErasureNetworking
 	for AvailabilityNetworkShim<S>
 {
-	fn gossip_messages_for(&self, topic: Hash)
-		-> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>
+	fn fetch_erasure_chunk(&self, candidate_hash: &Hash, index: u32)
+		-> Pin<Box<dyn Future<Item = ErasureChunk> + Send>>
 	{
+		let topic = erasure_coding_topic(candidate_hash);
 		self.0.gossip_messages_for(topic)
 			.filter_map(|(msg, _)| async move {
 				match msg {
-					GossipMessage::ErasureChunk(chunk) => {
-						Some((chunk.relay_parent, chunk.candidate_hash, chunk.chunk))
+					GossipMessage::ErasureChunk(chunk) => if chunk.chunk.index == index {
+						Some(chunk)
+					} else {
+						None
 					},
 					_ => None,
 				}
 			})
+			.next() // for every erasure-root, relay-parent pair, there should only be one
+			        // valid chunk with the given index.
 			.boxed()
 	}
 
-	fn gossip_erasure_chunk(
+	fn distribute_erasure_chunk(
 		&self,
-		relay_parent: Hash,
 		candidate_hash: Hash,
-		erasure_root: Hash,
 		chunk: ErasureChunk,
 	) {
-		let topic = av_store::erasure_coding_topic(relay_parent, erasure_root, chunk.index);
+		let topic = erasure_coding_topic(&candidate_hash);
 		self.0.gossip_message(
 			topic,
 			GossipMessage::ErasureChunk(ErasureChunkMessage {
 				chunk,
-				relay_parent,
 				candidate_hash,
 			})
 		)
