@@ -320,12 +320,16 @@ impl Worker {
 			candidate_hash,
 		);
 
-
-
 		let fut = erasure_network.fetch_erasure_chunk(&candidate_hash, local_id);
 		let mut sender = sender.clone();
 		let (fut, signal) = future::abortable(async move {
-			let chunk = fut.await;
+			let chunk = match fut.await {
+				Ok(chunk) => chunk,
+				Err(e) => {
+					warn!(target: LOG_TARGET, "Unable to fetch erasure-chunk from network: {:?}", e);
+					return
+				}
+			};
 			let (s, _) = oneshot::channel();
 			let _ = sender.send(WorkerMsg::Chunks(Chunks {
 				candidate_hash,
@@ -715,12 +719,14 @@ mod tests {
 	}
 
 	impl ErasureNetworking for TestErasureNetwork {
+		type Error = String;
+
 		fn fetch_erasure_chunk(&self, candidate_hash: &Hash, index: u32)
-			-> Pin<Box<dyn Future<Output = ErasureChunk> + Send>>
+			-> Pin<Box<dyn Future<Output = Result<ErasureChunk, Self::Error>> + Send>>
 		{
 			match self.chunk_receivers.lock().remove(&(*candidate_hash, index)) {
 				Some(receiver) => receiver.then(|x| match x {
-					Ok(x) => future::ready(x).left_future(),
+					Ok(x) => future::ready(Ok(x)).left_future(),
 					Err(_) => future::pending().right_future(),
 				}).boxed(),
 				None => future::pending().boxed(),

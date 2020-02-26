@@ -70,9 +70,7 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
-
-
-/// A trait that provides a shim for the [`NetworkService`] trait.
+/// An abstraction around networking for the availablity-store.
 ///
 /// Currently it is not possible to use the networking code in the availability store
 /// core directly due to a number of loop dependencies it require:
@@ -81,18 +79,20 @@ pub struct Config {
 ///
 /// `availability-store` -> `network` -> `validation` -> `availability-store`
 ///
-/// So we provide this shim trait that gets implemented for a wrapper newtype in
-/// the [`network`] module.
+/// So we provide this trait that gets implemented for a type in
+/// the [`network`] module or a mock in tests.
 ///
-/// [`NetworkService`]: ../polkadot_network/trait.NetworkService.html
 /// [`network`]: ../polkadot_network/index.html
 pub trait ErasureNetworking {
+	/// Errors that can occur when fetching erasure chunks.
+	type Error: std::fmt::Debug + 'static;
+
 	/// Fetch an erasure chunk from the networking service.
 	fn fetch_erasure_chunk(
 		&self,
 		candidate_hash: &Hash,
 		index: u32,
-	) -> Pin<Box<dyn Future<Output = ErasureChunk> + Send>>;
+	) -> Pin<Box<dyn Future<Output = Result<ErasureChunk, Self::Error>> + Send>>;
 
 	/// Distributes an erasure chunk to the correct validator node.
 	fn distribute_erasure_chunk(
