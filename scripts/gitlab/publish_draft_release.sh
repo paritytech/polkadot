@@ -129,6 +129,6 @@ formatted_msg_body=$(cat <<EOF
 Draft release created: $html_url
 EOF
 )
-send_message "$(structure_message "$msg_body" "$formatted_msg_body")" "$MATRIX_ACCESS_TOKEN"
+send_message "$(structure_message "$msg_body" "$formatted_msg_body")" "$MATRIX_ROOM_ID" "$MATRIX_ACCESS_TOKEN"
 
 echo "[+] Done! Maybe the release worked..."
