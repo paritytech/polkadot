@@ -49,9 +49,6 @@ use frame_support::{
 	parameter_types, construct_runtime, traits::Randomness,
 	weights::DispatchInfo,
 };
-use im_online::sr25519::AuthorityId as ImOnlineId;
-use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use system::offchain::TransactionSubmitter;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 
 #[cfg(feature = "std")]
@@ -210,7 +207,7 @@ impl authorship::Trait for Runtime {
 	type FindAuthor = session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
-	type EventHandler = (Staking, ImOnline);
+	type EventHandler = Staking;
 }
 
 parameter_types! {
@@ -222,9 +219,7 @@ impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
-		pub im_online: ImOnline,
 		pub parachain_validator: Parachains,
-		pub authority_discovery: AuthorityDiscovery,
 	}
 }
 
@@ -286,43 +281,8 @@ impl staking::Trait for Runtime {
 	type RewardCurve = RewardCurve;
 }
 
-
-impl offences::Trait for Runtime {
-	type Event = Event;
-	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
-	type OnOffenceHandler = Staking;
-}
-
-impl authority_discovery::Trait for Runtime {}
-
-type SubmitTransaction = TransactionSubmitter<ImOnlineId, Runtime, UncheckedExtrinsic>;
-
-parameter_types! {
-	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
-}
-
-impl im_online::Trait for Runtime {
-	type AuthorityId = ImOnlineId;
-	type Event = Event;
-	type Call = Call;
-	type SubmitTransaction = SubmitTransaction;
-	type ReportUnresponsiveness = Offences;
-	type SessionDuration = SessionDuration;
-}
-
 impl grandpa::Trait for Runtime {
 	type Event = Event;
-}
-
-parameter_types! {
-	pub const WindowSize: BlockNumber = finality_tracker::DEFAULT_WINDOW_SIZE.into();
-	pub const ReportLatency: BlockNumber = finality_tracker::DEFAULT_REPORT_LATENCY.into();
-}
-
-impl finality_tracker::Trait for Runtime {
-	type OnFinalizationStalled = ();
-	type WindowSize = WindowSize;
-	type ReportLatency = ReportLatency;
 }
 
 parameter_types! {
@@ -418,12 +378,8 @@ construct_runtime! {
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
 		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>},
-		Offences: offences::{Module, Call, Storage, Event},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
-		FinalityTracker: finality_tracker::{Module, Call, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
-		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
-		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
@@ -527,12 +483,6 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl offchain_primitives::OffchainWorkerApi<Block> for Runtime {
-		fn offchain_worker(header: &<Block as BlockT>::Header) {
-			Executive::offchain_worker(header)
-		}
-	}
-
 	impl parachain::ParachainHost<Block> for Runtime {
 		fn validators() -> Vec<parachain::ValidatorId> {
 			Parachains::authorities()
@@ -594,12 +544,6 @@ sp_api::impl_runtime_apis! {
 
 		fn current_epoch_start() -> babe_primitives::SlotNumber {
 			Babe::current_epoch_start()
-		}
-	}
-
-	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
-		fn authorities() -> Vec<AuthorityDiscoveryId> {
-			AuthorityDiscovery::authorities()
 		}
 	}
 
