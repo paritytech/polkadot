@@ -369,6 +369,7 @@ impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 				).await?;
 				self.inner.availability_store.add_erasure_chunks(
 					candidate,
+					full_output.n_validators as _,
 					full_output.erasure_chunks,
 				).await?;
 

@@ -397,6 +397,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 						commitments,
 						erasure_chunks,
 						available_data,
+						..
 					} = full_output;
 
 					let receipt = collation_info.into_receipt(commitments);
@@ -421,6 +422,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 						}
 						if let Err(e) = av_clone.clone().add_erasure_chunks(
 							receipt_clone,
+							n_validators as _,
 							erasure_chunks_clone,
 						).await {
 							warn!(target: "validation", "Failed to add erasure chunks: {}", e);
