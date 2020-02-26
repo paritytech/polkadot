@@ -361,7 +361,8 @@ impl<S: NetworkSpecialization<Block>> Clone for RegisteredMessageValidator<S> {
 }
 
 impl<S: NetworkSpecialization<Block>> RegisteredMessageValidator<S> {
-	pub fn register_availability_store(&mut self, availability_store: av_store::Store) {
+	/// Register an availabilty store the gossip service can query.
+	pub(crate) fn register_availability_store(&self, availability_store: av_store::Store) {
 		self.inner.inner.write().availability_store = Some(availability_store);
 	}
 

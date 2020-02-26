@@ -100,6 +100,9 @@ enum ServiceToWorkerMsg {
 	NoteBadCollator(
 		CollatorId,
 	),
+	RegisterAvailabilityStore(
+		av_store::Store,
+	),
 }
 
 /// An async handle to the network service.
@@ -767,6 +770,9 @@ async fn worker_loop<Api, Sp>(
 			ServiceToWorkerMsg::NoteBadCollator(collator) => {
 				protocol_handler.note_bad_collator(collator);
 			}
+			ServiceToWorkerMsg::RegisterAvailabilityStore(store) => {
+				gossip_handle.register_availability_store(store);
+			}
 		}
 	}
 }
@@ -1009,6 +1015,14 @@ impl Drop for RouterInner  {
 			);
 			// other error variants (disconnection) are fine here.
 		}
+	}
+}
+
+impl Service {
+	/// Register an availablility-store that the network can query.
+	pub fn register_availability_store(&self, store: av_store::Store) {
+		let _ = self.sender.clone()
+			.try_send(ServiceToWorkerMsg::RegisterAvailabilityStore(store));
 	}
 }
 
