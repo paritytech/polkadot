@@ -22,9 +22,7 @@ use sc_client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
-use polkadot_network::legacy::{
-	gossip::{self as network_gossip, Known},
-};
+use polkadot_network::legacy::gossip::Known;
 use polkadot_network::{protocol as network_protocol, PolkadotProtocol as StubSpecialization};
 use service::{error::{Error as ServiceError}, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
@@ -347,9 +345,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let mut path = PathBuf::from(db_path);
 			path.push("availability");
 
-			let gossip: polkadot_network::legacy::AvailabilityNetworkShim<StubSpecialization>
-				= unimplemented!();
-
 			#[cfg(not(target_os = "unknown"))]
 			{
 				av_store::Store::new(
@@ -357,7 +352,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 						cache_size: None,
 						path,
 					},
-					gossip,
+					polkadot_network_service.clone(),
 				)?
 			}
 
@@ -365,12 +360,12 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			av_store::Store::new_in_memory(gossip)
 		};
 
-		// TODO: [now] ensure protocol availability service is registered.
-		let network: network_protocol::Service = unimplemented!();
+		polkadot_network_service.register_availability_store(availability_store.clone());
+
 		let (validation_service_handle, validation_service) = consensus::ServiceBuilder {
 			client: client.clone(),
-			network: network.clone(),
-			collators: network,
+			network: polkadot_network_service.clone(),
+			collators: polkadot_network_service.clone(),
 			spawner: service.spawn_task_handle(),
 			availability_store: availability_store.clone(),
 			select_chain: select_chain.clone(),
