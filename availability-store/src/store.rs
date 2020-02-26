@@ -575,7 +575,6 @@ mod tests {
 			proof: Vec::new(),
 		};
 		let candidates = vec![receipt_1_hash, receipt_2_hash];
-		let erasure_roots = vec![erasure_root_1, erasure_root_2];
 
 		let store = Store::new_in_memory();
 
@@ -595,10 +594,9 @@ mod tests {
 		let expected: HashSet<_> = candidates
 			.clone()
 			.into_iter()
-			.zip(erasure_roots.iter())
-			.map(|(_c, &e)| AwaitedFrontierEntry {
+			.map(|c| AwaitedFrontierEntry {
 				relay_parent,
-				erasure_root: e,
+				candidate_hash: c,
 				validator_index,
 			})
 			.collect();
@@ -611,7 +609,7 @@ mod tests {
 		// Now we wait for the other chunk that we haven't received yet.
 		let expected: HashSet<_> = vec![AwaitedFrontierEntry {
 			relay_parent,
-			erasure_root: erasure_roots[1],
+			candidate_hash: receipt_2_hash,
 			validator_index,
 		}].into_iter().collect();
 

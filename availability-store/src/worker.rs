@@ -38,6 +38,7 @@ use polkadot_primitives::parachain::{
 	ValidatorPair, ErasureChunk,
 };
 use futures::{prelude::*, future::select, channel::{mpsc, oneshot}, task::{Spawn, SpawnExt}};
+use futures::future::AbortHandle;
 use keystore::KeyStorePtr;
 
 use tokio::runtime::{Handle, Runtime as LocalRuntime};
@@ -54,6 +55,17 @@ pub(crate) enum Error {
 	IdAndNValidatorsNotFound { relay_parent: Hash },
 }
 
+/// Used in testing to interact with the worker thread.
+#[cfg(test)]
+pub(crate) struct WithWorker(Box<dyn FnOnce(&mut Worker) + Send>);
+
+#[cfg(test)]
+impl std::fmt::Debug for WithWorker {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "<boxed closure>")
+	}
+}
+
 /// Messages sent to the `Worker`.
 ///
 /// Messages are sent in a number of different scenarios,
@@ -67,6 +79,8 @@ pub(crate) enum WorkerMsg {
 	Chunks(Chunks),
 	CandidatesFinalized(CandidatesFinalized),
 	MakeAvailable(MakeAvailable),
+	#[cfg(test)]
+	WithWorker(WithWorker),
 }
 
 /// A notification of a parachain block included in the relay chain.
@@ -128,19 +142,18 @@ struct ListeningKey {
 }
 
 /// An availability worker with it's inner state.
-pub(super) struct Worker<EN> {
+pub(super) struct Worker {
 	availability_store: Store,
-	erasure_network: EN,
-	listening_for: HashMap<ListeningKey, exit_future::Signal>,
+	listening_for: HashMap<ListeningKey, AbortHandle>,
 
 	sender: mpsc::UnboundedSender<WorkerMsg>,
 }
 
 /// The handle to the `Worker`.
 pub(super) struct WorkerHandle {
-	exit_signal: Option<exit_future::Signal>,
 	thread: Option<thread::JoinHandle<io::Result<()>>>,
 	sender: mpsc::UnboundedSender<WorkerMsg>,
+	exit_signal: Option<exit_future::Signal>,
 }
 
 impl WorkerHandle {
@@ -258,29 +271,20 @@ where
 	}
 }
 
-impl<EN> Drop for Worker<EN> {
-	fn drop(&mut self) {
-		for (_, signal) in self.listening_for.drain() {
-			let _ = signal.fire();
-		}
-	}
-}
-
-impl<EN> Worker<EN>
-where
-	EN: ErasureNetworking + Clone + Send + 'static,
-{
+impl Worker {
 
 	// Called on startup of the worker to initiate fetch from network for all awaited chunks.
-	fn initiate_all_fetches(
+	fn initiate_all_fetches<EN: ErasureNetworking>(
 		&mut self,
 		runtime_handle: &Handle,
+		erasure_network: &EN,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 	) {
 		if let Some(awaited_chunks) = self.availability_store.awaited_chunks() {
 			for awaited_chunk in awaited_chunks {
 				if let Err(e) = self.initiate_fetch(
 					runtime_handle,
+					erasure_network,
 					sender,
 					awaited_chunk.relay_parent,
 					awaited_chunk.candidate_hash,
@@ -292,9 +296,10 @@ where
 	}
 
 	// initiates a fetch from network for the described chunk, with our local index.
-	fn initiate_fetch(
+	fn initiate_fetch<EN: ErasureNetworking>(
 		&mut self,
 		runtime_handle: &Handle,
+		erasure_network: &EN,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 		relay_parent: Hash,
 		candidate_hash: Hash,
@@ -303,6 +308,11 @@ where
 			.get_validator_index_and_n_validators(&relay_parent)
 			.ok_or(Error::IdAndNValidatorsNotFound { relay_parent })?;
 
+		// fast exit for if we already have the chunk.
+		if self.availability_store.get_erasure_chunk(&candidate_hash, local_id as _).is_some() {
+			return Ok(())
+		}
+
 		trace!(
 			target: LOG_TARGET,
 			"Initiating fetch for erasure-chunk at parent {} with candidate-hash {}",
@@ -310,21 +320,21 @@ where
 			candidate_hash,
 		);
 
-		let (signal, exit) = exit_future::signal();
 
-		let fut = self.erasure_network.fetch_erasure_chunk(&candidate_hash, local_id);
+
+		let fut = erasure_network.fetch_erasure_chunk(&candidate_hash, local_id);
 		let mut sender = sender.clone();
-		let fut = async move {
+		let (fut, signal) = future::abortable(async move {
 			let chunk = fut.await;
-
 			let (s, _) = oneshot::channel();
 			let _ = sender.send(WorkerMsg::Chunks(Chunks {
 				candidate_hash,
 				chunks: vec![chunk],
 				n_validators,
 				result: s,
-			}));
-		};
+			})).await;
+		}.map(drop).boxed());
+
 
 		let key = ListeningKey {
 			candidate_hash,
@@ -332,15 +342,15 @@ where
 		};
 
 		self.listening_for.insert(key, signal);
-
-		let _ = runtime_handle.spawn(select(fut.boxed(), exit).map(drop));
+		let _ = runtime_handle.spawn(fut);
 
 		Ok(())
 	}
 
-	fn on_parachain_blocks_received(
+	fn on_parachain_blocks_received<EN: ErasureNetworking>(
 		&mut self,
 		runtime_handle: &Handle,
+		erasure_network: &EN,
 		sender: &mut mpsc::UnboundedSender<WorkerMsg>,
 		blocks: Vec<IncludedParachainBlock>,
 	) -> Result<(), Error> {
@@ -366,6 +376,7 @@ where
 
 			if let Err(e) = self.initiate_fetch(
 				runtime_handle,
+				erasure_network,
 				sender,
 				candidate.relay_parent,
 				candidate_hash,
@@ -392,7 +403,9 @@ where
 
 			// remove bookkeeping so network does not attempt to fetch
 			// any longer.
-			let _ = self.listening_for.remove(&key);
+			if let Some(exit_signal) = self.listening_for.remove(&key) {
+				exit_signal.abort();
+			}
 		}
 
 		self.availability_store.add_erasure_chunks(
@@ -405,15 +418,14 @@ where
 	}
 
 	/// Starts a worker with a given availability store and a gossip messages provider.
-	pub fn start(
+	pub fn start<EN: ErasureNetworking + Send + 'static>(
 		availability_store: Store,
 		erasure_network: EN,
 	) -> WorkerHandle {
 		let (sender, mut receiver) = mpsc::unbounded();
 
-		let mut worker = Self {
+		let mut worker = Worker {
 			availability_store,
-			erasure_network,
 			listening_for: HashMap::new(),
 			sender: sender.clone(),
 		};
@@ -429,7 +441,7 @@ where
 
 			// On startup, initiates fetch from network for all
 			// entries in the awaited frontier.
-			worker.initiate_all_fetches(runtime.handle(), &mut sender);
+			worker.initiate_all_fetches(runtime.handle(), &erasure_network, &mut sender);
 
 			let process_notification = async move {
 				while let Some(msg) = receiver.next().await {
@@ -444,6 +456,7 @@ where
 
 							let res = worker.on_parachain_blocks_received(
 								&runtime_handle,
+								&erasure_network,
 								&mut sender,
 								blocks,
 							);
@@ -484,6 +497,11 @@ where
 							let _ = result.send(res);
 							Ok(())
 						}
+						#[cfg(test)]
+						WorkerMsg::WithWorker(with_worker) => {
+							(with_worker.0)(&mut worker);
+							Ok(())
+						}
 					};
 
 					if let Err(_) = res {
@@ -494,7 +512,6 @@ where
 			};
 
 			runtime.spawn(select(process_notification.boxed(), exit.clone()).map(drop));
-
 			runtime.block_on(exit);
 
 			info!(target: LOG_TARGET, "Availability worker exiting");
@@ -520,14 +537,12 @@ pub struct AvailabilityBlockImport<I, P> {
 	client: Arc<P>,
 	keystore: KeyStorePtr,
 	to_worker: mpsc::UnboundedSender<WorkerMsg>,
-	exit_signal: Option<exit_future::Signal>,
+	exit_signal: AbortHandle,
 }
 
 impl<I, P> Drop for AvailabilityBlockImport<I, P> {
 	fn drop(&mut self) {
-		if let Some(signal) = self.exit_signal.take() {
-			let _ = signal.fire();
-		}
+		self.exit_signal.abort();
 	}
 }
 
@@ -633,22 +648,18 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
 		sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
 	{
-		let (signal, exit) = exit_future::signal();
-
 		// This is not the right place to spawn the finality future,
 		// it would be more appropriate to spawn it in the `start` method of the `Worker`.
 		// However, this would make the type of the `Worker` and the `Store` itself
 		// dependent on the types of client and executor, which would prove
 		// not not so handy in the testing code.
-		let mut exit_signal = Some(signal);
-		let prune_available = select(
-			prune_unneeded_availability(client.clone(), to_worker.clone()).boxed(),
-			exit.clone()
-		).map(drop);
+		let (prune_available, exit_signal) = future::abortable(prune_unneeded_availability(
+			client.clone(),
+			to_worker.clone(),
+		));
 
-		if let Err(_) = spawner.spawn(prune_available) {
+		if let Err(_) = spawner.spawn(prune_available.map(drop)) {
 			error!(target: LOG_TARGET, "Failed to spawn availability pruning task");
-			exit_signal = None;
 		}
 
 		AvailabilityBlockImport {
@@ -675,55 +686,52 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::time::Duration;
-	use futures::{stream, channel::mpsc, Stream};
-	use std::sync::{Arc, Mutex, Condvar};
+	use futures::channel::oneshot;
+	use std::sync::Arc;
 	use std::pin::Pin;
 	use tokio::runtime::Runtime;
+	use parking_lot::Mutex;
 	use crate::store::AwaitedFrontierEntry;
 
-	// Just contains topic->channel mapping to give to outer code on `gossip_messages_for` calls.
-	struct TestGossipMessages {
-		messages: Arc<Mutex<HashMap<
-			Hash,
-			(
-				Arc<(Mutex<bool>, Condvar)>,
-				mpsc::UnboundedReceiver<(Hash, Hash, ErasureChunk)>,
-			),
+	#[derive(Default, Clone)]
+	struct TestErasureNetwork {
+		chunk_receivers: Arc<Mutex<HashMap<
+			(Hash, u32),
+			oneshot::Receiver<ErasureChunk>
 		>>>,
 	}
 
-	impl ErasureNetworking for TestGossipMessages {
-		fn gossip_messages_for(&self, topic: Hash)
-			-> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>
+	impl TestErasureNetwork {
+		// adds a receiver. this returns a sender for the erasure-chunk
+		// along with an exit future that fires when the erasure chunk has
+		// been fully-processed
+		fn add_receiver(&self, candidate_hash: Hash, index: u32)
+			-> oneshot::Sender<ErasureChunk>
 		{
-			match self.messages.lock().unwrap().remove(&topic) {
-				Some((pair, receiver)) => {
-					let (lock, cvar) = &*pair;
-					let mut consumed = lock.lock().unwrap();
-					*consumed = true;
-					cvar.notify_one();
-					receiver.boxed()
-				},
-				None => stream::iter(vec![]).boxed(),
-			}
+			let (sender, receiver) = oneshot::channel();
+			self.chunk_receivers.lock().insert((candidate_hash, index), receiver);
+			sender
 		}
-
-		fn gossip_erasure_chunk(
-			&self,
-			_relay_parent: Hash,
-			_candidate_hash: Hash,
-			_erasure_root: Hash,
-			_chunk: ErasureChunk
-		) {}
 	}
 
-	impl Clone for TestGossipMessages {
-		fn clone(&self) -> Self {
-			TestGossipMessages {
-				messages: self.messages.clone(),
+	impl ErasureNetworking for TestErasureNetwork {
+		fn fetch_erasure_chunk(&self, candidate_hash: &Hash, index: u32)
+			-> Pin<Box<dyn Future<Output = ErasureChunk> + Send>>
+		{
+			match self.chunk_receivers.lock().remove(&(*candidate_hash, index)) {
+				Some(receiver) => receiver.then(|x| match x {
+					Ok(x) => future::ready(x).left_future(),
+					Err(_) => future::pending().right_future(),
+				}).boxed(),
+				None => future::pending().boxed(),
 			}
 		}
+
+		fn distribute_erasure_chunk(
+			&self,
+			_candidate_hash: Hash,
+			_chunk: ErasureChunk
+		) {}
 	}
 
 	// This test tests that as soon as the worker receives info about new parachain blocks
@@ -734,31 +742,21 @@ mod tests {
 	fn receiving_gossip_chunk_removes_from_frontier() {
 		let mut runtime = Runtime::new().unwrap();
 		let relay_parent = [1; 32].into();
-		let erasure_root = [2; 32].into();
 		let local_id = 2;
 		let n_validators = 4;
 
 		let store = Store::new_in_memory();
 
+		let mut candidate = AbridgedCandidateReceipt::default();
+
+		candidate.relay_parent = relay_parent;
+		let candidate_hash = candidate.hash();
+
 		// Tell the store our validator's position and the number of validators at given point.
 		store.note_validator_index_and_n_validators(&relay_parent, local_id, n_validators).unwrap();
 
-		let (gossip_sender, gossip_receiver) = mpsc::unbounded();
-
-		let topic = erasure_coding_topic(relay_parent, erasure_root, local_id);
-
-		let pair = Arc::new((Mutex::new(false), Condvar::new()));
-		let messages = TestGossipMessages {
-			messages: Arc::new(Mutex::new(vec![
-						  (topic, (pair.clone(), gossip_receiver))
-			].into_iter().collect()))
-		};
-
-		let mut candidate = AbridgedCandidateReceipt::default();
-
-		candidate.commitments.erasure_root = erasure_root;
-		candidate.relay_parent = relay_parent;
-		let candidate_hash = candidate.hash();
+		let network = TestErasureNetwork::default();
+		let chunk_sender = network.add_receiver(candidate_hash, local_id);
 
 		// At this point we shouldn't be waiting for any chunks.
 		assert!(store.awaited_chunks().is_none());
@@ -773,7 +771,7 @@ mod tests {
 			result: s,
 		});
 
-		let handle = Worker::start(store.clone(), messages);
+		let handle = Worker::start(store.clone(), network);
 
 		// Tell the worker that the new blocks have been included into the relay chain.
 		// This should trigger the registration of gossip message listeners for the
@@ -787,37 +785,42 @@ mod tests {
 			store.awaited_chunks().unwrap(),
 			vec![AwaitedFrontierEntry {
 				relay_parent,
-				erasure_root,
+				candidate_hash,
 				validator_index: local_id,
 			}].into_iter().collect()
 		);
 
-		let msg = (
-			relay_parent,
-			candidate_hash,
-			ErasureChunk {
-				chunk: vec![1, 2, 3],
-				index: local_id as u32,
-				proof: vec![],
+		// Complete the chunk request.
+		chunk_sender.send(ErasureChunk {
+			chunk: vec![1, 2, 3],
+			index: local_id as u32,
+			proof: vec![],
+		}).unwrap();
+
+		// wait until worker thread has de-registered the listener for a
+		// particular chunk.
+		loop {
+			let (s, r) = oneshot::channel();
+			handle.sender.unbounded_send(WorkerMsg::WithWorker(WithWorker(Box::new(move |worker| {
+				let key = ListeningKey {
+					candidate_hash,
+					index: local_id,
+				};
+
+				let is_waiting = worker.listening_for.contains_key(&key);
+
+				s.send(!is_waiting).unwrap(); // tell the test thread `true` if we are not waiting.
+			})))).unwrap();
+
+			if runtime.block_on(r).unwrap() {
+				break
 			}
-		);
-
-		// Send a gossip message with an awaited chunk
-		gossip_sender.unbounded_send(msg).unwrap();
-
-		// At the point the needed piece is received, the gossip listener for
-		// this topic is deregistered and it's receiver side is dropped.
-		// Wait for the sender side to become closed.
-		while !gossip_sender.is_closed() {
-			// Probably we can just .wait this somehow?
-			thread::sleep(Duration::from_millis(100));
 		}
 
 		// The awaited chunk has been received so at this point we no longer wait for any chunks.
 		assert_eq!(store.awaited_chunks().unwrap().len(), 0);
 	}
 
-	// TODO [now]: update.
 	#[test]
 	fn included_parachain_blocks_registers_listener() {
 		let mut runtime = Runtime::new().unwrap();
@@ -861,63 +864,73 @@ mod tests {
 			}],
 		).unwrap();
 
-		let (_, gossip_receiver_1) = mpsc::unbounded();
-		let (_, gossip_receiver_2) = mpsc::unbounded();
+		let network = TestErasureNetwork::default();
+		let _ = network.add_receiver(candidate_1_hash, local_id);
+		let _ = network.add_receiver(candidate_2_hash, local_id);
 
-		let topic_1 = erasure_coding_topic(relay_parent, erasure_root_1, local_id);
-		let topic_2 = erasure_coding_topic(relay_parent, erasure_root_2, local_id);
+		let handle = Worker::start(store.clone(), network.clone());
 
-		let cvar_pair1 = Arc::new((Mutex::new(false), Condvar::new()));
-		let cvar_pair2 = Arc::new((Mutex::new(false), Condvar::new()));
+		{
+			let (s, r) = oneshot::channel();
+			// Tell the worker to listen for chunks from candidate 2 (we alredy have a chunk from it).
+			let listen_msg_2 = WorkerMsg::IncludedParachainBlocks(IncludedParachainBlocks {
+				blocks: vec![IncludedParachainBlock {
+					candidate: candidate_2,
+					available_data: None,
+				}],
+				result: s,
+			});
 
-		let messages = TestGossipMessages {
-			messages: Arc::new(Mutex::new(
-			vec![
-				(topic_1, (cvar_pair1.clone(), gossip_receiver_1)),
-				(topic_2, (cvar_pair2, gossip_receiver_2)),
-			].into_iter().collect()))
-		};
+			handle.sender.unbounded_send(listen_msg_2).unwrap();
 
-		let handle = Worker::start(store.clone(), messages.clone());
+			runtime.block_on(r).unwrap().unwrap();
+			// The receiver for this chunk left intact => listener not registered.
+			assert!(network.chunk_receivers.lock().contains_key(&(candidate_2_hash, local_id)));
 
-		let (s2, r2) = oneshot::channel();
-		// Tell the worker to listen for chunks from candidate 2 (we alredy have a chunk from it).
-		// let listen_msg_2 = WorkerMsg::ListenForChunk(ListenForChunk {
-		// 	candidate_hash: candidate_2_hash,
-		// 	index: local_id as u32,
-		// 	result: Some(s2),
-		// });
+			// more directly:
+			let (s, r) = oneshot::channel();
+			handle.sender.unbounded_send(WorkerMsg::WithWorker(WithWorker(Box::new(move |worker| {
+				let key = ListeningKey {
+					candidate_hash: candidate_2_hash,
+					index: local_id,
+				};
+				let _ = s.send(worker.listening_for.contains_key(&key));
+			})))).unwrap();
 
-		handle.sender.unbounded_send(listen_msg_2).unwrap();
-
-		runtime.block_on(r2).unwrap().unwrap();
-		// The gossip sender for this topic left intact => listener not registered.
-		assert!(messages.messages.lock().unwrap().contains_key(&topic_2));
-
-		let (s1, r1) = oneshot::channel();
-
-		// Tell the worker to listen for chunks from candidate 1.
-		// (we don't have a chunk from it yet).
-		// let listen_msg_1 = WorkerMsg::ListenForChunk(ListenForChunk {
-		// 	candidate_hash: candidate_1_hash,
-		// 	index: local_id as u32,
-		// 	result: Some(s1),
-		// });
-
-		handle.sender.unbounded_send(listen_msg_1).unwrap();
-		runtime.block_on(r1).unwrap().unwrap();
-
-		// Here, we are racing against the worker thread that might have not yet
-		// reached the point when it requests the gossip messages for `topic_2`
-		// which will get them removed from `TestGossipMessages`. Therefore, the
-		// `Condvar` is used to wait for that event.
-		let (lock, cvar1) = &*cvar_pair1;
-		let mut gossip_stream_consumed = lock.lock().unwrap();
-		while !*gossip_stream_consumed {
-			gossip_stream_consumed = cvar1.wait(gossip_stream_consumed).unwrap();
+			assert!(!runtime.block_on(r).unwrap());
 		}
 
-		// The gossip sender taken => listener registered.
-		assert!(!messages.messages.lock().unwrap().contains_key(&topic_1));
+		{
+			let (s, r) = oneshot::channel();
+
+			// Tell the worker to listen for chunks from candidate 1.
+			// (we don't have a chunk from it yet).
+			let listen_msg_1 = WorkerMsg::IncludedParachainBlocks(IncludedParachainBlocks {
+				blocks: vec![IncludedParachainBlock {
+					candidate: candidate_1,
+					available_data: None,
+				}],
+				result: s,
+			});
+
+			handle.sender.unbounded_send(listen_msg_1).unwrap();
+			runtime.block_on(r).unwrap().unwrap();
+
+			// The receiver taken => listener registered.
+			assert!(!network.chunk_receivers.lock().contains_key(&(candidate_1_hash, local_id)));
+
+
+			// more directly:
+			let (s, r) = oneshot::channel();
+			handle.sender.unbounded_send(WorkerMsg::WithWorker(WithWorker(Box::new(move |worker| {
+				let key = ListeningKey {
+					candidate_hash: candidate_1_hash,
+					index: local_id,
+				};
+				let _ = s.send(worker.listening_for.contains_key(&key));
+			})))).unwrap();
+
+			assert!(runtime.block_on(r).unwrap());
+		}
 	}
 }
