@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use rstd::result;
-use codec::{Encode, Decode};
+use codec::{Decode, Encode};
 
 use session::historical::IdentificationTuple;
 use sp_runtime::{
@@ -41,8 +41,9 @@ use primitives::{
 	Balance,
 	parachain::{
 		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
-		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, ValidityAttestation,
-		NEW_HEADS_IDENTIFIER,
+		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
+		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
+		LocalValidationData, ValidityAttestation, NEW_HEADS_IDENTIFIER,
 	},
 };
 use frame_support::{
@@ -322,6 +323,10 @@ decl_error! {
 		ParentMismatch,
 		/// Head data was too large.
 		HeadDataTooLarge,
+		/// Para does not have enough balance to pay fees.
+		CannotPayFees,
+		/// Unexpected relay-parent for a candidate receipt.
+		UnexpectedRelayParent,
 	}
 }
 
@@ -342,6 +347,11 @@ decl_module! {
 			ensure!(heads.len() <= parachain_count, Error::<T>::TooManyParaCandidates);
 
 			let mut proceeded = Vec::with_capacity(heads.len());
+
+			let schedule = GlobalValidationSchedule {
+				max_code_size: T::MaxCodeSize::get(),
+				max_head_data_size: T::MaxHeadDataSize::get(),
+			};
 
 			if !active_parachains.is_empty() {
 				// perform integrity checks before writing to storage.
@@ -367,7 +377,7 @@ decl_module! {
 
 						Self::check_upward_messages(
 							id,
-							&head.candidate.upward_messages,
+							&head.candidate.commitments.upward_messages,
 							MAX_QUEUE_COUNT,
 							WATERMARK_QUEUE_SIZE,
 						)?;
@@ -378,7 +388,11 @@ decl_module! {
 					}
 				}
 
-				let para_blocks = Self::check_candidates(&heads, &active_parachains)?;
+				let para_blocks = Self::check_candidates(
+					&schedule,
+					&heads,
+					&active_parachains,
+				)?;
 
 				<attestations::Module<T>>::note_included(&heads, para_blocks);
 
@@ -386,6 +400,9 @@ decl_module! {
 					&heads,
 				);
 
+				// note: we dispatch new messages _after_ the call to `check_candidates`
+				// which deducts any fees. if that were not the case, an upward message
+				// could be dispatched and spend money that invalidated a candidate.
 				Self::dispatch_upward_messages(
 					MAX_QUEUE_COUNT,
 					WATERMARK_QUEUE_SIZE,
@@ -552,7 +569,7 @@ impl<T: Trait> Module<T> {
 			// Queue up upwards messages (from parachains to relay chain).
 			Self::queue_upward_messages(
 				id,
-				&head.candidate.upward_messages,
+				&head.candidate.commitments.upward_messages,
 				&mut ordered_needs_dispatch,
 			);
 		}
@@ -588,7 +605,8 @@ impl<T: Trait> Module<T> {
 		}
 	}
 
-	/// Simple FIFO dispatcher.
+	/// Simple FIFO dispatcher. This must be called after parachain fees are checked,
+	/// as dispatched messages may spend parachain funds.
 	fn dispatch_upward_messages(
 		max_queue_count: usize,
 		watermark_queue_size: usize,
@@ -695,18 +713,19 @@ impl<T: Trait> Module<T> {
 		(DutyRoster { validator_duty: roles_val, }, orig_seed)
 	}
 
-	/// Get the parachain status necessary for validation.
-	pub fn parachain_status(id: &parachain::Id) -> Option<parachain::Status> {
-		let balance = T::ParachainCurrency::free_balance(*id);
-		Self::parachain_head(id).map(|head_data| parachain::Status {
-			head_data: parachain::HeadData(head_data),
-			balance,
-			// TODO: https://github.com/paritytech/polkadot/issues/92
-			// plug in some real values here. most likely governable.
-			fee_schedule: parachain::FeeSchedule {
-				base: 0,
-				per_byte: 0,
-			}
+	/// Get the global validation schedule for all parachains.
+	pub fn global_validation_schedule() -> GlobalValidationSchedule {
+		GlobalValidationSchedule {
+			max_code_size: T::MaxCodeSize::get(),
+			max_head_data_size: T::MaxHeadDataSize::get(),
+		}
+	}
+
+	/// Get the local validation schedule for a particular parachain.
+	pub fn local_validation_data(id: &parachain::Id) -> Option<LocalValidationData> {
+		Self::parachain_head(id).map(|parent_head| LocalValidationData {
+			parent_head: primitives::parachain::HeadData(parent_head),
+			balance: T::ParachainCurrency::free_balance(*id),
 		})
 	}
 
@@ -718,6 +737,7 @@ impl<T: Trait> Module<T> {
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
 	fn check_candidates(
+		schedule: &GlobalValidationSchedule,
 		attested_candidates: &[AttestedCandidate],
 		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
 	) -> rstd::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError>
@@ -787,6 +807,29 @@ impl<T: Trait> Module<T> {
 			sorted_duties
 		};
 
+		// computes the omitted validation data for a particular parachain.
+		let full_candidate = |abridged: &AbridgedCandidateReceipt|
+			-> rstd::result::Result<CandidateReceipt, sp_runtime::DispatchError>
+		{
+			let para_id = abridged.parachain_index;
+			let parent_head = match Self::parachain_head(&para_id)
+				.map(primitives::parachain::HeadData)
+			{
+				Some(p) => p,
+				None => Err(Error::<T>::ParentMismatch)?,
+			};
+
+			let omitted = OmittedValidationData {
+				global_validation: schedule.clone(),
+				local_validation: LocalValidationData {
+					parent_head,
+					balance: T::ParachainCurrency::free_balance(para_id),
+				},
+			};
+
+			Ok(abridged.clone().complete(omitted))
+		};
+
 		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
 
 		let parent_hash = <system::Module<T>>::parent_hash();
@@ -796,18 +839,20 @@ impl<T: Trait> Module<T> {
 
 		let mut para_block_hashes = Vec::new();
 
-		let max_head_data_size = T::MaxHeadDataSize::get();
 		for candidate in attested_candidates {
 			let para_id = candidate.parachain_index();
 			let validator_group = validator_groups.group_for(para_id)
 				.ok_or(Error::<T>::NoValidatorGroup)?;
 
-			let actual_head = Self::parachain_head(&para_id)
-				.map(primitives::parachain::HeadData);
-
+			// NOTE: when changing this to allow older blocks,
+			// care must be taken in the availability store pruning to ensure that
+			// data is stored correctly. A block containing a candidate C can be
+			// orphaned before a block containing C is finalized. Care must be taken
+			// not to prune the data for C simply because an orphaned block contained
+			// it.
 			ensure!(
-				actual_head.as_ref() == Some(&candidate.candidate.parent_head),
-				Error::<T>::ParentMismatch,
+				candidate.candidate().relay_parent.as_ref() == parent_hash.as_ref(),
+				Error::<T>::UnexpectedRelayParent,
 			);
 
 			ensure!(
@@ -821,14 +866,21 @@ impl<T: Trait> Module<T> {
 			);
 
 			ensure!(
-				max_head_data_size >= candidate.candidate().head_data.0.len() as _,
+				schedule.max_head_data_size >= candidate.candidate().head_data.0.len() as _,
 				Error::<T>::HeadDataTooLarge,
 			);
 
-			let fees = candidate.candidate().fees;
+			let full_candidate = full_candidate(candidate.candidate())?;
+			let fees = full_candidate.commitments.fees;
+
+			ensure!(
+				full_candidate.local_validation.balance >= full_candidate.commitments.fees,
+				Error::<T>::CannotPayFees,
+			);
+
 			T::ParachainCurrency::deduct(para_id, fees)?;
 
-			let mut candidate_hash = None;
+			let candidate_hash = candidate.candidate().hash();
 			let mut encoded_implicit = None;
 			let mut encoded_explicit = None;
 
@@ -854,18 +906,14 @@ impl<T: Trait> Module<T> {
 				let (payload, sig) = match validity_attestation {
 					ValidityAttestation::Implicit(sig) => {
 						let payload = encoded_implicit.get_or_insert_with(|| localized_payload(
-							Statement::Candidate(candidate.candidate.clone()),
+							Statement::Candidate(candidate_hash),
 						));
 
 						(payload, sig)
 					}
 					ValidityAttestation::Explicit(sig) => {
-						let hash = candidate_hash
-							.get_or_insert_with(|| candidate.candidate.hash())
-							.clone();
-
 						let payload = encoded_explicit.get_or_insert_with(|| localized_payload(
-							Statement::Valid(hash),
+							Statement::Valid(candidate_hash),
 						));
 
 						(payload, sig)
@@ -878,12 +926,12 @@ impl<T: Trait> Module<T> {
 				);
 			}
 
-			para_block_hashes.push(candidate_hash.unwrap_or_else(|| candidate.candidate().hash()));
-
 			ensure!(
 				candidate.validity_votes.len() == expected_votes_len,
 				Error::<T>::UntaggedVotes
 			);
+
+			para_block_hashes.push(candidate_hash);
 		}
 
 		Ok(IncludedBlocks {
@@ -1059,11 +1107,11 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 					// If issuing a `Candidate` message on a parachain block, neither a `Valid` or
 					// `Invalid` vote cannot be issued on that parachain block, as the `Candidate`
 					// message is an implicit validity vote.
-					(Statement::Candidate(candidate), Statement::Valid(hash)) |
-					(Statement::Candidate(candidate), Statement::Invalid(hash)) |
-					(Statement::Valid(hash), Statement::Candidate(candidate)) |
-					(Statement::Invalid(hash), Statement::Candidate(candidate))
-					if candidate.hash() == *hash => {},
+					(Statement::Candidate(candidate_hash), Statement::Valid(hash)) |
+					(Statement::Candidate(candidate_hash), Statement::Invalid(hash)) |
+					(Statement::Valid(hash), Statement::Candidate(candidate_hash)) |
+					(Statement::Invalid(hash), Statement::Candidate(candidate_hash))
+					if *candidate_hash == *hash => {},
 					// Otherwise, it is illegal to cast both a `Valid` and
 					// `Invalid` vote on a given parachain block.
 					(Statement::Valid(hash_1), Statement::Invalid(hash_2)) |
@@ -1096,7 +1144,7 @@ mod tests {
 	use primitives::{
 		parachain::{
 			CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo,
-			Scheduling,
+			Scheduling, LocalValidationData, CandidateCommitments,
 		},
 		BlockNumber,
 	};
@@ -1258,7 +1306,7 @@ mod tests {
 		type RewardRemainder = ();
 		type CurrencyToVote = CurrencyToVoteHandler;
 		type Event = ();
-		type Currency = balances::Module<Test>;
+		type Currency = Balances;
 		type Slash = ();
 		type Reward = ();
 		type SessionsPerEra = SessionsPerEra;
@@ -1283,7 +1331,7 @@ mod tests {
 
 	impl slots::Trait for Test {
 		type Event = ();
-		type Currency = balances::Module<Test>;
+		type Currency = Balances;
 		type Parachains = registrar::Module<Test>;
 		type EndingPeriod = EndingPeriod;
 		type LeasePeriod = LeasePeriod;
@@ -1299,7 +1347,7 @@ mod tests {
 	impl registrar::Trait for Test {
 		type Event = ();
 		type Origin = Origin;
-		type Currency = balances::Module<Test>;
+		type Currency = Balances;
 		type ParathreadDeposit = ParathreadDeposit;
 		type SwapAux = slots::Module<Test>;
 		type QueueSize = QueueSize;
@@ -1320,7 +1368,7 @@ mod tests {
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
-		type ParachainCurrency = balances::Module<Test>;
+		type ParachainCurrency = Balances;
 		type Randomness = RandomnessCollectiveFlip;
 		type ActiveParachains = registrar::Module<Test>;
 		type Registrar = registrar::Module<Test>;
@@ -1330,10 +1378,10 @@ mod tests {
 	}
 
 	type Parachains = Module<Test>;
+	type Balances = balances::Module<Test>;
 	type System = system::Module<Test>;
 	type Offences = offences::Module<Test>;
 	type Staking = staking::Module<Test>;
-	type Balances = balances::Module<Test>;
 	type Session = session::Module<Test>;
 	type Timestamp = timestamp::Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
@@ -1421,6 +1469,38 @@ mod tests {
 		ParachainsCall::report_double_vote(report)
 	}
 
+	// creates a template candidate which pins to correct relay-chain state.
+	fn raw_candidate(para_id: ParaId) -> CandidateReceipt {
+		CandidateReceipt {
+			parachain_index: para_id,
+			relay_parent: System::parent_hash(),
+			head_data: Default::default(),
+			collator: Default::default(),
+			signature: Default::default(),
+			pov_block_hash: Default::default(),
+			global_validation: GlobalValidationSchedule {
+				max_code_size: <Test as Trait>::MaxCodeSize::get(),
+				max_head_data_size: <Test as Trait>::MaxHeadDataSize::get(),
+			},
+			local_validation: LocalValidationData {
+				parent_head: HeadData(Parachains::parachain_head(&para_id).unwrap()),
+				balance: <Balances as ParachainCurrency<u64>>::free_balance(para_id),
+			},
+			commitments: CandidateCommitments::default(),
+		}
+	}
+
+	// makes a blank attested candidate from a `CandidateReceipt`.
+	fn make_blank_attested(candidate: CandidateReceipt) -> AttestedCandidate {
+		let (candidate, _) = candidate.abridge();
+
+		AttestedCandidate {
+			validity_votes: vec![],
+			validator_indices: BitVec::new(),
+			candidate,
+		}
+	}
+
 	fn make_attestations(candidate: &mut AttestedCandidate) {
 		let mut vote_implicit = false;
 		let parent_hash = <system::Module<Test>>::parent_hash();
@@ -1446,7 +1526,7 @@ mod tests {
 			let key = extract_key(authorities[idx].clone());
 
 			let statement = if vote_implicit {
-				Statement::Candidate(candidate.candidate.clone())
+				Statement::Candidate(candidate_hash.clone())
 			} else {
 				Statement::Valid(candidate_hash.clone())
 			};
@@ -1472,23 +1552,12 @@ mod tests {
 		id: u32,
 		upward_messages: Vec<(ParachainDispatchOrigin, Vec<u8>)>
 	) -> AttestedCandidate {
-		AttestedCandidate {
-			validity_votes: vec![],
-			validator_indices: BitVec::new(),
-			candidate: CandidateReceipt {
-				parachain_index: id.into(),
-				collator: Default::default(),
-				signature: Default::default(),
-				head_data: HeadData(vec![1, 2, 3]),
-				parent_head: HeadData(vec![]),
-				fees: 0,
-				block_data_hash: Default::default(),
-				upward_messages: upward_messages.into_iter()
-					.map(|x| UpwardMessage { origin: x.0, data: x.1 })
-					.collect(),
-				erasure_root: [1u8; 32].into(),
-			}
-		}
+		let mut raw_candidate = raw_candidate(id.into());
+		raw_candidate.commitments.upward_messages = upward_messages.into_iter()
+			.map(|x| UpwardMessage { origin: x.0, data: x.1 })
+			.collect();
+
+		make_blank_attested(raw_candidate)
 	}
 
 	fn start_session(session_index: SessionIndex) {
@@ -1903,23 +1972,7 @@ mod tests {
 
 		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
-			let candidate = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				},
-
-			};
-
+			let candidate = make_blank_attested(raw_candidate(0.into()));
 			assert!(Parachains::dispatch(set_heads(vec![candidate]), Origin::NONE).is_err());
 		})
 	}
@@ -1935,37 +1988,8 @@ mod tests {
 			run_to_block(2);
 			assert_eq!(Parachains::active_parachains().len(), 2);
 
-			let mut candidate_a = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
-
-			let mut candidate_b = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 1.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![2, 3, 4]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
+			let mut candidate_a = make_blank_attested(raw_candidate(0.into()));
+			let mut candidate_b = make_blank_attested(raw_candidate(1.into()));
 
 			make_attestations(&mut candidate_a);
 			make_attestations(&mut candidate_b);
@@ -1991,22 +2015,8 @@ mod tests {
 
 		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
-			let mut candidate = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
 
+			let mut candidate = make_blank_attested(raw_candidate(0.into()));
 			make_attestations(&mut candidate);
 
 			let mut double_validity = candidate.clone();
@@ -2029,22 +2039,8 @@ mod tests {
 
 		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
-			let mut candidate = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
 
+			let mut candidate = make_blank_attested(raw_candidate(0.into()));
 			make_attestations(&mut candidate);
 
 			// Change the last vote index to make it not corresponding to the assigned group.
@@ -2067,7 +2063,7 @@ mod tests {
 	#[test]
 	fn double_vote_works() {
 		let parachains = vec![
-			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
 		];
 
 		let extract_key = |public: ValidatorId| {
@@ -2076,22 +2072,12 @@ mod tests {
 			Sr25519Keyring::from_raw_public(raw_public).unwrap()
 		};
 
-		let candidate = CandidateReceipt {
-			parachain_index: 1.into(),
-			collator: Default::default(),
-			signature: Default::default(),
-			head_data: HeadData(vec![1, 2, 3]),
-			parent_head: HeadData(vec![1, 2, 3]),
-			fees: 0,
-			block_data_hash: Default::default(),
-			upward_messages: vec![],
-			erasure_root: [1u8; 32].into(),
-		};
-
-		let candidate_hash = candidate.hash();
 
 		// Test that a Candidate and Valid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
 			assert_eq!(Staking::current_era(), 0);
 			assert_eq!(Session::current_index(), 0);
 
@@ -2101,7 +2087,7 @@ mod tests {
 			let authority_index = 0;
 			let key = extract_key(authorities[authority_index].clone());
 
-			let statement_candidate = Statement::Candidate(candidate.clone());
+			let statement_candidate = Statement::Candidate(candidate_hash.clone());
 			let statement_valid = Statement::Valid(candidate_hash.clone());
 			let block_number = <system::Module<Test>>::block_number();
 			let parent_hash = <system::Module<Test>>::block_hash(block_number);
@@ -2174,13 +2160,18 @@ mod tests {
 
 		// Test that a Candidate and Invalid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
+			run_to_block(2);
+
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
 			start_era(1);
 
 			let authorities = Parachains::authorities();
 			let authority_index = 0;
 			let key = extract_key(authorities[authority_index].clone());
 
-			let statement_candidate = Statement::Candidate(candidate.clone());
+			let statement_candidate = Statement::Candidate(candidate_hash);
 			let statement_invalid = Statement::Invalid(candidate_hash.clone());
 			let block_number = <system::Module<Test>>::block_number();
 			let parent_hash = <system::Module<Test>>::block_hash(block_number);
@@ -2255,6 +2246,11 @@ mod tests {
 
 		// Test that an Invalid and Valid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
+			run_to_block(2);
+
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
 			start_era(1);
 
 			let authorities = Parachains::authorities();

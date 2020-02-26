@@ -28,7 +28,8 @@ use keystore::KeyStorePtr;
 use polkadot_primitives::{
 	Hash, Block,
 	parachain::{
-		Id as ParaId, BlockData, CandidateReceipt, ErasureChunk, ParachainHost
+		PoVBlock, AbridgedCandidateReceipt, ErasureChunk,
+		ParachainHost, AvailableData, OmittedValidationData,
 	},
 };
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, HasherFor};
@@ -37,6 +38,7 @@ use client::{
 	BlockchainEvents, BlockBody,
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
+use codec::{Encode, Decode};
 
 use log::warn;
 
@@ -50,9 +52,10 @@ mod worker;
 mod store;
 
 pub use worker::AvailabilityBlockImport;
+pub use store::AwaitedFrontierEntry;
 
 use worker::{
-	Worker, WorkerHandle, Chunks, ParachainBlocks, WorkerMsg, MakeAvailable,
+	Worker, WorkerHandle, Chunks, IncludedParachainBlocks, WorkerMsg, MakeAvailable,
 };
 
 use store::{Store as InnerStore};
@@ -116,15 +119,14 @@ pub trait ProvideGossipMessages {
 	);
 }
 
-/// Some data to keep available about a parachain block candidate.
-#[derive(Debug)]
-pub struct Data {
-	/// The relay chain parent hash this should be localized to.
-	pub relay_parent: Hash,
-	/// The parachain index for this candidate.
-	pub parachain_id: ParaId,
-	/// Block data.
-	pub block_data: BlockData,
+/// Data which, when combined with an `AbridgedCandidateReceipt`, is enough
+/// to fully re-execute a block.
+#[derive(Debug, Encode, Decode, PartialEq)]
+pub struct ExecutionData {
+	/// The `PoVBlock`.
+	pub pov_block: PoVBlock,
+	/// The data omitted from the `AbridgedCandidateReceipt`.
+	pub omitted_validation: OmittedValidationData,
 }
 
 /// Handle to the availability store.
@@ -220,17 +222,17 @@ impl Store {
 	/// in order to persist that data to disk and so it can be queried and provided
 	/// to other nodes in the network.
 	///
-	/// The message data of `Data` is optional but is expected
-	/// to be present with the exception of the case where there is no message data
-	/// due to the block's invalidity. Determination of invalidity is beyond the
-	/// scope of this function.
+	/// Determination of invalidity is beyond the scope of this function.
 	///
-	/// This method will send the `Data` to the background worker, allowing caller to
-	/// asynchrounously wait for the result.
-	pub async fn make_available(&self, data: Data) -> io::Result<()> {
+	/// This method will send the data to the background worker, allowing the caller to
+	/// asynchronously wait for the result.
+	pub async fn make_available(&self, candidate_hash: Hash, available_data: AvailableData)
+		-> io::Result<()>
+	{
 		let (s, r) = oneshot::channel();
 		let msg = WorkerMsg::MakeAvailable(MakeAvailable {
-			data,
+			candidate_hash,
+			available_data,
 			result: s,
 		});
 
@@ -244,39 +246,9 @@ impl Store {
 
 	}
 
-	/// Get a set of all chunks we are waiting for grouped by
-	/// `(relay_parent, erasure_root, candidate_hash, our_id)`.
-	pub fn awaited_chunks(&self) -> Option<HashSet<(Hash, Hash, Hash, u32)>> {
+	/// Get a set of all chunks we are waiting for.
+	pub fn awaited_chunks(&self) -> Option<HashSet<AwaitedFrontierEntry>> {
 		self.inner.awaited_chunks()
-	}
-
-	/// Qery which candidates were included in the relay chain block by block's parent.
-	pub fn get_candidates_in_relay_block(&self, relay_block: &Hash) -> Option<Vec<Hash>> {
-		self.inner.get_candidates_in_relay_block(relay_block)
-	}
-
-	/// Make a validator's index and a number of validators at a relay parent available.
-	///
-	/// This information is needed before the `add_candidates_in_relay_block` is called
-	/// since that call forms the awaited frontier of chunks.
-	/// In the current implementation this function is called in the `get_or_instantiate` at
-	/// the start of the parachain agreement process on top of some parent hash.
-	pub fn add_validator_index_and_n_validators(
-		&self,
-		relay_parent: &Hash,
-		validator_index: u32,
-		n_validators: u32,
-	) -> io::Result<()> {
-		self.inner.add_validator_index_and_n_validators(
-			relay_parent,
-			validator_index,
-			n_validators,
-		)
-	}
-
-	/// Query a validator's index and n_validators by relay parent.
-	pub fn get_validator_index_and_n_validators(&self, relay_parent: &Hash) -> Option<(u32, u32)> {
-		self.inner.get_validator_index_and_n_validators(relay_parent)
 	}
 
 	/// Adds an erasure chunk to storage.
@@ -288,11 +260,10 @@ impl Store {
 	/// asynchrounously wait for the result.
 	pub async fn add_erasure_chunk(
 		&self,
-		relay_parent: Hash,
-		receipt: CandidateReceipt,
+		candidate: AbridgedCandidateReceipt,
 		chunk: ErasureChunk,
 	) -> io::Result<()> {
-		self.add_erasure_chunks(relay_parent, receipt, vec![chunk]).await
+		self.add_erasure_chunks(candidate, vec![chunk]).await
 	}
 
 	/// Adds a set of erasure chunks to storage.
@@ -304,16 +275,17 @@ impl Store {
 	/// asynchrounously waiting for the result.
 	pub async fn add_erasure_chunks<I>(
 		&self,
-		relay_parent: Hash,
-		receipt: CandidateReceipt,
+		candidate: AbridgedCandidateReceipt,
 		chunks: I,
 	) -> io::Result<()>
 		where I: IntoIterator<Item = ErasureChunk>
 	{
-		self.add_candidate(relay_parent, receipt.clone()).await?;
+		let candidate_hash = candidate.hash();
+		let relay_parent = candidate.relay_parent;
+
+		self.add_candidate(candidate).await?;
 		let (s, r) = oneshot::channel();
 		let chunks = chunks.into_iter().collect();
-		let candidate_hash = receipt.hash();
 		let msg = WorkerMsg::Chunks(Chunks {
 			relay_parent,
 			candidate_hash,
@@ -330,27 +302,44 @@ impl Store {
 		}
 	}
 
-	/// Queries an erasure chunk by its block's parent and hash and index.
+	/// Queries an erasure chunk by the candidate hash and validator index.
 	pub fn get_erasure_chunk(
 		&self,
-		relay_parent: &Hash,
-		block_data_hash: Hash,
-		index: usize,
+		candidate_hash: &Hash,
+		validator_index: usize,
 	) -> Option<ErasureChunk> {
-		self.inner.get_erasure_chunk(relay_parent, block_data_hash, index)
+		self.inner.get_erasure_chunk(candidate_hash, validator_index)
 	}
 
-	/// Stores a candidate receipt.
-	pub async fn add_candidate(
+	/// Note a validator's index and a number of validators at a relay parent in the
+	/// store.
+	///
+	/// This should be done before adding erasure chunks with this relay parent.
+	pub fn note_validator_index_and_n_validators(
 		&self,
-		relay_parent: Hash,
-		receipt: CandidateReceipt,
+		relay_parent: &Hash,
+		validator_index: u32,
+		n_validators: u32,
+	) -> io::Result<()> {
+		self.inner.note_validator_index_and_n_validators(
+			relay_parent,
+			validator_index,
+			n_validators,
+		)
+	}
+
+	// Stores a candidate receipt.
+	async fn add_candidate(
+		&self,
+		candidate: AbridgedCandidateReceipt,
 	) -> io::Result<()> {
 		let (s, r) = oneshot::channel();
 
-		let msg = WorkerMsg::ParachainBlocks(ParachainBlocks {
-			relay_parent,
-			blocks: vec![(receipt, None)],
+		let msg = WorkerMsg::IncludedParachainBlocks(IncludedParachainBlocks {
+			blocks: vec![crate::worker::IncludedParachainBlock {
+				candidate,
+				available_data: None,
+			}],
 			result: s,
 		});
 
@@ -363,20 +352,17 @@ impl Store {
 		}
 	}
 
-	/// Queries a candidate receipt by it's hash.
-	pub fn get_candidate(&self, candidate_hash: &Hash) -> Option<CandidateReceipt> {
+	/// Queries a candidate receipt by its hash.
+	pub fn get_candidate(&self, candidate_hash: &Hash)
+		-> Option<AbridgedCandidateReceipt>
+	{
 		self.inner.get_candidate(candidate_hash)
 	}
 
-	/// Query block data.
-	pub fn block_data(&self, relay_parent: Hash, block_data_hash: Hash) -> Option<BlockData> {
-		self.inner.block_data(relay_parent, block_data_hash)
-	}
-
-	/// Query block data by corresponding candidate receipt's hash.
-	pub fn block_data_by_candidate(&self, relay_parent: Hash, candidate_hash: Hash)
-		-> Option<BlockData>
+	/// Query execution data by pov-block hash.
+	pub fn execution_data(&self, candidate_hash: &Hash)
+		-> Option<ExecutionData>
 	{
-		self.inner.block_data_by_candidate(relay_parent, candidate_hash)
+		self.inner.execution_data(candidate_hash)
 	}
 }

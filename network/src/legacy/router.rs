@@ -29,7 +29,7 @@ use polkadot_validation::{
 };
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
+	AbridgedCandidateReceipt, ParachainHost, ValidatorIndex, PoVBlock, ErasureChunk,
 };
 use sp_api::ProvideRuntimeApi;
 
@@ -204,17 +204,17 @@ impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, T> Router<P, T> where
 					// store the data before broadcasting statements, so other peers can fetch.
 					knowledge.lock().note_candidate(
 						candidate_hash,
-						Some(validated.0.pov_block().clone()),
+						Some(validated.pov_block().clone()),
 					);
 
 					// propagate the statement.
 					// consider something more targeted than gossip in the future.
 					let statement = GossipStatement::new(
-					parent_hash,
-					match table.import_validated(validated.0) {
-					None => return,
-					Some(s) => s,
-					}
+						parent_hash,
+						match table.import_validated(validated) {
+							None => return,
+							Some(s) => s,
+						}
 					);
 
 					network.gossip_message(attestation_topic, statement.into());
@@ -238,16 +238,16 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> TableRouter for Router<P, T> where
 	// We have fetched from a collator and here the receipt should have been already formed.
 	fn local_collation(
 		&self,
-		collation: Collation,
-		receipt: CandidateReceipt,
+		receipt: AbridgedCandidateReceipt,
+		pov_block: PoVBlock,
 		chunks: (ValidatorIndex, &[ErasureChunk])
 	) -> Self::SendLocalCollation {
 		// produce a signed statement
 		let hash = receipt.hash();
-		let erasure_root = receipt.erasure_root;
+		let erasure_root = receipt.commitments.erasure_root;
 		let validated = Validated::collated_local(
 			receipt,
-			collation.pov.clone(),
+			pov_block.clone(),
 		);
 
 		let statement = GossipStatement::new(
@@ -259,7 +259,7 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> TableRouter for Router<P, T> where
 		);
 
 		// give to network to make available.
-		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov));
+		self.fetcher.knowledge().lock().note_candidate(hash, Some(pov_block));
 		self.network().gossip_message(self.attestation_topic, statement.into());
 
 		for chunk in chunks.1 {
@@ -279,7 +279,7 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> TableRouter for Router<P, T> where
 		future::ready(Ok(()))
 	}
 
-	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof {
+	fn fetch_pov_block(&self, candidate: &AbridgedCandidateReceipt) -> Self::FetchValidationProof {
 		self.fetcher.fetch_pov_block(candidate)
 	}
 }

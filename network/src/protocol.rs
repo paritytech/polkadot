@@ -31,7 +31,7 @@ use log::{debug, trace};
 use polkadot_primitives::{
 	Hash, Block,
 	parachain::{
-		PoVBlock, ValidatorId, ValidatorIndex, Collation, CandidateReceipt,
+		PoVBlock, ValidatorId, ValidatorIndex, Collation, AbridgedCandidateReceipt,
 		ErasureChunk, ParachainHost, Id as ParaId, CollatorId,
 	},
 };
@@ -72,13 +72,13 @@ enum ServiceToWorkerMsg {
 	DropConsensusNetworking(Hash),
 	LocalCollation(
 		Hash, // relay-parent
-		Collation,
-		CandidateReceipt,
+		AbridgedCandidateReceipt,
+		PoVBlock,
 		(ValidatorIndex, Vec<ErasureChunk>),
 	),
 	FetchPoVBlock(
 		Hash, // relay-parent
-		CandidateReceipt,
+		AbridgedCandidateReceipt,
 		oneshot::Sender<PoVBlock>,
 	),
 	AwaitCollation(
@@ -650,7 +650,7 @@ async fn worker_loop<Api, Sp>(
 			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
 				consensus_instances.remove(&relay_parent);
 			}
-			ServiceToWorkerMsg::LocalCollation(relay_parent, collation, receipt, chunks) => {
+			ServiceToWorkerMsg::LocalCollation(relay_parent, receipt, pov_block, chunks) => {
 				let instance = match consensus_instances.get(&relay_parent) {
 					None => continue,
 					Some(instance) => instance,
@@ -658,8 +658,8 @@ async fn worker_loop<Api, Sp>(
 
 				distribute_local_collation(
 					instance,
-					collation,
 					receipt,
+					pov_block,
 					chunks,
 					&gossip_handle,
 				);
@@ -686,7 +686,7 @@ async fn statement_import_loop<Api>(
 	table: Arc<SharedTable>,
 	api: Arc<Api>,
 	weak_router: Weak<RouterInner>,
-	validator: RegisteredMessageValidator,
+	gossip_handle: RegisteredMessageValidator,
 	mut exit: exit_future::Exit,
 	executor: impl Spawn,
 ) where
@@ -694,7 +694,7 @@ async fn statement_import_loop<Api>(
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	let topic = crate::legacy::router::attestation_topic(relay_parent);
-	let mut checked_messages = validator.gossip_messages_for(topic)
+	let mut checked_messages = gossip_handle.gossip_messages_for(topic)
 		.filter_map(|msg| match msg.0 {
 			crate::legacy::gossip::GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
 			_ => future::ready(None),
@@ -758,8 +758,10 @@ async fn statement_import_loop<Api>(
 				if let Some(producer) = producer {
 					trace!(target: "validation", "driving statement work to completion");
 
-					let work = producer.prime(api.clone()).validate();
+					let table = table.clone();
+					let gossip_handle = gossip_handle.clone();
 
+					let work = producer.prime(api.clone()).validate();
 					let work = future::select(work.boxed(), exit.clone()).map(drop);
 					let _ = executor.spawn(work);
 				}
@@ -773,17 +775,17 @@ async fn statement_import_loop<Api>(
 // group.
 fn distribute_local_collation(
 	instance: &ConsensusNetworkingInstance,
-	collation: Collation,
-	receipt: CandidateReceipt,
+	receipt: AbridgedCandidateReceipt,
+	pov_block: PoVBlock,
 	chunks: (ValidatorIndex, Vec<ErasureChunk>),
 	gossip_handle: &RegisteredMessageValidator,
 ) {
 	// produce a signed statement.
 	let hash = receipt.hash();
-	let erasure_root = receipt.erasure_root;
+	let erasure_root = receipt.commitments.erasure_root;
 	let validated = Validated::collated_local(
 		receipt,
-		collation.pov.clone(),
+		pov_block,
 	);
 
 	let statement = crate::legacy::gossip::GossipStatement::new(
@@ -906,14 +908,14 @@ impl TableRouter for Router {
 
 	fn local_collation(
 		&self,
-		collation: Collation,
-		receipt: CandidateReceipt,
+		receipt: AbridgedCandidateReceipt,
+		pov_block: PoVBlock,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
 	) -> Self::SendLocalCollation {
 		let message = ServiceToWorkerMsg::LocalCollation(
 			self.inner.relay_parent.clone(),
-			collation,
 			receipt,
+			pov_block,
 			(chunks.0, chunks.1.to_vec()),
 		);
 		let mut sender = self.inner.sender.clone();
@@ -922,7 +924,7 @@ impl TableRouter for Router {
 		})
 	}
 
-	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof {
+	fn fetch_pov_block(&self, candidate: &AbridgedCandidateReceipt) -> Self::FetchValidationProof {
 		let (tx, rx) = oneshot::channel();
 		let message = ServiceToWorkerMsg::FetchPoVBlock(
 			self.inner.relay_parent.clone(),

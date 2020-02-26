@@ -79,7 +79,7 @@ pub enum Error {
 	#[display(fmt = "IO error: {}", _0)]
 	Io(std::io::Error),
 	#[display(fmt = "System error: {}", _0)]
-	System(Box<dyn std::error::Error>),
+	System(Box<dyn std::error::Error + Send>),
 	#[display(fmt = "WASM worker error: {}", _0)]
 	External(String),
 	#[display(fmt = "Shared memory error: {}", _0)]
@@ -129,10 +129,14 @@ pub fn validate_candidate<E: Externalities + 'static>(
 		},
 		#[cfg(target_os = "unknown")]
 		ExecutionMode::Remote =>
-			Err(Error::System("Remote validator not available".to_string().into())),
+			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
+				"Remote validator not available".to_string()
+			) as Box<_>)),
 		#[cfg(target_os = "unknown")]
 		ExecutionMode::RemoteTest =>
-			Err(Error::System("Remote validator not available".to_string().into())),
+			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
+				"Remote validator not available".to_string()
+			) as Box<_>)),
 	}
 }
 
