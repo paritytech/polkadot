@@ -50,6 +50,7 @@ use std::time::Duration;
 
 use super::{cost, benefit, PolkadotNetworkService};
 use crate::legacy::collator_pool::Role as CollatorRole;
+use crate::legacy::gossip::{GossipMessage, ErasureChunkMessage};
 
 /// The current protocol version.
 pub const VERSION: u32 = 1;
@@ -81,6 +82,15 @@ enum ServiceToWorkerMsg {
 		Hash, // relay-parent
 		AbridgedCandidateReceipt,
 		oneshot::Sender<PoVBlock>,
+	),
+	FetchErasureChunk(
+		Hash, // candidate-hash.
+		u32, // validator index.
+		oneshot::Sender<ErasureChunk>,
+	),
+	DistributeErasureChunk(
+		Hash, // candidate-hash,
+		ErasureChunk,
 	),
 	AwaitCollation(
 		Hash, // relay-parent,
@@ -711,6 +721,45 @@ async fn worker_loop<Api, Sp>(
 				// TODO https://github.com/paritytech/polkadot/issues/742:
 				// create a filter on gossip for it and send to sender.
 			}
+			ServiceToWorkerMsg::FetchErasureChunk(candidate_hash, validator_index, sender) => {
+				let topic = crate::erasure_coding_topic(&candidate_hash);
+
+				// for every erasure-root, relay-parent pair, there should only be one
+				// valid chunk with the given index.
+				//
+				// so we only care about the first item of the filtered stream.
+				let get_msg = gossip_handle.gossip_messages_for(topic)
+					.filter_map(move |(msg, _)| {
+						future::ready(match msg {
+							GossipMessage::ErasureChunk(chunk) =>
+								if chunk.chunk.index == validator_index {
+									Some(chunk.chunk)
+								} else {
+									None
+								},
+							_ => None,
+						})
+					})
+					.into_future()
+					.map(|(item, _)| item.expect(
+						"gossip message streams do not conclude early; qed"
+					));
+
+				let _ = executor.spawn(async move {
+					let chunk = get_msg.await;
+					let _ = sender.send(chunk);
+				});
+			}
+			ServiceToWorkerMsg::DistributeErasureChunk(candidate_hash, erasure_chunk) => {
+				let topic = crate::erasure_coding_topic(&candidate_hash);
+				gossip_handle.gossip_message(
+					topic,
+					GossipMessage::ErasureChunk(ErasureChunkMessage {
+						chunk: erasure_chunk,
+						candidate_hash,
+					})
+				);
+			}
 			ServiceToWorkerMsg::AwaitCollation(relay_parent, para_id, sender) => {
 				debug!(target: "p_net", "Attempting to get collation for parachain {:?} on relay parent {:?}", para_id, relay_parent);
 				protocol_handler.await_collation(relay_parent, para_id, sender)
@@ -798,7 +847,7 @@ async fn statement_import_loop<Api>(
 	let topic = crate::legacy::gossip::attestation_topic(relay_parent);
 	let mut checked_messages = gossip_handle.gossip_messages_for(topic)
 		.filter_map(|msg| match msg.0 {
-			crate::legacy::gossip::GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
+			GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
 			_ => future::ready(None),
 		});
 
@@ -904,7 +953,6 @@ fn distribute_local_collation(
 ) {
 	// produce a signed statement.
 	let hash = receipt.hash();
-	let erasure_root = receipt.commitments.erasure_root;
 	let validated = Validated::collated_local(
 		receipt,
 		pov_block,
@@ -921,15 +969,13 @@ fn distribute_local_collation(
 	gossip_handle.gossip_message(instance.attestation_topic, statement.into());
 
 	for chunk in chunks.1 {
-		let index = chunk.index;
 		let message = crate::legacy::gossip::ErasureChunkMessage {
 			chunk,
-			relay_parent: instance.relay_parent,
 			candidate_hash: hash,
 		};
 
 		gossip_handle.gossip_message(
-			av_store::erasure_coding_topic(instance.relay_parent, erasure_root, index),
+			crate::erasure_coding_topic(&hash),
 			message.into(),
 		);
 	}
@@ -1009,6 +1055,36 @@ impl Collators for Service {
 
 	fn note_bad_collator(&self, collator: CollatorId) {
 		let _ = self.sender.clone().try_send(ServiceToWorkerMsg::NoteBadCollator(collator));
+	}
+}
+
+impl av_store::ErasureNetworking for Service {
+	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
+
+	fn fetch_erasure_chunk(&self, candidate_hash: &Hash, index: u32)
+		-> Pin<Box<dyn Future<Output = Result<ErasureChunk, Self::Error>> + Send>>
+	{
+		let (tx, rx) = oneshot::channel();
+		let mut sender = self.sender.clone();
+
+		let candidate_hash = *candidate_hash;
+		Box::pin(async move {
+			sender.send(
+				ServiceToWorkerMsg::FetchErasureChunk(candidate_hash, index, tx)
+			).map_err(future::Either::Left).await?;
+
+			rx.map_err(future::Either::Right).await
+		})
+	}
+
+	fn distribute_erasure_chunk(
+		&self,
+		candidate_hash: Hash,
+		chunk: ErasureChunk,
+	) {
+		let _ = self.sender.clone().try_send(
+			ServiceToWorkerMsg::DistributeErasureChunk(candidate_hash, chunk)
+		);
 	}
 }
 

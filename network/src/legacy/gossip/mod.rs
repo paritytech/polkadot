@@ -537,8 +537,8 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 							validator_index: msg.chunk.index,
 						};
 						if awaited_chunks.contains(&frontier_entry) {
-							let topic = crate::legacy::erasure_coding_topic(
-								candidate_hash
+							let topic = crate::erasure_coding_topic(
+								&msg.candidate_hash
 							);
 
 							return (

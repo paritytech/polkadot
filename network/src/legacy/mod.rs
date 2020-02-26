@@ -25,29 +25,15 @@ pub mod gossip;
 
 use codec::Decode;
 use futures::prelude::*;
-use polkadot_primitives::{Block, Hash};
-use polkadot_primitives::parachain::ErasureChunk;
-use sc_network::{
-	PeerId, Context, StatusMessage as GenericFullStatus,
-	specialization::NetworkSpecialization as Specialization,
-};
+use polkadot_primitives::Hash;
+use sc_network::PeerId;
 use sc_network_gossip::TopicNotification;
 use log::debug;
 
 use std::pin::Pin;
 use std::task::{Context as PollContext, Poll};
 
-use self::gossip::{GossipMessage, ErasureChunkMessage, RegisteredMessageValidator};
-use crate::{cost, benefit};
-
-#[cfg(test)]
-mod tests;
-
-type FullStatus = GenericFullStatus<Block>;
-type RequestId = u64;
-
-/// Specialization of the network service for the polkadot protocol.
-pub type PolkadotNetworkService = sc_network::NetworkService<Block, PolkadotProtocol, Hash>;
+use self::gossip::GossipMessage;
 
 /// Basic gossip functionality that a network has to fulfill.
 pub trait GossipService: Send + Sync + 'static {
@@ -59,66 +45,6 @@ pub trait GossipService: Send + Sync + 'static {
 
 	/// Send a message to a specific peer we're connected to.
 	fn send_message(&self, who: PeerId, message: GossipMessage);
-}
-
-/// Compute gossip topic for the erasure chunk messages given the hash of the
-/// candidate they correspond to.
-fn erasure_coding_topic(candidate_hash: &Hash) -> Hash {
-	let mut v = candidate_hash.as_ref().to_vec();
-	v.extend(b"erasure_chunks");
-
-	BlakeTwo256::hash(&v[..])
-}
-
-/// This is a newtype that implements a [`ErasureNetworking`] shim trait.
-///
-/// For any wrapped [`NetworkService`] type it implements a [`ErasureNetworking`].
-/// For more details see documentation of [`ErasureNetworking`].
-///
-/// [`NetworkService`]: ./trait.NetworkService.html
-/// [`ErasureNetworking`]: ../polkadot_availability_store/trait.ErasureNetworking.html
-#[derive(Clone)]
-pub struct AvailabilityNetworkShim<S: NetworkSpecialization<Block>>(
-	pub RegisteredMessageValidator<S>,
-);
-
-impl<S: NetworkSpecialization<Block>> av_store::ErasureNetworking
-	for AvailabilityNetworkShim<S>
-{
-	fn fetch_erasure_chunk(&self, candidate_hash: &Hash, index: u32)
-		-> Pin<Box<dyn Future<Item = ErasureChunk> + Send>>
-	{
-		let topic = erasure_coding_topic(candidate_hash);
-		self.0.gossip_messages_for(topic)
-			.filter_map(|(msg, _)| async move {
-				match msg {
-					GossipMessage::ErasureChunk(chunk) => if chunk.chunk.index == index {
-						Some(chunk)
-					} else {
-						None
-					},
-					_ => None,
-				}
-			})
-			.next() // for every erasure-root, relay-parent pair, there should only be one
-			        // valid chunk with the given index.
-			.boxed()
-	}
-
-	fn distribute_erasure_chunk(
-		&self,
-		candidate_hash: Hash,
-		chunk: ErasureChunk,
-	) {
-		let topic = erasure_coding_topic(&candidate_hash);
-		self.0.gossip_message(
-			topic,
-			GossipMessage::ErasureChunk(ErasureChunkMessage {
-				chunk,
-				candidate_hash,
-			})
-		)
-	}
 }
 
 /// A stream of gossip messages and an optional sender for a topic.

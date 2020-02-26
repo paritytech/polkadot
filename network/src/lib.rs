@@ -19,7 +19,7 @@
 //! This manages routing for parachain statements, parachain block and outgoing message
 //! data fetching, communication between collators and validators, and more.
 
-use polkadot_primitives::{Block, Hash};
+use polkadot_primitives::{Block, Hash, BlakeTwo256, HashT};
 
 pub mod legacy;
 pub mod protocol;
@@ -48,3 +48,11 @@ mod benefit {
 	pub(super) const GOOD_COLLATION: Rep = Rep::new(100, "Polkadot: Good collation");
 }
 
+/// Compute gossip topic for the erasure chunk messages given the hash of the
+/// candidate they correspond to.
+fn erasure_coding_topic(candidate_hash: &Hash) -> Hash {
+	let mut v = candidate_hash.as_ref().to_vec();
+	v.extend(b"erasure_chunks");
+
+	BlakeTwo256::hash(&v[..])
+}
