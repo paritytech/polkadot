@@ -47,7 +47,7 @@ has_label(){
   pr_id="$2"
   label="$3"
   out=$(curl -H "Authorization: token $GITHUB_RELEASE_TOKEN" -s "$api_base/$repo/pulls/$pr_id")
-  [ -n "$(echo "$out" | jq ".labels | .[] | select(.name==\"$label\")")" ]
+  [ -n "$(echo "$out" | tr -d '\r\n' | jq ".labels | .[] | select(.name==\"$label\")")" ]
 }
 
 # Formats a message into a JSON string for posting to Matrix

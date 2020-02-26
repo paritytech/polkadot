@@ -25,7 +25,7 @@ use polkadot_validation::{
 };
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Collation, ParachainHost, CandidateReceipt, CollatorId,
+	Id as ParaId, Collation, ParachainHost, AbridgedCandidateReceipt, CollatorId,
 	ValidatorId, PoVBlock,
 };
 use sp_api::ProvideRuntimeApi;
@@ -557,7 +557,7 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> LeafWorkDataFetcher<P, T> where
 	T: Clone + Executor + Send + 'static,
 {
 	/// Fetch PoV block for the given candidate receipt.
-	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt)
+	pub fn fetch_pov_block(&self, candidate: &AbridgedCandidateReceipt)
 		-> Pin<Box<dyn Future<Output = Result<PoVBlock, io::Error>> + Send>> {
 
 		let parent_hash = self.parent_hash;
