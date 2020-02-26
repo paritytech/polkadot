@@ -33,13 +33,12 @@ use std::{
 	collections::{HashMap, HashSet},
 	sync::Arc,
 };
-
 use codec::Encode;
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, CandidateReceipt,
-	Statement as PrimitiveStatement, Message, OutgoingMessages,
-	Collation, PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
+	Id as ParaId, Chain, DutyRoster, AbridgedCandidateReceipt,
+	Statement as PrimitiveStatement,
+	PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
 	ValidatorPair, ValidatorId,
 };
 use primitives::Pair;
@@ -47,10 +46,7 @@ use primitives::Pair;
 use futures::prelude::*;
 
 pub use self::block_production::ProposerFactory;
-pub use self::collation::{
-	validate_collation, validate_incoming, message_queue_root, egress_roots, Collators,
-	produce_receipt_and_chunks,
-};
+pub use self::collation::Collators;
 pub use self::error::Error;
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
@@ -62,38 +58,40 @@ pub use self::validation_service::{ServiceHandle, ServiceBuilder};
 pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
 mod dynamic_inclusion;
-mod evaluation;
 mod error;
 mod shared_table;
 
-pub mod collation;
-pub mod validation_service;
 pub mod block_production;
-
-/// Incoming messages; a series of sorted (ParaId, Message) pairs.
-pub type Incoming = Vec<(ParaId, Vec<Message>)>;
+pub mod collation;
+pub mod pipeline;
+pub mod validation_service;
 
 /// A handle to a statement table router.
 ///
 /// This is expected to be a lightweight, shared type like an `Arc`.
+/// Once all instances are dropped, consensus networking for this router
+/// should be cleaned up.
 pub trait TableRouter: Clone {
 	/// Errors when fetching data from the network.
 	type Error: std::fmt::Debug;
+	/// Future that drives sending of the local collation to the network.
+	type SendLocalCollation: Future<Output=Result<(), Self::Error>>;
 	/// Future that resolves when candidate data is fetched.
 	type FetchValidationProof: Future<Output=Result<PoVBlock, Self::Error>>;
 
-	/// Call with local candidate data. This will make the data available on the network,
-	/// and sign, import, and broadcast a statement about the candidate.
+	/// Call with local candidate data. This will sign, import, and broadcast a statement about the candidate.
 	fn local_collation(
 		&self,
-		collation: Collation,
-		receipt: CandidateReceipt,
-		outgoing: OutgoingMessages,
+		receipt: AbridgedCandidateReceipt,
+		pov_block: PoVBlock,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
-	);
+	) -> Self::SendLocalCollation;
 
 	/// Fetch validation proof for a specific candidate.
-	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
+	///
+	/// This future must conclude once all `Clone`s of this `TableRouter` have
+	/// been cleaned up.
+	fn fetch_pov_block(&self, candidate: &AbridgedCandidateReceipt) -> Self::FetchValidationProof;
 }
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.
@@ -111,11 +109,10 @@ pub trait Network {
 
 	/// Instantiate a table router using the given shared table.
 	/// Also pass through any outgoing messages to be broadcast to peers.
-	fn communication_for(
+	fn build_table_router(
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],
-		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter;
 }
 
@@ -139,10 +136,7 @@ pub struct GroupInfo {
 /// The actual message signed is the encoded statement concatenated with the
 /// parent hash.
 pub fn sign_table_statement(statement: &Statement, key: &ValidatorPair, parent_hash: &Hash) -> ValidatorSignature {
-	// we sign using the primitive statement type because that's what the runtime
-	// expects. These types probably encode the same way so this clone could be optimized
-	// out in the future.
-	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
+	let mut encoded = PrimitiveStatement::from(statement).encode();
 	encoded.extend(parent_hash.as_ref());
 
 	key.sign(&encoded)
@@ -157,7 +151,7 @@ pub fn check_statement(
 ) -> bool {
 	use runtime_primitives::traits::AppVerify;
 
-	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
+	let mut encoded = PrimitiveStatement::from(statement).encode();
 	encoded.extend(parent_hash.as_ref());
 
 	signature.verify(&encoded[..], &signer)
@@ -209,19 +203,6 @@ pub fn make_group_info(
 	});
 
 	Ok((map, local_duty))
-
-}
-
-/// Compute the (target, root, messages) of all outgoing queues.
-pub fn outgoing_queues(outgoing_targeted: &'_ OutgoingMessages)
-	-> impl Iterator<Item=(ParaId, Hash, Vec<Message>)> + '_
-{
-	outgoing_targeted.message_queues().filter_map(|queue| {
-		let target = queue.get(0)?.target;
-		let queue_root = message_queue_root(queue);
-		let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
-		Some((target, queue_root, queue_data))
-	})
 }
 
 #[cfg(test)]

@@ -171,9 +171,7 @@ fn staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 				.collect(),
 		}),
 		indices: Some(polkadot::IndicesConfig {
-			ids: endowed_accounts.iter().cloned()
-				.chain(initial_authorities.iter().map(|x| x.0.clone()))
-				.collect::<Vec<_>>(),
+			indices: vec![],
 		}),
 		session: Some(polkadot::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
@@ -313,7 +311,7 @@ pub fn testnet_genesis(
 			changes_trie_config: Default::default(),
 		}),
 		indices: Some(polkadot::IndicesConfig {
-			ids: endowed_accounts.clone(),
+			indices: vec![],
 		}),
 		balances: Some(polkadot::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),

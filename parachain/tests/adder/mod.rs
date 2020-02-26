@@ -18,7 +18,7 @@
 
 use polkadot_parachain as parachain;
 
-use crate::{DummyExt, parachain::{IncomingMessage, ValidationParams}};
+use crate::{DummyExt, parachain::ValidationParams};
 use codec::{Decode, Encode};
 
 /// Head data for this parachain.
@@ -75,7 +75,6 @@ pub fn execute_good_on_parent() {
 		ValidationParams {
 			parent_head: parent_head.encode(),
 			block_data: block_data.encode(),
-			ingress: Vec::new(),
 		},
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
@@ -111,7 +110,6 @@ fn execute_good_chain_on_parent() {
 			ValidationParams {
 				parent_head: parent_head.encode(),
 				block_data: block_data.encode(),
-				ingress: Vec::new(),
 			},
 			DummyExt,
 			parachain::wasm_executor::ExecutionMode::RemoteTest,
@@ -147,47 +145,8 @@ fn execute_bad_on_parent() {
 		ValidationParams {
 			parent_head: parent_head.encode(),
 			block_data: block_data.encode(),
-			ingress: Vec::new(),
 		},
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	).unwrap_err();
-}
-
-#[test]
-fn processes_messages() {
-	let parent_head = HeadData {
-		number: 0,
-		parent_hash: [0; 32],
-		post_state: hash_state(0),
-	};
-
-	let block_data = BlockData {
-		state: 0,
-		add: 512,
-	};
-
-	let bad_message_data = vec![1];
-	assert!(AddMessage::decode(&mut &bad_message_data[..]).is_err());
-
-	let ret = parachain::wasm_executor::validate_candidate(
-		TEST_CODE,
-		ValidationParams {
-			parent_head: parent_head.encode(),
-			block_data: block_data.encode(),
-			ingress: vec![
-				IncomingMessage { source: 1.into(), data: (AddMessage { amount: 256 }).encode() },
-				IncomingMessage { source: 2.into(), data: bad_message_data },
-				IncomingMessage { source: 3.into(), data: (AddMessage { amount: 256 }).encode() },
-			],
-		},
-		DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
-	).unwrap();
-
-	let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();
-
-	assert_eq!(new_head.number, 1);
-	assert_eq!(new_head.parent_hash, hash_head(&parent_head));
-	assert_eq!(new_head.post_state, hash_state(1024));
 }

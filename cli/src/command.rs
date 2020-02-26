@@ -27,7 +27,7 @@ use sc_cli::{VersionInfo, display_role, error};
 pub fn run(version: VersionInfo) -> error::Result<()> {
 	let opt = sc_cli::from_args::<Cli>(&version);
 
-	let mut config = service::Configuration::default();
+	let mut config = service::Configuration::new(&version);
 	config.impl_name = "parity-polkadot";
 
 	match opt.subcommand {

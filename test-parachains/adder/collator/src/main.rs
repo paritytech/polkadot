@@ -24,9 +24,7 @@ use sp_core::Pair;
 use codec::{Encode, Decode};
 use primitives::{
 	Hash,
-	parachain::{
-		HeadData, BlockData, Id as ParaId, Message, OutgoingMessages, Status as ParachainStatus,
-	},
+	parachain::{HeadData, BlockData, Id as ParaId, LocalValidationData},
 };
 use collator::{
 	InvalidHead, ParachainContext, Network, BuildParachainContext, load_spec, Configuration,
@@ -57,16 +55,15 @@ struct AdderContext {
 
 /// The parachain context.
 impl ParachainContext for AdderContext {
-	type ProduceCandidate = Ready<Result<(BlockData, HeadData, OutgoingMessages), InvalidHead>>;
+	type ProduceCandidate = Ready<Result<(BlockData, HeadData), InvalidHead>>;
 
-	fn produce_candidate<I: IntoIterator<Item=(ParaId, Message)>>(
+	fn produce_candidate(
 		&mut self,
 		_relay_parent: Hash,
-		status: ParachainStatus,
-		ingress: I,
+		local_validation: LocalValidationData,
 	) -> Self::ProduceCandidate
 	{
-		let adder_head = match AdderHead::decode(&mut &status.head_data.0[..]) {
+		let adder_head = match AdderHead::decode(&mut &local_validation.parent_head.0[..]) {
 			Ok(adder_head) => adder_head,
 			Err(_) => return err(InvalidHead)
 		};
@@ -86,11 +83,7 @@ impl ParachainContext for AdderContext {
 			add: adder_head.number % 100,
 		};
 
-		let from_messages = ::adder::process_messages(
-			ingress.into_iter().map(|(_, msg)| msg.0)
-		);
-
-		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body, from_messages)
+		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body)
 			.expect("good execution params; qed");
 
 		let encoded_head = HeadData(next_head.encode());
@@ -100,7 +93,7 @@ impl ParachainContext for AdderContext {
 			next_head.number, next_body.state.overflowing_add(next_body.add).0);
 
 		db.insert(next_head.clone(), next_body);
-		ok((encoded_body, encoded_head, OutgoingMessages { outgoing_messages: Vec::new() }))
+		ok((encoded_body, encoded_head))
 	}
 }
 

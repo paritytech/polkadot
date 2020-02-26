@@ -18,19 +18,19 @@
 
 #![allow(unused)]
 
-use crate::gossip::GossipMessage;
+use crate::legacy::gossip::GossipMessage;
 use sc_network::{Context as NetContext, PeerId};
 use sc_network_gossip::TopicNotification;
 use sp_core::{NativeOrEncoded, ExecutionContext};
 use sp_keyring::Sr25519Keyring;
-use crate::{PolkadotProtocol, NetworkService, GossipMessageStream};
+use crate::legacy::{PolkadotProtocol, NetworkService, GossipService, GossipMessageStream};
 
 use polkadot_validation::{SharedTable, Network};
 use polkadot_primitives::{Block, BlockNumber, Hash, Header, BlockId};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, ParachainHost, TargetedMessage,
-	ValidatorId, StructuredUnroutedIngress, BlockIngressRoots, Status,
-	FeeSchedule, HeadData, Retriable, CollatorId, ErasureChunk, CandidateReceipt,
+	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
+	FeeSchedule, HeadData, Retriable, CollatorId, ErasureChunk, AbridgedCandidateReceipt,
+	GlobalValidationSchedule, LocalValidationData,
 };
 use parking_lot::Mutex;
 use sp_blockchain::Result as ClientResult;
@@ -117,6 +117,18 @@ struct TestNetwork {
 }
 
 impl NetworkService for TestNetwork {
+	fn with_spec<F: Send + 'static>(&self, with: F)
+		where F: FnOnce(&mut PolkadotProtocol, &mut dyn NetContext<Block>)
+	{
+		let mut context = TestContext::default();
+		let res = with(&mut *self.proto.lock(), &mut context);
+		// TODO: send context to worker for message routing.
+		// https://github.com/paritytech/polkadot/issues/215
+		res
+	}
+}
+
+impl GossipService for TestNetwork {
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		let (tx, rx) = mpsc::unbounded();
 		let _  = self.gossip.send_listener.unbounded_send((topic, tx));
@@ -131,16 +143,6 @@ impl NetworkService for TestNetwork {
 		let notification = TopicNotification { message: message.encode(), sender: None };
 		let _ = self.gossip.send_message.unbounded_send((topic, notification));
 	}
-
-	fn with_spec<F: Send + 'static>(&self, with: F)
-		where F: FnOnce(&mut PolkadotProtocol, &mut dyn NetContext<Block>)
-	{
-		let mut context = TestContext::default();
-		let res = with(&mut *self.proto.lock(), &mut context);
-		// TODO: send context to worker for message routing.
-		// https://github.com/paritytech/polkadot/issues/215
-		res
-	}
 }
 
 #[derive(Default)]
@@ -148,7 +150,6 @@ struct ApiData {
 	validators: Vec<ValidatorId>,
 	duties: Vec<Chain>,
 	active_parachains: Vec<(ParaId, Option<(CollatorId, Retriable)>)>,
-	ingress: HashMap<ParaId, StructuredUnroutedIngress>,
 }
 
 #[derive(Default, Clone)]
@@ -270,23 +271,6 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
 	}
 
-	fn ParachainHost_parachain_status_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<ParaId>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<Status>>> {
-		Ok(NativeOrEncoded::Native(Some(Status {
-			head_data: HeadData(Vec::new()),
-			balance: 0,
-			fee_schedule: FeeSchedule {
-				base: 0,
-				per_byte: 0,
-			}
-		})))
-	}
-
 	fn ParachainHost_parachain_code_runtime_api_impl(
 		&self,
 		_at: &BlockId,
@@ -297,15 +281,24 @@ impl ParachainHost<Block> for RuntimeApi {
 		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 
-	fn ParachainHost_ingress_runtime_api_impl(
+	fn ParachainHost_global_validation_schedule_runtime_api_impl(
 		&self,
 		_at: &BlockId,
 		_: ExecutionContext,
-		id: Option<(ParaId, Option<BlockNumber>)>,
+		_: Option<()>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<StructuredUnroutedIngress>>> {
-		let (id, _) = id.unwrap();
-		Ok(NativeOrEncoded::Native(self.data.lock().ingress.get(&id).cloned()))
+	) -> ClientResult<NativeOrEncoded<GlobalValidationSchedule>> {
+		Ok(NativeOrEncoded::Native(Default::default()))
+	}
+
+	fn ParachainHost_local_validation_data_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_: Option<ParaId>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<Option<LocalValidationData>>> {
+		Ok(NativeOrEncoded::Native(Some(Default::default())))
 	}
 
 	fn ParachainHost_get_heads_runtime_api_impl(
@@ -314,12 +307,12 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: ExecutionContext,
 		_extrinsics: Option<Vec<<Block as BlockT>::Extrinsic>>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<Vec<CandidateReceipt>>>> {
+	) -> ClientResult<NativeOrEncoded<Option<Vec<AbridgedCandidateReceipt>>>> {
 		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
 }
 
-type TestValidationNetwork<SP> = crate::validation::ValidationNetwork<TestApi, SP>;
+type TestValidationNetwork<SP> = crate::legacy::validation::ValidationNetwork<TestApi, SP>;
 
 struct Built<SP> {
 	gossip: Pin<Box<dyn Future<Output = ()>>>,
@@ -327,7 +320,8 @@ struct Built<SP> {
 	networks: Vec<TestValidationNetwork<SP>>,
 }
 
-fn build_network<SP: Spawn + Clone>(n: usize, spawner: SP) -> Built<SP> {
+fn build_network<SP: Spawn + Clone>(n: usize, spawner: SP)-> Built<SP> {
+	use crate::legacy::gossip::RegisteredMessageValidator;
 	let (gossip_router, gossip_handle) = make_gossip();
 	let api_handle = Arc::new(Mutex::new(Default::default()));
 	let runtime_api = Arc::new(TestApi { data: api_handle.clone() });
@@ -338,7 +332,7 @@ fn build_network<SP: Spawn + Clone>(n: usize, spawner: SP) -> Built<SP> {
 			gossip: gossip_handle.clone(),
 		});
 
-		let message_val = crate::gossip::RegisteredMessageValidator::new_test(
+		let message_val = RegisteredMessageValidator::<PolkadotProtocol>::new_test(
 			TestChainContext::default(),
 			Box::new(|_, _| {}),
 		);
@@ -356,34 +350,6 @@ fn build_network<SP: Spawn + Clone>(n: usize, spawner: SP) -> Built<SP> {
 		gossip: gossip_router.boxed(),
 		api_handle,
 		networks,
-	}
-}
-
-#[derive(Default)]
-struct IngressBuilder {
-	egress: HashMap<(ParaId, ParaId), Vec<Vec<u8>>>,
-}
-
-impl IngressBuilder {
-	fn add_messages(&mut self, source: ParaId, messages: &[TargetedMessage]) {
-		for message in messages {
-			let target = message.target;
-			self.egress.entry((source, target)).or_insert_with(Vec::new).push(message.data.clone());
-		}
-	}
-
-	fn build(self) -> HashMap<ParaId, BlockIngressRoots> {
-		let mut map = HashMap::new();
-		for ((source, target), messages) in self.egress {
-			map.entry(target).or_insert_with(Vec::new)
-				.push((source, polkadot_validation::message_queue_root(&messages)));
-		}
-
-		for roots in map.values_mut() {
-			roots.sort_by_key(|&(para_id, _)| para_id);
-		}
-
-		map.into_iter().map(|(k, v)| (k, BlockIngressRoots(v))).collect()
 	}
 }
 

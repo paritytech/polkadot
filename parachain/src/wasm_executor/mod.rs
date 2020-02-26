@@ -21,7 +21,7 @@
 //! a WASM VM for re-execution of a parachain candidate.
 
 use std::any::{TypeId, Any};
-use crate::{ValidationParams, ValidationResult, UpwardMessage, TargetedMessage};
+use crate::{ValidationParams, ValidationResult, UpwardMessage};
 use codec::{Decode, Encode};
 use sp_core::storage::{ChildStorageKey, ChildInfo};
 
@@ -79,7 +79,7 @@ pub enum Error {
 	#[display(fmt = "IO error: {}", _0)]
 	Io(std::io::Error),
 	#[display(fmt = "System error: {}", _0)]
-	System(Box<dyn std::error::Error>),
+	System(Box<dyn std::error::Error + Send>),
 	#[display(fmt = "WASM worker error: {}", _0)]
 	External(String),
 	#[display(fmt = "Shared memory error: {}", _0)]
@@ -102,9 +102,6 @@ impl std::error::Error for Error {
 
 /// Externalities for parachain validation.
 pub trait Externalities: Send {
-	/// Called when a message is to be posted to another parachain.
-	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String>;
-
 	/// Called when a message is to be posted to the parachain's relay chain.
 	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String>;
 }
@@ -132,10 +129,14 @@ pub fn validate_candidate<E: Externalities + 'static>(
 		},
 		#[cfg(target_os = "unknown")]
 		ExecutionMode::Remote =>
-			Err(Error::System("Remote validator not available".to_string().into())),
+			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
+				"Remote validator not available".to_string()
+			) as Box<_>)),
 		#[cfg(target_os = "unknown")]
 		ExecutionMode::RemoteTest =>
-			Err(Error::System("Remote validator not available".to_string().into())),
+			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
+				"Remote validator not available".to_string()
+			) as Box<_>)),
 	}
 }
 

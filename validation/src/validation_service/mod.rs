@@ -33,8 +33,7 @@ use sc_client_api::{BlockchainEvents, BlockBody};
 use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
-use futures::prelude::*;
-use futures::{future::select, task::{Spawn, SpawnExt}};
+use futures::{future::ready, prelude::*, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
 	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
@@ -57,14 +56,14 @@ pub type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 // They send a oneshot channel.
 type ValidationInstanceRequest = (
 	Hash,
-	futures::channel::oneshot::Sender<Result<Arc<ValidationInstanceHandle>, Error>>,
+	futures::channel::oneshot::Sender<Result<ValidationInstanceHandle, Error>>,
 );
 
 /// A handle to a single instance of parachain validation, which is pinned to
 /// a specific relay-chain block. This is the instance that should be used when
 /// constructing any
+#[derive(Clone)]
 pub(crate) struct ValidationInstanceHandle {
-	_drop_signal: exit_future::Signal,
 	table: Arc<SharedTable>,
 	started: Instant,
 }
@@ -92,7 +91,7 @@ impl ServiceHandle {
 	///
 	/// This can fail if the service task has shut down for some reason.
 	pub(crate) async fn get_validation_instance(self, relay_parent: Hash)
-		-> Result<Arc<ValidationInstanceHandle>, Error>
+		-> Result<ValidationInstanceHandle, Error>
 	{
 		let mut sender = self.sender;
 		let instance_rx = loop {
@@ -149,6 +148,7 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 	N: Network + Send + Sync + 'static,
 	N::TableRouter: Send + 'static,
 	N::BuildTableRouter: Send + Unpin + 'static,
+	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	SC: SelectChain<Block> + 'static,
 	SP: Spawn + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -261,16 +261,17 @@ pub(crate) struct ParachainValidationInstances<C, N, P, SP> {
 	availability_store: AvailabilityStore,
 	/// Live agreements. Maps relay chain parent hashes to attestation
 	/// instances.
-	live_instances: HashMap<Hash, Arc<ValidationInstanceHandle>>,
+	live_instances: HashMap<Hash, ValidationInstanceHandle>,
 }
 
 impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
-	C: Collators + Send + Unpin + 'static,
+	C: Collators + Send + Unpin + 'static + Sync,
 	N: Network,
 	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	C::Collation: Send + Unpin + 'static,
 	N::TableRouter: Send + 'static,
+	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	N::BuildTableRouter: Unpin + Send + 'static,
 	SP: Spawn + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -288,9 +289,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		parent_hash: Hash,
 		keystore: &KeyStorePtr,
 		max_block_data_size: Option<u64>,
-	)
-		-> Result<Arc<ValidationInstanceHandle>, Error>
-	{
+	) -> Result<ValidationInstanceHandle, Error> {
 		use primitives::Pair;
 
 		if let Some(tracker) = self.live_instances.get(&parent_hash) {
@@ -323,7 +322,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		// If we are a validator, we need to store our index in this round in availability store.
 		// This will tell which erasure chunk we should store.
 		if let Some(ref local_duty) = local_duty {
-			if let Err(e) = self.availability_store.add_validator_index_and_n_validators(
+			if let Err(e) = self.availability_store.note_validator_index_and_n_validators(
 				&parent_hash,
 				local_duty.index,
 				validators.len() as u32,
@@ -344,23 +343,19 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 			max_block_data_size,
 		));
 
-		let (_drop_signal, exit) = exit_future::signal();
-
-		let router = self.network.communication_for(
+		let router = self.network.build_table_router(
 			table.clone(),
 			&validators,
-			exit.clone(),
 		);
 
 		if let Some((Chain::Parachain(id), index)) = local_duty.as_ref().map(|d| (d.validation, d.index)) {
-			self.launch_work(parent_hash, id, router, max_block_data_size, validators.len(), index, exit);
+			self.launch_work(parent_hash, id, router, max_block_data_size, validators.len(), index);
 		}
 
-		let tracker = Arc::new(ValidationInstanceHandle {
+		let tracker = ValidationInstanceHandle {
 			table,
 			started: Instant::now(),
-			_drop_signal,
-		});
+		};
 
 		self.live_instances.insert(parent_hash, tracker.clone());
 
@@ -379,80 +374,88 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		validation_para: ParaId,
 		build_router: N::BuildTableRouter,
 		max_block_data_size: Option<u64>,
-		authorities_num: usize,
+		n_validators: usize,
 		local_id: ValidatorIndex,
-		exit: exit_future::Exit,
 	) {
 		let (collators, client) = (self.collators.clone(), self.client.clone());
 		let availability_store = self.availability_store.clone();
 
-		let with_router = move |router: N::TableRouter| async move {
+		let with_router = move |router: N::TableRouter| {
 			// fetch a local collation from connected collators.
-			match crate::collation::collation_fetch(
+			let collation_work = crate::collation::collation_fetch(
 				validation_para,
 				relay_parent,
 				collators,
 				client.clone(),
 				max_block_data_size,
-			).await {
-				Ok(collation_work) => {
-					let (collation, outgoing_targeted, parent_head, fees_charged) = collation_work;
+				n_validators,
+			);
 
-					match crate::collation::produce_receipt_and_chunks(
-						authorities_num,
-						parent_head,
-						&collation.pov,
-						&outgoing_targeted,
-						fees_charged,
-						&collation.info,
-					) {
-						Ok((receipt, chunks)) => {
-							// Apparently the `async move` block is the only way to convince
-							// the compiler that we are not moving values out of borrowed context.
-							let av_clone = availability_store.clone();
-							let chunks_clone = chunks.clone();
-							let receipt_clone = receipt.clone();
+			collation_work.then(move |result| match result {
+				Ok((collation_info, full_output)) => {
+					let crate::pipeline::FullOutput {
+						commitments,
+						erasure_chunks,
+						available_data,
+					} = full_output;
 
-							if let Err(e) = av_clone.clone().add_erasure_chunks(
-								relay_parent.clone(),
-								receipt_clone,
-								chunks_clone,
-							).await {
-								warn!(
-									target: "validation",
-									"Failed to add erasure chunks: {}", e
-								);
-							} else {
-								router.local_collation(
-									collation,
-									receipt,
-									outgoing_targeted,
-									(local_id, &chunks),
-								);
-							}
+					let receipt = collation_info.into_receipt(commitments);
+
+					// Apparently the `async move` block is the only way to convince
+					// the compiler that we are not moving values out of borrowed context.
+					let av_clone = availability_store.clone();
+					let receipt_clone = receipt.clone();
+					let erasure_chunks_clone = erasure_chunks.clone();
+					let pov_block = available_data.pov_block.clone();
+
+					let res = async move {
+						if let Err(e) = av_clone.make_available(
+							receipt_clone.hash(),
+							available_data,
+						).await {
+							warn!(
+								target: "validation",
+								"Failed to make parachain block data available: {}",
+								e,
+							);
 						}
-						Err(e) => {
-							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
+						if let Err(e) = av_clone.clone().add_erasure_chunks(
+							receipt_clone,
+							erasure_chunks_clone,
+						).await {
+							warn!(target: "validation", "Failed to add erasure chunks: {}", e);
 						}
-					};
+					}
+					.unit_error()
+					.then(move |_| {
+						router.local_collation(
+							receipt,
+							pov_block,
+							(local_id, &erasure_chunks),
+						).map_err(|e| warn!(target: "validation", "Failed to send local collation: {:?}", e))
+					});
+
+					res.boxed()
 				}
 				Err(e) => {
-					warn!(target: "validation", "Failed to fetch a candidate: {:?}", e);
+					warn!(target: "validation", "Failed to collate candidate: {:?}", e);
+					Box::pin(ready(Ok(())))
 				}
-			}
+			})
 		};
 
-		let router = build_router
+		let router_work = build_router
 			.map_ok(with_router)
 			.map_err(|e| {
 				warn!(target: "validation" , "Failed to build table router: {:?}", e);
-			});
+			})
+			.and_then(|r| r)
+			.map(|_| ());
 
-		let cancellable_work = select(exit, router).map(drop);
 
 		// spawn onto thread pool.
-		if self.spawner.spawn(cancellable_work).is_err() {
-			error!("Failed to spawn cancellable work task");
+		if self.spawner.spawn(router_work).is_err() {
+			error!("Failed to spawn router work task");
 		}
 	}
 }

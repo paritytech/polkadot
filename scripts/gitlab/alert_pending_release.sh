@@ -1,19 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# structure_message $content $formatted_content (optional)
-structure_message() {
-  if [ -z "$2" ]; then
-    body=$(jq -Rs --arg body "$1" '{"msgtype": "m.text", $body}' < /dev/null)
-  else
-    body=$(jq -Rs --arg body "$1" --arg formatted_body "$2" '{"msgtype": "m.text", $body, "format": "org.matrix.custom.html", $formatted_body}' < /dev/null)
-  fi
-  echo "$body"
-}
-
-# send_message $body (json formatted) $room_id $access_token
-send_message() {
-curl -XPOST -d "$1" "https://matrix.parity.io/_matrix/client/r0/rooms/$2/send/m.room.message?access_token=$3"
-}
+#shellcheck source=lib.sh
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/lib.sh"
 
 # Receive keys
 # trusted_keys=(
