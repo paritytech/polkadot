@@ -161,7 +161,6 @@ macro_rules! new_full_start {
 					babe::Config::get_or_compute(&*client)?,
 					grandpa_block_import,
 					client.clone(),
-					client.clone(),
 				)?;
 
 				let import_queue = babe::import_queue(
@@ -169,7 +168,6 @@ macro_rules! new_full_start {
 					block_import.clone(),
 					Some(Box::new(justification_import)),
 					None,
-					client.clone(),
 					client,
 					inherent_data_providers.clone(),
 				)?;
@@ -344,15 +342,14 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let mut path = PathBuf::from(db_path);
 			path.push("availability");
 
-			let gossip = polkadot_network::legacy
-				::AvailabilityNetworkShim(gossip_validator.clone());
+			let gossip = polkadot_network::legacy::AvailabilityNetworkShim(gossip_validator.clone());
 
 			#[cfg(not(target_os = "unknown"))]
 			{
-				av_store::Store::new(::av_store::Config {
-					cache_size: None,
-					path,
-				}, gossip)?
+				av_store::Store::new(
+					av_store::Config { cache_size: None, path },
+					gossip,
+				)?
 			}
 
 			#[cfg(target_os = "unknown")]
@@ -604,7 +601,6 @@ where
 				babe::Config::get_or_compute(&*client)?,
 				grandpa_block_import,
 				client.clone(),
-				client.clone(),
 			)?;
 
 			// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
@@ -613,7 +609,6 @@ where
 				babe_block_import,
 				None,
 				Some(Box::new(finality_proof_import)),
-				client.clone(),
 				client,
 				inherent_data_providers.clone(),
 			)?;

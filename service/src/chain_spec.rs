@@ -176,6 +176,7 @@ fn staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 		session: Some(polkadot::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
+				x.0.clone(),
 				session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
@@ -318,6 +319,7 @@ pub fn testnet_genesis(
 		}),
 		session: Some(polkadot::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
+				x.0.clone(),
 				x.0.clone(),
 				session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),

@@ -436,13 +436,13 @@ mod tests {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
-				Error::<Test>::SignerHasNoClaim
+				Error::<Test>::SignerHasNoClaim,
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None));
 			assert_eq!(Claims::total(), 300);
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
 			assert_eq!(Balances::free_balance(&69), 200);
-			assert_eq!(Vesting::vesting_balance(&69), Some(0));
+			assert_eq!(Vesting::vesting_balance(&69), None);
 			assert_eq!(Claims::total(), 100);
 		});
 	}
