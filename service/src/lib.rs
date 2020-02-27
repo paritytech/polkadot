@@ -272,7 +272,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let is_authority = config.roles.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = max_block_data_size;
-	let db_path = if let Some(DatabaseConfig::Path { ref path, .. }) = config.database {
+	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.expect_database() {
 		path.clone()
 	} else {
 		return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into());
