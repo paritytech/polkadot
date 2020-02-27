@@ -29,9 +29,8 @@ use polkadot_validation::{
 };
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	OutgoingMessages, CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
+	CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
 };
-use crate::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
 use sp_api::ProvideRuntimeApi;
 
 use futures::prelude::*;
@@ -44,8 +43,9 @@ use std::io;
 use std::sync::Arc;
 use std::pin::Pin;
 
-use crate::validation::{LeafWorkDataFetcher, Executor};
-use crate::NetworkService;
+use crate::legacy::gossip::{RegisteredMessageValidator, GossipMessage, GossipStatement, ErasureChunkMessage};
+use crate::legacy::validation::{LeafWorkDataFetcher, Executor};
+use crate::legacy::{NetworkService, PolkadotProtocol};
 
 /// Compute the gossip topic for attestations on the given parent hash.
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
@@ -78,14 +78,16 @@ pub struct Router<P, T> {
 	attestation_topic: Hash,
 	fetcher: LeafWorkDataFetcher<P, T>,
 	deferred_statements: Arc<Mutex<DeferredStatements>>,
-	message_validator: RegisteredMessageValidator,
+	message_validator: RegisteredMessageValidator<PolkadotProtocol>,
+	drop_signal: Arc<exit_future::Signal>,
 }
 
 impl<P, T> Router<P, T> {
 	pub(crate) fn new(
 		table: Arc<SharedTable>,
 		fetcher: LeafWorkDataFetcher<P, T>,
-		message_validator: RegisteredMessageValidator,
+		message_validator: RegisteredMessageValidator<PolkadotProtocol>,
+		drop_signal: exit_future::Signal,
 	) -> Self {
 		let parent_hash = fetcher.parent_hash();
 		Router {
@@ -94,6 +96,7 @@ impl<P, T> Router<P, T> {
 			attestation_topic: attestation_topic(parent_hash),
 			deferred_statements: Arc::new(Mutex::new(DeferredStatements::new())),
 			message_validator,
+			drop_signal: Arc::new(drop_signal),
 		}
 	}
 
@@ -111,7 +114,7 @@ impl<P, T> Router<P, T> {
 		self.fetcher.parent_hash()
 	}
 
-	fn network(&self) -> &RegisteredMessageValidator {
+	fn network(&self) -> &RegisteredMessageValidator<PolkadotProtocol> {
 		self.fetcher.network()
 	}
 }
@@ -124,6 +127,7 @@ impl<P, T: Clone> Clone for Router<P, T> {
 			attestation_topic: self.attestation_topic,
 			deferred_statements: self.deferred_statements.clone(),
 			message_validator: self.message_validator.clone(),
+			drop_signal: self.drop_signal.clone(),
 		}
 	}
 }
@@ -155,7 +159,7 @@ impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, T> Router<P, T> where
 
 		// import all statements pending on this candidate
 		let (mut statements, _traces) = if let GenericStatement::Candidate(_) = statement.statement {
-			self.deferred_statements.lock().get_deferred(&c_hash)
+			self.deferred_statements.lock().take_deferred(&c_hash)
 		} else {
 			(Vec::new(), Vec::new())
 		};
@@ -199,9 +203,8 @@ impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, T> Router<P, T> where
 				Ok(validated) => {
 					// store the data before broadcasting statements, so other peers can fetch.
 					knowledge.lock().note_candidate(
-					candidate_hash,
-					Some(validated.0.pov_block().clone()),
-					validated.0.outgoing_messages().cloned(),
+						candidate_hash,
+						Some(validated.0.pov_block().clone()),
 					);
 
 					// propagate the statement.
@@ -229,6 +232,7 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> TableRouter for Router<P, T> where
 	T: Clone + Executor + Send + 'static,
 {
 	type Error = io::Error;
+	type SendLocalCollation = future::Ready<Result<(), Self::Error>>;
 	type FetchValidationProof = Pin<Box<dyn Future<Output = Result<PoVBlock, io::Error>> + Send>>;
 
 	// We have fetched from a collator and here the receipt should have been already formed.
@@ -236,28 +240,26 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> TableRouter for Router<P, T> where
 		&self,
 		collation: Collation,
 		receipt: CandidateReceipt,
-		outgoing: OutgoingMessages,
 		chunks: (ValidatorIndex, &[ErasureChunk])
-	) {
+	) -> Self::SendLocalCollation {
 		// produce a signed statement
 		let hash = receipt.hash();
 		let erasure_root = receipt.erasure_root;
 		let validated = Validated::collated_local(
 			receipt,
 			collation.pov.clone(),
-			outgoing.clone(),
 		);
 
 		let statement = GossipStatement::new(
 			self.parent_hash(),
 			match self.table.import_validated(validated) {
-				None => return,
+				None => return future::ready(Ok(())),
 				Some(s) => s,
 			},
 		);
 
 		// give to network to make available.
-		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov), Some(outgoing));
+		self.fetcher.knowledge().lock().note_candidate(hash, Some(collation.pov));
 		self.network().gossip_message(self.attestation_topic, statement.into());
 
 		for chunk in chunks.1 {
@@ -273,6 +275,8 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> TableRouter for Router<P, T> where
 				message.into()
 			);
 		}
+
+		future::ready(Ok(()))
 	}
 
 	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof {
@@ -289,26 +293,29 @@ impl<P, T> Drop for Router<P, T> {
 
 // A unique trace for valid statements issued by a validator.
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
-enum StatementTrace {
+pub(crate) enum StatementTrace {
 	Valid(ValidatorIndex, Hash),
 	Invalid(ValidatorIndex, Hash),
 }
 
-// helper for deferring statements whose associated candidate is unknown.
-struct DeferredStatements {
+/// Helper for deferring statements whose associated candidate is unknown.
+pub(crate) struct DeferredStatements {
 	deferred: HashMap<Hash, Vec<SignedStatement>>,
 	known_traces: HashSet<StatementTrace>,
 }
 
 impl DeferredStatements {
-	fn new() -> Self {
+	/// Create a new `DeferredStatements`.
+	pub(crate) fn new() -> Self {
 		DeferredStatements {
 			deferred: HashMap::new(),
 			known_traces: HashSet::new(),
 		}
 	}
 
-	fn push(&mut self, statement: SignedStatement) {
+	/// Push a new statement onto the deferred pile. `Candidate` statements
+	/// cannot be deferred and are ignored.
+	pub(crate) fn push(&mut self, statement: SignedStatement) {
 		let (hash, trace) = match statement.statement {
 			GenericStatement::Candidate(_) => return,
 			GenericStatement::Valid(hash) => (hash, StatementTrace::Valid(statement.sender.clone(), hash)),
@@ -320,7 +327,8 @@ impl DeferredStatements {
 		}
 	}
 
-	fn get_deferred(&mut self, hash: &Hash) -> (Vec<SignedStatement>, Vec<StatementTrace>) {
+	/// Take all deferred statements referencing the given candidate hash out.
+	pub(crate) fn take_deferred(&mut self, hash: &Hash) -> (Vec<SignedStatement>, Vec<StatementTrace>) {
 		match self.deferred.remove(hash) {
 			None => (Vec::new(), Vec::new()),
 			Some(deferred) => {
@@ -361,7 +369,7 @@ mod tests {
 
 		// pre-push.
 		{
-			let (signed, traces) = deferred.get_deferred(&hash);
+			let (signed, traces) = deferred.take_deferred(&hash);
 			assert!(signed.is_empty());
 			assert!(traces.is_empty());
 		}
@@ -371,7 +379,7 @@ mod tests {
 
 		// draining: second push should have been ignored.
 		{
-			let (signed, traces) = deferred.get_deferred(&hash);
+			let (signed, traces) = deferred.take_deferred(&hash);
 			assert_eq!(signed.len(), 1);
 
 			assert_eq!(traces.len(), 1);
@@ -381,7 +389,7 @@ mod tests {
 
 		// after draining
 		{
-			let (signed, traces) = deferred.get_deferred(&hash);
+			let (signed, traces) = deferred.take_deferred(&hash);
 			assert!(signed.is_empty());
 			assert!(traces.is_empty());
 		}

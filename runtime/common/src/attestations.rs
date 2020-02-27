@@ -125,14 +125,14 @@ decl_module! {
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		fn more_attestations(origin, _more: MoreAttestations) -> DispatchResult {
 			ensure_none(origin)?;
-			ensure!(!<DidUpdate>::exists(), Error::<T>::TooManyAttestations);
-			<DidUpdate>::put(true);
+			ensure!(!DidUpdate::exists(), Error::<T>::TooManyAttestations);
+			DidUpdate::put(true);
 
 			Ok(())
 		}
 
 		fn on_finalize(_n: T::BlockNumber) {
-			<DidUpdate>::kill();
+			DidUpdate::kill();
 		}
 	}
 }

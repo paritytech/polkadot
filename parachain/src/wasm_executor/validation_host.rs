@@ -18,7 +18,7 @@
 
 use std::{process, env, sync::Arc, sync::atomic, mem};
 use codec::{Decode, Encode, EncodeAppend};
-use crate::{ValidationParams, ValidationResult, UpwardMessage, TargetedMessage};
+use crate::{ValidationParams, ValidationResult, UpwardMessage};
 use super::{validate_candidate_internal, Error, Externalities};
 use super::{MAX_CODE_MEM, MAX_RUNTIME_MEM};
 use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
@@ -44,7 +44,6 @@ pub const EXECUTION_TIMEOUT_SEC: u64 =  5;
 
 #[derive(Default)]
 struct WorkerExternalitiesInner {
-	egress_data: Vec<u8>,
 	up_data: Vec<u8>,
 }
 
@@ -54,15 +53,6 @@ struct WorkerExternalities {
 }
 
 impl Externalities for WorkerExternalities {
-	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String> {
-		let mut inner = self.inner.lock();
-		inner.egress_data = <Vec::<TargetedMessage> as EncodeAppend>::append_or_new(
-			mem::replace(&mut inner.egress_data, Vec::new()),
-			std::iter::once(message),
-		).map_err(|e| e.what())?;
-		Ok(())
-	}
-
 	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
 		let mut inner = self.inner.lock();
 		inner.up_data = <Vec::<UpwardMessage> as EncodeAppend>::append_or_new(
@@ -141,9 +131,8 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 				debug!("{} Candidate header: {:?}", process::id(), header);
 				let (code, rest) = rest.split_at_mut(MAX_CODE_MEM);
 				let (code, _) = code.split_at_mut(header.code_size as usize);
-				let (call_data, rest) = rest.split_at_mut(MAX_RUNTIME_MEM);
+				let (call_data, _) = rest.split_at_mut(MAX_RUNTIME_MEM);
 				let (call_data, _) = call_data.split_at_mut(header.params_size as usize);
-				let message_data = rest;
 
 				let result = validate_candidate_internal(code, call_data, worker_ext.clone());
 				debug!("{} Candidate validated: {:?}", process::id(), result);
@@ -151,18 +140,12 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 				match result {
 					Ok(r) => {
 						let inner = worker_ext.inner.lock();
-						let egress_data = &inner.egress_data;
-						let e_len = egress_data.len();
 						let up_data = &inner.up_data;
 						let up_len = up_data.len();
 
-						if e_len + up_len > MAX_MESSAGE_MEM {
+						if up_len > MAX_MESSAGE_MEM {
 							ValidationResultHeader::Error("Message data is too large".into())
 						} else {
-							message_data[0..e_len].copy_from_slice(egress_data);
-
-							message_data[e_len..(e_len + up_len)].copy_from_slice(&up_data);
-
 							ValidationResultHeader::Ok(r)
 						}
 					},
@@ -334,14 +317,6 @@ impl ValidationHost {
 			let header = ValidationResultHeader::decode(&mut header_buf).unwrap();
 			match header {
 				ValidationResultHeader::Ok(result) => {
-					let egress = Vec::<TargetedMessage>::decode(&mut message_data)
-						.map_err(|e|
-							Error::External(
-								format!("Could not decode egress messages: {}", e.what())
-							)
-						)?;
-					egress.into_iter().try_for_each(|msg| externalities.post_message(msg))?;
-
 					let upwards = Vec::<UpwardMessage>::decode(&mut message_data)
 						.map_err(|e|
 							Error::External(

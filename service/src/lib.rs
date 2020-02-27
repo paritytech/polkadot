@@ -22,7 +22,10 @@ use sc_client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
-use polkadot_network::{gossip::{self as network_gossip, Known}, validation::ValidationNetwork};
+use polkadot_network::legacy::{
+	gossip::{self as network_gossip, Known},
+	validation::ValidationNetwork,
+};
 use service::{error::{Error as ServiceError}, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
@@ -39,7 +42,7 @@ pub use sc_client_api::backend::Backend;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::HasherFor;
 pub use consensus_common::SelectChain;
-pub use polkadot_network::PolkadotProtocol;
+pub use polkadot_network::legacy::PolkadotProtocol;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_core::Blake2Hasher;
@@ -174,9 +177,8 @@ macro_rules! new_full_start {
 				import_setup = Some((block_import, grandpa_link, babe_link));
 				Ok(import_queue)
 			})?
-			.with_rpc_extensions(|client, pool, _backend, _fetcher, _remote_blockchain|
-				-> Result<polkadot_rpc::RpcExtension, _> {
-				Ok(polkadot_rpc::create_full(client, pool))
+			.with_rpc_extensions(|builder| -> Result<polkadot_rpc::RpcExtension, _> {
+				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool()))
 			})?;
 
 		(builder, import_setup, inherent_data_providers)
@@ -342,7 +344,8 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let mut path = PathBuf::from(db_path);
 			path.push("availability");
 
-			let gossip = polkadot_network::AvailabilityNetworkShim(gossip_validator.clone());
+			let gossip = polkadot_network::legacy
+				::AvailabilityNetworkShim(gossip_validator.clone());
 
 			#[cfg(not(target_os = "unknown"))]
 			{
@@ -475,7 +478,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			on_exit: service.on_exit(),
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 			voting_rule: grandpa::VotingRulesBuilder::default().build(),
-			executor: service.spawn_task_handle(),
 		};
 
 		service.spawn_essential_task(
@@ -622,13 +624,14 @@ where
 		.with_finality_proof_provider(|client, backend|
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
-		.with_rpc_extensions(|client, pool, _backend, fetcher, remote_blockchain|
+		.with_rpc_extensions(|builder|
 			-> Result<polkadot_rpc::RpcExtension, _> {
-			let fetcher = fetcher
+			let fetcher = builder.fetcher()
 				.ok_or_else(|| "Trying to start node RPC without active fetcher")?;
-			let remote_blockchain = remote_blockchain
+			let remote_blockchain = builder.remote_backend()
 				.ok_or_else(|| "Trying to start node RPC without active remote blockchain")?;
-			Ok(polkadot_rpc::create_light(client, remote_blockchain, fetcher, pool))
+
+			Ok(polkadot_rpc::create_light(builder.client().clone(), remote_blockchain, fetcher, builder.pool()))
 		})?
 		.build()
 }

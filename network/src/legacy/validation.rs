@@ -23,9 +23,9 @@ use sc_network::PeerId;
 use polkadot_validation::{
 	Network as ParachainNetwork, SharedTable, Collators, Statement, GenericStatement, SignedStatement,
 };
-use polkadot_primitives::{Block, BlockId, Hash};
+use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	Id as ParaId, Collation, OutgoingMessages, ParachainHost, CandidateReceipt, CollatorId,
+	Id as ParaId, Collation, ParachainHost, CandidateReceipt, CollatorId,
 	ValidatorId, PoVBlock,
 };
 use sp_api::ProvideRuntimeApi;
@@ -44,12 +44,10 @@ use std::pin::Pin;
 use arrayvec::ArrayVec;
 use parking_lot::Mutex;
 
-use crate::router::Router;
-use crate::gossip::{RegisteredMessageValidator, MessageValidationData};
+use crate::legacy::router::Router;
+use crate::legacy::gossip::{RegisteredMessageValidator, MessageValidationData};
 
-use super::NetworkService;
-
-pub use polkadot_validation::Incoming;
+use super::{NetworkService, PolkadotProtocol};
 
 /// Params to instantiate validation work on a block-DAG leaf.
 pub struct LeafWorkParams {
@@ -65,13 +63,13 @@ pub struct LeafWorkParams {
 pub struct ValidationNetwork<P, T> {
 	api: Arc<P>,
 	executor: T,
-	network: RegisteredMessageValidator,
+	network: RegisteredMessageValidator<PolkadotProtocol>,
 }
 
 impl<P, T> ValidationNetwork<P, T> {
 	/// Create a new consensus networking object.
 	pub fn new(
-		network: RegisteredMessageValidator,
+		network: RegisteredMessageValidator<PolkadotProtocol>,
 		api: Arc<P>,
 		executor: T,
 	) -> Self {
@@ -123,8 +121,6 @@ impl<P, T> ValidationNetwork<P, T> where
 			let actions = network.new_local_leaf(
 				parent_hash,
 				MessageValidationData { authorities },
-				|queue_root| spec.availability_store.as_ref()
-					.and_then(|store| store.queue_by_root(queue_root))
 			);
 
 			actions.perform(&network);
@@ -165,7 +161,7 @@ impl<P, T> ValidationNetwork<P, T> {
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
 	pub fn checked_statements(&self, relay_parent: Hash) -> impl Stream<Item=SignedStatement> {
-		crate::router::checked_statements(&self.network, crate::router::attestation_topic(relay_parent))
+		crate::legacy::router::checked_statements(&self.network, crate::legacy::router::attestation_topic(relay_parent))
 	}
 }
 
@@ -179,12 +175,12 @@ impl<P, T> ParachainNetwork for ValidationNetwork<P, T> where
 	type TableRouter = Router<P, T>;
 	type BuildTableRouter = Box<dyn Future<Output=Result<Self::TableRouter, String>> + Send + Unpin>;
 
-	fn communication_for(
+	fn build_table_router(
 		&self,
 		table: Arc<SharedTable>,
 		authorities: &[ValidatorId],
-		exit: exit_future::Exit,
 	) -> Self::BuildTableRouter {
+		let (signal, exit) = exit_future::signal();
 		let parent_hash = *table.consensus_parent_hash();
 		let local_session_key = table.session_key();
 
@@ -203,6 +199,7 @@ impl<P, T> ParachainNetwork for ValidationNetwork<P, T> where
 					table,
 					fetcher,
 					network,
+					signal,
 				);
 
 				let table_router_clone = table_router.clone();
@@ -263,7 +260,6 @@ struct KnowledgeEntry {
 	knows_block_data: Vec<ValidatorId>,
 	knows_outgoing: Vec<ValidatorId>,
 	pov: Option<PoVBlock>,
-	outgoing_messages: Option<OutgoingMessages>,
 }
 
 /// Tracks knowledge of peers.
@@ -307,11 +303,9 @@ impl Knowledge {
 		&mut self,
 		hash: Hash,
 		pov: Option<PoVBlock>,
-		outgoing_messages: Option<OutgoingMessages>,
 	) {
 		let entry = self.candidates.entry(hash).or_insert_with(Default::default);
 		entry.pov = entry.pov.take().or(pov);
-		entry.outgoing_messages = entry.outgoing_messages.take().or(outgoing_messages);
 	}
 }
 
@@ -390,7 +384,7 @@ impl RecentValidatorIds {
 		InsertedRecentKey::New(old)
 	}
 
-	/// As a slice.
+	/// As a slice. Most recent is last.
 	pub(crate) fn as_slice(&self) -> &[ValidatorId] {
 		&*self.inner
 	}
@@ -512,7 +506,7 @@ impl LiveValidationLeaves {
 
 /// Can fetch data for a given validation leaf-work instance.
 pub struct LeafWorkDataFetcher<P, T> {
-	network: RegisteredMessageValidator,
+	network: RegisteredMessageValidator<PolkadotProtocol>,
 	api: Arc<P>,
 	task_executor: T,
 	knowledge: Arc<Mutex<Knowledge>>,
@@ -531,7 +525,7 @@ impl<P, T> LeafWorkDataFetcher<P, T> {
 	}
 
 	/// Get the network service.
-	pub(crate) fn network(&self) -> &RegisteredMessageValidator {
+	pub(crate) fn network(&self) -> &RegisteredMessageValidator<PolkadotProtocol> {
 		&self.network
 	}
 
@@ -566,32 +560,15 @@ impl<P: ProvideRuntimeApi<Block> + Send, T> LeafWorkDataFetcher<P, T> where
 	pub fn fetch_pov_block(&self, candidate: &CandidateReceipt)
 		-> Pin<Box<dyn Future<Output = Result<PoVBlock, io::Error>> + Send>> {
 
-		let parachain = candidate.parachain_index;
 		let parent_hash = self.parent_hash;
 		let network = self.network.clone();
 		let candidate = candidate.clone();
 		let (tx, rx) = oneshot::channel();
 
-		let canon_roots = self.api.runtime_api().ingress(
-			&BlockId::hash(parent_hash),
-			parachain,
-			None,
-		)
-			.map_err(|e|
-				format!(
-					"Cannot fetch ingress for parachain {:?} at {:?}: {:?}",
-					parachain,
-					parent_hash,
-					e,
-				)
-			);
-
 		async move {
 			network.with_spec(move |spec, ctx| {
-				if let Ok(Some(canon_roots)) = canon_roots {
-					let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash, canon_roots);
-					let _ = tx.send(inner_rx);
-				}
+				let inner_rx = spec.fetch_pov_block(ctx, &candidate, parent_hash);
+				let _ = tx.send(inner_rx);
 			});
 
 			let map_err = |_| io::Error::new(

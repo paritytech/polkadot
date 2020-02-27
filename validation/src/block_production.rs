@@ -132,7 +132,7 @@ pub struct Proposer<Client, TxPool, Backend> {
 	parent_hash: Hash,
 	parent_id: BlockId,
 	parent_number: BlockNumber,
-	tracker: Arc<crate::validation_service::ValidationInstanceHandle>,
+	tracker: crate::validation_service::ValidationInstanceHandle,
 	transaction_pool: Arc<TxPool>,
 	slot_duration: u64,
 	backend: Arc<Backend>,
@@ -306,7 +306,7 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 					break;
 				}
 
-				match block_builder.push(ready.data().clone()) {
+				match block_builder.push_trusted(ready.data().clone()) {
 					Ok(()) => {
 						debug!("[{:?}] Pushed to the block.", ready.hash());
 						pending_size += encoded_size;
