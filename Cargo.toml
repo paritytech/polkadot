@@ -52,3 +52,8 @@ maintenance = { status = "actively-developed" }
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
+
+[patch.crates-io]
+libp2p = { git = "https://github.com/twittner/rust-libp2p.git", branch = "yamux-close" }
+yamux = { git = "https://github.com/twittner/yamux.git", branch = "dispose-on-error" }
+
