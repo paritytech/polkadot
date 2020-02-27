@@ -4062,6 +4062,7 @@ dependencies = [
  "polkadot-rpc 0.7.21",
  "polkadot-runtime 0.7.21",
  "polkadot-validation 0.7.21",
+ "prometheus-exporter 0.8.0 (git+https://github.com/paritytech/substrate?branch=ashley-more-metrics-polkadot)",
  "sc-authority-discovery 0.8.0 (git+https://github.com/paritytech/substrate?branch=ashley-more-metrics-polkadot)",
  "sc-chain-spec 2.0.0 (git+https://github.com/paritytech/substrate?branch=ashley-more-metrics-polkadot)",
  "sc-client 0.8.0 (git+https://github.com/paritytech/substrate?branch=ashley-more-metrics-polkadot)",

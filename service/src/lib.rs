@@ -54,6 +54,7 @@ pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
+use prometheus_exporter::Registry;
 
 /// Configuration type that is being used.
 ///
@@ -179,7 +180,10 @@ macro_rules! new_full_start {
 			})?
 			.with_rpc_extensions(|builder| -> Result<polkadot_rpc::RpcExtension, _> {
 				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool()))
-			})?;
+			})?
+			.with_prometheus_registry(
+				Registry::new_custom(Some("polkadot".into()), None)?
+			);
 
 		(builder, import_setup, inherent_data_providers)
 	}}
@@ -478,6 +482,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			on_exit: service.on_exit(),
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 			voting_rule: grandpa::VotingRulesBuilder::default().build(),
+			prometheus_registry: service.prometheus_registry(),
 		};
 
 		service.spawn_essential_task(
@@ -633,5 +638,8 @@ where
 
 			Ok(polkadot_rpc::create_light(builder.client().clone(), remote_blockchain, fetcher, builder.pool()))
 		})?
+		.with_prometheus_registry(
+			Registry::new_custom(Some("polkadot".into()), None)?
+		)
 		.build()
 }
