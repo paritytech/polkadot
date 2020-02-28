@@ -145,7 +145,7 @@ impl system::Trait for Runtime {
 	type ModuleToIndex = ModuleToIndex;
 	type AccountData = balances::AccountData<Balance>;
 	type OnNewAccount = ();
-	type OnReapAccount = (Balances, Staking, Session, Democracy);
+	type OnKilledAccount = ();
 }
 
 parameter_types! {
