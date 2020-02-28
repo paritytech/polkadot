@@ -57,7 +57,7 @@ use polkadot_primitives::{
 	BlockId, Hash, Block,
 	parachain::{
 		self, BlockData, DutyRoster, HeadData, Id as ParaId,
-		PoVBlock, Status as ParachainStatus, ValidatorId, CollatorPair,
+		PoVBlock, ValidatorId, CollatorPair, LocalValidationData
 	}
 };
 use polkadot_cli::{
@@ -167,7 +167,7 @@ pub trait ParachainContext: Clone {
 	fn produce_candidate(
 		&mut self,
 		relay_parent: Hash,
-		status: ParachainStatus,
+		status: LocalValidationData,
 	) -> Self::ProduceCandidate;
 }
 
@@ -175,7 +175,7 @@ pub trait ParachainContext: Clone {
 pub async fn collate<P>(
 	relay_parent: Hash,
 	local_id: ParaId,
-	parachain_status: ParachainStatus,
+	local_validation_data: LocalValidationData,
 	mut para_context: P,
 	key: Arc<CollatorPair>,
 )
@@ -186,32 +186,38 @@ pub async fn collate<P>(
 {
 	let (block_data, head_data) = para_context.produce_candidate(
 		relay_parent,
-		parachain_status,
+		local_validation_data,
 	).map_err(Error::Collator).await?;
 
-	let block_data_hash = block_data.hash();
-	let signature = key.sign(block_data_hash.as_ref());
+	let pov_block = PoVBlock {
+		block_data,
+	};
+
+	let pov_block_hash = pov_block.hash();
+	let signature = key.sign(&parachain::collator_signature_payload(
+		&relay_parent,
+		&local_id,
+		&pov_block_hash,
+	));
+
 	let info = parachain::CollationInfo {
 		parachain_index: local_id,
+		relay_parent,
 		collator: key.public(),
 		signature,
 		head_data,
-		block_data_hash,
-		upward_messages: Vec::new(),
+		pov_block_hash,
 	};
 
 	let collation = parachain::Collation {
 		info,
-		pov: PoVBlock {
-			block_data,
-		},
+		pov: pov_block,
 	};
 
 	Ok(collation)
 }
 
-/// Run the collator node using the given `service`.
-fn run_collator_node<S, P, Extrinsic>(
+fn build_collator_service<S, P, Extrinsic>(
 	service: S,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
@@ -318,8 +324,8 @@ fn run_collator_node<S, P, Extrinsic>(
 
 			let work = future::lazy(move |_| {
 				let api = client.runtime_api();
-				let status = match try_fr!(api.parachain_status(&id, para_id)) {
-					Some(status) => status,
+				let local_validation = match try_fr!(api.local_validation_data(&id, para_id)) {
+					Some(local_validation) => local_validation,
 					None => return future::Either::Left(future::ok(())),
 				};
 
@@ -334,19 +340,17 @@ fn run_collator_node<S, P, Extrinsic>(
 				let collation_work = collate(
 					relay_parent,
 					para_id,
-					status,
+					local_validation,
 					parachain_context,
 					key,
 				).map_ok(move |collation| {
 					network.with_spec(move |spec, ctx| {
-						let res = spec.add_local_collation(
+						spec.add_local_collation(
 							ctx,
 							relay_parent,
 							targets,
 							collation,
 						);
-
-						tokio::spawn(res.boxed());
 					})
 				});
 
@@ -376,6 +380,51 @@ fn run_collator_node<S, P, Extrinsic>(
 	Ok(service)
 }
 
+/// Async function that will run the collator node with the given `RelayChainContext` and `ParachainContext`
+/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
+pub async fn start_collator<P>(
+	build_parachain_context: P,
+	para_id: ParaId,
+	key: Arc<CollatorPair>,
+	config: Configuration,
+) -> Result<(), polkadot_service::Error>
+where
+	P: BuildParachainContext,
+	P::ParachainContext: Send + 'static,
+	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
+{
+	match (config.expect_chain_spec().is_kusama(), config.roles) {
+		(true, Roles::LIGHT) =>
+			build_collator_service(
+				service::kusama_new_light(config, Some((key.public(), para_id)))?,
+				para_id,
+				key,
+				build_parachain_context,
+			)?.await,
+		(true, _) =>
+			build_collator_service(
+				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+				para_id,
+				key,
+				build_parachain_context,
+			)?.await,
+		(false, Roles::LIGHT) =>
+			build_collator_service(
+				service::polkadot_new_light(config, Some((key.public(), para_id)))?,
+				para_id,
+				key,
+				build_parachain_context,
+			)?.await,
+		(false, _) =>
+			build_collator_service(
+				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+				para_id,
+				key,
+				build_parachain_context,
+			)?.await,
+	}
+}
+
 fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRoster) -> HashSet<ValidatorId> {
 	use polkadot_primitives::parachain::Chain;
 
@@ -387,7 +436,7 @@ fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRo
 }
 
 /// Run a collator node with the given `RelayChainContext` and `ParachainContext`
-/// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
+/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
 /// This function blocks until done.
 pub fn run_collator<P>(
@@ -403,7 +452,7 @@ pub fn run_collator<P>(
 	match (config.expect_chain_spec().is_kusama(), config.roles) {
 		(true, Roles::LIGHT) =>
 			sc_cli::run_service_until_exit(config, |config| {
-				run_collator_node(
+				build_collator_service(
 					service::kusama_new_light(config, Some((key.public(), para_id)))?,
 					para_id,
 					key,
@@ -412,7 +461,7 @@ pub fn run_collator<P>(
 			}),
 		(true, _) =>
 			sc_cli::run_service_until_exit(config, |config| {
-				run_collator_node(
+				build_collator_service(
 					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 					para_id,
 					key,
@@ -421,7 +470,7 @@ pub fn run_collator<P>(
 			}),
 		(false, Roles::LIGHT) =>
 			sc_cli::run_service_until_exit(config, |config| {
-				run_collator_node(
+				build_collator_service(
 					service::polkadot_new_light(config, Some((key.public(), para_id)))?,
 					para_id,
 					key,
@@ -430,7 +479,7 @@ pub fn run_collator<P>(
 			}),
 		(false, _) =>
 			sc_cli::run_service_until_exit(config, |config| {
-				run_collator_node(
+				build_collator_service(
 					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 					para_id,
 					key,
@@ -453,7 +502,7 @@ mod tests {
 		fn produce_candidate(
 			&mut self,
 			_relay_parent: Hash,
-			_status: ParachainStatus,
+			_local_validation: LocalValidationData,
 		) -> Self::ProduceCandidate {
 			// send messages right back.
 			future::ok((
