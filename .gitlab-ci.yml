@@ -262,7 +262,8 @@ publish-s3-release:
         --copy-source ${BUCKET}/${PREFIX}/${VERSION}/${name}
         --bucket ${BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
       done
-    - cat <<-EOM
+    - |
+      cat <<-EOM
       |
       |  polkadot binary paths: 
       |
