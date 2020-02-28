@@ -20,7 +20,7 @@
 
 use cli::VersionInfo;
 
-fn main() -> Result<(), cli::error::Error> {
+fn main() -> Result<(), cli::Error> {
 	let version = VersionInfo {
 		name: "Parity Polkadot",
 		commit: env!("VERGEN_SHA_SHORT"),
