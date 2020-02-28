@@ -128,40 +128,58 @@ impl DoubleVoteReport {
 	fn verify<H: AsRef<[u8]>>(
 		&self,
 		parent_hash: H,
-	) -> Result<(), ()> {
+	) -> Result<(), DoubleVoteValidityError> {
 		let first = self.first.clone();
 		let second = self.second.clone();
 
-		Self::verify_vote(first, &parent_hash, self.identity.clone())?;
-		Self::verify_vote(second, &parent_hash, self.identity.clone())?;
+		// Check signatures.
+		Self::verify_vote(&first, &parent_hash, &self.identity)?;
+		Self::verify_vote(&second, &parent_hash, &self.identity)?;
+
+		match (&first.0, &second.0) {
+			// If issuing a `Candidate` message on a parachain block, neither a `Valid` or
+			// `Invalid` vote cannot be issued on that parachain block, as the `Candidate`
+			// message is an implicit validity vote.
+			(Statement::Candidate(candidate_hash), Statement::Valid(hash)) |
+			(Statement::Candidate(candidate_hash), Statement::Invalid(hash)) |
+			(Statement::Valid(hash), Statement::Candidate(candidate_hash)) |
+			(Statement::Invalid(hash), Statement::Candidate(candidate_hash))
+			if *candidate_hash == *hash => {},
+			// Otherwise, it is illegal to cast both a `Valid` and
+			// `Invalid` vote on a given parachain block.
+			(Statement::Valid(hash_1), Statement::Invalid(hash_2)) |
+			(Statement::Invalid(hash_1), Statement::Valid(hash_2))
+			if *hash_1 == *hash_2 => {},
+			_ => {
+				return Err(DoubleVoteValidityError::NotDoubleVote);
+			}
+		}
 
 		Ok(())
 	}
 
 	fn verify_vote<H: AsRef<[u8]>>(
-		vote: (Statement, ValidityAttestation),
+		vote: &(Statement, ValidityAttestation),
 		parent_hash: H,
-		authority: ValidatorId,
-	) -> Result<(), ()> {
-		let (statement, attestation) = vote;
-
-		let (payload, sig) = match attestation {
-			ValidityAttestation::Implicit(sig) => {
-				let payload = localized_payload(statement, parent_hash);
-
-				(payload, sig)
+		authority: &ValidatorId,
+	) -> Result<(), DoubleVoteValidityError> {
+		let sig = match vote {
+			(Statement::Candidate(_), ValidityAttestation::Implicit(sig)) |
+			(Statement::Valid(_), ValidityAttestation::Explicit(sig)) |
+			(Statement::Invalid(_), ValidityAttestation::Explicit(sig)) => {
+				sig
 			}
-			ValidityAttestation::Explicit(sig) => {
-				let payload = localized_payload(statement, parent_hash);
-
-				(payload, sig)
+			_ => {
+				return Err(DoubleVoteValidityError::InvalidReport);
 			}
 		};
+		let payload = localized_payload(vote.0.clone(), parent_hash);
 
-		match sig.verify(&payload[..], &authority) {
-			true => Ok(()),
-			false => Err(()),
+		if !sig.verify(&payload[..], authority) {
+			return Err(DoubleVoteValidityError::InvalidSignature);
 		}
+
+		Ok(())
 	}
 }
 
@@ -432,13 +450,12 @@ decl_module! {
 			let session_index = <session::Module<T>>::current_index();
 			let validators = <session::Module<T>>::validators();
 			let validator_set_count = validators.len() as u32;
-			let parent_hash = <system::Module<T>>::block_hash(<system::Module<T>>::block_number());
+			let _parent_hash = <system::Module<T>>::block_hash(<system::Module<T>>::block_number());
 
 			let authorities = Self::authorities();
-			let offender_idx = match authorities.iter().position(|a| *a == report.identity) {
-				Some(idx) => idx,
-				None => return Err("Not in validator set".into()),
-			};
+			let offender_idx = authorities.iter()
+				.position(|a| *a == report.identity)
+				.ok_or_else(|| "Not in validator set")?;
 
 			let offender = match T::FullIdentificationOf::convert(validators[offender_idx].clone()) {
 				Some(id) => (validators[offender_idx].clone(), id),
@@ -446,11 +463,6 @@ decl_module! {
 			};
 
 			let offence = DoubleVoteOffence { session_index, validator_set_count, offender };
-
-			ensure!(
-				report.verify(parent_hash).is_ok(),
-				"Report verification failed.",
-			);
 
 			// Checks if this is actually a double vote are
 			// implemented in `ValidateDoubleVoteReports::validete`.
@@ -1021,11 +1033,9 @@ pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, B
 
 /// Ensure that double vote reports are only processed if valid.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
-pub struct ValidateDoubleVoteReports<T: Trait + Send + Sync>(rstd::marker::PhantomData<T>) where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
+pub struct ValidateDoubleVoteReports<T>(rstd::marker::PhantomData<T>);
 
-impl<T: Trait + Send + Sync> rstd::fmt::Debug for ValidateDoubleVoteReports<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+impl<T> rstd::fmt::Debug for ValidateDoubleVoteReports<T> where
 {
 	fn fmt(&self, f: &mut rstd::fmt::Formatter) -> rstd::fmt::Result {
 		write!(f, "ValidateDoubleVoteReports<T>")
@@ -1033,6 +1043,7 @@ impl<T: Trait + Send + Sync> rstd::fmt::Debug for ValidateDoubleVoteReports<T> w
 }
 
 /// Custom validity error used while validating double vote reports.
+#[derive(RuntimeDebug)]
 #[repr(u8)]
 pub enum DoubleVoteValidityError {
 	/// The authority being reported is not in the authority set.
@@ -1046,6 +1057,9 @@ pub enum DoubleVoteValidityError {
 
 	/// The two statements in the report are not conflicting.
 	NotDoubleVote = 3,
+
+	/// Invalid report. Indicates that statement doesn't match the attestation on one of the votes.
+	InvalidReport = 4,
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> where
@@ -1075,52 +1089,26 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 
 		if let Some(local_call) = call.is_sub_type() {
 			if let Call::report_double_vote(report) = local_call {
-				let e = TransactionValidityError::from(
-					InvalidTransaction::Custom(DoubleVoteValidityError::NotAnAuthority as u8)
-				);
-
 				let validators = <session::Module<T>>::validators();
 				let parent_hash = <system::Module<T>>::block_hash(<system::Module<T>>::block_number());
 
 				let authorities = Module::<T>::authorities();
 				let offender_idx = match authorities.iter().position(|a| *a == report.identity) {
 					Some(idx) => idx,
-					None => return Err(e),
+					None => return Err(InvalidTransaction::Custom(
+						DoubleVoteValidityError::NotAnAuthority as u8).into()
+					),
 				};
 
-				let e = TransactionValidityError::from(
-					InvalidTransaction::Custom(DoubleVoteValidityError::FailedToConvertId as u8)
-				);
 				if T::FullIdentificationOf::convert(validators[offender_idx].clone()).is_none() {
-					return Err(e);
+					return Err(InvalidTransaction::Custom(
+						DoubleVoteValidityError::FailedToConvertId as u8).into()
+					);
 				}
 
-				let e = TransactionValidityError::from(
-					InvalidTransaction::Custom(DoubleVoteValidityError::InvalidSignature as u8)
-				);
-				report.verify(parent_hash).map_err(|_| e)?;
-
-				let e = TransactionValidityError::from(
-					InvalidTransaction::Custom(DoubleVoteValidityError::NotDoubleVote as u8)
-				);
-				match (&report.first.0, &report.second.0) {
-					// If issuing a `Candidate` message on a parachain block, neither a `Valid` or
-					// `Invalid` vote cannot be issued on that parachain block, as the `Candidate`
-					// message is an implicit validity vote.
-					(Statement::Candidate(candidate_hash), Statement::Valid(hash)) |
-					(Statement::Candidate(candidate_hash), Statement::Invalid(hash)) |
-					(Statement::Valid(hash), Statement::Candidate(candidate_hash)) |
-					(Statement::Invalid(hash), Statement::Candidate(candidate_hash))
-					if *candidate_hash == *hash => {},
-					// Otherwise, it is illegal to cast both a `Valid` and
-					// `Invalid` vote on a given parachain block.
-					(Statement::Valid(hash_1), Statement::Invalid(hash_2)) |
-					(Statement::Invalid(hash_1), Statement::Valid(hash_2))
-					if *hash_1 == *hash_2 => {},
-					_ => {
-						return Err(e);
-					}
-				}
+				report
+					.verify(parent_hash)
+					.map_err(|e| TransactionValidityError::from(InvalidTransaction::Custom(e as u8)))?;
 			}
 		}
 
@@ -1465,8 +1453,14 @@ mod tests {
 
 	fn report_double_vote(
 		report: DoubleVoteReport,
-	) -> ParachainsCall<Test> {
-		ParachainsCall::report_double_vote(report)
+	) -> Result<ParachainsCall<Test>, TransactionValidityError> {
+		let inner = ParachainsCall::report_double_vote(report);
+		let call = Call::Parachains(inner.clone());
+
+		ValidateDoubleVoteReports::<Test>(rstd::marker::PhantomData)
+			.validate(&0, &call, DispatchInfo::default(), 0)?;
+
+		Ok(inner)
 	}
 
 	// creates a template candidate which pins to correct relay-chain state.
@@ -2061,7 +2055,7 @@ mod tests {
 	}
 
 	#[test]
-	fn double_vote_works() {
+	fn double_vote_candidate_and_valid_works() {
 		let parachains = vec![
 			(1u32.into(), vec![], vec![]),
 		];
@@ -2072,6 +2066,294 @@ mod tests {
 			Sr25519Keyring::from_raw_public(raw_public).unwrap()
 		};
 
+		// Test that a Candidate and Valid statements on the same candidate get slashed.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
+			assert_eq!(Staking::current_era(), 0);
+			assert_eq!(Session::current_index(), 0);
+
+			start_era(1);
+
+			let authorities = Parachains::authorities();
+			let authority_index = 0;
+			let key = extract_key(authorities[authority_index].clone());
+
+			let statement_candidate = Statement::Candidate(candidate_hash.clone());
+			let statement_valid = Statement::Valid(candidate_hash.clone());
+			let block_number = <system::Module<Test>>::block_number();
+			let parent_hash = <system::Module<Test>>::block_hash(block_number);
+
+			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
+			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
+
+			let signature_1 = key.sign(&payload_1[..]).into();
+			let signature_2 = key.sign(&payload_2[..]).into();
+
+			let attestation_1 = ValidityAttestation::Implicit(signature_1);
+			let attestation_2 = ValidityAttestation::Explicit(signature_2);
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_candidate, attestation_1),
+				second: (statement_valid, attestation_2),
+			};
+
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
+			let inner = report_double_vote(report).unwrap();
+
+			assert_ok!(Parachains::dispatch(inner, Origin::signed(1)));
+
+			start_era(2);
+
+			// Check that the balance of 0-th validator is slashed 100%.
+			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
+			assert_eq!(Staking::slashable_balance_of(&0), 0);
+
+			assert_eq!(
+				Staking::stakers(0),
+				staking::Exposure {
+					total: 0,
+					own: 0,
+					others: vec![],
+				},
+			);
+
+			// Check that the balances of all other validators are left intact.
+			for i in 1..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+		});
+	}
+
+	#[test]
+	fn double_vote_candidate_and_invalid_works() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
+		};
+
+		// Test that a Candidate and Invalid statements on the same candidate get slashed.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
+			start_era(1);
+
+			let authorities = Parachains::authorities();
+			let authority_index = 0;
+			let key = extract_key(authorities[authority_index].clone());
+
+			let statement_candidate = Statement::Candidate(candidate_hash);
+			let statement_invalid = Statement::Invalid(candidate_hash.clone());
+			let block_number = <system::Module<Test>>::block_number();
+			let parent_hash = <system::Module<Test>>::block_hash(block_number);
+
+			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
+			let payload_2 = localized_payload(statement_invalid.clone(), parent_hash);
+
+			let signature_1 = key.sign(&payload_1[..]).into();
+			let signature_2 = key.sign(&payload_2[..]).into();
+
+			let attestation_1 = ValidityAttestation::Implicit(signature_1);
+			let attestation_2 = ValidityAttestation::Explicit(signature_2);
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_candidate, attestation_1),
+				second: (statement_invalid, attestation_2),
+			};
+
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
+			assert_ok!(Parachains::dispatch(
+				report_double_vote(report).unwrap(),
+				Origin::signed(1),
+			));
+
+			start_era(2);
+
+			// Check that the balance of 0-th validator is slashed 100%.
+			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
+			assert_eq!(Staking::slashable_balance_of(&0), 0);
+
+			assert_eq!(
+				Staking::stakers(0),
+				staking::Exposure {
+					total: 0,
+					own: 0,
+					others: vec![],
+				},
+			);
+
+			// Check that the balances of all other validators are left intact.
+			for i in 1..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
+		});
+	}
+
+	#[test]
+	fn double_vote_valid_and_invalid_works() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
+		};
+
+		// Test that an Invalid and Valid statements on the same candidate get slashed.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
+			start_era(1);
+
+			let authorities = Parachains::authorities();
+			let authority_index = 0;
+			let key = extract_key(authorities[authority_index].clone());
+
+			let statement_invalid = Statement::Invalid(candidate_hash.clone());
+			let statement_valid = Statement::Valid(candidate_hash.clone());
+			let block_number = <system::Module<Test>>::block_number();
+			let parent_hash = <system::Module<Test>>::block_hash(block_number);
+
+			let payload_1 = localized_payload(statement_invalid.clone(), parent_hash);
+			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
+
+			let signature_1 = key.sign(&payload_1[..]).into();
+			let signature_2 = key.sign(&payload_2[..]).into();
+
+			let attestation_1 = ValidityAttestation::Explicit(signature_1);
+			let attestation_2 = ValidityAttestation::Explicit(signature_2);
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_invalid, attestation_1),
+				second: (statement_valid, attestation_2),
+			};
+
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
+			assert_ok!(Parachains::dispatch(
+				report_double_vote(report).unwrap(),
+				Origin::signed(1),
+			));
+
+			start_era(2);
+
+			// Check that the balance of 0-th validator is slashed 100%.
+			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
+			assert_eq!(Staking::slashable_balance_of(&0), 0);
+
+			assert_eq!(
+				Staking::stakers(0),
+				staking::Exposure {
+					total: 0,
+					own: 0,
+					others: vec![],
+				},
+			);
+
+			// Check that the balances of all other validators are left intact.
+			for i in 1..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::stakers(i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+		});
+	}
+
+	// Check that submitting the same report twice errors.
+	#[test]
+	fn double_vote_submit_twice_works() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
+		};
 
 		// Test that a Candidate and Valid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
@@ -2123,179 +2405,15 @@ mod tests {
 			}
 
 			assert_ok!(Parachains::dispatch(
-				report_double_vote(report),
+				report_double_vote(report.clone()).unwrap(),
 				Origin::signed(1),
 			));
 
-			start_era(2);
-
-			// Check that the balance of 0-th validator is slashed 100%.
-			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
-			assert_eq!(Staking::slashable_balance_of(&0), 0);
-
-			assert_eq!(
-				Staking::stakers(0),
-				staking::Exposure {
-					total: 0,
-					own: 0,
-					others: vec![],
-				},
+			assert!(Parachains::dispatch(
+					report_double_vote(report).unwrap(),
+					Origin::signed(1),
+				).is_err()
 			);
-
-			// Check that the balances of all other validators are left intact.
-			for i in 1..authorities.len() {
-				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
-				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
-
-				assert_eq!(
-					Staking::stakers(i as u64),
-					staking::Exposure {
-						total: 10_000,
-						own: 10_000,
-						others: vec![],
-					},
-				);
-			}
-		});
-
-		// Test that a Candidate and Invalid statements on the same candidate get slashed.
-		new_test_ext(parachains.clone()).execute_with(|| {
-			run_to_block(2);
-
-			let candidate = raw_candidate(1.into()).abridge().0;
-			let candidate_hash = candidate.hash();
-
-			start_era(1);
-
-			let authorities = Parachains::authorities();
-			let authority_index = 0;
-			let key = extract_key(authorities[authority_index].clone());
-
-			let statement_candidate = Statement::Candidate(candidate_hash);
-			let statement_invalid = Statement::Invalid(candidate_hash.clone());
-			let block_number = <system::Module<Test>>::block_number();
-			let parent_hash = <system::Module<Test>>::block_hash(block_number);
-
-			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
-			let payload_2 = localized_payload(statement_invalid.clone(), parent_hash);
-
-			let signature_1 = key.sign(&payload_1[..]).into();
-			let signature_2 = key.sign(&payload_2[..]).into();
-
-			let attestation_1 = ValidityAttestation::Implicit(signature_1);
-			let attestation_2 = ValidityAttestation::Explicit(signature_2);
-
-			let report = DoubleVoteReport {
-				identity: ValidatorId::from(key.public()),
-				first: (statement_candidate, attestation_1),
-				second: (statement_invalid, attestation_2),
-			};
-
-			// Check that in the beginning the genesis balances are there.
-			for i in 0..authorities.len() {
-				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
-				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
-
-				assert_eq!(
-					Staking::stakers(i as u64),
-					staking::Exposure {
-						total: 10_000,
-						own: 10_000,
-						others: vec![],
-					},
-				);
-			}
-
-			assert_ok!(Parachains::dispatch(
-				report_double_vote(report),
-				Origin::signed(1),
-			));
-
-			start_era(2);
-
-			// Check that the balance of 0-th validator is slashed 100%.
-			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
-			assert_eq!(Staking::slashable_balance_of(&0), 0);
-
-			assert_eq!(
-				Staking::stakers(0),
-				staking::Exposure {
-					total: 0,
-					own: 0,
-					others: vec![],
-				},
-			);
-
-			// Check that the balances of all other validators are left intact.
-			for i in 1..authorities.len() {
-				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
-				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
-
-				assert_eq!(
-					Staking::stakers(i as u64),
-					staking::Exposure {
-						total: 10_000,
-						own: 10_000,
-						others: vec![],
-					},
-				);
-			}
-
-		});
-
-
-		// Test that an Invalid and Valid statements on the same candidate get slashed.
-		new_test_ext(parachains.clone()).execute_with(|| {
-			run_to_block(2);
-
-			let candidate = raw_candidate(1.into()).abridge().0;
-			let candidate_hash = candidate.hash();
-
-			start_era(1);
-
-			let authorities = Parachains::authorities();
-			let authority_index = 0;
-			let key = extract_key(authorities[authority_index].clone());
-
-			let statement_invalid = Statement::Invalid(candidate_hash.clone());
-			let statement_valid = Statement::Valid(candidate_hash.clone());
-			let block_number = <system::Module<Test>>::block_number();
-			let parent_hash = <system::Module<Test>>::block_hash(block_number);
-
-			let payload_1 = localized_payload(statement_invalid.clone(), parent_hash);
-			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
-
-			let signature_1 = key.sign(&payload_1[..]).into();
-			let signature_2 = key.sign(&payload_2[..]).into();
-
-			let attestation_1 = ValidityAttestation::Explicit(signature_1);
-			let attestation_2 = ValidityAttestation::Explicit(signature_2);
-
-			let report = DoubleVoteReport {
-				identity: ValidatorId::from(key.public()),
-				first: (statement_invalid, attestation_1),
-				second: (statement_valid, attestation_2),
-			};
-
-			// Check that in the beginning the genesis balances are there.
-			for i in 0..authorities.len() {
-				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
-				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
-
-				assert_eq!(
-					Staking::stakers(i as u64),
-					staking::Exposure {
-						total: 10_000,
-						own: 10_000,
-						others: vec![],
-					},
-				);
-			}
-
-			assert_ok!(Parachains::dispatch(
-				report_double_vote(report),
-				Origin::signed(1),
-			));
 
 			start_era(2);
 
@@ -2328,4 +2446,64 @@ mod tests {
 			}
 		});
 	}
+
+	// Check that submitting invalid reports fail.
+	#[test]
+	fn double_vote_submit_invalid_works() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
+		};
+
+		// Test that a Candidate and Valid statements on the same candidate get slashed.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
+			assert_eq!(Staking::current_era(), 0);
+			assert_eq!(Session::current_index(), 0);
+
+			start_era(1);
+
+			let authorities = Parachains::authorities();
+			let authority_1_index = 0;
+			let authority_2_index = 1;
+			let key_1 = extract_key(authorities[authority_1_index].clone());
+			let key_2 = extract_key(authorities[authority_2_index].clone());
+
+			let statement_candidate = Statement::Candidate(candidate_hash.clone());
+			let statement_valid = Statement::Valid(candidate_hash.clone());
+			let block_number = <system::Module<Test>>::block_number();
+			let parent_hash = <system::Module<Test>>::block_hash(block_number);
+
+			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
+			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
+
+			let signature_1 = key_1.sign(&payload_1[..]).into();
+			let signature_2 = key_2.sign(&payload_2[..]).into();
+
+			let attestation_1 = ValidityAttestation::Implicit(signature_1);
+			let attestation_2 = ValidityAttestation::Explicit(signature_2);
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key_1.public()),
+				first: (statement_candidate, attestation_1),
+				second: (statement_valid, attestation_2),
+			};
+
+			assert_eq!(
+				report_double_vote(report.clone()),
+				Err(TransactionValidityError::Invalid(
+						InvalidTransaction::Custom(DoubleVoteValidityError::InvalidSignature as u8)
+					)
+				),
+			);
+		});
+	}
+
 }
