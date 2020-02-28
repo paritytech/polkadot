@@ -411,7 +411,7 @@ dependencies = [
  "futures-timer 3.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "js-sys 0.3.35 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-web 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2249,7 +2249,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p"
-version = "0.16.1"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bytes 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2262,10 +2262,10 @@ dependencies = [
  "libp2p-floodsub 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-gossipsub 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-identify 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p-kad 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p-kad 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-mdns 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-mplex 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p-noise 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p-noise 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-ping 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-plaintext 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-pnet 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2273,10 +2273,10 @@ dependencies = [
  "libp2p-swarm 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-tcp 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-uds 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p-wasm-ext 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p-wasm-ext 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-websocket 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p-yamux 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-multiaddr 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p-yamux 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-multiaddr 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-multihash 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pin-project 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2299,7 +2299,7 @@ dependencies = [
  "libsecp256k1 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "multistream-select 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-multiaddr 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-multiaddr 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-multihash 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pin-project 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2402,7 +2402,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-kad"
-version = "0.16.1"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2464,10 +2464,10 @@ dependencies = [
 
 [[package]]
 name = "libp2p-noise"
-version = "0.16.0"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "curve25519-dalek 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "curve25519-dalek 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libp2p-core 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2478,7 +2478,7 @@ dependencies = [
  "sha2 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "snow 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "static_assertions 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "x25519-dalek 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "x25519-dalek 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "zeroize 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -2595,7 +2595,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-wasm-ext"
-version = "0.16.1"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2628,7 +2628,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-yamux"
-version = "0.16.0"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3491,7 +3491,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "parity-multiaddr"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "arrayref 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4718,7 +4718,7 @@ dependencies = [
  "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-timer 3.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5150,7 +5150,7 @@ dependencies = [
  "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-timer 3.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures_codec 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "linked-hash-map 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "linked_hash_set 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5192,7 +5192,7 @@ dependencies = [
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-timer 3.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lru 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5233,7 +5233,7 @@ version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#6c0232b9a34d1680cf3d0f1e383edb6f8aa4dffa"
 dependencies = [
  "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.47 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-timer 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5321,7 +5321,7 @@ dependencies = [
  "grafana-data-source 0.8.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-multiaddr 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-multiaddr 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-util-mem 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5375,7 +5375,7 @@ dependencies = [
  "bytes 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-timer 3.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pin-project 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5892,7 +5892,7 @@ dependencies = [
  "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-diagnose 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-timer 3.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "libp2p 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libp2p 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -6879,7 +6879,7 @@ name = "twox-hash"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -7404,16 +7404,6 @@ dependencies = [
 
 [[package]]
 name = "x25519-dalek"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "clear_on_drop 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "curve25519-dalek 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand_core 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "x25519-dalek"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
@@ -7722,7 +7712,7 @@ dependencies = [
 "checksum leb128 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "3576a87f2ba00f6f106fdfcd16db1d698d648a26ad8e0573cad8537c3c362d2a"
 "checksum libc 0.2.66 (registry+https://github.com/rust-lang/crates.io-index)" = "d515b1f41455adea1313a4a2ac8a8a477634fbae63cc6100e3aebb207ce61558"
 "checksum libloading 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f2b111a074963af1d37a139918ac6d49ad1d0d5e47f72fd55388619691a7d753"
-"checksum libp2p 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f6bf152b510950e1030f2d3dcca5f0b4017892be50348a15fd3eec8b90c826fb"
+"checksum libp2p 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)" = "bba17ee9cac4bb89de5812159877d9b4f0a993bf41697a5a875940cd1eb71f24"
 "checksum libp2p-core 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3b874594c4b29de1a29f27871feba8e6cd13aa54a8a1e8f8c7cf3dfac5ca287c"
 "checksum libp2p-core-derive 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "96d472e9d522f588805c77801de10b957be84e10f019ca5f869fa1825b15ea9b"
 "checksum libp2p-deflate 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2e25004d4d9837b44b22c5f1a69be1724a5168fef6cff1716b5176a972c3aa62"
@@ -7730,10 +7720,10 @@ dependencies = [
 "checksum libp2p-floodsub 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1d3234f12e44f9a50351a9807b97fe7de11eb9ae4482370392ba10da6dc90722"
 "checksum libp2p-gossipsub 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d46cb3e0841bd951cbf4feae56cdc081e6347836a644fb260c3ec554149b4006"
 "checksum libp2p-identify 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bfeb935a9bd41263e4f3a24b988e9f4a044f3ae89ac284e83c17fe2f84e0d66b"
-"checksum libp2p-kad 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)" = "76c260a92309112fff855ab2bd8f26c246c1dd380b87021abe61358dedb9748d"
+"checksum libp2p-kad 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)" = "464dc8412978d40f0286be72ed9ab5e0e1386a4a06e7f174526739b5c3c1f041"
 "checksum libp2p-mdns 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "881fcfb360c2822db9f0e6bb6f89529621556ed9a8b038313414eda5107334de"
 "checksum libp2p-mplex 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d8507b37ad0eed275efcde67a023c3d85af6c80768b193845b9288e848e1af95"
-"checksum libp2p-noise 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ac7d33809afdf6794f09fdb2f9f94e1550ae230be5bae6430a078eb96fc9e5a6"
+"checksum libp2p-noise 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)" = "b15a8a3d71f898beb6f854c8aae27aa1d198e0d1f2e49412261c2d90ef39675a"
 "checksum libp2p-ping 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "33d22f2f228b3a828dca1cb8aa9fa331e0bc9c36510cb2c1916956e20dc85e8c"
 "checksum libp2p-plaintext 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "56126a204d7b3382bac163143ff4125a14570b3ba76ba979103d1ae1abed1923"
 "checksum libp2p-pnet 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b916938a8868f75180aeeffcc6a516a922d165e8fa2a90b57bad989d1ccbb57a"
@@ -7741,9 +7731,9 @@ dependencies = [
 "checksum libp2p-swarm 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)" = "275471e7c0e88ae004660866cd54f603bd8bd1f4caef541a27f50dd8640c4d4c"
 "checksum libp2p-tcp 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f9e80ad4e3535345f3d666554ce347d3100453775611c05c60786bf9a1747a10"
 "checksum libp2p-uds 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "76d329564a43da9d0e055a5b938633c4a8ceab1f59cec133fbc4647917c07341"
-"checksum libp2p-wasm-ext 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7d40c95ac1a9b7fb7770616e4165f34559885337f3be485b32acdd085261be3a"
+"checksum libp2p-wasm-ext 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)" = "923581c055bc4b8c5f42d4ce5ef43e52fe5216f1ea4bc26476cb8a966ce6220b"
 "checksum libp2p-websocket 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5351ca9eea122081c1c0f9323164d2918cac29b5a6bfe5054d4ba8ec9447cf42"
-"checksum libp2p-yamux 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f72aa5a7273c29c6eaea09108a49feaefc7456164863f64f86a193f9e78a4b7f"
+"checksum libp2p-yamux 0.16.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9dac30de24ccde0e67f363d71a125c587bbe6589503f664947e9b084b68a34f1"
 "checksum librocksdb-sys 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "0a0785e816e1e11e7599388a492c61ef80ddc2afc91e313e61662cce537809be"
 "checksum libsecp256k1 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)" = "1fc1e2c808481a63dc6da2074752fdd4336a3c8fcc68b83db6f1fd5224ae7962"
 "checksum libz-sys 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)" = "2eb5e43362e38e2bca2fd5f5134c4d4564a23a5c28e9b95411652021a8675ebe"
@@ -7820,7 +7810,7 @@ dependencies = [
 "checksum pallet-utility 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum pallet-vesting 2.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-master)" = "<none>"
 "checksum parity-bytes 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0c276d76c5333b8c2579e02d49a06733a55b8282d2d9b13e8d53b6406bd7e30a"
-"checksum parity-multiaddr 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)" = "26df883298bc3f4e92528b4c5cc9f806b791955b136da3e5e939ed9de0fd958b"
+"checksum parity-multiaddr 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)" = "f77055f9e81921a8cc7bebeb6cded3d128931d51f1e3dd6251f0770a6d431477"
 "checksum parity-multihash 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "7a1cd2ba02391b81367bec529fb209019d718684fdc8ad6a712c2b536e46f775"
 "checksum parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f747c06d9f3b2ad387ac881b9667298c81b1243aa9833f086e05996937c35507"
 "checksum parity-scale-codec-derive 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "34e513ff3e406f3ede6796dcdc83d0b32ffb86668cea1ccf7363118abeb00476"
@@ -8136,7 +8126,6 @@ dependencies = [
 "checksum winapi-x86_64-pc-windows-gnu 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 "checksum ws 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)" = "c51a2c47b5798ccc774ffb93ff536aec7c4275d722fd9c740c83cdd1af1f2d94"
 "checksum ws2_32-sys 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "d59cefebd0c892fa2dd6de581e937301d8552cb44489cdff035c6187cb63fa5e"
-"checksum x25519-dalek 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7ee1585dc1484373cbc1cee7aafda26634665cf449436fd6e24bfd1fad230538"
 "checksum x25519-dalek 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "637ff90c9540fa3073bb577e65033069e4bae7c79d49d74aa3ffdf5342a53217"
 "checksum xdg 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d089681aa106a86fade1b0128fb5daf07d5867a509ab036d99988dec80429a57"
 "checksum yamux 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "902f4cee32c401c211b6b69f4a3f6f4cf3515644db5bd822cf685a7dbd6201f9"
