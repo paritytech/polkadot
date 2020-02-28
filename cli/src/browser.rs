@@ -23,13 +23,13 @@ use service::IsKusama;
 ///
 /// You must pass a libp2p transport that supports .
 #[wasm_bindgen]
-pub async fn start_client(chain_spec: String, wasm_ext: browser_utils::Transport) -> Result<browser_utils::Client, JsValue> {
-	start_inner(chain_spec, wasm_ext)
+pub async fn start_client(chain_spec: String) -> Result<browser_utils::Client, JsValue> {
+	start_inner(chain_spec)
 		.await
 		.map_err(|err| JsValue::from_str(&err.to_string()))
 }
 
-async fn start_inner(chain_spec: String, wasm_ext: browser_utils::Transport) -> Result<browser_utils::Client, Box<dyn std::error::Error>> {
+async fn start_inner(chain_spec: String) -> Result<browser_utils::Client, Box<dyn std::error::Error>> {
 	browser_utils::set_console_error_panic_hook();
 	browser_utils::init_console_log(log::Level::Info)?;
 
@@ -37,7 +37,7 @@ async fn start_inner(chain_spec: String, wasm_ext: browser_utils::Transport) -> 
 		.ok_or_else(|| format!("Chain spec: {:?} doesn't exist.", chain_spec))?
 		.load()
 		.map_err(|e| format!("{:?}", e))?;
-	let config = browser_utils::browser_configuration(wasm_ext, chain_spec)
+	let config = browser_utils::browser_configuration(chain_spec)
 		.await?;
 
 	info!("Polkadot browser node");
