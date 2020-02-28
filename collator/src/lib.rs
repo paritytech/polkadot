@@ -444,7 +444,7 @@ pub fn run_collator<P>(
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	config: Configuration,
-) -> polkadot_cli::error::Result<()> where
+) -> polkadot_cli::Result<()> where
 	P: BuildParachainContext,
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,

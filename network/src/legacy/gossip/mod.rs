@@ -81,6 +81,7 @@ mod attestation;
 
 /// The engine ID of the polkadot attestation system.
 pub const POLKADOT_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"dot1";
+pub const POLKADOT_PROTOCOL_NAME: &[u8] = b"/polkadot/legacy/1";
 
 // arbitrary; in practice this should not be more than 2.
 pub(crate) const MAX_CHAIN_HEADS: usize = 5;
@@ -284,6 +285,7 @@ pub fn register_validator<C: ChainContext + 'static, S: NetworkSpecialization<Bl
 	let gossip_engine = sc_network_gossip::GossipEngine::new(
 		service.clone(),
 		POLKADOT_ENGINE_ID,
+		POLKADOT_PROTOCOL_NAME,
 		gossip_side,
 	);
 

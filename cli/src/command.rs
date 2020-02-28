@@ -21,33 +21,28 @@ use sp_api::ConstructRuntimeApi;
 use sc_executor::NativeExecutionDispatch;
 use crate::chain_spec::load_spec;
 use crate::cli::{Cli, Subcommand};
-use sc_cli::{VersionInfo, display_role, error};
+use sc_cli::VersionInfo;
 
 /// Parses polkadot specific CLI arguments and run the service.
-pub fn run(version: VersionInfo) -> error::Result<()> {
+pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 	let opt = sc_cli::from_args::<Cli>(&version);
 
-	let mut config = service::Configuration::new(&version);
+	let mut config = service::Configuration::from_version(&version);
 	config.impl_name = "parity-polkadot";
 
 	match opt.subcommand {
 		None => {
-			sc_cli::init(&opt.run.shared_params, &version)?;
-			sc_cli::init_config(&mut config, &opt.run.shared_params, &version, load_spec)?;
+			opt.run.init(&version)?;
+			opt.run.update_config(&mut config, load_spec, &version)?;
 
 			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
-
-			sc_cli::update_config_for_running_node(
-				&mut config,
-				opt.run,
-			)?;
 
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
 			info!("  by {}, 2017-2020", version.author);
 			info!("Chain specification: {}", config.expect_chain_spec().name());
 			info!("Node name: {}", config.name);
-			info!("Roles: {}", display_role(&config));
+			info!("Roles: {}", config.display_role());
 
 			if is_kusama {
 				info!("Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
@@ -73,8 +68,8 @@ pub fn run(version: VersionInfo) -> error::Result<()> {
 			}
 		},
 		Some(Subcommand::Base(cmd)) => {
-			sc_cli::init(cmd.get_shared_params(), &version)?;
-			sc_cli::init_config(&mut config, &cmd.get_shared_params(), &version, load_spec)?;
+			cmd.init(&version)?;
+			cmd.update_config(&mut config, load_spec, &version)?;
 
 			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
 
@@ -96,7 +91,7 @@ pub fn run(version: VersionInfo) -> error::Result<()> {
 			sc_cli::init_logger("");
 
 			if cfg!(feature = "browser") {
-				Err(error::Error::Input("Cannot run validation worker in browser".into()))
+				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
 			} else {
 				#[cfg(not(feature = "browser"))]
 				service::run_validation_worker(&args.mem_id)?;
@@ -109,7 +104,7 @@ pub fn run(version: VersionInfo) -> error::Result<()> {
 fn run_service_until_exit<R, D, E>(
 	config: service::Configuration,
 	authority_discovery_enabled: bool,
-) -> error::Result<()>
+) -> sc_cli::Result<()>
 where
 	R: ConstructRuntimeApi<Block, service::TFullClient<Block, R, D>>
 		+ Send + Sync + 'static,
