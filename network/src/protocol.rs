@@ -72,7 +72,7 @@ enum ServiceToWorkerMsg {
 	// service messages.
 	BuildConsensusNetworking(Arc<SharedTable>, Vec<ValidatorId>, oneshot::Sender<Router>),
 	DropConsensusNetworking(Hash),
-	LocalCollation(
+	SubmitValidatedCollation(
 		Hash, // relay-parent
 		AbridgedCandidateReceipt,
 		PoVBlock,
@@ -102,6 +102,10 @@ enum ServiceToWorkerMsg {
 	),
 	RegisterAvailabilityStore(
 		av_store::Store,
+	),
+	OurCollation(
+		HashSet<ValidatorId>,
+		Collation,
 	),
 }
 
@@ -706,13 +710,13 @@ async fn worker_loop<Api, Sp>(
 			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
 				consensus_instances.remove(&relay_parent);
 			}
-			ServiceToWorkerMsg::LocalCollation(relay_parent, receipt, pov_block, chunks) => {
+			ServiceToWorkerMsg::SubmitValidatedCollation(relay_parent, receipt, pov_block, chunks) => {
 				let instance = match consensus_instances.get(&relay_parent) {
 					None => continue,
 					Some(instance) => instance,
 				};
 
-				distribute_local_collation(
+				distribute_validated_collation(
 					instance,
 					receipt,
 					pov_block,
@@ -772,6 +776,10 @@ async fn worker_loop<Api, Sp>(
 			}
 			ServiceToWorkerMsg::RegisterAvailabilityStore(store) => {
 				gossip_handle.register_availability_store(store);
+			}
+			ServiceToWorkerMsg::OurCollation(targets, collation) => {
+				// put in local-collations and send to given validators.
+				unimplemented!();
 			}
 		}
 	}
@@ -950,7 +958,7 @@ async fn statement_import_loop<Api>(
 // distribute a "local collation": this is the collation gotten by a validator
 // from a collator. it needs to be distributed to other validators in the same
 // group.
-fn distribute_local_collation(
+fn distribute_validated_collation(
 	instance: &ConsensusNetworkingInstance,
 	receipt: AbridgedCandidateReceipt,
 	pov_block: PoVBlock,
@@ -1023,6 +1031,14 @@ impl Service {
 	pub fn register_availability_store(&self, store: av_store::Store) {
 		let _ = self.sender.clone()
 			.try_send(ServiceToWorkerMsg::RegisterAvailabilityStore(store));
+	}
+
+	/// Submit a collation that we (as a collator) have prepared to validators.
+	///
+	/// Provide a set of validator-IDs we should distribute to.
+	pub fn distribute_collation(&self, targets: HashSet<ValidatorId>, collation: Collation) {
+		let _ = self.sender.clone()
+			.try_send(ServiceToWorkerMsg::OurCollation(targets, collation));
 	}
 }
 
@@ -1124,7 +1140,7 @@ impl TableRouter for Router {
 		pov_block: PoVBlock,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
 	) -> Self::SendLocalCollation {
-		let message = ServiceToWorkerMsg::LocalCollation(
+		let message = ServiceToWorkerMsg::SubmitValidatedCollation(
 			self.inner.relay_parent.clone(),
 			receipt,
 			pov_block,

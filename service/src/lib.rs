@@ -205,14 +205,17 @@ pub fn polkadot_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 )
-	-> Result<impl AbstractService<
-		Block = Block,
-		RuntimeApi = polkadot_runtime::RuntimeApi,
-		NetworkSpecialization = StubSpecialization,
-		Backend = TFullBackend<Block>,
-		SelectChain = LongestChain<TFullBackend<Block>, Block>,
-		CallExecutor = TFullCallExecutor<Block, PolkadotExecutor>,
-	>, ServiceError>
+	-> Result<(
+		impl AbstractService<
+			Block = Block,
+			RuntimeApi = polkadot_runtime::RuntimeApi,
+			NetworkSpecialization = StubSpecialization,
+			Backend = TFullBackend<Block>,
+			SelectChain = LongestChain<TFullBackend<Block>, Block>,
+			CallExecutor = TFullCallExecutor<Block, PolkadotExecutor>,
+		>,
+		FullNodeHandles,
+	), ServiceError>
 {
 	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
 }
@@ -225,16 +228,26 @@ pub fn kusama_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 )
-	-> Result<impl AbstractService<
-		Block = Block,
-		RuntimeApi = kusama_runtime::RuntimeApi,
-		NetworkSpecialization = StubSpecialization,
-		Backend = TFullBackend<Block>,
-		SelectChain = LongestChain<TFullBackend<Block>, Block>,
-		CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
-	>, ServiceError>
+	-> Result<(
+		impl AbstractService<
+			Block = Block,
+			RuntimeApi = kusama_runtime::RuntimeApi,
+			NetworkSpecialization = StubSpecialization,
+			Backend = TFullBackend<Block>,
+			SelectChain = LongestChain<TFullBackend<Block>, Block>,
+			CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
+		>,
+		FullNodeHandles,
+	), ServiceError>
 {
 	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
+}
+
+/// Handles to other sub-services that full nodes instantiate, which consumers
+/// of the node may use.
+pub struct FullNodeHandles {
+	/// A handle to the Polkadot networking protocol.
+	pub polkadot_network: Option<network_protocol::Service>,
 }
 
 /// Builds a new service for a full client.
@@ -245,14 +258,17 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 )
-	-> Result<impl AbstractService<
-		Block = Block,
-		RuntimeApi = Runtime,
-		NetworkSpecialization = StubSpecialization,
-		Backend = TFullBackend<Block>,
-		SelectChain = LongestChain<TFullBackend<Block>, Block>,
-		CallExecutor = TFullCallExecutor<Block, Dispatch>,
-	>, ServiceError>
+	-> Result<(
+		impl AbstractService<
+			Block = Block,
+			RuntimeApi = Runtime,
+			NetworkSpecialization = StubSpecialization,
+			Backend = TFullBackend<Block>,
+			SelectChain = LongestChain<TFullBackend<Block>, Block>,
+			CallExecutor = TFullCallExecutor<Block, Dispatch>,
+		>,
+		FullNodeHandles,
+	), ServiceError>
 	where
 		Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
 		Runtime::RuntimeApi:
@@ -301,11 +317,13 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 
 	let client = service.client();
 	let known_oracle = client.clone();
+
+	let mut handles = FullNodeHandles { polkadot_network: None };
 	let select_chain = if let Some(select_chain) = service.select_chain() {
 		select_chain
 	} else {
 		info!("The node cannot start as an authority because it can't select chain.");
-		return Ok(service);
+		return Ok((service, handles));
 	};
 	let gossip_validator_select_chain = select_chain.clone();
 
@@ -476,7 +494,8 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		)?;
 	}
 
-	Ok(service)
+	handles.polkadot_network = Some(polkadot_network_service);
+	Ok((service, handles))
 }
 
 /// Create a new Polkadot service for a light client.
