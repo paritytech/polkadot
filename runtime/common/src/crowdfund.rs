@@ -598,7 +598,7 @@ mod tests {
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
-		type OnReapAccount = Balances;
+		type OnKilledAccount = Balances;
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 0;

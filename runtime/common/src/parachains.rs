@@ -1013,7 +1013,7 @@ mod tests {
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u128>;
 		type OnNewAccount = ();
-		type OnReapAccount = ();
+		type OnKilledAccount = ();
 	}
 
 	parameter_types! {
