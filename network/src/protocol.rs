@@ -43,7 +43,7 @@ use polkadot_validation::{
 use sc_network::{config::Roles, Event, PeerId};
 use sp_api::ProvideRuntimeApi;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::pin::Pin;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
@@ -353,6 +353,9 @@ impl RecentValidatorIds {
 struct ProtocolHandler {
 	service: Arc<PolkadotNetworkService>,
 	peers: HashMap<PeerId, PeerData>,
+	// reverse mapping from validator-ID to PeerID. Multiple peers can represent
+	// the same validator because of sentry nodes.
+	connected_validators: HashMap<ValidatorId, HashSet<PeerId>>,
 	collators: crate::legacy::collator_pool::CollatorPool,
 	local_collations: crate::legacy::local_collations::LocalCollations<Collation>,
 	config: Config,
@@ -366,6 +369,7 @@ impl ProtocolHandler {
 		ProtocolHandler {
 			service,
 			peers: HashMap::new(),
+			connected_validators: HashMap::new(),
 			collators: Default::default(),
 			local_collations: Default::default(),
 			config,
@@ -392,10 +396,16 @@ impl ProtocolHandler {
 	fn on_disconnect(&mut self, peer: PeerId) {
 		let mut new_primary = None;
 		if let Some(data) = self.peers.remove(&peer) {
+			// replace collator.
 			if let Some((collator_id, _)) = data.ready_and_collating_for() {
 				if self.collators.collator_id_to_peer_id(&collator_id) == Some(&peer) {
 					new_primary = self.collators.on_disconnect(collator_id);
 				}
+			}
+
+			// clean up stated validator IDs.
+			for validator_id in data.session_keys.as_slice().iter().cloned() {
+				self.validator_representative_removed(validator_id, &peer);
 			}
 		}
 
@@ -541,11 +551,12 @@ impl ProtocolHandler {
 			}
 		}
 
-		self.send_peer_collations(remote, collations_to_send);
+		send_peer_collations(&*self.service, remote, collations_to_send);
 	}
 
 	fn on_validator_id(&mut self, remote: PeerId, key: ValidatorId) {
 		let mut collations_to_send = Vec::new();
+		let mut invalidated_key = None;
 
 		{
 			let peer = match self.peers.get_mut(&remote) {
@@ -561,21 +572,29 @@ impl ProtocolHandler {
 				ProtocolState::Ready(_, _) => {
 					if let InsertedRecentKey::New(Some(last)) = peer.session_keys.insert(key.clone()) {
 						collations_to_send = self.local_collations.fresh_key(&last, &key);
+						invalidated_key = Some(last);
 					}
 				}
 			}
 		}
 
-		self.send_peer_collations(remote, collations_to_send);
+		if let Some(invalidated) = invalidated_key {
+			self.validator_representative_removed(invalidated, &remote);
+		}
+
+		send_peer_collations(&*self.service, remote, collations_to_send);
 	}
 
-	fn send_peer_collations(&self, remote: PeerId, collations: Vec<(Hash, Collation)>) {
-		for (relay_parent, collation) in collations {
-			self.service.write_notification(
-				remote.clone(),
-				POLKADOT_ENGINE_ID,
-				Message::Collation(relay_parent, collation).encode(),
-			);
+	// call when the given peer no longer represents the given validator key.
+	//
+	// this can occur when the peer advertises a new key, invalidating an old one,
+	// or when the peer disconnects.
+	fn validator_representative_removed(&mut self, validator_id: ValidatorId, peer_id: &PeerId) {
+		if let Entry::Occupied(mut entry) = self.connected_validators.entry(validator_id) {
+			entry.get_mut().remove(peer_id);
+			if entry.get().is_empty() {
+				let _ = entry.remove_entry();
+			}
 		}
 	}
 
@@ -614,6 +633,39 @@ impl ProtocolHandler {
 				));
 			}
 		}
+	}
+
+	// distribute our (as a collator node) collation to peers.
+	fn distribute_our_collation(&mut self, targets: HashSet<ValidatorId>, collation: Collation) {
+		let relay_parent = collation.info.relay_parent;
+		let distribution = self.local_collations.add_collation(relay_parent, targets, collation);
+
+		for (validator, collation) in distribution {
+			let validator_representatives = self.connected_validators.get(&validator)
+				.into_iter().flat_map(|reps| reps);
+
+			for remote in validator_representatives {
+				send_peer_collations(
+					&*self.service,
+					remote.clone(),
+					std::iter::once((relay_parent, collation.clone())),
+				);
+			}
+		}
+	}
+}
+
+fn send_peer_collations(
+	service: &PolkadotNetworkService,
+	remote: PeerId,
+	collations: impl IntoIterator<Item=(Hash, Collation)>,
+) {
+	for (relay_parent, collation) in collations {
+		service.write_notification(
+			remote.clone(),
+			POLKADOT_ENGINE_ID,
+			Message::Collation(relay_parent, collation).encode(),
+		);
 	}
 }
 
@@ -778,8 +830,7 @@ async fn worker_loop<Api, Sp>(
 				gossip_handle.register_availability_store(store);
 			}
 			ServiceToWorkerMsg::OurCollation(targets, collation) => {
-				// put in local-collations and send to given validators.
-				unimplemented!();
+				protocol_handler.distribute_our_collation(targets, collation);
 			}
 		}
 	}
