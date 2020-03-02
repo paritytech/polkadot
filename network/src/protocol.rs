@@ -107,6 +107,10 @@ enum ServiceToWorkerMsg {
 		HashSet<ValidatorId>,
 		Collation,
 	),
+	ListenCheckedStatements(
+		Hash, // relay-parent,
+		oneshot::Sender<Pin<Box<dyn Stream<Item = SignedStatement> + Send>>>,
+	),
 }
 
 /// An async handle to the network service.
@@ -832,6 +836,17 @@ async fn worker_loop<Api, Sp>(
 			ServiceToWorkerMsg::OurCollation(targets, collation) => {
 				protocol_handler.distribute_our_collation(targets, collation);
 			}
+			ServiceToWorkerMsg::ListenCheckedStatements(relay_parent, sender) => {
+				let topic = crate::legacy::gossip::attestation_topic(relay_parent);
+				let checked_messages = gossip_handle.gossip_messages_for(topic)
+					.filter_map(|msg| match msg.0 {
+						GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
+						_ => future::ready(None),
+					})
+					.boxed();
+
+				let _ = sender.send(checked_messages);
+			}
 		}
 	}
 }
@@ -1090,6 +1105,40 @@ impl Service {
 	pub fn distribute_collation(&self, targets: HashSet<ValidatorId>, collation: Collation) {
 		let _ = self.sender.clone()
 			.try_send(ServiceToWorkerMsg::OurCollation(targets, collation));
+	}
+
+	/// Returns a stream that listens for checked statements on a particular
+	/// relay chain parent hash.
+	///
+	/// Take care to drop the stream, as the sending side will not be cleaned
+	/// up until it is.
+	pub fn checked_statements(&self, relay_parent: Hash)
+		-> Pin<Box<dyn Stream<Item = SignedStatement>>> {
+		let (tx, rx) = oneshot::channel();
+		let mut sender = self.sender.clone();
+
+		let receive_stream = async move {
+			sender.send(
+				ServiceToWorkerMsg::ListenCheckedStatements(relay_parent, tx)
+			).map_err(future::Either::Left).await?;
+
+			rx.map_err(future::Either::Right).await
+		};
+
+		receive_stream
+			.map(|res| match res {
+				Ok(s) => s.left_stream(),
+				Err(e) => {
+					log::warn!(
+						target: "p_net",
+						"Polkadot network worker appears to be down: {:?}",
+						e,
+					);
+					stream::pending().right_stream()
+				}
+			})
+			.flatten_stream()
+			.boxed()
 	}
 }
 

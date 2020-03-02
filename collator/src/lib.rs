@@ -48,6 +48,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
+use std::pin::Pin;
 
 use futures::{future, Future, Stream, FutureExt, TryFutureExt, StreamExt, task::Spawn};
 use log::warn;
@@ -62,7 +63,7 @@ use polkadot_primitives::{
 };
 use polkadot_cli::{
 	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
-	service::{self, Roles, SelectChain}
+	service::{self, Roles}
 };
 use polkadot_network::PolkadotProtocol;
 pub use polkadot_cli::{VersionInfo, load_spec, service::Configuration};
@@ -80,12 +81,12 @@ pub trait Network: Send + Sync + Clone {
 	/// The returned stream will not terminate, so it is required to make sure that the stream is
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
-	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement>>;
+	fn checked_statements(&self, relay_parent: Hash) -> Pin<Box<dyn Stream<Item=SignedStatement>>>;
 }
 
 impl Network for polkadot_network::protocol::Service {
-	fn checked_statements(&self, relay_parent: Hash) -> Box<dyn Stream<Item=SignedStatement>> {
-		unimplemented!()
+	fn checked_statements(&self, relay_parent: Hash) -> Pin<Box<dyn Stream<Item=SignedStatement>>> {
+		polkadot_network::protocol::Service::checked_statements(self, relay_parent)
 	}
 }
 
@@ -244,31 +245,6 @@ fn run_collator_node<S, P, Extrinsic>(
 	};
 
 	let client = service.client();
-	let known_oracle = client.clone();
-	let select_chain = if let Some(select_chain) = service.select_chain() {
-		select_chain
-	} else {
-		return Err("The node cannot work because it can't select chain.".into())
-	};
-
-	let is_known = move |block_hash: &Hash| {
-		use consensus_common::BlockStatus;
-		use polkadot_network::legacy::gossip::Known;
-
-		match known_oracle.block_status(&BlockId::hash(*block_hash)) {
-			Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
-			Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-			Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) =>
-				match select_chain.leaves() {
-					Err(_) => None,
-					Ok(leaves) => if leaves.contains(block_hash) {
-						Some(Known::Leaf)
-					} else {
-						Some(Known::Old)
-					},
-				}
-		}
-	};
 
 	let parachain_context = match build_parachain_context.build(
 		client.clone(),
