@@ -75,7 +75,7 @@ pub use service::RuntimeApiCollection;
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// An abstraction over the `Network` with useful functions for a `Collator`.
-pub trait Network: Send + Sync + Clone {
+pub trait Network: Send + Sync {
 	/// Create a `Stream` of checked statements for the given `relay_parent`.
 	///
 	/// The returned stream will not terminate, so it is required to make sure that the stream is
@@ -125,7 +125,7 @@ pub trait BuildParachainContext {
 		self,
 		client: Arc<PolkadotClient<B, E, R>>,
 		spawner: SP,
-		network: impl Network,
+		network: impl Network + Clone + 'static,
 	) -> Result<Self::ParachainContext, ()>
 		where
 			PolkadotClient<B, E, R>: ProvideRuntimeApi<Block>,
