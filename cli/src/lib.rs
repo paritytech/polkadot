@@ -41,4 +41,4 @@ pub use command::*;
 pub use chain_spec::*;
 
 #[cfg(feature = "cli")]
-pub use sc_cli::{VersionInfo, error};
+pub use sc_cli::{VersionInfo, Error, Result};

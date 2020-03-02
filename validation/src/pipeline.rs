@@ -238,7 +238,7 @@ pub fn validate<'a>(
 	}
 
 	let params = ValidationParams {
-		parent_head: collation.head_data.0.clone(),
+		parent_head: local_validation.parent_head.0.clone(),
 		block_data: pov_block.block_data.0.clone(),
 	};
 
