@@ -204,8 +204,7 @@ pub async fn collate<P>(
 	Ok(collation)
 }
 
-/// Run the collator node using the given `service`.
-fn run_collator_node<S, P, Extrinsic>(
+fn build_collator_service<S, P, Extrinsic>(
 	service: (S, polkadot_service::FullNodeHandles),
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
@@ -331,6 +330,40 @@ fn run_collator_node<S, P, Extrinsic>(
 	Ok(service)
 }
 
+/// Async function that will run the collator node with the given `RelayChainContext` and `ParachainContext`
+/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
+pub async fn start_collator<P>(
+	build_parachain_context: P,
+	para_id: ParaId,
+	key: Arc<CollatorPair>,
+	config: Configuration,
+) -> Result<(), polkadot_service::Error>
+where
+	P: BuildParachainContext,
+	P::ParachainContext: Send + 'static,
+	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
+{
+	match (config.expect_chain_spec().is_kusama(), config.roles) {
+		(_, Roles::LIGHT) => return Err(
+			polkadot_service::Error::Other("light nodes are unsupported as collator".into())
+		).into(),
+		(true, _) =>
+			build_collator_service(
+				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+				para_id,
+				key,
+				build_parachain_context,
+			)?.await,
+		(false, _) =>
+			build_collator_service(
+				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+				para_id,
+				key,
+				build_parachain_context,
+			)?.await,
+	}
+}
+
 fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRoster) -> HashSet<ValidatorId> {
 	use polkadot_primitives::parachain::Chain;
 
@@ -342,7 +375,7 @@ fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRo
 }
 
 /// Run a collator node with the given `RelayChainContext` and `ParachainContext`
-/// build by the given `BuildParachainContext` and arguments to the underlying polkadot node.
+/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
 ///
 /// This function blocks until done.
 pub fn run_collator<P>(
@@ -350,18 +383,18 @@ pub fn run_collator<P>(
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	config: Configuration,
-) -> polkadot_cli::error::Result<()> where
+) -> polkadot_cli::Result<()> where
 	P: BuildParachainContext,
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
 	match (config.expect_chain_spec().is_kusama(), config.roles) {
 		(_, Roles::LIGHT) => return Err(
-			polkadot_cli::error::Error::Input("light nodes are unsupported as collator".into())
+			polkadot_cli::Error::Input("light nodes are unsupported as collator".into())
 		).into(),
 		(true, _) =>
 			sc_cli::run_service_until_exit(config, |config| {
-				run_collator_node(
+				build_collator_service(
 					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 					para_id,
 					key,
@@ -370,7 +403,7 @@ pub fn run_collator<P>(
 			}),
 		(false, _) =>
 			sc_cli::run_service_until_exit(config, |config| {
-				run_collator_node(
+				build_collator_service(
 					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
 					para_id,
 					key,
