@@ -16,7 +16,7 @@
 
 //! Module to process claims from Ethereum addresses.
 
-use rstd::prelude::*;
+use sp_std::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error};
 use frame_support::weights::SimpleDispatchInfo;
@@ -85,8 +85,8 @@ impl PartialEq for EcdsaSignature {
 	}
 }
 
-impl rstd::fmt::Debug for EcdsaSignature {
-	fn fmt(&self, f: &mut rstd::fmt::Formatter<'_>) -> rstd::fmt::Result {
+impl sp_std::fmt::Debug for EcdsaSignature {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
 		write!(f, "EcdsaSignature({:?})", &self.0[..])
 	}
 }
@@ -274,12 +274,36 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 	}
 }
 
+mod secp_utils {
+	use super::*;
+	use secp256k1;
+	use tiny_keccak::keccak256;
+
+	pub fn public(secret: &secp256k1::SecretKey) -> secp256k1::PublicKey {
+		secp256k1::PublicKey::from_secret_key(secret)
+	}
+	pub fn eth(secret: &secp256k1::SecretKey) -> EthereumAddress {
+		let mut res = EthereumAddress::default();
+		res.0.copy_from_slice(&keccak256(&public(secret).serialize()[1..65])[12..]);
+		res
+	}
+	pub fn sig<T: Trait>(secret: &secp256k1::SecretKey, what: &[u8]) -> EcdsaSignature {
+		let msg = keccak256(&<super::Module<T>>::ethereum_signable_message(&to_ascii_hex(what)[..]));
+		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), secret);
+		let mut r = [0u8; 65];
+		r[0..64].copy_from_slice(&sig.serialize()[..]);
+		r[64] = recovery_id.serialize();
+		EcdsaSignature(r)
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use secp256k1;
 	use tiny_keccak::keccak256;
 	use hex_literal::hex;
 	use super::*;
+	use secp_utils::*;
 
 	use sp_core::H256;
 	use codec::Encode;
@@ -365,22 +389,6 @@ mod tests {
 	}
 	fn bob() -> secp256k1::SecretKey {
 		secp256k1::SecretKey::parse(&keccak256(b"Bob")).unwrap()
-	}
-	fn public(secret: &secp256k1::SecretKey) -> secp256k1::PublicKey {
-		secp256k1::PublicKey::from_secret_key(secret)
-	}
-	fn eth(secret: &secp256k1::SecretKey) -> EthereumAddress {
-		let mut res = EthereumAddress::default();
-		res.0.copy_from_slice(&keccak256(&public(secret).serialize()[1..65])[12..]);
-		res
-	}
-	fn sig(secret: &secp256k1::SecretKey, what: &[u8]) -> EcdsaSignature {
-		let msg = keccak256(&Claims::ethereum_signable_message(&to_ascii_hex(what)[..]));
-		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), secret);
-		let mut r = [0u8; 65];
-		r[0..64].copy_from_slice(&sig.serialize()[..]);
-		r[64] = recovery_id.serialize();
-		EcdsaSignature(r)
 	}
 
 	// This function basically just builds a genesis storage key/value store according to
@@ -576,5 +584,29 @@ mod tests {
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 		});
+	}
+}
+
+mod benchmarking {
+	use super::*;
+	use system::RawOrigin;
+	use frame_benchmarking::{benchmarks, account};
+	use crate::claims::Call;
+
+	const SEED: u32 = 0;
+
+	benchmarks! {
+		_ {}
+
+		// claim {
+		// 	let account = account("user", 0, SEED);
+		// }: _(RawOrigin::None, account, signature)
+
+		mint_claim {
+			let account = account("user", 0, SEED);
+			let value = 1_000_000.into();
+			let vesting = None;
+		}: _(RawOrigin::Root, account, value, vesting)
+
 	}
 }
