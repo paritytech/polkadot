@@ -14,6 +14,36 @@
 //! Tests for the protocol.
 
 use super::*;
+use parking_lot::Mutex;
+
+struct MockNetworkOps {
+	recorded: Arc<Mutex<Recorded>>,
+}
+
+struct Recorded {
+	peer_reputations: HashMap<PeerId, i32>,
+	notifications: Vec<(PeerId, Message)>,
+}
+
+impl NetworkServiceOps for MockNetworkOps {
+	fn report_peer(&self, peer: PeerId, value: sc_network::ReputationChange) {
+		let mut recorded = self.recorded.lock();
+		let total_rep = recorded.peer_reputations.entry(peer).or_insert(0);
+
+		*total_rep = total_rep.saturating_add(value.value);
+	}
+
+	fn write_notification(
+		&self,
+		peer: PeerId,
+		engine_id: ConsensusEngineId,
+		notification: Vec<u8>,
+	) {
+		assert_eq!(engine_id, POLKADOT_ENGINE_ID);
+		let message = Message::decode(&mut &notification[..]).expect("invalid notification");
+		self.recorded.lock().notifications.push((peer, message));
+	}
+}
 
 #[test]
 fn router_inner_drop_sends_worker_message() {
