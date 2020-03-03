@@ -42,6 +42,7 @@ use polkadot_validation::{
 };
 use sc_network::{config::Roles, Event, PeerId};
 use sp_api::ProvideRuntimeApi;
+use sp_runtime::ConsensusEngineId;
 
 use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::pin::Pin;
@@ -58,11 +59,14 @@ pub const VERSION: u32 = 1;
 pub const MIN_SUPPORTED_VERSION: u32 = 1;
 
 /// The engine ID of the polkadot network protocol.
-pub const POLKADOT_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"dot2";
+pub const POLKADOT_ENGINE_ID: ConsensusEngineId = *b"dot2";
 /// The protocol name.
 pub const POLKADOT_PROTOCOL_NAME: &[u8] = b"/polkadot/1";
 
 pub use crate::legacy::gossip::ChainContext;
+
+#[cfg(test)]
+mod tests;
 
 // Messages from the service API or network adapter.
 enum ServiceToWorkerMsg {
@@ -113,13 +117,48 @@ enum ServiceToWorkerMsg {
 		Hash, // relay-parent,
 		oneshot::Sender<Pin<Box<dyn Stream<Item = SignedStatement> + Send>>>,
 	),
+
+	/// Used in tests to ensure that all other messages sent from the same
+	/// thread have been flushed. Also executes arbitrary logic with the protocl
+	/// handler.
+	#[cfg(test)]
+	Synchronize(Box<dyn FnOnce(&mut ProtocolHandler) + Send>),
+}
+
+/// Operations that a handle to an underlying network service should provide.
+pub trait NetworkServiceOps: Send + Sync {
+	/// Report the peer as having a particular positive or negative value.
+	fn report_peer(&self, peer: PeerId, value: sc_network::ReputationChange);
+
+	/// Write a notification to a given peer.
+	fn write_notification(
+		&self,
+		peer: PeerId,
+		engine_id: ConsensusEngineId,
+		notification: Vec<u8>,
+	);
+}
+
+impl NetworkServiceOps for PolkadotNetworkService {
+	fn report_peer(&self, peer: PeerId, value: sc_network::ReputationChange) {
+		PolkadotNetworkService::report_peer(self, peer, value);
+	}
+
+	fn write_notification(
+		&self,
+		peer: PeerId,
+		engine_id: ConsensusEngineId,
+		notification: Vec<u8>,
+	) {
+		PolkadotNetworkService::write_notification(self, peer, engine_id, notification);
+	}
 }
 
 /// An async handle to the network service.
 #[derive(Clone)]
 pub struct Service {
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
-	network_service: Arc<PolkadotNetworkService>,
+	network_service: Arc<dyn NetworkServiceOps>,
 }
 
 /// Registers the protocol.
@@ -356,7 +395,7 @@ impl RecentValidatorIds {
 }
 
 struct ProtocolHandler {
-	service: Arc<PolkadotNetworkService>,
+	service: Arc<dyn NetworkServiceOps>,
 	peers: HashMap<PeerId, PeerData>,
 	// reverse mapping from validator-ID to PeerID. Multiple peers can represent
 	// the same validator because of sentry nodes.
@@ -368,7 +407,7 @@ struct ProtocolHandler {
 
 impl ProtocolHandler {
 	fn new(
-		service: Arc<PolkadotNetworkService>,
+		service: Arc<dyn NetworkServiceOps>,
 		config: Config,
 	) -> Self {
 		ProtocolHandler {
@@ -661,7 +700,7 @@ impl ProtocolHandler {
 }
 
 fn send_peer_collations(
-	service: &PolkadotNetworkService,
+	service: &dyn NetworkServiceOps,
 	remote: PeerId,
 	collations: impl IntoIterator<Item=(Hash, Collation)>,
 ) {
@@ -676,7 +715,7 @@ fn send_peer_collations(
 
 async fn worker_loop<Api, Sp>(
 	config: Config,
-	service: Arc<PolkadotNetworkService>,
+	service: Arc<dyn NetworkServiceOps>,
 	gossip_handle: RegisteredMessageValidator,
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
 	api: Arc<Api>,
@@ -847,6 +886,10 @@ async fn worker_loop<Api, Sp>(
 					.boxed();
 
 				let _ = sender.send(checked_messages);
+			}
+			#[cfg(test)]
+			ServiceToWorkerMsg::Synchronize(callback) => {
+				(callback)(&mut protocol_handler)
 			}
 		}
 	}
@@ -1141,6 +1184,29 @@ impl Service {
 			.flatten_stream()
 			.boxed()
 	}
+
+	/// Synchronizes the worker thread. Executes the callback in the worker's
+	/// context, and returns a future that resolves once it's been executed.
+	#[cfg(test)]
+	fn synchronize<T: Send + 'static>(
+		&self,
+		callback: impl FnOnce(&mut ProtocolHandler) -> T + Send + 'static,
+	) -> impl Future<Output = T> {
+		let (tx, rx) = oneshot::channel();
+		let mut sender = self.sender.clone();
+
+		async move {
+			let msg = ServiceToWorkerMsg::Synchronize(Box::new(move |proto| {
+				let res = callback(proto);
+				if let Err(_) = tx.send(res) {
+					log::warn!(target: "p_net", "Failed to send synchronization result");
+				}
+			}));
+
+			sender.send(msg).await.expect("Worker thread unexpectedly hung up");
+			rx.await.expect("Worker thread failed to send back result")
+		}
+	}
 }
 
 impl ParachainNetwork for Service {
@@ -1266,26 +1332,5 @@ impl TableRouter for Router {
 			sender.send(message).await?;
 			rx.map_err(Into::into).await
 		})
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn router_inner_drop_sends_worker_message() {
-		let parent = [1; 32].into();
-
-		let (sender, mut receiver) = mpsc::channel(0);
-		drop(RouterInner {
-			relay_parent: parent,
-			sender,
-		});
-
-		match receiver.try_next() {
-			Ok(Some(ServiceToWorkerMsg::DropConsensusNetworking(x))) => assert_eq!(parent, x),
-			_ => panic!("message not sent"),
-		}
 	}
 }
