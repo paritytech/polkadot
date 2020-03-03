@@ -251,6 +251,14 @@ impl sp_externalities::Externalities for ValidationExternalities {
 	fn next_storage_key(&self, _: &[u8]) -> Option<Vec<u8>> {
 		panic!("next_storage_key: unsupported feature for parachain validation")
 	}
+
+	fn wipe(&mut self) {
+		panic!("wipe: unsupported feature for parachain validation")
+	}
+
+	fn commit(&mut self) {
+		panic!("commit: unsupported feature for parachain validation")
+	}
 }
 
 impl sp_externalities::ExtensionStore for ValidationExternalities {
