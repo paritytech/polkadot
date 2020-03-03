@@ -59,6 +59,8 @@ pub const MIN_SUPPORTED_VERSION: u32 = 1;
 
 /// The engine ID of the polkadot network protocol.
 pub const POLKADOT_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"dot2";
+/// The protocol name.
+pub const POLKADOT_PROTOCOL_NAME: &[u8] = b"dot2-proto";
 
 pub use crate::legacy::gossip::ChainContext;
 
@@ -139,6 +141,7 @@ pub fn start<C, Api, SP>(
 	const SERVICE_TO_WORKER_BUF: usize = 256;
 
 	let mut event_stream = service.event_stream();
+	service.register_notifications_protocol(POLKADOT_ENGINE_ID, POLKADOT_PROTOCOL_NAME);
 	let (mut worker_sender, worker_receiver) = mpsc::channel(SERVICE_TO_WORKER_BUF);
 
 	let gossip_validator = crate::legacy::gossip::register_validator(
