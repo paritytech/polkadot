@@ -342,6 +342,30 @@ struct ConsensusNetworkingInstance {
 	_drop_signal: exit_future::Signal,
 }
 
+type RegisteredMessageValidator = crate::legacy::gossip::RegisteredMessageValidator<crate::PolkadotProtocol>;
+
+/// A utility future that resolves when the receiving end of a channel has hung up.
+///
+/// This is an `.await`-friendly interface around `poll_canceled`.
+// TODO: remove in favor of https://github.com/rust-lang/futures-rs/pull/2092/
+// once published.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+#[derive(Debug)]
+pub struct AwaitCanceled<'a, T> {
+	inner: &'a mut oneshot::Sender<T>,
+}
+
+impl<T> Future for AwaitCanceled<'_, T> {
+	type Output = ();
+
+	fn poll(
+		mut self: Pin<&mut Self>,
+		cx: &mut futures::task::Context<'_>,
+	) -> futures::task::Poll<()> {
+		self.inner.poll_canceled(cx)
+	}
+}
+
 /// Protocol configuration.
 #[derive(Default)]
 pub struct Config {
@@ -823,7 +847,7 @@ async fn worker_loop<Api, Sp>(
 				// TODO https://github.com/paritytech/polkadot/issues/742:
 				// create a filter on gossip for it and send to sender.
 			}
-			ServiceToWorkerMsg::FetchErasureChunk(candidate_hash, validator_index, sender) => {
+			ServiceToWorkerMsg::FetchErasureChunk(candidate_hash, validator_index, mut sender) => {
 				let topic = crate::erasure_coding_topic(&candidate_hash);
 
 				// for every erasure-root, relay-parent pair, there should only be one
@@ -848,8 +872,10 @@ async fn worker_loop<Api, Sp>(
 					));
 
 				let _ = executor.spawn(async move {
-					let chunk = get_msg.await;
-					let _ = sender.send(chunk);
+					let res = future::select(get_msg, AwaitCanceled { inner: &mut sender}).await;
+					if let Either::Left((chunk, _)) = res {
+						let _ = sender.send(chunk);
+					}
 				});
 			}
 			ServiceToWorkerMsg::DistributeErasureChunk(candidate_hash, erasure_chunk) => {
