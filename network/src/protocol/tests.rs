@@ -16,6 +16,18 @@
 use super::*;
 use parking_lot::Mutex;
 
+use polkadot_primitives::{Block, Header, BlockId};
+use polkadot_primitives::parachain::{
+	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
+	Retriable, CollatorId, AbridgedCandidateReceipt,
+	GlobalValidationSchedule, LocalValidationData,
+};
+use sp_blockchain::Result as ClientResult;
+use sp_api::{ApiRef, Core, RuntimeVersion, StorageProof, ApiErrorExt, ApiExt, ProvideRuntimeApi};
+use sp_runtime::traits::{Block as BlockT, HasherFor, NumberFor};
+use sp_state_machine::ChangesTrieState;
+use sp_core::{NativeOrEncoded, ExecutionContext};
+
 struct MockNetworkOps {
 	recorded: Arc<Mutex<Recorded>>,
 }
@@ -45,6 +57,174 @@ impl NetworkServiceOps for MockNetworkOps {
 	}
 }
 
+#[derive(Default)]
+struct ApiData {
+	validators: Vec<ValidatorId>,
+	duties: Vec<Chain>,
+	active_parachains: Vec<(ParaId, Option<(CollatorId, Retriable)>)>,
+}
+
+#[derive(Default, Clone)]
+struct TestApi {
+	data: Arc<Mutex<ApiData>>,
+}
+
+struct RuntimeApi {
+	data: Arc<Mutex<ApiData>>,
+}
+
+impl ProvideRuntimeApi<Block> for TestApi {
+	type Api = RuntimeApi;
+
+	fn runtime_api<'a>(&'a self) -> ApiRef<'a, Self::Api> {
+		RuntimeApi { data: self.data.clone() }.into()
+	}
+}
+
+impl Core<Block> for RuntimeApi {
+	fn Core_version_runtime_api_impl(
+		&self,
+		_: &BlockId,
+		_: ExecutionContext,
+		_: Option<()>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<RuntimeVersion>> {
+		unimplemented!("Not required for testing!")
+	}
+
+	fn Core_execute_block_runtime_api_impl(
+		&self,
+		_: &BlockId,
+		_: ExecutionContext,
+		_: Option<Block>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<()>> {
+		unimplemented!("Not required for testing!")
+	}
+
+	fn Core_initialize_block_runtime_api_impl(
+		&self,
+		_: &BlockId,
+		_: ExecutionContext,
+		_: Option<&Header>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<()>> {
+		unimplemented!("Not required for testing!")
+	}
+}
+
+impl ApiErrorExt for RuntimeApi {
+	type Error = sp_blockchain::Error;
+}
+
+impl ApiExt<Block> for RuntimeApi {
+	type StateBackend = sp_state_machine::InMemoryBackend<sp_api::HasherFor<Block>>;
+
+	fn map_api_result<F: FnOnce(&Self) -> Result<R, E>, R, E>(
+		&self,
+		_: F
+	) -> Result<R, E> {
+		unimplemented!("Not required for testing!")
+	}
+
+	fn runtime_version_at(&self, _: &BlockId) -> ClientResult<RuntimeVersion> {
+		unimplemented!("Not required for testing!")
+	}
+
+	fn record_proof(&mut self) { }
+
+	fn extract_proof(&mut self) -> Option<StorageProof> {
+		None
+	}
+
+	fn into_storage_changes(
+		&self,
+		_: &Self::StateBackend,
+		_: Option<&ChangesTrieState<HasherFor<Block>, NumberFor<Block>>>,
+		_: <Block as sp_api::BlockT>::Hash,
+	) -> std::result::Result<sp_api::StorageChanges<Self::StateBackend, Block>, String>
+		where Self: Sized
+	{
+		unimplemented!("Not required for testing!")
+	}
+}
+
+impl ParachainHost<Block> for RuntimeApi {
+	fn ParachainHost_validators_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_: Option<()>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<Vec<ValidatorId>>> {
+		Ok(NativeOrEncoded::Native(self.data.lock().validators.clone()))
+	}
+
+	fn ParachainHost_duty_roster_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_: Option<()>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<DutyRoster>> {
+
+		Ok(NativeOrEncoded::Native(DutyRoster {
+			validator_duty: self.data.lock().duties.clone(),
+		}))
+	}
+
+	fn ParachainHost_active_parachains_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_: Option<()>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<Vec<(ParaId, Option<(CollatorId, Retriable)>)>>> {
+		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
+	}
+
+	fn ParachainHost_parachain_code_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_: Option<ParaId>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<Option<Vec<u8>>>> {
+		Ok(NativeOrEncoded::Native(Some(Vec::new())))
+	}
+
+	fn ParachainHost_global_validation_schedule_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_: Option<()>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<GlobalValidationSchedule>> {
+		Ok(NativeOrEncoded::Native(Default::default()))
+	}
+
+	fn ParachainHost_local_validation_data_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_: Option<ParaId>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<Option<LocalValidationData>>> {
+		Ok(NativeOrEncoded::Native(Some(Default::default())))
+	}
+
+	fn ParachainHost_get_heads_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_extrinsics: Option<Vec<<Block as BlockT>::Extrinsic>>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<Option<Vec<AbridgedCandidateReceipt>>>> {
+		Ok(NativeOrEncoded::Native(Some(Vec::new())))
+	}
+}
+
+
 #[test]
 fn router_inner_drop_sends_worker_message() {
 	let parent = [1; 32].into();
@@ -59,4 +239,19 @@ fn router_inner_drop_sends_worker_message() {
 		Ok(Some(ServiceToWorkerMsg::DropConsensusNetworking(x))) => assert_eq!(parent, x),
 		_ => panic!("message not sent"),
 	}
+}
+
+#[test]
+fn erasure_chunk_receiver_drop_cancels_gossip_listen() {
+	let mut pool = futures::executor::LocalPool::new();
+
+	// worker_loop<Api, Sp>(
+	// 	config: Config,
+	// 	service: Arc<dyn NetworkServiceOps>,
+	// 	gossip_handle: RegisteredMessageValidator,
+	// 	sender: mpsc::Sender<ServiceToWorkerMsg>,
+	// 	api: Arc<Api>,
+	// 	mut receiver: mpsc::Receiver<ServiceToWorkerMsg>,
+	// 	executor: Sp,
+	// )
 }
