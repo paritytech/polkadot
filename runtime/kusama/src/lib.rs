@@ -53,6 +53,7 @@ use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use system::offchain::TransactionSubmitter;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use session::{historical as session_historical};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -473,7 +474,11 @@ impl parachains::Trait for Runtime {
 	type Registrar = Registrar;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadDataSize = MaxHeadDataSize;
-	type ReportDoubleVote = Offences;
+	type HandleDoubleVote = parachains::DoubleVoteHandler<
+		Historical,
+		Offences,
+		parachains::DoubleVoteOffence<session_historical::IdentificationTuple<Self>>,
+	>;
 }
 
 parameter_types! {
@@ -626,6 +631,7 @@ construct_runtime! {
 		Authorship: authorship::{Module, Call, Storage},
 		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>},
 		Offences: offences::{Module, Call, Storage, Event},
+		Historical: session_historical::{Module},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},

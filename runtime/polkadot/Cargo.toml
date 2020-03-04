@@ -46,7 +46,7 @@ membership = { package = "pallet-membership", git = "https://github.com/parityte
 nicks = { package = "pallet-nicks", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-session = { package = "pallet-session", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+session = { package = "pallet-session", features = [ "historical" ], git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }

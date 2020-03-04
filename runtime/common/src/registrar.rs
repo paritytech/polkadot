@@ -818,7 +818,7 @@ mod tests {
 		type Randomness = RandomnessCollectiveFlip;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
-		type ReportDoubleVote = ();
+		type HandleDoubleVote = ();
 	}
 
 	parameter_types! {
