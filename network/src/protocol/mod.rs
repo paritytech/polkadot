@@ -79,13 +79,11 @@ enum ServiceToWorkerMsg {
 	BuildConsensusNetworking(Arc<SharedTable>, Vec<ValidatorId>, oneshot::Sender<Router>),
 	DropConsensusNetworking(Hash),
 	SubmitValidatedCollation(
-		Hash, // relay-parent
 		AbridgedCandidateReceipt,
 		PoVBlock,
 		(ValidatorIndex, Vec<ErasureChunk>),
 	),
 	FetchPoVBlock(
-		Hash, // relay-parent
 		AbridgedCandidateReceipt,
 		oneshot::Sender<PoVBlock>,
 	),
@@ -806,7 +804,8 @@ async fn worker_loop<Api, Sp>(
 			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
 				consensus_instances.remove(&relay_parent);
 			}
-			ServiceToWorkerMsg::SubmitValidatedCollation(relay_parent, receipt, pov_block, chunks) => {
+			ServiceToWorkerMsg::SubmitValidatedCollation(receipt, pov_block, chunks) => {
+				let relay_parent = receipt.relay_parent;
 				let instance = match consensus_instances.get(&relay_parent) {
 					None => continue,
 					Some(instance) => instance,
@@ -820,7 +819,7 @@ async fn worker_loop<Api, Sp>(
 					&gossip_handle,
 				);
 			}
-			ServiceToWorkerMsg::FetchPoVBlock(_relay_parent, _candidate, _sender) => {
+			ServiceToWorkerMsg::FetchPoVBlock(_candidate, _sender) => {
 				// TODO https://github.com/paritytech/polkadot/issues/742:
 				// create a filter on gossip for it and send to sender.
 			}
@@ -1294,6 +1293,8 @@ pub enum RouterError {
 	Canceled(oneshot::Canceled),
 	#[display(fmt = "Could not reach worker with request: {}", _0)]
 	SendError(mpsc::SendError),
+	#[display(fmt = "Provided candidate receipt does not have expected relay parent {}", _0)]
+	IncorrectRelayParent(Hash),
 }
 
 impl TableRouter for Router {
@@ -1307,8 +1308,13 @@ impl TableRouter for Router {
 		pov_block: PoVBlock,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
 	) -> Self::SendLocalCollation {
+		if receipt.relay_parent != self.inner.relay_parent {
+			return Box::pin(
+				future::ready(Err(RouterError::IncorrectRelayParent(self.inner.relay_parent)))
+			);
+		}
+
 		let message = ServiceToWorkerMsg::SubmitValidatedCollation(
-			self.inner.relay_parent.clone(),
 			receipt,
 			pov_block,
 			(chunks.0, chunks.1.to_vec()),
@@ -1320,9 +1326,14 @@ impl TableRouter for Router {
 	}
 
 	fn fetch_pov_block(&self, candidate: &AbridgedCandidateReceipt) -> Self::FetchValidationProof {
+		if candidate.relay_parent != self.inner.relay_parent {
+			return Box::pin(
+				future::ready(Err(RouterError::IncorrectRelayParent(self.inner.relay_parent)))
+			);
+		}
+
 		let (tx, rx) = oneshot::channel();
 		let message = ServiceToWorkerMsg::FetchPoVBlock(
-			self.inner.relay_parent.clone(),
 			candidate.clone(),
 			tx,
 		);
