@@ -587,28 +587,99 @@ mod tests {
 
 mod benchmarking {
 	use super::*;
+	use secp_utils::*;
 	use system::RawOrigin;
-	use frame_benchmarking::{benchmarks, account};
+	use frame_benchmarking::{benchmarks, account, BenchmarkResults, BenchmarkParameter};
+	use sp_runtime::DispatchResult;
 	use crate::claims::Call;
 
 	const SEED: u32 = 0;
 
+	const MAX_CLAIMS: u32 = 10_000;
+	const VALUE: u32 = 1_000_000;
+
+	fn create_claim<T: Trait>(input: u32) -> DispatchResult {
+		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
+		let eth_address = eth(&secret_key);
+		let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+		super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting)?;
+		Ok(())
+	}
+
+	fn benchmark_keccak256<T>(steps: Vec<u32>, repeat: u32) -> Result<Vec<BenchmarkResults>, &'static str> {
+		let mut results: Vec<BenchmarkResults> = Vec::new();
+	
+		let s = if steps.is_empty() { 10 } else { steps[0] };
+	
+		for step in 0 .. s {
+			let start = frame_benchmarking::benchmarking::current_time();
+			for index in 0 .. repeat {
+				let _hash = keccak_256(&(step, index).encode());
+			}
+			let finish = frame_benchmarking::benchmarking::current_time();
+			let elapsed = finish - start;
+		
+			results.push((vec![(BenchmarkParameter::r, repeat)], elapsed, 0));
+		}
+	
+		return Ok(results)
+	}
+
+	fn benchmark_eth_recover<T: Trait>(steps: Vec<u32>, repeat: u32) -> Result<Vec<BenchmarkResults>, &'static str> {
+		let mut results: Vec<BenchmarkResults> = Vec::new();
+	
+		let s = if steps.is_empty() { 10 } else { steps[0] };
+	
+		for step in 0 .. s {
+			// Crate signature
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&step.encode())).unwrap();
+			let account: T::AccountId = account("user", step, SEED);
+			let signature = sig::<T>(&secret_key, &account.encode());
+
+			// Start benchmark
+			let start = frame_benchmarking::benchmarking::current_time();
+			for _ in 0 .. repeat {
+				let data = account.using_encoded(to_ascii_hex);
+				let _maybe_signer = super::Module::<T>::eth_recover(&signature, &data);
+			}
+			let finish = frame_benchmarking::benchmarking::current_time();
+			let elapsed = finish - start;
+		
+			results.push((vec![(BenchmarkParameter::r, repeat)], elapsed, 0));
+		}
+	
+		return Ok(results)
+	}
+
 	benchmarks! {
-		_ {}
+		_ {
+			// Create claims in storage.
+			let c in 0 .. MAX_CLAIMS => create_claim::<T>(c)?;
+		}
 
-		// claim {
-		// 	let u in 0 .. 100;
-		// 	let secret_key = secp256k1::SecretKey::parse(&keccak_256(u)).unwrap()
-		// 	let eth_address = eth(secret_key);
+		// Benchmark `claim` for different users.
+		claim {
+			let u in 0 .. 1000;
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&u.encode())).unwrap();
+			let eth_address = eth(&secret_key);
+			let account: T::AccountId = account("user", u, SEED);
+			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+			let signature = sig::<T>(&secret_key, &account.encode());
+			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting)?;
+		}: _(RawOrigin::None, account, signature)
 
-		// 	let account = account("user", 0, SEED);
-		// }: _(RawOrigin::None, account, signature)
-
+		// Benchmark `mint_claim` when there already exists `c` claims in storage.
 		mint_claim {
-			let account = account("user", 0, SEED);
-			let value = 1_000_000.into();
-			let vesting = None;
-		}: _(RawOrigin::Root, account, value, vesting)
+			let c in ...;
+			let account = account("user", c, SEED);
+			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+		}: _(RawOrigin::Root, account, VALUE.into(), vesting)
+
+		// Benchmark the time it takes to do `repeat` number of keccak256 hashes
+		benchmark_keccak256(steps, repeat)
+
+		// Benchmark the time it takes to do `repeat` number of `eth_recover` 
+		benchmark_eth_recover(steps, repeat)
 
 	}
 }
