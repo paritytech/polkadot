@@ -143,7 +143,6 @@ pub fn validate_candidate<E: Externalities + 'static>(
 /// The host functions provided by the wasm executor to the parachain wasm blob.
 type HostFunctions = (
 	sp_io::SubstrateHostFunctions,
-	sc_executor::deprecated_host_interface::SubstrateExternals,
 	crate::wasm_api::parachain::HostFunctions,
 );
 
@@ -250,6 +249,14 @@ impl sp_externalities::Externalities for ValidationExternalities {
 
 	fn next_storage_key(&self, _: &[u8]) -> Option<Vec<u8>> {
 		panic!("next_storage_key: unsupported feature for parachain validation")
+	}
+
+	fn wipe(&mut self) {
+		panic!("wipe: unsupported feature for parachain validation")
+	}
+
+	fn commit(&mut self) {
+		panic!("commit: unsupported feature for parachain validation")
 	}
 }
 

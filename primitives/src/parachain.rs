@@ -16,8 +16,8 @@
 
 //! Polkadot parachain types.
 
-use rstd::prelude::*;
-use rstd::cmp::Ordering;
+use sp_std::prelude::*;
+use sp_std::cmp::Ordering;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 use super::{Hash, Balance};
@@ -646,7 +646,7 @@ pub struct FeeSchedule {
 impl FeeSchedule {
 	/// Compute the fee for a message of given size.
 	pub fn compute_fee(&self, n_bytes: usize) -> Balance {
-		use rstd::mem;
+		use sp_std::mem;
 		debug_assert!(mem::size_of::<Balance>() >= mem::size_of::<usize>());
 
 		let n_bytes = n_bytes as Balance;

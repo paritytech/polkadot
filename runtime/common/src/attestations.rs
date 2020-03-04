@@ -19,7 +19,7 @@
 //! In the future, it is planned that this module will handle dispute resolution
 //! as well.
 
-use rstd::prelude::*;
+use sp_std::prelude::*;
 use codec::{Encode, Decode};
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, traits::Get

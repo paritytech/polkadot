@@ -277,18 +277,17 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 mod secp_utils {
 	use super::*;
 	use secp256k1;
-	use tiny_keccak::keccak256;
 
 	pub fn public(secret: &secp256k1::SecretKey) -> secp256k1::PublicKey {
 		secp256k1::PublicKey::from_secret_key(secret)
 	}
 	pub fn eth(secret: &secp256k1::SecretKey) -> EthereumAddress {
 		let mut res = EthereumAddress::default();
-		res.0.copy_from_slice(&keccak256(&public(secret).serialize()[1..65])[12..]);
+		res.0.copy_from_slice(&keccak_256(&public(secret).serialize()[1..65])[12..]);
 		res
 	}
 	pub fn sig<T: Trait>(secret: &secp256k1::SecretKey, what: &[u8]) -> EcdsaSignature {
-		let msg = keccak256(&<super::Module<T>>::ethereum_signable_message(&to_ascii_hex(what)[..]));
+		let msg = keccak_256(&<super::Module<T>>::ethereum_signable_message(&to_ascii_hex(what)[..]));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), secret);
 		let mut r = [0u8; 65];
 		r[0..64].copy_from_slice(&sig.serialize()[..]);
@@ -300,7 +299,6 @@ mod secp_utils {
 #[cfg(test)]
 mod tests {
 	use secp256k1;
-	use tiny_keccak::keccak256;
 	use hex_literal::hex;
 	use super::*;
 	use secp_utils::*;
@@ -385,10 +383,10 @@ mod tests {
 	type Claims = Module<Test>;
 
 	fn alice() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak256(b"Alice")).unwrap()
+		secp256k1::SecretKey::parse(&keccak_256(b"Alice")).unwrap()
 	}
 	fn bob() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak256(b"Bob")).unwrap()
+		secp256k1::SecretKey::parse(&keccak_256(b"Bob")).unwrap()
 	}
 
 	// This function basically just builds a genesis storage key/value store according to
@@ -427,7 +425,7 @@ mod tests {
 	fn claiming_works() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
-			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
+			assert_ok!(Claims::claim(Origin::NONE, 42, sig::<Test>(&alice(), &42u64.encode())));
 			assert_eq!(Balances::free_balance(&42), 100);
 			assert_eq!(Vesting::vesting_balance(&42), Some(50));
 			assert_eq!(Claims::total(), 0);
@@ -443,12 +441,12 @@ mod tests {
 			);
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
-				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
+				Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim,
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None));
 			assert_eq!(Claims::total(), 300);
-			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
+			assert_ok!(Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode())));
 			assert_eq!(Balances::free_balance(&69), 200);
 			assert_eq!(Vesting::vesting_balance(&69), None);
 			assert_eq!(Claims::total(), 100);
@@ -464,11 +462,11 @@ mod tests {
 			);
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
-				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
+				Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
-			assert_ok!(Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())));
+			assert_ok!(Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode())));
 			assert_eq!(Balances::free_balance(&69), 200);
 			assert_eq!(Vesting::vesting_balance(&69), Some(50));
 		});
@@ -479,7 +477,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_err!(
-				Claims::claim(Origin::signed(42), 42, sig(&alice(), &42u64.encode())),
+				Claims::claim(Origin::signed(42), 42, sig::<Test>(&alice(), &42u64.encode())),
 				sp_runtime::traits::BadOrigin,
 			);
 		});
@@ -489,9 +487,9 @@ mod tests {
 	fn double_claiming_doesnt_work() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
-			assert_ok!(Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())));
+			assert_ok!(Claims::claim(Origin::NONE, 42, sig::<Test>(&alice(), &42u64.encode())));
 			assert_noop!(
-				Claims::claim(Origin::NONE, 42, sig(&alice(), &42u64.encode())),
+				Claims::claim(Origin::NONE, 42, sig::<Test>(&alice(), &42u64.encode())),
 				Error::<Test>::SignerHasNoClaim
 			);
 		});
@@ -511,7 +509,7 @@ mod tests {
 
 			// They should not be able to claim
 			assert_noop!(
-				Claims::claim(Origin::NONE, 69, sig(&bob(), &69u64.encode())),
+				Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode())),
 				Error::<Test>::DestinationVesting
 			);
 			// Everything should be unchanged
@@ -526,7 +524,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
-				Claims::claim(Origin::NONE, 42, sig(&alice(), &69u64.encode())),
+				Claims::claim(Origin::NONE, 42, sig::<Test>(&alice(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim
 			);
 		});
@@ -537,7 +535,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
-				Claims::claim(Origin::NONE, 42, sig(&bob(), &69u64.encode())),
+				Claims::claim(Origin::NONE, 42, sig::<Test>(&bob(), &69u64.encode())),
 				Error::<Test>::SignerHasNoClaim
 			);
 		});
@@ -562,7 +560,7 @@ mod tests {
 
 		new_test_ext().execute_with(|| {
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(1, sig(&alice(), &1u64.encode()))),
+				<Module<Test>>::validate_unsigned(&Call::claim(1, sig::<Test>(&alice(), &1u64.encode()))),
 				Ok(ValidTransaction {
 					priority: 100,
 					requires: vec![],
@@ -576,11 +574,11 @@ mod tests {
 				InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()).into(),
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(1, sig(&bob(), &1u64.encode()))),
+				<Module<Test>>::validate_unsigned(&Call::claim(1, sig::<Test>(&bob(), &1u64.encode()))),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(0, sig(&bob(), &1u64.encode()))),
+				<Module<Test>>::validate_unsigned(&Call::claim(0, sig::<Test>(&bob(), &1u64.encode()))),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 		});
@@ -599,6 +597,10 @@ mod benchmarking {
 		_ {}
 
 		// claim {
+		// 	let u in 0 .. 100;
+		// 	let secret_key = secp256k1::SecretKey::parse(&keccak_256(u)).unwrap()
+		// 	let eth_address = eth(secret_key);
+
 		// 	let account = account("user", 0, SEED);
 		// }: _(RawOrigin::None, account, signature)
 

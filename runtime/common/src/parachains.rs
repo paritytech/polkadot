@@ -16,8 +16,8 @@
 
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
-use rstd::prelude::*;
-use rstd::result;
+use sp_std::prelude::*;
+use sp_std::result;
 use codec::{Decode, Encode};
 
 use sp_runtime::traits::{
@@ -98,7 +98,7 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 }
 
 /// Interface to the persistent (stash) identities of the current validators.
-pub struct ValidatorIdentities<T>(rstd::marker::PhantomData<T>);
+pub struct ValidatorIdentities<T>(sp_std::marker::PhantomData<T>);
 
 impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
 	fn get() -> Vec<T::ValidatorId> {
@@ -540,7 +540,7 @@ impl<T: Trait> Module<T> {
 			let offset = (i * 4 % 32) as usize;
 
 			// number of roles remaining to select from.
-			let remaining = rstd::cmp::max(1, (validator_count - i) as usize);
+			let remaining = sp_std::cmp::max(1, (validator_count - i) as usize);
 
 			// 8 32-bit ints per 256-bit seed.
 			let val_index = u32::decode(&mut &seed[offset..offset + 4])
@@ -585,7 +585,7 @@ impl<T: Trait> Module<T> {
 		schedule: &GlobalValidationSchedule,
 		attested_candidates: &[AttestedCandidate],
 		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
-	) -> rstd::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError>
+	) -> sp_std::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError>
 	{
 		use primitives::parachain::ValidityAttestation;
 		use sp_runtime::traits::AppVerify;
@@ -657,7 +657,7 @@ impl<T: Trait> Module<T> {
 
 		// computes the omitted validation data for a particular parachain.
 		let full_candidate = |abridged: &AbridgedCandidateReceipt|
-			-> rstd::result::Result<CandidateReceipt, sp_runtime::DispatchError>
+			-> sp_std::result::Result<CandidateReceipt, sp_runtime::DispatchError>
 		{
 			let para_id = abridged.parachain_index;
 			let parent_head = match Self::parachain_head(&para_id)

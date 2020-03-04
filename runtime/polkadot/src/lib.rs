@@ -26,7 +26,7 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 	MaximumBlockLength,
 };
 
-use rstd::prelude::*;
+use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
@@ -109,7 +109,7 @@ impl SignedExtension for OnlyStakingAndClaims {
 	type Pre = ();
 	type DispatchInfo = DispatchInfo;
 
-	fn additional_signed(&self) -> rstd::result::Result<(), TransactionValidityError> { Ok(()) }
+	fn additional_signed(&self) -> sp_std::result::Result<(), TransactionValidityError> { Ok(()) }
 
 	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
 		-> TransactionValidity
