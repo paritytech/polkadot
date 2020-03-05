@@ -1023,6 +1023,7 @@ mod tests {
 		pub const SlashDeferDuration: staking::EraIndex = 7;
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
+		pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	}
 
 	impl staking::Trait for Test {
@@ -1039,6 +1040,7 @@ mod tests {
 		type SessionInterface = Self;
 		type Time = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
+		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	}
 
 	impl attestations::Trait for Test {
@@ -1159,7 +1161,6 @@ mod tests {
 		}.assimilate_storage(&mut t).unwrap();
 
 		staking::GenesisConfig::<Test> {
-			current_era: 0,
 			stakers,
 			validator_count: 10,
 			minimum_validator_count: 8,

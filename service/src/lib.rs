@@ -45,8 +45,7 @@ pub use consensus_common::SelectChain;
 pub use polkadot_network::legacy::PolkadotProtocol;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
-pub use sp_core::Blake2Hasher;
-pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits};
+pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use sc_network::specialization::NetworkSpecialization;
 pub use chain_spec::ChainSpec;
 #[cfg(not(target_os = "unknown"))]
@@ -91,7 +90,7 @@ pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static> 
 	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
 where
 	Extrinsic: RuntimeExtrinsic,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
 impl<Api, Extrinsic> RuntimeApiCollection<Extrinsic> for Api
@@ -109,7 +108,7 @@ where
 	+ sp_session::SessionKeys<Block>
 	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
 	Extrinsic: RuntimeExtrinsic,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
 pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static
@@ -196,7 +195,7 @@ where
 	RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>>,
 	Dispatch: NativeExecutionDispatch + 'static,
 	Extrinsic: RuntimeExtrinsic,
-	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
+	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
 	Ok(new_full_start!(config, Runtime, Dispatch).0)
@@ -265,7 +264,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		Dispatch: NativeExecutionDispatch + 'static,
 		Extrinsic: RuntimeExtrinsic,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
+		<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	use sc_network::Event;
 	use futures::stream::StreamExt;
@@ -534,13 +533,13 @@ pub fn kusama_new_light(
 // We can't use service::TLightClient due to
 // Rust bug: https://github.com/rust-lang/rust/issues/43580
 type TLocalLightClient<Runtime, Dispatch> =  Client<
-	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
+	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
 	sc_client::light::call_executor::GenesisCallExecutor<
-		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
+		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
 		sc_client::LocalCallExecutor<
 			sc_client::light::backend::Backend<
 				sc_client_db::light::LightStorage<Block>,
-				sp_core::Blake2Hasher
+				BlakeTwo256
 			>,
 			sc_executor::NativeExecutor<Dispatch>
 		>
@@ -594,7 +593,7 @@ where
 			let fetch_checker = fetcher
 				.map(|fetcher| fetcher.checker().clone())
 				.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
-			let grandpa_block_import = grandpa::light_block_import::<_, _, _, Runtime>(
+			let grandpa_block_import = grandpa::light_block_import(
 				client.clone(), backend, &*client, Arc::new(fetch_checker)
 			)?;
 

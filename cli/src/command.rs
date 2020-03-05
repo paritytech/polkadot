@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use log::info;
-use sp_core::Blake2Hasher;
+use sp_runtime::traits::BlakeTwo256;
 use service::{IsKusama, Block, self, RuntimeApiCollection, TFullClient};
 use sp_api::ConstructRuntimeApi;
 use sc_executor::NativeExecutionDispatch;
@@ -116,7 +116,7 @@ where
 	D: service::NativeExecutionDispatch + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	<<R as ConstructRuntimeApi<Block, TFullClient<Block, R, D>>>::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend:
-		sp_api::StateBackend<Blake2Hasher>,
+		sp_api::StateBackend<BlakeTwo256>,
 	// Rust bug: https://github.com/rust-lang/rust/issues/43580
 	R: ConstructRuntimeApi<
 		Block,
@@ -140,11 +140,11 @@ where
 // We can't simply use `service::TLightClient` due to a
 // Rust bug: https://github.com/rust-lang/rust/issues/43580
 type TLightClient<Runtime, Dispatch> = sc_client::Client<
-	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
+	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
 	sc_client::light::call_executor::GenesisCallExecutor<
-		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
+		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
 		sc_client::LocalCallExecutor<
-			sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
+			sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
 			sc_executor::NativeExecutor<Dispatch>
 		>
 	>,
