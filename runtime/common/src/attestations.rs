@@ -75,11 +75,19 @@ impl RewardAttestation for () {
 
 impl<T: staking::Trait> RewardAttestation for staking::Module<T> {
 	fn reward_immediate(validator_indices: impl IntoIterator<Item=u32>) {
+		use staking::SessionInterface;
+
 		// The number of points to reward for a validity statement.
 		// https://research.web3.foundation/en/latest/polkadot/Token%20Economics/#payment-details
 		const STAKING_REWARD_POINTS: u32 = 20;
 
-		Self::reward_by_indices(validator_indices.into_iter().map(|i| (i, STAKING_REWARD_POINTS)))
+		let validators = T::SessionInterface::validators();
+
+		let validator_rewards = validator_indices.into_iter()
+			.filter_map(|i| validators.get(i as usize).cloned())
+			.map(|v| (v, STAKING_REWARD_POINTS));
+
+		Self::reward_by_ids(validator_rewards);
 	}
 }
 
