@@ -124,7 +124,7 @@ enum ServiceToWorkerMsg {
 }
 
 /// Operations that a handle to an underlying network service should provide.
-pub trait NetworkServiceOps: Send + Sync {
+trait NetworkServiceOps: Send + Sync {
 	/// Report the peer as having a particular positive or negative value.
 	fn report_peer(&self, peer: PeerId, value: sc_network::ReputationChange);
 
@@ -149,6 +149,39 @@ impl NetworkServiceOps for PolkadotNetworkService {
 		notification: Vec<u8>,
 	) {
 		PolkadotNetworkService::write_notification(self, peer, engine_id, notification);
+	}
+}
+
+/// Operations that a handle to a gossip network should provide.
+trait GossipOps: Clone + crate::legacy::GossipService {
+	fn new_local_leaf(
+		&self,
+		relay_parent: Hash,
+		validation_data: crate::legacy::gossip::MessageValidationData,
+	) -> crate::legacy::gossip::NewLeafActions;
+
+	/// Register an availability store in the gossip service to evaluate incoming
+	/// messages with.
+	fn register_availability_store(
+		&self,
+		store: av_store::Store,
+	);
+}
+
+impl GossipOps for RegisteredMessageValidator {
+	fn new_local_leaf(
+		&self,
+		relay_parent: Hash,
+		validation_data: crate::legacy::gossip::MessageValidationData,
+	) -> crate::legacy::gossip::NewLeafActions {
+		RegisteredMessageValidator::new_local_leaf(self, relay_parent, validation_data)
+	}
+
+	fn register_availability_store(
+		&self,
+		store: av_store::Store,
+	) {
+		RegisteredMessageValidator::register_availability_store(self, store);
 	}
 }
 
@@ -738,7 +771,7 @@ fn send_peer_collations(
 async fn worker_loop<Api, Sp>(
 	config: Config,
 	service: Arc<dyn NetworkServiceOps>,
-	gossip_handle: RegisteredMessageValidator,
+	gossip_handle: impl GossipOps,
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
 	api: Arc<Api>,
 	mut receiver: mpsc::Receiver<ServiceToWorkerMsg>,
@@ -986,7 +1019,7 @@ async fn statement_import_loop<Api>(
 	table: Arc<SharedTable>,
 	api: Arc<Api>,
 	weak_router: Weak<RouterInner>,
-	gossip_handle: RegisteredMessageValidator,
+	gossip_handle: impl GossipOps,
 	mut exit: exit_future::Exit,
 	executor: impl Spawn,
 ) where
@@ -1098,7 +1131,7 @@ fn distribute_validated_collation(
 	receipt: AbridgedCandidateReceipt,
 	pov_block: PoVBlock,
 	chunks: (ValidatorIndex, Vec<ErasureChunk>),
-	gossip_handle: &RegisteredMessageValidator,
+	gossip_handle: &impl GossipOps,
 ) {
 	// produce a signed statement.
 	let hash = receipt.hash();
