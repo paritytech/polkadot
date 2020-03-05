@@ -992,6 +992,9 @@ async fn statement_import_loop<Api>(
 				if let Some(producer) = producer {
 					trace!(target: "validation", "driving statement work to completion");
 
+					let table = table.clone();
+					let gossip_handle = gossip_handle.clone();
+
 					let work = producer.prime(api.clone()).validate().map(move |res| {
 						let validated = match res {
 							Err(e) => {

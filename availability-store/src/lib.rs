@@ -32,7 +32,7 @@ use polkadot_primitives::{
 		ParachainHost, AvailableData, OmittedValidationData,
 	},
 };
-use sp_runtime::traits::{BlakeTwo256, Hash as HashT, HashFor};
+use sp_runtime::traits::HashFor;
 use sp_blockchain::{Result as ClientResult};
 use client::{
 	BlockchainEvents, BlockBody,
