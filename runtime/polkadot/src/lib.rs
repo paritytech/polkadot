@@ -43,6 +43,8 @@ use sp_runtime::{
 		IdentityLookup
 	},
 };
+#[cfg(feature = "runtime-benchmarks")]
+use sp_runtime::RuntimeString;
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 #[cfg(any(feature = "std", test))]
@@ -779,7 +781,7 @@ sp_api::impl_runtime_apis! {
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	impl frame_benchmarking::Benchmark<Block> for Runtime {
+	impl frame_benchmarking::Benchmark<Block> for Runtime {		
 		fn dispatch_benchmark(
 			module: Vec<u8>,
 			extrinsic: Vec<u8>,

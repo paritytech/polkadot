@@ -43,4 +43,4 @@ browser = [
 	"wasm-bindgen-futures",
 	"browser-utils",
 ]
-runtime-benchmarks = []
+runtime-benchmarks = ["service/runtime-benchmarks"]

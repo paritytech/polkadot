@@ -56,6 +56,7 @@ timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false, optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
@@ -129,4 +130,4 @@ std = [
 	"sudo/std",
 	"vesting/std",
 ]
-runtime-benchmarks = ["runtime-common/runtime-benchmarks"]
+runtime-benchmarks = ["frame-benchmarking", "runtime-common/runtime-benchmarks"]

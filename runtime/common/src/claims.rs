@@ -274,7 +274,7 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 	}
 }
 
-#[cfg(any(test, runtime_benchmarks))]
+#[cfg(any(test, feature = "runtime-benchmarks"))]
 mod secp_utils {
 	use super::*;
 	use secp256k1;
@@ -585,7 +585,7 @@ mod tests {
 	}
 }
 
-#[cfg(runtime_benchmarks)]
+#[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::*;
 	use secp_utils::*;

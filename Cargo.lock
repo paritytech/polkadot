@@ -4264,6 +4264,7 @@ name = "polkadot-runtime"
 version = "0.7.21"
 dependencies = [
  "bitvec",
+ "frame-benchmarking",
  "frame-executive",
  "frame-support",
  "frame-system",
@@ -4368,6 +4369,7 @@ dependencies = [
 name = "polkadot-service"
 version = "0.7.21"
 dependencies = [
+ "frame-benchmarking",
  "frame-system-rpc-runtime-api",
  "futures 0.3.4",
  "hex-literal",
