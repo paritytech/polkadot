@@ -52,6 +52,7 @@ system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "http
 codec = { package = "parity-scale-codec", version = "1.1.0" }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-master" }
 sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-master" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "ashley-polkadot-master" }
 
 [features]
 default = ["rocksdb"]

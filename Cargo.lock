@@ -4086,6 +4086,7 @@ dependencies = [
  "sp-runtime 2.0.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=ashley-polkadot-master)",
  "sp-session 2.0.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=ashley-polkadot-master)",
  "sp-transaction-pool 2.0.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=ashley-polkadot-master)",
+ "substrate-prometheus-endpoint 0.8.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=ashley-polkadot-master)",
 ]
 
 [[package]]
