@@ -573,7 +573,6 @@ where
 {
 	let inherent_data_providers = InherentDataProviders::new();
 
-	// TODO [now]: launch new network protocol.
 	ServiceBuilder::new_light::<Block, Runtime, Dispatch>(config)?
 		.with_select_chain(|_, backend| {
 			Ok(LongestChain::new(backend.clone()))
