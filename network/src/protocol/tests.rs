@@ -22,19 +22,35 @@ use polkadot_primitives::parachain::{
 	Retriable, CollatorId, AbridgedCandidateReceipt,
 	GlobalValidationSchedule, LocalValidationData,
 };
+use sc_network_gossip::TopicNotification;
 use sp_blockchain::Result as ClientResult;
 use sp_api::{ApiRef, Core, RuntimeVersion, StorageProof, ApiErrorExt, ApiExt, ProvideRuntimeApi};
 use sp_runtime::traits::{Block as BlockT, HasherFor, NumberFor};
 use sp_state_machine::ChangesTrieState;
 use sp_core::{NativeOrEncoded, ExecutionContext};
 
+#[derive(Default)]
 struct MockNetworkOps {
-	recorded: Arc<Mutex<Recorded>>,
+	recorded: Mutex<Recorded>,
 }
 
+#[derive(Default)]
 struct Recorded {
 	peer_reputations: HashMap<PeerId, i32>,
 	notifications: Vec<(PeerId, Message)>,
+}
+
+#[derive(Default, Clone)]
+struct MockGossip {
+	inner: Arc<Mutex<HashMap<Hash, mpsc::UnboundedReceiver<TopicNotification>>>>,
+}
+
+impl MockGossip {
+	fn add_gossip_stream(&self, topic: Hash) -> mpsc::UnboundedSender<TopicNotification> {
+		let (tx, rx) = mpsc::unbounded();
+		self.inner.lock().insert(topic, rx);
+		tx
+	}
 }
 
 impl NetworkServiceOps for MockNetworkOps {
@@ -57,6 +73,40 @@ impl NetworkServiceOps for MockNetworkOps {
 	}
 }
 
+impl crate::legacy::GossipService for MockGossip {
+	fn gossip_messages_for(&self, topic: Hash) -> crate::legacy::GossipMessageStream {
+		crate::legacy::GossipMessageStream::new(match self.inner.lock().remove(&topic) {
+			None => Box::pin(stream::empty()),
+			Some(rx) => Box::pin(rx),
+		})
+	}
+
+	fn gossip_message(&self, _topic: Hash, _message: GossipMessage) {
+
+	}
+
+	fn send_message(&self, _who: PeerId, _message: GossipMessage) {
+
+	}
+}
+
+impl GossipOps for MockGossip {
+	fn new_local_leaf(
+		&self,
+		_relay_parent: Hash,
+		_validation_data: crate::legacy::gossip::MessageValidationData,
+	) -> crate::legacy::gossip::NewLeafActions {
+		crate::legacy::gossip::NewLeafActions::new()
+	}
+
+	fn register_availability_store(
+		&self,
+		_store: av_store::Store,
+	) {
+
+	}
+}
+
 #[derive(Default)]
 struct ApiData {
 	validators: Vec<ValidatorId>,
@@ -69,6 +119,7 @@ struct TestApi {
 	data: Arc<Mutex<ApiData>>,
 }
 
+#[derive(Default)]
 struct RuntimeApi {
 	data: Arc<Mutex<ApiData>>,
 }
@@ -241,17 +292,3 @@ fn router_inner_drop_sends_worker_message() {
 	}
 }
 
-#[test]
-fn erasure_chunk_receiver_drop_cancels_gossip_listen() {
-	let mut pool = futures::executor::LocalPool::new();
-
-	// worker_loop<Api, Sp>(
-	// 	config: Config,
-	// 	service: Arc<dyn NetworkServiceOps>,
-	// 	gossip_handle: RegisteredMessageValidator,
-	// 	sender: mpsc::Sender<ServiceToWorkerMsg>,
-	// 	api: Arc<Api>,
-	// 	mut receiver: mpsc::Receiver<ServiceToWorkerMsg>,
-	// 	executor: Sp,
-	// )
-}
