@@ -282,6 +282,7 @@ parameter_types! {
 	pub const BondingDuration: staking::EraIndex = 28;
 	pub const SlashDeferDuration: staking::EraIndex = 28;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
+	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 }
 
 impl staking::Trait for Runtime {
@@ -299,6 +300,7 @@ impl staking::Trait for Runtime {
 	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
+	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 }
 
 parameter_types! {
