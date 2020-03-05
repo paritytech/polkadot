@@ -21,6 +21,7 @@
 //! We handle events from `sc-network` in a thin wrapper that forwards to a
 //! background worker which also handles commands from other parts of the node.
 
+use arrayvec::ArrayVec;
 use codec::{Decode, Encode};
 use futures::channel::{mpsc, oneshot};
 use futures::future::Either;
@@ -37,18 +38,19 @@ use polkadot_primitives::{
 };
 use polkadot_validation::{
 	SharedTable, TableRouter, Network as ParachainNetwork, Validated, GenericStatement, Collators,
+	SignedStatement,
 };
 use sc_network::{config::Roles, Event, PeerId};
 use sp_api::ProvideRuntimeApi;
 
-use std::collections::HashMap;
+use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::pin::Pin;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use super::{cost, benefit, PolkadotNetworkService};
-use crate::legacy::validation::{RecentValidatorIds, InsertedRecentKey};
 use crate::legacy::collator_pool::Role as CollatorRole;
+use crate::legacy::gossip::{GossipMessage, ErasureChunkMessage};
 
 /// The current protocol version.
 pub const VERSION: u32 = 1;
@@ -57,6 +59,8 @@ pub const MIN_SUPPORTED_VERSION: u32 = 1;
 
 /// The engine ID of the polkadot network protocol.
 pub const POLKADOT_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"dot2";
+/// The protocol name.
+pub const POLKADOT_PROTOCOL_NAME: &[u8] = b"dot2-proto";
 
 pub use crate::legacy::gossip::ChainContext;
 
@@ -70,7 +74,7 @@ enum ServiceToWorkerMsg {
 	// service messages.
 	BuildConsensusNetworking(Arc<SharedTable>, Vec<ValidatorId>, oneshot::Sender<Router>),
 	DropConsensusNetworking(Hash),
-	LocalCollation(
+	SubmitValidatedCollation(
 		Hash, // relay-parent
 		AbridgedCandidateReceipt,
 		PoVBlock,
@@ -81,6 +85,15 @@ enum ServiceToWorkerMsg {
 		AbridgedCandidateReceipt,
 		oneshot::Sender<PoVBlock>,
 	),
+	FetchErasureChunk(
+		Hash, // candidate-hash.
+		u32, // validator index.
+		oneshot::Sender<ErasureChunk>,
+	),
+	DistributeErasureChunk(
+		Hash, // candidate-hash,
+		ErasureChunk,
+	),
 	AwaitCollation(
 		Hash, // relay-parent,
 		ParaId,
@@ -88,6 +101,17 @@ enum ServiceToWorkerMsg {
 	),
 	NoteBadCollator(
 		CollatorId,
+	),
+	RegisterAvailabilityStore(
+		av_store::Store,
+	),
+	OurCollation(
+		HashSet<ValidatorId>,
+		Collation,
+	),
+	ListenCheckedStatements(
+		Hash, // relay-parent,
+		oneshot::Sender<Pin<Box<dyn Stream<Item = SignedStatement> + Send>>>,
 	),
 }
 
@@ -117,6 +141,7 @@ pub fn start<C, Api, SP>(
 	const SERVICE_TO_WORKER_BUF: usize = 256;
 
 	let mut event_stream = service.event_stream();
+	service.register_notifications_protocol(POLKADOT_ENGINE_ID, POLKADOT_PROTOCOL_NAME);
 	let (mut worker_sender, worker_receiver) = mpsc::channel(SERVICE_TO_WORKER_BUF);
 
 	let gossip_validator = crate::legacy::gossip::register_validator(
@@ -290,9 +315,54 @@ pub struct Config {
 	pub collating_for: Option<(CollatorId, ParaId)>,
 }
 
+// 3 is chosen because sessions change infrequently and usually
+// only the last 2 (current session and "last" session) are relevant.
+// the extra is an error boundary.
+const RECENT_SESSIONS: usize = 3;
+
+/// Result when inserting recent session key.
+#[derive(PartialEq, Eq)]
+pub(crate) enum InsertedRecentKey {
+	/// Key was already known.
+	AlreadyKnown,
+	/// Key was new and pushed out optional old item.
+	New(Option<ValidatorId>),
+}
+
+/// Wrapper for managing recent session keys.
+#[derive(Default)]
+struct RecentValidatorIds {
+	inner: ArrayVec<[ValidatorId; RECENT_SESSIONS]>,
+}
+
+impl RecentValidatorIds {
+	/// Insert a new session key. This returns one to be pushed out if the
+	/// set is full.
+	fn insert(&mut self, key: ValidatorId) -> InsertedRecentKey {
+		if self.inner.contains(&key) { return InsertedRecentKey::AlreadyKnown }
+
+		let old = if self.inner.len() == RECENT_SESSIONS {
+			Some(self.inner.remove(0))
+		} else {
+			None
+		};
+
+		self.inner.push(key);
+		InsertedRecentKey::New(old)
+	}
+
+	/// As a slice. Most recent is last.
+	fn as_slice(&self) -> &[ValidatorId] {
+		&*self.inner
+	}
+}
+
 struct ProtocolHandler {
 	service: Arc<PolkadotNetworkService>,
 	peers: HashMap<PeerId, PeerData>,
+	// reverse mapping from validator-ID to PeerID. Multiple peers can represent
+	// the same validator because of sentry nodes.
+	connected_validators: HashMap<ValidatorId, HashSet<PeerId>>,
 	collators: crate::legacy::collator_pool::CollatorPool,
 	local_collations: crate::legacy::local_collations::LocalCollations<Collation>,
 	config: Config,
@@ -306,6 +376,7 @@ impl ProtocolHandler {
 		ProtocolHandler {
 			service,
 			peers: HashMap::new(),
+			connected_validators: HashMap::new(),
 			collators: Default::default(),
 			local_collations: Default::default(),
 			config,
@@ -332,10 +403,16 @@ impl ProtocolHandler {
 	fn on_disconnect(&mut self, peer: PeerId) {
 		let mut new_primary = None;
 		if let Some(data) = self.peers.remove(&peer) {
+			// replace collator.
 			if let Some((collator_id, _)) = data.ready_and_collating_for() {
 				if self.collators.collator_id_to_peer_id(&collator_id) == Some(&peer) {
 					new_primary = self.collators.on_disconnect(collator_id);
 				}
+			}
+
+			// clean up stated validator IDs.
+			for validator_id in data.session_keys.as_slice().iter().cloned() {
+				self.validator_representative_removed(validator_id, &peer);
 			}
 		}
 
@@ -481,11 +558,12 @@ impl ProtocolHandler {
 			}
 		}
 
-		self.send_peer_collations(remote, collations_to_send);
+		send_peer_collations(&*self.service, remote, collations_to_send);
 	}
 
 	fn on_validator_id(&mut self, remote: PeerId, key: ValidatorId) {
 		let mut collations_to_send = Vec::new();
+		let mut invalidated_key = None;
 
 		{
 			let peer = match self.peers.get_mut(&remote) {
@@ -501,21 +579,29 @@ impl ProtocolHandler {
 				ProtocolState::Ready(_, _) => {
 					if let InsertedRecentKey::New(Some(last)) = peer.session_keys.insert(key.clone()) {
 						collations_to_send = self.local_collations.fresh_key(&last, &key);
+						invalidated_key = Some(last);
 					}
 				}
 			}
 		}
 
-		self.send_peer_collations(remote, collations_to_send);
+		if let Some(invalidated) = invalidated_key {
+			self.validator_representative_removed(invalidated, &remote);
+		}
+
+		send_peer_collations(&*self.service, remote, collations_to_send);
 	}
 
-	fn send_peer_collations(&self, remote: PeerId, collations: Vec<(Hash, Collation)>) {
-		for (relay_parent, collation) in collations {
-			self.service.write_notification(
-				remote.clone(),
-				POLKADOT_ENGINE_ID,
-				Message::Collation(relay_parent, collation).encode(),
-			);
+	// call when the given peer no longer represents the given validator key.
+	//
+	// this can occur when the peer advertises a new key, invalidating an old one,
+	// or when the peer disconnects.
+	fn validator_representative_removed(&mut self, validator_id: ValidatorId, peer_id: &PeerId) {
+		if let Entry::Occupied(mut entry) = self.connected_validators.entry(validator_id) {
+			entry.get_mut().remove(peer_id);
+			if entry.get().is_empty() {
+				let _ = entry.remove_entry();
+			}
 		}
 	}
 
@@ -554,6 +640,39 @@ impl ProtocolHandler {
 				));
 			}
 		}
+	}
+
+	// distribute our (as a collator node) collation to peers.
+	fn distribute_our_collation(&mut self, targets: HashSet<ValidatorId>, collation: Collation) {
+		let relay_parent = collation.info.relay_parent;
+		let distribution = self.local_collations.add_collation(relay_parent, targets, collation);
+
+		for (validator, collation) in distribution {
+			let validator_representatives = self.connected_validators.get(&validator)
+				.into_iter().flat_map(|reps| reps);
+
+			for remote in validator_representatives {
+				send_peer_collations(
+					&*self.service,
+					remote.clone(),
+					std::iter::once((relay_parent, collation.clone())),
+				);
+			}
+		}
+	}
+}
+
+fn send_peer_collations(
+	service: &PolkadotNetworkService,
+	remote: PeerId,
+	collations: impl IntoIterator<Item=(Hash, Collation)>,
+) {
+	for (relay_parent, collation) in collations {
+		service.write_notification(
+			remote.clone(),
+			POLKADOT_ENGINE_ID,
+			Message::Collation(relay_parent, collation).encode(),
+		);
 	}
 }
 
@@ -627,7 +746,7 @@ async fn worker_loop<Api, Sp>(
 				consensus_instances.insert(relay_parent, ConsensusNetworkingInstance {
 					statement_table: table.clone(),
 					relay_parent,
-					attestation_topic: crate::legacy::router::attestation_topic(relay_parent),
+					attestation_topic: crate::legacy::gossip::attestation_topic(relay_parent),
 					_drop_signal: signal,
 				});
 
@@ -650,13 +769,13 @@ async fn worker_loop<Api, Sp>(
 			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
 				consensus_instances.remove(&relay_parent);
 			}
-			ServiceToWorkerMsg::LocalCollation(relay_parent, receipt, pov_block, chunks) => {
+			ServiceToWorkerMsg::SubmitValidatedCollation(relay_parent, receipt, pov_block, chunks) => {
 				let instance = match consensus_instances.get(&relay_parent) {
 					None => continue,
 					Some(instance) => instance,
 				};
 
-				distribute_local_collation(
+				distribute_validated_collation(
 					instance,
 					receipt,
 					pov_block,
@@ -668,12 +787,127 @@ async fn worker_loop<Api, Sp>(
 				// TODO https://github.com/paritytech/polkadot/issues/742:
 				// create a filter on gossip for it and send to sender.
 			}
+			ServiceToWorkerMsg::FetchErasureChunk(candidate_hash, validator_index, sender) => {
+				let topic = crate::erasure_coding_topic(&candidate_hash);
+
+				// for every erasure-root, relay-parent pair, there should only be one
+				// valid chunk with the given index.
+				//
+				// so we only care about the first item of the filtered stream.
+				let get_msg = gossip_handle.gossip_messages_for(topic)
+					.filter_map(move |(msg, _)| {
+						future::ready(match msg {
+							GossipMessage::ErasureChunk(chunk) =>
+								if chunk.chunk.index == validator_index {
+									Some(chunk.chunk)
+								} else {
+									None
+								},
+							_ => None,
+						})
+					})
+					.into_future()
+					.map(|(item, _)| item.expect(
+						"gossip message streams do not conclude early; qed"
+					));
+
+				let _ = executor.spawn(async move {
+					let chunk = get_msg.await;
+					let _ = sender.send(chunk);
+				});
+			}
+			ServiceToWorkerMsg::DistributeErasureChunk(candidate_hash, erasure_chunk) => {
+				let topic = crate::erasure_coding_topic(&candidate_hash);
+				gossip_handle.gossip_message(
+					topic,
+					GossipMessage::ErasureChunk(ErasureChunkMessage {
+						chunk: erasure_chunk,
+						candidate_hash,
+					})
+				);
+			}
 			ServiceToWorkerMsg::AwaitCollation(relay_parent, para_id, sender) => {
 				debug!(target: "p_net", "Attempting to get collation for parachain {:?} on relay parent {:?}", para_id, relay_parent);
 				protocol_handler.await_collation(relay_parent, para_id, sender)
 			}
 			ServiceToWorkerMsg::NoteBadCollator(collator) => {
 				protocol_handler.note_bad_collator(collator);
+			}
+			ServiceToWorkerMsg::RegisterAvailabilityStore(store) => {
+				gossip_handle.register_availability_store(store);
+			}
+			ServiceToWorkerMsg::OurCollation(targets, collation) => {
+				protocol_handler.distribute_our_collation(targets, collation);
+			}
+			ServiceToWorkerMsg::ListenCheckedStatements(relay_parent, sender) => {
+				let topic = crate::legacy::gossip::attestation_topic(relay_parent);
+				let checked_messages = gossip_handle.gossip_messages_for(topic)
+					.filter_map(|msg| match msg.0 {
+						GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
+						_ => future::ready(None),
+					})
+					.boxed();
+
+				let _ = sender.send(checked_messages);
+			}
+		}
+	}
+}
+
+// A unique trace for valid statements issued by a validator.
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub(crate) enum StatementTrace {
+	Valid(ValidatorIndex, Hash),
+	Invalid(ValidatorIndex, Hash),
+}
+
+/// Helper for deferring statements whose associated candidate is unknown.
+struct DeferredStatements {
+	deferred: HashMap<Hash, Vec<SignedStatement>>,
+	known_traces: HashSet<StatementTrace>,
+}
+
+impl DeferredStatements {
+	/// Create a new `DeferredStatements`.
+	fn new() -> Self {
+		DeferredStatements {
+			deferred: HashMap::new(),
+			known_traces: HashSet::new(),
+		}
+	}
+
+	/// Push a new statement onto the deferred pile. `Candidate` statements
+	/// cannot be deferred and are ignored.
+	fn push(&mut self, statement: SignedStatement) {
+		let (hash, trace) = match statement.statement {
+			GenericStatement::Candidate(_) => return,
+			GenericStatement::Valid(hash) => (hash, StatementTrace::Valid(statement.sender.clone(), hash)),
+			GenericStatement::Invalid(hash) => (hash, StatementTrace::Invalid(statement.sender.clone(), hash)),
+		};
+
+		if self.known_traces.insert(trace) {
+			self.deferred.entry(hash).or_insert_with(Vec::new).push(statement);
+		}
+	}
+
+	/// Take all deferred statements referencing the given candidate hash out.
+	fn take_deferred(&mut self, hash: &Hash) -> (Vec<SignedStatement>, Vec<StatementTrace>) {
+		match self.deferred.remove(hash) {
+			None => (Vec::new(), Vec::new()),
+			Some(deferred) => {
+				let mut traces = Vec::new();
+				for statement in deferred.iter() {
+					let trace = match statement.statement {
+						GenericStatement::Candidate(_) => continue,
+						GenericStatement::Valid(hash) => StatementTrace::Valid(statement.sender.clone(), hash),
+						GenericStatement::Invalid(hash) => StatementTrace::Invalid(statement.sender.clone(), hash),
+					};
+
+					self.known_traces.remove(&trace);
+					traces.push(trace);
+				}
+
+				(deferred, traces)
 			}
 		}
 	}
@@ -693,14 +927,14 @@ async fn statement_import_loop<Api>(
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
-	let topic = crate::legacy::router::attestation_topic(relay_parent);
+	let topic = crate::legacy::gossip::attestation_topic(relay_parent);
 	let mut checked_messages = gossip_handle.gossip_messages_for(topic)
 		.filter_map(|msg| match msg.0 {
-			crate::legacy::gossip::GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
+			GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
 			_ => future::ready(None),
 		});
 
-	let mut deferred_statements = crate::legacy::router::DeferredStatements::new();
+	let mut deferred_statements = DeferredStatements::new();
 
 	loop {
 		let statement = match future::select(exit, checked_messages.next()).await {
@@ -758,7 +992,30 @@ async fn statement_import_loop<Api>(
 				if let Some(producer) = producer {
 					trace!(target: "validation", "driving statement work to completion");
 
-					let work = producer.prime(api.clone()).validate();
+					let table = table.clone();
+					let gossip_handle = gossip_handle.clone();
+
+					let work = producer.prime(api.clone()).validate().map(move |res| {
+						let validated = match res {
+							Err(e) => {
+								debug!(target: "p_net", "Failed to act on statement: {}", e);
+								return
+							}
+							Ok(v) => v,
+						};
+
+						// propagate the statement.
+						let statement = crate::legacy::gossip::GossipStatement::new(
+							relay_parent,
+							match table.import_validated(validated) {
+								Some(s) => s,
+								None => return,
+							}
+						);
+
+						gossip_handle.gossip_message(topic, statement.into());
+					});
+
 					let work = future::select(work.boxed(), exit.clone()).map(drop);
 					let _ = executor.spawn(work);
 				}
@@ -770,7 +1027,7 @@ async fn statement_import_loop<Api>(
 // distribute a "local collation": this is the collation gotten by a validator
 // from a collator. it needs to be distributed to other validators in the same
 // group.
-fn distribute_local_collation(
+fn distribute_validated_collation(
 	instance: &ConsensusNetworkingInstance,
 	receipt: AbridgedCandidateReceipt,
 	pov_block: PoVBlock,
@@ -779,7 +1036,6 @@ fn distribute_local_collation(
 ) {
 	// produce a signed statement.
 	let hash = receipt.hash();
-	let erasure_root = receipt.commitments.erasure_root;
 	let validated = Validated::collated_local(
 		receipt,
 		pov_block,
@@ -796,15 +1052,13 @@ fn distribute_local_collation(
 	gossip_handle.gossip_message(instance.attestation_topic, statement.into());
 
 	for chunk in chunks.1 {
-		let index = chunk.index;
 		let message = crate::legacy::gossip::ErasureChunkMessage {
 			chunk,
-			relay_parent: instance.relay_parent,
 			candidate_hash: hash,
 		};
 
 		gossip_handle.gossip_message(
-			av_store::erasure_coding_topic(instance.relay_parent, erasure_root, index),
+			crate::erasure_coding_topic(&hash),
 			message.into(),
 		);
 	}
@@ -841,10 +1095,60 @@ impl Drop for RouterInner  {
 	}
 }
 
+impl Service {
+	/// Register an availablility-store that the network can query.
+	pub fn register_availability_store(&self, store: av_store::Store) {
+		let _ = self.sender.clone()
+			.try_send(ServiceToWorkerMsg::RegisterAvailabilityStore(store));
+	}
+
+	/// Submit a collation that we (as a collator) have prepared to validators.
+	///
+	/// Provide a set of validator-IDs we should distribute to.
+	pub fn distribute_collation(&self, targets: HashSet<ValidatorId>, collation: Collation) {
+		let _ = self.sender.clone()
+			.try_send(ServiceToWorkerMsg::OurCollation(targets, collation));
+	}
+
+	/// Returns a stream that listens for checked statements on a particular
+	/// relay chain parent hash.
+	///
+	/// Take care to drop the stream, as the sending side will not be cleaned
+	/// up until it is.
+	pub fn checked_statements(&self, relay_parent: Hash)
+		-> Pin<Box<dyn Stream<Item = SignedStatement>>> {
+		let (tx, rx) = oneshot::channel();
+		let mut sender = self.sender.clone();
+
+		let receive_stream = async move {
+			sender.send(
+				ServiceToWorkerMsg::ListenCheckedStatements(relay_parent, tx)
+			).map_err(future::Either::Left).await?;
+
+			rx.map_err(future::Either::Right).await
+		};
+
+		receive_stream
+			.map(|res| match res {
+				Ok(s) => s.left_stream(),
+				Err(e) => {
+					log::warn!(
+						target: "p_net",
+						"Polkadot network worker appears to be down: {:?}",
+						e,
+					);
+					stream::pending().right_stream()
+				}
+			})
+			.flatten_stream()
+			.boxed()
+	}
+}
+
 impl ParachainNetwork for Service {
 	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
 	type TableRouter = Router;
-	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router,Self::Error>>>>;
+	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router,Self::Error>> + Send>>;
 
 	fn build_table_router(
 		&self,
@@ -887,6 +1191,36 @@ impl Collators for Service {
 	}
 }
 
+impl av_store::ErasureNetworking for Service {
+	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
+
+	fn fetch_erasure_chunk(&self, candidate_hash: &Hash, index: u32)
+		-> Pin<Box<dyn Future<Output = Result<ErasureChunk, Self::Error>> + Send>>
+	{
+		let (tx, rx) = oneshot::channel();
+		let mut sender = self.sender.clone();
+
+		let candidate_hash = *candidate_hash;
+		Box::pin(async move {
+			sender.send(
+				ServiceToWorkerMsg::FetchErasureChunk(candidate_hash, index, tx)
+			).map_err(future::Either::Left).await?;
+
+			rx.map_err(future::Either::Right).await
+		})
+	}
+
+	fn distribute_erasure_chunk(
+		&self,
+		candidate_hash: Hash,
+		chunk: ErasureChunk,
+	) {
+		let _ = self.sender.clone().try_send(
+			ServiceToWorkerMsg::DistributeErasureChunk(candidate_hash, chunk)
+		);
+	}
+}
+
 /// Errors when interacting with the statement router.
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum RouterError {
@@ -909,7 +1243,7 @@ impl TableRouter for Router {
 		pov_block: PoVBlock,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
 	) -> Self::SendLocalCollation {
-		let message = ServiceToWorkerMsg::LocalCollation(
+		let message = ServiceToWorkerMsg::SubmitValidatedCollation(
 			self.inner.relay_parent.clone(),
 			receipt,
 			pov_block,

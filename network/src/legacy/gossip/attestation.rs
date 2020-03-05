@@ -38,10 +38,10 @@ use polkadot_primitives::Hash;
 use std::collections::{HashMap, HashSet};
 
 use log::warn;
-use crate::legacy::router::attestation_topic;
 
-use super::{cost, benefit, MAX_CHAIN_HEADS, LeavesVec,
-	ChainContext, Known, MessageValidationData, GossipStatement
+use super::{
+	cost, benefit, attestation_topic, MAX_CHAIN_HEADS, LeavesVec,
+	ChainContext, Known, MessageValidationData, GossipStatement,
 };
 
 // knowledge about attestations on a single parent-hash.

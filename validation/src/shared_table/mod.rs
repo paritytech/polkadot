@@ -369,6 +369,7 @@ impl<Fetch, F, Err> PrimedParachainWork<Fetch, F>
 				).await?;
 				self.inner.availability_store.add_erasure_chunks(
 					candidate,
+					full_output.n_validators as _,
 					full_output.erasure_chunks,
 				).await?;
 
@@ -593,7 +594,7 @@ mod tests {
 		BlockData, ErasureChunk, AvailableData,
 	};
 	use polkadot_erasure_coding::{self as erasure};
-	use availability_store::ProvideGossipMessages;
+	use availability_store::ErasureNetworking;
 	use futures::future;
 	use futures::executor::block_on;
 	use std::pin::Pin;
@@ -605,21 +606,22 @@ mod tests {
 	}
 
 	#[derive(Clone)]
-	struct DummyGossipMessages;
+	struct DummyErasureNetworking;
 
-	impl ProvideGossipMessages for DummyGossipMessages {
-		fn gossip_messages_for(
+	impl ErasureNetworking for DummyErasureNetworking {
+		type Error = String;
+
+		fn fetch_erasure_chunk(
 			&self,
-			_topic: Hash
-		) -> Pin<Box<dyn futures::Stream<Item = (Hash, Hash, ErasureChunk)> + Send>> {
-			futures::stream::empty().boxed()
+			_candidate_hash: &Hash,
+			_index: u32,
+		) -> Pin<Box<dyn Future<Output = Result<ErasureChunk, Self::Error>> + Send>> {
+			future::pending().boxed()
 		}
 
-		fn gossip_erasure_chunk(
+		fn distribute_erasure_chunk(
 			&self,
-			_relay_parent: Hash,
 			_candidate_hash: Hash,
-			_erasure_root: Hash,
 			_chunk: ErasureChunk,
 		) {}
 	}
@@ -668,7 +670,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			AvailabilityStore::new_in_memory(DummyGossipMessages),
+			AvailabilityStore::new_in_memory(DummyErasureNetworking),
 			None,
 		);
 
@@ -716,7 +718,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			AvailabilityStore::new_in_memory(DummyGossipMessages),
+			AvailabilityStore::new_in_memory(DummyErasureNetworking),
 			None,
 		);
 
@@ -741,7 +743,7 @@ mod tests {
 
 	#[test]
 	fn evaluate_makes_block_data_available() {
-		let store = AvailabilityStore::new_in_memory(DummyGossipMessages);
+		let store = AvailabilityStore::new_in_memory(DummyErasureNetworking);
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
@@ -789,6 +791,7 @@ mod tests {
 					proof: vec![],
 				}).collect(),
 				commitments: Default::default(),
+				n_validators,
 			}
 		)).validate()).unwrap();
 
@@ -802,7 +805,7 @@ mod tests {
 
 	#[test]
 	fn full_availability() {
-		let store = AvailabilityStore::new_in_memory(DummyGossipMessages);
+		let store = AvailabilityStore::new_in_memory(DummyErasureNetworking);
 		let relay_parent = [0; 32].into();
 		let para_id = 5.into();
 		let pov_block = pov_block_with_data(vec![1, 2, 3]);
@@ -853,6 +856,7 @@ mod tests {
 					proof: vec![],
 				}).collect(),
 				commitments: Default::default(),
+				n_validators,
 			}
 		)).validate()).unwrap();
 
@@ -886,7 +890,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			AvailabilityStore::new_in_memory(DummyGossipMessages),
+			AvailabilityStore::new_in_memory(DummyErasureNetworking),
 			None,
 		);
 
@@ -945,7 +949,7 @@ mod tests {
 			groups,
 			Some(local_key.clone()),
 			parent_hash,
-			AvailabilityStore::new_in_memory(DummyGossipMessages),
+			AvailabilityStore::new_in_memory(DummyErasureNetworking),
 			None,
 		);
 
