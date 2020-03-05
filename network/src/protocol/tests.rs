@@ -275,6 +275,12 @@ impl ParachainHost<Block> for RuntimeApi {
 	}
 }
 
+lazy_static::lazy_static! {
+	static ref EXECUTOR: futures::executor::ThreadPool = futures::executor::ThreadPool::builder()
+		.pool_size(1)
+		.create()
+		.unwrap();
+}
 
 #[test]
 fn router_inner_drop_sends_worker_message() {
@@ -292,3 +298,29 @@ fn router_inner_drop_sends_worker_message() {
 	}
 }
 
+#[test]
+fn spawn_worker_task() {
+	let pool = EXECUTOR.clone();
+
+	let network_ops = Arc::new(MockNetworkOps::default());
+	let mock_gossip = MockGossip::default();
+	let (worker_tx, worker_rx) = mpsc::channel(0);
+	let api = Arc::new(TestApi::default());
+
+	let worker_task = worker_loop(
+		Config { collating_for: None },
+		network_ops.clone(),
+		mock_gossip.clone(),
+		worker_tx.clone(),
+		api.clone(),
+		worker_rx,
+		pool.clone(),
+	);
+
+	let _service = Service {
+		sender: worker_tx,
+		network_service: network_ops,
+	};
+
+	pool.spawn(worker_task).unwrap();
+}
