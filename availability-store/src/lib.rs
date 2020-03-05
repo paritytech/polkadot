@@ -32,7 +32,7 @@ use polkadot_primitives::{
 		ParachainHost, AvailableData, OmittedValidationData,
 	},
 };
-use sp_runtime::traits::{BlakeTwo256, Hash as HashT, HasherFor};
+use sp_runtime::traits::{BlakeTwo256, Hash as HashT, HashFor};
 use sp_blockchain::{Result as ClientResult};
 use client::{
 	BlockchainEvents, BlockBody,
@@ -199,7 +199,7 @@ impl Store {
 		P::Api: ParachainHost<Block>,
 		P::Api: ApiExt<Block, Error=sp_blockchain::Error>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+		sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 	{
 		let to_worker = self.to_worker.clone();
 
