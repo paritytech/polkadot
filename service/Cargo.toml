@@ -19,39 +19,39 @@ polkadot-runtime = { path = "../runtime/polkadot" }
 kusama-runtime = { path = "../runtime/kusama" }
 polkadot-network = { path = "../network"  }
 polkadot-rpc = { path = "../rpc" }
-sp-io = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sp-api = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sp-runtime = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sp-blockchain = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sp-core = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sc-client = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sc-client-api = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sc-client-db = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sc-chain-spec = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sc-executor = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sc-network = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-inherents = { package = "sp-inherents", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-service = { package = "sc-service", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sc-transaction-pool = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sp-transaction-pool = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sc-keystore = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-pallet-babe = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-pallet-staking = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-im-online = { package = "pallet-im-online", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sp-block-builder = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "master" }
+authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 codec = { package = "parity-scale-codec", version = "1.1.0" }
-sp-session = { git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/shawntabrizi/substrate", branch = "shawntabrizi-benchmark-pallet" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["rocksdb"]

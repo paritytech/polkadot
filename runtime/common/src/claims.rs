@@ -589,7 +589,7 @@ mod benchmarking {
 	use super::*;
 	use secp_utils::*;
 	use system::RawOrigin;
-	use frame_benchmarking::{benchmarks, account, BenchmarkResults, BenchmarkParameter};
+	use frame_benchmarking::{benchmarks, account};
 	use sp_runtime::DispatchResult;
 	use crate::claims::Call;
 
@@ -604,51 +604,6 @@ mod benchmarking {
 		let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
 		super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting)?;
 		Ok(())
-	}
-
-	fn benchmark_keccak256<T>(steps: Vec<u32>, repeat: u32) -> Result<Vec<BenchmarkResults>, &'static str> {
-		let mut results: Vec<BenchmarkResults> = Vec::new();
-	
-		let s = if steps.is_empty() { 10 } else { steps[0] };
-	
-		for step in 0 .. s {
-			let start = frame_benchmarking::benchmarking::current_time();
-			for index in 0 .. repeat {
-				let _hash = keccak_256(&(step, index).encode());
-			}
-			let finish = frame_benchmarking::benchmarking::current_time();
-			let elapsed = finish - start;
-		
-			results.push((vec![(BenchmarkParameter::r, repeat)], elapsed, 0));
-		}
-	
-		return Ok(results)
-	}
-
-	fn benchmark_eth_recover<T: Trait>(steps: Vec<u32>, repeat: u32) -> Result<Vec<BenchmarkResults>, &'static str> {
-		let mut results: Vec<BenchmarkResults> = Vec::new();
-	
-		let s = if steps.is_empty() { 10 } else { steps[0] };
-	
-		for step in 0 .. s {
-			// Crate signature
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&step.encode())).unwrap();
-			let account: T::AccountId = account("user", step, SEED);
-			let signature = sig::<T>(&secret_key, &account.encode());
-
-			// Start benchmark
-			let start = frame_benchmarking::benchmarking::current_time();
-			for _ in 0 .. repeat {
-				let data = account.using_encoded(to_ascii_hex);
-				let _maybe_signer = super::Module::<T>::eth_recover(&signature, &data);
-			}
-			let finish = frame_benchmarking::benchmarking::current_time();
-			let elapsed = finish - start;
-		
-			results.push((vec![(BenchmarkParameter::r, repeat)], elapsed, 0));
-		}
-	
-		return Ok(results)
 	}
 
 	benchmarks! {
@@ -676,10 +631,26 @@ mod benchmarking {
 		}: _(RawOrigin::Root, account, VALUE.into(), vesting)
 
 		// Benchmark the time it takes to do `repeat` number of keccak256 hashes
-		benchmark_keccak256(steps, repeat)
+		keccak256 {
+			let i in 0 .. 10_000;
+		}: {
+			for index in 0 .. i {
+				let _hash = keccak_256(&(i).encode());
+			}
+		}
 
 		// Benchmark the time it takes to do `repeat` number of `eth_recover` 
-		benchmark_eth_recover(steps, repeat)
-
+		eth_recover {
+			let i in 0 .. 1_000;
+			// Crate signature
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&i.encode())).unwrap();
+			let account: T::AccountId = account("user", i, SEED);
+			let signature = sig::<T>(&secret_key, &account.encode());
+		}: {
+			for _ in 0 .. i {
+				let data = account.using_encoded(to_ascii_hex);
+				let _maybe_signer = super::Module::<T>::eth_recover(&signature, &data);
+			}
+		}
 	}
 }
