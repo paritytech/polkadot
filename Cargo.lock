@@ -1310,6 +1310,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "frame-benchmarking-cli"
+version = "2.0.0-alpha.3"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#9fbdb7c1288f4a388a08ae7003a4c578ed6db030"
+dependencies = [
+ "frame-benchmarking",
+ "parity-scale-codec",
+ "sc-cli",
+ "sc-client",
+ "sc-client-db",
+ "sc-executor",
+ "sc-service",
+ "sp-runtime",
+ "sp-state-machine",
+ "structopt",
+]
+
+[[package]]
 name = "frame-executive"
 version = "2.0.0-alpha.3"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-master#9fbdb7c1288f4a388a08ae7003a4c578ed6db030"
@@ -4097,6 +4114,7 @@ dependencies = [
 name = "polkadot-cli"
 version = "0.7.21"
 dependencies = [
+ "frame-benchmarking-cli",
  "futures 0.3.4",
  "log 0.4.8",
  "polkadot-service",

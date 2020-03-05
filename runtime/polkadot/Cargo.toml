@@ -129,3 +129,4 @@ std = [
 	"sudo/std",
 	"vesting/std",
 ]
+runtime-benchmarks = ["runtime-common/runtime-benchmarks"]

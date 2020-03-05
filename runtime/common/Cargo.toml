@@ -28,11 +28,11 @@ staking = { package = "pallet-staking", git = "https://github.com/paritytech/sub
 system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
-libsecp256k1 = "0.3.2"
+libsecp256k1 = { version = "0.3.2", optional = true }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
@@ -73,3 +73,4 @@ std = [
 	"serde/std",
 	"log",
 ]
+runtime-benchmarks = ["frame-benchmarking", "libsecp256k1"]

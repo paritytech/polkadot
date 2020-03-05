@@ -98,6 +98,18 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 				Ok(())
 			}
 		},
+		Some(Subcommand::Benchmark(cmd)) => {
+			cmd.init(&version)?;
+			cmd.update_config(&mut config, load_spec, &version)?;
+
+			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
+
+			if is_kusama {
+				cmd.run::<_, _, service::kusama_runtime::Block, service::KusamaExecutor>(config)
+			} else {
+				cmd.run::<_, _, service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
+			}
+		},
 	}
 }
 
