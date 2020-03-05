@@ -40,7 +40,7 @@ pub use sc_executor::NativeExecutionDispatch;
 pub use sc_client::{ExecutionStrategy, CallExecutor, Client};
 pub use sc_client_api::backend::Backend;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
-pub use sp_runtime::traits::HasherFor;
+pub use sp_runtime::traits::HashFor;
 pub use consensus_common::SelectChain;
 pub use polkadot_network::legacy::PolkadotProtocol;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
@@ -152,7 +152,7 @@ macro_rules! new_full_start {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 				let (grandpa_block_import, grandpa_link) =
-					grandpa::block_import::<_, _, _, Runtime, _>(
+					grandpa::block_import(
 						client.clone(), &*client, select_chain
 					)?;
 				let justification_import = grandpa_block_import.clone();
