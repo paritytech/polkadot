@@ -330,6 +330,7 @@ mod tests {
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
 		pub const CreationFee: u64 = 0;
+		pub const MinVestedTransfer: u64 = 0;
 	}
 
 	impl balances::Trait for Test {
@@ -344,6 +345,7 @@ mod tests {
 		type Event = ();
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
+		type MinVestedTransfer = MinVestedTransfer;
 	}
 
 	parameter_types!{
