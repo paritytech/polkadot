@@ -66,7 +66,6 @@ use polkadot_cli::{
 	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
 	service::{self, Roles}
 };
-use polkadot_network::PolkadotProtocol;
 pub use polkadot_cli::{VersionInfo, load_spec, service::Configuration};
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
@@ -212,7 +211,7 @@ fn build_collator_service<S, P, Extrinsic>(
 	build_parachain_context: P,
 ) -> Result<S, polkadot_service::Error>
 	where
-		S: AbstractService<Block = service::Block, NetworkSpecialization = PolkadotProtocol>,
+		S: AbstractService<Block = service::Block>,
 		sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi>: ProvideRuntimeApi<Block>,
 		<sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi> as ProvideRuntimeApi<Block>>::Api:
 			RuntimeApiCollection<

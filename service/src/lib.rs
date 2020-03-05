@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
 use polkadot_network::legacy::gossip::Known;
-use polkadot_network::{protocol as network_protocol, PolkadotProtocol as StubSpecialization};
+use polkadot_network::protocol as network_protocol;
 use service::{error::{Error as ServiceError}, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
@@ -33,7 +33,7 @@ pub use service::{
 	AbstractService, Roles, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
 };
-pub use service::config::{DatabaseConfig, full_version_from_strs};
+pub use service::config::{DatabaseConfig, PrometheusConfig, full_version_from_strs};
 pub use sc_executor::NativeExecutionDispatch;
 pub use sc_client::{ExecutionStrategy, CallExecutor, Client};
 pub use sc_client_api::backend::Backend;
@@ -43,7 +43,6 @@ pub use consensus_common::SelectChain;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use sc_network::specialization::NetworkSpecialization;
 pub use chain_spec::ChainSpec;
 #[cfg(not(target_os = "unknown"))]
 pub use consensus::run_validation_worker;
@@ -126,12 +125,23 @@ impl IsKusama for ChainSpec {
 	}
 }
 
+// If we're using prometheus, use a registry with a prefix of `polkadot`.
+fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceError> {
+	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
+		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
+	}
+
+	Ok(())
+}
+
 /// Starts a `ServiceBuilder` for a full service.
 ///
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
 macro_rules! new_full_start {
 	($config:expr, $runtime:ty, $executor:ty) => {{
+		set_prometheus_registry(&mut $config)?;
+
 		let mut import_setup = None;
 		let inherent_data_providers = inherents::InherentDataProviders::new();
 		let builder = service::ServiceBuilder::new_full::<
@@ -150,7 +160,7 @@ macro_rules! new_full_start {
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 				let (grandpa_block_import, grandpa_link) =
 					grandpa::block_import(
-						client.clone(), &*client, select_chain
+						client.clone(), &(client.clone() as Arc<_>), select_chain
 					)?;
 				let justification_import = grandpa_block_import.clone();
 
@@ -174,10 +184,7 @@ macro_rules! new_full_start {
 			})?
 			.with_rpc_extensions(|builder| -> Result<polkadot_rpc::RpcExtension, _> {
 				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool()))
-			})?
-			.with_prometheus_registry(
-				Registry::new_custom(Some("polkadot".into()), None)?
-			);
+			})?;
 
 		(builder, import_setup, inherent_data_providers)
 	}}
@@ -210,7 +217,6 @@ pub fn polkadot_new_full(
 		impl AbstractService<
 			Block = Block,
 			RuntimeApi = polkadot_runtime::RuntimeApi,
-			NetworkSpecialization = StubSpecialization,
 			Backend = TFullBackend<Block>,
 			SelectChain = LongestChain<TFullBackend<Block>, Block>,
 			CallExecutor = TFullCallExecutor<Block, PolkadotExecutor>,
@@ -233,7 +239,6 @@ pub fn kusama_new_full(
 		impl AbstractService<
 			Block = Block,
 			RuntimeApi = kusama_runtime::RuntimeApi,
-			NetworkSpecialization = StubSpecialization,
 			Backend = TFullBackend<Block>,
 			SelectChain = LongestChain<TFullBackend<Block>, Block>,
 			CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
@@ -253,7 +258,7 @@ pub struct FullNodeHandles {
 
 /// Builds a new service for a full client.
 pub fn new_full<Runtime, Dispatch, Extrinsic>(
-	config: Configuration,
+	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
@@ -263,7 +268,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		impl AbstractService<
 			Block = Block,
 			RuntimeApi = Runtime,
-			NetworkSpecialization = StubSpecialization,
 			Backend = TFullBackend<Block>,
 			SelectChain = LongestChain<TFullBackend<Block>, Block>,
 			CallExecutor = TFullCallExecutor<Block, Dispatch>,
@@ -280,6 +284,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	use sc_network::Event;
+	use sc_client_api::ExecutorProvider;
 	use futures::stream::StreamExt;
 
 	let is_collator = collating_for.is_some();
@@ -307,10 +312,10 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let backend = builder.backend().clone();
 
 	let service = builder
-		.with_network_protocol(|_config| Ok(StubSpecialization::new()))?
-		.with_finality_proof_provider(|client, backend|
-			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
-		)?
+		.with_finality_proof_provider(|client, backend| {
+			let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
+			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, provider)) as _)
+		})?
 		.build()?;
 
 	let (block_import, link_half, babe_link) = import_setup.take()
@@ -478,7 +483,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			link: link_half,
 			network: service.network(),
 			inherent_data_providers: inherent_data_providers.clone(),
-			on_exit: service.on_exit(),
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 			voting_rule: grandpa::VotingRulesBuilder::default().build(),
 			prometheus_registry: service.prometheus_registry(),
@@ -507,7 +511,6 @@ pub fn polkadot_new_light(
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = polkadot_runtime::RuntimeApi,
-		NetworkSpecialization = StubSpecialization,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, PolkadotExecutor>,
@@ -523,7 +526,6 @@ pub fn kusama_new_light(
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = kusama_runtime::RuntimeApi,
-		NetworkSpecialization = StubSpecialization,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,
@@ -552,12 +554,11 @@ type TLocalLightClient<Runtime, Dispatch> =  Client<
 
 /// Builds a new service for a light client.
 pub fn new_light<Runtime, Dispatch, Extrinsic>(
-	config: Configuration,
+	mut config: Configuration,
 )
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = Runtime,
-		NetworkSpecialization = StubSpecialization,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, Dispatch>,
@@ -575,6 +576,8 @@ where
 		TLocalLightClient<Runtime, Dispatch>,
 	>,
 {
+	set_prometheus_registry(&mut config)?;
+
 	let inherent_data_providers = InherentDataProviders::new();
 
 	ServiceBuilder::new_light::<Block, Runtime, Dispatch>(config)?
@@ -595,7 +598,7 @@ where
 				.map(|fetcher| fetcher.checker().clone())
 				.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
 			let grandpa_block_import = grandpa::light_block_import(
-				client.clone(), backend, &*client, Arc::new(fetch_checker)
+				client.clone(), backend, &(client.clone() as Arc<_>), Arc::new(fetch_checker)
 			)?;
 
 			let finality_proof_import = grandpa_block_import.clone();
@@ -620,10 +623,10 @@ where
 
 			Ok((import_queue, finality_proof_request_builder))
 		})?
-		.with_network_protocol(|_config| Ok(StubSpecialization::new()))?
-		.with_finality_proof_provider(|client, backend|
-			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
-		)?
+		.with_finality_proof_provider(|client, backend| {
+			let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
+			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, provider)) as _)
+		})?
 		.with_rpc_extensions(|builder|
 			-> Result<polkadot_rpc::RpcExtension, _> {
 			let fetcher = builder.fetcher()
@@ -633,8 +636,5 @@ where
 
 			Ok(polkadot_rpc::create_light(builder.client().clone(), remote_blockchain, fetcher, builder.pool()))
 		})?
-		.with_prometheus_registry(
-			Registry::new_custom(Some("polkadot".into()), None)?
-		)
 		.build()
 }

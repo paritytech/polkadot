@@ -24,14 +24,8 @@ use polkadot_primitives::{Block, Hash, BlakeTwo256, HashT};
 pub mod legacy;
 pub mod protocol;
 
-sc_network::construct_simple_protocol! {
-	/// Stub until https://github.com/paritytech/substrate/pull/4665 is merged
-	#[derive(Clone)]
-	pub struct PolkadotProtocol where Block = Block { }
-}
-
-/// Specialization of the network service for the polkadot protocol.
-pub type PolkadotNetworkService = sc_network::NetworkService<Block, PolkadotProtocol, Hash>;
+/// Specialization of the network service for the polkadot block type.
+pub type PolkadotNetworkService = sc_network::NetworkService<Block, Hash>;
 
 mod cost {
 	use sc_network::ReputationChange as Rep;
