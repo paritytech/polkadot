@@ -24,7 +24,8 @@ use std::any::{TypeId, Any};
 use crate::{ValidationParams, ValidationResult, UpwardMessage};
 use codec::{Decode, Encode};
 use sp_core::storage::{ChildStorageKey, ChildInfo};
-use cp_core::traits::CallInWasm;
+use sp_core::traits::CallInWasm;
+use sp_wasm_interface::HostFunctions as _;
 
 #[cfg(not(target_os = "unknown"))]
 pub use validation_host::{run_worker, EXECUTION_TIMEOUT_SEC};
