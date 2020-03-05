@@ -127,12 +127,13 @@ where
 		service::Roles::LIGHT =>
 			sc_cli::run_service_until_exit(
 				config,
-				|config| service::new_light::<R, D, E>(config, None),
+				|config| service::new_light::<R, D, E>(config),
 			),
 		_ =>
 			sc_cli::run_service_until_exit(
 				config,
-				|config| service::new_full::<R, D, E>(config, None, None, authority_discovery_enabled, 6000),
+				|config| service::new_full::<R, D, E>(config, None, None, authority_discovery_enabled, 6000)
+					.map(|(s, _)| s),
 			),
 	}
 }

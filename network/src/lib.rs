@@ -19,13 +19,14 @@
 //! This manages routing for parachain statements, parachain block and outgoing message
 //! data fetching, communication between collators and validators, and more.
 
-use polkadot_primitives::{Block, Hash};
+use polkadot_primitives::{Block, Hash, BlakeTwo256, HashT};
 
 pub mod legacy;
 pub mod protocol;
 
 sc_network::construct_simple_protocol! {
 	/// Stub until https://github.com/paritytech/substrate/pull/4665 is merged
+	#[derive(Clone)]
 	pub struct PolkadotProtocol where Block = Block { }
 }
 
@@ -35,23 +36,23 @@ pub type PolkadotNetworkService = sc_network::NetworkService<Block, PolkadotProt
 mod cost {
 	use sc_network::ReputationChange as Rep;
 	pub(super) const UNEXPECTED_MESSAGE: Rep = Rep::new(-200, "Polkadot: Unexpected message");
-	pub(super) const UNEXPECTED_ROLE: Rep = Rep::new(-200, "Polkadot: Unexpected role");
 	pub(super) const INVALID_FORMAT: Rep = Rep::new(-200, "Polkadot: Bad message");
 
 	pub(super) const UNKNOWN_PEER: Rep = Rep::new(-50, "Polkadot: Unknown peer");
-	pub(super) const COLLATOR_ALREADY_KNOWN: Rep = Rep::new(-100, "Polkadot: Known collator");
 	pub(super) const BAD_COLLATION: Rep = Rep::new(-1000, "Polkadot: Bad collation");
-	pub(super) const BAD_POV_BLOCK: Rep = Rep::new(-1000, "Polkadot: Bad POV block");
 }
 
 mod benefit {
 	use sc_network::ReputationChange as Rep;
-	pub(super) const EXPECTED_MESSAGE: Rep = Rep::new(20, "Polkadot: Expected message");
 	pub(super) const VALID_FORMAT: Rep = Rep::new(20, "Polkadot: Valid message format");
-
-	pub(super) const KNOWN_PEER: Rep = Rep::new(5, "Polkadot: Known peer");
-	pub(super) const NEW_COLLATOR: Rep = Rep::new(10, "Polkadot: New collator");
 	pub(super) const GOOD_COLLATION: Rep = Rep::new(100, "Polkadot: Good collation");
-	pub(super) const GOOD_POV_BLOCK: Rep = Rep::new(100, "Polkadot: Good POV block");
 }
 
+/// Compute gossip topic for the erasure chunk messages given the hash of the
+/// candidate they correspond to.
+fn erasure_coding_topic(candidate_hash: &Hash) -> Hash {
+	let mut v = candidate_hash.as_ref().to_vec();
+	v.extend(b"erasure_chunks");
+
+	BlakeTwo256::hash(&v[..])
+}
