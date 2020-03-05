@@ -35,7 +35,7 @@ use polkadot_primitives::parachain::{
 use parking_lot::Mutex;
 use sp_blockchain::Result as ClientResult;
 use sp_api::{ApiRef, Core, RuntimeVersion, StorageProof, ApiErrorExt, ApiExt, ProvideRuntimeApi};
-use sp_runtime::traits::{Block as BlockT, HasherFor, NumberFor};
+use sp_runtime::traits::{Block as BlockT, HashFor, NumberFor};
 use sp_state_machine::ChangesTrieState;
 
 use std::collections::HashMap;
@@ -206,7 +206,7 @@ impl ApiErrorExt for RuntimeApi {
 }
 
 impl ApiExt<Block> for RuntimeApi {
-	type StateBackend = sp_state_machine::InMemoryBackend<sp_api::HasherFor<Block>>;
+	type StateBackend = sp_state_machine::InMemoryBackend<HashFor<Block>>;
 
 	fn map_api_result<F: FnOnce(&Self) -> Result<R, E>, R, E>(
 		&self,
@@ -228,7 +228,7 @@ impl ApiExt<Block> for RuntimeApi {
 	fn into_storage_changes(
 		&self,
 		_: &Self::StateBackend,
-		_: Option<&ChangesTrieState<HasherFor<Block>, NumberFor<Block>>>,
+		_: Option<&ChangesTrieState<HashFor<Block>, NumberFor<Block>>>,
 		_: <Block as sp_api::BlockT>::Hash,
 	) -> std::result::Result<sp_api::StorageChanges<Self::StateBackend, Block>, String>
 		where Self: Sized

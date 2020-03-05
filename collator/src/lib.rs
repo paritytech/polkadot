@@ -52,7 +52,8 @@ use std::time::Duration;
 use futures::{future, Future, Stream, FutureExt, TryFutureExt, StreamExt, task::Spawn};
 use log::warn;
 use sc_client::BlockchainEvents;
-use sp_core::{Pair, Blake2Hasher};
+use sp_core::Pair;
+use sp_runtime::traits::BlakeTwo256;
 use polkadot_primitives::{
 	BlockId, Hash, Block,
 	parachain::{
@@ -145,14 +146,14 @@ pub trait BuildParachainContext {
 			<PolkadotClient<B, E, R> as ProvideRuntimeApi<Block>>::Api: RuntimeApiCollection<Extrinsic>,
 			// Rust bug: https://github.com/rust-lang/rust/issues/24159
 			<<PolkadotClient<B, E, R> as ProvideRuntimeApi<Block>>::Api as sp_api::ApiExt<Block>>::StateBackend:
-				sp_api::StateBackend<Blake2Hasher>,
+				sp_api::StateBackend<BlakeTwo256>,
 			Extrinsic: codec::Codec + Send + Sync + 'static,
 			E: sc_client::CallExecutor<Block> + Clone + Send + Sync + 'static,
 			SP: Spawn + Clone + Send + Sync + 'static,
 			R: Send + Sync + 'static,
 			B: sc_client_api::Backend<Block> + 'static,
 			// Rust bug: https://github.com/rust-lang/rust/issues/24159
-			B::State: sp_api::StateBackend<Blake2Hasher>;
+			B::State: sp_api::StateBackend<BlakeTwo256>;
 }
 
 /// Parachain context needed for collation.
@@ -236,7 +237,7 @@ fn build_collator_service<S, P, Extrinsic>(
 		S::Backend: service::Backend<service::Block>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
 		<S::Backend as service::Backend<service::Block>>::State:
-			sp_api::StateBackend<sp_runtime::traits::HasherFor<Block>>,
+			sp_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
 		S::CallExecutor: service::CallExecutor<service::Block>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
