@@ -39,6 +39,8 @@ use sp_runtime::{
 	curve::PiecewiseLinear,
 	traits::{BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto, IdentityLookup},
 };
+#[cfg(feature = "runtime-benchmarks")]
+use sp_runtime::RuntimeString;
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 #[cfg(any(feature = "std", test))]
@@ -853,6 +855,33 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn query_info(uxt: UncheckedExtrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
+		}
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	impl frame_benchmarking::Benchmark<Block> for Runtime {		
+		fn dispatch_benchmark(
+			module: Vec<u8>,
+			extrinsic: Vec<u8>,
+			lowest_range_values: Vec<u32>,
+			highest_range_values: Vec<u32>,
+			steps: Vec<u32>,
+			repeat: u32,
+		) -> Result<Vec<frame_benchmarking::BenchmarkResults>, RuntimeString> {
+			use frame_benchmarking::Benchmarking;
+
+			let result = match module.as_slice() {
+				b"claims" => Claims::run_benchmark(
+					extrinsic,
+					lowest_range_values,
+					highest_range_values,
+					steps,
+					repeat,
+				),
+				_ => Err("Benchmark not found for this pallet."),
+			};
+
+			result.map_err(|e| e.into())
 		}
 	}
 }

@@ -2265,6 +2265,7 @@ name = "kusama-runtime"
 version = "0.7.21"
 dependencies = [
  "bitvec",
+ "frame-benchmarking",
  "frame-executive",
  "frame-support",
  "frame-system",

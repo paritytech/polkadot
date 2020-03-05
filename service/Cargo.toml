@@ -58,4 +58,4 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 [features]
 default = ["rocksdb"]
 rocksdb = ["service/rocksdb"]
-runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks"]
+runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks"]
