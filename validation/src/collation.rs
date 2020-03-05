@@ -22,7 +22,7 @@
 use std::sync::Arc;
 
 use polkadot_primitives::{
-	BlakeTwo256, Block, Hash, HashT, BlockId, Balance,
+	BlakeTwo256, Block, Hash, HashT, BlockId, Balance, BlockNumber,
 	parachain::{
 		CollatorId, CandidateReceipt, CollationInfo,
 		ParachainHost, Id as ParaId, Collation, FeeSchedule, ErasureChunk,
@@ -65,9 +65,10 @@ pub trait Collators: Clone {
 }
 
 /// A future which resolves when a collation is available.
-pub async fn collation_fetch<C: Collators, P>(
+pub async fn collation_fetch<C: Collators, P, GCRB>(
 	parachain: ParaId,
 	relay_parent_hash: Hash,
+	get_current_relay_block: GCRB,
 	collators: C,
 	client: Arc<P>,
 	max_block_data_size: Option<u64>,
@@ -77,6 +78,7 @@ pub async fn collation_fetch<C: Collators, P>(
 		C: Collators + Unpin,
 		P: ProvideRuntimeApi<Block>,
 		<C as Collators>::Collation: Unpin,
+		GCRB: Fn() -> BlockNumber,
 {
 	let relay_parent = BlockId::hash(relay_parent_hash);
 
@@ -87,6 +89,7 @@ pub async fn collation_fetch<C: Collators, P>(
 		let res = validate_collation(
 			&*client,
 			&relay_parent,
+			get_current_relay_block(),
 			&collation,
 			max_block_data_size,
 		);
@@ -281,6 +284,7 @@ pub fn validate_chunk(
 fn do_validation<P>(
 	client: &P,
 	relay_parent: &BlockId,
+	current_relay_block: BlockNumber,
 	pov_block: &PoVBlock,
 	para_id: ParaId,
 	max_block_data_size: Option<u64>,
@@ -311,6 +315,7 @@ fn do_validation<P>(
 	let params = ValidationParams {
 		parent_head: chain_status.head_data.0.clone(),
 		block_data: pov_block.block_data.0.clone(),
+		current_relay_block,
 	};
 
 	let ext = Externalities::new(chain_status.balance, chain_status.fee_schedule);
@@ -406,6 +411,7 @@ pub fn validate_receipt<P>(
 	let (parent_head, _fees) = do_validation(
 		client,
 		relay_parent,
+		receipt.current_relay_block,
 		pov_block,
 		receipt.parachain_index,
 		max_block_data_size,
@@ -451,6 +457,7 @@ pub fn validate_receipt<P>(
 pub fn validate_collation<P>(
 	client: &P,
 	relay_parent: &BlockId,
+	current_relay_block: BlockNumber,
 	collation: &Collation,
 	max_block_data_size: Option<u64>,
 ) -> Result<(HeadData, Balance), Error> where
