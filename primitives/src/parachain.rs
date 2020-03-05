@@ -18,7 +18,7 @@
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode, CompactAs};
 use bitvec::vec::BitVec;
 use super::{Hash, Balance};
 
@@ -27,16 +27,12 @@ use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
 use primitives::bytes;
-use primitives::RuntimeDebug;
+use primitives::{RuntimeDebug, TypeId};
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
 #[cfg(feature = "std")]
 use trie::TrieConfiguration;
-
-pub use polkadot_parachain::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage,
-};
 
 /// The key type ID for a collator key.
 pub const COLLATOR_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"coll");
@@ -464,6 +460,157 @@ pub mod id {
 	/// Parachain host runtime API id.
 	pub const PARACHAIN_HOST: ApiId = *b"parahost";
 }
+
+/// Unique identifier of a parachain.
+#[derive(
+	Clone, CompactAs, Copy, Decode, Default, Encode, Eq,
+	Hash, Ord, PartialEq, PartialOrd, RuntimeDebug,
+)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, derive_more::Display))]
+pub struct Id(u32);
+
+impl TypeId for Id {
+	const TYPE_ID: [u8; 4] = *b"para";
+}
+
+const USER_INDEX_START: u32 = 1000;
+
+/// The ID of the first user (non-system) parachain.
+pub const LOWEST_USER_ID: Id = Id(USER_INDEX_START);
+
+impl Id {
+	/// Create an `Id`.
+	pub const fn new(id: u32) -> Self {
+		Self(id)
+	}
+
+	/// Returns `true` if this parachain runs with system-level privileges.
+	pub fn is_system(&self) -> bool { self.0 < USER_INDEX_START }
+}
+
+impl rstd::ops::Add<u32> for Id {
+	type Output = Self;
+
+	fn add(self, other: u32) -> Self {
+		Self(self.0 + other)
+	}
+}
+
+/// Type for determining the active set of parachains.
+pub trait ActiveThreads {
+	/// Return the current ordered set of `Id`s of active parathreads.
+	fn active_threads() -> Vec<Id>;
+}
+
+impl From<Id> for u32 {
+	fn from(x: Id) -> Self { x.0 }
+}
+
+impl From<u32> for Id {
+	fn from(x: u32) -> Self { Id(x) }
+}
+
+// TODO: Remove all of this, move sp-runtime::AccountIdConversion to own crate and and use that.
+// #360
+struct TrailingZeroInput<'a>(&'a [u8]);
+impl<'a> parity_scale_codec::Input for TrailingZeroInput<'a> {
+	fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
+		Ok(None)
+	}
+
+	fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
+		let len = into.len().min(self.0.len());
+		into[..len].copy_from_slice(&self.0[..len]);
+		for i in &mut into[len..] {
+			*i = 0;
+		}
+		self.0 = &self.0[len..];
+		Ok(())
+	}
+}
+
+/// This type can be converted into and possibly from an AccountId (which itself is generic).
+pub trait AccountIdConversion<AccountId>: Sized {
+	/// Convert into an account ID. This is infallible.
+	fn into_account(&self) -> AccountId;
+
+	/// Try to convert an account ID into this type. Might not succeed.
+	fn try_from_account(a: &AccountId) -> Option<Self>;
+}
+
+/// Format is b"para" ++ encode(parachain ID) ++ 00.... where 00... is indefinite trailing
+/// zeroes to fill AccountId.
+impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
+	fn into_account(&self) -> T {
+		(b"para", self).using_encoded(|b|
+			T::decode(&mut TrailingZeroInput(b))
+		).unwrap_or_default()
+	}
+
+	fn try_from_account(x: &T) -> Option<Self> {
+		x.using_encoded(|d| {
+			if &d[0..4] != b"para" { return None }
+			let mut cursor = &d[4..];
+			let result = Decode::decode(&mut cursor).ok()?;
+			if cursor.iter().all(|x| *x == 0) {
+				Some(result)
+			} else {
+				None
+			}
+		})
+	}
+}
+
+
+/// Which origin a parachain's message to the relay chain should be dispatched from.
+#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+#[repr(u8)]
+pub enum ParachainDispatchOrigin {
+	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
+	/// interacting with standard modules such as `balances`.
+	Signed,
+	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with parachain-
+	/// aware modules which need to succinctly verify that the origin is a parachain.
+	Parachain,
+	/// As the simple, superuser `Origin::Root`. This can only be done on specially permissioned
+	/// parachains.
+	Root,
+}
+
+impl rstd::convert::TryFrom<u8> for ParachainDispatchOrigin {
+	type Error = ();
+	fn try_from(x: u8) -> core::result::Result<ParachainDispatchOrigin, ()> {
+		const SIGNED: u8 = ParachainDispatchOrigin::Signed as u8;
+		const PARACHAIN: u8 = ParachainDispatchOrigin::Parachain as u8;
+		Ok(match x {
+			SIGNED => ParachainDispatchOrigin::Signed,
+			PARACHAIN => ParachainDispatchOrigin::Parachain,
+			_ => return Err(()),
+		})
+	}
+}
+
+/// A message from a parachain to its Relay Chain.
+#[derive(Clone, PartialEq, Eq, Encode, Decode, sp_runtime_interface::pass_by::PassByCodec)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct UpwardMessage {
+	/// The origin for the message to be sent from.
+	pub origin: ParachainDispatchOrigin,
+	/// The message data.
+	pub data: Vec<u8>,
+}
+
+/// An incoming message.
+#[derive(PartialEq, Eq, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Encode))]
+pub struct IncomingMessage {
+	/// The source parachain.
+	pub source: Id,
+	/// The data of the message.
+	pub data: Vec<u8>,
+}
+
 
 #[cfg(test)]
 mod tests {
