@@ -35,7 +35,7 @@ pub use service::{
 	AbstractService, Roles, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
 };
-pub use service::config::{DatabaseConfig, full_version_from_strs};
+pub use service::config::{DatabaseConfig, PrometheusConfig, full_version_from_strs};
 pub use sc_executor::NativeExecutionDispatch;
 pub use sc_client::{ExecutionStrategy, CallExecutor, Client};
 pub use sc_client_api::backend::Backend;
@@ -129,12 +129,23 @@ impl IsKusama for ChainSpec {
 	}
 }
 
+// If we're using prometheus, use a registry with a prefix of `polkadot`.
+fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceError> {
+	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
+		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
+	}
+
+	Ok(())
+}
+
 /// Starts a `ServiceBuilder` for a full service.
 ///
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
 macro_rules! new_full_start {
 	($config:expr, $runtime:ty, $executor:ty) => {{
+		set_prometheus_registry(&mut $config)?;
+
 		let mut import_setup = None;
 		let inherent_data_providers = inherents::InherentDataProviders::new();
 		let builder = service::ServiceBuilder::new_full::<
@@ -177,10 +188,7 @@ macro_rules! new_full_start {
 			})?
 			.with_rpc_extensions(|builder| -> Result<polkadot_rpc::RpcExtension, _> {
 				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool()))
-			})?
-			.with_prometheus_registry(
-				Registry::new_custom(Some("polkadot".into()), None)?
-			);
+			})?;
 
 		(builder, import_setup, inherent_data_providers)
 	}}
@@ -243,7 +251,7 @@ pub fn kusama_new_full(
 
 /// Builds a new service for a full client.
 pub fn new_full<Runtime, Dispatch, Extrinsic>(
-	config: Configuration,
+	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
@@ -550,7 +558,7 @@ type TLocalLightClient<Runtime, Dispatch> =  Client<
 
 /// Builds a new service for a light client.
 pub fn new_light<Runtime, Dispatch, Extrinsic>(
-	config: Configuration,
+	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 )
 	-> Result<impl AbstractService<
@@ -574,6 +582,8 @@ where
 		TLocalLightClient<Runtime, Dispatch>,
 	>,
 {
+	set_prometheus_registry(&mut config)?;
+
 	let inherent_data_providers = InherentDataProviders::new();
 
 	ServiceBuilder::new_light::<Block, Runtime, Dispatch>(config)?
@@ -632,8 +642,5 @@ where
 
 			Ok(polkadot_rpc::create_light(builder.client().clone(), remote_blockchain, fetcher, builder.pool()))
 		})?
-		.with_prometheus_registry(
-			Registry::new_custom(Some("polkadot".into()), None)?
-		)
 		.build()
 }
