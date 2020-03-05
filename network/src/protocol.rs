@@ -50,7 +50,7 @@ use std::time::Duration;
 
 use super::{cost, benefit, PolkadotNetworkService};
 use crate::legacy::collator_pool::Role as CollatorRole;
-use crate::legacy::gossip::{GossipMessage, ErasureChunkMessage};
+use crate::legacy::gossip::{GossipMessage, ErasureChunkMessage, RegisteredMessageValidator};
 
 /// The current protocol version.
 pub const VERSION: u32 = 1;
@@ -304,8 +304,6 @@ struct ConsensusNetworkingInstance {
 	attestation_topic: Hash,
 	_drop_signal: exit_future::Signal,
 }
-
-type RegisteredMessageValidator = crate::legacy::gossip::RegisteredMessageValidator<crate::PolkadotProtocol>;
 
 /// Protocol configuration.
 #[derive(Default)]

@@ -52,7 +52,7 @@
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 use sp_blockchain::Error as ClientError;
 use sc_network::{config::Roles, PeerId, ReputationChange};
-use sc_network::{NetworkService as SubstrateNetworkService, specialization::NetworkSpecialization};
+use sc_network::NetworkService;
 use sc_network_gossip::{
 	ValidationResult as GossipValidationResult,
 	ValidatorContext, MessageIntent,
@@ -266,11 +266,11 @@ pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 // NOTE: since RegisteredMessageValidator is meant to be a type-safe proof
 // that we've actually done the registration, this should be the only way
 // to construct it outside of tests.
-pub fn register_validator<C: ChainContext + 'static, S: NetworkSpecialization<Block>>(
-	service: Arc<SubstrateNetworkService<Block, S, Hash>>,
+pub fn register_validator<C: ChainContext + 'static>(
+	service: Arc<NetworkService<Block, Hash>>,
 	chain: C,
 	executor: &impl futures::task::Spawn,
-) -> RegisteredMessageValidator<S>
+) -> RegisteredMessageValidator
 {
 	let s = service.clone();
 	let report_handle = Box::new(move |peer: &PeerId, cost_benefit: ReputationChange| {
@@ -344,25 +344,16 @@ impl NewLeafActions {
 /// A registered message validator.
 ///
 /// Create this using `register_validator`.
-pub struct RegisteredMessageValidator<S: NetworkSpecialization<Block>> {
+#[derive(Clone)]
+pub struct RegisteredMessageValidator {
 	inner: Arc<MessageValidator<dyn ChainContext>>,
 	// Note: this is always `Some` in real code and `None` in tests.
-	service: Option<Arc<SubstrateNetworkService<Block, S, Hash>>>,
+	service: Option<Arc<NetworkService<Block, Hash>>>,
 	// Note: this is always `Some` in real code and `None` in tests.
 	gossip_engine: Option<sc_network_gossip::GossipEngine<Block>>,
 }
 
-impl<S: NetworkSpecialization<Block>> Clone for RegisteredMessageValidator<S> {
-	fn clone(&self) -> Self {
-		RegisteredMessageValidator {
-			inner: self.inner.clone(),
-			service: self.service.clone(),
-			gossip_engine: self.gossip_engine.clone(),
-		}
-	}
-}
-
-impl<S: NetworkSpecialization<Block>> RegisteredMessageValidator<S> {
+impl RegisteredMessageValidator {
 	/// Register an availabilty store the gossip service can query.
 	pub(crate) fn register_availability_store(&self, availability_store: av_store::Store) {
 		self.inner.inner.write().availability_store = Some(availability_store);
@@ -437,7 +428,7 @@ impl<S: NetworkSpecialization<Block>> RegisteredMessageValidator<S> {
 	}
 }
 
-impl<S: NetworkSpecialization<Block>> GossipService for RegisteredMessageValidator<S> {
+impl GossipService for RegisteredMessageValidator {
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream {
 		RegisteredMessageValidator::gossip_messages_for(self, topic)
 	}
