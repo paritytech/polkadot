@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
 use polkadot_network::legacy::gossip::Known;
-use polkadot_network::{protocol as network_protocol, PolkadotProtocol as StubSpecialization};
+use polkadot_network::protocol as network_protocol;
 use service::{error::{Error as ServiceError}, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
@@ -43,7 +43,6 @@ pub use consensus_common::SelectChain;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use sc_network::specialization::NetworkSpecialization;
 pub use chain_spec::ChainSpec;
 #[cfg(not(target_os = "unknown"))]
 pub use consensus::run_validation_worker;
@@ -161,7 +160,7 @@ macro_rules! new_full_start {
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 				let (grandpa_block_import, grandpa_link) =
 					grandpa::block_import(
-						client.clone(), &*client, select_chain
+						client.clone(), &(client.clone() as Arc<_>), select_chain
 					)?;
 				let justification_import = grandpa_block_import.clone();
 
@@ -218,7 +217,6 @@ pub fn polkadot_new_full(
 		impl AbstractService<
 			Block = Block,
 			RuntimeApi = polkadot_runtime::RuntimeApi,
-			NetworkSpecialization = StubSpecialization,
 			Backend = TFullBackend<Block>,
 			SelectChain = LongestChain<TFullBackend<Block>, Block>,
 			CallExecutor = TFullCallExecutor<Block, PolkadotExecutor>,
@@ -241,7 +239,6 @@ pub fn kusama_new_full(
 		impl AbstractService<
 			Block = Block,
 			RuntimeApi = kusama_runtime::RuntimeApi,
-			NetworkSpecialization = StubSpecialization,
 			Backend = TFullBackend<Block>,
 			SelectChain = LongestChain<TFullBackend<Block>, Block>,
 			CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
@@ -271,7 +268,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		impl AbstractService<
 			Block = Block,
 			RuntimeApi = Runtime,
-			NetworkSpecialization = StubSpecialization,
 			Backend = TFullBackend<Block>,
 			SelectChain = LongestChain<TFullBackend<Block>, Block>,
 			CallExecutor = TFullCallExecutor<Block, Dispatch>,
@@ -288,6 +284,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	use sc_network::Event;
+	use sc_client_api::ExecutorProvider;
 	use futures::stream::StreamExt;
 
 	let is_collator = collating_for.is_some();
@@ -315,10 +312,10 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let backend = builder.backend().clone();
 
 	let service = builder
-		.with_network_protocol(|_config| Ok(StubSpecialization::new()))?
-		.with_finality_proof_provider(|client, backend|
-			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
-		)?
+		.with_finality_proof_provider(|client, backend| {
+			let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
+			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, provider)) as _)
+		})?
 		.build()?;
 
 	let (block_import, link_half, babe_link) = import_setup.take()
@@ -514,7 +511,6 @@ pub fn polkadot_new_light(
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = polkadot_runtime::RuntimeApi,
-		NetworkSpecialization = StubSpecialization,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, PolkadotExecutor>,
@@ -530,7 +526,6 @@ pub fn kusama_new_light(
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = kusama_runtime::RuntimeApi,
-		NetworkSpecialization = StubSpecialization,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,
@@ -564,7 +559,6 @@ pub fn new_light<Runtime, Dispatch, Extrinsic>(
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = Runtime,
-		NetworkSpecialization = StubSpecialization,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, Dispatch>,
@@ -604,7 +598,7 @@ where
 				.map(|fetcher| fetcher.checker().clone())
 				.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
 			let grandpa_block_import = grandpa::light_block_import(
-				client.clone(), backend, &*client, Arc::new(fetch_checker)
+				client.clone(), backend, &(client.clone() as Arc<_>), Arc::new(fetch_checker)
 			)?;
 
 			let finality_proof_import = grandpa_block_import.clone();
@@ -629,10 +623,10 @@ where
 
 			Ok((import_queue, finality_proof_request_builder))
 		})?
-		.with_network_protocol(|_config| Ok(StubSpecialization::new()))?
-		.with_finality_proof_provider(|client, backend|
-			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
-		)?
+		.with_finality_proof_provider(|client, backend| {
+			let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
+			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, provider)) as _)
+		})?
 		.with_rpc_extensions(|builder|
 			-> Result<polkadot_rpc::RpcExtension, _> {
 			let fetcher = builder.fetcher()
