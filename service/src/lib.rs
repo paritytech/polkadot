@@ -40,13 +40,12 @@ pub use sc_executor::NativeExecutionDispatch;
 pub use sc_client::{ExecutionStrategy, CallExecutor, Client};
 pub use sc_client_api::backend::Backend;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
-pub use sp_runtime::traits::HasherFor;
+pub use sp_runtime::traits::HashFor;
 pub use consensus_common::SelectChain;
 pub use polkadot_network::legacy::PolkadotProtocol;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
-pub use sp_core::Blake2Hasher;
-pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits};
+pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use sc_network::specialization::NetworkSpecialization;
 pub use chain_spec::ChainSpec;
 #[cfg(not(target_os = "unknown"))]
@@ -54,6 +53,7 @@ pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
+use prometheus_endpoint::Registry;
 
 /// Configuration type that is being used.
 ///
@@ -90,7 +90,7 @@ pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static> 
 	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
 where
 	Extrinsic: RuntimeExtrinsic,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
 impl<Api, Extrinsic> RuntimeApiCollection<Extrinsic> for Api
@@ -108,7 +108,7 @@ where
 	+ sp_session::SessionKeys<Block>
 	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
 	Extrinsic: RuntimeExtrinsic,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
 pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static
@@ -152,7 +152,7 @@ macro_rules! new_full_start {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 				let (grandpa_block_import, grandpa_link) =
-					grandpa::block_import::<_, _, _, Runtime, _>(
+					grandpa::block_import(
 						client.clone(), &*client, select_chain
 					)?;
 				let justification_import = grandpa_block_import.clone();
@@ -177,7 +177,10 @@ macro_rules! new_full_start {
 			})?
 			.with_rpc_extensions(|builder| -> Result<polkadot_rpc::RpcExtension, _> {
 				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool()))
-			})?;
+			})?
+			.with_prometheus_registry(
+				Registry::new_custom(Some("polkadot".into()), None)?
+			);
 
 		(builder, import_setup, inherent_data_providers)
 	}}
@@ -192,7 +195,7 @@ where
 	RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>>,
 	Dispatch: NativeExecutionDispatch + 'static,
 	Extrinsic: RuntimeExtrinsic,
-	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
+	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
 	Ok(new_full_start!(config, Runtime, Dispatch).0)
@@ -261,7 +264,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		Dispatch: NativeExecutionDispatch + 'static,
 		Extrinsic: RuntimeExtrinsic,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<Blake2Hasher>,
+		<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	use sc_network::Event;
 	use futures::stream::StreamExt;
@@ -475,6 +478,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			on_exit: service.on_exit(),
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 			voting_rule: grandpa::VotingRulesBuilder::default().build(),
+			prometheus_registry: service.prometheus_registry(),
 		};
 
 		service.spawn_essential_task(
@@ -529,13 +533,13 @@ pub fn kusama_new_light(
 // We can't use service::TLightClient due to
 // Rust bug: https://github.com/rust-lang/rust/issues/43580
 type TLocalLightClient<Runtime, Dispatch> =  Client<
-	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
+	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
 	sc_client::light::call_executor::GenesisCallExecutor<
-		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, sp_core::Blake2Hasher>,
+		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
 		sc_client::LocalCallExecutor<
 			sc_client::light::backend::Backend<
 				sc_client_db::light::LightStorage<Block>,
-				sp_core::Blake2Hasher
+				BlakeTwo256
 			>,
 			sc_executor::NativeExecutor<Dispatch>
 		>
@@ -589,7 +593,7 @@ where
 			let fetch_checker = fetcher
 				.map(|fetcher| fetcher.checker().clone())
 				.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
-			let grandpa_block_import = grandpa::light_block_import::<_, _, _, Runtime>(
+			let grandpa_block_import = grandpa::light_block_import(
 				client.clone(), backend, &*client, Arc::new(fetch_checker)
 			)?;
 
@@ -628,5 +632,8 @@ where
 
 			Ok(polkadot_rpc::create_light(builder.client().clone(), remote_blockchain, fetcher, builder.pool()))
 		})?
+		.with_prometheus_registry(
+			Registry::new_custom(Some("polkadot".into()), None)?
+		)
 		.build()
 }

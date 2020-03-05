@@ -21,7 +21,7 @@ use std::thread;
 
 use log::{error, info, trace, warn};
 use sp_blockchain::{Result as ClientResult};
-use sp_runtime::traits::{Header as HeaderT, Block as BlockT, HasherFor};
+use sp_runtime::traits::{Header as HeaderT, Block as BlockT, HashFor, BlakeTwo256};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use client::{
 	BlockchainEvents, BlockBody,
@@ -205,7 +205,7 @@ where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
 	let api = client.runtime_api();
 
@@ -229,7 +229,7 @@ where
 	P::Api: ParachainHost<Block> + ApiExt<Block, Error=sp_blockchain::Error>,
 	S: Sink<WorkerMsg> + Clone + Send + Sync + Unpin,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
 	let mut finality_notification_stream = client.finality_notification_stream();
 
@@ -613,7 +613,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 	P: ProvideRuntimeApi<Block> + ProvideCache<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<sp_core::Blake2Hasher>
+	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<BlakeTwo256>
 {
 	type Error = ConsensusError;
 	type Transaction = sp_api::TransactionFor<P, Block>;
@@ -726,7 +726,7 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 		P::Api: ParachainHost<Block>,
 		P::Api: ApiExt<Block, Error = sp_blockchain::Error>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+		sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 	{
 		let (signal, exit) = exit_future::signal();
 

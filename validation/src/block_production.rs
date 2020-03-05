@@ -33,7 +33,7 @@ use polkadot_primitives::{Hash, Block, BlockId, Header};
 use polkadot_primitives::parachain::{
 	ParachainHost, AttestedCandidate, NEW_HEADS_IDENTIFIER,
 };
-use runtime_primitives::traits::{DigestFor, HasherFor};
+use runtime_primitives::traits::{DigestFor, HashFor};
 use futures_timer::Delay;
 use txpool_api::{TransactionPool, InPoolTransaction};
 
@@ -90,7 +90,7 @@ where
 		State = sp_api::StateBackendFor<Client, Block>
 	> + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
+	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HashFor<Block>> + Send,
 {
 	type CreateProposer = Pin<Box<
 		dyn Future<Output = Result<Self::Proposer, Self::Error>> + Send + 'static
@@ -142,7 +142,7 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 	Client::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	Backend: sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>> + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
+	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HashFor<Block>> + Send,
 {
 	type Error = Error;
 	type Transaction = sp_api::TransactionFor<Client, Block>;
@@ -249,7 +249,7 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 	Client::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	Backend: sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>> + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
+	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HashFor<Block>> + Send,
 {
 	fn propose_with(
 		mut self,
