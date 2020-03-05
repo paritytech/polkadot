@@ -34,7 +34,7 @@ use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
 use futures::{future::ready, prelude::*, task::{Spawn, SpawnExt}};
-use polkadot_primitives::{Block, Hash, BlockId, BlockNumber};
+use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
 	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
 };
@@ -368,7 +368,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 	}
 
 	// launch parachain work asynchronously.
-	fn launch_work<GCRB>(
+	fn launch_work(
 		&self,
 		relay_parent: Hash,
 		validation_para: ParaId,
@@ -376,11 +376,8 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		max_block_data_size: Option<u64>,
 		authorities_num: usize,
 		local_id: ValidatorIndex,
-		get_current_relay_block: GCRB,
 	)
-	where
-		GCRB: Fn() -> BlockNumber + Send,
-	{
+	where {
 		let (collators, client) = (self.collators.clone(), self.client.clone());
 		let availability_store = self.availability_store.clone();
 
@@ -389,7 +386,6 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 			let collation_work = crate::collation::collation_fetch(
 				validation_para,
 				relay_parent,
-				get_current_relay_block,
 				collators,
 				client.clone(),
 				max_block_data_size,

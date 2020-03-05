@@ -29,6 +29,7 @@ use polkadot_primitives::parachain::{
 	ValidatorId, PoVBlock,
 };
 use sp_api::ProvideRuntimeApi;
+use sp_blockchain::HeaderBackend;
 
 use futures::prelude::*;
 use futures::task::SpawnExt;
@@ -167,7 +168,7 @@ impl<P, T> ValidationNetwork<P, T> {
 
 /// A long-lived network which can create parachain statement  routing processes on demand.
 impl<P, T> ParachainNetwork for ValidationNetwork<P, T> where
-	P: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	T: Clone + Executor + Send + Sync + 'static,
 {

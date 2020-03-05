@@ -32,6 +32,7 @@ use polkadot_primitives::parachain::{
 	CandidateReceipt, ParachainHost, ValidatorIndex, Collation, PoVBlock, ErasureChunk,
 };
 use sp_api::ProvideRuntimeApi;
+use sp_blockchain::HeaderBackend;
 
 use futures::prelude::*;
 use futures::{task::SpawnExt, future::ready};
@@ -133,6 +134,7 @@ impl<P, T: Clone> Clone for Router<P, T> {
 }
 
 impl<P: ProvideRuntimeApi<Block> + Send + Sync + 'static, T> Router<P, T> where
+	P: HeaderBackend<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	T: Clone + Executor + Send + 'static,
 {

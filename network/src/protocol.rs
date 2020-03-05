@@ -40,6 +40,7 @@ use polkadot_validation::{
 };
 use sc_network::{config::Roles, Event, PeerId};
 use sp_api::ProvideRuntimeApi;
+use sp_blockchain::HeaderBackend;
 
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -110,7 +111,7 @@ pub fn start<C, Api, SP>(
 	executor: SP,
 ) -> Result<Service, futures::task::SpawnError> where
 	C: ChainContext + 'static,
-	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	Api: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	SP: Spawn + Clone + Send + 'static,
 {
@@ -566,7 +567,7 @@ async fn worker_loop<Api, Sp>(
 	mut receiver: mpsc::Receiver<ServiceToWorkerMsg>,
 	executor: Sp,
 ) where
-	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	Api: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	Sp: Spawn + Clone + Send + 'static,
 {
@@ -690,7 +691,7 @@ async fn statement_import_loop<Api>(
 	mut exit: exit_future::Exit,
 	executor: impl Spawn,
 ) where
-	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	Api: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 {
 	let topic = crate::legacy::router::attestation_topic(relay_parent);

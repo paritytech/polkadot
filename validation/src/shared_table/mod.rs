@@ -38,6 +38,7 @@ use super::{GroupInfo, TableRouter};
 use self::includable::IncludabilitySender;
 use primitives::Pair;
 use sp_api::ProvideRuntimeApi;
+use sp_blockchain::HeaderBackend;
 
 mod includable;
 
@@ -267,7 +268,7 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 			impl Send + FnMut(&BlockId, &PoVBlock, &CandidateReceipt) -> Result<ErasureChunk, ()> + Unpin,
 		>
 		where
-			P: Send + Sync + 'static,
+			P: HeaderBackend<Block> + Send + Sync + 'static,
 			P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	{
 		let max_block_data_size = self.max_block_data_size;
