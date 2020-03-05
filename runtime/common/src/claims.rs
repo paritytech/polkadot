@@ -555,7 +555,6 @@ mod tests {
 
 	#[test]
 	fn validate_unsigned_works() {
-		#![allow(deprecated)] // Allow `ValidateUnsigned`
 		use sp_runtime::traits::ValidateUnsigned;
 
 		new_test_ext().execute_with(|| {
@@ -591,6 +590,7 @@ mod benchmarking {
 	use system::RawOrigin;
 	use frame_benchmarking::{benchmarks, account};
 	use sp_runtime::DispatchResult;
+	use sp_runtime::traits::ValidateUnsigned;
 	use crate::claims::Call;
 
 	const SEED: u32 = 0;
@@ -630,6 +630,18 @@ mod benchmarking {
 			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
 		}: _(RawOrigin::Root, account, VALUE.into(), vesting)
 
+		// Benchmark the time it takes to execute `validate_unsigned` 
+		validate_unsigned {
+			let c in ...;
+			// Crate signature
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
+			let account: T::AccountId = account("user", c, SEED);
+			let signature = sig::<T>(&secret_key, &account.encode());
+			let call = Call::<T>::claim(account, signature);
+		}: {
+			super::Module::<T>::validate_unsigned(&call)?
+		}
+
 		// Benchmark the time it takes to do `repeat` number of keccak256 hashes
 		keccak256 {
 			let i in 0 .. 10_000;
@@ -646,9 +658,9 @@ mod benchmarking {
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&i.encode())).unwrap();
 			let account: T::AccountId = account("user", i, SEED);
 			let signature = sig::<T>(&secret_key, &account.encode());
+			let data = account.using_encoded(to_ascii_hex);
 		}: {
 			for _ in 0 .. i {
-				let data = account.using_encoded(to_ascii_hex);
 				let _maybe_signer = super::Module::<T>::eth_recover(&signature, &data);
 			}
 		}
