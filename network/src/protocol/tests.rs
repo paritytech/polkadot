@@ -311,7 +311,6 @@ fn spawn_worker_task() {
 		Config { collating_for: None },
 		network_ops.clone(),
 		mock_gossip.clone(),
-		worker_tx.clone(),
 		api.clone(),
 		worker_rx,
 		pool.clone(),

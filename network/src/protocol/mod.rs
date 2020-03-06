@@ -46,7 +46,7 @@ use sp_runtime::ConsensusEngineId;
 
 use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::pin::Pin;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use std::time::Duration;
 
 use super::{cost, benefit, PolkadotNetworkService};
@@ -76,7 +76,7 @@ enum ServiceToWorkerMsg {
 	PeerDisconnected(PeerId),
 
 	// service messages.
-	BuildConsensusNetworking(Arc<SharedTable>, Vec<ValidatorId>, oneshot::Sender<Router>),
+	BuildConsensusNetworking(Arc<SharedTable>, Vec<ValidatorId>),
 	DropConsensusNetworking(Hash),
 	SubmitValidatedCollation(
 		AbridgedCandidateReceipt,
@@ -223,7 +223,6 @@ pub fn start<C, Api, SP>(
 		config,
 		service.clone(),
 		gossip_validator,
-		worker_sender.clone(),
 		api,
 		worker_receiver,
 		executor.clone(),
@@ -772,7 +771,6 @@ async fn worker_loop<Api, Sp>(
 	config: Config,
 	service: Arc<dyn NetworkServiceOps>,
 	gossip_handle: impl GossipOps,
-	sender: mpsc::Sender<ServiceToWorkerMsg>,
 	api: Arc<Api>,
 	mut receiver: mpsc::Receiver<ServiceToWorkerMsg>,
 	executor: Sp,
@@ -812,14 +810,10 @@ async fn worker_loop<Api, Sp>(
 				protocol_handler.on_raw_messages(remote, messages)
 			}
 
-			ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities, router_sender) => {
+			ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities) => {
 				// glue: let gossip know about our new local leaf.
 				let relay_parent = table.consensus_parent_hash().clone();
 				let (signal, exit) = exit_future::signal();
-
-				let router = Router {
-					inner: Arc::new(RouterInner { relay_parent, sender: sender.clone() }),
-				};
 
 				let key = table.session_key();
 				if let Some(key) = key {
@@ -842,21 +836,16 @@ async fn worker_loop<Api, Sp>(
 					_drop_signal: signal,
 				});
 
-				let weak_router = Arc::downgrade(&router.inner);
-
 				// glue the incoming messages, shared table, and validation
 				// work together.
 				let _ = executor.spawn(statement_import_loop(
 					relay_parent,
 					table,
 					api.clone(),
-					weak_router,
 					gossip_handle.clone(),
 					exit,
 					executor.clone(),
 				));
-
-				let _ = router_sender.send(router);
 			}
 			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
 				consensus_instances.remove(&relay_parent);
@@ -1018,7 +1007,6 @@ async fn statement_import_loop<Api>(
 	relay_parent: Hash,
 	table: Arc<SharedTable>,
 	api: Arc<Api>,
-	weak_router: Weak<RouterInner>,
 	gossip_handle: impl GossipOps,
 	mut exit: exit_future::Exit,
 	executor: impl Spawn,
@@ -1073,14 +1061,16 @@ async fn statement_import_loop<Api>(
 		statements.insert(0, statement);
 
 		let producers: Vec<_> = {
-			// create a temporary router handle for importing all of these statements
-			let temp_router = match weak_router.upgrade() {
-				None => break,
-				Some(inner) => Router { inner },
-			};
+			// TODO: fetch these from gossip.
+			// https://github.com/paritytech/polkadot/issues/742
+			fn ignore_pov_fetch_requests(_: &AbridgedCandidateReceipt)
+				-> future::Pending<Result<PoVBlock, std::io::Error>>
+			{
+				future::pending()
+			}
 
 			table.import_remote_statements(
-				&temp_router,
+				&ignore_pov_fetch_requests,
 				statements.iter().cloned(),
 			)
 		};
@@ -1268,7 +1258,7 @@ impl Service {
 }
 
 impl ParachainNetwork for Service {
-	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
+	type Error = mpsc::SendError;
 	type TableRouter = Router;
 	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router,Self::Error>> + Send>>;
 
@@ -1279,14 +1269,19 @@ impl ParachainNetwork for Service {
 	) -> Self::BuildTableRouter {
 		let authorities = authorities.to_vec();
 		let mut sender = self.sender.clone();
+		let relay_parent = table.consensus_parent_hash().clone();
 
-		let (tx, rx) = oneshot::channel();
 		Box::pin(async move {
 			sender.send(
-				ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities, tx)
-			).map_err(future::Either::Left).await?;
+				ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities)
+			).await?;
 
-			rx.map_err(future::Either::Right).await
+			Ok(Router {
+				inner: Arc::new(RouterInner {
+					relay_parent,
+					sender,
+				})
+			})
 		})
 	}
 }
