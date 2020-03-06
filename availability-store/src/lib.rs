@@ -89,7 +89,7 @@ pub fn erasure_coding_topic(relay_parent: Hash, erasure_root: Hash, index: u32) 
 /// A trait that provides a shim for the [`NetworkService`] trait.
 ///
 /// Currently it is not possible to use the networking code in the availability store
-/// core directly due to a number of loop dependencies it require:
+/// core directly due to a number of loop dependencies it requires:
 ///
 /// `availability-store` -> `network` -> `availability-store`
 ///
@@ -119,7 +119,7 @@ pub trait ProvideGossipMessages {
 	);
 }
 
-/// Data which, when combined with an `AbridgedCandidateReceipt`, is enough
+/// Data that, when combined with an `AbridgedCandidateReceipt`, is enough
 /// to fully re-execute a block.
 #[derive(Debug, Encode, Decode, PartialEq)]
 pub struct ExecutionData {
@@ -143,9 +143,9 @@ pub struct Store {
 }
 
 impl Store {
-	/// Create a new `Store` with given condig on disk.
+	/// Create a new `Store` with given config on disk.
 	///
-	/// Creating a store among other things starts a background worker thread which
+	/// Creating a store among other things starts a background worker thread that
 	/// handles most of the write operations to the storage.
 	#[cfg(not(target_os = "unknown"))]
 	pub fn new<PGM>(config: Config, gossip: PGM) -> io::Result<Self>
@@ -162,10 +162,10 @@ impl Store {
 		})
 	}
 
-	/// Create a new `Store` in-memory. Useful for tests.
+	/// Create a new in-memory `Store`. Useful for tests.
 	///
 	/// Creating a store among other things starts a background worker thread
-	/// which handles most of the write operations to the storage.
+	/// that handles most of the write operations to the storage.
 	pub fn new_in_memory<PGM>(gossip: PGM) -> Self
 		where PGM: ProvideGossipMessages + Send + Sync + Clone + 'static
 	{
@@ -256,7 +256,7 @@ impl Store {
 	/// The chunk should be checked for validity against the root of encoding
 	/// and its proof prior to calling this.
 	///
-	/// This method will send the chunk to the background worker, allowing caller to
+	/// This method will send the chunk to the background worker, allowing the caller to
 	/// asynchrounously wait for the result.
 	pub async fn add_erasure_chunk(
 		&self,
@@ -269,10 +269,10 @@ impl Store {
 	/// Adds a set of erasure chunks to storage.
 	///
 	/// The chunks should be checked for validity against the root of encoding
-	/// and it's proof prior to calling this.
+	/// and its proof prior to calling this.
 	///
-	/// This method will send the chunks to the background worker, allowing caller to
-	/// asynchrounously waiting for the result.
+	/// This method will send the chunks to the background worker, allowing the caller to
+	/// asynchrounously wait for the result.
 	pub async fn add_erasure_chunks<I>(
 		&self,
 		candidate: AbridgedCandidateReceipt,
