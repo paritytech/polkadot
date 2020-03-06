@@ -376,8 +376,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		max_block_data_size: Option<u64>,
 		authorities_num: usize,
 		local_id: ValidatorIndex,
-	)
-	where {
+	) {
 		let (collators, client) = (self.collators.clone(), self.client.clone());
 		let availability_store = self.availability_store.clone();
 

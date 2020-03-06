@@ -55,7 +55,6 @@ use codec::{Encode, Decode};
 #[cfg(all(not(feature = "std"), feature = "wasm-api"))]
 pub use wasm_api::*;
 
-#[deprecated(note="moved to primitives package")]
 pub use polkadot_primitives::{BlockNumber, parachain::{
 	AccountIdConversion,
 	Id,
