@@ -22,10 +22,8 @@ use sc_client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
-use polkadot_network::legacy::{
-	gossip::{self as network_gossip, Known},
-	validation::ValidationNetwork,
-};
+use polkadot_network::legacy::gossip::Known;
+use polkadot_network::protocol as network_protocol;
 use service::{error::{Error as ServiceError}, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
@@ -35,18 +33,16 @@ pub use service::{
 	AbstractService, Roles, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
 };
-pub use service::config::{DatabaseConfig, full_version_from_strs};
+pub use service::config::{DatabaseConfig, PrometheusConfig, full_version_from_strs};
 pub use sc_executor::NativeExecutionDispatch;
 pub use sc_client::{ExecutionStrategy, CallExecutor, Client};
 pub use sc_client_api::backend::Backend;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::HashFor;
 pub use consensus_common::SelectChain;
-pub use polkadot_network::legacy::PolkadotProtocol;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use sc_network::specialization::NetworkSpecialization;
 pub use chain_spec::ChainSpec;
 #[cfg(not(target_os = "unknown"))]
 pub use consensus::run_validation_worker;
@@ -131,12 +127,23 @@ impl IsKusama for ChainSpec {
 	}
 }
 
+// If we're using prometheus, use a registry with a prefix of `polkadot`.
+fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceError> {
+	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
+		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
+	}
+
+	Ok(())
+}
+
 /// Starts a `ServiceBuilder` for a full service.
 ///
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
 macro_rules! new_full_start {
 	($config:expr, $runtime:ty, $executor:ty) => {{
+		set_prometheus_registry(&mut $config)?;
+
 		let mut import_setup = None;
 		let inherent_data_providers = inherents::InherentDataProviders::new();
 		let builder = service::ServiceBuilder::new_full::<
@@ -155,7 +162,7 @@ macro_rules! new_full_start {
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 				let (grandpa_block_import, grandpa_link) =
 					grandpa::block_import(
-						client.clone(), &*client, select_chain
+						client.clone(), &(client.clone() as Arc<_>), select_chain
 					)?;
 				let justification_import = grandpa_block_import.clone();
 
@@ -179,10 +186,7 @@ macro_rules! new_full_start {
 			})?
 			.with_rpc_extensions(|builder| -> Result<polkadot_rpc::RpcExtension, _> {
 				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool()))
-			})?
-			.with_prometheus_registry(
-				Registry::new_custom(Some("polkadot".into()), None)?
-			);
+			})?;
 
 		(builder, import_setup, inherent_data_providers)
 	}}
@@ -211,14 +215,16 @@ pub fn polkadot_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 )
-	-> Result<impl AbstractService<
-		Block = Block,
-		RuntimeApi = polkadot_runtime::RuntimeApi,
-		NetworkSpecialization = PolkadotProtocol,
-		Backend = TFullBackend<Block>,
-		SelectChain = LongestChain<TFullBackend<Block>, Block>,
-		CallExecutor = TFullCallExecutor<Block, PolkadotExecutor>,
-	>, ServiceError>
+	-> Result<(
+		impl AbstractService<
+			Block = Block,
+			RuntimeApi = polkadot_runtime::RuntimeApi,
+			Backend = TFullBackend<Block>,
+			SelectChain = LongestChain<TFullBackend<Block>, Block>,
+			CallExecutor = TFullCallExecutor<Block, PolkadotExecutor>,
+		>,
+		FullNodeHandles,
+	), ServiceError>
 {
 	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
 }
@@ -231,34 +237,45 @@ pub fn kusama_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 )
-	-> Result<impl AbstractService<
-		Block = Block,
-		RuntimeApi = kusama_runtime::RuntimeApi,
-		NetworkSpecialization = PolkadotProtocol,
-		Backend = TFullBackend<Block>,
-		SelectChain = LongestChain<TFullBackend<Block>, Block>,
-		CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
-	>, ServiceError>
+	-> Result<(
+		impl AbstractService<
+			Block = Block,
+			RuntimeApi = kusama_runtime::RuntimeApi,
+			Backend = TFullBackend<Block>,
+			SelectChain = LongestChain<TFullBackend<Block>, Block>,
+			CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
+		>,
+		FullNodeHandles,
+	), ServiceError>
 {
 	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
 }
 
+/// Handles to other sub-services that full nodes instantiate, which consumers
+/// of the node may use.
+pub struct FullNodeHandles {
+	/// A handle to the Polkadot networking protocol.
+	pub polkadot_network: Option<network_protocol::Service>,
+}
+
 /// Builds a new service for a full client.
 pub fn new_full<Runtime, Dispatch, Extrinsic>(
-	config: Configuration,
+	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 )
-	-> Result<impl AbstractService<
-		Block = Block,
-		RuntimeApi = Runtime,
-		NetworkSpecialization = PolkadotProtocol,
-		Backend = TFullBackend<Block>,
-		SelectChain = LongestChain<TFullBackend<Block>, Block>,
-		CallExecutor = TFullCallExecutor<Block, Dispatch>,
-	>, ServiceError>
+	-> Result<(
+		impl AbstractService<
+			Block = Block,
+			RuntimeApi = Runtime,
+			Backend = TFullBackend<Block>,
+			SelectChain = LongestChain<TFullBackend<Block>, Block>,
+			CallExecutor = TFullCallExecutor<Block, Dispatch>,
+		>,
+		FullNodeHandles,
+	), ServiceError>
 	where
 		Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
 		Runtime::RuntimeApi:
@@ -269,6 +286,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	use sc_network::Event;
+	use sc_client_api::ExecutorProvider;
 	use futures::stream::StreamExt;
 
 	let is_collator = collating_for.is_some();
@@ -296,10 +314,10 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let backend = builder.backend().clone();
 
 	let service = builder
-		.with_network_protocol(|_config| Ok(PolkadotProtocol::new(collating_for.clone())))?
-		.with_finality_proof_provider(|client, backend|
-			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
-		)?
+		.with_finality_proof_provider(|client, backend| {
+			let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
+			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, provider)) as _)
+		})?
 		.build()?;
 
 	let (block_import, link_half, babe_link) = import_setup.take()
@@ -307,11 +325,13 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 
 	let client = service.client();
 	let known_oracle = client.clone();
+
+	let mut handles = FullNodeHandles { polkadot_network: None };
 	let select_chain = if let Some(select_chain) = service.select_chain() {
 		select_chain
 	} else {
 		info!("The node cannot start as an authority because it can't select chain.");
-		return Ok(service);
+		return Ok((service, handles));
 	};
 	let gossip_validator_select_chain = select_chain.clone();
 
@@ -334,11 +354,15 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		}
 	};
 
-	let mut gossip_validator = network_gossip::register_validator(
+	let polkadot_network_service = network_protocol::start(
 		service.network(),
+		network_protocol::Config {
+			collating_for,
+		},
 		(is_known, client.clone()),
-		&service.spawn_task_handle(),
-	);
+		client.clone(),
+		service.spawn_task_handle(),
+	).map_err(|e| format!("Could not spawn network worker: {:?}", e))?;
 
 	if participates_in_consensus {
 		let availability_store = {
@@ -347,13 +371,14 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let mut path = PathBuf::from(db_path);
 			path.push("availability");
 
-			let gossip = polkadot_network::legacy::AvailabilityNetworkShim(gossip_validator.clone());
-
 			#[cfg(not(target_os = "unknown"))]
 			{
 				av_store::Store::new(
-					av_store::Config { cache_size: None, path },
-					gossip,
+					::av_store::Config {
+						cache_size: None,
+						path,
+					},
+					polkadot_network_service.clone(),
 				)?
 			}
 
@@ -361,29 +386,12 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			av_store::Store::new_in_memory(gossip)
 		};
 
-		{
-			let availability_store = availability_store.clone();
-			service.network().with_spec(
-				|spec, _ctx| spec.register_availability_store(availability_store)
-			);
-		}
-
-		{
-			let availability_store = availability_store.clone();
-			gossip_validator.register_availability_store(availability_store);
-		}
-
-		// collator connections and validation network both fulfilled by this
-		let validation_network = ValidationNetwork::new(
-			gossip_validator,
-			service.client(),
-			service.spawn_task_handle(),
-		);
+		polkadot_network_service.register_availability_store(availability_store.clone());
 
 		let (validation_service_handle, validation_service) = consensus::ServiceBuilder {
 			client: client.clone(),
-			network: validation_network.clone(),
-			collators: validation_network,
+			network: polkadot_network_service.clone(),
+			collators: polkadot_network_service.clone(),
 			spawner: service.spawn_task_handle(),
 			availability_store: availability_store.clone(),
 			select_chain: select_chain.clone(),
@@ -477,7 +485,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			link: link_half,
 			network: service.network(),
 			inherent_data_providers: inherent_data_providers.clone(),
-			on_exit: service.on_exit(),
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 			voting_rule: grandpa::VotingRulesBuilder::default().build(),
 			prometheus_registry: service.prometheus_registry(),
@@ -495,41 +502,38 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		)?;
 	}
 
-	Ok(service)
+	handles.polkadot_network = Some(polkadot_network_service);
+	Ok((service, handles))
 }
 
 /// Create a new Polkadot service for a light client.
 pub fn polkadot_new_light(
 	config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
 )
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = polkadot_runtime::RuntimeApi,
-		NetworkSpecialization = PolkadotProtocol,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, PolkadotExecutor>,
 	>, ServiceError>
 {
-	new_light(config, collating_for)
+	new_light(config)
 }
 
 /// Create a new Kusama service for a light client.
 pub fn kusama_new_light(
 	config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
 )
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = kusama_runtime::RuntimeApi,
-		NetworkSpecialization = PolkadotProtocol,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,
 	>, ServiceError>
 {
-	new_light(config, collating_for)
+	new_light(config)
 }
 
 // We can't use service::TLightClient due to
@@ -552,13 +556,11 @@ type TLocalLightClient<Runtime, Dispatch> =  Client<
 
 /// Builds a new service for a light client.
 pub fn new_light<Runtime, Dispatch, Extrinsic>(
-	config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
+	mut config: Configuration,
 )
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = Runtime,
-		NetworkSpecialization = PolkadotProtocol,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, Dispatch>,
@@ -576,6 +578,8 @@ where
 		TLocalLightClient<Runtime, Dispatch>,
 	>,
 {
+	set_prometheus_registry(&mut config)?;
+
 	let inherent_data_providers = InherentDataProviders::new();
 
 	ServiceBuilder::new_light::<Block, Runtime, Dispatch>(config)?
@@ -596,7 +600,7 @@ where
 				.map(|fetcher| fetcher.checker().clone())
 				.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
 			let grandpa_block_import = grandpa::light_block_import(
-				client.clone(), backend, &*client, Arc::new(fetch_checker)
+				client.clone(), backend, &(client.clone() as Arc<_>), Arc::new(fetch_checker)
 			)?;
 
 			let finality_proof_import = grandpa_block_import.clone();
@@ -621,10 +625,10 @@ where
 
 			Ok((import_queue, finality_proof_request_builder))
 		})?
-		.with_network_protocol(|_config| Ok(PolkadotProtocol::new(collating_for.clone())))?
-		.with_finality_proof_provider(|client, backend|
-			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
-		)?
+		.with_finality_proof_provider(|client, backend| {
+			let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
+			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, provider)) as _)
+		})?
 		.with_rpc_extensions(|builder|
 			-> Result<polkadot_rpc::RpcExtension, _> {
 			let fetcher = builder.fetcher()
@@ -634,8 +638,5 @@ where
 
 			Ok(polkadot_rpc::create_light(builder.client().clone(), remote_blockchain, fetcher, builder.pool()))
 		})?
-		.with_prometheus_registry(
-			Registry::new_custom(Some("polkadot".into()), None)?
-		)
 		.build()
 }

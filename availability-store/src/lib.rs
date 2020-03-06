@@ -32,7 +32,7 @@ use polkadot_primitives::{
 		ParachainHost, AvailableData, OmittedValidationData,
 	},
 };
-use sp_runtime::traits::{BlakeTwo256, Hash as HashT, HashFor};
+use sp_runtime::traits::HashFor;
 use sp_blockchain::{Result as ClientResult};
 use client::{
 	BlockchainEvents, BlockBody,
@@ -55,7 +55,7 @@ pub use worker::AvailabilityBlockImport;
 pub use store::AwaitedFrontierEntry;
 
 use worker::{
-	Worker, WorkerHandle, Chunks, IncludedParachainBlocks, WorkerMsg, MakeAvailable,
+	Worker, WorkerHandle, IncludedParachainBlocks, WorkerMsg, MakeAvailable, Chunks
 };
 
 use store::{Store as InnerStore};
@@ -70,23 +70,7 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
-/// Compute gossip topic for the erasure chunk messages given the relay parent,
-/// root and the chunk index.
-///
-/// Since at this point we are not able to use [`network`] directly, but both
-/// of them need to compute these topics, this lives here and not there.
-///
-/// [`network`]: ../polkadot_network/index.html
-pub fn erasure_coding_topic(relay_parent: Hash, erasure_root: Hash, index: u32) -> Hash {
-	let mut v = relay_parent.as_ref().to_vec();
-	v.extend(erasure_root.as_ref());
-	v.extend(&index.to_le_bytes()[..]);
-	v.extend(b"erasure_chunks");
-
-	BlakeTwo256::hash(&v[..])
-}
-
-/// A trait that provides a shim for the [`NetworkService`] trait.
+/// An abstraction around networking for the availablity-store.
 ///
 /// Currently it is not possible to use the networking code in the availability store
 /// core directly due to a number of loop dependencies it require:
@@ -95,26 +79,25 @@ pub fn erasure_coding_topic(relay_parent: Hash, erasure_root: Hash, index: u32) 
 ///
 /// `availability-store` -> `network` -> `validation` -> `availability-store`
 ///
-/// So we provide this shim trait that gets implemented for a wrapper newtype in
-/// the [`network`] module.
+/// So we provide this trait that gets implemented for a type in
+/// the [`network`] module or a mock in tests.
 ///
-/// [`NetworkService`]: ../polkadot_network/trait.NetworkService.html
 /// [`network`]: ../polkadot_network/index.html
-pub trait ProvideGossipMessages {
-	/// Get a stream of gossip erasure chunk messages for a given topic.
-	///
-	/// Each item is a tuple (relay_parent, candidate_hash, erasure_chunk)
-	fn gossip_messages_for(
-		&self,
-		topic: Hash,
-	) -> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>;
+pub trait ErasureNetworking {
+	/// Errors that can occur when fetching erasure chunks.
+	type Error: std::fmt::Debug + 'static;
 
-	/// Gossip an erasure chunk message.
-	fn gossip_erasure_chunk(
+	/// Fetch an erasure chunk from the networking service.
+	fn fetch_erasure_chunk(
 		&self,
-		relay_parent: Hash,
+		candidate_hash: &Hash,
+		index: u32,
+	) -> Pin<Box<dyn Future<Output = Result<ErasureChunk, Self::Error>> + Send>>;
+
+	/// Distributes an erasure chunk to the correct validator node.
+	fn distribute_erasure_chunk(
+		&self,
 		candidate_hash: Hash,
-		erasure_root: Hash,
 		chunk: ErasureChunk,
 	);
 }
@@ -148,11 +131,11 @@ impl Store {
 	/// Creating a store among other things starts a background worker thread which
 	/// handles most of the write operations to the storage.
 	#[cfg(not(target_os = "unknown"))]
-	pub fn new<PGM>(config: Config, gossip: PGM) -> io::Result<Self>
-		where PGM: ProvideGossipMessages + Send + Sync + Clone + 'static
+	pub fn new<EN>(config: Config, network: EN) -> io::Result<Self>
+		where EN: ErasureNetworking + Send + Sync + Clone + 'static
 	{
 		let inner = InnerStore::new(config)?;
-		let worker = Arc::new(Worker::start(inner.clone(), gossip));
+		let worker = Arc::new(Worker::start(inner.clone(), network));
 		let to_worker = worker.to_worker().clone();
 
 		Ok(Self {
@@ -166,11 +149,11 @@ impl Store {
 	///
 	/// Creating a store among other things starts a background worker thread
 	/// which handles most of the write operations to the storage.
-	pub fn new_in_memory<PGM>(gossip: PGM) -> Self
-		where PGM: ProvideGossipMessages + Send + Sync + Clone + 'static
+	pub fn new_in_memory<EN>(network: EN) -> Self
+		where EN: ErasureNetworking + Send + Sync + Clone + 'static
 	{
 		let inner = InnerStore::new_in_memory();
-		let worker = Arc::new(Worker::start(inner.clone(), gossip));
+		let worker = Arc::new(Worker::start(inner.clone(), network));
 		let to_worker = worker.to_worker().clone();
 
 		Self {
@@ -204,7 +187,6 @@ impl Store {
 		let to_worker = self.to_worker.clone();
 
 		let import = AvailabilityBlockImport::new(
-			self.inner.clone(),
 			client,
 			wrapped_block_import,
 			spawner,
@@ -261,35 +243,38 @@ impl Store {
 	pub async fn add_erasure_chunk(
 		&self,
 		candidate: AbridgedCandidateReceipt,
+		n_validators: u32,
 		chunk: ErasureChunk,
 	) -> io::Result<()> {
-		self.add_erasure_chunks(candidate, vec![chunk]).await
+		self.add_erasure_chunks(candidate, n_validators, std::iter::once(chunk)).await
 	}
 
 	/// Adds a set of erasure chunks to storage.
 	///
 	/// The chunks should be checked for validity against the root of encoding
-	/// and it's proof prior to calling this.
+	/// and its proof prior to calling this.
 	///
 	/// This method will send the chunks to the background worker, allowing caller to
 	/// asynchrounously waiting for the result.
 	pub async fn add_erasure_chunks<I>(
 		&self,
 		candidate: AbridgedCandidateReceipt,
+		n_validators: u32,
 		chunks: I,
 	) -> io::Result<()>
 		where I: IntoIterator<Item = ErasureChunk>
 	{
 		let candidate_hash = candidate.hash();
-		let relay_parent = candidate.relay_parent;
 
 		self.add_candidate(candidate).await?;
+
 		let (s, r) = oneshot::channel();
 		let chunks = chunks.into_iter().collect();
+
 		let msg = WorkerMsg::Chunks(Chunks {
-			relay_parent,
 			candidate_hash,
 			chunks,
+			n_validators,
 			result: s,
 		});
 
