@@ -149,7 +149,38 @@ decl_module! {
 		/// Deposit one of this module's events by using the default implementation.
 		fn deposit_event() = default;
 
-		/// Make a claim.
+		/// Make a claim to collect your DOTs.
+		///
+		/// The dispatch origin for this call must be _None_.
+		///
+		/// Unsigned Validation:
+		/// A call to claim is deemed valid if the signature provided matches
+		/// the expected signed message of:
+		///
+		/// > Ethereum Signed Message:
+		/// > (configured prefix string)(address)
+		///
+		/// and `address` matches the `dest` account.
+		///
+		/// Parameters:
+		/// - `dest`: The destination account to payout the claim.
+		/// - `ethereum_signature`: The signature of an ethereum signed message
+		///    matching the format described above.
+		///
+		/// <weight>
+		/// The weight of this call is invariant over the input parameters.
+		/// - One `eth_recover` operation which involves a keccak hash and a
+		///   ecdsa recover.
+		/// - Three storage reads to check if a claim exists for the user, to
+		///   get the current pot size, to see if there exists a vesting schedule.
+		/// - Up to one storage write for adding a new vesting schedule.
+		/// - One `deposit_creating` Currency call.
+		/// - One storage write to update the total.
+		/// - Two storage removals for vesting and claims information.
+		/// - One deposit event.
+		///
+		/// Total Complexity: O(1)
+		/// </weight>
 		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
@@ -180,7 +211,23 @@ decl_module! {
 			Self::deposit_event(RawEvent::Claimed(dest, signer, balance_due));
 		}
 
-		/// Add a new claim, if you are root.
+		/// Mint a new claim to collect DOTs.
+		///
+		/// The dispatch origin for this call must be _Root_.
+		///
+		/// Parameters:
+		/// - `who`: The Ethereum address allowed to collect this claim.
+		/// - `value`: The number of DOTs that will be claimed.
+		/// - `vesting_schedule`: An optional vesting schedule for these DOTs.
+		///
+		/// <weight>
+		/// The weight of this call is invariant over the input parameters.
+		/// - One storage mutate to increase the total claims available.
+		/// - One storage write to add a new claim.
+		/// - Up to one storage write to add a new vesting schedule.
+		///
+		/// Total Complexity: O(1)
+		/// </weight>
 		#[weight = SimpleDispatchInfo::FixedNormal(30_000)]
 		fn mint_claim(origin,
 			who: EthereumAddress,
