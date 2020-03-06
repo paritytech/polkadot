@@ -32,8 +32,8 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 
 	match opt.subcommand {
 		None => {
-			opt.run.init(&version)?;
-			opt.run.update_config(&mut config, load_spec, &version)?;
+			opt.run.base.init(&version)?;
+			opt.run.base.update_config(&mut config, load_spec, &version)?;
 
 			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
 
@@ -44,7 +44,7 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 			info!("Node name: {}", config.name);
 			info!("Roles: {}", config.display_role());
 
-			if is_kusama {
+			if is_kusama || opt.run.force_kusama {
 				info!("Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
 				info!("----------------------------");
 				info!("This chain is not in any way");
