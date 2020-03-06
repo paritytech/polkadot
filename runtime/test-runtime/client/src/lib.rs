@@ -27,7 +27,7 @@ pub use sc_client::LongestChain;
 use sp_core::{sr25519, ChangesTrieConfiguration, map, twox_128};
 use sp_core::storage::{ChildInfo, Storage, StorageChild};
 use substrate_test_runtime::genesismap::{GenesisConfig};
-use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Hash as HashT, HasherFor};
+use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Hash as HashT, HashFor};
 use sc_client::{
 	light::fetcher::{
 		RemoteCallRequest, RemoteBodyRequest,
@@ -71,7 +71,7 @@ pub type LightExecutor = sc_client::light::call_executor::GenesisCallExecutor<
 	sc_client::LocalCallExecutor<
 		sc_client::light::backend::Backend<
 			sc_client_db::light::LightStorage<polkadot_test_runtime::Block>,
-			HasherFor<polkadot_test_runtime::Block>
+			HashFor<polkadot_test_runtime::Block>
 		>,
 		NativeExecutor<LocalExecutor>
 	>

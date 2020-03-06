@@ -181,7 +181,6 @@ fn staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(polkadot::StakingConfig {
-			current_era: 0,
 			validator_count: 50,
 			minimum_validator_count: 4,
 			stakers: initial_authorities
@@ -325,7 +324,6 @@ pub fn testnet_genesis(
 			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(polkadot::StakingConfig {
-			current_era: 0,
 			minimum_validator_count: 1,
 			validator_count: 2,
 			stakers: initial_authorities.iter()

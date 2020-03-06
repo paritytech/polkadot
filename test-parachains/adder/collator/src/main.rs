@@ -104,9 +104,9 @@ impl BuildParachainContext for AdderContext {
 		self,
 		_: Arc<collator::PolkadotClient<B, E, R>>,
 		_: SP,
-		network: Arc<dyn Network>,
+		network: impl Network + Clone + 'static,
 	) -> Result<Self::ParachainContext, ()> {
-		Ok(Self { _network: Some(network), ..self })
+		Ok(Self { _network: Some(Arc::new(network)), ..self })
 	}
 }
 

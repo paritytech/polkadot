@@ -262,6 +262,7 @@ parameter_types! {
 	// 28 eras in which slashes can be cancelled (7 days).
 	pub const SlashDeferDuration: staking::EraIndex = 28;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
+	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 }
 
 impl staking::Trait for Runtime {
@@ -279,6 +280,7 @@ impl staking::Trait for Runtime {
 	type SlashCancelOrigin = system::EnsureNever<()>;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
+	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 }
 
 impl grandpa::Trait for Runtime {
@@ -351,10 +353,15 @@ impl claims::Trait for Runtime {
 	type Prefix = Prefix;
 }
 
+parameter_types! {
+	pub const MinVestedTransfer: Balance = 100 * DOLLARS;
+}
+
 impl vesting::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
+	type MinVestedTransfer = MinVestedTransfer;
 }
 
 construct_runtime! {
