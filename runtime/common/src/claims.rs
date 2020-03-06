@@ -649,9 +649,10 @@ mod benchmarking {
 		// Benchmark the time it takes to do `repeat` number of keccak256 hashes
 		keccak256 {
 			let i in 0 .. 10_000;
+			let bytes = (i).encode();
 		}: {
 			for index in 0 .. i {
-				let _hash = keccak_256(&(i).encode());
+				let _hash = keccak_256(&bytes);
 			}
 		}
 
