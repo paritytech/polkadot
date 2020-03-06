@@ -24,6 +24,8 @@ use std::any::{TypeId, Any};
 use crate::{ValidationParams, ValidationResult, UpwardMessage};
 use codec::{Decode, Encode};
 use sp_core::storage::{ChildStorageKey, ChildInfo};
+use sp_core::traits::CallInWasm;
+use sp_wasm_interface::HostFunctions as _;
 
 #[cfg(not(target_os = "unknown"))]
 pub use validation_host::{run_worker, EXECUTION_TIMEOUT_SEC};
@@ -156,15 +158,18 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 ) -> Result<ValidationResult, Error> {
 	let mut ext = ValidationExternalities(ParachainExt::new(externalities));
 
-	let res = sc_executor::call_in_wasm::<HostFunctions>(
+	let executor = sc_executor::WasmExecutor::new(
+		sc_executor::WasmExecutionMethod::Interpreted,
+		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
+		Some(1024),
+		HostFunctions::host_functions(),
+		false,
+	);
+	let res = executor.call_in_wasm(
+		validation_code,
 		"validate_block",
 		encoded_call_data,
-		sc_executor::WasmExecutionMethod::Interpreted,
 		&mut ext,
-		validation_code,
-		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
-		1024,
-		false,
 	)?;
 
 	ValidationResult::decode(&mut &res[..]).map_err(|_| Error::BadReturn.into())

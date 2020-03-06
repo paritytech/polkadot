@@ -12,6 +12,7 @@ serde = { version = "1.0.102", default-features = false, features = [ "derive" ]
 rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }

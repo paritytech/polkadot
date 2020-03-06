@@ -60,33 +60,31 @@ fn candidate_key(candidate_hash: &Hash) -> Vec<u8> {
 	(candidate_hash, 2i8).encode()
 }
 
-fn available_chunks_key(relay_parent: &Hash, erasure_root: &Hash) -> Vec<u8> {
-	(relay_parent, erasure_root, 3i8).encode()
-}
-
 fn candidates_with_relay_parent_key(relay_block: &Hash) -> Vec<u8> {
 	(relay_block, 4i8).encode()
 }
 
 // meta keys
-fn awaited_chunks_key() -> [u8; 14] {
-	*b"awaited_chunks"
-}
+const AWAITED_CHUNKS_KEY: [u8; 14] = *b"awaited_chunks";
 
 fn validator_index_and_n_validators_key(relay_parent: &Hash) -> Vec<u8> {
 	(relay_parent, 1i8).encode()
 }
 
+fn available_chunks_key(candidate_hash: &Hash) -> Vec<u8> {
+	(candidate_hash, 2i8).encode()
+}
+
 /// An entry in the awaited frontier of chunks we are interested in.
 #[derive(Encode, Decode, Debug, Hash, PartialEq, Eq, Clone)]
 pub struct AwaitedFrontierEntry {
-	/// The relay-chain parent block hash.
+	/// The hash of the candidate for which we want to fetch a chunk for.
+	/// There will be duplicate entries in the case of multiple candidates with
+	/// the same erasure-root, but this is unlikely.
+	pub candidate_hash: Hash,
+	/// Although the relay-parent is implicitly referenced by the candidate hash,
+	/// we include it here as well for convenience in pruning the set.
 	pub relay_parent: Hash,
-	/// The erasure-chunk trie root we are comparing against.
-	///
-	/// We index by erasure-root because there may be multiple candidates
-	/// with the same erasure root.
-	pub erasure_root: Hash,
 	/// The index of the validator we represent.
 	pub validator_index: u32,
 }
@@ -153,7 +151,7 @@ impl Store {
 
 	/// Get a set of all chunks we are waiting for.
 	pub fn awaited_chunks(&self) -> Option<HashSet<AwaitedFrontierEntry>> {
-		self.query_inner(columns::META, &awaited_chunks_key()).map(|vec: Vec<AwaitedFrontierEntry>| {
+		self.query_inner(columns::META, &AWAITED_CHUNKS_KEY).map(|vec: Vec<AwaitedFrontierEntry>| {
 			HashSet::from_iter(vec.into_iter())
 		})
 	}
@@ -183,21 +181,21 @@ impl Store {
 		if let Some((validator_index, _)) = self.get_validator_index_and_n_validators(relay_parent) {
 			let candidates = candidates.clone();
 			let awaited_frontier: Vec<AwaitedFrontierEntry> = self
-				.query_inner(columns::META, &awaited_chunks_key())
+				.query_inner(columns::META, &AWAITED_CHUNKS_KEY)
 				.unwrap_or_else(|| Vec::new());
 
 			let mut awaited_frontier: HashSet<AwaitedFrontierEntry> =
 				HashSet::from_iter(awaited_frontier.into_iter());
 
-			awaited_frontier.extend(candidates.iter().filter_map(|candidate| {
-				self.get_candidate(&candidate).map(|receipt| AwaitedFrontierEntry {
+			awaited_frontier.extend(candidates.iter().cloned().map(|candidate_hash| {
+				AwaitedFrontierEntry {
 					relay_parent: relay_parent.clone(),
-					erasure_root: receipt.commitments.erasure_root,
+					candidate_hash,
 					validator_index,
-				})
+				}
 			}));
 			let awaited_frontier = Vec::from_iter(awaited_frontier.into_iter());
-			tx.put_vec(columns::META, &awaited_chunks_key(), awaited_frontier.encode());
+			tx.put_vec(columns::META, &AWAITED_CHUNKS_KEY, awaited_frontier.encode());
 		}
 
 		let mut descendent_candidates = self.get_candidates_with_relay_parent(relay_parent);
@@ -246,15 +244,12 @@ impl Store {
 
 			let mut v = self.query_inner(columns::DATA, &dbkey).unwrap_or(Vec::new());
 
-			let av_chunks_key = available_chunks_key(
-				&receipt.relay_parent,
-				&receipt.commitments.erasure_root,
-			);
+			let av_chunks_key = available_chunks_key(candidate_hash);
 			let mut have_chunks = self.query_inner(columns::META, &av_chunks_key).unwrap_or(Vec::new());
 
 			let awaited_frontier: Option<Vec<AwaitedFrontierEntry>> = self.query_inner(
 				columns::META,
-				&awaited_chunks_key(),
+				&AWAITED_CHUNKS_KEY,
 			);
 
 			for chunk in chunks.into_iter() {
@@ -268,19 +263,21 @@ impl Store {
 				awaited_frontier.retain(|entry| {
 					!(
 						entry.relay_parent == receipt.relay_parent &&
-						entry.erasure_root == receipt.commitments.erasure_root &&
+						&entry.candidate_hash == candidate_hash &&
 						have_chunks.contains(&entry.validator_index)
 					)
 				});
-				tx.put_vec(columns::META, &awaited_chunks_key(), awaited_frontier.encode());
+				tx.put_vec(columns::META, &AWAITED_CHUNKS_KEY, awaited_frontier.encode());
 			}
 
-			// If therea are no block data in the store at this point,
+			// If there are no block data in the store at this point,
 			// check that they can be reconstructed now and add them to store if they can.
 			if self.execution_data(&candidate_hash).is_none() {
 				if let Ok(available_data) = erasure::reconstruct(
 					n_validators as usize,
-					v.iter().map(|chunk| (chunk.chunk.as_ref(), chunk.index as usize))) {
+					v.iter().map(|chunk| (chunk.chunk.as_ref(), chunk.index as usize)),
+				)
+				{
 					self.make_available(*candidate_hash, available_data)?;
 				}
 			}
@@ -339,11 +336,11 @@ impl Store {
 		let mut tx = DBTransaction::new();
 
 		let awaited_frontier: Option<Vec<AwaitedFrontierEntry>> = self
-			.query_inner(columns::META, &awaited_chunks_key());
+			.query_inner(columns::META, &AWAITED_CHUNKS_KEY);
 
 		if let Some(mut awaited_frontier) = awaited_frontier {
 			awaited_frontier.retain(|entry| entry.relay_parent != relay_parent);
-			tx.put_vec(columns::META, &awaited_chunks_key(), awaited_frontier.encode());
+			tx.put_vec(columns::META, &AWAITED_CHUNKS_KEY, awaited_frontier.encode());
 		}
 
 		let candidates = self.get_candidates_with_relay_parent(&relay_parent);
@@ -354,6 +351,8 @@ impl Store {
 			tx.delete(columns::DATA, execution_data_key(&candidate).as_slice());
 			tx.delete(columns::DATA, &erasure_chunks_key(&candidate));
 			tx.delete(columns::DATA, &candidate_key(&candidate));
+
+			tx.delete(columns::META, &available_chunks_key(&candidate));
 		}
 
 		self.inner.write(tx)
@@ -576,7 +575,6 @@ mod tests {
 			proof: Vec::new(),
 		};
 		let candidates = vec![receipt_1_hash, receipt_2_hash];
-		let erasure_roots = vec![erasure_root_1, erasure_root_2];
 
 		let store = Store::new_in_memory();
 
@@ -596,10 +594,9 @@ mod tests {
 		let expected: HashSet<_> = candidates
 			.clone()
 			.into_iter()
-			.zip(erasure_roots.iter())
-			.map(|(_c, &e)| AwaitedFrontierEntry {
+			.map(|c| AwaitedFrontierEntry {
 				relay_parent,
-				erasure_root: e,
+				candidate_hash: c,
 				validator_index,
 			})
 			.collect();
@@ -612,7 +609,7 @@ mod tests {
 		// Now we wait for the other chunk that we haven't received yet.
 		let expected: HashSet<_> = vec![AwaitedFrontierEntry {
 			relay_parent,
-			erasure_root: erasure_roots[1],
+			candidate_hash: receipt_2_hash,
 			validator_index,
 		}].into_iter().collect();
 
