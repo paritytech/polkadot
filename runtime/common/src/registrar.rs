@@ -646,7 +646,7 @@ mod tests {
 		traits::{
 			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, Dispatchable,
 			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header}, Perbill, curve::PiecewiseLinear,
+		}, testing::{UintAuthorityId, Header}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{
@@ -657,6 +657,7 @@ mod tests {
 		Balance, BlockNumber,
 	};
 	use frame_support::{
+		traits::KeyOwnerProofSystem,
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
 	};
 	use keyring::Sr25519Keyring;
@@ -818,7 +819,10 @@ mod tests {
 		type Randomness = RandomnessCollectiveFlip;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
-		type HandleDoubleVote = ();
+		type Proof = session::historical::Proof;
+		type KeyOwnerProofSystem = session::historical::Module<Test>;
+		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+		type ReportOffence = ();
 	}
 
 	parameter_types! {

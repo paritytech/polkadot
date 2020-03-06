@@ -35,7 +35,7 @@ use primitives::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, Percent, Permill, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	curve::PiecewiseLinear,
 	traits::{
@@ -50,7 +50,7 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Randomness},
+	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness},
 	weights::DispatchInfo,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
@@ -482,11 +482,10 @@ impl parachains::Trait for Runtime {
 	type Registrar = Registrar;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadDataSize = MaxHeadDataSize;
-	type HandleDoubleVote = parachains::DoubleVoteHandler<
-		Historical,
-		Offences,
-		parachains::DoubleVoteOffence<session_historical::IdentificationTuple<Self>>,
-	>;
+	type Proof = session::historical::Proof;
+	type KeyOwnerProofSystem = session::historical::Module<Self>;
+	type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+	type ReportOffence = Offences;
 }
 
 parameter_types! {

@@ -20,11 +20,8 @@ use rstd::prelude::*;
 use rstd::result;
 use codec::{Decode, Encode};
 
-use session::historical::{IdentificationTuple, Proof};
 use sp_runtime::{
-	Perbill, RuntimeDebug,
-	// TODO: This should be changed to a proper key type.
-	key_types::DUMMY,
+	KeyTypeId, Perbill, RuntimeDebug,
 	traits::{
 		Hash as HashT, BlakeTwo256, Saturating, One, Dispatchable,
 		AccountIdConversion, BadOrigin, Convert, SignedExtension, AppVerify,
@@ -46,7 +43,7 @@ use primitives::{
 		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
-		LocalValidationData, ValidityAttestation, NEW_HEADS_IDENTIFIER,
+		LocalValidationData, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
 	},
 };
 use frame_support::{
@@ -118,22 +115,28 @@ pub struct ValidatorIdentities<T>(rstd::marker::PhantomData<T>);
 
 #[derive(RuntimeDebug, Encode, Decode)]
 #[derive(Clone, Eq, PartialEq)]
-pub struct DoubleVoteReport {
+pub struct DoubleVoteReport<Proof> {
 	/// Identity of the double-voter.
 	pub identity: ValidatorId,
 	/// First vote of the double-vote.
 	pub first: (Statement, ValidityAttestation),
 	/// Second vote of the double-vote.
 	pub second: (Statement, ValidityAttestation),
+	/// Proof
+	pub proof: Proof,
 }
 
-impl DoubleVoteReport {
-	fn verify<H: AsRef<[u8]>>(
+impl<Proof: Parameter> DoubleVoteReport<Proof> {
+	fn verify<T: Trait<Proof = Proof>, H: AsRef<[u8]>>(
 		&self,
 		parent_hash: H,
 	) -> Result<(), DoubleVoteValidityError> {
 		let first = self.first.clone();
 		let second = self.second.clone();
+		let id = self.identity.encode();
+
+		T::KeyOwnerProofSystem::check_proof((PARACHAIN_KEY_TYPE_ID, id), self.proof.clone())
+			.ok_or(DoubleVoteValidityError::InvalidProof)?;
 
 		// Check signatures.
 		Self::verify_vote(&first, &parent_hash, &self.identity)?;
@@ -220,7 +223,29 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 	type MaxHeadDataSize: Get<u32>;
 
 	/// Submit double-vote offence reports.
-	type HandleDoubleVote: HandleDoubleVote<Self>;
+	/// type HandleDoubleVote: HandleDoubleVote<Self>;
+
+	/// Proof type (since it is a part of Calls it needs to be bound to `Parameter` here)
+	/// TODO: I know of no other way to bind an associated type of `KeyOwnerProofSystem::Proof`
+	/// to parameter.
+	type Proof: Parameter;
+
+	/// Compute and check proofs of historical key owners.
+	type KeyOwnerProofSystem: KeyOwnerProofSystem<
+		(KeyTypeId, Vec<u8>),
+		Proof = Self::Proof,
+		IdentificationTuple = Self::IdentificationTuple,
+	>;
+
+	/// An identification tuple type bound to `Clone`.
+	type IdentificationTuple: Parameter;
+
+	/// Report an offence.
+	type ReportOffence: ReportOffence<
+		Self::AccountId,
+		Self::IdentificationTuple,
+		DoubleVoteOffence<Self::IdentificationTuple>
+	>;
 }
 
 /// Origin for the parachains module.
@@ -266,107 +291,6 @@ impl<Offender: Clone> Offence<Offender> for DoubleVoteOffence<Offender> {
 	fn slash_fraction(_offenders_count: u32, _validator_set_count: u32) -> Perbill {
 		// Slash 100%.
 		Perbill::from_percent(100)
-	}
-}
-
-impl<O: Clone> ParachainsOffence<O> for DoubleVoteOffence<O> {
-	fn new(
-		session_index: SessionIndex,
-		validator_set_count: u32,
-		offender: O,
-	) -> Self {
-		Self {
-			session_index,
-			validator_set_count,
-			offender,
-		}
-	}
-}
-
-pub trait ParachainsOffence<O>: Offence<O> {
-	fn new(
-		session_index: SessionIndex,
-		validator_set_count: u32,
-		offender: O,
-	) -> Self;
-}
-
-pub trait HandleDoubleVote<T: Trait> {
-	/// The proof of key ownership.
-	type Offence: ParachainsOffence<IdentificationTuple<T>>;
-
-	fn check_report(
-		report: &DoubleVoteReport,
-		key_owner_proof: Proof,
-		i: Vec<u8>
-	) -> Option<IdentificationTuple<T>>;
-
-	fn report_offence(
-		reporters: Vec<T::AccountId>,
-		offence: Self::Offence
-	);
-}
-
-impl<T: Trait> HandleDoubleVote<T> for () {
-	type Offence = DoubleVoteOffence<IdentificationTuple<T>>;
-
-	fn check_report(
-		_report: &DoubleVoteReport,
-		_key_owner_proof: Proof,
-		_i: Vec<u8>,
-	) -> Option<IdentificationTuple<T>> {
-		None
-	}
-
-	// TODO: As soon as substrate is updated and `report_offence` returns
-	// a result, this function should also be changed to returning a result.
-	fn report_offence(
-		_reporters: Vec<T::AccountId>,
-		_offence: Self::Offence,
-	) {}
-}
-
-pub struct DoubleVoteHandler<P, R, O> {
-	_phantom: rstd::marker::PhantomData<(P, R, O)>,
-}
-
-impl<P, R, O> Default for DoubleVoteHandler<P, R, O> {
-	fn default() -> Self {
-		Self {
-			_phantom: Default::default(),
-		}
-	}
-}
-
-impl<T, P, R, O> HandleDoubleVote<T> for DoubleVoteHandler<P, R, O>
-where
-	T: Trait<HandleDoubleVote = Self>,
-	P: KeyOwnerProofSystem<
-		// AccountId?
-		(sp_core::crypto::KeyTypeId, Vec<u8>),
-		Proof = Proof,
-		IdentificationTuple = session::historical::IdentificationTuple<T>,
-	>,
-	O: ParachainsOffence<P::IdentificationTuple>,
-	R: ReportOffence<T::AccountId, P::IdentificationTuple, O>,
-{
-	type Offence = O;
-
-	fn check_report(
-		_report: &DoubleVoteReport,
-		key_owner_proof: Proof,
-		i: Vec<u8>,
-	) -> Option<IdentificationTuple<T>> {
-		let id = P::check_proof((DUMMY, i), key_owner_proof)?;
-
-		Some(id)
-	}
-
-	fn report_offence(
-		reporters: Vec<T::AccountId>,
-		offence: O,
-	) {
-		R::report_offence(reporters, offence);
 	}
 }
 
@@ -539,35 +463,34 @@ decl_module! {
 		#[weight = SimpleDispatchInfo::FixedNormal(0)]
 		pub fn report_double_vote(
 			origin,
-			report: DoubleVoteReport,
-			key_owner_proof: Vec<u8>,
-			id: Vec<u8>,
+			report: DoubleVoteReport<
+				<T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof
+			>,
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
 
 			let validators = <session::Module<T>>::validators();
 			let validator_set_count = validators.len() as u32;
 
-			let key_owner_proof: Proof = Decode::decode(&mut &key_owner_proof[..])
-				.map_err(|_| "Key owner proof decoding failed.")?;
+			//let key_owner_proof = report.proof.clone();// Proof = Decode::decode(&mut &key_owner_proof[..])
+				//.map_err(|_| "Key owner proof decoding failed.")?;
 
-			let session = Default::default(); // TODO: this has to be key_owner_proof.session();
+			let session_index = Default::default(); // TODO: this has to be key_owner_proof.session();
 
-			let id = T::HandleDoubleVote::check_report(
-					&report,
-					key_owner_proof,
-					id,
+			let offender = T::KeyOwnerProofSystem::check_proof(
+					(PARACHAIN_KEY_TYPE_ID, report.identity.encode()),
+					report.proof.clone(),
 				).ok_or("Invalid/outdated key ownership proof.")?;
 
-			let offence = <T::HandleDoubleVote as HandleDoubleVote<T>>::Offence::new(
-				session,
+			let offence = DoubleVoteOffence {
+				session_index,
 				validator_set_count,
-				id,
-			);
+				offender,
+			};
 
 			// Checks if this is actually a double vote are
 			// implemented in `ValidateDoubleVoteReports::validete`.
-			T::HandleDoubleVote::report_offence(vec![reporter], offence);
+			T::ReportOffence::report_offence(vec![reporter], offence);
 
 			Ok(())
 		}
@@ -1161,6 +1084,9 @@ pub enum DoubleVoteValidityError {
 
 	/// Invalid report. Indicates that statement doesn't match the attestation on one of the votes.
 	InvalidReport = 4,
+
+	/// The proof provided in the report is not valid.
+	InvalidProof = 5,
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> where
@@ -1189,7 +1115,7 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 		let r = ValidTransaction::default();
 
 		if let Some(local_call) = call.is_sub_type() {
-			if let Call::report_double_vote(report, _proof, _id) = local_call {
+			if let Call::report_double_vote(report) = local_call {
 				let validators = <session::Module<T>>::validators();
 				let parent_hash = <system::Module<T>>::block_hash(<system::Module<T>>::block_number());
 
@@ -1208,7 +1134,7 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 				}
 
 				report
-					.verify(parent_hash)
+					.verify::<T, _>(parent_hash)
 					.map_err(|e| TransactionValidityError::from(InvalidTransaction::Custom(e as u8)))?;
 			}
 		}
@@ -1227,8 +1153,12 @@ mod tests {
 	use sp_core::{H256, Blake2Hasher};
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
-		Perbill, curve::PiecewiseLinear, testing::{UintAuthorityId, Header},
-		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, SaturatedConversion},
+		impl_opaque_keys,
+		Perbill, curve::PiecewiseLinear, testing::{Header},
+		traits::{
+			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, SaturatedConversion,
+			OpaqueKeys,
+		},
 	};
 	use primitives::{
 		parachain::{
@@ -1244,7 +1174,7 @@ mod tests {
 	use crate::parachains;
 	use crate::registrar;
 	use crate::slots;
-	use session::SessionManager;
+	use session::{SessionHandler, SessionManager};
 	use staking::EraIndex;
 
 	// result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
@@ -1262,6 +1192,12 @@ mod tests {
 	impl_outer_dispatch! {
 		pub enum Call for Test where origin: Origin {
 			parachains::Parachains,
+		}
+	}
+
+	impl_opaque_keys! {
+		pub struct TestSessionKeys {
+			pub parachain_validator: super::Module<Test>,
 		}
 	}
 
@@ -1302,14 +1238,28 @@ mod tests {
 		pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	}
 
+	/// Custom `SessionHandler` since we use `TestSessionKeys` as `Keys`.
+	pub struct TestSessionHandler;
+	impl<AId> SessionHandler<AId> for TestSessionHandler {
+		const KEY_TYPE_IDS: &'static [KeyTypeId] = &[PARACHAIN_KEY_TYPE_ID];
+
+		fn on_genesis_session<Ks: OpaqueKeys>(_: &[(AId, Ks)]) {}
+
+		fn on_new_session<Ks: OpaqueKeys>(_: bool, _: &[(AId, Ks)], _: &[(AId, Ks)]) {}
+
+		fn on_before_session_ending() {}
+
+		fn on_disabled(_: usize) {}
+	}
+
 	impl session::Trait for Test {
 		type Event = ();
 		type ValidatorId = u64;
 		type ValidatorIdOf = staking::StashOf<Self>;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
 		type SessionManager = session::historical::NoteHistoricalRoot<Self, Staking>;
-		type SessionHandler = session::TestSessionHandler;
-		type Keys = UintAuthorityId;
+		type SessionHandler = TestSessionHandler;
+		type Keys = TestSessionKeys;
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	}
 
@@ -1463,11 +1413,10 @@ mod tests {
 		type Registrar = registrar::Module<Test>;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
-		type HandleDoubleVote = DoubleVoteHandler<
-			Historical,
-			Offences,
-			DoubleVoteOffence<session::historical::IdentificationTuple<Test>>,
-		>;
+		type Proof = <Historical as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof;
+		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+		type ReportOffence = Offences;
+		type KeyOwnerProofSystem = Historical;
 	}
 
 	type Parachains = Module<Test>;
@@ -1500,7 +1449,9 @@ mod tests {
 
 		// stashes are the index.
 		let session_keys: Vec<_> = authority_keys.iter().enumerate()
-			.map(|(i, _k)| (i as u64, i as u64, UintAuthorityId(i as u64)))
+			.map(|(i, k)| (i as u64, i as u64, TestSessionKeys {
+				parachain_validator: ValidatorId::from(k.public()),
+			}))
 			.collect();
 
 		let authorities: Vec<_> = authority_keys.iter().map(|k| ValidatorId::from(k.public())).collect();
@@ -1558,11 +1509,9 @@ mod tests {
 	}
 
 	fn report_double_vote(
-		report: DoubleVoteReport,
-		proof: Vec<u8>,
-		id: Vec<u8>,
+		report: DoubleVoteReport<session::historical::Proof>,
 	) -> Result<ParachainsCall<Test>, TransactionValidityError> {
-		let inner = ParachainsCall::report_double_vote(report, proof, id);
+		let inner = ParachainsCall::report_double_vote(report);
 		let call = Call::Parachains(inner.clone());
 
 		ValidateDoubleVoteReports::<Test>(rstd::marker::PhantomData)
@@ -2202,12 +2151,6 @@ mod tests {
 			let attestation_1 = ValidityAttestation::Implicit(signature_1);
 			let attestation_2 = ValidityAttestation::Explicit(signature_2);
 
-			let report = DoubleVoteReport {
-				identity: ValidatorId::from(key.public()),
-				first: (statement_candidate, attestation_1),
-				second: (statement_valid, attestation_2),
-			};
-
 			// Check that in the beginning the genesis balances are there.
 			for i in 0..authorities.len() {
 				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
@@ -2223,10 +2166,17 @@ mod tests {
 				);
 			}
 
-			let encoded_key = (authority_index as u64).encode();
-			let proof = Historical::prove((DUMMY, &encoded_key[..])).unwrap();
+			let encoded_key = key.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
 
-			let inner = report_double_vote(report, proof.encode(), encoded_key).unwrap();
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_candidate, attestation_1),
+				second: (statement_valid, attestation_2),
+				proof,
+			};
+
+			let inner = report_double_vote(report).unwrap();
 
 			assert_ok!(Parachains::dispatch(inner, Origin::signed(1)));
 
@@ -2299,12 +2249,6 @@ mod tests {
 			let attestation_1 = ValidityAttestation::Implicit(signature_1);
 			let attestation_2 = ValidityAttestation::Explicit(signature_2);
 
-			let report = DoubleVoteReport {
-				identity: ValidatorId::from(key.public()),
-				first: (statement_candidate, attestation_1),
-				second: (statement_invalid, attestation_2),
-			};
-
 			// Check that in the beginning the genesis balances are there.
 			for i in 0..authorities.len() {
 				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
@@ -2320,11 +2264,18 @@ mod tests {
 				);
 			}
 
-			let encoded_key = (authority_index as u64).encode();
-			let proof = Historical::prove((DUMMY, &encoded_key[..])).unwrap();
+			let encoded_key = key.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_candidate, attestation_1),
+				second: (statement_invalid, attestation_2),
+				proof,
+			};
 
 			assert_ok!(Parachains::dispatch(
-				report_double_vote(report, proof.encode(), encoded_key).unwrap(),
+				report_double_vote(report).unwrap(),
 				Origin::signed(1),
 			));
 
@@ -2398,12 +2349,6 @@ mod tests {
 			let attestation_1 = ValidityAttestation::Explicit(signature_1);
 			let attestation_2 = ValidityAttestation::Explicit(signature_2);
 
-			let report = DoubleVoteReport {
-				identity: ValidatorId::from(key.public()),
-				first: (statement_invalid, attestation_1),
-				second: (statement_valid, attestation_2),
-			};
-
 			// Check that in the beginning the genesis balances are there.
 			for i in 0..authorities.len() {
 				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
@@ -2419,11 +2364,18 @@ mod tests {
 				);
 			}
 
-			let encoded_key = (authority_index as u64).encode();
-			let proof = Historical::prove((DUMMY, &encoded_key[..])).unwrap();
+			let encoded_key = key.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_invalid, attestation_1),
+				second: (statement_valid, attestation_2),
+				proof,
+			};
 
 			assert_ok!(Parachains::dispatch(
-				report_double_vote(report, proof.encode(), encoded_key).unwrap(),
+				report_double_vote(report).unwrap(),
 				Origin::signed(1),
 			));
 
@@ -2500,12 +2452,6 @@ mod tests {
 			let attestation_1 = ValidityAttestation::Implicit(signature_1);
 			let attestation_2 = ValidityAttestation::Explicit(signature_2);
 
-			let report = DoubleVoteReport {
-				identity: ValidatorId::from(key.public()),
-				first: (statement_candidate, attestation_1),
-				second: (statement_valid, attestation_2),
-			};
-
 			// Check that in the beginning the genesis balances are there.
 			for i in 0..authorities.len() {
 				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
@@ -2521,16 +2467,23 @@ mod tests {
 				);
 			}
 
-			let encoded_key = (authority_index as u64).encode();
-			let proof = Historical::prove((DUMMY, &encoded_key[..])).unwrap();
+			let encoded_key = key.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_candidate, attestation_1),
+				second: (statement_valid, attestation_2),
+				proof,
+			};
 
 			assert_ok!(Parachains::dispatch(
-				report_double_vote(report.clone(), proof.encode(), encoded_key.clone()).unwrap(),
+				report_double_vote(report.clone()).unwrap(),
 				Origin::signed(1),
 			));
 
 			assert!(Parachains::dispatch(
-					report_double_vote(report, proof.encode(), encoded_key).unwrap(),
+					report_double_vote(report).unwrap(),
 					Origin::signed(1),
 				).is_err()
 			);
@@ -2610,17 +2563,18 @@ mod tests {
 			let attestation_1 = ValidityAttestation::Implicit(signature_1);
 			let attestation_2 = ValidityAttestation::Explicit(signature_2);
 
+			let encoded_key = key_1.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
+
 			let report = DoubleVoteReport {
 				identity: ValidatorId::from(key_1.public()),
 				first: (statement_candidate, attestation_1),
 				second: (statement_valid, attestation_2),
+				proof,
 			};
 
-			let encoded_key = (authority_1_index as u64).encode();
-			let proof = Historical::prove((DUMMY, &encoded_key[..])).unwrap();
-
 			assert_eq!(
-				report_double_vote(report.clone(), proof.encode(), encoded_key.clone()),
+				report_double_vote(report.clone()),
 				Err(TransactionValidityError::Invalid(
 						InvalidTransaction::Custom(DoubleVoteValidityError::InvalidSignature as u8)
 					)
