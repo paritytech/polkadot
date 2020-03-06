@@ -299,7 +299,7 @@ fn router_inner_drop_sends_worker_message() {
 }
 
 #[test]
-fn spawn_worker_task() {
+fn worker_task_shuts_down_when_sender_dropped() {
 	let pool = EXECUTOR.clone();
 
 	let network_ops = Arc::new(MockNetworkOps::default());
@@ -316,10 +316,11 @@ fn spawn_worker_task() {
 		pool.clone(),
 	);
 
-	let _service = Service {
+	let service = Service {
 		sender: worker_tx,
 		network_service: network_ops,
 	};
 
-	pool.spawn(worker_task).unwrap();
+	drop(service);
+	let _ = futures::executor::block_on(worker_task);
 }
