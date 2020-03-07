@@ -68,7 +68,7 @@ mod validator_app {
 
 /// Identity that parachain validators use when signing validation messages.
 ///
-/// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
+/// For now we assert that parachain validator set is exactly equivalent to the authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorId = validator_app::Public;
 
@@ -79,9 +79,9 @@ pub type ValidatorIndex = u32;
 #[cfg(feature = "std")]
 pub type ValidatorPair = validator_app::Pair;
 
- /// Signature with which parachain validators sign blocks.
+/// Signature with which parachain validators sign blocks.
 ///
-/// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
+/// For now we assert that parachain validator set is exactly equivalent to the authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorSignature = validator_app::Signature;
 
@@ -89,7 +89,7 @@ pub type ValidatorSignature = validator_app::Signature;
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum Retriable {
-	/// Ineligible for retry. This means it's either a parachain which is always scheduled anyway or
+	/// Ineligible for retry. This means it's either a parachain that is always scheduled anyway or
 	/// has been removed/swapped.
 	Never,
 	/// Eligible for retry; the associated value is the number of retries that the para already had.
@@ -129,13 +129,13 @@ pub const PARACHAIN_INFO: Info = Info {
 	scheduling: Scheduling::Always,
 };
 
-/// Auxilliary for when there's an attempt to swapped two parachains/parathreads.
+/// Auxilliary for when there's an attempt to swap two parachains/parathreads.
 pub trait SwapAux {
 	/// Result describing whether it is possible to swap two parachains. Doesn't mutate state.
 	fn ensure_can_swap(one: Id, other: Id) -> Result<(), &'static str>;
 
 	/// Updates any needed state/references to enact a logical swap of two parachains. Identity,
-	/// code and head_data remain equivalent for all parachains/threads, however other properties
+	/// code and `head_data` remain equivalent for all parachains/threads, however other properties
 	/// such as leases, deposits held and thread/chain nature are swapped.
 	///
 	/// May only be called on a state that `ensure_can_swap` has previously returned `Ok` for: if this is
@@ -162,7 +162,7 @@ pub struct DutyRoster {
 	pub validator_duty: Vec<Chain>,
 }
 
-/// Extra data which is needed along with the other fields in a `CandidateReceipt`
+/// Extra data that is needed along with the other fields in a `CandidateReceipt`
 /// to fully validate the candidate.
 ///
 /// These are global parameters that apply to all parachain candidates in a block.
@@ -175,7 +175,7 @@ pub struct GlobalValidationSchedule {
 	pub max_head_data_size: u32,
 }
 
-/// Extra data which is needed along with the other fields in a `CandidateReceipt`
+/// Extra data that is needed along with the other fields in a `CandidateReceipt`
 /// to fully validate the candidate. These fields are parachain-specific.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
@@ -190,7 +190,7 @@ pub struct LocalValidationData {
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct CandidateCommitments {
-	/// Fees paid from the chain to the relay chain validators
+	/// Fees paid from the chain to the relay chain validators.
 	pub fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
@@ -360,7 +360,7 @@ impl AbridgedCandidateReceipt {
 	///
 	/// This is often used as the canonical hash of the receipt, rather than
 	/// the hash of the full receipt. The reason being that all data in the full
-	/// receipt is comitted to in the abridged receipt; this receipt references
+	/// receipt is committed to in the abridged receipt; this receipt references
 	/// the relay-chain block in which context it should be executed, which implies
 	/// any blockchain state that must be referenced.
 	pub fn hash(&self) -> Hash {
@@ -519,13 +519,13 @@ impl PoVBlock {
 	}
 }
 
-/// The data which is kept available about a particular parachain block.
+/// The data that is kept available about a particular parachain block.
 #[derive(PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
 pub struct AvailableData {
 	/// The PoV block.
 	pub pov_block: PoVBlock,
-	/// Data which is omitted from an abridged candidate receipt
+	/// Data that is omitted from an abridged candidate receipt
 	/// that is necessary for validation.
 	pub omitted_validation: OmittedValidationData,
 	// In the future, outgoing messages as well.
@@ -533,7 +533,7 @@ pub struct AvailableData {
 
 /// Parachain block data.
 ///
-/// contains everything required to validate para-block, may contain block and witness data
+/// Contains everything required to validate para-block, may contain block and witness data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
@@ -573,13 +573,13 @@ pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
-/// Activity bit field
+/// Activity bit field.
 #[derive(PartialEq, Eq, Clone, Default, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
-/// Statements which can be made about parachain candidates. These are the
-/// actual values which are signed by
+/// Statements that can be made about parachain candidates. These are the
+/// actual values that are signed.
 #[derive(Clone, PartialEq, Eq, Encode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum Statement {
@@ -589,7 +589,7 @@ pub enum Statement {
 	/// State that a parachain candidate is valid.
 	#[codec(index = "2")]
 	Valid(Hash),
-	/// State a candidate is invalid.
+	/// State that a parachain candidate is invalid.
 	#[codec(index = "3")]
 	Invalid(Hash),
 }
@@ -599,7 +599,7 @@ pub enum Statement {
 #[derive(Clone, PartialEq, Decode, Encode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum ValidityAttestation {
-	/// implicit validity attestation by issuing.
+	/// Implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
 	#[codec(index = "1")]
 	Implicit(ValidatorSignature),

@@ -13,13 +13,13 @@
 
 //! Polkadot-specific base networking protocol.
 //!
-//! This is implemented using the sc-network APIs for futures-based
+//! This is implemented using the `sc-network` APIs for futures-based
 //! notifications protocols. In some cases, we emulate request/response on top
 //! of the notifications machinery, which is slightly less efficient but not
 //! meaningfully so.
 //!
 //! We handle events from `sc-network` in a thin wrapper that forwards to a
-//! background worker which also handles commands from other parts of the node.
+//! background worker, which also handles commands from other parts of the node.
 
 use arrayvec::ArrayVec;
 use codec::{Decode, Encode};
