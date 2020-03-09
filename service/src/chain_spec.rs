@@ -67,7 +67,7 @@ pub fn kusama_config() -> Result<KusamaChainSpec, String> {
 }
 
 pub fn westend_config() -> Result<KusamaChainSpec, String> {
-	KusamaChainSpec::from_json_bytes(&include_bytes!("../res/westend.json")[..])
+	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/westend.json")[..])
 }
 
 fn polkadot_session_keys(
