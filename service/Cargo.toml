@@ -12,12 +12,9 @@ log = "0.4.8"
 futures = "0.3.4"
 slog = "2.5.2"
 hex-literal = "0.2.1"
-av_store = { package = "polkadot-availability-store", path = "../availability-store" }
-consensus = { package = "polkadot-validation", path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime/polkadot" }
 kusama-runtime = { path = "../runtime/kusama" }
-polkadot-network = { path = "../network"  }
 polkadot-rpc = { path = "../rpc" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
@@ -53,6 +50,11 @@ codec = { package = "parity-scale-codec", version = "1.1.0" }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+
+[target.'cfg(not(target_os = "unknown"))'.dependencies]
+av_store = { package = "polkadot-availability-store", path = "../availability-store" }
+consensus = { package = "polkadot-validation", path = "../validation" }
+polkadot-network = { path = "../network"  }
 
 [features]
 default = ["rocksdb"]
