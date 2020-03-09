@@ -36,7 +36,7 @@ use std::task::{Context as PollContext, Poll};
 use self::gossip::GossipMessage;
 
 /// Basic gossip functionality that a network has to fulfill.
-pub trait GossipService: Send + Sync + 'static {
+pub trait GossipService {
 	/// Get a stream of gossip messages for a given hash.
 	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream;
 
