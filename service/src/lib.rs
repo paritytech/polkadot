@@ -22,8 +22,8 @@ use sc_client::LongestChain;
 use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
-use polkadot_network::legacy::gossip::Known;
-use polkadot_network::protocol as network_protocol;
+#[cfg(feature = "full-node")]
+use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
 use service::{error::{Error as ServiceError}, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
@@ -206,6 +206,7 @@ where
 }
 
 /// Create a new Polkadot service for a full node.
+#[cfg(feature = "full-node")]
 pub fn polkadot_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
@@ -228,6 +229,7 @@ pub fn polkadot_new_full(
 }
 
 /// Create a new Kusama service for a full node.
+#[cfg(feature = "full-node")]
 pub fn kusama_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
@@ -251,12 +253,14 @@ pub fn kusama_new_full(
 
 /// Handles to other sub-services that full nodes instantiate, which consumers
 /// of the node may use.
+#[cfg(feature = "full-node")]
 pub struct FullNodeHandles {
 	/// A handle to the Polkadot networking protocol.
 	pub polkadot_network: Option<network_protocol::Service>,
 }
 
 /// Builds a new service for a full client.
+#[cfg(feature = "full-node")]
 pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,

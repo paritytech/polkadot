@@ -12,12 +12,12 @@ log = "0.4.8"
 futures = "0.3.4"
 slog = "2.5.2"
 hex-literal = "0.2.1"
-av_store = { package = "polkadot-availability-store", path = "../availability-store" }
-consensus = { package = "polkadot-validation", path = "../validation" }
+av_store = { package = "polkadot-availability-store", path = "../availability-store", optional = true }
+consensus = { package = "polkadot-validation", path = "../validation", optional = true }
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime/polkadot" }
 kusama-runtime = { path = "../runtime/kusama" }
-polkadot-network = { path = "../network"  }
+polkadot-network = { path = "../network", optional = true }
 polkadot-rpc = { path = "../rpc" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
@@ -55,5 +55,6 @@ sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/su
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [features]
-default = ["rocksdb"]
+default = ["rocksdb", "full-node"]
 rocksdb = ["service/rocksdb"]
+full-node = ["av_store", "consensus", "polkadot-network"]
