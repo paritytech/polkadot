@@ -52,7 +52,7 @@ git checkout "$last_version" 2> /dev/null
 old_substrate_commit=$(grep -A 2 'name = "sc-cli"' Cargo.lock | grep -E -o '[a-f0-9]{40}')
 
 pushd $substrate_dir || exit
-  git checkout master > /dev/null
+  git checkout polkadot-master > /dev/null
   git pull > /dev/null
   all_substrate_changes="$(sanitised_git_logs "$old_substrate_commit" "$cur_substrate_commit" | sed 's/(#/(paritytech\/substrate#/')"
   substrate_changes=""
