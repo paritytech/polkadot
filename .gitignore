@@ -8,3 +8,4 @@ runtime/wasm/target/
 .vscode
 polkadot.*
 .DS_Store
+.cargo

@@ -490,7 +490,8 @@ decl_module! {
 
 			// Checks if this is actually a double vote are
 			// implemented in `ValidateDoubleVoteReports::validete`.
-			T::ReportOffence::report_offence(vec![reporter], offence);
+			T::ReportOffence::report_offence(vec![reporter], offence)
+				.map_err(|_| "Failed to report offence")?;
 
 			Ok(())
 		}
@@ -1329,6 +1330,7 @@ mod tests {
 		pub const SlashDeferDuration: staking::EraIndex = 0;
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
+		pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	}
 
 	pub struct CurrencyToVoteHandler;
@@ -1355,6 +1357,7 @@ mod tests {
 		type SessionInterface = Self;
 		type Time = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
+		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	}
 
 	impl attestations::Trait for Test {
@@ -1492,7 +1495,6 @@ mod tests {
 		}.assimilate_storage(&mut t).unwrap();
 
 		staking::GenesisConfig::<Test> {
-			current_era: 0,
 			stakers,
 			validator_count: 8,
 			force_era: staking::Forcing::ForceNew,
@@ -1612,23 +1614,22 @@ mod tests {
 	}
 
 	fn start_session(session_index: SessionIndex) {
-		// Compensate for session delay
-		let session_index = session_index + 1;
 		for i in Session::current_index()..session_index {
 			println!("session index {}", i);
-			Staking::new_session(i);
+			Staking::on_finalize(System::block_number());
 			System::set_block_number((i + 1).into());
 			Timestamp::set_timestamp(System::block_number() * 6000);
 			println!("block {:?}", System::block_number());
+			println!("Current era {:?}", Staking::current_era());
 			Session::on_initialize(System::block_number());
 		}
 
-		//assert_eq!(Session::current_index(), session_index);
+		assert_eq!(Session::current_index(), session_index);
 	}
 
 	fn start_era(era_index: EraIndex) {
 		start_session((era_index * 3).into());
-		//assert_eq!(Staking::current_era(), era_index);
+		assert_eq!(Staking::current_era(), Some(era_index));
 	}
 
 	fn init_block() {
@@ -2128,7 +2129,7 @@ mod tests {
 			let candidate = raw_candidate(1.into()).abridge().0;
 			let candidate_hash = candidate.hash();
 
-			assert_eq!(Staking::current_era(), 0);
+			assert_eq!(Staking::current_era(), Some(0));
 			assert_eq!(Session::current_index(), 0);
 
 			start_era(1);
@@ -2157,7 +2158,7 @@ mod tests {
 				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
 
 				assert_eq!(
-					Staking::stakers(i as u64),
+					Staking::eras_stakers(1, i as u64),
 					staking::Exposure {
 						total: 10_000,
 						own: 10_000,
@@ -2187,7 +2188,7 @@ mod tests {
 			assert_eq!(Staking::slashable_balance_of(&0), 0);
 
 			assert_eq!(
-				Staking::stakers(0),
+				Staking::eras_stakers(2, 0),
 				staking::Exposure {
 					total: 0,
 					own: 0,
@@ -2201,7 +2202,7 @@ mod tests {
 				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
 
 				assert_eq!(
-					Staking::stakers(i as u64),
+					Staking::eras_stakers(2, i as u64),
 					staking::Exposure {
 						total: 10_000,
 						own: 10_000,
@@ -2229,8 +2230,9 @@ mod tests {
 			let candidate = raw_candidate(1.into()).abridge().0;
 			let candidate_hash = candidate.hash();
 
-			start_session(1);
+			start_era(1);
 
+			println!("Era started");
 			let authorities = Parachains::authorities();
 			let authority_index = 0;
 			let key = extract_key(authorities[authority_index].clone());
@@ -2255,7 +2257,7 @@ mod tests {
 				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
 
 				assert_eq!(
-					Staking::stakers(i as u64),
+					Staking::eras_stakers(1, i as u64),
 					staking::Exposure {
 						total: 10_000,
 						own: 10_000,
@@ -2286,7 +2288,7 @@ mod tests {
 			assert_eq!(Staking::slashable_balance_of(&0), 0);
 
 			assert_eq!(
-				Staking::stakers(0),
+				Staking::eras_stakers(Staking::current_era().unwrap(), 0),
 				staking::Exposure {
 					total: 0,
 					own: 0,
@@ -2300,7 +2302,7 @@ mod tests {
 				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
 
 				assert_eq!(
-					Staking::stakers(i as u64),
+					Staking::eras_stakers(2, i as u64),
 					staking::Exposure {
 						total: 10_000,
 						own: 10_000,
@@ -2355,7 +2357,7 @@ mod tests {
 				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
 
 				assert_eq!(
-					Staking::stakers(i as u64),
+					Staking::eras_stakers(1, i as u64),
 					staking::Exposure {
 						total: 10_000,
 						own: 10_000,
@@ -2386,7 +2388,7 @@ mod tests {
 			assert_eq!(Staking::slashable_balance_of(&0), 0);
 
 			assert_eq!(
-				Staking::stakers(0),
+				Staking::eras_stakers(2, 0),
 				staking::Exposure {
 					total: 0,
 					own: 0,
@@ -2400,7 +2402,7 @@ mod tests {
 				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
 
 				assert_eq!(
-					Staking::stakers(i as u64),
+					Staking::eras_stakers(2, i as u64),
 					staking::Exposure {
 						total: 10_000,
 						own: 10_000,
@@ -2429,7 +2431,7 @@ mod tests {
 			let candidate = raw_candidate(1.into()).abridge().0;
 			let candidate_hash = candidate.hash();
 
-			assert_eq!(Staking::current_era(), 0);
+			assert_eq!(Staking::current_era(), Some(0));
 			assert_eq!(Session::current_index(), 0);
 
 			start_era(1);
@@ -2458,7 +2460,7 @@ mod tests {
 				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
 
 				assert_eq!(
-					Staking::stakers(i as u64),
+					Staking::eras_stakers(1, i as u64),
 					staking::Exposure {
 						total: 10_000,
 						own: 10_000,
@@ -2495,7 +2497,7 @@ mod tests {
 			assert_eq!(Staking::slashable_balance_of(&0), 0);
 
 			assert_eq!(
-				Staking::stakers(0),
+				Staking::eras_stakers(2, 0),
 				staking::Exposure {
 					total: 0,
 					own: 0,
@@ -2509,7 +2511,7 @@ mod tests {
 				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
 
 				assert_eq!(
-					Staking::stakers(i as u64),
+					Staking::eras_stakers(2, i as u64),
 					staking::Exposure {
 						total: 10_000,
 						own: 10_000,
@@ -2538,7 +2540,7 @@ mod tests {
 			let candidate = raw_candidate(1.into()).abridge().0;
 			let candidate_hash = candidate.hash();
 
-			assert_eq!(Staking::current_era(), 0);
+			assert_eq!(Staking::current_era(), Some(0));
 			assert_eq!(Session::current_index(), 0);
 
 			start_era(1);

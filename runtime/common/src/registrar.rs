@@ -752,6 +752,7 @@ mod tests {
 		pub const MinimumPeriod: u64 = 3;
 		pub const SessionsPerEra: sp_staking::SessionIndex = 6;
 		pub const BondingDuration: staking::EraIndex = 28;
+		pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	}
 
 	impl attestations::Trait for Test {
@@ -797,6 +798,7 @@ mod tests {
 		type SessionInterface = Self;
 		type Time = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
+		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	}
 
 	impl timestamp::Trait for Test {
