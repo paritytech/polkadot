@@ -21,7 +21,7 @@ set -e # fail on any error
 . "$(dirname "${0}")/lib.sh"
 
 SUBSTRATE_REPO="https://github.com/paritytech/substrate"
-SUBSTRATE_REPO_CARGO="git\+${SUBSTRATE_REPO}\?branch=master"
+SUBSTRATE_REPO_CARGO="git\+${SUBSTRATE_REPO}\?branch=polkadot-master"
 SUBSTRATE_VERSIONS_FILE="bin/node/runtime/src/lib.rs"
 
 boldprint () { printf "|\n| \033[1m%s\033[0m\n|\n" "${@}"; }
@@ -96,7 +96,7 @@ then
 	trap "rm -rf ${SUBSTRATE_CLONE_DIR}" INT QUIT TERM ABRT EXIT
 
 
-	git clone --branch master --depth 100 --no-tags \
+	git clone --branch polkadot-master --depth 100 --no-tags \
 	  ${SUBSTRATE_REPO} ${SUBSTRATE_CLONE_DIR}
 
 
