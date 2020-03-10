@@ -176,11 +176,11 @@ fn staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 		session: Some(polkadot::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
+				x.0.clone(),
 				session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(polkadot::StakingConfig {
-			current_era: 0,
 			validator_count: 50,
 			minimum_validator_count: 4,
 			stakers: initial_authorities
@@ -319,11 +319,11 @@ pub fn testnet_genesis(
 		session: Some(polkadot::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
+				x.0.clone(),
 				session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
 		staking: Some(polkadot::StakingConfig {
-			current_era: 0,
 			minimum_validator_count: 1,
 			validator_count: 2,
 			stakers: initial_authorities.iter()

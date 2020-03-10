@@ -76,7 +76,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1049,
+	spec_version: 1050,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -137,7 +137,7 @@ impl system::Trait for Runtime {
 	type ModuleToIndex = ModuleToIndex;
 	type AccountData = balances::AccountData<Balance>;
 	type OnNewAccount = ();
-	type OnReapAccount = (Balances, Staking, Session, Recovery, Democracy);
+	type OnKilledAccount = ();
 }
 
 parameter_types! {
@@ -275,6 +275,7 @@ parameter_types! {
 	// 28 eras in which slashes can be cancelled (7 days).
 	pub const SlashDeferDuration: staking::EraIndex = 28;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
+	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 }
 
 impl staking::Trait for Runtime {
@@ -292,6 +293,7 @@ impl staking::Trait for Runtime {
 	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
+	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 }
 
 parameter_types! {
@@ -334,11 +336,16 @@ impl democracy::Trait for Runtime {
 	type Slash = Treasury;
 }
 
+parameter_types! {
+	pub const CouncilMotionDuration: BlockNumber = 3 * DAYS;
+}
+
 type CouncilCollective = collective::Instance1;
 impl collective::Trait<CouncilCollective> for Runtime {
 	type Origin = Origin;
 	type Proposal = Call;
 	type Event = Event;
+	type MotionDuration = CouncilMotionDuration;
 }
 
 parameter_types! {
@@ -365,11 +372,16 @@ impl elections_phragmen::Trait for Runtime {
 	type TermDuration = TermDuration;
 }
 
+parameter_types! {
+	pub const TechnicalMotionDuration: BlockNumber = 3 * DAYS;
+}
+
 type TechnicalCollective = collective::Instance2;
 impl collective::Trait<TechnicalCollective> for Runtime {
 	type Origin = Origin;
 	type Proposal = Call;
 	type Event = Event;
+	type MotionDuration = TechnicalMotionDuration;
 }
 
 impl membership::Trait<membership::Instance1> for Runtime {
@@ -378,6 +390,7 @@ impl membership::Trait<membership::Instance1> for Runtime {
 	type RemoveOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 	type SwapOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 	type ResetOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type PrimeOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 	type MembershipInitialized = TechnicalCommittee;
 	type MembershipChanged = TechnicalCommittee;
 }
@@ -597,10 +610,15 @@ impl society::Trait for Runtime {
 	type ChallengePeriod = ChallengePeriod;
 }
 
+parameter_types! {
+	pub const MinVestedTransfer: Balance = 100 * DOLLARS;
+}
+
 impl vesting::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
+	type MinVestedTransfer = MinVestedTransfer;
 }
 
 construct_runtime! {
@@ -717,10 +735,6 @@ sp_api::impl_runtime_apis! {
 
 	impl block_builder_api::BlockBuilder<Block> for Runtime {
 		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
-			Executive::apply_extrinsic(extrinsic)
-		}
-
-		fn apply_trusted_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
 			Executive::apply_extrinsic(extrinsic)
 		}
 

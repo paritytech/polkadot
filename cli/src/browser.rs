@@ -57,7 +57,7 @@ async fn start_inner(chain_spec: String) -> Result<browser_utils::Client, Box<dy
 	info!("Roles: {:?}", config.roles);
 
 	// Create the service. This is the most heavy initialization step.
-	let service = service::kusama_new_light(config, None).map_err(|e| format!("{:?}", e))?;
+	let service = service::kusama_new_light(config).map_err(|e| format!("{:?}", e))?;
 
 	Ok(browser_utils::start_client(service))
 }

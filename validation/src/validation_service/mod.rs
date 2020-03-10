@@ -41,7 +41,7 @@ use polkadot_primitives::parachain::{
 use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
 use sp_api::{ApiExt, ProvideRuntimeApi};
-use runtime_primitives::traits::HasherFor;
+use runtime_primitives::traits::HashFor;
 use availability_store::Store as AvailabilityStore;
 
 use log::{warn, error, info, debug};
@@ -152,7 +152,7 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 	SC: SelectChain<Block> + 'static,
 	SP: Spawn + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
 	/// Build the service - this consists of a handle to it, as well as a background
 	/// future to be run to completion.
@@ -275,7 +275,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 	N::BuildTableRouter: Unpin + Send + 'static,
 	SP: Spawn + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
 	/// Get an attestation table for given parent hash.
 	///
@@ -397,6 +397,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 						commitments,
 						erasure_chunks,
 						available_data,
+						..
 					} = full_output;
 
 					let receipt = collation_info.into_receipt(commitments);
@@ -421,6 +422,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 						}
 						if let Err(e) = av_clone.clone().add_erasure_chunks(
 							receipt_clone,
+							n_validators as _,
 							erasure_chunks_clone,
 						).await {
 							warn!(target: "validation", "Failed to add erasure chunks: {}", e);

@@ -137,6 +137,8 @@ pub struct FullOutput {
 	/// should keep their chunk (by index). Other chunks do not need to be
 	/// kept available long-term, but should be distributed to other validators.
 	pub erasure_chunks: Vec<ErasureChunk>,
+	/// The number of validators that were present at this validation.
+	pub n_validators: usize,
 }
 
 impl FullOutput {
@@ -218,6 +220,7 @@ impl<'a> ValidatedCandidate<'a> {
 			available_data,
 			commitments,
 			erasure_chunks: chunks,
+			n_validators,
 		})
 	}
 }
@@ -238,7 +241,7 @@ pub fn validate<'a>(
 	}
 
 	let params = ValidationParams {
-		parent_head: collation.head_data.0.clone(),
+		parent_head: local_validation.parent_head.0.clone(),
 		block_data: pov_block.block_data.0.clone(),
 	};
 

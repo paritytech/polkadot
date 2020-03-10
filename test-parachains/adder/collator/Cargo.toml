@@ -13,5 +13,5 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-
 client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 parking_lot = "0.10.0"
-codec = { package = "parity-scale-codec", version = "1.1.0" }
+codec = { package = "parity-scale-codec", version = "1.2.0" }
 futures = "0.3.4"
