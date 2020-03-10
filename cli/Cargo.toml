@@ -5,6 +5,11 @@ authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 edition = "2018"
 
+[package.metadata.wasm-pack.profile.release]
+# `wasm-opt` has some problems on linux, see
+# https://github.com/rustwasm/wasm-pack/issues/781 etc.
+wasm-opt = false
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -35,6 +40,7 @@ rocksdb = [ "service/rocksdb" ]
 cli = [
 	"tokio",
 	"sc-cli",
+	"service/full-node",
 ]
 browser = [
 	"wasm-bindgen",
