@@ -22,12 +22,16 @@ use polkadot_primitives::parachain::{
 	Retriable, CollatorId, AbridgedCandidateReceipt,
 	GlobalValidationSchedule, LocalValidationData,
 };
+use polkadot_validation::SharedTable;
+
+use av_store::Store as AvailabilityStore;
 use sc_network_gossip::TopicNotification;
 use sp_blockchain::Result as ClientResult;
 use sp_api::{ApiRef, Core, RuntimeVersion, StorageProof, ApiErrorExt, ApiExt, ProvideRuntimeApi};
 use sp_runtime::traits::{Block as BlockT, HasherFor, NumberFor};
 use sp_state_machine::ChangesTrieState;
-use sp_core::{NativeOrEncoded, ExecutionContext};
+use sp_core::{crypto::Pair, NativeOrEncoded, ExecutionContext};
+use sp_keyring::Sr25519Keyring;
 
 #[derive(Default)]
 struct MockNetworkOps {
@@ -46,6 +50,7 @@ struct MockGossip {
 }
 
 impl MockGossip {
+	#[allow(unused)]
 	fn add_gossip_stream(&self, topic: Hash) -> mpsc::UnboundedSender<TopicNotification> {
 		let (tx, rx) = mpsc::unbounded();
 		self.inner.lock().insert(topic, rx);
@@ -275,11 +280,73 @@ impl ParachainHost<Block> for RuntimeApi {
 	}
 }
 
+impl super::Service {
+	async fn connect_peer(&mut self, peer: PeerId, roles: Roles) {
+		self.sender.send(ServiceToWorkerMsg::PeerConnected(peer, roles)).await.unwrap();
+	}
+
+	async fn peer_message(&mut self, peer: PeerId, message: Message) {
+		let bytes = message.encode().into();
+
+		self.sender.send(ServiceToWorkerMsg::PeerMessage(peer, vec![bytes])).await.unwrap();
+	}
+
+	async fn disconnect_peer(&mut self, peer: PeerId) {
+		self.sender.send(ServiceToWorkerMsg::PeerDisconnected(peer)).await.unwrap();
+	}
+
+	async fn synchronize<T: Send + 'static>(
+		&mut self,
+		callback: impl FnOnce(&mut ProtocolHandler) -> T + Send + 'static,
+	) -> T {
+		let (tx, rx) = oneshot::channel();
+
+		let msg = ServiceToWorkerMsg::Synchronize(Box::new(move |proto| {
+			let res = callback(proto);
+			if let Err(_) = tx.send(res) {
+				log::warn!(target: "p_net", "Failed to send synchronization result");
+			}
+		}));
+
+		self.sender.send(msg).await.expect("Worker thread unexpectedly hung up");
+		rx.await.expect("Worker thread failed to send back result")
+	}
+}
+
 lazy_static::lazy_static! {
 	static ref EXECUTOR: futures::executor::ThreadPool = futures::executor::ThreadPool::builder()
 		.pool_size(1)
 		.create()
 		.unwrap();
+}
+
+fn test_setup(config: Config) -> (
+	Service,
+	MockGossip,
+	impl Future<Output = ()> + Send + 'static,
+) {
+	let pool = EXECUTOR.clone();
+
+	let network_ops = Arc::new(MockNetworkOps::default());
+	let mock_gossip = MockGossip::default();
+	let (worker_tx, worker_rx) = mpsc::channel(0);
+	let api = Arc::new(TestApi::default());
+
+	let worker_task = worker_loop(
+		config,
+		network_ops.clone(),
+		mock_gossip.clone(),
+		api.clone(),
+		worker_rx,
+		pool.clone(),
+	);
+
+	let service = Service {
+		sender: worker_tx,
+		network_service: network_ops,
+	};
+
+	(service, mock_gossip, worker_task)
 }
 
 #[test]
@@ -300,27 +367,136 @@ fn router_inner_drop_sends_worker_message() {
 
 #[test]
 fn worker_task_shuts_down_when_sender_dropped() {
-	let pool = EXECUTOR.clone();
-
-	let network_ops = Arc::new(MockNetworkOps::default());
-	let mock_gossip = MockGossip::default();
-	let (worker_tx, worker_rx) = mpsc::channel(0);
-	let api = Arc::new(TestApi::default());
-
-	let worker_task = worker_loop(
-		Config { collating_for: None },
-		network_ops.clone(),
-		mock_gossip.clone(),
-		api.clone(),
-		worker_rx,
-		pool.clone(),
-	);
-
-	let service = Service {
-		sender: worker_tx,
-		network_service: network_ops,
-	};
+	let (service, _gossip, worker_task) = test_setup(Config { collating_for: None });
 
 	drop(service);
 	let _ = futures::executor::block_on(worker_task);
+}
+
+#[test]
+fn consensus_instances_cleaned_up() {
+	let (mut service, _gossip, worker_task) = test_setup(Config { collating_for: None });
+	let relay_parent = [0; 32].into();
+	let authorities = Vec::new();
+
+	let table = Arc::new(SharedTable::new(
+		Vec::new(),
+		HashMap::new(),
+		None,
+		relay_parent,
+		AvailabilityStore::new_in_memory(service.clone()),
+		None,
+	));
+
+	let executor = EXECUTOR.clone();
+	executor.spawn(worker_task).unwrap();
+
+	let router = futures::executor::block_on(
+		service.build_table_router(table, &authorities)
+	).unwrap();
+
+	drop(router);
+
+	assert!(futures::executor::block_on(service.synchronize(move |proto| {
+		!proto.consensus_instances.contains_key(&relay_parent)
+	})));
+}
+
+#[test]
+fn validator_peer_cleaned_up() {
+	let (mut service, _gossip, worker_task) = test_setup(Config { collating_for: None });
+
+	let peer = PeerId::random();
+	let validator_key = Sr25519Keyring::Alice.pair();
+	let validator_id = ValidatorId::from(validator_key.public());
+
+	EXECUTOR.clone().spawn(worker_task).unwrap();
+	futures::executor::block_on(async move {
+		service.connect_peer(peer.clone(), Roles::AUTHORITY).await;
+		service.peer_message(peer.clone(), Message::Status(Status {
+			version: VERSION,
+			collating_for: None,
+		})).await;
+		service.peer_message(peer.clone(), Message::ValidatorId(validator_id.clone())).await;
+
+		let p = peer.clone();
+		let v = validator_id.clone();
+		let (peer_has_key, reverse_lookup) = service.synchronize(move |proto| {
+			let peer_has_key = proto.peers.get(&p).map_or(
+				false,
+				|p_data| p_data.session_keys.as_slice().contains(&v),
+			);
+
+			let reverse_lookup = proto.connected_validators.get(&v).map_or(
+				false,
+				|reps| reps.contains(&p),
+			);
+
+			(peer_has_key, reverse_lookup)
+		}).await;
+
+		assert!(peer_has_key);
+		assert!(reverse_lookup);
+
+		service.disconnect_peer(peer.clone()).await;
+
+		let p = peer.clone();
+		let v = validator_id.clone();
+		let (peer_removed, rev_removed) = service.synchronize(move |proto| {
+			let peer_removed = !proto.peers.contains_key(&p);
+			let reverse_mapping_removed = !proto.connected_validators.contains_key(&v);
+
+			(peer_removed, reverse_mapping_removed)
+		}).await;
+
+		assert!(peer_removed);
+		assert!(rev_removed);
+	});
+}
+
+#[test]
+fn validator_key_spillover_cleaned() {
+	let (mut service, _gossip, worker_task) = test_setup(Config { collating_for: None });
+
+	let peer = PeerId::random();
+	let make_validator_id = |ring: Sr25519Keyring| ValidatorId::from(ring.public());
+
+	// We will push 1 extra beyond what is normally kept.
+	assert_eq!(RECENT_SESSIONS, 3);
+	let key_a = make_validator_id(Sr25519Keyring::Alice);
+	let key_b = make_validator_id(Sr25519Keyring::Bob);
+	let key_c = make_validator_id(Sr25519Keyring::Charlie);
+	let key_d = make_validator_id(Sr25519Keyring::Dave);
+
+	let keys = vec![key_a, key_b, key_c, key_d];
+
+	EXECUTOR.clone().spawn(worker_task).unwrap();
+	futures::executor::block_on(async move {
+		service.connect_peer(peer.clone(), Roles::AUTHORITY).await;
+		service.peer_message(peer.clone(), Message::Status(Status {
+			version: VERSION,
+			collating_for: None,
+		})).await;
+
+		for key in &keys {
+			service.peer_message(peer.clone(), Message::ValidatorId(key.clone())).await;
+		}
+
+		let p = peer.clone();
+		let active_keys = keys[1..].to_vec();
+		let discarded_key = keys[0].clone();
+		assert!(service.synchronize(move |proto| {
+			let active_correct = proto.peers.get(&p).map_or(false, |p_data| {
+				p_data.session_keys.as_slice() == &active_keys[..]
+			});
+
+			let active_lookup = active_keys.iter().all(|k| {
+				proto.connected_validators.get(&k).map_or(false, |m| m.contains(&p))
+			});
+
+			let discarded = !proto.connected_validators.contains_key(&discarded_key);
+
+			active_correct && active_lookup && discarded
+		}).await);
+	});
 }

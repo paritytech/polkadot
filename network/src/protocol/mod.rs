@@ -454,6 +454,7 @@ struct ProtocolHandler {
 	// reverse mapping from validator-ID to PeerID. Multiple peers can represent
 	// the same validator because of sentry nodes.
 	connected_validators: HashMap<ValidatorId, HashSet<PeerId>>,
+	consensus_instances: HashMap<Hash, ConsensusNetworkingInstance>,
 	collators: crate::legacy::collator_pool::CollatorPool,
 	local_collations: crate::legacy::local_collations::LocalCollations<Collation>,
 	config: Config,
@@ -468,6 +469,7 @@ impl ProtocolHandler {
 			service,
 			peers: HashMap::new(),
 			connected_validators: HashMap::new(),
+			consensus_instances: HashMap::new(),
 			collators: Default::default(),
 			local_collations: Default::default(),
 			config,
@@ -475,7 +477,7 @@ impl ProtocolHandler {
 	}
 
 	fn on_connect(&mut self, peer: PeerId, roles: Roles) {
-		let claimed_validator = roles.contains(sc_network::config::Roles::AUTHORITY);
+		let claimed_validator = roles.contains(Roles::AUTHORITY);
 
 		self.peers.insert(peer.clone(), PeerData {
 			claimed_validator,
@@ -679,6 +681,7 @@ impl ProtocolHandler {
 		if let Some(invalidated) = invalidated_key {
 			self.validator_representative_removed(invalidated, &remote);
 		}
+		self.connected_validators.entry(key).or_insert_with(HashSet::new).insert(remote.clone());
 
 		send_peer_collations(&*self.service, remote, collations_to_send);
 	}
@@ -782,7 +785,6 @@ async fn worker_loop<Api, Sp>(
 	const COLLECT_GARBAGE_INTERVAL: Duration = Duration::from_secs(29);
 
 	let mut protocol_handler = ProtocolHandler::new(service, config);
-	let mut consensus_instances = HashMap::new();
 	let mut local_keys = RecentValidatorIds::default();
 
 	let mut collect_garbage = stream::unfold((), move |_| {
@@ -829,12 +831,15 @@ async fn worker_loop<Api, Sp>(
 
 				new_leaf_actions.perform(&gossip_handle);
 
-				consensus_instances.insert(relay_parent, ConsensusNetworkingInstance {
-					statement_table: table.clone(),
+				protocol_handler.consensus_instances.insert(
 					relay_parent,
-					attestation_topic: crate::legacy::gossip::attestation_topic(relay_parent),
-					_drop_signal: signal,
-				});
+					ConsensusNetworkingInstance {
+						statement_table: table.clone(),
+						relay_parent,
+						attestation_topic: crate::legacy::gossip::attestation_topic(relay_parent),
+						_drop_signal: signal,
+					},
+				);
 
 				// glue the incoming messages, shared table, and validation
 				// work together.
@@ -848,11 +853,11 @@ async fn worker_loop<Api, Sp>(
 				));
 			}
 			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
-				consensus_instances.remove(&relay_parent);
+				protocol_handler.consensus_instances.remove(&relay_parent);
 			}
 			ServiceToWorkerMsg::SubmitValidatedCollation(receipt, pov_block, chunks) => {
 				let relay_parent = receipt.relay_parent;
-				let instance = match consensus_instances.get(&relay_parent) {
+				let instance = match protocol_handler.consensus_instances.get(&relay_parent) {
 					None => continue,
 					Some(instance) => instance,
 				};
@@ -1231,29 +1236,6 @@ impl Service {
 			})
 			.flatten_stream()
 			.boxed()
-	}
-
-	/// Synchronizes the worker thread. Executes the callback in the worker's
-	/// context, and returns a future that resolves once it's been executed.
-	#[cfg(test)]
-	fn synchronize<T: Send + 'static>(
-		&self,
-		callback: impl FnOnce(&mut ProtocolHandler) -> T + Send + 'static,
-	) -> impl Future<Output = T> {
-		let (tx, rx) = oneshot::channel();
-		let mut sender = self.sender.clone();
-
-		async move {
-			let msg = ServiceToWorkerMsg::Synchronize(Box::new(move |proto| {
-				let res = callback(proto);
-				if let Err(_) = tx.send(res) {
-					log::warn!(target: "p_net", "Failed to send synchronization result");
-				}
-			}));
-
-			sender.send(msg).await.expect("Worker thread unexpectedly hung up");
-			rx.await.expect("Worker thread failed to send back result")
-		}
 	}
 }
 
