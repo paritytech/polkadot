@@ -53,5 +53,5 @@ pub unsafe fn load_params(params: *const u8, len: usize) -> crate::ValidationPar
 /// of the vector.
 #[cfg(not(feature = "std"))]
 pub fn write_result(result: &crate::ValidationResult) -> u64 {
-	sp_core::to_substrate_wasm_fn_return_value(&result)
+	blah::to_substrate_wasm_fn_return_value(&result)
 }
