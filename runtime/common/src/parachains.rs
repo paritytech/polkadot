@@ -126,7 +126,7 @@ pub struct DoubleVoteReport<Proof> {
 	pub proof: Proof,
 }
 
-impl<Proof: Parameter> DoubleVoteReport<Proof> {
+impl<Proof: Parameter + GetSessionNumber> DoubleVoteReport<Proof> {
 	fn verify<T: Trait<Proof = Proof>, H: AsRef<[u8]>>(
 		&self,
 		parent_hash: H,
@@ -195,6 +195,17 @@ impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
 	}
 }
 
+/// A trait to get a session number the `Proof` belongs to.
+pub trait GetSessionNumber {
+	fn session(&self) -> SessionIndex;
+}
+
+impl GetSessionNumber for session::historical::Proof {
+	fn session(&self) -> SessionIndex {
+		self.session()
+	}
+}
+
 pub trait Trait: attestations::Trait + session::historical::Trait {
 	/// The outer origin type.
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
@@ -228,7 +239,7 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 	/// Proof type (since it is a part of Calls it needs to be bound to `Parameter` here)
 	/// TODO: I know of no other way to bind an associated type of `KeyOwnerProofSystem::Proof`
 	/// to parameter.
-	type Proof: Parameter;
+	type Proof: Parameter + GetSessionNumber;
 
 	/// Compute and check proofs of historical key owners.
 	type KeyOwnerProofSystem: KeyOwnerProofSystem<
@@ -472,10 +483,7 @@ decl_module! {
 			let validators = <session::Module<T>>::validators();
 			let validator_set_count = validators.len() as u32;
 
-			//let key_owner_proof = report.proof.clone();// Proof = Decode::decode(&mut &key_owner_proof[..])
-				//.map_err(|_| "Key owner proof decoding failed.")?;
-
-			let session_index = Default::default(); // TODO: this has to be key_owner_proof.session();
+			let session_index = report.proof.session();
 
 			let offender = T::KeyOwnerProofSystem::check_proof(
 					(PARACHAIN_KEY_TYPE_ID, report.identity.encode()),
