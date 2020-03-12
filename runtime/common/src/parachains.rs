@@ -115,7 +115,7 @@ pub struct ValidatorIdentities<T>(rstd::marker::PhantomData<T>);
 
 #[derive(RuntimeDebug, Encode, Decode)]
 #[derive(Clone, Eq, PartialEq)]
-pub struct DoubleVoteReport<Proof> {
+pub struct DoubleVoteReport<Proof, Hash> {
 	/// Identity of the double-voter.
 	pub identity: ValidatorId,
 	/// First vote of the double-vote.
@@ -124,12 +124,13 @@ pub struct DoubleVoteReport<Proof> {
 	pub second: (Statement, ValidityAttestation),
 	/// Proof
 	pub proof: Proof,
+	/// Parent hash of the block this offence was commited.
+	pub parent_hash: Hash,
 }
 
-impl<Proof: Parameter + GetSessionNumber> DoubleVoteReport<Proof> {
-	fn verify<T: Trait<Proof = Proof>, H: AsRef<[u8]>>(
+impl<Proof: Parameter + GetSessionNumber, Hash: AsRef<[u8]>> DoubleVoteReport<Proof, Hash> {
+	fn verify<T: Trait<Proof = Proof>>(
 		&self,
-		parent_hash: H,
 	) -> Result<(), DoubleVoteValidityError> {
 		let first = self.first.clone();
 		let second = self.second.clone();
@@ -139,8 +140,8 @@ impl<Proof: Parameter + GetSessionNumber> DoubleVoteReport<Proof> {
 			.ok_or(DoubleVoteValidityError::InvalidProof)?;
 
 		// Check signatures.
-		Self::verify_vote(&first, &parent_hash, &self.identity)?;
-		Self::verify_vote(&second, &parent_hash, &self.identity)?;
+		Self::verify_vote(&first, &self.parent_hash, &self.identity)?;
+		Self::verify_vote(&second, &self.parent_hash, &self.identity)?;
 
 		match (&first.0, &second.0) {
 			// If issuing a `Candidate` message on a parachain block, neither a `Valid` or
@@ -164,9 +165,9 @@ impl<Proof: Parameter + GetSessionNumber> DoubleVoteReport<Proof> {
 		Ok(())
 	}
 
-	fn verify_vote<H: AsRef<[u8]>>(
+	fn verify_vote(
 		vote: &(Statement, ValidityAttestation),
-		parent_hash: H,
+		parent_hash: &Hash,
 		authority: &ValidatorId,
 	) -> Result<(), DoubleVoteValidityError> {
 		let sig = match vote {
@@ -336,6 +337,12 @@ decl_storage! {
 		///
 		/// `None` if not yet updated.
 		pub DidUpdate: Option<Vec<ParaId>>;
+
+		/// The mapping from parent block hashes to session indexes.
+		///
+		/// Used for double vote report validation.
+		pub ParentToSessionIndex get(session_at_block):
+			map hasher(blake2_256) T::Hash => SessionIndex;
 	}
 	add_extra_genesis {
 		config(authorities): Vec<ValidatorId>;
@@ -475,7 +482,8 @@ decl_module! {
 		pub fn report_double_vote(
 			origin,
 			report: DoubleVoteReport<
-				<T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof
+				<T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof,
+				T::Hash,
 			>,
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
@@ -506,6 +514,11 @@ decl_module! {
 
 		fn on_initialize() {
 			<Self as Store>::DidUpdate::kill();
+
+			let current_session = <session::Module<T>>::current_index();
+			let parent_hash = <system::Module<T>>::parent_hash();
+
+			<ParentToSessionIndex<T>>::insert(parent_hash, current_session);
 		}
 
 		fn on_finalize() {
@@ -1126,7 +1139,14 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 		if let Some(local_call) = call.is_sub_type() {
 			if let Call::report_double_vote(report) = local_call {
 				let validators = <session::Module<T>>::validators();
-				let parent_hash = <system::Module<T>>::block_hash(<system::Module<T>>::block_number());
+				let parent_hash = report.parent_hash;
+
+				let expected_session = Module::<T>::session_at_block(parent_hash);
+				let session = report.proof.session();
+
+				if session != expected_session {
+					return Err(InvalidTransaction::BadProof.into());
+				}
 
 				let authorities = Module::<T>::authorities();
 				let offender_idx = match authorities.iter().position(|a| *a == report.identity) {
@@ -1143,7 +1163,7 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 				}
 
 				report
-					.verify::<T, _>(parent_hash)
+					.verify::<T>()
 					.map_err(|e| TransactionValidityError::from(InvalidTransaction::Custom(e as u8)))?;
 			}
 		}
@@ -1519,7 +1539,7 @@ mod tests {
 	}
 
 	fn report_double_vote(
-		report: DoubleVoteReport<session::historical::Proof>,
+		report: DoubleVoteReport<session::historical::Proof, <Test as system::Trait>::Hash>,
 	) -> Result<ParachainsCall<Test>, TransactionValidityError> {
 		let inner = ParachainsCall::report_double_vote(report);
 		let call = Call::Parachains(inner.clone());
@@ -1622,14 +1642,35 @@ mod tests {
 	}
 
 	fn start_session(session_index: SessionIndex) {
+		let mut parent_hash = System::parent_hash();
+		use sp_runtime::traits::Header;
+
 		for i in Session::current_index()..session_index {
 			println!("session index {}", i);
+
 			Staking::on_finalize(System::block_number());
 			System::set_block_number((i + 1).into());
 			Timestamp::set_timestamp(System::block_number() * 6000);
-			println!("block {:?}", System::block_number());
-			println!("Current era {:?}", Staking::current_era());
-			Session::on_initialize(System::block_number());
+
+			// In order to be able to use `System::parent_hash()` in the tests
+			// we need to first get it via `System::finalize` and then set it
+			// the `System::initialize`. However, it is needed to be taken into
+			// consideration that finalizing will prune some data in `System`
+			// storage including old values `BlockHash` if that reaches above
+			// `BlockHashCount` capacity.
+			if System::block_number() > 1 {
+				let hdr = System::finalize();
+				parent_hash = hdr.hash();
+			}
+
+			System::initialize(
+				&(i as u64 + 1),
+				&parent_hash,
+				&Default::default(),
+				&Default::default(),
+				Default::default(),
+			);
+			init_block();
 		}
 
 		assert_eq!(Session::current_index(), session_index);
@@ -1642,6 +1683,7 @@ mod tests {
 
 	fn init_block() {
 		println!("Initializing {}", System::block_number());
+		Session::on_initialize(System::block_number());
 		System::on_initialize(System::block_number());
 		Registrar::on_initialize(System::block_number());
 		Parachains::on_initialize(System::block_number());
@@ -2148,8 +2190,7 @@ mod tests {
 
 			let statement_candidate = Statement::Candidate(candidate_hash.clone());
 			let statement_valid = Statement::Valid(candidate_hash.clone());
-			let block_number = <system::Module<Test>>::block_number();
-			let parent_hash = <system::Module<Test>>::block_hash(block_number);
+			let parent_hash = System::parent_hash();
 
 			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
 			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
@@ -2183,6 +2224,7 @@ mod tests {
 				first: (statement_candidate, attestation_1),
 				second: (statement_valid, attestation_2),
 				proof,
+				parent_hash,
 			};
 
 			let inner = report_double_vote(report).unwrap();
@@ -2240,15 +2282,13 @@ mod tests {
 
 			start_era(1);
 
-			println!("Era started");
 			let authorities = Parachains::authorities();
 			let authority_index = 0;
 			let key = extract_key(authorities[authority_index].clone());
 
 			let statement_candidate = Statement::Candidate(candidate_hash);
 			let statement_invalid = Statement::Invalid(candidate_hash.clone());
-			let block_number = <system::Module<Test>>::block_number();
-			let parent_hash = <system::Module<Test>>::block_hash(block_number);
+			let parent_hash = System::parent_hash();
 
 			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
 			let payload_2 = localized_payload(statement_invalid.clone(), parent_hash);
@@ -2282,6 +2322,7 @@ mod tests {
 				first: (statement_candidate, attestation_1),
 				second: (statement_invalid, attestation_2),
 				proof,
+				parent_hash,
 			};
 
 			assert_ok!(Parachains::dispatch(
@@ -2347,8 +2388,7 @@ mod tests {
 
 			let statement_invalid = Statement::Invalid(candidate_hash.clone());
 			let statement_valid = Statement::Valid(candidate_hash.clone());
-			let block_number = <system::Module<Test>>::block_number();
-			let parent_hash = <system::Module<Test>>::block_hash(block_number);
+			let parent_hash = System::parent_hash();
 
 			let payload_1 = localized_payload(statement_invalid.clone(), parent_hash);
 			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
@@ -2382,6 +2422,7 @@ mod tests {
 				first: (statement_invalid, attestation_1),
 				second: (statement_valid, attestation_2),
 				proof,
+				parent_hash,
 			};
 
 			assert_ok!(Parachains::dispatch(
@@ -2450,8 +2491,7 @@ mod tests {
 
 			let statement_candidate = Statement::Candidate(candidate_hash.clone());
 			let statement_valid = Statement::Valid(candidate_hash.clone());
-			let block_number = <system::Module<Test>>::block_number();
-			let parent_hash = <system::Module<Test>>::block_hash(block_number);
+			let parent_hash = System::parent_hash();
 
 			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
 			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
@@ -2485,6 +2525,7 @@ mod tests {
 				first: (statement_candidate, attestation_1),
 				second: (statement_valid, attestation_2),
 				proof,
+				parent_hash,
 			};
 
 			assert_ok!(Parachains::dispatch(
@@ -2561,8 +2602,7 @@ mod tests {
 
 			let statement_candidate = Statement::Candidate(candidate_hash.clone());
 			let statement_valid = Statement::Valid(candidate_hash.clone());
-			let block_number = <system::Module<Test>>::block_number();
-			let parent_hash = <system::Module<Test>>::block_hash(block_number);
+			let parent_hash = System::parent_hash();
 
 			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
 			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
@@ -2581,6 +2621,7 @@ mod tests {
 				first: (statement_candidate, attestation_1),
 				second: (statement_valid, attestation_2),
 				proof,
+				parent_hash,
 			};
 
 			assert_eq!(
@@ -2593,4 +2634,92 @@ mod tests {
 		});
 	}
 
+	#[test]
+	fn double_vote_proof_session_mismatch_fails() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
+		};
+
+		// Test that submitting a report with a session mismatch between the `parent_hash`
+		// and the proof itself fails.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
+			assert_eq!(Staking::current_era(), Some(0));
+			assert_eq!(Session::current_index(), 0);
+
+			start_era(1);
+
+			let authorities = Parachains::authorities();
+			let authority_index = 0;
+			let key = extract_key(authorities[authority_index].clone());
+
+			let statement_candidate = Statement::Candidate(candidate_hash.clone());
+			let statement_valid = Statement::Valid(candidate_hash.clone());
+			let parent_hash = System::parent_hash();
+
+			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
+			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
+
+			let signature_1 = key.sign(&payload_1[..]).into();
+			let signature_2 = key.sign(&payload_2[..]).into();
+
+			let attestation_1 = ValidityAttestation::Implicit(signature_1);
+			let attestation_2 = ValidityAttestation::Explicit(signature_2);
+
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(1, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
+			// Get the proof from another session.
+			start_era(2);
+			let encoded_key = key.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_candidate, attestation_1),
+				second: (statement_valid, attestation_2),
+				proof,
+				parent_hash,
+			};
+
+			assert!(report_double_vote(report.clone()).is_err());
+
+			start_era(3);
+
+			// Check that the balances are unchanged.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(1, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+		});
+	}
 }
