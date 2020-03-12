@@ -114,6 +114,11 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 /// Interface to the persistent (stash) identities of the current validators.
 pub struct ValidatorIdentities<T>(rstd::marker::PhantomData<T>);
 
+/// A structure used to report conflicting votes by validators.
+///
+/// It is generic over two parameters:
+/// `Proof` - proof of historical ownership of a key by some validator.
+/// `Hash` - a type of a hash used in the runtime.
 #[derive(RuntimeDebug, Encode, Decode)]
 #[derive(Clone, Eq, PartialEq)]
 pub struct DoubleVoteReport<Proof, Hash> {
@@ -123,7 +128,7 @@ pub struct DoubleVoteReport<Proof, Hash> {
 	pub first: (Statement, ValidatorSignature),
 	/// Second vote of the double-vote.
 	pub second: (Statement, ValidatorSignature),
-	/// Proof
+	/// Proof that the validator with `identity` id was actually a validator at `parent_hash`.
 	pub proof: Proof,
 	/// Parent hash of the block this offence was commited.
 	pub parent_hash: Hash,
@@ -228,9 +233,11 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 	/// Submit double-vote offence reports.
 	/// type HandleDoubleVote: HandleDoubleVote<Self>;
 
-	/// Proof type (since it is a part of Calls it needs to be bound to `Parameter` here)
-	/// TODO: I know of no other way to bind an associated type of `KeyOwnerProofSystem::Proof`
-	/// to parameter.
+	/// Proof type.
+	///
+	/// We need this type to bind the `KeyOwnerProofSystem::Proof` to necessary bounds.
+	/// As soon as https://rust-lang.github.io/rfcs/2289-associated-type-bounds.html
+	/// gets in this can be simplified.
 	type Proof: Parameter + GetSessionNumber;
 
 	/// Compute and check proofs of historical key owners.
@@ -240,7 +247,7 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 		IdentificationTuple = Self::IdentificationTuple,
 	>;
 
-	/// An identification tuple type bound to `Clone`.
+	/// An identification tuple type bound to `Parameter`.
 	type IdentificationTuple: Parameter;
 
 	/// Report an offence.
@@ -332,6 +339,7 @@ decl_storage! {
 		/// The mapping from parent block hashes to session indexes.
 		///
 		/// Used for double vote report validation.
+		/// This is not pruned at the moment.
 		pub ParentToSessionIndex get(session_at_block):
 			map hasher(blake2_256) T::Hash => SessionIndex;
 	}
@@ -484,6 +492,8 @@ decl_module! {
 
 			let session_index = report.proof.session();
 
+			// We have already checked this proof in `SignedExtension`, but we need
+			// this here to get the full identification of the offender.
 			let offender = T::KeyOwnerProofSystem::check_proof(
 					(PARACHAIN_KEY_TYPE_ID, report.identity.encode()),
 					report.proof.clone(),
@@ -1291,7 +1301,6 @@ mod tests {
 	parameter_types! {
 		pub const MinimumPeriod: u64 = 3;
 	}
-
 	impl timestamp::Trait for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
@@ -1306,7 +1315,6 @@ mod tests {
 		const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 		const HOURS: BlockNumber = MINUTES * 60;
 	}
-
 	parameter_types! {
 		pub const EpochDuration: u64 = time::EPOCH_DURATION_IN_BLOCKS as u64;
 		pub const ExpectedBlockTime: u64 = time::MILLISECS_PER_BLOCK;
