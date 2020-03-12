@@ -230,9 +230,6 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 	/// Max head data size.
 	type MaxHeadDataSize: Get<u32>;
 
-	/// Submit double-vote offence reports.
-	/// type HandleDoubleVote: HandleDoubleVote<Self>;
-
 	/// Proof type.
 	///
 	/// We need this type to bind the `KeyOwnerProofSystem::Proof` to necessary bounds.
