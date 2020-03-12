@@ -153,7 +153,7 @@ impl NetworkServiceOps for PolkadotNetworkService {
 }
 
 /// Operations that a handle to a gossip network should provide.
-trait GossipOps: Clone + crate::legacy::GossipService {
+trait GossipOps: Clone + Send + crate::legacy::GossipService + 'static {
 	fn new_local_leaf(
 		&self,
 		relay_parent: Hash,
@@ -373,8 +373,6 @@ struct ConsensusNetworkingInstance {
 	attestation_topic: Hash,
 	_drop_signal: exit_future::Signal,
 }
-
-type RegisteredMessageValidator = crate::legacy::gossip::RegisteredMessageValidator<crate::PolkadotProtocol>;
 
 /// A utility future that resolves when the receiving end of a channel has hung up.
 ///
