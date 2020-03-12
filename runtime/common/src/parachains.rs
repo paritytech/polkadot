@@ -44,6 +44,7 @@ use primitives::{
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
 		LocalValidationData, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
+		ValidatorSignature,
 	},
 };
 use frame_support::{
@@ -119,9 +120,9 @@ pub struct DoubleVoteReport<Proof, Hash> {
 	/// Identity of the double-voter.
 	pub identity: ValidatorId,
 	/// First vote of the double-vote.
-	pub first: (Statement, ValidityAttestation),
+	pub first: (Statement, ValidatorSignature),
 	/// Second vote of the double-vote.
-	pub second: (Statement, ValidityAttestation),
+	pub second: (Statement, ValidatorSignature),
 	/// Proof
 	pub proof: Proof,
 	/// Parent hash of the block this offence was commited.
@@ -166,23 +167,13 @@ impl<Proof: Parameter + GetSessionNumber, Hash: AsRef<[u8]>> DoubleVoteReport<Pr
 	}
 
 	fn verify_vote(
-		vote: &(Statement, ValidityAttestation),
+		vote: &(Statement, ValidatorSignature),
 		parent_hash: &Hash,
 		authority: &ValidatorId,
 	) -> Result<(), DoubleVoteValidityError> {
-		let sig = match vote {
-			(Statement::Candidate(_), ValidityAttestation::Implicit(sig)) |
-			(Statement::Valid(_), ValidityAttestation::Explicit(sig)) |
-			(Statement::Invalid(_), ValidityAttestation::Explicit(sig)) => {
-				sig
-			}
-			_ => {
-				return Err(DoubleVoteValidityError::InvalidReport);
-			}
-		};
 		let payload = localized_payload(vote.0.clone(), parent_hash);
 
-		if !sig.verify(&payload[..], authority) {
+		if !vote.1.verify(&payload[..], authority) {
 			return Err(DoubleVoteValidityError::InvalidSignature);
 		}
 
@@ -2198,9 +2189,6 @@ mod tests {
 			let signature_1 = key.sign(&payload_1[..]).into();
 			let signature_2 = key.sign(&payload_2[..]).into();
 
-			let attestation_1 = ValidityAttestation::Implicit(signature_1);
-			let attestation_2 = ValidityAttestation::Explicit(signature_2);
-
 			// Check that in the beginning the genesis balances are there.
 			for i in 0..authorities.len() {
 				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
@@ -2221,8 +2209,8 @@ mod tests {
 
 			let report = DoubleVoteReport {
 				identity: ValidatorId::from(key.public()),
-				first: (statement_candidate, attestation_1),
-				second: (statement_valid, attestation_2),
+				first: (statement_candidate, signature_1),
+				second: (statement_valid, signature_2),
 				proof,
 				parent_hash,
 			};
@@ -2296,9 +2284,6 @@ mod tests {
 			let signature_1 = key.sign(&payload_1[..]).into();
 			let signature_2 = key.sign(&payload_2[..]).into();
 
-			let attestation_1 = ValidityAttestation::Implicit(signature_1);
-			let attestation_2 = ValidityAttestation::Explicit(signature_2);
-
 			// Check that in the beginning the genesis balances are there.
 			for i in 0..authorities.len() {
 				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
@@ -2319,8 +2304,8 @@ mod tests {
 
 			let report = DoubleVoteReport {
 				identity: ValidatorId::from(key.public()),
-				first: (statement_candidate, attestation_1),
-				second: (statement_invalid, attestation_2),
+				first: (statement_candidate, signature_1),
+				second: (statement_invalid, signature_2),
 				proof,
 				parent_hash,
 			};
@@ -2396,9 +2381,6 @@ mod tests {
 			let signature_1 = key.sign(&payload_1[..]).into();
 			let signature_2 = key.sign(&payload_2[..]).into();
 
-			let attestation_1 = ValidityAttestation::Explicit(signature_1);
-			let attestation_2 = ValidityAttestation::Explicit(signature_2);
-
 			// Check that in the beginning the genesis balances are there.
 			for i in 0..authorities.len() {
 				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
@@ -2419,8 +2401,8 @@ mod tests {
 
 			let report = DoubleVoteReport {
 				identity: ValidatorId::from(key.public()),
-				first: (statement_invalid, attestation_1),
-				second: (statement_valid, attestation_2),
+				first: (statement_invalid, signature_1),
+				second: (statement_valid, signature_2),
 				proof,
 				parent_hash,
 			};
@@ -2499,9 +2481,6 @@ mod tests {
 			let signature_1 = key.sign(&payload_1[..]).into();
 			let signature_2 = key.sign(&payload_2[..]).into();
 
-			let attestation_1 = ValidityAttestation::Implicit(signature_1);
-			let attestation_2 = ValidityAttestation::Explicit(signature_2);
-
 			// Check that in the beginning the genesis balances are there.
 			for i in 0..authorities.len() {
 				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
@@ -2522,8 +2501,8 @@ mod tests {
 
 			let report = DoubleVoteReport {
 				identity: ValidatorId::from(key.public()),
-				first: (statement_candidate, attestation_1),
-				second: (statement_valid, attestation_2),
+				first: (statement_candidate, signature_1),
+				second: (statement_valid, signature_2),
 				proof,
 				parent_hash,
 			};
@@ -2610,16 +2589,13 @@ mod tests {
 			let signature_1 = key_1.sign(&payload_1[..]).into();
 			let signature_2 = key_2.sign(&payload_2[..]).into();
 
-			let attestation_1 = ValidityAttestation::Implicit(signature_1);
-			let attestation_2 = ValidityAttestation::Explicit(signature_2);
-
 			let encoded_key = key_1.encode();
 			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
 
 			let report = DoubleVoteReport {
 				identity: ValidatorId::from(key_1.public()),
-				first: (statement_candidate, attestation_1),
-				second: (statement_valid, attestation_2),
+				first: (statement_candidate, signature_1),
+				second: (statement_valid, signature_2),
 				proof,
 				parent_hash,
 			};
@@ -2671,9 +2647,6 @@ mod tests {
 			let signature_1 = key.sign(&payload_1[..]).into();
 			let signature_2 = key.sign(&payload_2[..]).into();
 
-			let attestation_1 = ValidityAttestation::Implicit(signature_1);
-			let attestation_2 = ValidityAttestation::Explicit(signature_2);
-
 			// Check that in the beginning the genesis balances are there.
 			for i in 0..authorities.len() {
 				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
@@ -2696,8 +2669,8 @@ mod tests {
 
 			let report = DoubleVoteReport {
 				identity: ValidatorId::from(key.public()),
-				first: (statement_candidate, attestation_1),
-				second: (statement_valid, attestation_2),
+				first: (statement_candidate, signature_1),
+				second: (statement_valid, signature_2),
 				proof,
 				parent_hash,
 			};
