@@ -53,8 +53,10 @@ codec = { package = "parity-scale-codec", version = "1.1.0" }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [features]
 default = ["rocksdb", "full-node"]
 rocksdb = ["service/rocksdb"]
+runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks"]
 full-node = ["av_store", "consensus", "polkadot-network"]

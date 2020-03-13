@@ -56,3 +56,6 @@ maintenance = { status = "actively-developed" }
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
+
+[features]
+runtime-benchmarks=["cli/runtime-benchmarks"]

@@ -18,7 +18,7 @@
 //! auctioning mechanism, for locking balance as part of the "payment", and to provide the requisite
 //! information for commissioning and decommissioning them.
 
-use rstd::{prelude::*, mem::swap, convert::TryInto};
+use sp_std::{prelude::*, mem::swap, convert::TryInto};
 use sp_runtime::traits::{
 	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
 };
