@@ -62,13 +62,15 @@ pub type Configuration = service::Configuration<
 native_executor_instance!(
 	pub PolkadotExecutor,
 	polkadot_runtime::api::dispatch,
-	polkadot_runtime::native_version
+	polkadot_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
 );
 
 native_executor_instance!(
 	pub KusamaExecutor,
 	kusama_runtime::api::dispatch,
-	kusama_runtime::native_version
+	kusama_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
 );
 
 /// A set of APIs that polkadot-like runtimes must implement.

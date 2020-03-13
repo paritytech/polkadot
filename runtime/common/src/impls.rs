@@ -22,7 +22,7 @@ use frame_support::traits::{OnUnbalanced, Imbalance, Currency, Get};
 use crate::{MaximumBlockWeight, NegativeImbalance};
 
 /// Logic for the author to get a portion of fees.
-pub struct ToAuthor<R>(rstd::marker::PhantomData<R>);
+pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
 
 impl<R> OnUnbalanced<NegativeImbalance<R>> for ToAuthor<R>
 where
@@ -44,7 +44,7 @@ where
 }
 
 /// Converter for currencies to votes.
-pub struct CurrencyToVoteHandler<R>(rstd::marker::PhantomData<R>);
+pub struct CurrencyToVoteHandler<R>(sp_std::marker::PhantomData<R>);
 
 impl<R> CurrencyToVoteHandler<R>
 where
@@ -81,7 +81,7 @@ where
 ///
 /// Where `target_weight` must be given as the `Get` implementation of the `T` generic type.
 /// https://research.web3.foundation/en/latest/polkadot/Token%20Economics/#relay-chain-transaction-fees
-pub struct TargetedFeeAdjustment<T, R>(rstd::marker::PhantomData<(T, R)>);
+pub struct TargetedFeeAdjustment<T, R>(sp_std::marker::PhantomData<(T, R)>);
 
 impl<T: Get<Perbill>, R: system::Trait> Convert<Fixed64, Fixed64> for TargetedFeeAdjustment<T, R> {
 	fn convert(multiplier: Fixed64) -> Fixed64 {
