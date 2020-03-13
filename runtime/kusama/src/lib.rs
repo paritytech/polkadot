@@ -78,8 +78,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1050,
-	impl_version: 1,
+	spec_version: 1051,
+	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
 
@@ -138,6 +138,10 @@ impl system::Trait for Runtime {
 	type Version = Version;
 	type ModuleToIndex = ModuleToIndex;
 	type AccountData = balances::AccountData<Balance>;
+	type MigrateAccount = (
+		Balances, Identity, ElectionsPhragmen, Society, Session, Staking, Recovery, Democracy,
+		Vesting, ImOnline
+	);
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 }
@@ -871,7 +875,7 @@ sp_api::impl_runtime_apis! {
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	impl frame_benchmarking::Benchmark<Block> for Runtime {		
+	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(
 			module: Vec<u8>,
 			extrinsic: Vec<u8>,

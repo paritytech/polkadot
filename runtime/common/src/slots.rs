@@ -150,7 +150,7 @@ decl_storage! {
 		/// If a parachain doesn't exist *yet* but is scheduled to exist in the future, then it
 		/// will be left-padded with one or more zeroes to denote the fact that nothing is held on
 		/// deposit for the non-existent chain currently, but is held at some point in the future.
-		pub Deposits get(deposits): map hasher(blake2_256) ParaId => Vec<BalanceOf<T>>;
+		pub Deposits get(deposits): map hasher(twox_64_concat) ParaId => Vec<BalanceOf<T>>;
 
 		/// Information relating to the current auction, if there is one.
 		///
@@ -162,28 +162,28 @@ decl_storage! {
 		/// The winning bids for each of the 10 ranges at each block in the final Ending Period of
 		/// the current auction. The map's key is the 0-based index into the Ending Period. The
 		/// first block of the ending period is 0; the last is `EndingPeriod - 1`.
-		pub Winning get(winning): map hasher(blake2_256) T::BlockNumber => Option<WinningData<T>>;
+		pub Winning get(winning): map hasher(twox_64_concat) T::BlockNumber => Option<WinningData<T>>;
 
 		/// Amounts currently reserved in the accounts of the bidders currently winning
 		/// (sub-)ranges.
 		pub ReservedAmounts get(reserved_amounts):
-			map hasher(blake2_256) Bidder<T::AccountId> => Option<BalanceOf<T>>;
+			map hasher(twox_64_concat) Bidder<T::AccountId> => Option<BalanceOf<T>>;
 
 		/// The set of Para IDs that have won and need to be on-boarded at an upcoming lease-period.
 		/// This is cleared out on the first block of the lease period.
-		pub OnboardQueue get(onboard_queue): map hasher(blake2_256) LeasePeriodOf<T> => Vec<ParaId>;
+		pub OnboardQueue get(onboard_queue): map hasher(twox_64_concat) LeasePeriodOf<T> => Vec<ParaId>;
 
 		/// The actual on-boarding information. Only exists when one of the following is true:
 		/// - It is before the lease period that the parachain should be on-boarded.
 		/// - The full on-boarding information has not yet been provided and the parachain is not
 		/// yet due to be off-boarded.
 		pub Onboarding get(onboarding):
-			map hasher(blake2_256) ParaId =>
+			map hasher(twox_64_concat) ParaId =>
 			Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId, T::Hash>)>;
 
 		/// Off-boarding account; currency held on deposit for the parachain gets placed here if the
 		/// parachain gets off-boarded; i.e. its lease period is up and it isn't renewed.
-		pub Offboarding get(offboarding): map hasher(blake2_256) ParaId => T::AccountId;
+		pub Offboarding get(offboarding): map hasher(twox_64_concat) ParaId => T::AccountId;
 	}
 }
 
@@ -916,7 +916,7 @@ mod tests {
 		type Version = ();
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u64>;
-		type OnNewAccount = ();
+		type MigrateAccount = (); type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 	}
 
