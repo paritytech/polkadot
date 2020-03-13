@@ -109,14 +109,12 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			cmd.init(&version)?;
-			cmd.update_config(&mut config, load_spec, &version)?;
-
-			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
-
+			cmd.update_config(&mut config, |id| load_spec(id, force_kusama), &version)?;
+			let is_kusama = config.expect_chain_spec().is_kusama();
 			if is_kusama {
-				cmd.run::<_, _, service::kusama_runtime::Block, service::KusamaExecutor>(config)
+				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
 			} else {
-				cmd.run::<_, _, service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
+				cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
 			}
 		},
 	}
