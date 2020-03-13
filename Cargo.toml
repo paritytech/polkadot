@@ -29,10 +29,13 @@ members = [
 	"collator",
 	"erasure-coding",
 	"network",
+	"network/test",
 	"primitives",
 	"runtime/common",
 	"runtime/polkadot",
 	"runtime/kusama",
+	"runtime/test-runtime",
+	"runtime/test-runtime/client",
 	"service",
 	"statement-table",
 	"service",
@@ -53,3 +56,6 @@ maintenance = { status = "actively-developed" }
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
+
+[features]
+runtime-benchmarks=["cli/runtime-benchmarks"]
