@@ -29,13 +29,18 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 
 	let mut config = service::Configuration::from_version(&version);
 	config.impl_name = "parity-polkadot";
+	let force_kusama = opt.run.force_kusama;
 
 	match opt.subcommand {
 		None => {
-			opt.run.init(&version)?;
-			opt.run.update_config(&mut config, load_spec, &version)?;
+			opt.run.base.init(&version)?;
+			opt.run.base.update_config(
+				&mut config,
+				|id| load_spec(id, force_kusama),
+				&version
+			)?;
 
-			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
+			let is_kusama = config.expect_chain_spec().is_kusama();
 
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
@@ -69,9 +74,13 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 		},
 		Some(Subcommand::Base(cmd)) => {
 			cmd.init(&version)?;
-			cmd.update_config(&mut config, load_spec, &version)?;
+			cmd.update_config(
+				&mut config,
+				|id| load_spec(id, force_kusama),
+				&version
+			)?;
 
-			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
+			let is_kusama = config.expect_chain_spec().is_kusama();
 
 			if is_kusama {
 				cmd.run(config, service::new_chain_ops::<

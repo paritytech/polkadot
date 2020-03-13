@@ -133,7 +133,7 @@ fn main() {
 	};
 
 	let mut config = Configuration::default();
-	config.chain_spec = load_spec("dev").unwrap();
+	config.chain_spec = Some(load_spec("dev", false).unwrap());
 
 	let res = collator::run_collator(
 		context,
