@@ -24,7 +24,7 @@ use sp_blockchain::{Result as ClientResult};
 use sp_runtime::traits::{Header as HeaderT, Block as BlockT, HashFor, BlakeTwo256};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use client::{
-	BlockchainEvents, BlockBody,
+	BlockchainEvents, BlockBackend,
 	blockchain::ProvideCache,
 };
 use consensus_common::{
@@ -203,7 +203,7 @@ where
 /// Creates a task to prune entries in availability store upon block finalization.
 async fn prune_unneeded_availability<P, S>(client: Arc<P>, mut sender: S)
 where
-	P: ProvideRuntimeApi<Block> + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
+	P: ProvideRuntimeApi<Block> + BlockchainEvents<Block> + BlockBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + ApiExt<Block, Error=sp_blockchain::Error>,
 	S: Sink<WorkerMsg> + Clone + Send + Sync + Unpin,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -646,7 +646,7 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 		to_worker: mpsc::UnboundedSender<WorkerMsg>,
 	) -> Self
 	where
-		P: ProvideRuntimeApi<Block> + BlockBody<Block> + BlockchainEvents<Block> + Send + Sync + 'static,
+		P: ProvideRuntimeApi<Block> + BlockBackend<Block> + BlockchainEvents<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block>,
 		P::Api: ApiExt<Block, Error = sp_blockchain::Error>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159

@@ -29,7 +29,7 @@
 use std::{time::{Duration, Instant}, sync::Arc};
 use std::collections::HashMap;
 
-use sc_client_api::{BlockchainEvents, BlockBody};
+use sc_client_api::{BlockchainEvents, BlockBackend};
 use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
@@ -139,7 +139,7 @@ pub struct ServiceBuilder<C, N, P, SC, SP> {
 impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 	C: Collators + Send + Sync + Unpin + 'static,
 	C::Collation: Send + Unpin + 'static,
-	P: BlockchainEvents<Block> + BlockBody<Block>,
+	P: BlockchainEvents<Block> + BlockBackend<Block>,
 	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> +
 		BlockBuilderApi<Block> +
@@ -267,7 +267,7 @@ pub(crate) struct ParachainValidationInstances<C, N, P, SP> {
 impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 	C: Collators + Send + Unpin + 'static + Sync,
 	N: Network,
-	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
+	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	C::Collation: Send + Unpin + 'static,
 	N::TableRouter: Send + 'static,

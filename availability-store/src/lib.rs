@@ -35,7 +35,7 @@ use polkadot_primitives::{
 use sp_runtime::traits::HashFor;
 use sp_blockchain::{Result as ClientResult};
 use client::{
-	BlockchainEvents, BlockBody,
+	BlockchainEvents, BlockBackend,
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use codec::{Encode, Decode};
@@ -178,7 +178,7 @@ impl Store {
 		keystore: KeyStorePtr,
 	) -> ClientResult<AvailabilityBlockImport<I, P>>
 	where
-		P: ProvideRuntimeApi<Block> + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
+		P: ProvideRuntimeApi<Block> + BlockchainEvents<Block> + BlockBackend<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block>,
 		P::Api: ApiExt<Block, Error=sp_blockchain::Error>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
