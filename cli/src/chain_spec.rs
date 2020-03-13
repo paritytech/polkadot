@@ -63,7 +63,7 @@ impl ChainSpec {
 
 	pub(crate) fn from(s: &str) -> Option<Self> {
 		match s {
-			"polkadot-dev" => Some(ChainSpec::PolkadotDevelopment),
+			"polkadot-dev" | "dev" => Some(ChainSpec::PolkadotDevelopment),
 			"polkadot-local" => Some(ChainSpec::PolkadotLocalTestnet),
 			"polkadot-staging" => Some(ChainSpec::PolkadotStagingTestnet),
 			"kusama-dev" => Some(ChainSpec::KusamaDevelopment),
