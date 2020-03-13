@@ -164,9 +164,11 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 		Some(1024),
 		HostFunctions::host_functions(),
 		false,
+		8
 	);
 	let res = executor.call_in_wasm(
 		validation_code,
+		None,
 		"validate_block",
 		encoded_call_data,
 		&mut ext,
@@ -190,22 +192,6 @@ impl sp_externalities::Externalities for ValidationExternalities {
 
 	fn child_storage_hash(&self, _: ChildStorageKey, _: ChildInfo, _: &[u8]) -> Option<Vec<u8>> {
 		panic!("child_storage_hash: unsupported feature for parachain validation")
-	}
-
-	fn original_storage(&self, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("original_sorage: unsupported feature for parachain validation")
-	}
-
-	fn original_child_storage(&self, _: ChildStorageKey, _: ChildInfo, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("original_child_storage: unsupported feature for parachain validation")
-	}
-
-	fn original_storage_hash(&self, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("original_storage_hash: unsupported feature for parachain validation")
-	}
-
-	fn original_child_storage_hash(&self, _: ChildStorageKey, _: ChildInfo, _: &[u8]) -> Option<Vec<u8>> {
-		panic!("original_child_storage_hash: unsupported feature for parachain validation")
 	}
 
 	fn child_storage(&self, _: ChildStorageKey, _: ChildInfo, _: &[u8]) -> Option<Vec<u8>> {

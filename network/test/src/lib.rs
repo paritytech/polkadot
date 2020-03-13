@@ -31,6 +31,7 @@ use sc_client_api::{
 	BlockchainEvents, BlockImportNotification,
 	FinalityNotifications, ImportNotifications,
 	FinalityNotification,
+	client::BlockBackend,
 	backend::{TransactionFor, AuxStore, Backend, Finalizer},
 };
 use sc_block_builder::{BlockBuilder, BlockBuilderProvider};

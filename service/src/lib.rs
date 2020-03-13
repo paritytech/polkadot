@@ -32,6 +32,7 @@ use log::info;
 pub use service::{
 	AbstractService, Roles, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
+	Configuration, ChainSpec,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig, full_version_from_strs};
 pub use sc_executor::NativeExecutionDispatch;
@@ -43,21 +44,13 @@ pub use consensus_common::SelectChain;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use chain_spec::ChainSpec;
+pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec};
 #[cfg(not(target_os = "unknown"))]
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 use prometheus_endpoint::Registry;
-
-/// Configuration type that is being used.
-///
-/// See [`ChainSpec`] for more information why Polkadot `GenesisConfig` is safe here.
-pub type Configuration = service::Configuration<
-	polkadot_runtime::GenesisConfig,
-	chain_spec::Extensions,
->;
 
 native_executor_instance!(
 	pub PolkadotExecutor,
@@ -121,9 +114,9 @@ pub trait IsKusama {
 	fn is_kusama(&self) -> bool;
 }
 
-impl IsKusama for ChainSpec {
+impl IsKusama for &dyn ChainSpec {
 	fn is_kusama(&self) -> bool {
-		self.name().starts_with("Kusama")
+		self.id().starts_with("kusama") || self.id().starts_with("ksm")
 	}
 }
 
@@ -453,6 +446,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 				sentry_nodes,
 				service.keystore(),
 				dht_event_stream,
+				service.prometheus_registry(),
 			);
 			service.spawn_task("authority-discovery", authority_discovery);
 		}
