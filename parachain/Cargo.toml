@@ -9,7 +9,7 @@ edition = "2018"
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = [ "derive" ] }
 derive_more = { version = "0.99.2", optional = true }
 serde = { version = "1.0.102", default-features = false, features = [ "derive" ], optional = true }
-rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
@@ -35,7 +35,7 @@ std = [
 	"codec/std",
 	"derive_more",
 	"serde/std",
-	"rstd/std",
+	"sp-std/std",
 	"shared_memory",
 	"sp-core/std",
 	"lazy_static",

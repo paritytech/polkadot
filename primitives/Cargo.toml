@@ -12,7 +12,7 @@ inherents = { package = "sp-inherents", git = "https://github.com/paritytech/sub
 application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
@@ -31,7 +31,7 @@ std = [
 	"inherents/std",
 	"trie/std",
 	"sp-api/std",
-	"rstd/std",
+	"sp-std/std",
 	"sp-version/std",
 	"runtime_primitives/std",
 	"serde",

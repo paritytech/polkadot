@@ -18,7 +18,7 @@ babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/par
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
@@ -59,6 +59,7 @@ timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 utility = { package = "pallet-utility", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false, optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
@@ -94,7 +95,7 @@ std = [
 	"tx-pool-api/std",
 	"block-builder-api/std",
 	"offchain-primitives/std",
-	"rstd/std",
+	"sp-std/std",
 	"sp-io/std",
 	"frame-support/std",
 	"authorship/std",
@@ -135,3 +136,4 @@ std = [
 	"randomness-collective-flip/std",
 	"runtime-common/std",
 ]
+runtime-benchmarks = ["frame-benchmarking", "runtime-common/runtime-benchmarks"]
