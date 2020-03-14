@@ -33,6 +33,9 @@ use sp_state_machine::ChangesTrieState;
 use sp_core::{crypto::Pair, NativeOrEncoded, ExecutionContext};
 use sp_keyring::Sr25519Keyring;
 
+use futures::executor::LocalPool;
+use futures::task::LocalSpawnExt;
+
 #[derive(Default)]
 struct MockNetworkOps {
 	recorded: Mutex<Recorded>,
@@ -326,19 +329,13 @@ impl super::Service {
 	}
 }
 
-lazy_static::lazy_static! {
-	static ref EXECUTOR: futures::executor::ThreadPool = futures::executor::ThreadPool::builder()
-		.pool_size(1)
-		.create()
-		.unwrap();
-}
-
 fn test_setup(config: Config) -> (
 	Service,
 	MockGossip,
-	impl Future<Output = ()> + Send + 'static,
+	LocalPool,
+	impl Future<Output = ()> + 'static,
 ) {
-	let pool = EXECUTOR.clone();
+	let pool = LocalPool::new();
 
 	let network_ops = Arc::new(MockNetworkOps::default());
 	let mock_gossip = MockGossip::default();
@@ -351,7 +348,7 @@ fn test_setup(config: Config) -> (
 		mock_gossip.clone(),
 		api.clone(),
 		worker_rx,
-		pool.clone(),
+		pool.spawner(),
 	);
 
 	let service = Service {
@@ -359,7 +356,7 @@ fn test_setup(config: Config) -> (
 		network_service: network_ops,
 	};
 
-	(service, mock_gossip, worker_task)
+	(service, mock_gossip, pool, worker_task)
 }
 
 #[test]
@@ -380,15 +377,15 @@ fn router_inner_drop_sends_worker_message() {
 
 #[test]
 fn worker_task_shuts_down_when_sender_dropped() {
-	let (service, _gossip, worker_task) = test_setup(Config { collating_for: None });
+	let (service, _gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
 
 	drop(service);
-	let _ = futures::executor::block_on(worker_task);
+	let _ = pool.run_until(worker_task);
 }
 
 #[test]
 fn consensus_instances_cleaned_up() {
-	let (mut service, _gossip, worker_task) = test_setup(Config { collating_for: None });
+	let (mut service, _gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
 	let relay_parent = [0; 32].into();
 	let authorities = Vec::new();
 
@@ -401,30 +398,29 @@ fn consensus_instances_cleaned_up() {
 		None,
 	));
 
-	let executor = EXECUTOR.clone();
-	executor.spawn(worker_task).unwrap();
+	pool.spawner().spawn_local(worker_task).unwrap();
 
-	let router = futures::executor::block_on(
+	let router = pool.run_until(
 		service.build_table_router(table, &authorities)
 	).unwrap();
 
 	drop(router);
 
-	assert!(futures::executor::block_on(service.synchronize(move |proto| {
+	assert!(pool.run_until(service.synchronize(move |proto| {
 		!proto.consensus_instances.contains_key(&relay_parent)
 	})));
 }
 
 #[test]
 fn validator_peer_cleaned_up() {
-	let (mut service, _gossip, worker_task) = test_setup(Config { collating_for: None });
+	let (mut service, _gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
 
 	let peer = PeerId::random();
 	let validator_key = Sr25519Keyring::Alice.pair();
 	let validator_id = ValidatorId::from(validator_key.public());
 
-	EXECUTOR.clone().spawn(worker_task).unwrap();
-	futures::executor::block_on(async move {
+	pool.spawner().spawn_local(worker_task).unwrap();
+	pool.run_until(async move {
 		service.connect_peer(peer.clone(), Roles::AUTHORITY).await;
 		service.peer_message(peer.clone(), Message::Status(Status {
 			version: VERSION,
@@ -469,7 +465,7 @@ fn validator_peer_cleaned_up() {
 
 #[test]
 fn validator_key_spillover_cleaned() {
-	let (mut service, _gossip, worker_task) = test_setup(Config { collating_for: None });
+	let (mut service, _gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
 
 	let peer = PeerId::random();
 	let make_validator_id = |ring: Sr25519Keyring| ValidatorId::from(ring.public());
@@ -483,8 +479,8 @@ fn validator_key_spillover_cleaned() {
 
 	let keys = vec![key_a, key_b, key_c, key_d];
 
-	EXECUTOR.clone().spawn(worker_task).unwrap();
-	futures::executor::block_on(async move {
+	pool.spawner().spawn_local(worker_task).unwrap();
+	pool.run_until(async move {
 		service.connect_peer(peer.clone(), Roles::AUTHORITY).await;
 		service.peer_message(peer.clone(), Message::Status(Status {
 			version: VERSION,
@@ -516,18 +512,18 @@ fn validator_key_spillover_cleaned() {
 
 #[test]
 fn erasure_fetch_drop_also_drops_gossip_sender() {
-	let (mut service, gossip, worker_task) = test_setup(Config { collating_for: None });
+	let (service, gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
 	let candidate_hash = [1; 32].into();
 
 	let expected_index = 1;
 
-	let executor = EXECUTOR.clone();
-	executor.spawn(worker_task).unwrap();
+	let spawner = pool.spawner();
 
+	spawner.spawn_local(worker_task).unwrap();
 	let topic = crate::erasure_coding_topic(&candidate_hash);
 	let (mut gossip_tx, gossip_taken_rx) = gossip.add_gossip_stream(topic);
 
-	futures::executor::block_on(async move {
+	let test_work = async move {
 		let chunk_listener = service.fetch_erasure_chunk(
 			&candidate_hash,
 			expected_index,
@@ -537,7 +533,7 @@ fn erasure_fetch_drop_also_drops_gossip_sender() {
 		// we will wait until this future has proceeded enough to start grabbing
 		// messages from gossip, and then we will abort the future.
 		let (chunk_listener, abort_handle) = future::abortable(chunk_listener);
-		executor.spawn(chunk_listener.map(|_| ())).unwrap();
+		let handle = spawner.spawn_with_handle(chunk_listener).unwrap();
 		gossip_taken_rx.await.unwrap();
 
 		// gossip listener was taken. and is active.
@@ -546,6 +542,9 @@ fn erasure_fetch_drop_also_drops_gossip_sender() {
 
 		abort_handle.abort();
 
+		// we must `await` this, otherwise context may never transfer over
+		// to the spawned `Abortable` future.
+		assert!(handle.await.is_err());
 		loop {
 			// if dropping the sender leads to the gossip listener
 			// being cleaned up, we will eventually be unable to send a message
@@ -568,5 +567,7 @@ fn erasure_fetch_drop_also_drops_gossip_sender() {
 				Ok(_) => continue,
 			}
 		}
-	});
+	};
+
+	pool.run_until(test_work);
 }

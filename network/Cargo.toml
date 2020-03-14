@@ -31,4 +31,3 @@ wasm-timer = "0.2.4"
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-lazy_static = "1.0"
