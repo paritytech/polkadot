@@ -15,39 +15,39 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use log::info;
-use sp_core::Blake2Hasher;
+use sp_runtime::traits::BlakeTwo256;
 use service::{IsKusama, Block, self, RuntimeApiCollection, TFullClient};
 use sp_api::ConstructRuntimeApi;
 use sc_executor::NativeExecutionDispatch;
 use crate::chain_spec::load_spec;
 use crate::cli::{Cli, Subcommand};
-use sc_cli::{VersionInfo, display_role, error};
+use sc_cli::VersionInfo;
 
 /// Parses polkadot specific CLI arguments and run the service.
-pub fn run(version: VersionInfo) -> error::Result<()> {
+pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 	let opt = sc_cli::from_args::<Cli>(&version);
 
-	let mut config = service::Configuration::new(&version);
+	let mut config = service::Configuration::from_version(&version);
 	config.impl_name = "parity-polkadot";
+	let force_kusama = opt.run.force_kusama;
 
 	match opt.subcommand {
 		None => {
-			sc_cli::init(&opt.run.shared_params, &version)?;
-			sc_cli::init_config(&mut config, &opt.run.shared_params, &version, load_spec)?;
-
-			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
-
-			sc_cli::update_config_for_running_node(
+			opt.run.base.init(&version)?;
+			opt.run.base.update_config(
 				&mut config,
-				opt.run,
+				|id| load_spec(id, force_kusama),
+				&version
 			)?;
+
+			let is_kusama = config.expect_chain_spec().is_kusama();
 
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
 			info!("  by {}, 2017-2020", version.author);
 			info!("Chain specification: {}", config.expect_chain_spec().name());
 			info!("Node name: {}", config.name);
-			info!("Roles: {}", display_role(&config));
+			info!("Roles: {}", config.display_role());
 
 			if is_kusama {
 				info!("Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
@@ -73,10 +73,14 @@ pub fn run(version: VersionInfo) -> error::Result<()> {
 			}
 		},
 		Some(Subcommand::Base(cmd)) => {
-			sc_cli::init(cmd.get_shared_params(), &version)?;
-			sc_cli::init_config(&mut config, &cmd.get_shared_params(), &version, load_spec)?;
+			cmd.init(&version)?;
+			cmd.update_config(
+				&mut config,
+				|id| load_spec(id, force_kusama),
+				&version
+			)?;
 
-			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
+			let is_kusama = config.expect_chain_spec().is_kusama();
 
 			if is_kusama {
 				cmd.run(config, service::new_chain_ops::<
@@ -96,11 +100,21 @@ pub fn run(version: VersionInfo) -> error::Result<()> {
 			sc_cli::init_logger("");
 
 			if cfg!(feature = "browser") {
-				Err(error::Error::Input("Cannot run validation worker in browser".into()))
+				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
 			} else {
 				#[cfg(not(feature = "browser"))]
 				service::run_validation_worker(&args.mem_id)?;
 				Ok(())
+			}
+		},
+		Some(Subcommand::Benchmark(cmd)) => {
+			cmd.init(&version)?;
+			cmd.update_config(&mut config, |id| load_spec(id, force_kusama), &version)?;
+			let is_kusama = config.expect_chain_spec().is_kusama();
+			if is_kusama {
+				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
+			} else {
+				cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
 			}
 		},
 	}
@@ -109,7 +123,7 @@ pub fn run(version: VersionInfo) -> error::Result<()> {
 fn run_service_until_exit<R, D, E>(
 	config: service::Configuration,
 	authority_discovery_enabled: bool,
-) -> error::Result<()>
+) -> sc_cli::Result<()>
 where
 	R: ConstructRuntimeApi<Block, service::TFullClient<Block, R, D>>
 		+ Send + Sync + 'static,
@@ -121,7 +135,7 @@ where
 	D: service::NativeExecutionDispatch + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	<<R as ConstructRuntimeApi<Block, TFullClient<Block, R, D>>>::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend:
-		sp_api::StateBackend<Blake2Hasher>,
+		sp_api::StateBackend<BlakeTwo256>,
 	// Rust bug: https://github.com/rust-lang/rust/issues/43580
 	R: ConstructRuntimeApi<
 		Block,
@@ -132,12 +146,13 @@ where
 		service::Roles::LIGHT =>
 			sc_cli::run_service_until_exit(
 				config,
-				|config| service::new_light::<R, D, E>(config, None),
+				|config| service::new_light::<R, D, E>(config),
 			),
 		_ =>
 			sc_cli::run_service_until_exit(
 				config,
-				|config| service::new_full::<R, D, E>(config, None, None, authority_discovery_enabled, 6000),
+				|config| service::new_full::<R, D, E>(config, None, None, authority_discovery_enabled, 6000)
+					.map(|(s, _)| s),
 			),
 	}
 }
@@ -145,11 +160,11 @@ where
 // We can't simply use `service::TLightClient` due to a
 // Rust bug: https://github.com/rust-lang/rust/issues/43580
 type TLightClient<Runtime, Dispatch> = sc_client::Client<
-	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
+	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
 	sc_client::light::call_executor::GenesisCallExecutor<
-		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
+		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
 		sc_client::LocalCallExecutor<
-			sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, Blake2Hasher>,
+			sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
 			sc_executor::NativeExecutor<Dispatch>
 		>
 	>,

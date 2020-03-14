@@ -18,7 +18,7 @@
 //! auctioning mechanism, for locking balance as part of the "payment", and to provide the requisite
 //! information for commissioning and decommissioning them.
 
-use rstd::{prelude::*, mem::swap, convert::TryInto};
+use sp_std::{prelude::*, mem::swap, convert::TryInto};
 use sp_runtime::traits::{
 	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
 };
@@ -917,7 +917,7 @@ mod tests {
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
-		type OnReapAccount = Balances;
+		type OnKilledAccount = Balances;
 	}
 
 	parameter_types! {
