@@ -78,7 +78,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1051,
+	spec_version: 1052,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -646,7 +646,7 @@ construct_runtime! {
 		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>},
 		Offences: offences::{Module, Call, Storage, Event},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
-		FinalityTracker: finality_tracker::{Module, Call, Inherent},
+		FinalityTracker: finality_tracker::{Module, Call, Storage, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
