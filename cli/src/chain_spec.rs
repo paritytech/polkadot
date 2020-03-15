@@ -22,16 +22,22 @@ use service;
 /// specification).
 #[derive(Clone, Debug)]
 pub enum ChainSpec {
-	/// Whatever the current runtime is, with just Alice as an auth.
-	Development,
-	/// Whatever the current runtime is, with simple Alice/Bob auths.
-	LocalTestnet,
+	/// Whatever the current polkadot runtime is, with just Alice as an auth.
+	PolkadotDevelopment,
+	/// Whatever the current pokadot runtime is, with simple Alice/Bob auths.
+	PolkadotLocalTestnet,
 	/// The Kusama network.
 	Kusama,
+	/// Whatever the current kusama runtime is, with just Alice as an auth.
+	KusamaDevelopment,
 	/// The Westend network,
 	Westend,
-	/// Whatever the current runtime is with the "global testnet" defaults.
-	StagingTestnet,
+	/// Whatever the current polkadot runtime is with the "global testnet" defaults.
+	PolkadotStagingTestnet,
+	/// Whatever the current kusama runtime is with the "global testnet" defaults.
+	KusamaStagingTestnet,
+	/// Whatever the current kusama runtime is, with simple Alice/Bob auths.
+	KusamaLocalTestnet,
 }
 
 impl Default for ChainSpec {
@@ -42,23 +48,29 @@ impl Default for ChainSpec {
 
 /// Get a chain config from a spec setting.
 impl ChainSpec {
-	pub(crate) fn load(self) -> Result<service::ChainSpec, String> {
-		match self {
-			ChainSpec::Development => Ok(service::chain_spec::development_config()),
-			ChainSpec::LocalTestnet => Ok(service::chain_spec::local_testnet_config()),
-			ChainSpec::StagingTestnet => Ok(service::chain_spec::staging_testnet_config()),
-			ChainSpec::Westend => service::chain_spec::westend_config(),
-			ChainSpec::Kusama => service::chain_spec::kusama_config(),
-		}
+	pub(crate) fn load(self) -> Result<Box<dyn service::ChainSpec>, String> {
+		Ok(match self {
+			ChainSpec::PolkadotDevelopment => Box::new(service::chain_spec::polkadot_development_config()),
+			ChainSpec::PolkadotLocalTestnet => Box::new(service::chain_spec::polkadot_local_testnet_config()),
+			ChainSpec::PolkadotStagingTestnet => Box::new(service::chain_spec::polkadot_staging_testnet_config()),
+			ChainSpec::KusamaDevelopment =>Box::new(service::chain_spec::kusama_development_config()),
+			ChainSpec::KusamaLocalTestnet => Box::new(service::chain_spec::kusama_local_testnet_config()),
+			ChainSpec::KusamaStagingTestnet => Box::new(service::chain_spec::kusama_staging_testnet_config()),
+			ChainSpec::Westend => Box::new(service::chain_spec::westend_config()?),
+			ChainSpec::Kusama => Box::new(service::chain_spec::kusama_config()?),
+		})
 	}
 
 	pub(crate) fn from(s: &str) -> Option<Self> {
 		match s {
-			"dev" => Some(ChainSpec::Development),
-			"local" => Some(ChainSpec::LocalTestnet),
+			"polkadot-dev" | "dev" => Some(ChainSpec::PolkadotDevelopment),
+			"polkadot-local" => Some(ChainSpec::PolkadotLocalTestnet),
+			"polkadot-staging" => Some(ChainSpec::PolkadotStagingTestnet),
+			"kusama-dev" => Some(ChainSpec::KusamaDevelopment),
+			"kusama-local" => Some(ChainSpec::KusamaLocalTestnet),
+			"kusama-staging" => Some(ChainSpec::KusamaStagingTestnet),
 			"kusama" => Some(ChainSpec::Kusama),
 			"westend" => Some(ChainSpec::Westend),
-			"staging" => Some(ChainSpec::StagingTestnet),
 			"" => Some(ChainSpec::default()),
 			_ => None,
 		}
@@ -66,9 +78,11 @@ impl ChainSpec {
 }
 
 /// Load the `ChainSpec` for the given `id`.
-pub fn load_spec(id: &str) -> Result<Option<service::ChainSpec>, String> {
+/// `force_kusama` treats chain specs coming from a file as kusama specs.
+pub fn load_spec(id: &str, force_kusama: bool) -> Result<Box<dyn service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
-		Some(spec) => Some(spec.load()?),
-		None => None,
+		Some(spec) => spec.load()?,
+		None if force_kusama => Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(id))?),
+		None => Box::new(service::PolkadotChainSpec::from_json_file(std::path::PathBuf::from(id))?),
 	})
 }

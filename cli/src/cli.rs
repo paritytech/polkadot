@@ -17,7 +17,6 @@
 //! Polkadot CLI library.
 
 use structopt::StructOpt;
-pub use sc_cli::RunCmd;
 
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt, Clone)]
@@ -29,6 +28,13 @@ pub enum Subcommand {
 	#[allow(missing_docs)]
 	#[structopt(name = "validation-worker", setting = structopt::clap::AppSettings::Hidden)]
 	ValidationWorker(ValidationWorkerCommand),
+
+	/// The custom benchmark subcommmand benchmarking runtime pallets.
+	#[structopt(
+		name = "benchmark",
+		about = "Benchmark runtime pallets."
+	)]
+	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 }
 
 #[allow(missing_docs)]
@@ -36,6 +42,18 @@ pub enum Subcommand {
 pub struct ValidationWorkerCommand {
 	#[allow(missing_docs)]
 	pub mem_id: String,
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, StructOpt, Clone)]
+pub struct RunCmd {
+	#[allow(missing_docs)]
+	#[structopt(flatten)]
+	pub base: sc_cli::RunCmd,
+
+	/// Force using Kusama native runtime.
+	#[structopt(long = "force-kusama")]
+	pub force_kusama: bool,
 }
 
 #[allow(missing_docs)]
