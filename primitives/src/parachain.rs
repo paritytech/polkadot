@@ -196,6 +196,8 @@ pub struct CandidateCommitments {
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: Hash,
+	/// New validation Wasm code.
+	pub new_validation_wasm: Option<Vec<u8>>,
 }
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
@@ -639,13 +641,13 @@ impl AttestedCandidate {
 pub struct FeeSchedule {
 	/// The base fee charged for all messages.
 	pub base: Balance,
-	/// The per-byte fee charged on top of that.
+	/// The per-byte fee for messages charged on top of that.
 	pub per_byte: Balance,
 }
 
 impl FeeSchedule {
 	/// Compute the fee for a message of given size.
-	pub fn compute_fee(&self, n_bytes: usize) -> Balance {
+	pub fn compute_message_fee(&self, n_bytes: usize) -> Balance {
 		use rstd::mem;
 		debug_assert!(mem::size_of::<Balance>() >= mem::size_of::<usize>());
 
@@ -656,7 +658,7 @@ impl FeeSchedule {
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	#[api_version(2)]
+	#[api_version(3)]
 	pub trait ParachainHost {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
