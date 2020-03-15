@@ -4115,6 +4115,7 @@ dependencies = [
  "pallet-grandpa 2.0.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-indices 2.0.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-nicks 2.0.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
+ "pallet-offences 2.0.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-randomness-collective-flip 2.0.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-session 2.0.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "pallet-staking 2.0.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",

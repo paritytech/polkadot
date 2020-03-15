@@ -1077,11 +1077,11 @@ pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, B
 
 /// Ensure that double vote reports are only processed if valid.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
-pub struct ValidateDoubleVoteReports<T>(rstd::marker::PhantomData<T>);
+pub struct ValidateDoubleVoteReports<T>(sp_std::marker::PhantomData<T>);
 
-impl<T> rstd::fmt::Debug for ValidateDoubleVoteReports<T> where
+impl<T> sp_std::fmt::Debug for ValidateDoubleVoteReports<T> where
 {
-	fn fmt(&self, f: &mut rstd::fmt::Formatter) -> rstd::fmt::Result {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
 		write!(f, "ValidateDoubleVoteReports<T>")
 	}
 }
@@ -1120,7 +1120,7 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self)
-		-> rstd::result::Result<Self::AdditionalSigned, TransactionValidityError>
+		-> sp_std::result::Result<Self::AdditionalSigned, TransactionValidityError>
 	{
 		Ok(())
 	}
@@ -1540,7 +1540,7 @@ mod tests {
 		let inner = ParachainsCall::report_double_vote(report);
 		let call = Call::Parachains(inner.clone());
 
-		ValidateDoubleVoteReports::<Test>(rstd::marker::PhantomData)
+		ValidateDoubleVoteReports::<Test>(sp_std::marker::PhantomData)
 			.validate(&0, &call, DispatchInfo::default(), 0)?;
 
 		Ok(inner)
