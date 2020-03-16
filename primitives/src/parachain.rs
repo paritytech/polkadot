@@ -184,6 +184,8 @@ pub struct LocalValidationData {
 	pub parent_head: HeadData,
 	/// The balance of the parachain at the moment of validation.
 	pub balance: Balance,
+	/// Whether the parachain is allowed to upgrade its validation code.
+	pub can_upgrade_code: bool,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.

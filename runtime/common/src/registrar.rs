@@ -765,7 +765,7 @@ mod tests {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
 
-		pub const ValidationUgradeFrequency: BlockNumber = 10;
+		pub const ValidationUpgradeFrequency: BlockNumber = 10;
 		pub const ValidationUpgradeDelay: BlockNumber = 2;
 		pub const SlashPeriod: BlockNumber = 50;
 	}
@@ -779,7 +779,7 @@ mod tests {
 		type Randomness = RandomnessCollectiveFlip;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
-		type ValidationUgradeFrequency = ValidationUgradeFrequency;
+		type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
 		type ValidationUpgradeDelay = ValidationUpgradeDelay;
 		type SlashPeriod = SlashPeriod;
 	}

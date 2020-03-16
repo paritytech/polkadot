@@ -21,12 +21,12 @@ use rstd::result;
 use codec::{Decode, Encode};
 
 use sp_runtime::traits::{
-	Hash as HashT, BlakeTwo256, Saturating, One, Dispatchable,
+	Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
 	AccountIdConversion, BadOrigin,
 };
 use frame_support::weights::SimpleDispatchInfo;
 use primitives::{
-	Balance, BlockNumber,
+	Balance,
 	parachain::{
 		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
@@ -133,10 +133,10 @@ pub trait Trait: attestations::Trait {
 	/// Max head data size.
 	type MaxHeadDataSize: Get<u32>;
 	/// The frequency at which paras can upgrade their validation function.
-	type ValidationUgradeFrequency: Get<BlockNumber>;
+	type ValidationUpgradeFrequency: Get<Self::BlockNumber>;
 
 	/// The delay before a validation function upgrade is applied.
-	type ValidationUpgradeDelay: Get<BlockNumber>;
+	type ValidationUpgradeDelay: Get<Self::BlockNumber>;
 
 	/// The period (in blocks) that slash reports are permitted against an
 	/// included candidate.
@@ -144,7 +144,7 @@ pub trait Trait: attestations::Trait {
 	/// After validation function upgrades, the old code is persisted on-chain
 	/// for this period, to ensure that candidates validated under old functions
 	/// can be re-checked.
-	type SlashPeriod: Get<BlockNumber>;
+	type SlashPeriod: Get<Self::BlockNumber>;
 }
 
 /// Origin for the parachains module.
@@ -162,27 +162,29 @@ const MAX_QUEUE_COUNT: usize = 100;
 /// single message.
 const WATERMARK_QUEUE_SIZE: usize = 20000;
 
+/// Metadata used to track previous parachain validation code that we keep in
+/// the state.
 #[derive(Default, Encode, Decode)]
 #[cfg_attr(test, derive(Debug, Clone, PartialEq))]
-struct ParaPastCodeMeta {
+pub struct ParaPastCodeMeta<N> {
 	// Block numbers where the code was replaced. These can be used as indices
 	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
-	upgrade_times: Vec<BlockNumber>,
+	upgrade_times: Vec<N>,
 	// This tracks the highest pruned code-replacement, if any.
-	last_pruned: Option<BlockNumber>,
+	last_pruned: Option<N>,
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
-enum UseCodeAt {
+enum UseCodeAt<N> {
 	// Use the current code.
 	Current,
 	// Use the code that was replaced at the given block number.
-	ReplacedAt(BlockNumber),
+	ReplacedAt(N),
 }
 
-impl ParaPastCodeMeta {
+impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	// note a replacement has occurred at a given block number.
-	fn note_replacement(&mut self, at: BlockNumber) {
+	fn note_replacement(&mut self, at: N) {
 		self.upgrade_times.insert(0, at)
 	}
 
@@ -191,7 +193,7 @@ impl ParaPastCodeMeta {
 	//
 	// a return value of `None` means that there is no code we are aware of that
 	// should be used to validate at the given height.
-	fn code_at(&self, at: BlockNumber) -> Option<UseCodeAt> {
+	fn code_at(&self, at: N) -> Option<UseCodeAt<N>> {
 		// The `PastCode` map stores the code which was replaced at `t`.
 		let end_position = self.upgrade_times.iter().position(|&t| t < at);
 		if let Some(end_position) = end_position {
@@ -227,12 +229,12 @@ impl ParaPastCodeMeta {
 	}
 
 	// The block at which the most recently tracked code change occurred.
-	fn most_recent_change(&self) -> Option<BlockNumber> {
+	fn most_recent_change(&self) -> Option<N> {
 		self.upgrade_times.first().map(|x| x.clone())
 	}
 
 	// The block at which the earliest tracked code change occurred.
-	fn earliest_tracked_change(&self) -> Option<BlockNumber> {
+	fn earliest_tracked_change(&self) -> Option<N> {
 		self.upgrade_times.last().map(|x| x.clone())
 	}
 
@@ -242,8 +244,7 @@ impl ParaPastCodeMeta {
 	//
 	// returns an iterator of block numbers at which code was replaced, where the replaced
 	// code should be now pruned, in ascending order.
-	// TODO [now]: trigger pruning.
-	fn prune_up_to(&'_ mut self, max: BlockNumber) -> impl Iterator<Item=BlockNumber> + '_ {
+	fn prune_up_to(&'_ mut self, max: N) -> impl Iterator<Item=N> + '_ {
 		match self.upgrade_times.iter().position(|&t| t <= max) {
 			None => {
 				// this is a no-op `drain` - desired because all
@@ -258,28 +259,28 @@ impl ParaPastCodeMeta {
 	}
 }
 
-struct PlannedCodeChange {
-	// The block number at which the planned code change is expected,
-	// The change will be applied after the first parablock included which executes
-	// in the context of a relay chain block with a number >= `expected_at`.
-	expected_at: BlockNumber,
-	new_code: Vec<u8>,
-}
-
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains
 	{
 		/// All authorities' keys at the moment.
 		pub Authorities get(authorities): Vec<ValidatorId>;
-		/// The code of parachains registered at present.
+		/// The active code of a currently-registered parachain.
 		pub Code get(parachain_code): map hasher(blake2_256) ParaId => Option<Vec<u8>>;
 		/// Past code of parachains. The parachains themselves may not be registered anymore,
 		/// but we also keep their code on-chain for the same amount of time as outdated code
 		/// to assist with availability.
-		PastCodeMeta: map hasher(blake2_256) ParaId => ParaPastCodeMeta;
+		PastCodeMeta get(past_code_meta): map hasher(blake2_256) ParaId => ParaPastCodeMeta<T::BlockNumber>;
 		/// Actual past code, indicated by the parachain and the block number at which it
-		/// was outdated.
-		PastCode: map hasher(blake2_256) (ParaId, BlockNumber) => Option<Vec<u8>>;
+		/// became outdated.
+		PastCode: map hasher(blake2_256) (ParaId, T::BlockNumber) => Option<Vec<u8>>;
+		/// Past code pruning, in order of priority.
+		PastCodePruning get(past_code_pruning_tasks): Vec<(ParaId, T::BlockNumber)>;
+		// The block number at which the planned code change is expected for a para.
+		// The change will be applied after the first parablock for this ID included which executes
+		// in the context of a relay chain block with a number >= `expected_at`.
+		FutureCodeUpgrades get(code_upgrade_schedule): map hasher(blake2_256) ParaId => Option<T::BlockNumber>;
+		// The actual future code of a para.
+		FutureCode: map hasher(blake2_256) ParaId => Vec<u8>;
 
 		/// The heads of the parachains registered at present.
 		pub Heads get(parachain_head): map hasher(blake2_256) ParaId => Option<Vec<u8>>;
@@ -337,6 +338,10 @@ decl_error! {
 		ParentMismatch,
 		/// Head data was too large.
 		HeadDataTooLarge,
+		/// New validation code was too large.
+		ValidationCodeTooLarge,
+		/// Disallowed code upgrade.
+		DisallowedCodeUpgrade,
 		/// Para does not have enough balance to pay fees.
 		CannotPayFees,
 		/// Unexpected relay-parent for a candidate receipt.
@@ -468,13 +473,37 @@ impl<T: Trait> Module<T> {
 		let code = <Code>::take(id);
 		<Heads>::remove(id);
 
+		// TODO [now]: cleanup from all new storage maps (planned code, past code)
+
 		if let Some(code) = code {
-			Self::note_past_code(id, code);
+			Self::note_past_code(id, <system::Module<T>>::block_number(), code);
+
+			// TODO [now]: schedule pruning in a way that cleans up meta.
 		}
 	}
 
-	fn note_past_code(id: ParaId, code: Vec<u8>) {
-		// TODO [now] implement this.
+	// note replacement of the code of para with given `id`, which occured in the
+	// context of the given relay-chain block number. provide the replaced code.
+	//
+	// `at` for para-triggered replacement is the block number of the relay-chain
+	// block in whose context the parablock was executed
+	// (i.e. number of `relay_parent` in the receipt)
+	fn note_past_code(id: ParaId, at: T::BlockNumber, old_code: Vec<u8>) {
+		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
+			past_meta.note_replacement(at);
+		});
+
+		<Self as Store>::PastCode::insert(&(id, at), old_code);
+
+		// TODO [now]: schedule pruning.
+	}
+
+	// Performs a code upgrade of a parachain.
+	fn do_code_upgrade(id: ParaId, at: T::BlockNumber, new_code: &[u8]) {
+		let old_code = Self::parachain_code(&id).unwrap_or_default();
+		Code::insert(&id, new_code);
+
+		Self::note_past_code(id, at, old_code);
 	}
 
 	/// Dispatch some messages from a parachain.
@@ -706,6 +735,7 @@ impl<T: Trait> Module<T> {
 		Self::parachain_head(id).map(|parent_head| LocalValidationData {
 			parent_head: primitives::parachain::HeadData(parent_head),
 			balance: T::ParachainCurrency::free_balance(*id),
+			can_upgrade_code: unimplemented!(), // TODO [now]
 		})
 	}
 
@@ -791,7 +821,13 @@ impl<T: Trait> Module<T> {
 		};
 
 		// computes the omitted validation data for a particular parachain.
-		let full_candidate = |abridged: &AbridgedCandidateReceipt|
+		//
+		// pass the perceived relay chain height of the para-block. This is the block number of
+		// `abridged.relay_parent`.
+		let full_candidate = |
+			abridged: &AbridgedCandidateReceipt,
+			perceived_height: T::BlockNumber,
+		|
 			-> rstd::result::Result<CandidateReceipt, sp_runtime::DispatchError>
 		{
 			let para_id = abridged.parachain_index;
@@ -802,11 +838,21 @@ impl<T: Trait> Module<T> {
 				None => Err(Error::<T>::ParentMismatch)?,
 			};
 
+			let min_upgrade_frequency = T::ValidationUpgradeFrequency::get();
+
+			let no_planned = Self::code_upgrade_schedule(&para_id)
+				.map_or(true, |expected| expected <= perceived_height);
+
+			let can_upgrade_code = no_planned &&
+				Self::past_code_meta(&para_id).most_recent_change()
+					.map_or(true, |at| at + min_upgrade_frequency <= perceived_height);
+
 			let omitted = OmittedValidationData {
 				global_validation: schedule.clone(),
 				local_validation: LocalValidationData {
 					parent_head,
 					balance: T::ParachainCurrency::free_balance(para_id),
+					can_upgrade_code,
 				},
 			};
 
@@ -815,8 +861,10 @@ impl<T: Trait> Module<T> {
 
 		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
 
+		let relay_height_now = <system::Module<T>>::block_number();
 		let parent_hash = <system::Module<T>>::parent_hash();
 		let localized_payload = |statement: Statement| localized_payload(statement, parent_hash);
+		let code_upgrade_delay = T::ValidationUpgradeDelay::get();
 
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
 
@@ -839,6 +887,9 @@ impl<T: Trait> Module<T> {
 				Error::<T>::UnexpectedRelayParent,
 			);
 
+			// Since we only allow execution in context of parent hash.
+			let perceived_relay_block_height = <system::Module<T>>::block_number() - One::one();
+
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
 				Error::<T>::NotEnoughValidityVotes,
@@ -854,7 +905,45 @@ impl<T: Trait> Module<T> {
 				Error::<T>::HeadDataTooLarge,
 			);
 
-			let full_candidate = full_candidate(candidate.candidate())?;
+			let full_candidate = full_candidate(
+				candidate.candidate(),
+				perceived_relay_block_height,
+			)?;
+
+			// apply any scheduled code upgrade.
+			if let Some(expected_at) = Self::code_upgrade_schedule(&para_id) {
+				if expected_at <= perceived_relay_block_height {
+					let new_code = FutureCode::take(&para_id);
+					let _ = <Self as Store>::FutureCodeUpgrades::take(&para_id);
+
+					Self::do_code_upgrade(para_id, perceived_relay_block_height, &new_code);
+				}
+			}
+
+			if let Some(ref new_code) = full_candidate.commitments.new_validation_code {
+				ensure!(
+					full_candidate.local_validation.can_upgrade_code,
+					Error::<T>::DisallowedCodeUpgrade,
+				);
+				ensure!(
+					schedule.max_code_size >= new_code.len() as u32,
+					Error::<T>::ValidationCodeTooLarge,
+				);
+
+				if code_upgrade_delay.is_zero() {
+					Self::do_code_upgrade(para_id, perceived_relay_block_height, new_code);
+				} else {
+					<Self as Store>::FutureCodeUpgrades::insert(
+						&para_id,
+						&(perceived_relay_block_height + code_upgrade_delay),
+					);
+					FutureCode::insert(
+						&para_id,
+						new_code,
+					);
+				}
+			}
+
 			let fees = full_candidate.commitments.fees;
 
 			ensure!(
@@ -919,7 +1008,7 @@ impl<T: Trait> Module<T> {
 		}
 
 		Ok(IncludedBlocks {
-			actual_number: <system::Module<T>>::block_number(),
+			actual_number: relay_height_now,
 			session: <session::Module<T>>::current_index(),
 			random_seed,
 			active_parachains: active_parachains.iter().map(|x| x.0).collect(),
@@ -1019,6 +1108,7 @@ mod tests {
 			CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo,
 			Scheduling, LocalValidationData, CandidateCommitments,
 		},
+		BlockNumber,
 	};
 	use keyring::Sr25519Keyring;
 	use frame_support::{
@@ -1218,7 +1308,7 @@ mod tests {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
 
-		pub const ValidationUgradeFrequency: BlockNumber = 10;
+		pub const ValidationUpgradeFrequency: BlockNumber = 10;
 		pub const ValidationUpgradeDelay: BlockNumber = 2;
 		pub const SlashPeriod: BlockNumber = 50;
 	}
@@ -1232,7 +1322,7 @@ mod tests {
 		type Registrar = registrar::Module<Test>;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
-		type ValidationUgradeFrequency = ValidationUgradeFrequency;
+		type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
 		type ValidationUpgradeDelay = ValidationUpgradeDelay;
 		type SlashPeriod = SlashPeriod;
 	}
@@ -1890,7 +1980,7 @@ mod tests {
 	#[test]
 	fn para_past_code_meta_gives_right_code() {
 		let mut past_code = ParaPastCodeMeta::default();
-		assert_eq!(past_code.code_at(0), Some(UseCodeAt::Current));
+		assert_eq!(past_code.code_at(0u32), Some(UseCodeAt::Current));
 
 		past_code.note_replacement(10);
 		assert_eq!(past_code.code_at(0), Some(UseCodeAt::ReplacedAt(10)));
@@ -1913,7 +2003,7 @@ mod tests {
 	#[test]
 	fn para_past_code_pruning_works_correctly() {
 		let mut past_code = ParaPastCodeMeta::default();
-		past_code.note_replacement(10);
+		past_code.note_replacement(10u32);
 		past_code.note_replacement(20);
 		past_code.note_replacement(30);
 
