@@ -163,6 +163,7 @@ const MAX_QUEUE_COUNT: usize = 100;
 const WATERMARK_QUEUE_SIZE: usize = 20000;
 
 #[derive(Default, Encode, Decode)]
+#[cfg_attr(test, derive(Debug, Clone, PartialEq))]
 struct ParaPastCodeMeta {
 	// Block numbers where the code was replaced. These can be used as indices
 	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
@@ -171,6 +172,7 @@ struct ParaPastCodeMeta {
 	last_pruned: Option<BlockNumber>,
 }
 
+#[cfg_attr(test, derive(Debug, PartialEq))]
 enum UseCodeAt {
 	// Use the current code.
 	Current,
@@ -179,6 +181,11 @@ enum UseCodeAt {
 }
 
 impl ParaPastCodeMeta {
+	// note a replacement has occurred at a given block number.
+	fn note_replacement(&mut self, at: BlockNumber) {
+		self.upgrade_times.insert(0, at)
+	}
+
 	// Yields the block number of the code that should be used for validating at
 	// the given block number.
 	//
@@ -232,15 +239,21 @@ impl ParaPastCodeMeta {
 	// prunes all code upgrade logs occurring at or before `max`.
 	// note that code replaced at `x` is the code used to validate all blocks before
 	// `x`. Thus, `max` should be outside of the slashing window when this is invoked.
+	//
+	// returns an iterator of block numbers at which code was replaced, where the replaced
+	// code should be now pruned, in ascending order.
 	// TODO [now]: trigger pruning.
 	fn prune_up_to(&'_ mut self, max: BlockNumber) -> impl Iterator<Item=BlockNumber> + '_ {
 		match self.upgrade_times.iter().position(|&t| t <= max) {
 			None => {
 				// this is a no-op `drain` - desired because all
 				// logged code upgrades occurred after `max`.
-				self.upgrade_times.drain(self.upgrade_times.len()..)
+				self.upgrade_times.drain(self.upgrade_times.len()..).rev()
 			}
-			Some(pos) => self.upgrade_times.drain(pos..),
+			Some(pos) => {
+				self.last_pruned = Some(self.upgrade_times[pos]);
+				self.upgrade_times.drain(pos..).rev()
+			}
 		}
 	}
 }
@@ -1872,5 +1885,67 @@ mod tests {
 	fn empty_trie_root_const_is_blake2_hashed_null_node() {
 		let hashed_null_node = <NodeCodec<Blake2Hasher> as trie_db::NodeCodec>::hashed_null_node();
 		assert_eq!(hashed_null_node, EMPTY_TRIE_ROOT.into())
+	}
+
+	#[test]
+	fn para_past_code_meta_gives_right_code() {
+		let mut past_code = ParaPastCodeMeta::default();
+		assert_eq!(past_code.code_at(0), Some(UseCodeAt::Current));
+
+		past_code.note_replacement(10);
+		assert_eq!(past_code.code_at(0), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(11), Some(UseCodeAt::Current));
+
+		past_code.note_replacement(20);
+		assert_eq!(past_code.code_at(1), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(20)));
+		assert_eq!(past_code.code_at(20), Some(UseCodeAt::ReplacedAt(20)));
+		assert_eq!(past_code.code_at(21), Some(UseCodeAt::Current));
+
+		past_code.last_pruned = Some(5);
+		assert_eq!(past_code.code_at(1), None);
+		assert_eq!(past_code.code_at(5), None);
+		assert_eq!(past_code.code_at(6), Some(UseCodeAt::ReplacedAt(10)));
+	}
+
+	#[test]
+	fn para_past_code_pruning_works_correctly() {
+		let mut past_code = ParaPastCodeMeta::default();
+		past_code.note_replacement(10);
+		past_code.note_replacement(20);
+		past_code.note_replacement(30);
+
+		let old = past_code.clone();
+		assert!(past_code.prune_up_to(9).collect::<Vec<_>>().is_empty());
+		assert_eq!(old, past_code);
+
+		assert_eq!(past_code.prune_up_to(10).collect::<Vec<_>>(), vec![10]);
+		assert_eq!(past_code, ParaPastCodeMeta {
+			upgrade_times: vec![30, 20],
+			last_pruned: Some(10),
+		});
+
+		assert_eq!(past_code.prune_up_to(21).collect::<Vec<_>>(), vec![20]);
+		assert_eq!(past_code, ParaPastCodeMeta {
+			upgrade_times: vec![30],
+			last_pruned: Some(20),
+		});
+
+		past_code.note_replacement(40);
+		past_code.note_replacement(50);
+		past_code.note_replacement(60);
+
+		assert_eq!(past_code, ParaPastCodeMeta {
+			upgrade_times: vec![60, 50, 40, 30],
+			last_pruned: Some(20),
+		});
+
+		assert_eq!(past_code.prune_up_to(60).collect::<Vec<_>>(), vec![30, 40, 50, 60]);
+		assert_eq!(past_code, ParaPastCodeMeta {
+			upgrade_times: Vec::new(),
+			last_pruned: Some(60),
+		});
 	}
 }
