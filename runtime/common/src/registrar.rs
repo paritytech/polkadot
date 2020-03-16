@@ -764,6 +764,10 @@ mod tests {
 	parameter_types! {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
+
+		pub const ValidationUgradeFrequency: BlockNumber = 10;
+		pub const ValidationUpgradeDelay: BlockNumber = 2;
+		pub const SlashPeriod: BlockNumber = 50;
 	}
 
 	impl parachains::Trait for Test {
@@ -775,6 +779,9 @@ mod tests {
 		type Randomness = RandomnessCollectiveFlip;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
+		type ValidationUgradeFrequency = ValidationUgradeFrequency;
+		type ValidationUpgradeDelay = ValidationUpgradeDelay;
+		type SlashPeriod = SlashPeriod;
 	}
 
 	parameter_types! {
@@ -917,6 +924,7 @@ mod tests {
 				fees: 0,
 				upward_messages: vec![],
 				erasure_root: [1; 32].into(),
+				new_validation_code: None,
 			},
 		};
 		let (candidate, _) = candidate.abridge();

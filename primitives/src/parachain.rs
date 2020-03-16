@@ -196,8 +196,8 @@ pub struct CandidateCommitments {
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: Hash,
-	/// New validation Wasm code.
-	pub new_validation_wasm: Option<Vec<u8>>,
+	/// New validation code.
+	pub new_validation_code: Option<Vec<u8>>,
 }
 
 /// Get a collator signature payload on a relay-parent, block-data combo.

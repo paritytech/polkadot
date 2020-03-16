@@ -1204,6 +1204,10 @@ mod tests {
 	parameter_types! {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
+
+		pub const ValidationUgradeFrequency: BlockNumber = 10;
+		pub const ValidationUpgradeDelay: BlockNumber = 2;
+		pub const SlashPeriod: BlockNumber = 50;
 	}
 
 	impl Trait for Test {
@@ -1215,6 +1219,9 @@ mod tests {
 		type Registrar = registrar::Module<Test>;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
+		type ValidationUgradeFrequency = ValidationUgradeFrequency;
+		type ValidationUpgradeDelay = ValidationUpgradeDelay;
+		type SlashPeriod = SlashPeriod;
 	}
 
 	type Parachains = Module<Test>;

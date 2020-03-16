@@ -214,6 +214,7 @@ impl<'a> ValidatedCandidate<'a> {
 			upward_messages,
 			fees,
 			erasure_root,
+			new_validation_code: None,
 		};
 
 		Ok(FullOutput {
