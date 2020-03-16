@@ -480,10 +480,10 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		// the observer.
 
 		// add a custom voting rule to temporarily stop voting for new blocks
-		// after block #1500000 is finalized and restarting after block #151000
+		// after block #1500000 is finalized and restarting after block #1510000
 		// is imported.
 		let voting_rule = grandpa::VotingRulesBuilder::default()
-    		.add(PauseAfterBlockFor(1_500_000, 1000))
+    		.add(PauseAfterBlockFor(1_500_000, 10000))
     		.build();
 
 		let grandpa_config = grandpa::GrandpaParams {
