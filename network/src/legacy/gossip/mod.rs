@@ -335,6 +335,11 @@ pub struct NewLeafActions {
 }
 
 impl NewLeafActions {
+	#[cfg(test)]
+	pub fn new() -> Self {
+		NewLeafActions { actions: Vec::new() }
+	}
+
 	/// Perform the queued actions, feeding into gossip.
 	pub fn perform(
 		self,

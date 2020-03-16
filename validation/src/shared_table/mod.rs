@@ -34,7 +34,7 @@ use futures::channel::oneshot;
 use log::{warn, debug};
 use bitvec::bitvec;
 
-use super::{GroupInfo, TableRouter};
+use super::GroupInfo;
 use self::includable::IncludabilitySender;
 use primitives::Pair;
 use sp_api::ProvideRuntimeApi;
@@ -135,14 +135,14 @@ impl SharedTableInner {
 	//
 	// the statement producer, if any, will produce only statements concerning the same candidate
 	// as the one just imported
-	fn import_remote_statement<R: TableRouter>(
+	fn import_remote_statement<Fetch>(
 		&mut self,
 		context: &TableContext,
-		router: &R,
+		fetch_pov_block: impl Fn(&AbridgedCandidateReceipt) -> Fetch,
 		statement: table::SignedStatement,
 		max_block_data_size: Option<u64>,
 	) -> Option<ParachainWork<
-		R::FetchValidationProof
+		Fetch,
 	>> {
 		let summary = self.table.import_statement(context, statement)?;
 		self.update_trackers(&summary.candidate, context);
@@ -175,7 +175,7 @@ impl SharedTableInner {
 					None
 				}
 				Some(candidate) => {
-					let fetch = router.fetch_pov_block(candidate);
+					let fetch = fetch_pov_block(candidate);
 
 					Some(Work {
 						candidate_receipt: candidate.clone(),
@@ -446,14 +446,19 @@ impl SharedTable {
 	///
 	/// The ParachainWork, if any, will produce only statements concerning the same candidate
 	/// as the one just imported
-	pub fn import_remote_statement<R: TableRouter>(
+	pub fn import_remote_statement<Fetch>(
 		&self,
-		router: &R,
+		fetch_pov_block: impl Fn(&AbridgedCandidateReceipt) -> Fetch,
 		statement: table::SignedStatement,
 	) -> Option<ParachainWork<
-		R::FetchValidationProof,
+		Fetch,
 	>> {
-		self.inner.lock().import_remote_statement(&*self.context, router, statement, self.max_block_data_size)
+		self.inner.lock().import_remote_statement(
+			&*self.context,
+			fetch_pov_block,
+			statement,
+			self.max_block_data_size,
+		)
 	}
 
 	/// Import many statements at once.
@@ -464,18 +469,26 @@ impl SharedTable {
 	///
 	/// The ParachainWork, if any, will produce only statements concerning the same candidate
 	/// as the one just imported
-	pub fn import_remote_statements<R, I, U>(&self, router: &R, iterable: I) -> U
+	pub fn import_remote_statements<Fetch, I, U>(
+		&self,
+		fetch_pov_block: impl Fn(&AbridgedCandidateReceipt) -> Fetch,
+		iterable: I,
+	) -> U
 		where
-			R: TableRouter,
 			I: IntoIterator<Item=table::SignedStatement>,
 			U: ::std::iter::FromIterator<Option<ParachainWork<
-				R::FetchValidationProof,
+				Fetch,
 			>>>,
 	{
 		let mut inner = self.inner.lock();
 
 		iterable.into_iter().map(move |statement| {
-			inner.import_remote_statement(&*self.context, router, statement, self.max_block_data_size)
+			inner.import_remote_statement(
+				&*self.context,
+				&fetch_pov_block,
+				statement,
+				self.max_block_data_size,
+			)
 		}).collect()
 	}
 
@@ -562,7 +575,7 @@ impl SharedTable {
 		self.inner.lock().table.get_misbehavior().clone()
 	}
 
-	/// Track includability  of a given set of candidate hashes.
+	/// Track includability of a given set of candidate hashes.
 	pub fn track_includability<I>(&self, iterable: I) -> oneshot::Receiver<()>
 		where I: IntoIterator<Item=Hash>
 	{
@@ -626,23 +639,14 @@ mod tests {
 		) {}
 	}
 
-	#[derive(Clone)]
-	struct DummyRouter;
-	impl TableRouter for DummyRouter {
-		type Error = ::std::io::Error;
-		type SendLocalCollation = future::Ready<Result<(),Self::Error>>;
-		type FetchValidationProof = future::Ready<Result<PoVBlock,Self::Error>>;
-
-		fn local_collation(
-			&self,
-			_candidate: AbridgedCandidateReceipt,
-			_pov_block: PoVBlock,
-			_chunks: (ValidatorIndex, &[ErasureChunk])
-		) -> Self::SendLocalCollation { future::ready(Ok(())) }
-
-		fn fetch_pov_block(&self, _candidate: &AbridgedCandidateReceipt) -> Self::FetchValidationProof {
-			future::ok(pov_block_with_data(vec![1, 2, 3, 4, 5]))
-		}
+	fn lazy_fetch_pov()
+		-> Box<
+			dyn Fn(&AbridgedCandidateReceipt) -> future::Ready<
+				Result<PoVBlock, std::io::Error>
+			>
+		>
+	{
+		Box::new(|_| future::ok(pov_block_with_data(vec![1, 2, 3, 4, 5])))
 	}
 
 	#[test]
@@ -688,7 +692,7 @@ mod tests {
 		};
 
 		shared_table.import_remote_statement(
-			&DummyRouter,
+			lazy_fetch_pov(),
 			signed_statement,
 		).expect("candidate and local validity group are same");
 	}
@@ -736,7 +740,7 @@ mod tests {
 		};
 
 		shared_table.import_remote_statement(
-			&DummyRouter,
+			lazy_fetch_pov(),
 			signed_statement,
 		).expect("should produce work");
 	}
@@ -909,7 +913,7 @@ mod tests {
 		};
 
 		let _a = shared_table.import_remote_statement(
-			&DummyRouter,
+			lazy_fetch_pov(),
 			signed_statement.clone(),
 		).expect("should produce work");
 
@@ -917,7 +921,7 @@ mod tests {
 			.expect("validation has started").is_in_progress());
 
 		let b = shared_table.import_remote_statement(
-			&DummyRouter,
+			lazy_fetch_pov(),
 			signed_statement.clone(),
 		);
 
@@ -967,7 +971,7 @@ mod tests {
 			.expect("validation has started").is_done());
 
 		let a = shared_table.import_remote_statement(
-			&DummyRouter,
+			lazy_fetch_pov(),
 			signed_statement,
 		);
 
