@@ -26,7 +26,7 @@ use sp_runtime::traits::{
 };
 use frame_support::weights::SimpleDispatchInfo;
 use primitives::{
-	Balance,
+	Balance, BlockNumber,
 	parachain::{
 		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
@@ -162,8 +162,8 @@ const MAX_QUEUE_COUNT: usize = 100;
 /// single message.
 const WATERMARK_QUEUE_SIZE: usize = 20000;
 
-#[derive(Default)]
-struct PastCodeMeta {
+#[derive(Default, Encode, Decode)]
+struct ParaPastCodeMeta {
 	// Block numbers where the code was replaced. These can be used as indices
 	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
 	upgrade_times: Vec<BlockNumber>,
@@ -178,7 +178,7 @@ enum UseCodeAt {
 	ReplacedAt(BlockNumber),
 }
 
-impl PastCodeMeta {
+impl ParaPastCodeMeta {
 	// Yields the block number of the code that should be used for validating at
 	// the given block number.
 	//
@@ -186,7 +186,7 @@ impl PastCodeMeta {
 	// should be used to validate at the given height.
 	fn code_at(&self, at: BlockNumber) -> Option<UseCodeAt> {
 		// The `PastCode` map stores the code which was replaced at `t`.
-		let end_position = self.upgrade_times.iter().position(|t| t < at);
+		let end_position = self.upgrade_times.iter().position(|&t| t < at);
 		if let Some(end_position) = end_position {
 			Some(if end_position != 0 {
 				// `end_position` gives us the replacement time where the code used at `at`
@@ -200,7 +200,7 @@ impl PastCodeMeta {
 				UseCodeAt::Current
 			})
 		} else {
-			if self.last_pruned.as_ref().map_or(true, |n| n < at) {
+			if self.last_pruned.as_ref().map_or(true, |&n| n < at) {
 				// Our `last_pruned` is before `at`, so we still have the code!
 				// but no code upgrade entries found before the `at` parameter.
 				//
@@ -216,7 +216,6 @@ impl PastCodeMeta {
 				// We don't have the code anymore.
 				None
 			}
-			None
 		}
 	}
 
@@ -233,11 +232,11 @@ impl PastCodeMeta {
 	// prunes all code upgrade logs occurring at or before `max`.
 	// note that code replaced at `x` is the code used to validate all blocks before
 	// `x`. Thus, `max` should be outside of the slashing window when this is invoked.
-	// TODO [now]: pruning.
-	fn prune_up_to(&mut self, max: BlockNumber) -> impl Iterator<Item=BlockNumber> {
-		match self.upgrade_times.iter().position(|t| t <= max) {
+	// TODO [now]: trigger pruning.
+	fn prune_up_to(&'_ mut self, max: BlockNumber) -> impl Iterator<Item=BlockNumber> + '_ {
+		match self.upgrade_times.iter().position(|&t| t <= max) {
 			None => {
-				// this is effectively a no-op `drain` - desired because all
+				// this is a no-op `drain` - desired because all
 				// logged code upgrades occurred after `max`.
 				self.upgrade_times.drain(self.upgrade_times.len()..)
 			}
@@ -248,8 +247,8 @@ impl PastCodeMeta {
 
 struct PlannedCodeChange {
 	// The block number at which the planned code change is expected,
-	// It will be applied after the first parablock included at or after
-	// this relay chain block.
+	// The change will be applied after the first parablock included which executes
+	// in the context of a relay chain block with a number >= `expected_at`.
 	expected_at: BlockNumber,
 	new_code: Vec<u8>,
 }
@@ -264,10 +263,10 @@ decl_storage! {
 		/// Past code of parachains. The parachains themselves may not be registered anymore,
 		/// but we also keep their code on-chain for the same amount of time as outdated code
 		/// to assist with availability.
-		PastCodeMeta: map hasher(blake2_256) ParaId => PastCodeMeta,
+		PastCodeMeta: map hasher(blake2_256) ParaId => ParaPastCodeMeta;
 		/// Actual past code, indicated by the parachain and the block number at which it
 		/// was outdated.
-		PastCode: map hasher(blake2_256) (ParaId, BlockNumber) => Option<Vec<u8>>,
+		PastCode: map hasher(blake2_256) (ParaId, BlockNumber) => Option<Vec<u8>>;
 
 		/// The heads of the parachains registered at present.
 		pub Heads get(parachain_head): map hasher(blake2_256) ParaId => Option<Vec<u8>>;
@@ -456,7 +455,9 @@ impl<T: Trait> Module<T> {
 		let code = <Code>::take(id);
 		<Heads>::remove(id);
 
-		Self::note_past_code(id, code);
+		if let Some(code) = code {
+			Self::note_past_code(id, code);
+		}
 	}
 
 	fn note_past_code(id: ParaId, code: Vec<u8>) {
@@ -1005,7 +1006,6 @@ mod tests {
 			CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo,
 			Scheduling, LocalValidationData, CandidateCommitments,
 		},
-		BlockNumber,
 	};
 	use keyring::Sr25519Keyring;
 	use frame_support::{
