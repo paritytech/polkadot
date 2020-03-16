@@ -1,6 +1,6 @@
 [package]
 name = "kusama-runtime"
-version = "0.7.24"
+version = "0.7.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
