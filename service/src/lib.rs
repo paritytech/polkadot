@@ -478,13 +478,21 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		// they're validators or not). at this point the full voter should
 		// provide better guarantees of block and vote data availability than
 		// the observer.
+
+		// add a custom voting rule to temporarily stop voting for new blocks
+		// after block #1500000 is finalized and restarting after block #151000
+		// is imported.
+		let voting_rule = grandpa::VotingRulesBuilder::default()
+    		.add(PauseAfterBlockFor(1_500_000, 1000))
+    		.build();
+
 		let grandpa_config = grandpa::GrandpaParams {
 			config,
 			link: link_half,
 			network: service.network(),
 			inherent_data_providers: inherent_data_providers.clone(),
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
-			voting_rule: grandpa::VotingRulesBuilder::default().build(),
+			voting_rule,
 			prometheus_registry: service.prometheus_registry(),
 		};
 
@@ -637,4 +645,73 @@ where
 			Ok(polkadot_rpc::create_light(builder.client().clone(), remote_blockchain, fetcher, builder.pool()))
 		})?
 		.build()
+}
+
+/// A custom GRANDPA voting rule that "pauses" voting (i.e. keeps voting for the
+/// same last finalized block) after a given block at height `N` has been
+/// finalized and for a delay of `M` blocks, i.e. until the best block reaches
+/// `N` + `M`, the voter will keep voting for block `N`.
+struct PauseAfterBlockFor<N>(N, N);
+
+impl<B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<polkadot_primitives::BlockNumber> where
+	B: sp_blockchain::HeaderBackend<Block>,
+{
+	fn restrict_vote(
+		&self,
+		backend: &B,
+		base: &polkadot_primitives::Header,
+		best_target: &polkadot_primitives::Header,
+		current_target: &polkadot_primitives::Header,
+	) -> Option<(Hash, polkadot_primitives::BlockNumber)> {
+		use sp_runtime::traits::Header as _;
+
+		// walk backwards until we find the target block
+		let find_target = |
+			target_number: polkadot_primitives::BlockNumber,
+			current_header: &polkadot_primitives::Header
+		| {
+			let mut target_hash = current_header.hash();
+			let mut target_header = current_header.clone();
+
+			loop {
+				if *target_header.number() < target_number {
+					unreachable!(
+						"we are traversing backwards from a known block; \
+						 blocks are stored contiguously; \
+						 qed"
+					);
+				}
+
+				if *target_header.number() == target_number {
+					return Some((target_hash, target_number));
+				}
+
+				target_hash = *target_header.parent_hash();
+				target_header = backend.header(BlockId::Hash(target_hash)).ok()?
+					.expect("Header known to exist due to the existence of one of its descendents; qed");
+			}
+		};
+
+		// only restrict votes targeting a block higher than the block
+		// we've set for the pause
+		if *current_target.number() > self.0 {
+			// if we're past the pause period (i.e. `self.0 + self.1`)
+			// then we no longer need to restrict any votes
+			if *best_target.number() > self.0 + self.1 {
+				return None;
+			}
+
+			// if we've finalized the pause block, just keep returning it
+			// until best number increases enough to pass the condition above
+			if *base.number() >= self.0 {
+				return Some((base.hash(), *base.number()));
+			}
+
+			// otherwise find the target header at the pause block
+			// to vote on
+			return find_target(self.0, current_target);
+		}
+
+		None
+	}
 }
