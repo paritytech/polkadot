@@ -120,13 +120,15 @@ fi
 echo '[+] Sending draft release URL to Matrix'
 
 msg_body=$(cat <<EOF
-**Gav: Release pipeline for Polkadot $version complete.**
-Draft release created: $html_url
+**New version of polkadot tagged:** $CI_COMMIT_TAG.
+Gav: Draft release created: $html_url
+Build pipeline: $CI_PIPELINE_URL
 EOF
 )
 formatted_msg_body=$(cat <<EOF
-<strong>Gav: Release pipeline for Polkadot $version complete.</strong><br />
-Draft release created: $html_url
+<strong>New version of polkadot tagged:</strong> $CI_COMMIT_TAG<br />
+Gav: Draft release created: $html_url <br />
+Build pipeline: $CI_PIPELINE_URL
 EOF
 )
 send_message "$(structure_message "$msg_body" "$formatted_msg_body")" "$MATRIX_ROOM_ID" "$MATRIX_ACCESS_TOKEN"
