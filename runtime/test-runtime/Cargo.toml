@@ -33,7 +33,7 @@ transaction-payment = { package = "pallet-transaction-payment", git = "https://g
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 executive = { package = "frame-executive", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 finality-tracker = { package = "pallet-finality-tracker", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-grandpa = { package = "pallet-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false, features = ["migrate-authorities"] }
+grandpa = { package = "pallet-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 indices = { package = "pallet-indices", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 nicks = { package = "pallet-nicks", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }

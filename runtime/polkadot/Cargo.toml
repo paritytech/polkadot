@@ -38,7 +38,7 @@ democracy = { package = "pallet-democracy", git = "https://github.com/paritytech
 elections-phragmen = { package = "pallet-elections-phragmen", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 executive = { package = "frame-executive", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 finality-tracker = { package = "pallet-finality-tracker", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
-grandpa = { package = "pallet-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false, features = ["migrate-authorities"] }
+grandpa = { package = "pallet-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 identity = { package = "pallet-identity", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 indices = { package = "pallet-indices", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
