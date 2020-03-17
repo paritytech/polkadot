@@ -177,16 +177,16 @@ decl_storage! {
 		NextFreeId: ParaId = LOWEST_USER_ID;
 
 		/// Pending swap operations.
-		PendingSwap: map hasher(blake2_256) ParaId => Option<ParaId>;
+		PendingSwap: map hasher(twox_64_concat) ParaId => Option<ParaId>;
 
 		/// Map of all registered parathreads/chains.
-		Paras get(paras): map hasher(blake2_256) ParaId => Option<ParaInfo>;
+		Paras get(paras): map hasher(twox_64_concat) ParaId => Option<ParaInfo>;
 
 		/// The current queue for parathreads that should be retried.
 		RetryQueue get(retry_queue): Vec<Vec<(ParaId, CollatorId)>>;
 
 		/// Users who have paid a parathread's deposit
-		Debtors: map hasher(blake2_256) ParaId => T::AccountId;
+		Debtors: map hasher(twox_64_concat) ParaId => T::AccountId;
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
@@ -704,7 +704,7 @@ mod tests {
 		type Version = ();
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u128>;
-		type OnNewAccount = ();
+		type MigrateAccount = (); type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 	}
 

@@ -155,16 +155,16 @@ decl_storage! {
 		/// All authorities' keys at the moment.
 		pub Authorities get(authorities): Vec<ValidatorId>;
 		/// The parachains registered at present.
-		pub Code get(parachain_code): map hasher(blake2_256) ParaId => Option<Vec<u8>>;
+		pub Code get(parachain_code): map hasher(twox_64_concat) ParaId => Option<Vec<u8>>;
 		/// The heads of the parachains registered at present.
-		pub Heads get(parachain_head): map hasher(blake2_256) ParaId => Option<Vec<u8>>;
+		pub Heads get(parachain_head): map hasher(twox_64_concat) ParaId => Option<Vec<u8>>;
 		/// Messages ready to be dispatched onto the relay chain. It is subject to
 		/// `MAX_MESSAGE_COUNT` and `WATERMARK_MESSAGE_SIZE`.
-		pub RelayDispatchQueue: map hasher(blake2_256) ParaId => Vec<UpwardMessage>;
+		pub RelayDispatchQueue: map hasher(twox_64_concat) ParaId => Vec<UpwardMessage>;
 		/// Size of the dispatch queues. Separated from actual data in order to avoid costly
 		/// decoding when checking receipt validity. First item in tuple is the count of messages
 		///	second if the total length (in bytes) of the message payloads.
-		pub RelayDispatchQueueSize: map hasher(blake2_256) ParaId => (u32, u32);
+		pub RelayDispatchQueueSize: map hasher(twox_64_concat) ParaId => (u32, u32);
 		/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
 		NeedsDispatch: Vec<ParaId>;
 
@@ -938,7 +938,7 @@ mod tests {
 		type Version = ();
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u128>;
-		type OnNewAccount = ();
+		type MigrateAccount = (); type OnNewAccount = ();
 		type OnKilledAccount = ();
 	}
 

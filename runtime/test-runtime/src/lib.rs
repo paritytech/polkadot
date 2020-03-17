@@ -133,7 +133,7 @@ impl system::Trait for Runtime {
 	type Version = Version;
 	type ModuleToIndex = ModuleToIndex;
 	type AccountData = balances::AccountData<Balance>;
-	type OnNewAccount = ();
+	type MigrateAccount = (); type OnNewAccount = ();
 	type OnKilledAccount = ();
 }
 
