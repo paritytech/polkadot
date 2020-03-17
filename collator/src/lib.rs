@@ -349,14 +349,14 @@ where
 		).into(),
 		(true, _) =>
 			build_collator_service(
-				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
 				para_id,
 				key,
 				build_parachain_context,
 			)?.await,
 		(false, _) =>
 			build_collator_service(
-				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
 				para_id,
 				key,
 				build_parachain_context,
@@ -395,7 +395,7 @@ pub fn run_collator<P>(
 		(true, _) =>
 			sc_cli::run_service_until_exit(config, |config| {
 				build_collator_service(
-					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
 					para_id,
 					key,
 					build_parachain_context,
@@ -404,7 +404,7 @@ pub fn run_collator<P>(
 		(false, _) =>
 			sc_cli::run_service_until_exit(config, |config| {
 				build_collator_service(
-					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
 					para_id,
 					key,
 					build_parachain_context,
