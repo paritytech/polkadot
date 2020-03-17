@@ -42,10 +42,11 @@ use polkadot_validation::{
 };
 use sc_network::{config::Roles, Event, PeerId};
 use sp_api::ProvideRuntimeApi;
+use sp_runtime::ConsensusEngineId;
 
 use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::pin::Pin;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use std::time::Duration;
 
 use super::{cost, benefit, PolkadotNetworkService};
@@ -58,11 +59,14 @@ pub const VERSION: u32 = 1;
 pub const MIN_SUPPORTED_VERSION: u32 = 1;
 
 /// The engine ID of the polkadot network protocol.
-pub const POLKADOT_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"dot2";
+pub const POLKADOT_ENGINE_ID: ConsensusEngineId = *b"dot2";
 /// The protocol name.
 pub const POLKADOT_PROTOCOL_NAME: &[u8] = b"/polkadot/1";
 
 pub use crate::legacy::gossip::ChainContext;
+
+#[cfg(test)]
+mod tests;
 
 // Messages from the service API or network adapter.
 enum ServiceToWorkerMsg {
@@ -72,16 +76,14 @@ enum ServiceToWorkerMsg {
 	PeerDisconnected(PeerId),
 
 	// service messages.
-	BuildConsensusNetworking(Arc<SharedTable>, Vec<ValidatorId>, oneshot::Sender<Router>),
+	BuildConsensusNetworking(Arc<SharedTable>, Vec<ValidatorId>),
 	DropConsensusNetworking(Hash),
 	SubmitValidatedCollation(
-		Hash, // relay-parent
 		AbridgedCandidateReceipt,
 		PoVBlock,
 		(ValidatorIndex, Vec<ErasureChunk>),
 	),
 	FetchPoVBlock(
-		Hash, // relay-parent
 		AbridgedCandidateReceipt,
 		oneshot::Sender<PoVBlock>,
 	),
@@ -113,13 +115,87 @@ enum ServiceToWorkerMsg {
 		Hash, // relay-parent,
 		oneshot::Sender<Pin<Box<dyn Stream<Item = SignedStatement> + Send>>>,
 	),
+
+	/// Used in tests to ensure that all other messages sent from the same
+	/// thread have been flushed. Also executes arbitrary logic with the protocl
+	/// handler.
+	#[cfg(test)]
+	Synchronize(Box<dyn FnOnce(&mut ProtocolHandler) + Send>),
+}
+
+/// Messages from a background task to the main worker task.
+enum BackgroundToWorkerMsg {
+	// Spawn a given future.
+	Spawn(future::BoxFuture<'static, ()>),
+}
+
+/// Operations that a handle to an underlying network service should provide.
+trait NetworkServiceOps: Send + Sync {
+	/// Report the peer as having a particular positive or negative value.
+	fn report_peer(&self, peer: PeerId, value: sc_network::ReputationChange);
+
+	/// Write a notification to a given peer.
+	fn write_notification(
+		&self,
+		peer: PeerId,
+		engine_id: ConsensusEngineId,
+		notification: Vec<u8>,
+	);
+}
+
+impl NetworkServiceOps for PolkadotNetworkService {
+	fn report_peer(&self, peer: PeerId, value: sc_network::ReputationChange) {
+		PolkadotNetworkService::report_peer(self, peer, value);
+	}
+
+	fn write_notification(
+		&self,
+		peer: PeerId,
+		engine_id: ConsensusEngineId,
+		notification: Vec<u8>,
+	) {
+		PolkadotNetworkService::write_notification(self, peer, engine_id, notification);
+	}
+}
+
+/// Operations that a handle to a gossip network should provide.
+trait GossipOps: Clone + Send + crate::legacy::GossipService + 'static {
+	fn new_local_leaf(
+		&self,
+		relay_parent: Hash,
+		validation_data: crate::legacy::gossip::MessageValidationData,
+	) -> crate::legacy::gossip::NewLeafActions;
+
+	/// Register an availability store in the gossip service to evaluate incoming
+	/// messages with.
+	fn register_availability_store(
+		&self,
+		store: av_store::Store,
+	);
+}
+
+impl GossipOps for RegisteredMessageValidator {
+	fn new_local_leaf(
+		&self,
+		relay_parent: Hash,
+		validation_data: crate::legacy::gossip::MessageValidationData,
+	) -> crate::legacy::gossip::NewLeafActions {
+		RegisteredMessageValidator::new_local_leaf(self, relay_parent, validation_data)
+	}
+
+	fn register_availability_store(
+		&self,
+		store: av_store::Store,
+	) {
+		RegisteredMessageValidator::register_availability_store(self, store);
+	}
 }
 
 /// An async handle to the network service.
 #[derive(Clone)]
 pub struct Service {
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
-	network_service: Arc<PolkadotNetworkService>,
+	network_service: Arc<dyn NetworkServiceOps>,
 }
 
 /// Registers the protocol.
@@ -153,7 +229,6 @@ pub fn start<C, Api, SP>(
 		config,
 		service.clone(),
 		gossip_validator,
-		worker_sender.clone(),
 		api,
 		worker_receiver,
 		executor.clone(),
@@ -305,6 +380,28 @@ struct ConsensusNetworkingInstance {
 	_drop_signal: exit_future::Signal,
 }
 
+/// A utility future that resolves when the receiving end of a channel has hung up.
+///
+/// This is an `.await`-friendly interface around `poll_canceled`.
+// TODO: remove in favor of https://github.com/rust-lang/futures-rs/pull/2092/
+// once published.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+#[derive(Debug)]
+pub struct AwaitCanceled<'a, T> {
+	inner: &'a mut oneshot::Sender<T>,
+}
+
+impl<T> Future for AwaitCanceled<'_, T> {
+	type Output = ();
+
+	fn poll(
+		mut self: Pin<&mut Self>,
+		cx: &mut futures::task::Context<'_>,
+	) -> futures::task::Poll<()> {
+		self.inner.poll_canceled(cx)
+	}
+}
+
 /// Protocol configuration.
 #[derive(Default)]
 pub struct Config {
@@ -356,33 +453,37 @@ impl RecentValidatorIds {
 }
 
 struct ProtocolHandler {
-	service: Arc<PolkadotNetworkService>,
+	service: Arc<dyn NetworkServiceOps>,
 	peers: HashMap<PeerId, PeerData>,
 	// reverse mapping from validator-ID to PeerID. Multiple peers can represent
 	// the same validator because of sentry nodes.
 	connected_validators: HashMap<ValidatorId, HashSet<PeerId>>,
+	consensus_instances: HashMap<Hash, ConsensusNetworkingInstance>,
 	collators: crate::legacy::collator_pool::CollatorPool,
 	local_collations: crate::legacy::local_collations::LocalCollations<Collation>,
 	config: Config,
+	local_keys: RecentValidatorIds,
 }
 
 impl ProtocolHandler {
 	fn new(
-		service: Arc<PolkadotNetworkService>,
+		service: Arc<dyn NetworkServiceOps>,
 		config: Config,
 	) -> Self {
 		ProtocolHandler {
 			service,
 			peers: HashMap::new(),
 			connected_validators: HashMap::new(),
+			consensus_instances: HashMap::new(),
 			collators: Default::default(),
 			local_collations: Default::default(),
+			local_keys: Default::default(),
 			config,
 		}
 	}
 
 	fn on_connect(&mut self, peer: PeerId, roles: Roles) {
-		let claimed_validator = roles.contains(sc_network::config::Roles::AUTHORITY);
+		let claimed_validator = roles.contains(Roles::AUTHORITY);
 
 		self.peers.insert(peer.clone(), PeerData {
 			claimed_validator,
@@ -586,6 +687,7 @@ impl ProtocolHandler {
 		if let Some(invalidated) = invalidated_key {
 			self.validator_representative_removed(invalidated, &remote);
 		}
+		self.connected_validators.entry(key).or_insert_with(HashSet::new).insert(remote.clone());
 
 		send_peer_collations(&*self.service, remote, collations_to_send);
 	}
@@ -658,10 +760,15 @@ impl ProtocolHandler {
 			}
 		}
 	}
+
+	fn drop_consensus_networking(&mut self, relay_parent: &Hash) {
+		// this triggers an abort of the background task.
+		self.consensus_instances.remove(relay_parent);
+	}
 }
 
 fn send_peer_collations(
-	service: &PolkadotNetworkService,
+	service: &dyn NetworkServiceOps,
 	remote: PeerId,
 	collations: impl IntoIterator<Item=(Hash, Collation)>,
 ) {
@@ -674,102 +781,90 @@ fn send_peer_collations(
 	}
 }
 
-async fn worker_loop<Api, Sp>(
-	config: Config,
-	service: Arc<PolkadotNetworkService>,
-	gossip_handle: RegisteredMessageValidator,
-	sender: mpsc::Sender<ServiceToWorkerMsg>,
+struct Worker<Api, Sp, Gossip> {
+	protocol_handler: ProtocolHandler,
 	api: Arc<Api>,
-	mut receiver: mpsc::Receiver<ServiceToWorkerMsg>,
 	executor: Sp,
-) where
+	gossip_handle: Gossip,
+	background_to_main_sender: mpsc::Sender<BackgroundToWorkerMsg>,
+	background_receiver: mpsc::Receiver<BackgroundToWorkerMsg>,
+	service_receiver: mpsc::Receiver<ServiceToWorkerMsg>,
+}
+
+impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
-	Sp: Spawn + Clone + Send + 'static,
+	Sp: Spawn + Clone,
+	Gossip: GossipOps,
 {
-	const COLLECT_GARBAGE_INTERVAL: Duration = Duration::from_secs(29);
+	// spawns a background task to spawn consensus networking.
+	fn build_consensus_networking(
+		&mut self,
+		table: Arc<SharedTable>,
+		authorities: Vec<ValidatorId>,
+	) {
+		// glue: let gossip know about our new local leaf.
+		let relay_parent = table.consensus_parent_hash().clone();
+		let (signal, exit) = exit_future::signal();
 
-	let mut protocol_handler = ProtocolHandler::new(service, config);
-	let mut consensus_instances = HashMap::new();
-	let mut local_keys = RecentValidatorIds::default();
-
-	let mut collect_garbage = stream::unfold((), move |_| {
-		futures_timer::Delay::new(COLLECT_GARBAGE_INTERVAL).map(|_| Some(((), ())))
-	}).map(drop);
-
-	loop {
-		let message = match future::select(receiver.next(), collect_garbage.next()).await {
-			Either::Left((None, _)) | Either::Right((None, _)) => break,
-			Either::Left((Some(message), _)) => message,
-			Either::Right(_) => {
-				protocol_handler.collect_garbage();
-				continue
+		let key = table.session_key();
+		if let Some(key) = key {
+			if let InsertedRecentKey::New(_) = self.protocol_handler.local_keys.insert(key.clone()) {
+				self.protocol_handler.distribute_new_session_key(key);
 			}
-		};
+		}
 
+		let new_leaf_actions = self.gossip_handle.new_local_leaf(
+			relay_parent,
+			crate::legacy::gossip::MessageValidationData { authorities },
+		);
+
+		new_leaf_actions.perform(&self.gossip_handle);
+
+		self.protocol_handler.consensus_instances.insert(
+			relay_parent,
+			ConsensusNetworkingInstance {
+				statement_table: table.clone(),
+				relay_parent,
+				attestation_topic: crate::legacy::gossip::attestation_topic(relay_parent),
+				_drop_signal: signal,
+			},
+		);
+
+		// glue the incoming messages, shared table, and validation
+		// work together.
+		let _ = self.executor.spawn(statement_import_loop(
+			relay_parent,
+			table,
+			self.api.clone(),
+			self.gossip_handle.clone(),
+			self.background_to_main_sender.clone(),
+			exit,
+		));
+	}
+
+	fn handle_service_message(&mut self, message: ServiceToWorkerMsg) {
 		match message {
 			ServiceToWorkerMsg::PeerConnected(remote, roles) => {
-				protocol_handler.on_connect(remote, roles);
+				self.protocol_handler.on_connect(remote, roles);
 			}
 			ServiceToWorkerMsg::PeerDisconnected(remote) => {
-				protocol_handler.on_disconnect(remote);
+				self.protocol_handler.on_disconnect(remote);
 			}
 			ServiceToWorkerMsg::PeerMessage(remote, messages) => {
-				protocol_handler.on_raw_messages(remote, messages)
+				self.protocol_handler.on_raw_messages(remote, messages)
 			}
 
-			ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities, router_sender) => {
-				// glue: let gossip know about our new local leaf.
-				let relay_parent = table.consensus_parent_hash().clone();
-				let (signal, exit) = exit_future::signal();
-
-				let router = Router {
-					inner: Arc::new(RouterInner { relay_parent, sender: sender.clone() }),
-				};
-
-				let key = table.session_key();
-				if let Some(key) = key {
-					if let InsertedRecentKey::New(_) = local_keys.insert(key.clone()) {
-						protocol_handler.distribute_new_session_key(key);
-					}
-				}
-
-				let new_leaf_actions = gossip_handle.new_local_leaf(
-					relay_parent,
-					crate::legacy::gossip::MessageValidationData { authorities },
-				);
-
-				new_leaf_actions.perform(&gossip_handle);
-
-				consensus_instances.insert(relay_parent, ConsensusNetworkingInstance {
-					statement_table: table.clone(),
-					relay_parent,
-					attestation_topic: crate::legacy::gossip::attestation_topic(relay_parent),
-					_drop_signal: signal,
-				});
-
-				let weak_router = Arc::downgrade(&router.inner);
-
-				// glue the incoming messages, shared table, and validation
-				// work together.
-				let _ = executor.spawn(statement_import_loop(
-					relay_parent,
-					table,
-					api.clone(),
-					weak_router,
-					gossip_handle.clone(),
-					exit,
-					executor.clone(),
-				));
-
-				let _ = router_sender.send(router);
+			ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities) => {
+				self.build_consensus_networking(table, authorities);
 			}
 			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
-				consensus_instances.remove(&relay_parent);
+				self.protocol_handler.drop_consensus_networking(&relay_parent);
 			}
-			ServiceToWorkerMsg::SubmitValidatedCollation(relay_parent, receipt, pov_block, chunks) => {
-				let instance = match consensus_instances.get(&relay_parent) {
-					None => continue,
+			ServiceToWorkerMsg::SubmitValidatedCollation(receipt, pov_block, chunks) => {
+				let relay_parent = receipt.relay_parent;
+				let instance = match self.protocol_handler.consensus_instances.get(&relay_parent) {
+					None => return,
 					Some(instance) => instance,
 				};
 
@@ -778,21 +873,21 @@ async fn worker_loop<Api, Sp>(
 					receipt,
 					pov_block,
 					chunks,
-					&gossip_handle,
+					&self.gossip_handle,
 				);
 			}
-			ServiceToWorkerMsg::FetchPoVBlock(_relay_parent, _candidate, _sender) => {
+			ServiceToWorkerMsg::FetchPoVBlock(_candidate, _sender) => {
 				// TODO https://github.com/paritytech/polkadot/issues/742:
 				// create a filter on gossip for it and send to sender.
 			}
-			ServiceToWorkerMsg::FetchErasureChunk(candidate_hash, validator_index, sender) => {
+			ServiceToWorkerMsg::FetchErasureChunk(candidate_hash, validator_index, mut sender) => {
 				let topic = crate::erasure_coding_topic(&candidate_hash);
 
 				// for every erasure-root, relay-parent pair, there should only be one
 				// valid chunk with the given index.
 				//
 				// so we only care about the first item of the filtered stream.
-				let get_msg = gossip_handle.gossip_messages_for(topic)
+				let get_msg = self.gossip_handle.gossip_messages_for(topic)
 					.filter_map(move |(msg, _)| {
 						future::ready(match msg {
 							GossipMessage::ErasureChunk(chunk) =>
@@ -809,14 +904,16 @@ async fn worker_loop<Api, Sp>(
 						"gossip message streams do not conclude early; qed"
 					));
 
-				let _ = executor.spawn(async move {
-					let chunk = get_msg.await;
-					let _ = sender.send(chunk);
+				let _ = self.executor.spawn(async move {
+					let res = future::select(get_msg, AwaitCanceled { inner: &mut sender }).await;
+					if let Either::Left((chunk, _)) = res {
+						let _ = sender.send(chunk);
+					}
 				});
 			}
 			ServiceToWorkerMsg::DistributeErasureChunk(candidate_hash, erasure_chunk) => {
 				let topic = crate::erasure_coding_topic(&candidate_hash);
-				gossip_handle.gossip_message(
+				self.gossip_handle.gossip_message(
 					topic,
 					GossipMessage::ErasureChunk(ErasureChunkMessage {
 						chunk: erasure_chunk,
@@ -826,20 +923,20 @@ async fn worker_loop<Api, Sp>(
 			}
 			ServiceToWorkerMsg::AwaitCollation(relay_parent, para_id, sender) => {
 				debug!(target: "p_net", "Attempting to get collation for parachain {:?} on relay parent {:?}", para_id, relay_parent);
-				protocol_handler.await_collation(relay_parent, para_id, sender)
+				self.protocol_handler.await_collation(relay_parent, para_id, sender)
 			}
 			ServiceToWorkerMsg::NoteBadCollator(collator) => {
-				protocol_handler.note_bad_collator(collator);
+				self.protocol_handler.note_bad_collator(collator);
 			}
 			ServiceToWorkerMsg::RegisterAvailabilityStore(store) => {
-				gossip_handle.register_availability_store(store);
+				self.gossip_handle.register_availability_store(store);
 			}
 			ServiceToWorkerMsg::OurCollation(targets, collation) => {
-				protocol_handler.distribute_our_collation(targets, collation);
+				self.protocol_handler.distribute_our_collation(targets, collation);
 			}
 			ServiceToWorkerMsg::ListenCheckedStatements(relay_parent, sender) => {
 				let topic = crate::legacy::gossip::attestation_topic(relay_parent);
-				let checked_messages = gossip_handle.gossip_messages_for(topic)
+				let checked_messages = self.gossip_handle.gossip_messages_for(topic)
 					.filter_map(|msg| match msg.0 {
 						GossipMessage::Statement(s) => future::ready(Some(s.signed_statement)),
 						_ => future::ready(None),
@@ -848,8 +945,72 @@ async fn worker_loop<Api, Sp>(
 
 				let _ = sender.send(checked_messages);
 			}
+			#[cfg(test)]
+			ServiceToWorkerMsg::Synchronize(callback) => {
+				(callback)(&mut self.protocol_handler)
+			}
 		}
 	}
+
+	fn handle_background_message(&mut self, message: BackgroundToWorkerMsg) {
+		match message {
+			BackgroundToWorkerMsg::Spawn(task) => {
+				let _ = self.executor.spawn(task);
+			}
+		}
+	}
+
+	async fn main_loop(&mut self) {
+		const COLLECT_GARBAGE_INTERVAL: Duration = Duration::from_secs(29);
+
+		let mut collect_garbage = stream::unfold((), move |_| {
+			futures_timer::Delay::new(COLLECT_GARBAGE_INTERVAL).map(|_| Some(((), ())))
+		}).map(drop);
+
+		loop {
+			futures::select! {
+				_do_collect = collect_garbage.next() => {
+					self.protocol_handler.collect_garbage();
+				}
+				service_msg = self.service_receiver.next() => match service_msg {
+					Some(msg) => self.handle_service_message(msg),
+					None => return,
+				},
+				background_msg = self.background_receiver.next() => match background_msg {
+					Some(msg) => self.handle_background_message(msg),
+					None => return,
+				},
+			}
+		}
+	}
+}
+
+async fn worker_loop<Api, Sp>(
+	config: Config,
+	service: Arc<dyn NetworkServiceOps>,
+	gossip_handle: impl GossipOps,
+	api: Arc<Api>,
+	receiver: mpsc::Receiver<ServiceToWorkerMsg>,
+	executor: Sp,
+) where
+	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
+	Sp: Spawn + Clone,
+{
+	const BACKGROUND_TO_MAIN_BUF: usize = 16;
+
+	let (background_tx, background_rx) = mpsc::channel(BACKGROUND_TO_MAIN_BUF);
+	let mut worker = Worker {
+		protocol_handler: ProtocolHandler::new(service, config),
+		api,
+		executor,
+		gossip_handle,
+		background_to_main_sender: background_tx,
+		background_receiver: background_rx,
+		service_receiver: receiver,
+	};
+
+	worker.main_loop().await
 }
 
 // A unique trace for valid statements issued by a validator.
@@ -917,10 +1078,9 @@ async fn statement_import_loop<Api>(
 	relay_parent: Hash,
 	table: Arc<SharedTable>,
 	api: Arc<Api>,
-	weak_router: Weak<RouterInner>,
-	gossip_handle: RegisteredMessageValidator,
+	gossip_handle: impl GossipOps,
+	mut to_worker: mpsc::Sender<BackgroundToWorkerMsg>,
 	mut exit: exit_future::Exit,
-	executor: impl Spawn,
 ) where
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
@@ -972,14 +1132,16 @@ async fn statement_import_loop<Api>(
 		statements.insert(0, statement);
 
 		let producers: Vec<_> = {
-			// create a temporary router handle for importing all of these statements
-			let temp_router = match weak_router.upgrade() {
-				None => break,
-				Some(inner) => Router { inner },
-			};
+			// TODO: fetch these from gossip.
+			// https://github.com/paritytech/polkadot/issues/742
+			fn ignore_pov_fetch_requests(_: &AbridgedCandidateReceipt)
+				-> future::Pending<Result<PoVBlock, std::io::Error>>
+			{
+				future::pending()
+			}
 
 			table.import_remote_statements(
-				&temp_router,
+				&ignore_pov_fetch_requests,
 				statements.iter().cloned(),
 			)
 		};
@@ -1015,7 +1177,14 @@ async fn statement_import_loop<Api>(
 					});
 
 					let work = future::select(work.boxed(), exit.clone()).map(drop);
-					let _ = executor.spawn(work);
+					if let Err(_) = to_worker.send(
+						BackgroundToWorkerMsg::Spawn(work.boxed())
+					).await {
+						// can fail only if remote has hung up - worker is dead,
+						// we should die too. this is defensive, since the exit future
+						// would fire shortly anyway.
+						return
+					}
 				}
 			}
 		}
@@ -1030,7 +1199,7 @@ fn distribute_validated_collation(
 	receipt: AbridgedCandidateReceipt,
 	pov_block: PoVBlock,
 	chunks: (ValidatorIndex, Vec<ErasureChunk>),
-	gossip_handle: &RegisteredMessageValidator,
+	gossip_handle: &impl GossipOps,
 ) {
 	// produce a signed statement.
 	let hash = receipt.hash();
@@ -1144,7 +1313,7 @@ impl Service {
 }
 
 impl ParachainNetwork for Service {
-	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
+	type Error = mpsc::SendError;
 	type TableRouter = Router;
 	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router,Self::Error>> + Send>>;
 
@@ -1155,14 +1324,19 @@ impl ParachainNetwork for Service {
 	) -> Self::BuildTableRouter {
 		let authorities = authorities.to_vec();
 		let mut sender = self.sender.clone();
+		let relay_parent = table.consensus_parent_hash().clone();
 
-		let (tx, rx) = oneshot::channel();
 		Box::pin(async move {
 			sender.send(
-				ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities, tx)
-			).map_err(future::Either::Left).await?;
+				ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities)
+			).await?;
 
-			rx.map_err(future::Either::Right).await
+			Ok(Router {
+				inner: Arc::new(RouterInner {
+					relay_parent,
+					sender,
+				})
+			})
 		})
 	}
 }
@@ -1228,6 +1402,8 @@ pub enum RouterError {
 	Canceled(oneshot::Canceled),
 	#[display(fmt = "Could not reach worker with request: {}", _0)]
 	SendError(mpsc::SendError),
+	#[display(fmt = "Provided candidate receipt does not have expected relay parent {}", _0)]
+	IncorrectRelayParent(Hash),
 }
 
 impl TableRouter for Router {
@@ -1241,8 +1417,13 @@ impl TableRouter for Router {
 		pov_block: PoVBlock,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
 	) -> Self::SendLocalCollation {
+		if receipt.relay_parent != self.inner.relay_parent {
+			return Box::pin(
+				future::ready(Err(RouterError::IncorrectRelayParent(self.inner.relay_parent)))
+			);
+		}
+
 		let message = ServiceToWorkerMsg::SubmitValidatedCollation(
-			self.inner.relay_parent.clone(),
 			receipt,
 			pov_block,
 			(chunks.0, chunks.1.to_vec()),
@@ -1254,9 +1435,14 @@ impl TableRouter for Router {
 	}
 
 	fn fetch_pov_block(&self, candidate: &AbridgedCandidateReceipt) -> Self::FetchValidationProof {
+		if candidate.relay_parent != self.inner.relay_parent {
+			return Box::pin(
+				future::ready(Err(RouterError::IncorrectRelayParent(self.inner.relay_parent)))
+			);
+		}
+
 		let (tx, rx) = oneshot::channel();
 		let message = ServiceToWorkerMsg::FetchPoVBlock(
-			self.inner.relay_parent.clone(),
 			candidate.clone(),
 			tx,
 		);
@@ -1266,26 +1452,5 @@ impl TableRouter for Router {
 			sender.send(message).await?;
 			rx.map_err(Into::into).await
 		})
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn router_inner_drop_sends_worker_message() {
-		let parent = [1; 32].into();
-
-		let (sender, mut receiver) = mpsc::channel(0);
-		drop(RouterInner {
-			relay_parent: parent,
-			sender,
-		});
-
-		match receiver.try_next() {
-			Ok(Some(ServiceToWorkerMsg::DropConsensusNetworking(x))) => assert_eq!(parent, x),
-			_ => panic!("message not sent"),
-		}
 	}
 }
