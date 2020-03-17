@@ -746,3 +746,126 @@ impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Bl
 		None
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use polkadot_test_runtime_client::prelude::*;
+	use polkadot_test_runtime_client::sp_consensus::BlockOrigin;
+	use sc_block_builder::BlockBuilderProvider;
+	use grandpa::VotingRule;
+	use sp_blockchain::HeaderBackend;
+	use sp_runtime::generic::BlockId;
+	use sp_runtime::traits::Header;
+	use std::sync::Arc;
+
+	#[test]
+	fn grandpa_pause_voting_rule_works() {
+		let client = Arc::new(polkadot_test_runtime_client::new());
+
+		let mut push_blocks = {
+			let mut client = client.clone();
+			move |n| {
+				for _ in 0..n {
+					let block = client.new_block(Default::default()).unwrap().build().unwrap().block;
+					client.import(BlockOrigin::Own, block).unwrap();
+				}
+			}
+		};
+
+		let get_header = {
+			let client = client.clone();
+			move |n| client.header(&BlockId::Number(n)).unwrap().unwrap()
+		};
+
+		// the rule should filter all votes after block #20
+		// is finalized until block #50 is imported.
+		let voting_rule = super::PauseAfterBlockFor(20, 30);
+
+		// add 10 blocks
+		push_blocks(10);
+		assert_eq!(
+			client.info().best_number,
+			10,
+		);
+
+		// we have not reached the pause block
+		// therefore nothing should be restricted
+		assert_eq!(
+			voting_rule.restrict_vote(
+				&*client,
+				&get_header(0),
+				&get_header(10),
+				&get_header(10),
+			),
+			None,
+		);
+
+		// add 15 more blocks
+		// best block: #25
+		push_blocks(15);
+
+		// we are targeting the pause block,
+		// the vote should not be restricted
+		assert_eq!(
+			voting_rule.restrict_vote(
+				&*client,
+				&get_header(10),
+				&get_header(20),
+				&get_header(20),
+			),
+			None,
+		);
+
+		// we are past the pause block, votes should
+		// be limited to the pause block.
+		let pause_block = get_header(20);
+		assert_eq!(
+			voting_rule.restrict_vote(
+				&*client,
+				&get_header(10),
+				&get_header(21),
+				&get_header(21),
+			),
+			Some((pause_block.hash(), *pause_block.number())),
+		);
+
+		// we've finalized the pause block, so we'll keep
+		// restricting our votes to it.
+		assert_eq!(
+			voting_rule.restrict_vote(
+				&*client,
+				&pause_block, // #20
+				&get_header(21),
+				&get_header(21),
+			),
+			Some((pause_block.hash(), *pause_block.number())),
+		);
+
+		// add 30 more blocks
+		// best block: #55
+		push_blocks(30);
+
+		// we're at the last block of the pause, this block
+		// should still be considered in the pause period
+		assert_eq!(
+			voting_rule.restrict_vote(
+				&*client,
+				&pause_block, // #20
+				&get_header(50),
+				&get_header(50),
+			),
+			Some((pause_block.hash(), *pause_block.number())),
+		);
+
+		// we're past the pause period, no votes should be filtered
+		assert_eq!(
+			voting_rule.restrict_vote(
+				&*client,
+				&pause_block, // #20
+				&get_header(51),
+				&get_header(51),
+			),
+			None,
+		);
+	}
+}

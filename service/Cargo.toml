@@ -55,6 +55,10 @@ sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/su
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
+[dev-dependencies]
+polkadot-test-runtime-client = { path = "../runtime/test-runtime/client" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+
 [features]
 default = ["rocksdb", "full-node"]
 rocksdb = ["service/rocksdb"]
