@@ -25,7 +25,9 @@ use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
-use sp_runtime::traits::{Zero, CheckedSub};
+#[cfg(feature = "std")]
+use sp_runtime::traits::Zero;
+use sp_runtime::traits::CheckedSub;
 use sp_runtime::{
 	RuntimeDebug, transaction_validity::{
 		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction
@@ -122,7 +124,7 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Claims {
 		Claims get(claims) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>()
-		}): map hasher(blake2_256) EthereumAddress => Option<BalanceOf<T>>;
+		}): map hasher(identity) EthereumAddress => Option<BalanceOf<T>>;
 		Total get(total) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().fold(Zero::zero(), |acc: BalanceOf<T>, &(_, n)| acc + n)
 		}): BalanceOf<T>;
@@ -131,11 +133,24 @@ decl_storage! {
 		/// Second balance is how much should be unlocked per block.
 		/// The block number is when the vesting should start.
 		Vesting get(vesting) config():
-			map hasher(blake2_256) EthereumAddress
+			map hasher(identity) EthereumAddress
 			=> Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
 	}
 	add_extra_genesis {
 		config(claims): Vec<(EthereumAddress, BalanceOf<T>)>;
+	}
+}
+
+mod migration {
+	use super::*;
+
+	pub fn migrate<T: Trait>() {
+		if let Ok(addresses) = Vec::<EthereumAddress>::decode(&mut &include_bytes!("./claims.scale")[..]) {
+			for i in &addresses {
+				Vesting::<T>::migrate_key_from_blake(i);
+				Claims::<T>::migrate_key_from_blake(i);
+			}
+		}
 	}
 }
 
@@ -148,6 +163,10 @@ decl_module! {
 
 		/// Deposit one of this module's events by using the default implementation.
 		fn deposit_event() = default;
+
+		fn on_runtime_upgrade() {
+			migration::migrate::<T>();
+		}
 
 		/// Make a claim to collect your DOTs.
 		///
@@ -393,7 +412,7 @@ mod tests {
 		type Version = ();
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u64>;
-		type OnNewAccount = ();
+		type MigrateAccount = (); type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 	}
 
@@ -681,7 +700,7 @@ mod benchmarking {
 			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
 		}: _(RawOrigin::Root, account, VALUE.into(), vesting)
 
-		// Benchmark the time it takes to execute `validate_unsigned` 
+		// Benchmark the time it takes to execute `validate_unsigned`
 		validate_unsigned {
 			let c in ...;
 			// Crate signature
@@ -703,7 +722,7 @@ mod benchmarking {
 			}
 		}
 
-		// Benchmark the time it takes to do `repeat` number of `eth_recover` 
+		// Benchmark the time it takes to do `repeat` number of `eth_recover`
 		eth_recover {
 			let i in 0 .. 1_000;
 			// Crate signature

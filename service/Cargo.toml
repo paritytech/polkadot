@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.7.25"
+version = "0.7.26"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -54,6 +54,10 @@ sp-session = { git = "https://github.com/paritytech/substrate", branch = "polkad
 sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+
+[dev-dependencies]
+polkadot-test-runtime-client = { path = "../runtime/test-runtime/client" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 
 [features]
 default = ["rocksdb", "full-node"]

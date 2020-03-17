@@ -167,7 +167,7 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Crowdfund {
 		/// Info on all of the funds.
 		Funds get(funds):
-			map hasher(blake2_256) FundIndex
+			map hasher(twox_64_concat) FundIndex
 			=> Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
 
 		/// The total number of funds that have so far been allocated.
@@ -615,7 +615,7 @@ mod tests {
 		type Version = ();
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u64>;
-		type OnNewAccount = ();
+		type MigrateAccount = (); type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 	}
 	parameter_types! {
