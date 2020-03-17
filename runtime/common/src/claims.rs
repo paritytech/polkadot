@@ -25,7 +25,9 @@ use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
-use sp_runtime::traits::{Zero, CheckedSub};
+#[cfg(feature = "std")]
+use sp_runtime::traits::Zero;
+use sp_runtime::traits::CheckedSub;
 use sp_runtime::{
 	RuntimeDebug, transaction_validity::{
 		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction
