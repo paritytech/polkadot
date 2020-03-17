@@ -208,6 +208,7 @@ pub fn polkadot_new_full(
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
+	grandpa_pause_delay: Option<(u32, u32)>,
 )
 	-> Result<(
 		impl AbstractService<
@@ -220,7 +221,14 @@ pub fn polkadot_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
+	new_full(
+		config,
+		collating_for,
+		max_block_data_size,
+		authority_discovery_enabled,
+		slot_duration,
+		grandpa_pause_delay,
+	)
 }
 
 /// Create a new Kusama service for a full node.
@@ -231,6 +239,7 @@ pub fn kusama_new_full(
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
+	grandpa_pause_delay: Option<(u32, u32)>,
 )
 	-> Result<(
 		impl AbstractService<
@@ -243,7 +252,14 @@ pub fn kusama_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
+	new_full(
+		config,
+		collating_for,
+		max_block_data_size,
+		authority_discovery_enabled,
+		slot_duration,
+		grandpa_pause_delay,
+	)
 }
 
 /// Handles to other sub-services that full nodes instantiate, which consumers
@@ -262,6 +278,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
+	grandpa_pause_delay: Option<(u32, u32)>,
 )
 	-> Result<(
 		impl AbstractService<
@@ -480,11 +497,17 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		// the observer.
 
 		// add a custom voting rule to temporarily stop voting for new blocks
-		// after block #1500000 is finalized and restarting after block #1510000
-		// is imported.
-		let voting_rule = grandpa::VotingRulesBuilder::default()
-    		.add(PauseAfterBlockFor(1_500_000, 10000))
-    		.build();
+		// after the given pause block is finalized and restarting after the
+		// given delay.
+		let voting_rule = match grandpa_pause_delay {
+			Some((block, delay)) =>
+				grandpa::VotingRulesBuilder::default()
+				.add(PauseAfterBlockFor(block, delay))
+				.build(),
+			None =>
+				grandpa::VotingRulesBuilder::default()
+				.build(),
+		};
 
 		let grandpa_config = grandpa::GrandpaParams {
 			config,

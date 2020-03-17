@@ -31,6 +31,14 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 	config.impl_name = "parity-polkadot";
 	let force_kusama = opt.run.force_kusama;
 
+	let grandpa_pause_delay = if opt.grandpa_pause_delay.is_empty() {
+		None
+	} else {
+		// should be enforced by cli parsing
+		assert_eq!(opt.grandpa_pause_delay.len(), 2);
+		Some((opt.grandpa_pause_delay[0], opt.grandpa_pause_delay[1]))
+	};
+
 	match opt.subcommand {
 		None => {
 			opt.run.base.init(&version)?;
@@ -61,7 +69,7 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 					service::kusama_runtime::RuntimeApi,
 					service::KusamaExecutor,
 					service::kusama_runtime::UncheckedExtrinsic,
-				>(config, opt.authority_discovery_enabled)
+				>(config, opt.authority_discovery_enabled, grandpa_pause_delay)
 			} else {
 				info!("Native runtime: {}", service::PolkadotExecutor::native_version().runtime_version);
 
@@ -69,7 +77,7 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 					service::polkadot_runtime::RuntimeApi,
 					service::PolkadotExecutor,
 					service::polkadot_runtime::UncheckedExtrinsic,
-				>(config, opt.authority_discovery_enabled)
+				>(config, opt.authority_discovery_enabled, grandpa_pause_delay)
 			}
 		},
 		Some(Subcommand::Base(cmd)) => {
@@ -123,6 +131,7 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 fn run_service_until_exit<R, D, E>(
 	config: service::Configuration,
 	authority_discovery_enabled: bool,
+	grandpa_pause_delay: Option<(u32, u32)>,
 ) -> sc_cli::Result<()>
 where
 	R: ConstructRuntimeApi<Block, service::TFullClient<Block, R, D>>
@@ -151,7 +160,14 @@ where
 		_ =>
 			sc_cli::run_service_until_exit(
 				config,
-				|config| service::new_full::<R, D, E>(config, None, None, authority_discovery_enabled, 6000)
+				|config| service::new_full::<R, D, E>(
+					config,
+					None,
+					None,
+					authority_discovery_enabled,
+					6000,
+					grandpa_pause_delay,
+				)
 					.map(|(s, _)| s),
 			),
 	}
