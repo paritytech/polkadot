@@ -500,13 +500,19 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		// after the given pause block is finalized and restarting after the
 		// given delay.
 		let voting_rule = match grandpa_pause_delay {
-			Some((block, delay)) =>
+			Some((block, delay)) => {
+				info!("GRANDPA scheduled voting pause set for block #{} with a duration of {} blocks.",
+					block,
+					delay,
+				);
+
 				grandpa::VotingRulesBuilder::default()
-				.add(PauseAfterBlockFor(block, delay))
-				.build(),
+					.add(PauseAfterBlockFor(block, delay))
+					.build()
+			},
 			None =>
 				grandpa::VotingRulesBuilder::default()
-				.build(),
+					.build(),
 		};
 
 		let grandpa_config = grandpa::GrandpaParams {
