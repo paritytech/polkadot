@@ -39,7 +39,7 @@ pub use sc_executor::NativeExecutionDispatch;
 pub use sc_client::{ExecutionStrategy, CallExecutor, Client};
 pub use sc_client_api::backend::Backend;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
-pub use sp_runtime::traits::HashFor;
+pub use sp_runtime::traits::{HashFor, NumberFor};
 pub use consensus_common::SelectChain;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
@@ -682,22 +682,24 @@ where
 /// `N` + `M`, the voter will keep voting for block `N`.
 struct PauseAfterBlockFor<N>(N, N);
 
-impl<B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<polkadot_primitives::BlockNumber> where
+impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>> where
+	Block: BlockT,
 	B: sp_blockchain::HeaderBackend<Block>,
 {
 	fn restrict_vote(
 		&self,
 		backend: &B,
-		base: &polkadot_primitives::Header,
-		best_target: &polkadot_primitives::Header,
-		current_target: &polkadot_primitives::Header,
-	) -> Option<(Hash, polkadot_primitives::BlockNumber)> {
+		base: &Block::Header,
+		best_target: &Block::Header,
+		current_target: &Block::Header,
+	) -> Option<(Block::Hash, NumberFor<Block>)> {
+		use sp_runtime::generic::BlockId;
 		use sp_runtime::traits::Header as _;
 
 		// walk backwards until we find the target block
 		let find_target = |
-			target_number: polkadot_primitives::BlockNumber,
-			current_header: &polkadot_primitives::Header
+			target_number: NumberFor<Block>,
+			current_header: &Block::Header
 		| {
 			let mut target_hash = current_header.hash();
 			let mut target_header = current_header.clone();
