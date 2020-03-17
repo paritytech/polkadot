@@ -208,7 +208,7 @@ pub fn polkadot_new_full(
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
-	grandpa_pause_delay: Option<(u32, u32)>,
+	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
 		impl AbstractService<
@@ -227,7 +227,7 @@ pub fn polkadot_new_full(
 		max_block_data_size,
 		authority_discovery_enabled,
 		slot_duration,
-		grandpa_pause_delay,
+		grandpa_pause,
 	)
 }
 
@@ -239,7 +239,7 @@ pub fn kusama_new_full(
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
-	grandpa_pause_delay: Option<(u32, u32)>,
+	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
 		impl AbstractService<
@@ -258,7 +258,7 @@ pub fn kusama_new_full(
 		max_block_data_size,
 		authority_discovery_enabled,
 		slot_duration,
-		grandpa_pause_delay,
+		grandpa_pause,
 	)
 }
 
@@ -278,7 +278,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
-	grandpa_pause_delay: Option<(u32, u32)>,
+	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
 		impl AbstractService<
@@ -499,7 +499,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		// add a custom voting rule to temporarily stop voting for new blocks
 		// after the given pause block is finalized and restarting after the
 		// given delay.
-		let voting_rule = match grandpa_pause_delay {
+		let voting_rule = match grandpa_pause {
 			Some((block, delay)) => {
 				info!("GRANDPA scheduled voting pause set for block #{} with a duration of {} blocks.",
 					block,
