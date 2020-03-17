@@ -338,7 +338,7 @@ decl_storage! {
 		/// Used for double vote report validation.
 		/// This is not pruned at the moment.
 		pub ParentToSessionIndex get(session_at_block):
-			map hasher(blake2_256) T::Hash => SessionIndex;
+			map hasher(twox_64_concat) T::Hash => SessionIndex;
 	}
 	add_extra_genesis {
 		config(authorities): Vec<ValidatorId>;
