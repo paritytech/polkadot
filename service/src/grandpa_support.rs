@@ -150,11 +150,6 @@ pub(crate) fn kusama_hard_forks() -> Vec<(
 			"9e44116467cc9d7e224e36487bf2cf571698cae16b25f54a7430f1278331fdd8",
 			1498598,
 		),
-		(
-			632,
-			"ed09126031512c4368f2b7bc1ecd73ee0234e8aba6cfe0308f5fdf27d0ce7dc8",
-			1500988,
-		),
 	];
 
 	let authorities = vec![
