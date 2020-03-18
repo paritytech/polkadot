@@ -276,7 +276,7 @@ pub struct DoubleVoteOffence<Offender> {
 }
 
 impl<Offender: Clone> Offence<Offender> for DoubleVoteOffence<Offender> {
-	const ID: Kind = *b"double-vote:doub";
+	const ID: Kind = *b"para:double-vote";
 	type TimeSlot = SessionIndex;
 
 	fn offenders(&self) -> Vec<Offender> {
