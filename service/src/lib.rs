@@ -499,10 +499,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		// add a custom voting rule to temporarily stop voting for new blocks
 		// after the given pause block is finalized and restarting after the
 		// given delay.
-
-		// temporarily hardcode a GRANDPA pause for the upcoming runtime upgrade
-		let grandpa_pause = grandpa_pause.or(Some((1491586, 6000)));
-
 		let voting_rule = match grandpa_pause {
 			Some((block, delay)) => {
 				info!("GRANDPA scheduled voting pause set for block #{} with a duration of {} blocks.",
