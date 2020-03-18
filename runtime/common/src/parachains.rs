@@ -354,6 +354,15 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		type Error = Error<T>;
 
+		fn on_initialize(now: T::BlockNumber) {
+			<Self as Store>::DidUpdate::kill();
+			Self::do_old_code_pruning(now);
+		}
+
+		fn on_finalize() {
+			assert!(<Self as Store>::DidUpdate::exists(), "Parachain heads must be updated once in the block");
+		}
+
 		/// Provide candidate receipts for parachains, in ascending order by id.
 		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
 		pub fn set_heads(origin, heads: Vec<AttestedCandidate>) -> DispatchResult {
@@ -433,14 +442,6 @@ decl_module! {
 
 			Ok(())
 		}
-
-		fn on_initialize() {
-			<Self as Store>::DidUpdate::kill();
-		}
-
-		fn on_finalize() {
-			assert!(<Self as Store>::DidUpdate::exists(), "Parachain heads must be updated once in the block");
-		}
 	}
 }
 
@@ -477,8 +478,6 @@ impl<T: Trait> Module<T> {
 
 		if let Some(code) = code {
 			Self::note_past_code(id, <system::Module<T>>::block_number(), code);
-
-			// TODO [now]: schedule pruning in a way that cleans up meta.
 		}
 	}
 
@@ -495,7 +494,40 @@ impl<T: Trait> Module<T> {
 
 		<Self as Store>::PastCode::insert(&(id, at), old_code);
 
-		// TODO [now]: schedule pruning.
+		// Schedule pruning for this past-code to be removed as soon as it
+		// exits the slashing window.
+		<Self as Store>::PastCodePruning::mutate(|pruning| {
+			let insert_idx = pruning.binary_search_by_key(&at, |&(_, b)| b)
+				.unwrap_or_else(|idx| idx);
+			pruning.insert(insert_idx, (id, at));
+		})
+	}
+
+	// does old code pruning.
+	fn do_old_code_pruning(now: T::BlockNumber) {
+		let slash_period = T::SlashPeriod::get();
+		if now <= slash_period { return }
+
+		// The height of any changes we no longer should keep around.
+		let pruning_height = now - (slash_period + One::one());
+
+		<Self as Store>::PastCodePruning::mutate(|pruning_tasks| {
+			let pruning_tasks_to_do = {
+				// find all past code that has just exited the pruning window.
+				let up_to_idx = pruning_tasks.iter()
+					.take_while(|&(_, at)| at <= &pruning_height)
+					.count();
+				pruning_tasks.drain(..up_to_idx)
+			};
+
+			for (para_id, _) in pruning_tasks_to_do {
+				<Self as Store>::PastCodeMeta::mutate(&para_id, |meta| {
+					for pruned_repl_at in meta.prune_up_to(pruning_height) {
+						<Self as Store>::PastCode::remove(&(para_id, pruned_repl_at));
+					}
+				})
+			}
+		});
 	}
 
 	// Performs a code upgrade of a parachain.
