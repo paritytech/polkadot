@@ -17,6 +17,7 @@
 //! Polkadot service. Specialized wrapper over substrate service.
 
 pub mod chain_spec;
+mod grandpa_support;
 
 use sc_client::LongestChain;
 use std::sync::Arc;
@@ -150,13 +151,24 @@ macro_rules! new_full_start {
 				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api));
 				Ok(pool)
 			})?
-			.with_import_queue(|_config, client, mut select_chain, _| {
+			.with_import_queue(|config, client, mut select_chain, _| {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
+
+				let grandpa_hard_forks = if config.expect_chain_spec().is_kusama() {
+					grandpa_support::kusama_hard_forks()
+				} else {
+					Vec::new()
+				};
+
 				let (grandpa_block_import, grandpa_link) =
-					grandpa::block_import(
-						client.clone(), &(client.clone() as Arc<_>), select_chain
+					grandpa::block_import_with_authority_set_hard_forks(
+						client.clone(),
+						&(client.clone() as Arc<_>),
+						select_chain,
+						grandpa_hard_forks,
 					)?;
+
 				let justification_import = grandpa_block_import.clone();
 
 				let (block_import, babe_link) = babe::block_import(
@@ -507,7 +519,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 				);
 
 				grandpa::VotingRulesBuilder::default()
-					.add(PauseAfterBlockFor(block, delay))
+					.add(grandpa_support::PauseAfterBlockFor(block, delay))
 					.build()
 			},
 			None =>
@@ -674,198 +686,4 @@ where
 			Ok(polkadot_rpc::create_light(builder.client().clone(), remote_blockchain, fetcher, builder.pool()))
 		})?
 		.build()
-}
-
-/// A custom GRANDPA voting rule that "pauses" voting (i.e. keeps voting for the
-/// same last finalized block) after a given block at height `N` has been
-/// finalized and for a delay of `M` blocks, i.e. until the best block reaches
-/// `N` + `M`, the voter will keep voting for block `N`.
-struct PauseAfterBlockFor<N>(N, N);
-
-impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>> where
-	Block: BlockT,
-	B: sp_blockchain::HeaderBackend<Block>,
-{
-	fn restrict_vote(
-		&self,
-		backend: &B,
-		base: &Block::Header,
-		best_target: &Block::Header,
-		current_target: &Block::Header,
-	) -> Option<(Block::Hash, NumberFor<Block>)> {
-		use sp_runtime::generic::BlockId;
-		use sp_runtime::traits::Header as _;
-
-		// walk backwards until we find the target block
-		let find_target = |
-			target_number: NumberFor<Block>,
-			current_header: &Block::Header
-		| {
-			let mut target_hash = current_header.hash();
-			let mut target_header = current_header.clone();
-
-			loop {
-				if *target_header.number() < target_number {
-					unreachable!(
-						"we are traversing backwards from a known block; \
-						 blocks are stored contiguously; \
-						 qed"
-					);
-				}
-
-				if *target_header.number() == target_number {
-					return Some((target_hash, target_number));
-				}
-
-				target_hash = *target_header.parent_hash();
-				target_header = backend.header(BlockId::Hash(target_hash)).ok()?
-					.expect("Header known to exist due to the existence of one of its descendents; qed");
-			}
-		};
-
-		// only restrict votes targeting a block higher than the block
-		// we've set for the pause
-		if *current_target.number() > self.0 {
-			// if we're past the pause period (i.e. `self.0 + self.1`)
-			// then we no longer need to restrict any votes
-			if *best_target.number() > self.0 + self.1 {
-				return None;
-			}
-
-			// if we've finalized the pause block, just keep returning it
-			// until best number increases enough to pass the condition above
-			if *base.number() >= self.0 {
-				return Some((base.hash(), *base.number()));
-			}
-
-			// otherwise find the target header at the pause block
-			// to vote on
-			return find_target(self.0, current_target);
-		}
-
-		None
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use polkadot_test_runtime_client::prelude::*;
-	use polkadot_test_runtime_client::sp_consensus::BlockOrigin;
-	use sc_block_builder::BlockBuilderProvider;
-	use grandpa::VotingRule;
-	use sp_blockchain::HeaderBackend;
-	use sp_runtime::generic::BlockId;
-	use sp_runtime::traits::Header;
-	use std::sync::Arc;
-
-	#[test]
-	fn grandpa_pause_voting_rule_works() {
-		let client = Arc::new(polkadot_test_runtime_client::new());
-
-		let mut push_blocks = {
-			let mut client = client.clone();
-			move |n| {
-				for _ in 0..n {
-					let block = client.new_block(Default::default()).unwrap().build().unwrap().block;
-					client.import(BlockOrigin::Own, block).unwrap();
-				}
-			}
-		};
-
-		let get_header = {
-			let client = client.clone();
-			move |n| client.header(&BlockId::Number(n)).unwrap().unwrap()
-		};
-
-		// the rule should filter all votes after block #20
-		// is finalized until block #50 is imported.
-		let voting_rule = super::PauseAfterBlockFor(20, 30);
-
-		// add 10 blocks
-		push_blocks(10);
-		assert_eq!(
-			client.info().best_number,
-			10,
-		);
-
-		// we have not reached the pause block
-		// therefore nothing should be restricted
-		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&get_header(0),
-				&get_header(10),
-				&get_header(10),
-			),
-			None,
-		);
-
-		// add 15 more blocks
-		// best block: #25
-		push_blocks(15);
-
-		// we are targeting the pause block,
-		// the vote should not be restricted
-		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&get_header(10),
-				&get_header(20),
-				&get_header(20),
-			),
-			None,
-		);
-
-		// we are past the pause block, votes should
-		// be limited to the pause block.
-		let pause_block = get_header(20);
-		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&get_header(10),
-				&get_header(21),
-				&get_header(21),
-			),
-			Some((pause_block.hash(), *pause_block.number())),
-		);
-
-		// we've finalized the pause block, so we'll keep
-		// restricting our votes to it.
-		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&pause_block, // #20
-				&get_header(21),
-				&get_header(21),
-			),
-			Some((pause_block.hash(), *pause_block.number())),
-		);
-
-		// add 30 more blocks
-		// best block: #55
-		push_blocks(30);
-
-		// we're at the last block of the pause, this block
-		// should still be considered in the pause period
-		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&pause_block, // #20
-				&get_header(50),
-				&get_header(50),
-			),
-			Some((pause_block.hash(), *pause_block.number())),
-		);
-
-		// we're past the pause period, no votes should be filtered
-		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&pause_block, // #20
-				&get_header(51),
-				&get_header(51),
-			),
-			None,
-		);
-	}
 }
