@@ -521,11 +521,19 @@ impl<T: Trait> Module<T> {
 			};
 
 			for (para_id, _) in pruning_tasks_to_do {
-				<Self as Store>::PastCodeMeta::mutate(&para_id, |meta| {
+				let full_deactivate = <Self as Store>::PastCodeMeta::mutate(&para_id, |meta| {
 					for pruned_repl_at in meta.prune_up_to(pruning_height) {
 						<Self as Store>::PastCode::remove(&(para_id, pruned_repl_at));
 					}
-				})
+
+					meta.most_recent_change().is_none() && Self::parachain_head(&para_id).is_none()
+				});
+
+				// This parachain has been removed and now the vestigial code
+				// has been removed from the state. clean up meta as well.
+				if full_deactivate {
+					<Self as Store>::PastCodeMeta::remove(&para_id);
+				}
 			}
 		});
 	}
@@ -1137,8 +1145,8 @@ mod tests {
 	};
 	use primitives::{
 		parachain::{
-			CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo,
-			Scheduling, LocalValidationData, CandidateCommitments,
+			CandidateReceipt, ValidityAttestation, ValidatorId, Info as ParaInfo,
+			Scheduling, CandidateCommitments,
 		},
 		BlockNumber,
 	};
@@ -1340,9 +1348,9 @@ mod tests {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
 
-		pub const ValidationUpgradeFrequency: BlockNumber = 10;
-		pub const ValidationUpgradeDelay: BlockNumber = 2;
-		pub const SlashPeriod: BlockNumber = 50;
+		pub const ValidationUpgradeFrequency: u64 = 10;
+		pub const ValidationUpgradeDelay: u64 = 2;
+		pub const SlashPeriod: u64 = 50;
 	}
 
 	impl Trait for Test {
@@ -1448,14 +1456,8 @@ mod tests {
 			collator: Default::default(),
 			signature: Default::default(),
 			pov_block_hash: Default::default(),
-			global_validation: GlobalValidationSchedule {
-				max_code_size: <Test as Trait>::MaxCodeSize::get(),
-				max_head_data_size: <Test as Trait>::MaxHeadDataSize::get(),
-			},
-			local_validation: LocalValidationData {
-				parent_head: HeadData(Parachains::parachain_head(&para_id).unwrap()),
-				balance: <Balances as ParachainCurrency<u64>>::free_balance(para_id),
-			},
+			global_validation: Parachains::global_validation_schedule(),
+			local_validation: Parachains::local_validation_data(&para_id).unwrap(),
 			commitments: CandidateCommitments::default(),
 		}
 	}
@@ -1541,6 +1543,10 @@ mod tests {
 		while System::block_number() < n {
 			if System::block_number() > 1 {
 				println!("Finalizing {}", System::block_number());
+				if !DidUpdate::get().is_some() {
+					Parachains::set_heads(Origin::NONE, vec![]).unwrap();
+				}
+
 				Parachains::on_finalize(System::block_number());
 				Registrar::on_finalize(System::block_number());
 				System::on_finalize(System::block_number());
@@ -2068,6 +2074,70 @@ mod tests {
 		assert_eq!(past_code, ParaPastCodeMeta {
 			upgrade_times: Vec::new(),
 			last_pruned: Some(60),
+		});
+	}
+
+	#[test]
+	fn para_past_code_pruning_in_initialize() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let id = ParaId::from(0u32);
+			let at_block: u64 = 10;
+			<Parachains as Store>::PastCode::insert(&(id, at_block), vec![1, 2, 3]);
+			<Parachains as Store>::PastCodePruning::put(&vec![(id, at_block)]);
+
+			{
+				let mut code_meta = Parachains::past_code_meta(&id);
+				code_meta.note_replacement(at_block);
+				<Parachains as Store>::PastCodeMeta::insert(&id, &code_meta);
+			}
+
+			let pruned_at: u64 = at_block + SlashPeriod::get() + u64::one();
+			assert_eq!(<Parachains as Store>::PastCode::get(&(id, at_block)), Some(vec![1, 2, 3]));
+
+			run_to_block(pruned_at - 1);
+			assert_eq!(<Parachains as Store>::PastCode::get(&(id, at_block)), Some(vec![1, 2, 3]));
+			assert_eq!(Parachains::past_code_meta(&id).most_recent_change(), Some(at_block));
+
+			run_to_block(pruned_at);
+			assert!(<Parachains as Store>::PastCode::get(&(id, at_block)).is_none());
+			assert!(Parachains::past_code_meta(&id).most_recent_change().is_none());
+		});
+	}
+
+	#[test]
+	fn note_past_code_sets_up_pruning_correctly() {
+		let parachains = vec![
+			(0u32.into(), vec![], vec![]),
+			(1u32.into(), vec![], vec![]),
+		];
+
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let id_a = ParaId::from(0u32);
+			let id_b = ParaId::from(1u32);
+
+			Parachains::note_past_code(id_a, 10, vec![1, 2, 3]);
+			Parachains::note_past_code(id_b, 20, vec![4, 5, 6]);
+
+			assert_eq!(Parachains::past_code_pruning_tasks(), vec![(id_a, 10), (id_b, 20)]);
+			assert_eq!(
+				Parachains::past_code_meta(&id_a),
+				ParaPastCodeMeta {
+					upgrade_times: vec![10],
+					last_pruned: None,
+				}
+			);
+			assert_eq!(
+				Parachains::past_code_meta(&id_b),
+				ParaPastCodeMeta {
+					upgrade_times: vec![20],
+					last_pruned: None,
+				}
+			);
 		});
 	}
 }

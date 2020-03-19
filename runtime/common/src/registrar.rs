@@ -652,7 +652,7 @@ mod tests {
 		parachain::{
 			ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
 			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
-			CollatorPair, CandidateCommitments, GlobalValidationSchedule, LocalValidationData,
+			CollatorPair, CandidateCommitments,
 		},
 		Balance, BlockNumber,
 	};
@@ -912,14 +912,8 @@ mod tests {
 			collator: collator.public(),
 			signature: pov_block_hash.using_encoded(|d| collator.sign(d)),
 			pov_block_hash,
-			global_validation: GlobalValidationSchedule {
-				max_code_size: <Test as parachains::Trait>::MaxCodeSize::get(),
-				max_head_data_size: <Test as parachains::Trait>::MaxHeadDataSize::get(),
-			},
-			local_validation: LocalValidationData {
-				balance: Balances::free_balance(&id.into_account()),
-				parent_head: HeadData(Parachains::parachain_head(&id).unwrap()),
-			},
+			global_validation: Parachains::global_validation_schedule(),
+			local_validation: Parachains::local_validation_data(&id).unwrap(),
 			commitments: CandidateCommitments {
 				fees: 0,
 				upward_messages: vec![],
