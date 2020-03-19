@@ -20,7 +20,7 @@ use rstd::prelude::*;
 use rstd::cmp::Ordering;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
-use super::{Hash, Balance};
+use super::{Hash, Balance, BlockNumber};
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -185,7 +185,17 @@ pub struct LocalValidationData {
 	/// The balance of the parachain at the moment of validation.
 	pub balance: Balance,
 	/// Whether the parachain is allowed to upgrade its validation code.
-	pub can_upgrade_code: bool,
+	///
+	/// This is `Some` if so, and contains the number of the minimum relay-chain
+	/// height at which the upgrade will be applied, if an upgrade is signaled
+	/// now.
+	///
+	/// A parachain should enact its side of the upgrade at the end of the first
+	/// parablock executing in the context of a relay-chain block with at least this
+	/// height. This may be equal to the current perceived relay-chain block height, in
+	/// which case the code upgrade should be applied at the end of the signaling
+	/// block.
+	pub code_upgrade_allowed: Option<BlockNumber>,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.

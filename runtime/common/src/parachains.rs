@@ -22,16 +22,17 @@ use codec::{Decode, Encode};
 
 use sp_runtime::traits::{
 	Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
-	AccountIdConversion, BadOrigin,
+	AccountIdConversion, BadOrigin, Convert,
 };
 use frame_support::weights::SimpleDispatchInfo;
 use primitives::{
 	Balance,
+	BlockNumber,
 	parachain::{
-		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
+		Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
-		LocalValidationData, NEW_HEADS_IDENTIFIER,
+		LocalValidationData, Scheduling, NEW_HEADS_IDENTIFIER,
 	},
 };
 use frame_support::{
@@ -116,6 +117,11 @@ pub trait Trait: attestations::Trait {
 	/// Some way of interacting with balances for fees.
 	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
 
+	/// Polkadot in practice will always use the `BlockNumber` type.
+	/// Substrate isn't good at giving us ways to bound the supertrait
+	/// associated type, so we introduce this conversion.
+	type BlockNumberConversion: Convert<Self::BlockNumber, BlockNumber>;
+
 	/// Something that provides randomness in the runtime.
 	type Randomness: Randomness<Self::Hash>;
 
@@ -133,6 +139,8 @@ pub trait Trait: attestations::Trait {
 	/// Max head data size.
 	type MaxHeadDataSize: Get<u32>;
 	/// The frequency at which paras can upgrade their validation function.
+	/// This is an integer number of relay-chain blocks that must pass between
+	/// code upgrades.
 	type ValidationUpgradeFrequency: Get<Self::BlockNumber>;
 
 	/// The delay before a validation function upgrade is applied.
@@ -474,7 +482,12 @@ impl<T: Trait> Module<T> {
 		let code = <Code>::take(id);
 		<Heads>::remove(id);
 
-		// TODO [now]: cleanup from all new storage maps (planned code, past code)
+		// clean up from all code-upgrade maps.
+		// we don't clean up the meta or planned-code maps as that's handled
+		// by the pruning process.
+		if let Some(_planned_future_at) = <Self as Store>::FutureCodeUpgrades::take(&id) {
+			<Self as Store>::FutureCode::remove(&id);
+		}
 
 		if let Some(code) = code {
 			Self::note_past_code(id, <system::Module<T>>::block_number(), code);
@@ -511,7 +524,7 @@ impl<T: Trait> Module<T> {
 		// The height of any changes we no longer should keep around.
 		let pruning_height = now - (slash_period + One::one());
 
-		<Self as Store>::PastCodePruning::mutate(|pruning_tasks| {
+		<Self as Store>::PastCodePruning::mutate(|pruning_tasks: &mut Vec<(_, T::BlockNumber)>| {
 			let pruning_tasks_to_do = {
 				// find all past code that has just exited the pruning window.
 				let up_to_idx = pruning_tasks.iter()
@@ -771,12 +784,53 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Get the local validation schedule for a particular parachain.
-	pub fn local_validation_data(id: &parachain::Id) -> Option<LocalValidationData> {
+	pub fn local_validation_data(id: &ParaId, perceived_height: T::BlockNumber) -> Option<LocalValidationData> {
+		if perceived_height + One::one() != <system::Module<T>>::block_number() {
+			// sanity-check - no non-direct-parent blocks allowed at the moment.
+			return None
+		}
+
+		let code_upgrade_allowed: Option<BlockNumber> = (|| {
+			match T::Registrar::para_info(*id)?.scheduling {
+				Scheduling::Always => {},
+				Scheduling::Dynamic => return None, // parathreads can't upgrade code.
+			}
+			// if perceived-height were not the parent of `now`, then this should
+			// not be drawn from current-runtime configuration.
+			let min_upgrade_frequency = T::ValidationUpgradeFrequency::get();
+			let upgrade_delay = T::ValidationUpgradeDelay::get();
+
+			let no_planned = Self::code_upgrade_schedule(id)
+				.map_or(true, |expected: T::BlockNumber| expected <= perceived_height);
+
+			let can_upgrade_code = no_planned &&
+				Self::past_code_meta(id).most_recent_change()
+					.map_or(true, |at| at + min_upgrade_frequency < perceived_height);
+
+			if can_upgrade_code {
+				let applied_at = perceived_height + upgrade_delay;
+				Some(T::BlockNumberConversion::convert(applied_at))
+			} else {
+				None
+			}
+		})();
+
 		Self::parachain_head(id).map(|parent_head| LocalValidationData {
 			parent_head: primitives::parachain::HeadData(parent_head),
 			balance: T::ParachainCurrency::free_balance(*id),
-			can_upgrade_code: unimplemented!(), // TODO [now]
+			code_upgrade_allowed,
 		})
+	}
+
+	/// Get the local validation data for a particular parent w.r.t. the current
+	/// block height.
+	pub fn current_local_validation_data(id: &ParaId) -> Option<LocalValidationData> {
+		let now: T::BlockNumber = <system::Module<T>>::block_number();
+		if now >= One::one() {
+			Self::local_validation_data(id, now - One::one())
+		} else {
+			None
+		}
 	}
 
 	/// Get the currently active set of parachains.
@@ -871,29 +925,12 @@ impl<T: Trait> Module<T> {
 			-> rstd::result::Result<CandidateReceipt, sp_runtime::DispatchError>
 		{
 			let para_id = abridged.parachain_index;
-			let parent_head = match Self::parachain_head(&para_id)
-				.map(primitives::parachain::HeadData)
-			{
-				Some(p) => p,
-				None => Err(Error::<T>::ParentMismatch)?,
-			};
-
-			let min_upgrade_frequency = T::ValidationUpgradeFrequency::get();
-
-			let no_planned = Self::code_upgrade_schedule(&para_id)
-				.map_or(true, |expected| expected <= perceived_height);
-
-			let can_upgrade_code = no_planned &&
-				Self::past_code_meta(&para_id).most_recent_change()
-					.map_or(true, |at| at + min_upgrade_frequency <= perceived_height);
+			let local_validation = Self::local_validation_data(&para_id, perceived_height)
+				.ok_or(Error::<T>::ParentMismatch)?;
 
 			let omitted = OmittedValidationData {
 				global_validation: schedule.clone(),
-				local_validation: LocalValidationData {
-					parent_head,
-					balance: T::ParachainCurrency::free_balance(para_id),
-					can_upgrade_code,
-				},
+				local_validation,
 			};
 
 			Ok(abridged.clone().complete(omitted))
@@ -954,7 +991,7 @@ impl<T: Trait> Module<T> {
 			if let Some(expected_at) = Self::code_upgrade_schedule(&para_id) {
 				if expected_at <= perceived_relay_block_height {
 					let new_code = FutureCode::take(&para_id);
-					let _ = <Self as Store>::FutureCodeUpgrades::take(&para_id);
+					<Self as Store>::FutureCodeUpgrades::remove(&para_id);
 
 					Self::do_code_upgrade(para_id, perceived_relay_block_height, &new_code);
 				}
@@ -962,7 +999,7 @@ impl<T: Trait> Module<T> {
 
 			if let Some(ref new_code) = full_candidate.commitments.new_validation_code {
 				ensure!(
-					full_candidate.local_validation.can_upgrade_code,
+					full_candidate.local_validation.code_upgrade_allowed.is_some(),
 					Error::<T>::DisallowedCodeUpgrade,
 				);
 				ensure!(
@@ -1140,7 +1177,7 @@ mod tests {
 	use sp_core::{H256, Blake2Hasher};
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
-		Perbill, curve::PiecewiseLinear, testing::{UintAuthorityId, Header},
+		Perbill, curve::PiecewiseLinear, testing::{UintAuthorityId},
 		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},
 	};
 	use primitives::{
@@ -1149,6 +1186,7 @@ mod tests {
 			Scheduling, CandidateCommitments,
 		},
 		BlockNumber,
+		Header,
 	};
 	use keyring::Sr25519Keyring;
 	use frame_support::{
@@ -1189,7 +1227,7 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;
-		type BlockNumber = u64;
+		type BlockNumber = BlockNumber;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
@@ -1247,7 +1285,7 @@ mod tests {
 		const HOURS: BlockNumber = MINUTES * 60;
 	}
 	parameter_types! {
-		pub const EpochDuration: u64 = time::EPOCH_DURATION_IN_BLOCKS as u64;
+		pub const EpochDuration: BlockNumber = time::EPOCH_DURATION_IN_BLOCKS;
 		pub const ExpectedBlockTime: u64 = time::MILLISECS_PER_BLOCK;
 	}
 
@@ -1273,7 +1311,7 @@ mod tests {
 
 	pallet_staking_reward_curve::build! {
 		const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
-			min_inflation: 0_025_000,
+			min_inflation: 0_025_000u64,
 			max_inflation: 0_100_000,
 			ideal_stake: 0_500_000,
 			falloff: 0_050_000,
@@ -1315,8 +1353,8 @@ mod tests {
 	}
 
 	parameter_types!{
-		pub const LeasePeriod: u64 = 10;
-		pub const EndingPeriod: u64 = 3;
+		pub const LeasePeriod: BlockNumber = 10;
+		pub const EndingPeriod: BlockNumber = 3;
 	}
 
 	impl slots::Trait for Test {
@@ -1348,15 +1386,16 @@ mod tests {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
 
-		pub const ValidationUpgradeFrequency: u64 = 10;
-		pub const ValidationUpgradeDelay: u64 = 2;
-		pub const SlashPeriod: u64 = 50;
+		pub const ValidationUpgradeFrequency: BlockNumber = 10;
+		pub const ValidationUpgradeDelay: BlockNumber = 2;
+		pub const SlashPeriod: BlockNumber = 50;
 	}
 
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = Balances;
+		type BlockNumberConversion = sp_runtime::traits::Identity;
 		type Randomness = RandomnessCollectiveFlip;
 		type ActiveParachains = registrar::Module<Test>;
 		type Registrar = registrar::Module<Test>;
@@ -1457,7 +1496,7 @@ mod tests {
 			signature: Default::default(),
 			pov_block_hash: Default::default(),
 			global_validation: Parachains::global_validation_schedule(),
-			local_validation: Parachains::local_validation_data(&para_id).unwrap(),
+			local_validation: Parachains::current_local_validation_data(&para_id).unwrap(),
 			commitments: CandidateCommitments::default(),
 		}
 	}
@@ -1538,7 +1577,7 @@ mod tests {
 		Registrar::on_initialize(System::block_number());
 		Parachains::on_initialize(System::block_number());
 	}
-	fn run_to_block(n: u64) {
+	fn run_to_block(n: BlockNumber) {
 		println!("Running until block {}", n);
 		while System::block_number() < n {
 			if System::block_number() > 1 {
@@ -2086,7 +2125,7 @@ mod tests {
 
 		new_test_ext(parachains.clone()).execute_with(|| {
 			let id = ParaId::from(0u32);
-			let at_block: u64 = 10;
+			let at_block: BlockNumber = 10;
 			<Parachains as Store>::PastCode::insert(&(id, at_block), vec![1, 2, 3]);
 			<Parachains as Store>::PastCodePruning::put(&vec![(id, at_block)]);
 
@@ -2096,7 +2135,7 @@ mod tests {
 				<Parachains as Store>::PastCodeMeta::insert(&id, &code_meta);
 			}
 
-			let pruned_at: u64 = at_block + SlashPeriod::get() + u64::one();
+			let pruned_at: BlockNumber = at_block + SlashPeriod::get() + 1;
 			assert_eq!(<Parachains as Store>::PastCode::get(&(id, at_block)), Some(vec![1, 2, 3]));
 
 			run_to_block(pruned_at - 1);
@@ -2139,5 +2178,15 @@ mod tests {
 				}
 			);
 		});
+	}
+
+	#[test]
+	fn code_upgrade_applied_after_delay() {
+		// TODO [now]
+	}
+
+	#[test]
+	fn full_parachain_cleanup_storage() {
+		// TODO [now]
 	}
 }

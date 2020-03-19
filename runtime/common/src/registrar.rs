@@ -52,6 +52,9 @@ pub trait Registrar<AccountId> {
 	/// Checks whether the given validation code falls within the limit.
 	fn code_size_allowed(code_size: u32) -> bool;
 
+	/// Fetches metadata for a para by ID, if any.
+	fn para_info(id: ParaId) -> Option<ParaInfo>;
+
 	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
 	/// result in a error.
 	///
@@ -81,6 +84,10 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 
 	fn code_size_allowed(code_size: u32) -> bool {
 		code_size <= <T as parachains::Trait>::MaxCodeSize::get()
+	}
+
+	fn para_info(id: ParaId) -> Option<ParaInfo> {
+		Self::paras(&id)
 	}
 
 	fn register_para(
@@ -646,7 +653,7 @@ mod tests {
 		traits::{
 			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, Dispatchable,
 			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header}, Perbill
+		}, testing::UintAuthorityId, Perbill
 	};
 	use primitives::{
 		parachain::{
@@ -654,7 +661,7 @@ mod tests {
 			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
 			CollatorPair, CandidateCommitments,
 		},
-		Balance, BlockNumber,
+		Balance, BlockNumber, Header,
 	};
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
@@ -690,7 +697,7 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;
-		type BlockNumber = u64;
+		type BlockNumber = BlockNumber;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
@@ -721,8 +728,8 @@ mod tests {
 	}
 
 	parameter_types!{
-		pub const LeasePeriod: u64 = 10;
-		pub const EndingPeriod: u64 = 3;
+		pub const LeasePeriod: BlockNumber = 10;
+		pub const EndingPeriod: BlockNumber = 3;
 	}
 
 	impl slots::Trait for Test {
@@ -774,6 +781,7 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
+		type BlockNumberConversion = sp_runtime::traits::Identity;
 		type ActiveParachains = Registrar;
 		type Registrar = Registrar;
 		type Randomness = RandomnessCollectiveFlip;
@@ -869,7 +877,7 @@ mod tests {
 		Slots::on_initialize(System::block_number());
 	}
 
-	fn run_to_block(n: u64) {
+	fn run_to_block(n: BlockNumber) {
 		println!("Running until block {}", n);
 		while System::block_number() < n {
 			if System::block_number() > 1 {
@@ -913,7 +921,7 @@ mod tests {
 			signature: pov_block_hash.using_encoded(|d| collator.sign(d)),
 			pov_block_hash,
 			global_validation: Parachains::global_validation_schedule(),
-			local_validation: Parachains::local_validation_data(&id).unwrap(),
+			local_validation: Parachains::current_local_validation_data(&id).unwrap(),
 			commitments: CandidateCommitments {
 				fees: 0,
 				upward_messages: vec![],
