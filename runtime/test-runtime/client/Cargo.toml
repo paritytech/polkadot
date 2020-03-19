@@ -6,15 +6,15 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "andre/polkadot-0.7.28" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "andre/polkadot-0.7.28" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "andre/polkadot-0.7.28" }
 polkadot-test-runtime = { path = ".." }
-substrate-test-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+substrate-test-runtime = { git = "https://github.com/paritytech/substrate", branch = "andre/polkadot-0.7.28" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "andre/polkadot-0.7.28" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "andre/polkadot-0.7.28" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "andre/polkadot-0.7.28" }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "andre/polkadot-0.7.28" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "andre/polkadot-0.7.28" }
 futures = "0.3.1"
