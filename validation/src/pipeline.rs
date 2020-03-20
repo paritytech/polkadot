@@ -24,12 +24,12 @@ use polkadot_erasure_coding as erasure;
 use polkadot_primitives::parachain::{
 	CollationInfo, PoVBlock, LocalValidationData, GlobalValidationSchedule, OmittedValidationData,
 	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, ParachainHost,
-	Id as ParaId, AbridgedCandidateReceipt,
+	Id as ParaId, AbridgedCandidateReceipt
 };
 use polkadot_primitives::{Block, BlockId, Balance, Hash};
 use parachain::{
 	wasm_executor::{self, ExecutionMode},
-	UpwardMessage, ValidationParams,
+	primitives::{UpwardMessage, ValidationParams},
 };
 use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 use sp_api::ProvideRuntimeApi;
@@ -237,8 +237,10 @@ pub fn validate<'a>(
 	}
 
 	let params = ValidationParams {
-		parent_head: local_validation.parent_head.0.clone(),
-		block_data: pov_block.block_data.0.clone(),
+		parent_head: local_validation.parent_head.clone(),
+		block_data: pov_block.block_data.clone(),
+		relay_chain_height: global_validation.block_number,
+		code_upgrade_allowed: local_validation.code_upgrade_allowed,
 	};
 
 	// TODO: remove when ext does not do this.
@@ -255,7 +257,7 @@ pub fn validate<'a>(
 		ExecutionMode::Remote,
 	) {
 		Ok(result) => {
-			if result.head_data == collation.head_data.0 {
+			if result.head_data == collation.head_data {
 				let (upward_messages, fees) = Arc::try_unwrap(ext.0)
 					.map_err(|_| "<non-unique>")
 					.expect("Wasm executor drops passed externalities on completion; \
@@ -338,13 +340,13 @@ pub fn full_output_validation_with_api<P>(
 mod tests {
 	use super::*;
 	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
-	use parachain::ParachainDispatchOrigin;
+	use parachain::primitives::ParachainDispatchOrigin;
 
 	#[test]
 	fn ext_checks_fees_and_updates_correctly() {
 		let mut ext = ExternalitiesInner {
 			upward: vec![
-				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
+				UpwardMessage { data: vec![42], origin: ParachainDispatchOrigin::Parachain },
 			],
 			fees_charged: 0,
 			free_balance: 1_000_000,

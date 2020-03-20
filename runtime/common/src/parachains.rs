@@ -379,10 +379,7 @@ decl_module! {
 
 			let mut proceeded = Vec::with_capacity(heads.len());
 
-			let schedule = GlobalValidationSchedule {
-				max_code_size: T::MaxCodeSize::get(),
-				max_head_data_size: T::MaxHeadDataSize::get(),
-			};
+			let schedule = Self::global_validation_schedule();
 
 			if !active_parachains.is_empty() {
 				// perform integrity checks before writing to storage.
@@ -772,9 +769,17 @@ impl<T: Trait> Module<T> {
 
 	/// Get the global validation schedule for all parachains.
 	pub fn global_validation_schedule() -> GlobalValidationSchedule {
+		let now = <system::Module<T>>::block_number();
 		GlobalValidationSchedule {
 			max_code_size: T::MaxCodeSize::get(),
 			max_head_data_size: T::MaxHeadDataSize::get(),
+			block_number: T::BlockNumberConversion::convert(if now.is_zero() {
+				now
+			} else {
+				// parablocks included in this block will execute in the context
+				// of the current block's parent.
+				now - One::one()
+			}),
 		}
 	}
 

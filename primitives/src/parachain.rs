@@ -175,6 +175,8 @@ pub struct GlobalValidationSchedule {
 	pub max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
 	pub max_head_data_size: u32,
+	/// The relay-chain block number this is in the context of.
+	pub block_number: BlockNumber,
 }
 
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
