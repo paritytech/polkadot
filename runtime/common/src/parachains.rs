@@ -241,11 +241,6 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 		self.upgrade_times.first().map(|x| x.clone())
 	}
 
-	// The block at which the earliest tracked code change occurred.
-	fn earliest_tracked_change(&self) -> Option<N> {
-		self.upgrade_times.last().map(|x| x.clone())
-	}
-
 	// prunes all code upgrade logs occurring at or before `max`.
 	// note that code replaced at `x` is the code used to validate all blocks before
 	// `x`. Thus, `max` should be outside of the slashing window when this is invoked.
