@@ -191,6 +191,10 @@ pub struct ValidationParams {
 	pub block_data: BlockData,
 	/// Previous head-data.
 	pub parent_head: HeadData,
+	/// The maximum code size permitted, in bytes.
+	pub max_code_size: u32,
+	/// The maximum head-data size permitted, in bytes.
+	pub max_head_data_size: u32,
 	/// The current relay-chain block number.
 	pub relay_chain_height: RelayChainBlockNumber,
 	/// Whether a code upgrade is allowed or not, and at which height the upgrade
