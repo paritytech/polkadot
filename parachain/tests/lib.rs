@@ -19,7 +19,7 @@ mod wasm_executor;
 
 use polkadot_parachain as parachain;
 use crate::parachain::{
-	UpwardMessage, wasm_executor::{Externalities, run_worker},
+	primitives::UpwardMessage, wasm_executor::{Externalities, run_worker},
 };
 
 struct DummyExt;

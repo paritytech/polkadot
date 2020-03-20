@@ -173,7 +173,8 @@ impl rstd::convert::TryFrom<u8> for ParachainDispatchOrigin {
 }
 
 /// A message from a parachain to its Relay Chain.
-#[derive(Clone, PartialEq, Eq, Encode, Decode, sp_runtime_interface::pass_by::PassByCodec)]
+#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "wasm-api", derive(sp_runtime_interface::pass_by::PassByCodec))]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct UpwardMessage {
 	/// The origin for the message to be sent from.
