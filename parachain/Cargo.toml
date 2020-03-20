@@ -6,13 +6,18 @@ description = "Types and utilities for creating and working with parachains"
 edition = "2018"
 
 [dependencies]
+# note: special care is taken to avoid inclusion of `sp-io` externals when compiling
+# this crate for WASM. This is critical to avoid forcing all parachain WASM into implementing
+# various unnecessary Substrate-specific endpoints.
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = [ "derive" ] }
-derive_more = { version = "0.99.2", optional = true }
-serde = { version = "1.0.102", default-features = false, features = [ "derive" ], optional = true }
 rstd = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", default-features = false }
+
+# all optional crates.
+derive_more = { version = "0.99.2", optional = true }
+serde = { version = "1.0.102", default-features = false, features = [ "derive" ], optional = true }
 sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }

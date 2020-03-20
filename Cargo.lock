@@ -3901,7 +3901,6 @@ name = "polkadot-primitives"
 version = "0.7.22"
 dependencies = [
  "bitvec 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "pallet-babe 2.0.0-alpha.3 (git+https://github.com/paritytech/substrate?branch=polkadot-master)",
  "parity-scale-codec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-parachain 0.7.22",
  "pretty_assertions 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",

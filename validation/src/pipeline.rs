@@ -23,7 +23,7 @@ use codec::Encode;
 use polkadot_erasure_coding as erasure;
 use polkadot_primitives::parachain::{
 	CollationInfo, PoVBlock, LocalValidationData, GlobalValidationSchedule, OmittedValidationData,
-	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, HeadData, ParachainHost,
+	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, ParachainHost,
 	Id as ParaId, AbridgedCandidateReceipt,
 };
 use polkadot_primitives::{Block, BlockId, Balance, Hash};
@@ -93,7 +93,7 @@ impl ExternalitiesInner {
 	}
 
 	fn apply_message_fee(&mut self, message_len: usize) -> Result<(), String> {
-		let fee = self.fee_schedule.compute_fee(message_len);
+		let fee = self.fee_schedule.compute_message_fee(message_len);
 		let new_fees_charged = self.fees_charged.saturating_add(fee);
 		if new_fees_charged > self.free_balance {
 			Err("could not cover fee.".into())
@@ -158,8 +158,7 @@ impl FullOutput {
 pub struct ValidatedCandidate<'a> {
 	pov_block: &'a PoVBlock,
 	global_validation: &'a GlobalValidationSchedule,
-	parent_head: &'a HeadData,
-	balance: Balance,
+	local_validation: &'a LocalValidationData,
 	upward_messages: Vec<UpwardMessage>,
 	fees: Balance,
 }
@@ -171,18 +170,14 @@ impl<'a> ValidatedCandidate<'a> {
 		let ValidatedCandidate {
 			pov_block,
 			global_validation,
-			parent_head,
-			balance,
+			local_validation,
 			upward_messages,
 			fees,
 		} = self;
 
 		let omitted_validation = OmittedValidationData {
 			global_validation: global_validation.clone(),
-			local_validation: LocalValidationData {
-				parent_head: parent_head.clone(),
-				balance,
-			},
+			local_validation: local_validation.clone(),
 		};
 
 		let available_data = AvailableData {
@@ -271,8 +266,7 @@ pub fn validate<'a>(
 				Ok(ValidatedCandidate {
 					pov_block,
 					global_validation,
-					parent_head: &local_validation.parent_head,
-					balance: local_validation.balance,
+					local_validation,
 					upward_messages,
 					fees,
 				})

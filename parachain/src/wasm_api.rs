@@ -16,7 +16,7 @@
 
 //! Utilities for writing parachain WASM.
 
-use crate::UpwardMessage;
+use crate::primitives::UpwardMessage;
 use sp_runtime_interface::runtime_interface;
 #[cfg(feature = "std")]
 use sp_externalities::ExternalitiesExt;

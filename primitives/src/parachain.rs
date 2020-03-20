@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot parachain types.
+//! Primitives which are necessary for parachain execution from a relay-chain
+//! perspective.
 
 use rstd::prelude::*;
 use rstd::cmp::Ordering;
@@ -32,8 +33,9 @@ use runtime_primitives::traits::{Block as BlockT};
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
-pub use polkadot_parachain::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage,
+pub use polkadot_parachain::primitives::{
+	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
+	ValidationCode,
 };
 
 /// The key type ID for a collator key.
@@ -545,13 +547,6 @@ pub struct AvailableData {
 	// In the future, outgoing messages as well.
 }
 
-/// Parachain block data.
-///
-/// Contains everything required to validate para-block, may contain block and witness data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
 /// A chunk of erasure-encoded block data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, Default)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
@@ -564,28 +559,10 @@ pub struct ErasureChunk {
 	pub proof: Vec<Vec<u8>>,
 }
 
-impl BlockData {
-	/// Compute hash of block data.
-	#[cfg(feature = "std")]
-	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
-		BlakeTwo256::hash(&self.0[..])
-	}
-}
 /// Parachain header raw bytes wrapper type.
 #[derive(PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct Header(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-/// Parachain head data included in the chain.
-#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Default))]
-pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-/// Parachain validation code.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Activity bit field.
 #[derive(PartialEq, Eq, Clone, Default, Encode, Decode)]
