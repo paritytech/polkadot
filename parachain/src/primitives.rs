@@ -38,7 +38,7 @@ pub type RelayChainBlockNumber = u32;
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Parachain validation code.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
@@ -191,6 +191,14 @@ pub struct ValidationParams {
 	pub block_data: BlockData,
 	/// Previous head-data.
 	pub parent_head: HeadData,
+	/// The current relay-chain block number.
+	pub relay_chain_height: RelayChainBlockNumber,
+	/// Whether a code upgrade is allowed or not, and at which height the upgrade
+	/// would be applied after, if so. The parachain logic should apply any upgrade
+	/// issued in this block after the first block
+	/// with `relay_chain_height` at least this value, if `Some`. if `None`, issue
+	/// no upgrade.
+	pub code_upgrade_allowed: Option<RelayChainBlockNumber>,
 }
 
 /// The result of parachain validation.
@@ -200,4 +208,6 @@ pub struct ValidationParams {
 pub struct ValidationResult {
 	/// New head data that should be included in the relay chain state.
 	pub head_data: HeadData,
+	/// An update to the validation code that should be scheduled in the relay chain.
+	pub new_validation_code: Option<ValidationCode>,
 }
