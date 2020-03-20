@@ -2176,7 +2176,7 @@ dependencies = [
 
 [[package]]
 name = "kvdb-rocksdb"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "fs-swap 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3773,7 +3773,7 @@ dependencies = [
  "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "kvdb-rocksdb 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kvdb-rocksdb 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -8065,7 +8065,7 @@ dependencies = [
 "checksum kvdb 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "cad096c6849b2ef027fabe35c4aed356d0e3d3f586d0a8361e5e17f1e50a7ce5"
 "checksum kvdb-memorydb 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b9355274e5a9e0a7e8ef43916950eae3949024de2a8dffe4d5a6c13974a37c8e"
 "checksum kvdb-memorydb 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4aa954d12cfac958822dfd77aab34f3eec71f103b918c4ab79ab59a36ee594ea"
-"checksum kvdb-rocksdb 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "af36fd66ccd99f3f771ae39b75aaba28b952372b6debfb971134bf1f03466ab2"
+"checksum kvdb-rocksdb 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1fecd50b14a534125228d7039951f92aaff742aff151c04546347aba4d3b4fbc"
 "checksum kvdb-rocksdb 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b3f14c3a10c8894d26175e57e9e26032e6d6c49c30cbe2468c5bf5f6b64bb0be"
 "checksum kvdb-web 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "26f96eec962af83cdf7c83036b3dbb0ae6a1249ddab746820618e2567ca8ebcd"
 "checksum lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
