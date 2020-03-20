@@ -43,6 +43,7 @@ members = [
 
 	"test-parachains/adder",
 	"test-parachains/adder/collator",
+	"test-parachains/code-upgrader",
 ]
 exclude = [
 	"runtime/polkadot/wasm",
