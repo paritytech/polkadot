@@ -6,7 +6,6 @@
 	<link rel="shortcut icon" href="/favicon.png" />
 	<script type="module">
 import { start_client, default as init } from './pkg/polkadot_cli.js';
-import ws from './ws.js';
 
 function log(msg) {
 	document.getElementsByTagName('body')[0].innerHTML += msg + '\n';
@@ -16,10 +15,13 @@ async function start() {
 	log('Loading WASM');
 	await init('./pkg/polkadot_cli_bg.wasm');
 	log('Successfully loaded WASM');
+	log('Fetching chain spec');
+	const chain_spec_response = await fetch("https://raw.githubusercontent.com/paritytech/polkadot/master/service/res/westend.json");
+	const chain_spec_text = await chain_spec_response.text();
 
 	// Build our client.
 	log('Starting client');
-	let client = await start_client('westend', ws());
+	let client = await start_client(chain_spec_text, 'info');
 	log('Client started');
 
 	client.rpcSubscribe('{"method":"chain_subscribeNewHead","params":[],"id":1,"jsonrpc":"2.0"}',
