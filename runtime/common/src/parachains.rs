@@ -493,12 +493,13 @@ decl_module! {
 			let validator_set_count = validators.len() as u32;
 
 			let session_index = report.proof.session();
+			let DoubleVoteReport { identity, proof, .. } = report;
 
 			// We have already checked this proof in `SignedExtension`, but we need
 			// this here to get the full identification of the offender.
 			let offender = T::KeyOwnerProofSystem::check_proof(
-					(PARACHAIN_KEY_TYPE_ID, report.identity.encode()),
-					report.proof.clone(),
+					(PARACHAIN_KEY_TYPE_ID, identity.encode()),
+					proof,
 				).ok_or("Invalid/outdated key ownership proof.")?;
 
 			let offence = DoubleVoteOffence {
@@ -2728,8 +2729,6 @@ mod tests {
 
 		// Test that `ParentToSessionIndex` is pruned upon eras turn.
 		new_test_ext(parachains.clone()).execute_with(|| {
-			let candidate = raw_candidate(1.into()).abridge().0;
-			let candidate_hash = candidate.hash();
 			start_era(1);
 
 			let parent_hash_1 = System::parent_hash();
