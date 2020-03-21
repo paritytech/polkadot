@@ -18,22 +18,22 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
+consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "master" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master" }
 bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
