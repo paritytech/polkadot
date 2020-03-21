@@ -203,7 +203,7 @@ impl GetSessionNumber for session::historical::Proof {
 	}
 }
 
-pub trait Trait: attestations::Trait + session::historical::Trait {
+pub trait Trait: attestations::Trait + session::historical::Trait + staking::Trait {
 	/// The outer origin type.
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
 
@@ -336,9 +336,14 @@ decl_storage! {
 		/// The mapping from parent block hashes to session indexes.
 		///
 		/// Used for double vote report validation.
-		/// This is not pruned at the moment.
 		pub ParentToSessionIndex get(session_at_block):
 			map hasher(twox_64_concat) T::Hash => SessionIndex;
+
+		/// The era that is active currently.
+		///
+		/// Changes with the `ActiveEra` from `staking`. Upon these changes `ParentToSessionIndex`
+		/// is pruned.
+		ActiveEra get(active_era): Option<staking::EraIndex>;
 	}
 	add_extra_genesis {
 		config(authorities): Vec<ValidatorId>;
@@ -516,6 +521,21 @@ decl_module! {
 			let current_session = <session::Module<T>>::current_index();
 			let parent_hash = <system::Module<T>>::parent_hash();
 
+			match Self::active_era() {
+				Some(era) => {
+					if let Some(active_era) = <staking::Module<T>>::current_era() {
+						if era != active_era {
+							<Self as Store>::ActiveEra::put(active_era);
+							<ParentToSessionIndex<T>>::remove_all();
+						}
+					}
+				}
+				None => {
+					if let Some(active_era) = <staking::Module<T>>::current_era() {
+						<Self as Store>::ActiveEra::set(Some(active_era));
+					}
+				}
+			}
 			<ParentToSessionIndex<T>>::insert(parent_hash, current_session);
 		}
 
@@ -1643,7 +1663,6 @@ mod tests {
 
 		for i in Session::current_index()..session_index {
 			println!("session index {}", i);
-
 			Staking::on_finalize(System::block_number());
 			System::set_block_number((i + 1).into());
 			Timestamp::set_timestamp(System::block_number() * 6000);
@@ -2698,6 +2717,33 @@ mod tests {
 					},
 				);
 			}
+		});
+	}
+
+	#[test]
+	fn double_vote_hash_to_session_gets_pruned() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		// Test that `ParentToSessionIndex` is pruned upon eras turn.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+			start_era(1);
+
+			let parent_hash_1 = System::parent_hash();
+			// The mapping should know about the session at this block.
+			assert_eq!(Parachains::session_at_block(parent_hash_1), 3);
+
+			start_era(2);
+
+			let parent_hash_2 = System::parent_hash();
+
+			// Info about a block from pevious era is removed.
+			assert_eq!(Parachains::session_at_block(parent_hash_1), 0);
+			// Info about a block form this era is present.
+			assert_eq!(Parachains::session_at_block(parent_hash_2), 6);
 		});
 	}
 }

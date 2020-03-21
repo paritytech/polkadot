@@ -312,7 +312,7 @@ decl_module! {
 		) {
 			let who = ensure_signed(origin)?;
 
-			T::Currency::reserve(&who, T::ParathreadDeposit::get())?;
+			<T as Trait>::Currency::reserve(&who, T::ParathreadDeposit::get())?;
 
 			let info = ParaInfo {
 				scheduling: Scheduling::Dynamic,
@@ -371,7 +371,7 @@ decl_module! {
 			Self::force_unschedule(|i| i == id);
 
 			let debtor = <Debtors<T>>::take(id);
-			let _ = T::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
+			let _ = <T as Trait>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
 			Self::deposit_event(Event::ParathreadRegistered(id));
 		}
