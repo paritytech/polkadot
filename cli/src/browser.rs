@@ -32,7 +32,7 @@ pub async fn start_client(chain_spec: String, log_level: String) -> Result<Clien
 
 async fn start_inner(chain_spec: String, log_level: String) -> Result<Client, Box<dyn std::error::Error>> {
 	set_console_error_panic_hook();
-	init_console_log(log::Level::from_str(&log_level)?)?;
+	init_console_log(&log_level.parse()?)?;
 
 	let chain_spec = service::PolkadotChainSpec::from_json_bytes(chain_spec.as_bytes().to_vec())
 		.map_err(|e| format!("{:?}", e))?;
