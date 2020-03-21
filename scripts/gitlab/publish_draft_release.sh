@@ -7,13 +7,6 @@ source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/lib.sh
 substrate_repo="https://github.com/paritytech/substrate"
 substrate_dir='./substrate'
 
-# Substrate labels for PRs we want to include in the release notes
-labels=(
-  'B1-runtimenoteworthy'
-  'B1-clientnoteworthy'
-  'B1-apinoteworthy'
-)
-
 # Cloning repos to ensure freshness
 echo "[+] Cloning substrate to generate list of changes"
 git clone $substrate_repo $substrate_dir
@@ -48,14 +41,18 @@ $(sanitised_git_logs "$last_version" "$version" | \
 
 # Get substrate changes between last polkadot version and current
 cur_substrate_commit=$(grep -A 2 'name = "sc-cli"' Cargo.lock | grep -E -o '[a-f0-9]{40}')
-git checkout "$last_version" 2> /dev/null
+git checkout "$last_version"
 old_substrate_commit=$(grep -A 2 'name = "sc-cli"' Cargo.lock | grep -E -o '[a-f0-9]{40}')
 
 pushd $substrate_dir || exit
   git checkout polkadot-master > /dev/null
   git pull > /dev/null
   all_substrate_changes="$(sanitised_git_logs "$old_substrate_commit" "$cur_substrate_commit" | sed 's/(#/(paritytech\/substrate#/')"
+  substrate_runtime_changes=""
+  substrate_api_changes=""
+  substrate_client_changes=""
   substrate_changes=""
+
   echo "[+] Iterating through substrate changes to find labelled PRs"
   while IFS= read -r line; do
     pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
@@ -64,24 +61,57 @@ pushd $substrate_dir || exit
     if has_label 'paritytech/substrate' "$pr_id" 'B0-silent'; then
       continue
     fi
-    for label in "${labels[@]}"; do
-      if has_label 'paritytech/substrate' "$pr_id" "$label"; then
-        substrate_changes="$substrate_changes
+    if has_label 'paritytech/substrate' "$pr_id" 'B1-runtimenoteworthy'; then
+      substrate_runtime_changes="$substrate_runtime_changes
 $line"
-      fi
-    done
+    fi
+    if has_label 'paritytech/substrate' "$pr_id" 'B1-clientnoteworthy'; then
+      substrate_client_changes="$substrate_client_changes
+$line"
+    fi
+     if has_label 'paritytech/substrate' "$pr_id" 'B1-apinoteworthy' ; then
+      substrate_api_changes="$substrate_api_changes
+$line"
+      continue
+    fi
   done <<< "$all_substrate_changes"
 popd || exit
 
 echo "[+] Changes generated. Removing temporary repos"
-# Should be done with substrate repo now, clean it up
-rm -rf $substrate_dir
 
-if [ -n "$substrate_changes" ]; then
-  release_text="$release_text
-
+# Make the substrate section if there are any substrate changes
+if [ -n "$substrate_runtime_changes" ] ||
+   [ -n "$substrate_api_changes" ] ||
+   [ -n "$substrate_client_changes" ]; then
+  substrate_changes=$(cat << EOF
 Substrate changes
 -----------------
+
+EOF
+)
+  if [ -n "$substrate_runtime_changes" ]; then
+    substrate_changes="$substrate_changes
+
+Runtime
+-------
+$substrate_runtime_changes"
+  fi
+  if [ -n "$substrate_client_changes" ]; then
+    substrate_changes="$substrate_changes
+
+Client
+------
+$substrate_client_changes"
+  fi
+  if [ -n "$substrate_api_changes" ]; then
+    substrate_changes="$substrate_changes
+
+API
+---
+$substrate_api_changes"
+  fi
+  release_text="$release_text
+
 $substrate_changes"
 fi
 
@@ -120,13 +150,15 @@ fi
 echo '[+] Sending draft release URL to Matrix'
 
 msg_body=$(cat <<EOF
-**Gav: Release pipeline for Polkadot $version complete.**
-Draft release created: $html_url
+**New version of polkadot tagged:** $CI_COMMIT_TAG.
+Gav: Draft release created: $html_url
+Build pipeline: $CI_PIPELINE_URL
 EOF
 )
 formatted_msg_body=$(cat <<EOF
-<strong>Gav: Release pipeline for Polkadot $version complete.</strong><br />
-Draft release created: $html_url
+<strong>New version of polkadot tagged:</strong> $CI_COMMIT_TAG<br />
+Gav: Draft release created: $html_url <br />
+Build pipeline: $CI_PIPELINE_URL
 EOF
 )
 send_message "$(structure_message "$msg_body" "$formatted_msg_body")" "$MATRIX_ROOM_ID" "$MATRIX_ACCESS_TOKEN"
