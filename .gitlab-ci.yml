@@ -159,6 +159,7 @@ check-web-wasm:                    &test
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path primitives/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path rpc/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path statement-table/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path cli/Cargo.toml --no-default-features --features browser
     - sccache -s
 
 

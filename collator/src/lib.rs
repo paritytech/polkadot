@@ -343,7 +343,8 @@ where
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
-	match (config.expect_chain_spec().is_kusama(), config.roles) {
+	let is_kusama = config.expect_chain_spec().is_kusama();
+	match (is_kusama, config.roles) {
 		(_, Roles::LIGHT) => return Err(
 			polkadot_service::Error::Other("light nodes are unsupported as collator".into())
 		).into(),
@@ -434,5 +435,33 @@ mod tests {
 				HeadData(vec![9, 9, 9]),
 			))
 		}
+	}
+
+	struct BuildDummyParachainContext;
+
+	impl BuildParachainContext for BuildDummyParachainContext {
+		type ParachainContext = DummyParachainContext;
+
+		fn build<B, E, R, SP, Extrinsic>(
+			self,
+			_: Arc<PolkadotClient<B, E, R>>,
+			_: SP,
+			_: impl Network + Clone + 'static,
+		) -> Result<Self::ParachainContext, ()> {
+			Ok(DummyParachainContext)
+		}
+	}
+
+	// Make sure that the future returned by `start_collator` implementes `Send`.
+	#[test]
+	fn start_collator_is_send() {
+		fn check_send<T: Send>(_: T) {}
+
+		check_send(start_collator(
+			BuildDummyParachainContext,
+			0.into(),
+			Arc::new(CollatorPair::generate().0),
+			Default::default(),
+		));
 	}
 }
