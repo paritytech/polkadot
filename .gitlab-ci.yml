@@ -111,6 +111,13 @@ check-line-width:
   interruptible:                   true
   allow_failure:                   true
 
+cargo-deny:
+  stage:                           test
+  <<:                              *docker-env
+  script:
+    - cargo deny check -c scripts/deny.toml
+  allow_failure:                   true
+
 publish-draft-release:
   stage:                           test
   image:                           parity/tools:latest
