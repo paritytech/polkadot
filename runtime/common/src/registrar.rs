@@ -653,7 +653,7 @@ mod tests {
 		traits::{
 			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, Dispatchable,
 			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header}, KeyTypeId, Perbill, curve::PiecewiseLinear,
+		}, testing::{UintAuthorityId}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{

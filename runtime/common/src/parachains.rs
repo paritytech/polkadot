@@ -1518,7 +1518,7 @@ mod tests {
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
 		impl_opaque_keys,
-		Perbill, curve::PiecewiseLinear, testing::{Header},
+		Perbill, curve::PiecewiseLinear,
 		traits::{
 			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, SaturatedConversion,
 			OpaqueKeys,
@@ -1979,13 +1979,12 @@ mod tests {
 
 	fn start_session(session_index: SessionIndex) {
 		let mut parent_hash = System::parent_hash();
-		use sp_runtime::traits::Header;
 
 		for i in Session::current_index()..session_index {
 			println!("session index {}", i);
 			Staking::on_finalize(System::block_number());
 			System::set_block_number((i + 1).into());
-			Timestamp::set_timestamp(System::block_number() * 6000);
+			Timestamp::set_timestamp(System::block_number() as primitives::Moment * 6000);
 
 			// In order to be able to use `System::parent_hash()` in the tests
 			// we need to first get it via `System::finalize` and then set it
@@ -1999,7 +1998,7 @@ mod tests {
 			}
 
 			System::initialize(
-				&(i as u64 + 1),
+				&(i as BlockNumber + 1),
 				&parent_hash,
 				&Default::default(),
 				&Default::default(),
