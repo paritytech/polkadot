@@ -28,12 +28,6 @@ log = { version = "0.4.8", optional = true }
 [target.'cfg(not(target_os = "unknown"))'.dependencies]
 shared_memory = { version = "0.10.0", optional = true }
 
-[dev-dependencies]
-tiny-keccak = "1.5.0"
-adder = { path = "../test-parachains/adder" }
-halt = { path = "../test-parachains/halt" }
-code-upgrader = { path = "../test-parachains/code-upgrader" }
-
 [features]
 default = ["std"]
 wasm-api = ["sp-runtime-interface"]

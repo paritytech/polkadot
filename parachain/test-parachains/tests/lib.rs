@@ -18,9 +18,8 @@ mod adder;
 mod code_upgrader;
 mod wasm_executor;
 
-use polkadot_parachain as parachain;
-use crate::parachain::{
-	primitives::UpwardMessage, wasm_executor::{Externalities, run_worker},
+use parachain::{
+	self, primitives::UpwardMessage, wasm_executor::{Externalities, run_worker},
 };
 
 struct DummyExt;

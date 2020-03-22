@@ -16,10 +16,9 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-use polkadot_parachain as parachain;
-
 use crate::{
 	DummyExt,
+	parachain,
 	parachain::primitives::{
 		RelayChainBlockNumber,
 		BlockData as GenericBlockData,
