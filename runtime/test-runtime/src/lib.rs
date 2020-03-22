@@ -34,7 +34,7 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, Perbill, RuntimeDebug, KeyTypeId,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	curve::PiecewiseLinear,
 	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto},
@@ -46,10 +46,12 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, traits::Randomness,
+	parameter_types, construct_runtime,
+	traits::{KeyOwnerProofSystem, Randomness},
 	weights::DispatchInfo,
 };
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use session::{historical as session_historical};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -311,6 +313,18 @@ impl parachains::Trait for Runtime {
 	type Registrar = Registrar;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadDataSize = MaxHeadDataSize;
+	type Proof = session::historical::Proof;
+	type KeyOwnerProofSystem = session::historical::Module<Self>;
+	type IdentificationTuple = <
+			Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>
+		>::IdentificationTuple;
+	type ReportOffence = Offences;
+}
+
+impl offences::Trait for Runtime {
+	type Event = Event;
+	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
+	type OnOffenceHandler = Staking;
 }
 
 parameter_types! {
@@ -385,6 +399,8 @@ construct_runtime! {
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
 		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>},
+		Offences: offences::{Module, Call, Storage, Event},
+		Historical: session_historical::{Module},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
 

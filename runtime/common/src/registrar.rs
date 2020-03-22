@@ -312,7 +312,7 @@ decl_module! {
 		) {
 			let who = ensure_signed(origin)?;
 
-			T::Currency::reserve(&who, T::ParathreadDeposit::get())?;
+			<T as Trait>::Currency::reserve(&who, T::ParathreadDeposit::get())?;
 
 			let info = ParaInfo {
 				scheduling: Scheduling::Dynamic,
@@ -371,7 +371,7 @@ decl_module! {
 			Self::force_unschedule(|i| i == id);
 
 			let debtor = <Debtors<T>>::take(id);
-			let _ = T::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
+			let _ = <T as Trait>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
 			Self::deposit_event(Event::ParathreadRegistered(id));
 		}
@@ -646,7 +646,7 @@ mod tests {
 		traits::{
 			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, Dispatchable,
 			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header}, Perbill
+		}, testing::{UintAuthorityId, Header}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{
@@ -657,6 +657,7 @@ mod tests {
 		Balance, BlockNumber,
 	};
 	use frame_support::{
+		traits::KeyOwnerProofSystem,
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
 	};
 	use keyring::Sr25519Keyring;
@@ -676,6 +677,17 @@ mod tests {
 			parachains::Parachains,
 			registrar::Registrar,
 		}
+	}
+
+	pallet_staking_reward_curve::build! {
+		const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
+			min_inflation: 0_025_000,
+			max_inflation: 0_100_000,
+			ideal_stake: 0_500_000,
+			falloff: 0_050_000,
+			max_piece_count: 40,
+			test_precision: 0_005_000,
+		);
 	}
 
 	#[derive(Clone, Eq, PartialEq)]
@@ -735,7 +747,12 @@ mod tests {
 	}
 
 	parameter_types!{
+		pub const SlashDeferDuration: staking::EraIndex = 7;
 		pub const AttestationPeriod: BlockNumber = 100;
+		pub const MinimumPeriod: u64 = 3;
+		pub const SessionsPerEra: sp_staking::SessionIndex = 6;
+		pub const BondingDuration: staking::EraIndex = 28;
+		pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	}
 
 	impl attestations::Trait for Test {
@@ -748,6 +765,7 @@ mod tests {
 		pub const Period: BlockNumber = 1;
 		pub const Offset: BlockNumber = 0;
 		pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
+		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	}
 
 	impl session::Trait for Test {
@@ -766,6 +784,34 @@ mod tests {
 		pub const MaxCodeSize: u32 = 100;
 	}
 
+	impl staking::Trait for Test {
+		type RewardRemainder = ();
+		type CurrencyToVote = ();
+		type Event = ();
+		type Currency = balances::Module<Test>;
+		type Slash = ();
+		type Reward = ();
+		type SessionsPerEra = SessionsPerEra;
+		type BondingDuration = BondingDuration;
+		type SlashDeferDuration = SlashDeferDuration;
+		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
+		type SessionInterface = Self;
+		type Time = timestamp::Module<Test>;
+		type RewardCurve = RewardCurve;
+		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	}
+
+	impl timestamp::Trait for Test {
+		type Moment = u64;
+		type OnTimestampSet = ();
+		type MinimumPeriod = MinimumPeriod;
+	}
+
+	impl session::historical::Trait for Test {
+		type FullIdentification = staking::Exposure<u64, Balance>;
+		type FullIdentificationOf = staking::ExposureOf<Self>;
+	}
+
 	impl parachains::Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
@@ -775,6 +821,10 @@ mod tests {
 		type Randomness = RandomnessCollectiveFlip;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
+		type Proof = session::historical::Proof;
+		type KeyOwnerProofSystem = session::historical::Module<Test>;
+		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+		type ReportOffence = ();
 	}
 
 	parameter_types! {

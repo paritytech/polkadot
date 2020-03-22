@@ -35,7 +35,7 @@ use primitives::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, Percent, Permill, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
 	curve::PiecewiseLinear,
 	traits::{
@@ -52,13 +52,14 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, traits::{SplitTwoWays, Randomness},
+	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness},
 	weights::DispatchInfo,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use system::offchain::TransactionSubmitter;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use session::{historical as session_historical};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -499,6 +500,10 @@ impl parachains::Trait for Runtime {
 	type Registrar = Registrar;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadDataSize = MaxHeadDataSize;
+	type Proof = session::historical::Proof;
+	type KeyOwnerProofSystem = session::historical::Module<Self>;
+	type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+	type ReportOffence = Offences;
 }
 
 parameter_types! {
@@ -579,6 +584,7 @@ construct_runtime! {
 		Authorship: authorship::{Module, Call, Storage},
 		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>},
 		Offences: offences::{Module, Call, Storage, Event},
+		Historical: session_historical::{Module},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Storage, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
@@ -630,7 +636,8 @@ pub type SignedExtra = (
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
 	transaction_payment::ChargeTransactionPayment::<Runtime>,
-	registrar::LimitParathreadCommits<Runtime>
+	registrar::LimitParathreadCommits<Runtime>,
+	parachains::ValidateDoubleVoteReports<Runtime>
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
