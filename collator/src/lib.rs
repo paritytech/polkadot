@@ -431,6 +431,7 @@ mod tests {
 		fn produce_candidate(
 			&mut self,
 			_relay_parent: Hash,
+			_global: GlobalValidationSchedule,
 			_local_validation: LocalValidationData,
 		) -> Self::ProduceCandidate {
 			// send messages right back.
