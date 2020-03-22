@@ -19,7 +19,7 @@
 //! In the future, it is planned that this module will handle dispute resolution
 //! as well.
 
-use rstd::prelude::*;
+use sp_std::prelude::*;
 use codec::{Encode, Decode};
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, traits::Get
@@ -106,11 +106,11 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Attestations {
 		/// A mapping from modular block number (n % AttestationPeriod)
 		/// to session index and the list of candidate hashes.
-		pub RecentParaBlocks: map hasher(blake2_256) T::BlockNumber => Option<IncludedBlocks<T>>;
+		pub RecentParaBlocks: map hasher(twox_64_concat) T::BlockNumber => Option<IncludedBlocks<T>>;
 
 		/// Attestations on a recent parachain block.
 		pub ParaBlockAttestations:
-			double_map hasher(blake2_256) T::BlockNumber, hasher(blake2_128) Hash
+			double_map hasher(twox_64_concat) T::BlockNumber, hasher(identity) Hash
 			=> Option<BlockAttestations<T>>;
 
 		// Did we already have more attestations included in this block?

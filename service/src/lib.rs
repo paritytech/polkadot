@@ -17,6 +17,7 @@
 //! Polkadot service. Specialized wrapper over substrate service.
 
 pub mod chain_spec;
+mod grandpa_support;
 
 use sc_client::LongestChain;
 use std::sync::Arc;
@@ -32,18 +33,19 @@ use log::info;
 pub use service::{
 	AbstractService, Roles, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
+	Configuration, ChainSpec,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig, full_version_from_strs};
 pub use sc_executor::NativeExecutionDispatch;
 pub use sc_client::{ExecutionStrategy, CallExecutor, Client};
 pub use sc_client_api::backend::Backend;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
-pub use sp_runtime::traits::HashFor;
+pub use sp_runtime::traits::{HashFor, NumberFor};
 pub use consensus_common::SelectChain;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use chain_spec::ChainSpec;
+pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec};
 #[cfg(not(target_os = "unknown"))]
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
@@ -51,24 +53,18 @@ pub use polkadot_runtime;
 pub use kusama_runtime;
 use prometheus_endpoint::Registry;
 
-/// Configuration type that is being used.
-///
-/// See [`ChainSpec`] for more information why Polkadot `GenesisConfig` is safe here.
-pub type Configuration = service::Configuration<
-	polkadot_runtime::GenesisConfig,
-	chain_spec::Extensions,
->;
-
 native_executor_instance!(
 	pub PolkadotExecutor,
 	polkadot_runtime::api::dispatch,
-	polkadot_runtime::native_version
+	polkadot_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
 );
 
 native_executor_instance!(
 	pub KusamaExecutor,
 	kusama_runtime::api::dispatch,
-	kusama_runtime::native_version
+	kusama_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
 );
 
 /// A set of APIs that polkadot-like runtimes must implement.
@@ -119,9 +115,9 @@ pub trait IsKusama {
 	fn is_kusama(&self) -> bool;
 }
 
-impl IsKusama for ChainSpec {
+impl IsKusama for &dyn ChainSpec {
 	fn is_kusama(&self) -> bool {
-		self.name().starts_with("Kusama")
+		self.id().starts_with("kusama") || self.id().starts_with("ksm")
 	}
 }
 
@@ -155,13 +151,24 @@ macro_rules! new_full_start {
 				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api));
 				Ok(pool)
 			})?
-			.with_import_queue(|_config, client, mut select_chain, _| {
+			.with_import_queue(|config, client, mut select_chain, _| {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
+
+				let grandpa_hard_forks = if config.expect_chain_spec().is_kusama() {
+					grandpa_support::kusama_hard_forks()
+				} else {
+					Vec::new()
+				};
+
 				let (grandpa_block_import, grandpa_link) =
-					grandpa::block_import(
-						client.clone(), &(client.clone() as Arc<_>), select_chain
+					grandpa::block_import_with_authority_set_hard_forks(
+						client.clone(),
+						&(client.clone() as Arc<_>),
+						select_chain,
+						grandpa_hard_forks,
 					)?;
+
 				let justification_import = grandpa_block_import.clone();
 
 				let (block_import, babe_link) = babe::block_import(
@@ -213,6 +220,7 @@ pub fn polkadot_new_full(
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
+	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
 		impl AbstractService<
@@ -225,7 +233,14 @@ pub fn polkadot_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
+	new_full(
+		config,
+		collating_for,
+		max_block_data_size,
+		authority_discovery_enabled,
+		slot_duration,
+		grandpa_pause,
+	)
 }
 
 /// Create a new Kusama service for a full node.
@@ -236,6 +251,7 @@ pub fn kusama_new_full(
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
+	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
 		impl AbstractService<
@@ -248,7 +264,14 @@ pub fn kusama_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	new_full(config, collating_for, max_block_data_size, authority_discovery_enabled, slot_duration)
+	new_full(
+		config,
+		collating_for,
+		max_block_data_size,
+		authority_discovery_enabled,
+		slot_duration,
+		grandpa_pause,
+	)
 }
 
 /// Handles to other sub-services that full nodes instantiate, which consumers
@@ -267,6 +290,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
+	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
 		impl AbstractService<
@@ -451,6 +475,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 				sentry_nodes,
 				service.keystore(),
 				dht_event_stream,
+				service.prometheus_registry(),
 			);
 			service.spawn_task("authority-discovery", authority_discovery);
 		}
@@ -482,13 +507,33 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		// they're validators or not). at this point the full voter should
 		// provide better guarantees of block and vote data availability than
 		// the observer.
+
+		// add a custom voting rule to temporarily stop voting for new blocks
+		// after the given pause block is finalized and restarting after the
+		// given delay.
+		let voting_rule = match grandpa_pause {
+			Some((block, delay)) => {
+				info!("GRANDPA scheduled voting pause set for block #{} with a duration of {} blocks.",
+					block,
+					delay,
+				);
+
+				grandpa::VotingRulesBuilder::default()
+					.add(grandpa_support::PauseAfterBlockFor(block, delay))
+					.build()
+			},
+			None =>
+				grandpa::VotingRulesBuilder::default()
+					.build(),
+		};
+
 		let grandpa_config = grandpa::GrandpaParams {
 			config,
 			link: link_half,
 			network: service.network(),
 			inherent_data_providers: inherent_data_providers.clone(),
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
-			voting_rule: grandpa::VotingRulesBuilder::default().build(),
+			voting_rule,
 			prometheus_registry: service.prometheus_registry(),
 		};
 

@@ -29,13 +29,26 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 
 	let mut config = service::Configuration::from_version(&version);
 	config.impl_name = "parity-polkadot";
+	let force_kusama = opt.run.force_kusama;
+
+	let grandpa_pause = if opt.grandpa_pause.is_empty() {
+		None
+	} else {
+		// should be enforced by cli parsing
+		assert_eq!(opt.grandpa_pause.len(), 2);
+		Some((opt.grandpa_pause[0], opt.grandpa_pause[1]))
+	};
 
 	match opt.subcommand {
 		None => {
-			opt.run.init(&version)?;
-			opt.run.update_config(&mut config, load_spec, &version)?;
+			opt.run.base.init(&version)?;
+			opt.run.base.update_config(
+				&mut config,
+				|id| load_spec(id, force_kusama),
+				&version
+			)?;
 
-			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
+			let is_kusama = config.expect_chain_spec().is_kusama();
 
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
@@ -56,7 +69,7 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 					service::kusama_runtime::RuntimeApi,
 					service::KusamaExecutor,
 					service::kusama_runtime::UncheckedExtrinsic,
-				>(config, opt.authority_discovery_enabled)
+				>(config, opt.authority_discovery_enabled, grandpa_pause)
 			} else {
 				info!("Native runtime: {}", service::PolkadotExecutor::native_version().runtime_version);
 
@@ -64,14 +77,18 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 					service::polkadot_runtime::RuntimeApi,
 					service::PolkadotExecutor,
 					service::polkadot_runtime::UncheckedExtrinsic,
-				>(config, opt.authority_discovery_enabled)
+				>(config, opt.authority_discovery_enabled, grandpa_pause)
 			}
 		},
 		Some(Subcommand::Base(cmd)) => {
 			cmd.init(&version)?;
-			cmd.update_config(&mut config, load_spec, &version)?;
+			cmd.update_config(
+				&mut config,
+				|id| load_spec(id, force_kusama),
+				&version
+			)?;
 
-			let is_kusama = config.chain_spec.as_ref().map_or(false, |s| s.is_kusama());
+			let is_kusama = config.expect_chain_spec().is_kusama();
 
 			if is_kusama {
 				cmd.run(config, service::new_chain_ops::<
@@ -98,12 +115,23 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 				Ok(())
 			}
 		},
+		Some(Subcommand::Benchmark(cmd)) => {
+			cmd.init(&version)?;
+			cmd.update_config(&mut config, |id| load_spec(id, force_kusama), &version)?;
+			let is_kusama = config.expect_chain_spec().is_kusama();
+			if is_kusama {
+				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
+			} else {
+				cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
+			}
+		},
 	}
 }
 
 fn run_service_until_exit<R, D, E>(
 	config: service::Configuration,
 	authority_discovery_enabled: bool,
+	grandpa_pause: Option<(u32, u32)>,
 ) -> sc_cli::Result<()>
 where
 	R: ConstructRuntimeApi<Block, service::TFullClient<Block, R, D>>
@@ -132,7 +160,14 @@ where
 		_ =>
 			sc_cli::run_service_until_exit(
 				config,
-				|config| service::new_full::<R, D, E>(config, None, None, authority_discovery_enabled, 6000)
+				|config| service::new_full::<R, D, E>(
+					config,
+					None,
+					None,
+					authority_discovery_enabled,
+					6000,
+					grandpa_pause,
+				)
 					.map(|(s, _)| s),
 			),
 	}

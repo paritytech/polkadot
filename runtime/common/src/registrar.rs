@@ -18,9 +18,9 @@
 //! registered and which are scheduled. Doesn't manage any of the actual execution/validation logic
 //! which is left to `parachains.rs`.
 
-use rstd::{prelude::*, result};
+use sp_std::{prelude::*, result};
 #[cfg(any(feature = "std", test))]
-use rstd::marker::PhantomData;
+use sp_std::marker::PhantomData;
 use codec::{Encode, Decode};
 
 use sp_runtime::{
@@ -184,16 +184,16 @@ decl_storage! {
 		NextFreeId: ParaId = LOWEST_USER_ID;
 
 		/// Pending swap operations.
-		PendingSwap: map hasher(blake2_256) ParaId => Option<ParaId>;
+		PendingSwap: map hasher(twox_64_concat) ParaId => Option<ParaId>;
 
 		/// Map of all registered parathreads/chains.
-		Paras get(paras): map hasher(blake2_256) ParaId => Option<ParaInfo>;
+		Paras get(paras): map hasher(twox_64_concat) ParaId => Option<ParaInfo>;
 
 		/// The current queue for parathreads that should be retried.
 		RetryQueue get(retry_queue): Vec<Vec<(ParaId, CollatorId)>>;
 
 		/// Users who have paid a parathread's deposit
-		Debtors: map hasher(blake2_256) ParaId => T::AccountId;
+		Debtors: map hasher(twox_64_concat) ParaId => T::AccountId;
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
@@ -404,13 +404,13 @@ decl_module! {
 				Parachains::mutate(|ids| swap_ordered_existence(ids, id, other));
 				Paras::mutate(id, |i|
 					Paras::mutate(other, |j|
-						rstd::mem::swap(i, j)
+						sp_std::mem::swap(i, j)
 					)
 				);
 
 				<Debtors<T>>::mutate(id, |i|
 					<Debtors<T>>::mutate(other, |j|
-						rstd::mem::swap(i, j)
+						sp_std::mem::swap(i, j)
 					)
 				);
 				let _ = T::SwapAux::on_swap(id, other);
@@ -553,13 +553,13 @@ impl<T: Trait> ActiveParas for Module<T> {
 
 /// Ensure that parathread selections happen prioritized by fees.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
-pub struct LimitParathreadCommits<T: Trait + Send + Sync>(rstd::marker::PhantomData<T>) where
+pub struct LimitParathreadCommits<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
 
-impl<T: Trait + Send + Sync> rstd::fmt::Debug for LimitParathreadCommits<T> where
+impl<T: Trait + Send + Sync> sp_std::fmt::Debug for LimitParathreadCommits<T> where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>
 {
-	fn fmt(&self, f: &mut rstd::fmt::Formatter) -> rstd::fmt::Result {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
 		write!(f, "LimitParathreadCommits<T>")
 	}
 }
@@ -584,7 +584,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self)
-		-> rstd::result::Result<Self::AdditionalSigned, TransactionValidityError>
+		-> sp_std::result::Result<Self::AdditionalSigned, TransactionValidityError>
 	{
 		Ok(())
 	}
@@ -631,7 +631,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 
 				// updated the selected threads.
 				selected_threads.insert(pos, (*id, collator.clone()));
-				rstd::mem::drop(selected_threads);
+				sp_std::mem::drop(selected_threads);
 				SelectedThreads::put(upcoming_selected_threads);
 
 				// provides the state-transition for this head-data-hash; this should cue the pool

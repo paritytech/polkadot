@@ -78,7 +78,7 @@ use sp_runtime::{ModuleId,
 use frame_support::weights::SimpleDispatchInfo;
 use crate::slots;
 use codec::{Encode, Decode};
-use rstd::vec::Vec;
+use sp_std::vec::Vec;
 use sp_core::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
 use primitives::parachain::Id as ParaId;
 
@@ -167,7 +167,7 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Crowdfund {
 		/// Info on all of the funds.
 		Funds get(funds):
-			map hasher(blake2_256) FundIndex
+			map hasher(twox_64_concat) FundIndex
 			=> Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
 
 		/// The total number of funds that have so far been allocated.

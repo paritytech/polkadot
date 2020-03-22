@@ -16,8 +16,8 @@
 
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
-use rstd::prelude::*;
-use rstd::result;
+use sp_std::prelude::*;
+use sp_std::result;
 use codec::{Decode, Encode};
 
 use sp_runtime::traits::{
@@ -99,7 +99,7 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 }
 
 /// Interface to the persistent (stash) identities of the current validators.
-pub struct ValidatorIdentities<T>(rstd::marker::PhantomData<T>);
+pub struct ValidatorIdentities<T>(sp_std::marker::PhantomData<T>);
 
 impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
 	fn get() -> Vec<T::ValidatorId> {
@@ -268,32 +268,32 @@ decl_storage! {
 		/// All authorities' keys at the moment.
 		pub Authorities get(authorities): Vec<ValidatorId>;
 		/// The active code of a currently-registered parachain.
-		pub Code get(parachain_code): map hasher(blake2_256) ParaId => Option<Vec<u8>>;
+		pub Code get(parachain_code): map hasher(twox_64_concat) ParaId => Option<Vec<u8>>;
 		/// Past code of parachains. The parachains themselves may not be registered anymore,
 		/// but we also keep their code on-chain for the same amount of time as outdated code
 		/// to assist with availability.
-		PastCodeMeta get(past_code_meta): map hasher(blake2_256) ParaId => ParaPastCodeMeta<T::BlockNumber>;
+		PastCodeMeta get(past_code_meta): map hasher(twox_64_concat) ParaId => ParaPastCodeMeta<T::BlockNumber>;
 		/// Actual past code, indicated by the parachain and the block number at which it
 		/// became outdated.
-		PastCode: map hasher(blake2_256) (ParaId, T::BlockNumber) => Option<Vec<u8>>;
+		PastCode: map hasher(twox_64_concat) (ParaId, T::BlockNumber) => Option<Vec<u8>>;
 		/// Past code pruning, in order of priority.
 		PastCodePruning get(past_code_pruning_tasks): Vec<(ParaId, T::BlockNumber)>;
 		// The block number at which the planned code change is expected for a para.
 		// The change will be applied after the first parablock for this ID included which executes
 		// in the context of a relay chain block with a number >= `expected_at`.
-		FutureCodeUpgrades get(code_upgrade_schedule): map hasher(blake2_256) ParaId => Option<T::BlockNumber>;
+		FutureCodeUpgrades get(code_upgrade_schedule): map hasher(twox_64_concat) ParaId => Option<T::BlockNumber>;
 		// The actual future code of a para.
-		FutureCode: map hasher(blake2_256) ParaId => Vec<u8>;
+		FutureCode: map hasher(twox_64_concat) ParaId => Vec<u8>;
 
 		/// The heads of the parachains registered at present.
-		pub Heads get(parachain_head): map hasher(blake2_256) ParaId => Option<Vec<u8>>;
+		pub Heads get(parachain_head): map hasher(twox_64_concat) ParaId => Option<Vec<u8>>;
 		/// Messages ready to be dispatched onto the relay chain. It is subject to
 		/// `MAX_MESSAGE_COUNT` and `WATERMARK_MESSAGE_SIZE`.
-		pub RelayDispatchQueue: map hasher(blake2_256) ParaId => Vec<UpwardMessage>;
+		pub RelayDispatchQueue: map hasher(twox_64_concat) ParaId => Vec<UpwardMessage>;
 		/// Size of the dispatch queues. Separated from actual data in order to avoid costly
 		/// decoding when checking receipt validity. First item in tuple is the count of messages
 		///	second if the total length (in bytes) of the message payloads.
-		pub RelayDispatchQueueSize: map hasher(blake2_256) ParaId => (u32, u32);
+		pub RelayDispatchQueueSize: map hasher(twox_64_concat) ParaId => (u32, u32);
 		/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
 		NeedsDispatch: Vec<ParaId>;
 
@@ -749,7 +749,7 @@ impl<T: Trait> Module<T> {
 			let offset = (i * 4 % 32) as usize;
 
 			// number of roles remaining to select from.
-			let remaining = rstd::cmp::max(1, (validator_count - i) as usize);
+			let remaining = sp_std::cmp::max(1, (validator_count - i) as usize);
 
 			// 8 32-bit ints per 256-bit seed.
 			let val_index = u32::decode(&mut &seed[offset..offset + 4])
@@ -858,7 +858,7 @@ impl<T: Trait> Module<T> {
 		schedule: &GlobalValidationSchedule,
 		attested_candidates: &[AttestedCandidate],
 		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
-	) -> rstd::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError>
+	) -> sp_std::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError>
 	{
 		use primitives::parachain::ValidityAttestation;
 		use sp_runtime::traits::AppVerify;
@@ -936,7 +936,7 @@ impl<T: Trait> Module<T> {
 			abridged: &AbridgedCandidateReceipt,
 			perceived_height: T::BlockNumber,
 		|
-			-> rstd::result::Result<CandidateReceipt, sp_runtime::DispatchError>
+			-> sp_std::result::Result<CandidateReceipt, sp_runtime::DispatchError>
 		{
 			let para_id = abridged.parachain_index;
 			let local_validation = Self::local_validation_data(&para_id, perceived_height)

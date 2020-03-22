@@ -2,7 +2,6 @@ name: Pushes release updates to a pre-defined Matrix room
 on:
   release:
     types:
-      - edited
       - prereleased
       - published
 jobs:

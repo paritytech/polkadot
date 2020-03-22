@@ -348,20 +348,21 @@ where
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
-	match (config.expect_chain_spec().is_kusama(), config.roles) {
+	let is_kusama = config.expect_chain_spec().is_kusama();
+	match (is_kusama, config.roles) {
 		(_, Roles::LIGHT) => return Err(
 			polkadot_service::Error::Other("light nodes are unsupported as collator".into())
 		).into(),
 		(true, _) =>
 			build_collator_service(
-				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
 				para_id,
 				key,
 				build_parachain_context,
 			)?.await,
 		(false, _) =>
 			build_collator_service(
-				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
 				para_id,
 				key,
 				build_parachain_context,
@@ -400,7 +401,7 @@ pub fn run_collator<P>(
 		(true, _) =>
 			sc_cli::run_service_until_exit(config, |config| {
 				build_collator_service(
-					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
 					para_id,
 					key,
 					build_parachain_context,
@@ -409,7 +410,7 @@ pub fn run_collator<P>(
 		(false, _) =>
 			sc_cli::run_service_until_exit(config, |config| {
 				build_collator_service(
-					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000)?,
+					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
 					para_id,
 					key,
 					build_parachain_context,
@@ -440,5 +441,33 @@ mod tests {
 				HeadData(vec![9, 9, 9]),
 			))
 		}
+	}
+
+	struct BuildDummyParachainContext;
+
+	impl BuildParachainContext for BuildDummyParachainContext {
+		type ParachainContext = DummyParachainContext;
+
+		fn build<B, E, R, SP, Extrinsic>(
+			self,
+			_: Arc<PolkadotClient<B, E, R>>,
+			_: SP,
+			_: impl Network + Clone + 'static,
+		) -> Result<Self::ParachainContext, ()> {
+			Ok(DummyParachainContext)
+		}
+	}
+
+	// Make sure that the future returned by `start_collator` implementes `Send`.
+	#[test]
+	fn start_collator_is_send() {
+		fn check_send<T: Send>(_: T) {}
+
+		check_send(start_collator(
+			BuildDummyParachainContext,
+			0.into(),
+			Arc::new(CollatorPair::generate().0),
+			Default::default(),
+		));
 	}
 }

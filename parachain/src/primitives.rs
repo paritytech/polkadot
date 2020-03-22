@@ -17,7 +17,7 @@
 //! Primitive types which are strictly necessary from a parachain-execution point
 //! of view.
 
-use rstd::vec::Vec;
+use sp_std::vec::Vec;
 
 use codec::{Encode, Decode, CompactAs};
 use sp_core::{RuntimeDebug, TypeId};
@@ -84,7 +84,7 @@ impl Id {
 	pub fn is_system(&self) -> bool { self.0 < USER_INDEX_START }
 }
 
-impl rstd::ops::Add<u32> for Id {
+impl sp_std::ops::Add<u32> for Id {
 	type Output = Self;
 
 	fn add(self, other: u32) -> Self {
@@ -159,7 +159,7 @@ pub enum ParachainDispatchOrigin {
 	Root,
 }
 
-impl rstd::convert::TryFrom<u8> for ParachainDispatchOrigin {
+impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
 	type Error = ();
 	fn try_from(x: u8) -> core::result::Result<ParachainDispatchOrigin, ()> {
 		const SIGNED: u8 = ParachainDispatchOrigin::Signed as u8;

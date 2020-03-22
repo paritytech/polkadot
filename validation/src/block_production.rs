@@ -197,7 +197,6 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 				parent_id,
 				client,
 				transaction_pool,
-				table,
 				inherent_data: Some(inherent_data),
 				inherent_digests,
 				// leave some time for the proposal finalisation
@@ -216,7 +215,7 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 			Delay::new(enough_candidates).await;
 
 			tokio::task::spawn_blocking(move || {
-				let proposed_candidates = data.table.proposed_set();
+				let proposed_candidates = table.proposed_set();
 				data.propose_with(proposed_candidates)
 			})
 				.await?
@@ -235,7 +234,6 @@ struct CreateProposalData<Client, TxPool, Backend> {
 	parent_id: BlockId,
 	client: Arc<Client>,
 	transaction_pool: Arc<TxPool>,
-	table: Arc<crate::SharedTable>,
 	inherent_data: Option<InherentData>,
 	inherent_digests: DigestFor<Block>,
 	deadline: Instant,
