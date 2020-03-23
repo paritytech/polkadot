@@ -115,8 +115,14 @@ cargo-deny:
   stage:                           test
   <<:                              *docker-env
   script:
-    - cargo deny check -c scripts/deny.toml
-  allow_failure:                   true
+    - cargo deny check --hide-inclusion-graph -c scripts/deny.toml
+    - echo "___The complete log is in the artifacts___"
+    - cargo deny check -c scripts/deny.toml |& tee deny.log
+  artifacts:
+    name:                          $CI_COMMIT_SHORT_SHA
+    expire_in:                     3 days
+    paths:
+      - deny.log
 
 publish-draft-release:
   stage:                           test
