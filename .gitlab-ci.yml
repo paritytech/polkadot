@@ -118,7 +118,7 @@ cargo-deny:
     - cargo deny check --hide-inclusion-graph -c scripts/deny.toml
   after_script:
     - echo "___The complete log is in the artifacts___"
-    - cargo deny check -c scripts/deny.toml 2> tee deny.log
+    - cargo deny check -c scripts/deny.toml 2> deny.log
   artifacts:
     name:                          $CI_COMMIT_SHORT_SHA
     when:                          always
