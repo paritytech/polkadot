@@ -166,19 +166,19 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 decl_storage! {
 	trait Store for Module<T: Trait> as Crowdfund {
 		/// Info on all of the funds.
-		Funds get(funds):
+		Funds get(fn funds):
 			map hasher(twox_64_concat) FundIndex
 			=> Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
 
 		/// The total number of funds that have so far been allocated.
-		FundCount get(fund_count): FundIndex;
+		FundCount get(fn fund_count): FundIndex;
 
 		/// The funds that have had additional contributions during the last block. This is used
 		/// in order to determine which funds should submit new or updated bids.
-		NewRaise get(new_raise): Vec<FundIndex>;
+		NewRaise get(fn new_raise): Vec<FundIndex>;
 
 		/// The number of auctions that have entered into their ending period so far.
-		EndingsCount get(endings_count): slots::AuctionIndex;
+		EndingsCount get(fn endings_count): slots::AuctionIndex;
 	}
 }
 
@@ -643,6 +643,8 @@ mod tests {
 	impl Contains<u64> for Nobody {
 		fn contains(_: &u64) -> bool { false }
 		fn sorted_members() -> Vec<u64> { vec![] }
+		#[cfg(feature = "runtime-benchmarks")]
+		fn add(_: &u64) { unimplemented!() }
 	}
 	impl treasury::Trait for Test {
 		type Currency = balances::Module<Test>;
