@@ -312,11 +312,11 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Parachains
 	{
 		/// All authorities' keys at the moment.
-		pub Authorities get(authorities): Vec<ValidatorId>;
+		pub Authorities get(fn authorities): Vec<ValidatorId>;
 		/// The parachains registered at present.
-		pub Code get(parachain_code): map hasher(twox_64_concat) ParaId => Option<Vec<u8>>;
+		pub Code get(fn parachain_code): map hasher(twox_64_concat) ParaId => Option<Vec<u8>>;
 		/// The heads of the parachains registered at present.
-		pub Heads get(parachain_head): map hasher(twox_64_concat) ParaId => Option<Vec<u8>>;
+		pub Heads get(fn parachain_head): map hasher(twox_64_concat) ParaId => Option<Vec<u8>>;
 		/// Messages ready to be dispatched onto the relay chain. It is subject to
 		/// `MAX_MESSAGE_COUNT` and `WATERMARK_MESSAGE_SIZE`.
 		pub RelayDispatchQueue: map hasher(twox_64_concat) ParaId => Vec<UpwardMessage>;
@@ -336,14 +336,14 @@ decl_storage! {
 		/// The mapping from parent block hashes to session indexes.
 		///
 		/// Used for double vote report validation.
-		pub ParentToSessionIndex get(session_at_block):
+		pub ParentToSessionIndex get(fn session_at_block):
 			map hasher(twox_64_concat) T::Hash => SessionIndex;
 
 		/// The era that is active currently.
 		///
 		/// Changes with the `ActiveEra` from `staking`. Upon these changes `ParentToSessionIndex`
 		/// is pruned.
-		ActiveEra get(active_era): Option<staking::EraIndex>;
+		ActiveEra get(fn active_era): Option<staking::EraIndex>;
 	}
 	add_extra_genesis {
 		config(authorities): Vec<ValidatorId>;
