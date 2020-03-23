@@ -971,7 +971,7 @@ mod tests {
 		};
 		let (candidate, _) = candidate.abridge();
 		let candidate_hash = candidate.hash();
-		let payload = (Statement::Valid(candidate_hash), System::parent_hash()).encode();
+		let payload = (Statement::Valid(candidate_hash), session::Module::<Test>::current_index(), System::parent_hash()).encode();
 		let roster = Parachains::calculate_duty_roster().0.validator_duty;
 		AttestedCandidate {
 			candidate,

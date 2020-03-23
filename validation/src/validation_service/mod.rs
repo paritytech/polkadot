@@ -334,11 +334,13 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 			}
 		}
 
+		let signing_context = self.client.runtime_api().signing_context(&id)?;
+
 		let table = Arc::new(SharedTable::new(
 			validators.clone(),
 			group_info,
 			sign_with,
-			parent_hash,
+			signing_context,
 			self.availability_store.clone(),
 			max_block_data_size,
 		));
