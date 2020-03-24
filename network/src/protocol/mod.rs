@@ -876,9 +876,35 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 					&self.gossip_handle,
 				);
 			}
-			ServiceToWorkerMsg::FetchPoVBlock(_candidate, _sender) => {
-				// TODO https://github.com/paritytech/polkadot/issues/742:
-				// create a filter on gossip for it and send to sender.
+			ServiceToWorkerMsg::FetchPoVBlock(candidate, mut sender) => {
+				let candidate_hash = candidate.hash();
+				let topic = crate::legacy::gossip::pov_block_topic(candidate_hash);
+
+				// The gossip system checks that the correct pov-block data is present
+				// before placing in the pool, so we can safely check by candidate hash.
+				let get_msg = self.gossip_handle.gossip_messages_for(topic)
+					.filter_map(move |(msg, _)| {
+						future::ready(match msg {
+							GossipMessage::PoVBlock(pov_block_message) =>
+								if pov_block_message.candidate_hash == candidate_hash {
+									Some(pov_block_message.pov_block)
+								} else {
+									None
+								},
+							_ => None,
+						})
+					})
+					.into_future()
+					.map(|(item, _)| item.expect(
+						"gossip message streams do not conclude early; qed"
+					));
+
+				let _ = self.executor.spawn(async move {
+					let res = future::select(get_msg, AwaitCanceled { inner: &mut sender }).await;
+					if let Either::Left((pov_block, _)) = res {
+						let _ = sender.send(pov_block);
+					}
+				});
 			}
 			ServiceToWorkerMsg::FetchErasureChunk(candidate_hash, validator_index, mut sender) => {
 				let topic = crate::erasure_coding_topic(&candidate_hash);
@@ -1205,19 +1231,37 @@ fn distribute_validated_collation(
 	let hash = receipt.hash();
 	let validated = Validated::collated_local(
 		receipt,
-		pov_block,
+		pov_block.clone(),
 	);
 
-	let statement = crate::legacy::gossip::GossipStatement::new(
-		instance.relay_parent,
-		match instance.statement_table.import_validated(validated) {
-			None => return,
-			Some(s) => s,
-		}
-	);
+	// gossip the signed statement.
+	{
+		let statement = crate::legacy::gossip::GossipStatement::new(
+			instance.relay_parent,
+			match instance.statement_table.import_validated(validated) {
+				None => return,
+				Some(s) => s,
+			}
+		);
 
-	gossip_handle.gossip_message(instance.attestation_topic, statement.into());
+		gossip_handle.gossip_message(instance.attestation_topic, statement.into());
+	}
 
+	// gossip the PoV block.
+	{
+		let pov_block_message = crate::legacy::gossip::GossipPoVBlock {
+			relay_chain_leaf: instance.relay_parent,
+			candidate_hash: hash,
+			pov_block,
+		};
+
+		gossip_handle.gossip_message(
+			crate::legacy::gossip::pov_block_topic(instance.relay_parent),
+			pov_block_message.into(),
+		);
+	}
+
+	// gossip erasure chunks.
 	for chunk in chunks.1 {
 		let message = crate::legacy::gossip::ErasureChunkMessage {
 			chunk,

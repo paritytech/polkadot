@@ -158,6 +158,12 @@ impl From<GossipStatement> for GossipMessage {
 	}
 }
 
+impl From<GossipPoVBlock> for GossipMessage {
+	fn from(pov: GossipPoVBlock) -> Self {
+		GossipMessage::PoVBlock(pov)
+	}
+}
+
 /// A gossip message containing a statement.
 #[derive(Encode, Decode, Clone, PartialEq)]
 pub struct GossipStatement {
