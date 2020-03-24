@@ -60,7 +60,7 @@ use sc_network_gossip::{
 use polkadot_validation::{SignedStatement};
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	ParachainHost, ValidatorId, ErasureChunk as PrimitiveChunk
+	ParachainHost, ValidatorId, ErasureChunk as PrimitiveChunk, PoVBlock,
 };
 use polkadot_erasure_coding::{self as erasure};
 use codec::{Decode, Encode};
@@ -95,6 +95,8 @@ mod benefit {
 	pub const NEW_CANDIDATE: Rep = Rep::new(100, "Polkadot: New candidate");
 	/// When a peer sends us a previously-unknown attestation.
 	pub const NEW_ATTESTATION: Rep = Rep::new(50, "Polkadot: New attestation");
+	/// When a peer sends us a previously-unknown pov-block
+	pub const NEW_POV_BLOCK: Rep = Rep::new(150, "Polkadot: New PoV block");
 	/// When a peer sends us a previously-unknown erasure chunk.
 	pub const NEW_ERASURE_CHUNK: Rep = Rep::new(10, "Polkadot: New erasure chunk");
 }
@@ -105,6 +107,10 @@ mod cost {
 	pub const NONE: Rep = Rep::new(0, "");
 	/// A peer sent us an attestation and we don't know the candidate.
 	pub const ATTESTATION_NO_CANDIDATE: Rep = Rep::new(-100, "Polkadot: No candidate");
+	/// A peer sent us a pov-block and we don't know the candidate or the leaf.
+	pub const POV_BLOCK_UNWANTED: Rep = Rep::new(-500, "Polkadot: No candidate");
+	/// A peer sent us a pov-block message with wrong data.
+	pub const POV_BLOCK_BAD_DATA: Rep = Rep::new(-1000, "Polkadot: Bad PoV-block data");
 	/// A peer sent us a statement we consider in the future.
 	pub const FUTURE_MESSAGE: Rep = Rep::new(-100, "Polkadot: Future message");
 	/// A peer sent us a statement from the past.
@@ -135,6 +141,9 @@ pub enum GossipMessage {
 	/// A packet containing one of the erasure-coding chunks of one candidate.
 	#[codec(index = "3")]
 	ErasureChunk(ErasureChunkMessage),
+	/// A PoV-block.
+	#[codec(index = "255")]
+	PoVBlock(GossipPoVBlock),
 }
 
 impl From<NeighborPacket> for GossipMessage {
@@ -185,15 +194,18 @@ impl From<ErasureChunkMessage> for GossipMessage {
 	}
 }
 
-/// A packet of messages from one parachain to another.
-///
-/// These are all the messages posted from one parachain to another during the
-/// execution of a single parachain block. Since this parachain block may have been
-/// included in many forks of the relay chain, there is no relay-chain leaf parameter.
-#[derive(Encode, Decode, Clone, PartialEq)]
-pub struct GossipParachainMessages {
-	/// The root of the message queue.
-	pub queue_root: Hash,
+/// A pov-block being gossipped. Should only be sent to peers aware of the candidate
+/// referenced.
+#[derive(Encode, Decode, Clone, Debug, PartialEq)]
+pub struct GossipPoVBlock {
+	/// The block hash of the relay chain being referred to. In context, this should
+	/// be a leaf.
+	pub relay_chain_leaf: Hash,
+	/// The hash of some candidate localized to the same relay-chain leaf, whose
+	/// pov-block is this block.
+	pub candidate_hash: Hash,
+	/// The pov-block itself.
+	pub pov_block: PoVBlock,
 }
 
 /// A versioned neighbor message.
@@ -258,6 +270,14 @@ impl<F, P> ChainContext for (F, P) where
 pub(crate) fn attestation_topic(parent_hash: Hash) -> Hash {
 	let mut v = parent_hash.as_ref().to_vec();
 	v.extend(b"attestations");
+
+	BlakeTwo256::hash(&v[..])
+}
+
+/// Compute the gossip topic for PoV blocks based on the given parent hash.
+pub(crate) fn pov_block_topic(parent_hash: Hash) -> Hash {
+	let mut v = parent_hash.as_ref().to_vec();
+	v.extend(b"pov-blocks");
 
 	BlakeTwo256::hash(&v[..])
 }
@@ -642,6 +662,19 @@ impl<C: ChainContext + ?Sized> sc_network_gossip::Validator<Block> for MessageVa
 				}
 				(res, cb)
 			}
+			Ok(GossipMessage::PoVBlock(pov_block)) => {
+				let (res, cb) = {
+					let mut inner = self.inner.write();
+					let inner = &mut *inner;
+					inner.attestation_view.validate_pov_block_message(&pov_block, &inner.chain)
+				};
+
+				if let GossipValidationResult::ProcessAndKeep(ref topic) = res {
+					context.broadcast_message(topic.clone(), data.to_vec(), false);
+				}
+
+				(res, cb)
+			}
 			Ok(GossipMessage::ErasureChunk(chunk)) => {
 				self.inner.write().validate_erasure_chunk_packet(chunk)
 			}
@@ -687,11 +720,24 @@ impl<C: ChainContext + ?Sized> sc_network_gossip::Validator<Block> for MessageVa
 						.and_then(|(p, r)| p.attestation.knowledge_at_mut(&r).map(|k| (k, r)));
 
 					peer_knowledge.map_or(false, |(knowledge, attestation_head)| {
-						attestation_view.statement_allowed(
-							statement,
-							&attestation_head,
-							knowledge,
-						)
+						statement.relay_chain_leaf == attestation_head
+							&& attestation_view.statement_allowed(
+								statement,
+								knowledge,
+							)
+					})
+				}
+				Ok(GossipMessage::PoVBlock(ref pov_block)) => {
+					// to allow pov-blocks, we need peer knowledge.
+					let peer_knowledge = peer.and_then(move |p| attestation_head.map(|r| (p, r)))
+						.and_then(|(p, r)| p.attestation.knowledge_at_mut(&r).map(|k| (k, r)));
+
+					peer_knowledge.map_or(false, |(knowledge, attestation_head)| {
+						pov_block.relay_chain_leaf == attestation_head
+							&& attestation_view.pov_block_allowed(
+								pov_block,
+								knowledge,
+							)
 					})
 				}
 				_ => false,
