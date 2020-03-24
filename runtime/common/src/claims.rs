@@ -122,35 +122,22 @@ decl_storage! {
 	// This allows for type-safe usage of the Substrate storage database, so you can
 	// keep things around between blocks.
 	trait Store for Module<T: Trait> as Claims {
-		Claims get(claims) build(|config: &GenesisConfig<T>| {
+		Claims get(fn claims) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>()
 		}): map hasher(identity) EthereumAddress => Option<BalanceOf<T>>;
-		Total get(total) build(|config: &GenesisConfig<T>| {
+		Total get(fn total) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().fold(Zero::zero(), |acc: BalanceOf<T>, &(_, n)| acc + n)
 		}): BalanceOf<T>;
 		/// Vesting schedule for a claim.
 		/// First balance is the total amount that should be held for vesting.
 		/// Second balance is how much should be unlocked per block.
 		/// The block number is when the vesting should start.
-		Vesting get(vesting) config():
+		Vesting get(fn vesting) config():
 			map hasher(identity) EthereumAddress
 			=> Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
 	}
 	add_extra_genesis {
 		config(claims): Vec<(EthereumAddress, BalanceOf<T>)>;
-	}
-}
-
-mod migration {
-	use super::*;
-
-	pub fn migrate<T: Trait>() {
-		if let Ok(addresses) = Vec::<EthereumAddress>::decode(&mut &include_bytes!("./claims.scale")[..]) {
-			for i in &addresses {
-				Vesting::<T>::migrate_key_from_blake(i);
-				Claims::<T>::migrate_key_from_blake(i);
-			}
-		}
 	}
 }
 
@@ -163,10 +150,6 @@ decl_module! {
 
 		/// Deposit one of this module's events by using the default implementation.
 		fn deposit_event() = default;
-
-		fn on_runtime_upgrade() {
-			migration::migrate::<T>();
-		}
 
 		/// Make a claim to collect your DOTs.
 		///
@@ -302,7 +285,6 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-#[allow(deprecated)] // Allow `ValidateUnsigned`
 impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
@@ -412,7 +394,7 @@ mod tests {
 		type Version = ();
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u64>;
-		type MigrateAccount = (); type OnNewAccount = ();
+		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 	}
 
