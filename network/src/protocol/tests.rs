@@ -114,7 +114,6 @@ impl crate::legacy::GossipService for MockGossip {
 impl GossipOps for MockGossip {
 	fn new_local_leaf(
 		&self,
-		_signing_context: SigningContext<Hash>,
 		_validation_data: crate::legacy::gossip::MessageValidationData,
 	) -> crate::legacy::gossip::NewLeafActions {
 		crate::legacy::gossip::NewLeafActions::new()
@@ -301,7 +300,7 @@ impl ParachainHost<Block> for RuntimeApi {
 		_: ExecutionContext,
 		_: Option<()>,
 		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<SigningContext<Hash>>> {
+	) -> ClientResult<NativeOrEncoded<SigningContext>> {
 		Ok(NativeOrEncoded::Native(
 				SigningContext {
 					session_index: Default::default(),

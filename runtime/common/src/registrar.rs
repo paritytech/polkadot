@@ -825,6 +825,7 @@ mod tests {
 		type KeyOwnerProofSystem = session::historical::Module<Test>;
 		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 		type ReportOffence = ();
+		type BlockHashConversion = sp_runtime::traits::Identity;
 	}
 
 	parameter_types! {

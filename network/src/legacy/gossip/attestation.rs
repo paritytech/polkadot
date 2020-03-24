@@ -33,7 +33,7 @@
 use sc_network_gossip::{ValidationResult as GossipValidationResult};
 use sc_network::ReputationChange;
 use polkadot_validation::GenericStatement;
-use polkadot_primitives::{Hash, parachain::SigningContext};
+use polkadot_primitives::Hash;
 
 use std::collections::{HashMap, HashSet};
 
@@ -97,10 +97,8 @@ impl PeerData {
 
 /// An impartial view of what topics and data are valid based on attestation session data.
 pub(super) struct View {
-	// `SigningContext`s of DAG-leaves paired with validation data.
-	leaf_work: Vec<(SigningContext<Hash>, LeafView)>,
-	// maps topic hashes to block hashes.
-	topics: HashMap<Hash, Hash>,
+	leaf_work: Vec<(Hash, LeafView)>, // hashes of the best DAG-leaves paired with validation data.
+	topics: HashMap<Hash, Hash>, // maps topic hashes to block hashes.
 }
 
 impl Default for View {
@@ -115,28 +113,17 @@ impl Default for View {
 impl View {
 	fn leaf_view(&self, relay_chain_leaf: &Hash) -> Option<&LeafView> {
 		self.leaf_work.iter()
-			.find_map(|&(ref signing_context, ref leaf)|
-				if signing_context.parent_hash == *relay_chain_leaf { Some(leaf) } else { None }
-			)
-	}
-
-	fn signing_context(&self, relay_chain_leaf: &Hash) -> Option<&SigningContext<Hash>> {
-		self.leaf_work.iter()
-			.find_map(|&(ref signing_context, _)|
-				if signing_context.parent_hash == *relay_chain_leaf { Some(signing_context) } else { None }
-			)
+			.find_map(|&(ref h, ref leaf)| if h == relay_chain_leaf { Some(leaf) } else { None } )
 	}
 
 	fn leaf_view_mut(&mut self, relay_chain_leaf: &Hash) -> Option<&mut LeafView> {
 		self.leaf_work.iter_mut()
-			.find_map(|&mut (ref signing_context, ref mut leaf)|
-				if signing_context.parent_hash == *relay_chain_leaf { Some(leaf) } else { None }
-			)
+			.find_map(|&mut (ref h, ref mut leaf)| if h == relay_chain_leaf { Some(leaf) } else { None } )
 	}
 
 	/// Get our leaves-set. Guaranteed to have length <= MAX_CHAIN_HEADS.
 	pub(super) fn neighbor_info<'a>(&'a self) -> impl Iterator<Item=Hash> + 'a + Clone {
-		self.leaf_work.iter().take(MAX_CHAIN_HEADS).map(|(p, _)| p.parent_hash.clone())
+		self.leaf_work.iter().take(MAX_CHAIN_HEADS).map(|(p, _)| p.clone())
 	}
 
 	/// Note new leaf in our local view and validation data necessary to check signatures
@@ -146,12 +133,11 @@ impl View {
 	/// is not a leaf anymore.
 	pub(super) fn new_local_leaf(
 		&mut self,
-		signing_context: SigningContext<Hash>,
 		validation_data: MessageValidationData,
 	) {
-		let relay_chain_leaf = signing_context.parent_hash.clone();
+		let relay_chain_leaf = validation_data.signing_context.parent_hash.clone();
 		self.leaf_work.push((
-			signing_context,
+			validation_data.signing_context.parent_hash.clone(),
 			LeafView {
 				validation_data,
 				knowledge: Default::default(),
@@ -163,8 +149,8 @@ impl View {
 	/// Prune old leaf-work that fails the leaf predicate.
 	pub(super) fn prune_old_leaves<F: Fn(&Hash) -> bool>(&mut self, is_leaf: F) {
 		let leaf_work = &mut self.leaf_work;
-		leaf_work.retain(|&(ref signing_context,  _)| is_leaf(&signing_context.parent_hash));
-		self.topics.retain(|_, v| leaf_work.iter().find(|(s, _)| s.parent_hash == *v).is_some());
+		leaf_work.retain(|&(ref relay_chain_leaf, _)| is_leaf(relay_chain_leaf));
+		self.topics.retain(|_, v| leaf_work.iter().find(|(p, _)| p == v).is_some());
 	}
 
 	/// Whether a message topic is considered live relative to our view. non-live
@@ -223,16 +209,8 @@ impl View {
 					}
 				};
 
-				let signing_context = match self.signing_context(&message.relay_chain_leaf) {
-					Some(signing_context) => signing_context,
-					None => {
-						return (GossipValidationResult::Discard, cost::NONE); // A new cost value?
-					}
-				};
-
 				// validate signature.
 				let res = view.validation_data.check_statement(
-					signing_context,
 					&message.signed_statement,
 				);
 

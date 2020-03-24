@@ -33,7 +33,7 @@ use polkadot_primitives::{
 	Hash, Block,
 	parachain::{
 		PoVBlock, ValidatorId, ValidatorIndex, Collation, AbridgedCandidateReceipt,
-		ErasureChunk, ParachainHost, Id as ParaId, CollatorId, SigningContext,
+		ErasureChunk, ParachainHost, Id as ParaId, CollatorId,
 	},
 };
 use polkadot_validation::{
@@ -162,7 +162,6 @@ impl NetworkServiceOps for PolkadotNetworkService {
 trait GossipOps: Clone + Send + crate::legacy::GossipService + 'static {
 	fn new_local_leaf(
 		&self,
-		signing_context: SigningContext<Hash>,
 		validation_data: crate::legacy::gossip::MessageValidationData,
 	) -> crate::legacy::gossip::NewLeafActions;
 
@@ -177,12 +176,10 @@ trait GossipOps: Clone + Send + crate::legacy::GossipService + 'static {
 impl GossipOps for RegisteredMessageValidator {
 	fn new_local_leaf(
 		&self,
-		signing_context: SigningContext<Hash>,
 		validation_data: crate::legacy::gossip::MessageValidationData,
 	) -> crate::legacy::gossip::NewLeafActions {
 		RegisteredMessageValidator::new_local_leaf(
 			self,
-			signing_context,
 			validation_data,
 		)
 	}
@@ -820,8 +817,7 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 		let signing_context = table.signing_context().clone();
 		let relay_parent = signing_context.parent_hash.clone();
 		let new_leaf_actions = self.gossip_handle.new_local_leaf(
-			signing_context,
-			crate::legacy::gossip::MessageValidationData { authorities },
+			crate::legacy::gossip::MessageValidationData { authorities, signing_context },
 		);
 
 		new_leaf_actions.perform(&self.gossip_handle);

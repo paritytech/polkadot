@@ -34,7 +34,6 @@ use std::{
 	sync::Arc,
 };
 use codec::Encode;
-use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, AbridgedCandidateReceipt,
 	Statement as PrimitiveStatement,
@@ -138,11 +137,10 @@ pub struct GroupInfo {
 pub fn sign_table_statement(
 	statement: &Statement,
 	key: &ValidatorPair,
-	signing_context: &SigningContext<Hash>,
+	signing_context: &SigningContext,
 ) -> ValidatorSignature {
 	let mut encoded = PrimitiveStatement::from(statement).encode();
-	encoded.extend(signing_context.session_index.encode());
-	encoded.extend(signing_context.parent_hash.as_ref());
+	encoded.extend(signing_context.encode());
 
 	key.sign(&encoded)
 }
@@ -152,13 +150,12 @@ pub fn check_statement(
 	statement: &Statement,
 	signature: &ValidatorSignature,
 	signer: ValidatorId,
-	signing_context: &SigningContext<Hash>,
+	signing_context: &SigningContext,
 ) -> bool {
 	use runtime_primitives::traits::AppVerify;
 
 	let mut encoded = PrimitiveStatement::from(statement).encode();
-	encoded.extend(signing_context.session_index.encode());
-	encoded.extend(signing_context.parent_hash.as_ref());
+	encoded.extend(signing_context.encode());
 
 	signature.verify(&encoded[..], &signer)
 }

@@ -48,7 +48,7 @@ pub use table::{SignedStatement, Statement};
 pub use table::generic::Statement as GenericStatement;
 
 struct TableContext {
-	signing_context: SigningContext<Hash>,
+	signing_context: SigningContext,
 	key: Option<Arc<ValidatorPair>>,
 	groups: HashMap<ParaId, GroupInfo>,
 	validators: Vec<ValidatorId>,
@@ -413,7 +413,7 @@ impl SharedTable {
 		validators: Vec<ValidatorId>,
 		groups: HashMap<ParaId, GroupInfo>,
 		key: Option<Arc<ValidatorPair>>,
-		signing_context: SigningContext<Hash>,
+		signing_context: SigningContext,
 		availability_store: AvailabilityStore,
 		max_block_data_size: Option<u64>,
 	) -> Self {
@@ -430,7 +430,7 @@ impl SharedTable {
 	}
 
 	/// Get the parent hash this table should hold statements localized to.
-	pub fn signing_context(&self) -> &SigningContext<Hash> {
+	pub fn signing_context(&self) -> &SigningContext {
 		&self.context.signing_context
 	}
 

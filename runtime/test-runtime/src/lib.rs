@@ -319,6 +319,7 @@ impl parachains::Trait for Runtime {
 			Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>
 		>::IdentificationTuple;
 	type ReportOffence = Offences;
+	type BlockHashConversion = sp_runtime::traits::Identity;
 }
 
 impl offences::Trait for Runtime {
@@ -536,7 +537,7 @@ sp_api::impl_runtime_apis! {
 					Err(_) => None,
 				})
 		}
-		fn signing_context() -> SigningContext<<Runtime as system::Trait>::Hash> {
+		fn signing_context() -> SigningContext {
 			Parachains::signing_context()
 		}
 	}

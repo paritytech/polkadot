@@ -377,13 +377,12 @@ impl RegisteredMessageValidator {
 	/// relevant to this leaf.
 	pub(crate) fn new_local_leaf(
 		&self,
-		signing_context: SigningContext<Hash>,
 		validation: MessageValidationData,
 	) -> NewLeafActions {
 		// add an entry in attestation_view
 		// prune any entries from attestation_view which are no longer leaves
 		let mut inner = self.inner.inner.write();
-		inner.attestation_view.new_local_leaf(signing_context, validation);
+		inner.attestation_view.new_local_leaf(validation);
 
 		let mut actions = Vec::new();
 
@@ -460,11 +459,13 @@ impl GossipService for RegisteredMessageValidator {
 pub(crate) struct MessageValidationData {
 	/// The authorities' parachain validation keys at a block.
 	pub(crate) authorities: Vec<ValidatorId>,
+	/// The signing context.
+	pub(crate) signing_context: SigningContext,
 }
 
 impl MessageValidationData {
 	// check a statement's signature.
-	fn check_statement(&self, signing_context: &SigningContext<Hash>, statement: &SignedStatement) -> Result<(), ()> {
+	fn check_statement(&self, statement: &SignedStatement) -> Result<(), ()> {
 		let sender = match self.authorities.get(statement.sender as usize) {
 			Some(val) => val,
 			None => return Err(()),
@@ -475,7 +476,7 @@ impl MessageValidationData {
 				&statement.statement,
 				&statement.signature,
 				sender.clone(),
-				signing_context,
+				&self.signing_context,
 			);
 
 		if good {
@@ -825,12 +826,10 @@ mod tests {
 		let topic_b = attestation_topic(hash_b);
 		let topic_c = attestation_topic(hash_c);
 
-		let signing_context = SigningContext {
-			session_index: Default::default(),
-			parent_hash: hash_a,
-		};
 		// topic_a is in all 3 views -> succeed
-		validator.inner.write().attestation_view.new_local_leaf(signing_context, MessageValidationData::default());
+		let mut validation_data = MessageValidationData::default();
+		validation_data.signing_context.parent_hash = hash_a;
+		validator.inner.write().attestation_view.new_local_leaf(validation_data);
 		// topic_b is in the neighbor's view but not ours -> fail
 		// topic_c is not in either -> fail
 
@@ -941,11 +940,9 @@ mod tests {
 			}
 		});
 		let encoded = statement.encode();
-		let signing_context = SigningContext {
-			session_index: Default::default(),
-			parent_hash: hash_a,
-		};
-		validator.inner.write().attestation_view.new_local_leaf(signing_context, MessageValidationData::default());
+		let mut validation_data = MessageValidationData::default();
+		validation_data.signing_context.parent_hash = hash_a;
+		validator.inner.write().attestation_view.new_local_leaf(validation_data);
 
 		{
 			let mut message_allowed = validator.message_allowed();

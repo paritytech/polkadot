@@ -609,8 +609,8 @@ pub enum ValidityAttestation {
 }
 
 /// A type returned by runtime with current session index and a parent hash.
-#[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug)]
-pub struct SigningContext<Hash> {
+#[derive(Clone, Eq, PartialEq, Default, Decode, Encode, RuntimeDebug)]
+pub struct SigningContext {
 	/// Current session index.
 	pub session_index: sp_staking::SessionIndex,
 	/// Hash of the parent.
@@ -683,7 +683,7 @@ sp_api::decl_runtime_apis! {
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
 			-> Option<Vec<AbridgedCandidateReceipt>>;
 		/// Get a `SigningContext` with current `SessionIndex` and parent hash.
-		fn signing_context() -> SigningContext<Hash>;
+		fn signing_context() -> SigningContext;
 	}
 }
 
