@@ -267,6 +267,7 @@ decl_module! {
 
 		fn deposit_event() = default;
 
+		#[weight = frame_support::weights::SimpleDispatchInfo::default()]
 		fn on_initialize(n: T::BlockNumber) {
 			let lease_period = T::LeasePeriod::get();
 			let lease_period_index: LeasePeriodOf<T> = (n / lease_period).into();
@@ -287,6 +288,7 @@ decl_module! {
 			}
 		}
 
+		#[weight = frame_support::weights::SimpleDispatchInfo::default()]
 		fn on_finalize(now: T::BlockNumber) {
 			// If the current auction is in it ending period, then ensure that the (sub-)range
 			// winner information is duplicated from the previous block in case no bids happened
