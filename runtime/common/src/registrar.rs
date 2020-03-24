@@ -180,10 +180,10 @@ decl_storage! {
 		PendingSwap: map hasher(twox_64_concat) ParaId => Option<ParaId>;
 
 		/// Map of all registered parathreads/chains.
-		Paras get(paras): map hasher(twox_64_concat) ParaId => Option<ParaInfo>;
+		Paras get(fn paras): map hasher(twox_64_concat) ParaId => Option<ParaInfo>;
 
 		/// The current queue for parathreads that should be retried.
-		RetryQueue get(retry_queue): Vec<Vec<(ParaId, CollatorId)>>;
+		RetryQueue get(fn retry_queue): Vec<Vec<(ParaId, CollatorId)>>;
 
 		/// Users who have paid a parathread's deposit
 		Debtors: map hasher(twox_64_concat) ParaId => T::AccountId;
