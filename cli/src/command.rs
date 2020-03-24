@@ -18,18 +18,30 @@ use log::info;
 use sp_runtime::traits::BlakeTwo256;
 use service::{IsKusama, Block, self, RuntimeApiCollection, TFullClient};
 use sp_api::ConstructRuntimeApi;
+use sc_cli::{spec_factory, SubstrateCLI};
 use sc_executor::NativeExecutionDispatch;
-use crate::chain_spec::load_spec;
 use crate::cli::{Cli, Subcommand};
-use sc_cli::VersionInfo;
+use crate::ChainSpec;
+
+#[spec_factory(
+	impl_name = "parity-polkadot",
+	support_url = "https://github.com/paritytech/polkadot/issues/new",
+	copyright_start_year = 2017,
+	executable_name = "polkadot",
+)]
+fn spec_factory(id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
+	Ok(match ChainSpec::from(id) {
+		Some(spec) => spec.load()?,
+		//None if force_kusama => Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(id))?), // TODO
+		None => Box::new(service::PolkadotChainSpec::from_json_file(std::path::PathBuf::from(id))?),
+	})
+}
 
 /// Parses polkadot specific CLI arguments and run the service.
-pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
-	let opt = sc_cli::from_args::<Cli>(&version);
+pub fn run() -> sc_cli::Result<()> {
+	let opt = Cli::from_args();
 
-	let mut config = service::Configuration::from_version(&version);
-	config.impl_name = "parity-polkadot";
-	let force_kusama = opt.run.force_kusama;
+	// let force_kusama = opt.run.force_kusama; // TODO
 
 	let grandpa_pause = if opt.grandpa_pause.is_empty() {
 		None
@@ -40,6 +52,7 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 	};
 
 	match opt.subcommand {
+		/*
 		None => {
 			opt.run.base.init(&version)?;
 			opt.run.base.update_config(
@@ -80,56 +93,60 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 				>(config, opt.authority_discovery_enabled, grandpa_pause)
 			}
 		},
-		Some(Subcommand::Base(cmd)) => {
-			cmd.init(&version)?;
-			cmd.update_config(
-				&mut config,
-				|id| load_spec(id, force_kusama),
-				&version
-			)?;
-
-			let is_kusama = config.expect_chain_spec().is_kusama();
+		*/
+		Some(Subcommand::Base(subcommand)) => {
+			let runtime = Cli::create_runtime(&subcommand)?;
+			let is_kusama = runtime.config().chain_spec.is_kusama();
 
 			if is_kusama {
-				cmd.run(config, service::new_chain_ops::<
-					service::kusama_runtime::RuntimeApi,
-					service::KusamaExecutor,
-					service::kusama_runtime::UncheckedExtrinsic,
-				>)
+				runtime.run_subcommand(subcommand, |config|
+					service::new_chain_ops::<
+						service::kusama_runtime::RuntimeApi,
+						service::KusamaExecutor,
+						service::kusama_runtime::UncheckedExtrinsic,
+					>(config)
+				)
 			} else {
-				cmd.run(config, service::new_chain_ops::<
-					service::polkadot_runtime::RuntimeApi,
-					service::PolkadotExecutor,
-					service::polkadot_runtime::UncheckedExtrinsic,
-				>)
+				runtime.run_subcommand(subcommand, |config|
+					service::new_chain_ops::<
+						service::polkadot_runtime::RuntimeApi,
+						service::PolkadotExecutor,
+						service::polkadot_runtime::UncheckedExtrinsic,
+					>(config)
+				)
 			}
 		},
-		Some(Subcommand::ValidationWorker(args)) => {
+		Some(Subcommand::ValidationWorker(cmd)) => {
 			sc_cli::init_logger("");
 
 			if cfg!(feature = "browser") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
 			} else {
 				#[cfg(not(feature = "browser"))]
-				service::run_validation_worker(&args.mem_id)?;
+				service::run_validation_worker(&cmd.mem_id)?;
 				Ok(())
 			}
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
-			cmd.init(&version)?;
-			cmd.update_config(&mut config, |id| load_spec(id, force_kusama), &version)?;
-			let is_kusama = config.expect_chain_spec().is_kusama();
+			let runtime = Cli::create_runtime(&cmd)?;
+			let is_kusama = runtime.config().chain_spec.is_kusama();
+
 			if is_kusama {
-				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
+				runtime.sync_run(|config| {
+					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
+				})
 			} else {
-				cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
+				runtime.sync_run(|config| {
+					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
+				})
 			}
 		},
+		_ => todo!(),
 	}
 }
 
-fn run_service_until_exit<R, D, E>(
-	config: service::Configuration,
+fn run_node<R, D, E>(
+	runtime: sc_cli::Runtime<Cli>,
 	authority_discovery_enabled: bool,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> sc_cli::Result<()>
@@ -151,26 +168,18 @@ where
 		TLightClient<R, D>
 	>,
 {
-	match config.roles {
-		service::Roles::LIGHT =>
-			sc_cli::run_service_until_exit(
-				config,
-				|config| service::new_light::<R, D, E>(config),
-			),
-		_ =>
-			sc_cli::run_service_until_exit(
-				config,
-				|config| service::new_full::<R, D, E>(
-					config,
-					None,
-					None,
-					authority_discovery_enabled,
-					6000,
-					grandpa_pause,
-				)
-					.map(|(s, _)| s),
-			),
-	}
+	runtime.run_node(
+		|config| service::new_light::<R, D, E>(config),
+		|config| service::new_full::<R, D, E>(
+			config,
+			None,
+			None,
+			authority_discovery_enabled,
+			6000,
+			grandpa_pause,
+		).map(|(s, _)| s),
+	)
+	//
 }
 
 // We can't simply use `service::TLightClient` due to a

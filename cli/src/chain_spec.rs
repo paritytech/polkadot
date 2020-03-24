@@ -76,13 +76,3 @@ impl ChainSpec {
 		}
 	}
 }
-
-/// Load the `ChainSpec` for the given `id`.
-/// `force_kusama` treats chain specs coming from a file as kusama specs.
-pub fn load_spec(id: &str, force_kusama: bool) -> Result<Box<dyn service::ChainSpec>, String> {
-	Ok(match ChainSpec::from(id) {
-		Some(spec) => spec.load()?,
-		None if force_kusama => Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(id))?),
-		None => Box::new(service::PolkadotChainSpec::from_json_file(std::path::PathBuf::from(id))?),
-	})
-}

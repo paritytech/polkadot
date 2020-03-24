@@ -3767,7 +3767,6 @@ dependencies = [
  "parity-util-mem 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkadot-cli 0.7.28",
  "polkadot-service 0.7.28",
- "vergen 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3810,6 +3809,7 @@ dependencies = [
  "sc-client-api 2.0.0-alpha.4 (git+https://github.com/paritytech/substrate?branch=cecton-the-revenge-of-the-cli)",
  "sc-client-db 0.8.0-alpha.4 (git+https://github.com/paritytech/substrate?branch=cecton-the-revenge-of-the-cli)",
  "sc-executor 0.8.0-alpha.4 (git+https://github.com/paritytech/substrate?branch=cecton-the-revenge-of-the-cli)",
+ "sc-service 0.8.0-alpha.4 (git+https://github.com/paritytech/substrate?branch=cecton-the-revenge-of-the-cli)",
  "sp-api 2.0.0-alpha.4 (git+https://github.com/paritytech/substrate?branch=cecton-the-revenge-of-the-cli)",
  "sp-core 2.0.0-alpha.4 (git+https://github.com/paritytech/substrate?branch=cecton-the-revenge-of-the-cli)",
  "sp-runtime 2.0.0-alpha.4 (git+https://github.com/paritytech/substrate?branch=cecton-the-revenge-of-the-cli)",
