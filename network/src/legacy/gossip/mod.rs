@@ -530,8 +530,9 @@ impl<C: ?Sized + ChainContext> Inner<C> {
 			let new_topics = if let Some(ref mut peer) = self.peers.get_mut(sender) {
 				let new_leaves = peer.attestation.update_leaves(&chain_heads);
 				let new_attestation_topics = new_leaves.iter().cloned().map(attestation_topic);
+				let new_pov_block_topics = new_leaves.iter().cloned().map(pov_block_topic);
 
-				new_attestation_topics.collect()
+				new_attestation_topics.chain(new_pov_block_topics).collect()
 			} else {
 				Vec::new()
 			};
@@ -752,7 +753,7 @@ mod tests {
 	use sc_network_gossip::Validator as ValidatorT;
 	use std::sync::mpsc;
 	use parking_lot::Mutex;
-	use polkadot_primitives::parachain::AbridgedCandidateReceipt;
+	use polkadot_primitives::parachain::{AbridgedCandidateReceipt, BlockData};
 	use sp_core::sr25519::Signature as Sr25519Signature;
 	use polkadot_validation::GenericStatement;
 
@@ -813,7 +814,7 @@ mod tests {
 	}
 
 	#[test]
-	fn message_allowed() {
+	fn attestation_message_allowed() {
 		let (tx, _rx) = mpsc::channel();
 		let tx = Mutex::new(tx);
 		let report_handle = Box::new(move |peer: &PeerId, cb: ReputationChange| tx.lock().send((peer.clone(), cb)).unwrap());
@@ -851,6 +852,9 @@ mod tests {
 			vec![
 				ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_a), false),
 				ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_b), false),
+
+				ContextEvent::SendTopic(peer_a.clone(), pov_block_topic(hash_a), false),
+				ContextEvent::SendTopic(peer_a.clone(), pov_block_topic(hash_b), false),
 			],
 		);
 
@@ -951,38 +955,99 @@ mod tests {
 			chain_heads: vec![hash_a, hash_b],
 		}).encode();
 
-		let res = validator.validate(
-			&mut validator_context,
-			&peer_a,
-			&message[..],
-		);
+		{
+			let res = validator.validate(
+				&mut validator_context,
+				&peer_a,
+				&message[..],
+			);
 
-		match res {
-			GossipValidationResult::Discard => {},
-			_ => panic!("wrong result"),
+			match res {
+				GossipValidationResult::Discard => {},
+				_ => panic!("wrong result"),
+			}
+			assert_eq!(
+				validator_context.events,
+				vec![
+					ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_a), false),
+					ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_b), false),
+
+					ContextEvent::SendTopic(peer_a.clone(), pov_block_topic(hash_a), false),
+					ContextEvent::SendTopic(peer_a.clone(), pov_block_topic(hash_b), false),
+				],
+			);
+
+				validator_context.clear();
 		}
-		assert_eq!(
-			validator_context.events,
-			vec![
-				ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_a), false),
-				ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_b), false),
-			],
+
+		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
+	}
+
+	#[test]
+	fn pov_block_message_allowed() {
+		let (tx, _rx) = mpsc::channel();
+		let tx = Mutex::new(tx);
+		let report_handle = Box::new(move |peer: &PeerId, cb: ReputationChange| tx.lock().send((peer.clone(), cb)).unwrap());
+		let validator = MessageValidator::new_test(
+			TestChainContext::default(),
+			report_handle,
 		);
 
+		let peer_a = PeerId::random();
+
+		let mut validator_context = MockValidatorContext::default();
+		validator.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
-		let topic_a = attestation_topic(hash_a);
+		let hash_a = [1u8; 32].into();
+		let hash_b = [2u8; 32].into();
+
+		let message = GossipMessage::from(NeighborPacket {
+			chain_heads: vec![hash_a, hash_b],
+		}).encode();
+
+		{
+			let res = validator.validate(
+				&mut validator_context,
+				&peer_a,
+				&message[..],
+			);
+
+			match res {
+				GossipValidationResult::Discard => {},
+				_ => panic!("wrong result"),
+			}
+			assert_eq!(
+				validator_context.events,
+				vec![
+					ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_a), false),
+					ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_b), false),
+
+					ContextEvent::SendTopic(peer_a.clone(), pov_block_topic(hash_a), false),
+					ContextEvent::SendTopic(peer_a.clone(), pov_block_topic(hash_b), false),
+				],
+			);
+
+			validator_context.clear();
+		}
+
+		let topic_a = pov_block_topic(hash_a);
 		let c_hash = [99u8; 32].into();
 
-		let statement = GossipMessage::Statement(GossipStatement {
+		let pov_block = PoVBlock {
+			block_data: BlockData(vec![1, 2, 3]),
+		};
+
+		let pov_block_hash = pov_block.hash();
+
+		let message = GossipMessage::PoVBlock(GossipPoVBlock {
 			relay_chain_leaf: hash_a,
-			signed_statement: SignedStatement {
-				statement: GenericStatement::Valid(c_hash),
-				signature: Sr25519Signature([255u8; 64]).into(),
-				sender: 1,
-			}
+			candidate_hash: c_hash,
+			pov_block,
 		});
-		let encoded = statement.encode();
+		let encoded = message.encode();
+
 		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
 
 		{
@@ -997,10 +1062,179 @@ mod tests {
 			.get_mut(&peer_a)
 			.unwrap()
 			.attestation
-			.note_aware_under_leaf(&hash_a, c_hash);
+			.note_aware_under_leaf(
+				&hash_a,
+				c_hash,
+				attestation::CandidateMeta { pov_block_hash },
+			);
+
 		{
 			let mut message_allowed = validator.message_allowed();
 			assert!(message_allowed(&peer_a, MessageIntent::Broadcast, &topic_a, &encoded[..]));
+		}
+	}
+
+	#[test]
+	fn validate_pov_block_message() {
+		let (tx, _rx) = mpsc::channel();
+		let tx = Mutex::new(tx);
+		let report_handle = Box::new(move |peer: &PeerId, cb: ReputationChange| tx.lock().send((peer.clone(), cb)).unwrap());
+		let validator = MessageValidator::new_test(
+			TestChainContext::default(),
+			report_handle,
+		);
+
+		let peer_a = PeerId::random();
+
+		let mut validator_context = MockValidatorContext::default();
+		validator.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		assert!(validator_context.events.is_empty());
+		validator_context.clear();
+
+		let hash_a = [1u8; 32].into();
+		let hash_b = [2u8; 32].into();
+
+		let message = GossipMessage::from(NeighborPacket {
+			chain_heads: vec![hash_a, hash_b],
+		}).encode();
+
+		{
+			let res = validator.validate(
+				&mut validator_context,
+				&peer_a,
+				&message[..],
+			);
+
+			match res {
+				GossipValidationResult::Discard => {},
+				_ => panic!("wrong result"),
+			}
+			assert_eq!(
+				validator_context.events,
+				vec![
+					ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_a), false),
+					ContextEvent::SendTopic(peer_a.clone(), attestation_topic(hash_b), false),
+
+					ContextEvent::SendTopic(peer_a.clone(), pov_block_topic(hash_a), false),
+					ContextEvent::SendTopic(peer_a.clone(), pov_block_topic(hash_b), false),
+				],
+			);
+
+			validator_context.clear();
+		}
+
+		let pov_topic = pov_block_topic(hash_a);
+
+		let pov_block = PoVBlock {
+			block_data: BlockData(vec![1, 2, 3]),
+		};
+
+		let pov_block_hash = pov_block.hash();
+		let c_hash = [99u8; 32].into();
+
+		let message = GossipMessage::PoVBlock(GossipPoVBlock {
+			relay_chain_leaf: hash_a,
+			candidate_hash: c_hash,
+			pov_block,
+		});
+
+		let bad_message = GossipMessage::PoVBlock(GossipPoVBlock {
+			relay_chain_leaf: hash_a,
+			candidate_hash: c_hash,
+			pov_block: PoVBlock {
+				block_data: BlockData(vec![4, 5, 6]),
+			},
+		});
+
+		let encoded = message.encode();
+		let bad_encoded = bad_message.encode();
+
+		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
+
+		// before sending `Candidate` message, neither are allowed.
+		{
+			let res = validator.validate(
+				&mut validator_context,
+				&peer_a,
+				&encoded[..],
+			);
+
+			match res {
+				GossipValidationResult::Discard => {},
+				_ => panic!("wrong result"),
+			}
+			assert_eq!(
+				validator_context.events,
+				Vec::new(),
+			);
+
+			validator_context.clear();
+		}
+
+		{
+			let res = validator.validate(
+				&mut validator_context,
+				&peer_a,
+				&bad_encoded[..],
+			);
+
+			match res {
+				GossipValidationResult::Discard => {},
+				_ => panic!("wrong result"),
+			}
+			assert_eq!(
+				validator_context.events,
+				Vec::new(),
+			);
+
+			validator_context.clear();
+		}
+
+		validator.inner.write().attestation_view.note_aware_under_leaf(
+			&hash_a,
+			c_hash,
+			attestation::CandidateMeta { pov_block_hash },
+		);
+
+		// now the good message passes and the others not.
+		{
+			let res = validator.validate(
+				&mut validator_context,
+				&peer_a,
+				&encoded[..],
+			);
+
+			match res {
+				GossipValidationResult::ProcessAndKeep(topic) => assert_eq!(topic,pov_topic),
+				_ => panic!("wrong result"),
+			}
+			assert_eq!(
+				validator_context.events,
+				vec![
+					ContextEvent::BroadcastMessage(pov_topic, encoded.clone(), false),
+				],
+			);
+
+			validator_context.clear();
+		}
+
+		{
+			let res = validator.validate(
+				&mut validator_context,
+				&peer_a,
+				&bad_encoded[..],
+			);
+
+			match res {
+				GossipValidationResult::Discard => {},
+				_ => panic!("wrong result"),
+			}
+			assert_eq!(
+				validator_context.events,
+				Vec::new(),
+			);
+
+			validator_context.clear();
 		}
 	}
 }

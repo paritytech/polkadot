@@ -103,7 +103,7 @@ impl PeerData {
 		meta: CandidateMeta,
 	) {
 		if let Some(knowledge) = self.live.get_mut(relay_chain_leaf) {
-			knowledge.note_aware(candidate_hash, candidate_meta);
+			knowledge.note_aware(candidate_hash, meta);
 		}
 	}
 
@@ -176,6 +176,18 @@ impl View {
 	/// The relay-chain block hash corresponding to a topic.
 	pub(super) fn topic_block(&self, topic: &Hash) -> Option<&Hash> {
 		self.topics.get(topic)
+	}
+
+	#[cfg(test)]
+	pub(super) fn note_aware_under_leaf(
+		&mut self,
+		relay_chain_leaf: &Hash,
+		candidate_hash: Hash,
+		meta: CandidateMeta,
+	) {
+		if let Some(view) = self.leaf_view_mut(relay_chain_leaf) {
+			view.knowledge.note_aware(candidate_hash, meta);
+		}
 	}
 
 	/// Validate the signature on an attestation statement of some kind. Should be done before
@@ -322,7 +334,7 @@ impl View {
 		statement: &super::GossipPoVBlock,
 		peer_knowledge: &mut Knowledge,
 	) -> bool {
-		peer_knowledge.is_aware_of(&statement.relay_chain_leaf)
+		dbg!(peer_knowledge.is_aware_of(&statement.candidate_hash))
 	}
 }
 
