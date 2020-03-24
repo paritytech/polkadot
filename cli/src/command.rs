@@ -52,23 +52,10 @@ pub fn run() -> sc_cli::Result<()> {
 	};
 
 	match opt.subcommand {
-		/*
 		None => {
-			opt.run.base.init(&version)?;
-			opt.run.base.update_config(
-				&mut config,
-				|id| load_spec(id, force_kusama),
-				&version
-			)?;
-
-			let is_kusama = config.expect_chain_spec().is_kusama();
-
-			info!("{}", version.name);
-			info!("  version {}", config.full_version());
-			info!("  by {}, 2017-2020", version.author);
-			info!("Chain specification: {}", config.expect_chain_spec().name());
-			info!("Node name: {}", config.name);
-			info!("Roles: {}", config.display_role());
+			let runtime = Cli::create_runtime(&opt.run.base)?;
+			let config = runtime.config();
+			let is_kusama = config.chain_spec.is_kusama();
 
 			if is_kusama {
 				info!("Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
@@ -78,22 +65,21 @@ pub fn run() -> sc_cli::Result<()> {
 				info!("     KUSAMA FOUNDATION      ");
 				info!("----------------------------");
 
-				run_service_until_exit::<
+				run_node::<
 					service::kusama_runtime::RuntimeApi,
 					service::KusamaExecutor,
 					service::kusama_runtime::UncheckedExtrinsic,
-				>(config, opt.authority_discovery_enabled, grandpa_pause)
+				>(runtime, opt.authority_discovery_enabled, grandpa_pause)
 			} else {
 				info!("Native runtime: {}", service::PolkadotExecutor::native_version().runtime_version);
 
-				run_service_until_exit::<
+				run_node::<
 					service::polkadot_runtime::RuntimeApi,
 					service::PolkadotExecutor,
 					service::polkadot_runtime::UncheckedExtrinsic,
-				>(config, opt.authority_discovery_enabled, grandpa_pause)
+				>(runtime, opt.authority_discovery_enabled, grandpa_pause)
 			}
 		},
-		*/
 		Some(Subcommand::Base(subcommand)) => {
 			let runtime = Cli::create_runtime(&subcommand)?;
 			let is_kusama = runtime.config().chain_spec.is_kusama();
@@ -141,7 +127,6 @@ pub fn run() -> sc_cli::Result<()> {
 				})
 			}
 		},
-		_ => todo!(),
 	}
 }
 
