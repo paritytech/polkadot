@@ -50,6 +50,8 @@ use std::pin::Pin;
 
 mod worker;
 mod store;
+pub mod networking;
+mod attestation;
 
 pub use worker::AvailabilityBlockImport;
 pub use store::AwaitedFrontierEntry;

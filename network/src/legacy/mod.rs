@@ -21,7 +21,6 @@
 
 pub mod collator_pool;
 pub mod local_collations;
-pub mod gossip;
 
 use codec::Decode;
 use futures::prelude::*;
@@ -33,51 +32,4 @@ use log::debug;
 use std::pin::Pin;
 use std::task::{Context as PollContext, Poll};
 
-use self::gossip::GossipMessage;
-
-/// Basic gossip functionality that a network has to fulfill.
-pub trait GossipService {
-	/// Get a stream of gossip messages for a given hash.
-	fn gossip_messages_for(&self, topic: Hash) -> GossipMessageStream;
-
-	/// Gossip a message on given topic.
-	fn gossip_message(&self, topic: Hash, message: GossipMessage);
-
-	/// Send a message to a specific peer we're connected to.
-	fn send_message(&self, who: PeerId, message: GossipMessage);
-}
-
-/// A stream of gossip messages and an optional sender for a topic.
-pub struct GossipMessageStream {
-	topic_stream: Pin<Box<dyn Stream<Item = TopicNotification> + Send>>,
-}
-
-impl GossipMessageStream {
-	/// Create a new instance with the given topic stream.
-	pub fn new(topic_stream: Pin<Box<dyn Stream<Item = TopicNotification> + Send>>) -> Self {
-		Self {
-			topic_stream,
-		}
-	}
-}
-
-impl Stream for GossipMessageStream {
-	type Item = (GossipMessage, Option<PeerId>);
-
-	fn poll_next(self: Pin<&mut Self>, cx: &mut PollContext) -> Poll<Option<Self::Item>> {
-		let this = Pin::into_inner(self);
-
-		loop {
-			let msg = match Pin::new(&mut this.topic_stream).poll_next(cx) {
-				Poll::Ready(Some(msg)) => msg,
-				Poll::Ready(None) => return Poll::Ready(None),
-				Poll::Pending => return Poll::Pending,
-			};
-
-			debug!(target: "validation", "Processing statement for live validation leaf-work");
-			if let Ok(gmsg) = GossipMessage::decode(&mut &msg.message[..]) {
-				return Poll::Ready(Some((gmsg, msg.sender)))
-			}
-		}
-	}
-}
+pub use av_store::networking::{*, self as gossip};

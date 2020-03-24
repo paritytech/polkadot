@@ -24,6 +24,9 @@ sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "pol
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sc-network-gossip = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+polkadot-statement-table = { path = "../statement-table" }
+arrayvec = "*"
 kvdb = "0.4.0"
 kvdb-memorydb = "0.4.0"
 
