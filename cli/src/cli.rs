@@ -20,10 +20,30 @@ use structopt::StructOpt;
 
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt, Clone)]
+pub struct ForceKusama {
+	/// Force using Kusama native runtime.
+	#[structopt(long = "force-kusama")]
+	pub force_kusama: bool,
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, StructOpt, Clone)]
+pub struct BaseSubcommand {
+	#[allow(missing_docs)]
+	#[structopt(flatten)]
+	pub subcommand: sc_cli::Subcommand,
+
+	#[allow(missing_docs)]
+	#[structopt(flatten)]
+	pub force_kusama: ForceKusama,
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, StructOpt, Clone)]
 pub enum Subcommand {
 	#[allow(missing_docs)]
 	#[structopt(flatten)]
-	Base(sc_cli::Subcommand),
+	Base(BaseSubcommand),
 
 	#[allow(missing_docs)]
 	#[structopt(name = "validation-worker", setting = structopt::clap::AppSettings::Hidden)]
@@ -51,18 +71,13 @@ pub struct RunCmd {
 	#[structopt(flatten)]
 	pub base: sc_cli::RunCmd,
 
-	/// Force using Kusama native runtime.
-	#[structopt(long = "force-kusama")]
-	pub force_kusama: bool,
+	#[allow(missing_docs)]
+	#[structopt(flatten)]
+	pub force_kusama: ForceKusama,
 }
 
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt, Clone)]
-#[structopt(settings = &[
-	structopt::clap::AppSettings::GlobalVersion,
-	structopt::clap::AppSettings::ArgsNegateSubcommands,
-	structopt::clap::AppSettings::SubcommandsNegateReqs,
-])]
 pub struct Cli {
 	#[allow(missing_docs)]
 	#[structopt(subcommand)]

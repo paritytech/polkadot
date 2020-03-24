@@ -19,7 +19,6 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-mod chain_spec;
 #[cfg(feature = "browser")]
 mod browser;
 #[cfg(feature = "cli")]
@@ -37,8 +36,6 @@ pub use cli::*;
 
 #[cfg(feature = "cli")]
 pub use command::*;
-
-pub use chain_spec::*;
 
 #[cfg(feature = "cli")]
 pub use sc_cli::{Error, Result};
