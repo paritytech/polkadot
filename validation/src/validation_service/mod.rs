@@ -32,7 +32,7 @@ use std::collections::HashMap;
 use sc_client_api::{BlockchainEvents, BlockBackend};
 use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
-use consensus::SelectChain;
+use consensus::{Error as ConsensusError, SelectChain};
 use futures::{future::ready, prelude::*, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
@@ -334,7 +334,16 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 			}
 		}
 
-		let signing_context = self.client.runtime_api().signing_context(&id)?;
+		let api = self.client.runtime_api();
+
+		let signing_context = if api.has_api_with::<dyn ParachainHost<Block, Error = ()>, _>(
+			&BlockId::hash(parent_hash),
+			|version| version >= 3,
+		)? {
+			api.signing_context(&id)?
+		} else {
+			return Err(Error::Consensus(ConsensusError::ChainLookup("runtime version mismatch".to_string())));
+		};
 
 		let table = Arc::new(SharedTable::new(
 			validators.clone(),
