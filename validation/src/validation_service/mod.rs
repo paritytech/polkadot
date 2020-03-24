@@ -342,7 +342,12 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		)? {
 			api.signing_context(&id)?
 		} else {
-			return Err(Error::Consensus(ConsensusError::ChainLookup("runtime version mismatch".to_string())));
+			return Err(Error::Consensus(
+					ConsensusError::ChainLookup(
+						"Expected runtime with ParachainHost version >= 3".to_string()
+					)
+				)
+			);
 		};
 
 		let table = Arc::new(SharedTable::new(
