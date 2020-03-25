@@ -570,7 +570,10 @@ mod tests {
 	use super::*;
 
 	use std::{collections::HashMap, cell::RefCell};
-	use frame_support::{impl_outer_origin, assert_ok, assert_noop, parameter_types};
+	use frame_support::{
+		impl_outer_origin, assert_ok, assert_noop, parameter_types,
+		traits::{OnInitialize, OnFinalize},
+	};
 	use frame_support::traits::Contains;
 	use sp_core::H256;
 	use primitives::parachain::{Info as ParaInfo, Id as ParaId};
@@ -578,7 +581,7 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
 		Perbill, Permill, Percent, testing::Header, DispatchResult,
-		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup},
+		traits::{BlakeTwo256, IdentityLookup},
 	};
 	use crate::registrar::Registrar;
 
