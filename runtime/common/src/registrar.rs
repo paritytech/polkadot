@@ -31,7 +31,7 @@ use sp_runtime::{
 use frame_support::{
 	decl_storage, decl_module, decl_event, decl_error, ensure,
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
-	weights::{SimpleDispatchInfo, DispatchInfo},
+	weights::{SimpleDispatchInfo, DispatchInfo, Weight, WeighData},
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
@@ -413,7 +413,7 @@ decl_module! {
 		}
 
 		/// Block initializer. Clears SelectedThreads and constructs/replaces Active.
-		fn on_initialize() {
+		fn on_initialize() -> Weight {
 			let next_up = SelectedThreads::mutate(|t| {
 				let r = if t.len() >= T::QueueSize::get() {
 					// Take the first set of parathreads in queue
@@ -453,6 +453,8 @@ decl_module! {
 			paras.sort_by_key(|&(ref id, _)| *id);
 
 			Active::put(paras);
+
+			SimpleDispatchInfo::default().weigh_data(())
 		}
 
 		fn on_finalize() {
@@ -644,7 +646,7 @@ mod tests {
 	use sp_core::{H256, Pair};
 	use sp_runtime::{
 		traits::{
-			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, Dispatchable,
+			BlakeTwo256, IdentityLookup, Dispatchable,
 			AccountIdConversion,
 		}, testing::{UintAuthorityId, Header}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
@@ -657,7 +659,7 @@ mod tests {
 		Balance, BlockNumber,
 	};
 	use frame_support::{
-		traits::KeyOwnerProofSystem,
+		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
 	};
 	use keyring::Sr25519Keyring;

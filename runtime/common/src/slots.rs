@@ -22,11 +22,11 @@ use sp_std::{prelude::*, mem::swap, convert::TryInto};
 use sp_runtime::traits::{
 	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
 };
-use frame_support::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode, Codec};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
+	weights::{SimpleDispatchInfo, WeighData, Weight},
 };
 use primitives::parachain::{
 	SwapAux, PARACHAIN_INFO, Id as ParaId
@@ -267,7 +267,7 @@ decl_module! {
 
 		fn deposit_event() = default;
 
-		fn on_initialize(n: T::BlockNumber) {
+		fn on_initialize(n: T::BlockNumber) -> Weight {
 			let lease_period = T::LeasePeriod::get();
 			let lease_period_index: LeasePeriodOf<T> = (n / lease_period).into();
 
@@ -285,6 +285,8 @@ decl_module! {
 			if (n % lease_period).is_zero() {
 				Self::manage_lease_period_start(lease_period_index);
 			}
+
+			SimpleDispatchInfo::default().weigh_data(())
 		}
 
 		fn on_finalize(now: T::BlockNumber) {
@@ -877,9 +879,12 @@ mod tests {
 	use sp_core::H256;
 	use sp_runtime::{
 		Perbill, testing::Header,
-		traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
+		traits::{BlakeTwo256, Hash, IdentityLookup},
 	};
-	use frame_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
+	use frame_support::{
+		impl_outer_origin, parameter_types, assert_ok, assert_noop,
+		traits::{OnInitialize, OnFinalize}
+	};
 	use balances;
 	use primitives::parachain::{Id as ParaId, Info as ParaInfo};
 

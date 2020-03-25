@@ -35,7 +35,7 @@ use sp_staking::{
 use frame_support::{
 	traits::KeyOwnerProofSystem,
 	dispatch::{IsSubType},
-	weights::{DispatchInfo, SimpleDispatchInfo},
+	weights::{DispatchInfo, SimpleDispatchInfo, Weight, WeighData},
 };
 use primitives::{
 	Balance,
@@ -518,8 +518,10 @@ decl_module! {
 			Ok(())
 		}
 
-		fn on_initialize() {
+		fn on_initialize() -> Weight {
 			<Self as Store>::DidUpdate::kill();
+
+			SimpleDispatchInfo::default().weigh_data(())
 		}
 
 		fn on_finalize() {
@@ -1200,7 +1202,7 @@ mod tests {
 		impl_opaque_keys,
 		Perbill, curve::PiecewiseLinear, testing::{Header},
 		traits::{
-			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, SaturatedConversion,
+			BlakeTwo256, IdentityLookup, SaturatedConversion,
 			OpaqueKeys,
 		},
 	};
@@ -1214,6 +1216,7 @@ mod tests {
 	use keyring::Sr25519Keyring;
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
+		traits::{OnInitialize, OnFinalize},
 	};
 	use crate::parachains;
 	use crate::registrar;
