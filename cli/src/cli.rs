@@ -20,30 +20,10 @@ use structopt::StructOpt;
 
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt, Clone)]
-pub struct ForceKusama {
-	/// Force using Kusama native runtime.
-	#[structopt(long = "force-kusama")]
-	pub force_kusama: bool,
-}
-
-#[allow(missing_docs)]
-#[derive(Debug, StructOpt, Clone)]
-pub struct BaseSubcommand {
-	#[allow(missing_docs)]
-	#[structopt(flatten)]
-	pub subcommand: sc_cli::Subcommand,
-
-	#[allow(missing_docs)]
-	#[structopt(flatten)]
-	pub force_kusama: ForceKusama,
-}
-
-#[allow(missing_docs)]
-#[derive(Debug, StructOpt, Clone)]
 pub enum Subcommand {
 	#[allow(missing_docs)]
 	#[structopt(flatten)]
-	Base(BaseSubcommand),
+	Base(sc_cli::Subcommand),
 
 	#[allow(missing_docs)]
 	#[structopt(name = "validation-worker", setting = structopt::clap::AppSettings::Hidden)]
@@ -71,21 +51,9 @@ pub struct RunCmd {
 	#[structopt(flatten)]
 	pub base: sc_cli::RunCmd,
 
-	#[allow(missing_docs)]
-	#[structopt(flatten)]
-	pub force_kusama: ForceKusama,
-}
-
-#[allow(missing_docs)]
-#[derive(Debug, StructOpt, Clone)]
-pub struct Cli {
-	#[allow(missing_docs)]
-	#[structopt(subcommand)]
-	pub subcommand: Option<Subcommand>,
-
-	#[allow(missing_docs)]
-	#[structopt(flatten)]
-	pub run: RunCmd,
+	/// Force using Kusama native runtime.
+	#[structopt(long = "force-kusama")]
+	pub force_kusama: bool,
 
 	#[allow(missing_docs)]
 	#[structopt(long = "enable-authority-discovery")]
@@ -99,4 +67,16 @@ pub struct Cli {
 	/// elapsed (i.e. until a block at height `pause_block + delay` is imported).
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, StructOpt, Clone)]
+pub struct Cli {
+	#[allow(missing_docs)]
+	#[structopt(subcommand)]
+	pub subcommand: Option<Subcommand>,
+
+	#[allow(missing_docs)]
+	#[structopt(flatten)]
+	pub run: RunCmd,
 }
