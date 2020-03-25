@@ -140,7 +140,6 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = frame_support::weights::SimpleDispatchInfo::default()]
 		fn on_finalize(_n: T::BlockNumber) {
 			DidUpdate::kill();
 		}

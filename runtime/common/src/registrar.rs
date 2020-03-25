@@ -418,7 +418,6 @@ decl_module! {
 		}
 
 		/// Block initializer. Clears SelectedThreads and constructs/replaces Active.
-		#[weight = SimpleDispatchInfo::default()]
 		fn on_initialize() {
 			let next_up = SelectedThreads::mutate(|t| {
 				let r = if t.len() >= T::QueueSize::get() {

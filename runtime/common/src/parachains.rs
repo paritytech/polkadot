@@ -516,7 +516,6 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = SimpleDispatchInfo::default()]
 		fn on_initialize() {
 			<Self as Store>::DidUpdate::kill();
 
