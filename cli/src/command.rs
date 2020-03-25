@@ -18,18 +18,18 @@ use log::info;
 use sp_runtime::traits::BlakeTwo256;
 use service::{IsKusama, Block, self, RuntimeApiCollection, TFullClient};
 use sp_api::ConstructRuntimeApi;
-use sc_cli::{spec_factory, SubstrateCLI, Result};
+use sc_cli::{substrate_cli_configuration, SubstrateCli, Result};
 use sc_executor::NativeExecutionDispatch;
 use crate::cli::{Cli, Subcommand};
 
-#[spec_factory(
+#[substrate_cli_configuration(
 	impl_name = "parity-polkadot",
 	support_url = "https://github.com/paritytech/polkadot/issues/new",
 	copyright_start_year = 2017,
 	executable_name = "polkadot",
 )]
-impl SubstrateCLI for Cli {
-	fn spec_factory(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
+impl SubstrateCli for Cli {
+	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		Ok(match id {
 			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()),
 			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()),
@@ -137,7 +137,7 @@ pub fn run() -> Result<()> {
 }
 
 fn run_node<R, D, E>(
-	runtime: sc_cli::Runtime<Cli>,
+	runtime: sc_cli::Runner<Cli>,
 	authority_discovery_enabled: bool,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> sc_cli::Result<()>
