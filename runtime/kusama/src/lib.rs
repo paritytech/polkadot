@@ -79,7 +79,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1056,
+	spec_version: 1057,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 };
