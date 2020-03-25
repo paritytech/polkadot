@@ -131,9 +131,13 @@ impl View {
 	///
 	/// This will be pruned later on a call to `prune_old_leaves`, when this leaf
 	/// is not a leaf anymore.
-	pub(super) fn new_local_leaf(&mut self, relay_chain_leaf: Hash, validation_data: MessageValidationData) {
+	pub(super) fn new_local_leaf(
+		&mut self,
+		validation_data: MessageValidationData,
+	) {
+		let relay_chain_leaf = validation_data.signing_context.parent_hash.clone();
 		self.leaf_work.push((
-			relay_chain_leaf,
+			validation_data.signing_context.parent_hash.clone(),
 			LeafView {
 				validation_data,
 				knowledge: Default::default(),
@@ -207,7 +211,6 @@ impl View {
 
 				// validate signature.
 				let res = view.validation_data.check_statement(
-					&message.relay_chain_leaf,
 					&message.signed_statement,
 				);
 

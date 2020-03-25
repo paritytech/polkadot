@@ -3956,6 +3956,7 @@ dependencies = [
  "sp-inherents 2.0.0-alpha.5 (git+https://github.com/paritytech/substrate)",
  "sp-runtime 2.0.0-alpha.5 (git+https://github.com/paritytech/substrate)",
  "sp-serializer 2.0.0-alpha.5 (git+https://github.com/paritytech/substrate)",
+ "sp-staking 2.0.0-alpha.5 (git+https://github.com/paritytech/substrate)",
  "sp-std 2.0.0-alpha.5 (git+https://github.com/paritytech/substrate)",
  "sp-trie 2.0.0-alpha.5 (git+https://github.com/paritytech/substrate)",
  "sp-version 2.0.0-alpha.5 (git+https://github.com/paritytech/substrate)",
