@@ -524,7 +524,6 @@ decl_module! {
 			SimpleDispatchInfo::default().weigh_data(())
 		}
 
-		#[weight = SimpleDispatchInfo::default()]
 		fn on_finalize() {
 			assert!(<Self as Store>::DidUpdate::exists(), "Parachain heads must be updated once in the block");
 		}

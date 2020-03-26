@@ -489,7 +489,6 @@ decl_module! {
 			Self::deposit_event(RawEvent::Dissolved(index));
 		}
 
-		#[weight = SimpleDispatchInfo::default()]
 		fn on_finalize(n: T::BlockNumber) {
 			if let Some(n) = <slots::Module<T>>::is_ending(n) {
 				let auction_index = <slots::Module<T>>::auction_counter();

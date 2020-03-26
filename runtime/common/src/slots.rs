@@ -289,7 +289,6 @@ decl_module! {
 			SimpleDispatchInfo::default().weigh_data(())
 		}
 
-		#[weight = frame_support::weights::SimpleDispatchInfo::default()]
 		fn on_finalize(now: T::BlockNumber) {
 			// If the current auction is in it ending period, then ensure that the (sub-)range
 			// winner information is duplicated from the previous block in case no bids happened

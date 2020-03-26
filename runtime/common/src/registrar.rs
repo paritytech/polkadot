@@ -462,7 +462,6 @@ decl_module! {
 			SimpleDispatchInfo::default().weigh_data(())
 		}
 
-		#[weight = SimpleDispatchInfo::default()]
 		fn on_finalize() {
 			// a block without this will panic, but let's not panic here.
 			if let Some(proceeded_vec) = parachains::DidUpdate::get() {
