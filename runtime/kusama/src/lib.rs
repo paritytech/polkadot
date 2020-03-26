@@ -25,7 +25,7 @@ use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas, AbridgedCandidateReceipt}, ValidityError,
+	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext}, ValidityError,
 };
 use runtime_common::{attestations, claims, parachains, registrar, slots,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
@@ -79,7 +79,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 1056,
+	spec_version: 1057,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -496,6 +496,7 @@ impl parachains::Trait for Runtime {
 	type KeyOwnerProofSystem = session::historical::Module<Self>;
 	type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 	type ReportOffence = Offences;
+	type BlockHashConversion = sp_runtime::traits::Identity;
 }
 
 parameter_types! {
@@ -815,6 +816,9 @@ sp_api::impl_runtime_apis! {
 					}
 					Err(_) => None,
 				})
+		}
+		fn signing_context() -> SigningContext {
+			Parachains::signing_context()
 		}
 	}
 

@@ -162,6 +162,16 @@ check-web-wasm:                    &test
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path cli/Cargo.toml --no-default-features --features browser
     - sccache -s
 
+check-runtime-benchmarks:          &test
+  stage:                           test
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler_info
+  script:
+    # Check that the node will compile with `runtime-benchmarks` feature flag.
+    - time cargo check --features runtime-benchmarks
+    - sccache -s
+
 
 build-linux-release:               &build
   stage:                           build
@@ -266,7 +276,7 @@ publish-s3-release:
     - |
       cat <<-EOM
       |
-      |  polkadot binary paths: 
+      |  polkadot binary paths:
       |
       |  - https://${BUCKET}/${PREFIX}/${EXTRATAG}/polkadot
       |  - https://${BUCKET}/${PREFIX}/${VERSION}/polkadot
@@ -375,5 +385,3 @@ deploy-polkasync-kusama:
         -F "ref=master" \
         -F "variables[POLKADOT_BUILD_REF]=${CI_COMMIT_REF_NAME}" \
         ${GITLAB_API}/projects/${GITHUB_API_PROJECT}/trigger/pipeline | jq .
-
-

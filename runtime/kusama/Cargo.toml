@@ -136,4 +136,9 @@ std = [
 	"randomness-collective-flip/std",
 	"runtime-common/std",
 ]
-runtime-benchmarks = ["frame-benchmarking", "runtime-common/runtime-benchmarks"]
+runtime-benchmarks = [
+	"frame-benchmarking",
+	"frame-support/runtime-benchmarks",
+	"runtime-common/runtime-benchmarks",
+	"elections-phragmen/runtime-benchmarks"
+]

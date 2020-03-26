@@ -24,7 +24,7 @@ use rstd::prelude::*;
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas, AbridgedCandidateReceipt}, ValidityError,
+	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext}, ValidityError,
 };
 use runtime_common::{attestations, claims, parachains, registrar, slots,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment},
@@ -75,7 +75,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot-test-runtime"),
 	impl_name: create_runtime_str!("parity-polkadot-test-runtime"),
 	authoring_version: 2,
-	spec_version: 1048,
+	spec_version: 1049,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -319,6 +319,7 @@ impl parachains::Trait for Runtime {
 			Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>
 		>::IdentificationTuple;
 	type ReportOffence = Offences;
+	type BlockHashConversion = sp_runtime::traits::Identity;
 }
 
 impl offences::Trait for Runtime {
@@ -535,6 +536,9 @@ sp_api::impl_runtime_apis! {
 					}
 					Err(_) => None,
 				})
+		}
+		fn signing_context() -> SigningContext {
+			Parachains::signing_context()
 		}
 	}
 
