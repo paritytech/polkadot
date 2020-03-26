@@ -293,6 +293,7 @@ decl_module! {
 		/// - `count`: The number of parathreads.
 		///
 		/// Must be called from Root origin.
+		#[weight = SimpleDispatchInfo::default()]
 		fn set_thread_count(origin, count: u32) {
 			ensure_root(origin)?;
 			ThreadCount::put(count);
@@ -306,6 +307,7 @@ decl_module! {
 		/// Unlike `register_para`, this function does check that the maximum code size
 		/// and head data size are respected, as parathread registration is an atomic
 		/// action.
+		#[weight = SimpleDispatchInfo::default()]
 		fn register_parathread(origin,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>,
@@ -345,6 +347,7 @@ decl_module! {
 		/// This is a kind of special transaction that should be heavily prioritized in the
 		/// transaction pool according to the `value`; only `ThreadCount` of them may be presented
 		/// in any single block.
+		#[weight = SimpleDispatchInfo::default()]
 		fn select_parathread(origin,
 			#[compact] _id: ParaId,
 			_collator: CollatorId,
@@ -361,6 +364,7 @@ decl_module! {
 		/// Ensure that before calling this that any funds you want emptied from the parathread's
 		/// account is moved out; after this it will be impossible to retrieve them (without
 		/// governance intervention).
+		#[weight = SimpleDispatchInfo::default()]
 		fn deregister_parathread(origin) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -384,6 +388,7 @@ decl_module! {
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
+		#[weight = SimpleDispatchInfo::default()]
 		fn swap(origin, #[compact] other: ParaId) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 

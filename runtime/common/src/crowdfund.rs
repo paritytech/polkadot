@@ -294,6 +294,7 @@ decl_module! {
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
 		/// slot is unable to be purchased and the timeout expires.
+		#[weight = SimpleDispatchInfo::default()]
 		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>) {
 			let who = ensure_signed(origin)?;
 
@@ -352,6 +353,7 @@ decl_module! {
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
+		#[weight = SimpleDispatchInfo::default()]
 		fn fix_deploy_data(origin,
 			#[compact] index: FundIndex,
 			code_hash: T::Hash,
@@ -377,6 +379,7 @@ decl_module! {
 		///
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `para_id` is the parachain index that this fund won.
+		#[weight = SimpleDispatchInfo::default()]
 		fn onboard(origin,
 			#[compact] index: FundIndex,
 			#[compact] para_id: ParaId
@@ -405,6 +408,7 @@ decl_module! {
 		}
 
 		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
+		#[weight = SimpleDispatchInfo::default()]
 		fn begin_retirement(origin, #[compact] index: FundIndex) {
 			let _ = ensure_signed(origin)?;
 
@@ -426,6 +430,7 @@ decl_module! {
 		}
 
 		/// Withdraw full balance of a contributor to an unsuccessful or off-boarded fund.
+		#[weight = SimpleDispatchInfo::default()]
 		fn withdraw(origin, #[compact] index: FundIndex) {
 			let who = ensure_signed(origin)?;
 
@@ -456,6 +461,7 @@ decl_module! {
 		/// Remove a fund after either: it was unsuccessful and it timed out; or it was successful
 		/// but it has been retired from its parachain slot. This places any deposits that were not
 		/// withdrawn into the treasury.
+		#[weight = SimpleDispatchInfo::default()]
 		fn dissolve(origin, #[compact] index: FundIndex) {
 			let _ = ensure_signed(origin)?;
 
