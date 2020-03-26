@@ -55,7 +55,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness},
-	weights::{DispatchInfo, Weight},
+	weights::DispatchInfo,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -277,7 +277,7 @@ impl session::historical::Trait for Runtime {
 	type FullIdentificationOf = staking::ExposureOf<Runtime>;
 }
 
-staking_reward_curve::build! {
+pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
 		max_inflation: 0_100_000,
@@ -363,6 +363,7 @@ impl democracy::Trait for Runtime {
 	type CooloffPeriod = CooloffPeriod;
 	type PreimageByteDeposit = PreimageByteDeposit;
 	type Slash = Treasury;
+	type Scheduler = Scheduler;
 }
 
 parameter_types! {
