@@ -640,6 +640,7 @@ impl<T: Trait> Module<T> {
 
 		for head in heads.iter() {
 			let id = head.parachain_index();
+			Heads::insert(id, &head.candidate.head_data.0);
 
 			// Queue up upwards messages (from parachains to relay chain).
 			Self::queue_upward_messages(
@@ -1579,10 +1580,13 @@ mod tests {
 
 	// creates a template candidate which pins to correct relay-chain state.
 	fn raw_candidate(para_id: ParaId) -> CandidateReceipt {
+		let mut head_data = Parachains::parachain_head(&para_id).unwrap();
+		head_data.extend(para_id.encode());
+
 		CandidateReceipt {
 			parachain_index: para_id,
 			relay_parent: System::parent_hash(),
-			head_data: Default::default(),
+			head_data: HeadData(head_data),
 			collator: Default::default(),
 			signature: Default::default(),
 			pov_block_hash: Default::default(),
@@ -2131,6 +2135,9 @@ mod tests {
 				set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
 				Origin::NONE,
 			));
+
+			assert_eq!(Heads::get(&ParaId::from(0)).map(HeadData), Some(candidate_a.candidate.head_data));
+			assert_eq!(Heads::get(&ParaId::from(1)).map(HeadData), Some(candidate_b.candidate.head_data));
 		});
 	}
 
