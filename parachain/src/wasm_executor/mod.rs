@@ -23,7 +23,7 @@
 use std::any::{TypeId, Any};
 use crate::{ValidationParams, ValidationResult, UpwardMessage};
 use codec::{Decode, Encode};
-use sp_core::storage::{ChildStorageKey, ChildInfo};
+use sp_core::storage::ChildInfo;
 use sp_core::traits::CallInWasm;
 use sp_wasm_interface::HostFunctions as _;
 

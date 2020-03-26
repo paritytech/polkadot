@@ -79,7 +79,6 @@ use frame_support::weights::SimpleDispatchInfo;
 use crate::slots;
 use codec::{Encode, Decode};
 use sp_std::vec::Vec;
-use sp_core::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
 use primitives::parachain::Id as ParaId;
 
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");

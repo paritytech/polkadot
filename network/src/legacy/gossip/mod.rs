@@ -313,15 +313,6 @@ pub fn register_validator<C: ChainContext + 'static>(
 		}
 	}
 
-	// Ideally this would not be spawned as an orphaned task, but polled by
-	// `RegisteredMessageValidator` which in turn would be polled by a `ValidationNetwork`.
-	let spawn_res = executor.spawn_obj(futures::task::FutureObj::from(Box::new(gossip_engine.clone())));
-
-	// Note: we consider the chances of an error to spawn a background task almost null.
-	if spawn_res.is_err() {
-		log::error!(target: "polkadot-gossip", "Failed to spawn background task");
-	}
-
 	RegisteredMessageValidator {
 		inner: validator as _,
 		service: Some(service),
