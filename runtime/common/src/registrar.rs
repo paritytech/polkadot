@@ -648,7 +648,7 @@ mod tests {
 		traits::{
 			BlakeTwo256, IdentityLookup, Dispatchable,
 			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header}, KeyTypeId, Perbill, curve::PiecewiseLinear,
+		}, testing::{UintAuthorityId, Header, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{
@@ -678,6 +678,7 @@ mod tests {
 		pub enum Call for Test where origin: Origin {
 			parachains::Parachains,
 			registrar::Registrar,
+			staking::Staking,
 		}
 	}
 
@@ -774,6 +775,7 @@ mod tests {
 		type SessionManager = ();
 		type Keys = UintAuthorityId;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+		type NextSessionRotation = session::PeriodicSessions<Period, Offset>;
 		type SessionHandler = session::TestSessionHandler;
 		type Event = ();
 		type ValidatorId = u64;
@@ -784,6 +786,7 @@ mod tests {
 	parameter_types! {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
+		pub const ElectionLookahead: BlockNumber = 0;
 	}
 
 	impl staking::Trait for Test {
@@ -801,6 +804,10 @@ mod tests {
 		type Time = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+		type NextNewSession = Session;
+		type ElectionLookahead = ElectionLookahead;
+		type Call = Call;
+		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
 	}
 
 	impl timestamp::Trait for Test {
@@ -852,6 +859,8 @@ mod tests {
 	type Slots = slots::Module<Test>;
 	type Registrar = Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
+	type Session = session::Module<Test>;
+	type Staking = staking::Module<Test>;
 
 	const AUTHORITY_KEYS: [Sr25519Keyring; 8] = [
 		Sr25519Keyring::Alice,
