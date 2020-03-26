@@ -292,7 +292,7 @@ parameter_types! {
 
 impl staking::Trait for Runtime {
 	type Currency = Balances;
-	type Time = Timestamp;
+	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type RewardRemainder = Treasury;
 	type Event = Event;

@@ -803,7 +803,7 @@ mod tests {
 		type SlashDeferDuration = SlashDeferDuration;
 		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
 		type SessionInterface = Self;
-		type Time = timestamp::Module<Test>;
+		type UnixTime = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	}
