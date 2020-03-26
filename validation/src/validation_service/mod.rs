@@ -29,22 +29,22 @@
 use std::{time::{Duration, Instant}, sync::Arc};
 use std::collections::HashMap;
 
-use sc_client_api::{BlockchainEvents, BlockBody};
+use sc_client_api::{BlockchainEvents, BlockBackend};
 use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use consensus::SelectChain;
 use futures::{future::ready, prelude::*, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
-	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
+	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair, SigningContext,
 };
 use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
 use sp_api::{ApiExt, ProvideRuntimeApi};
-use runtime_primitives::traits::HasherFor;
+use runtime_primitives::traits::HashFor;
 use availability_store::Store as AvailabilityStore;
 
-use log::{warn, error, info, debug};
+use log::{warn, error, info, debug, trace};
 
 use super::{Network, Collators, SharedTable, TableRouter};
 use crate::Error;
@@ -139,7 +139,7 @@ pub struct ServiceBuilder<C, N, P, SC, SP> {
 impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 	C: Collators + Send + Sync + Unpin + 'static,
 	C::Collation: Send + Unpin + 'static,
-	P: BlockchainEvents<Block> + BlockBody<Block>,
+	P: BlockchainEvents<Block> + BlockBackend<Block>,
 	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> +
 		BlockBuilderApi<Block> +
@@ -152,7 +152,7 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 	SC: SelectChain<Block> + 'static,
 	SP: Spawn + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
 	/// Build the service - this consists of a handle to it, as well as a background
 	/// future to be run to completion.
@@ -267,7 +267,7 @@ pub(crate) struct ParachainValidationInstances<C, N, P, SP> {
 impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 	C: Collators + Send + Unpin + 'static + Sync,
 	N: Network,
-	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
+	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBackend<Block> + Send + Sync + 'static,
 	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	C::Collation: Send + Unpin + 'static,
 	N::TableRouter: Send + 'static,
@@ -275,7 +275,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 	N::BuildTableRouter: Unpin + Send + 'static,
 	SP: Spawn + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
 	/// Get an attestation table for given parent hash.
 	///
@@ -322,7 +322,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		// If we are a validator, we need to store our index in this round in availability store.
 		// This will tell which erasure chunk we should store.
 		if let Some(ref local_duty) = local_duty {
-			if let Err(e) = self.availability_store.add_validator_index_and_n_validators(
+			if let Err(e) = self.availability_store.note_validator_index_and_n_validators(
 				&parent_hash,
 				local_duty.index,
 				validators.len() as u32,
@@ -334,11 +334,29 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 			}
 		}
 
+		let api = self.client.runtime_api();
+
+		let signing_context = if api.has_api_with::<dyn ParachainHost<Block, Error = ()>, _>(
+			&BlockId::hash(parent_hash),
+			|version| version >= 3,
+		)? {
+			api.signing_context(&id)?
+		} else {
+			trace!(
+				target: "validation",
+				"Expected runtime with ParachainHost version >= 3",
+			);
+			SigningContext {
+				session_index: 0,
+				parent_hash,
+			}
+		};
+
 		let table = Arc::new(SharedTable::new(
 			validators.clone(),
 			group_info,
 			sign_with,
-			parent_hash,
+			signing_context,
 			self.availability_store.clone(),
 			max_block_data_size,
 		));
@@ -374,7 +392,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 		validation_para: ParaId,
 		build_router: N::BuildTableRouter,
 		max_block_data_size: Option<u64>,
-		authorities_num: usize,
+		n_validators: usize,
 		local_id: ValidatorIndex,
 	) {
 		let (collators, client) = (self.collators.clone(), self.client.clone());
@@ -388,49 +406,56 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 				collators,
 				client.clone(),
 				max_block_data_size,
+				n_validators,
 			);
 
 			collation_work.then(move |result| match result {
-				Ok((collation, parent_head, fees_charged)) => {
-					match crate::collation::produce_receipt_and_chunks(
-						authorities_num,
-						parent_head,
-						&collation.pov,
-						fees_charged,
-						&collation.info,
-					) {
-						Ok((receipt, chunks)) => {
-							// Apparently the `async move` block is the only way to convince
-							// the compiler that we are not moving values out of borrowed context.
-							let av_clone = availability_store.clone();
-							let chunks_clone = chunks.clone();
-							let receipt_clone = receipt.clone();
+				Ok((collation_info, full_output)) => {
+					let crate::pipeline::FullOutput {
+						commitments,
+						erasure_chunks,
+						available_data,
+						..
+					} = full_output;
 
-							let res = async move {
-								if let Err(e) = av_clone.clone().add_erasure_chunks(
-									relay_parent.clone(),
-									receipt_clone,
-									chunks_clone,
-								).await {
-									warn!(target: "validation", "Failed to add erasure chunks: {}", e);
-								}
-							}
-							.unit_error()
-							.then(move |_| {
-								router.local_collation(
-									collation,
-									receipt,
-									(local_id, &chunks),
-								).map_err(|e| warn!(target: "validation", "Failed to send local collation: {:?}", e))
-							});
+					let receipt = collation_info.into_receipt(commitments);
 
-							res.boxed()
+					// Apparently the `async move` block is the only way to convince
+					// the compiler that we are not moving values out of borrowed context.
+					let av_clone = availability_store.clone();
+					let receipt_clone = receipt.clone();
+					let erasure_chunks_clone = erasure_chunks.clone();
+					let pov_block = available_data.pov_block.clone();
+
+					let res = async move {
+						if let Err(e) = av_clone.make_available(
+							receipt_clone.hash(),
+							available_data,
+						).await {
+							warn!(
+								target: "validation",
+								"Failed to make parachain block data available: {}",
+								e,
+							);
 						}
-						Err(e) => {
-							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
-							Box::pin(ready(Ok(())))
+						if let Err(e) = av_clone.clone().add_erasure_chunks(
+							receipt_clone,
+							n_validators as _,
+							erasure_chunks_clone,
+						).await {
+							warn!(target: "validation", "Failed to add erasure chunks: {}", e);
 						}
 					}
+					.unit_error()
+					.then(move |_| {
+						router.local_collation(
+							receipt,
+							pov_block,
+							(local_id, &erasure_chunks),
+						).map_err(|e| warn!(target: "validation", "Failed to send local collation: {:?}", e))
+					});
+
+					res.boxed()
 				}
 				Err(e) => {
 					warn!(target: "validation", "Failed to collate candidate: {:?}", e);

@@ -1,9 +1,14 @@
 [package]
 name = "polkadot-cli"
-version = "0.7.21"
+version = "0.7.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot node implementation in Rust."
 edition = "2018"
+
+[package.metadata.wasm-pack.profile.release]
+# `wasm-opt` has some problems on linux, see
+# https://github.com/rustwasm/wasm-pack/issues/781 etc.
+wasm-opt = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -12,21 +17,22 @@ crate-type = ["cdylib", "rlib"]
 log = "0.4.8"
 futures = { version = "0.3.4", features = ["compat"] }
 structopt = "0.3.8"
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
 
-tokio = { version = "0.2.10", features = ["rt-threaded"], optional = true }
+tokio = { version = "0.2.13", features = ["rt-threaded"], optional = true }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 
 wasm-bindgen = { version = "0.2.57", optional = true }
 wasm-bindgen-futures = { version = "0.4.7", optional = true }
-browser-utils = { package = "browser-utils", git = "https://github.com/paritytech/substrate", branch = "polkadot-master", optional = true }
+browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 
 [features]
 default = [ "wasmtime", "rocksdb", "cli" ]
@@ -35,9 +41,12 @@ rocksdb = [ "service/rocksdb" ]
 cli = [
 	"tokio",
 	"sc-cli",
+	"frame-benchmarking-cli",
+	"service/full-node",
 ]
 browser = [
 	"wasm-bindgen",
 	"wasm-bindgen-futures",
 	"browser-utils",
 ]
+runtime-benchmarks = ["service/runtime-benchmarks"]

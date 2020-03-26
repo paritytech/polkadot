@@ -78,7 +78,8 @@ use sp_runtime::{ModuleId,
 use frame_support::weights::SimpleDispatchInfo;
 use crate::slots;
 use codec::{Encode, Decode};
-use rstd::vec::Vec;
+use sp_std::vec::Vec;
+use sp_core::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
 use primitives::parachain::Id as ParaId;
 
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
@@ -165,19 +166,19 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 decl_storage! {
 	trait Store for Module<T: Trait> as Crowdfund {
 		/// Info on all of the funds.
-		Funds get(funds):
-			map hasher(blake2_256) FundIndex
+		Funds get(fn funds):
+			map hasher(twox_64_concat) FundIndex
 			=> Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
 
 		/// The total number of funds that have so far been allocated.
-		FundCount get(fund_count): FundIndex;
+		FundCount get(fn fund_count): FundIndex;
 
 		/// The funds that have had additional contributions during the last block. This is used
 		/// in order to determine which funds should submit new or updated bids.
-		NewRaise get(new_raise): Vec<FundIndex>;
+		NewRaise get(fn new_raise): Vec<FundIndex>;
 
 		/// The number of auctions that have entered into their ending period so far.
-		EndingsCount get(endings_count): slots::AuctionIndex;
+		EndingsCount get(fn endings_count): slots::AuctionIndex;
 	}
 }
 
@@ -553,7 +554,10 @@ mod tests {
 	use super::*;
 
 	use std::{collections::HashMap, cell::RefCell};
-	use frame_support::{impl_outer_origin, assert_ok, assert_noop, parameter_types};
+	use frame_support::{
+		impl_outer_origin, assert_ok, assert_noop, parameter_types,
+		traits::{OnInitialize, OnFinalize},
+	};
 	use frame_support::traits::Contains;
 	use sp_core::H256;
 	use primitives::parachain::{Info as ParaInfo, Id as ParaId};
@@ -561,7 +565,7 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
 		Perbill, Permill, Percent, testing::Header, DispatchResult,
-		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup},
+		traits::{BlakeTwo256, IdentityLookup},
 	};
 	use crate::registrar::Registrar;
 
@@ -599,7 +603,7 @@ mod tests {
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
-		type OnReapAccount = Balances;
+		type OnKilledAccount = Balances;
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
@@ -626,6 +630,8 @@ mod tests {
 	impl Contains<u64> for Nobody {
 		fn contains(_: &u64) -> bool { false }
 		fn sorted_members() -> Vec<u64> { vec![] }
+		#[cfg(feature = "runtime-benchmarks")]
+		fn add(_: &u64) { unimplemented!() }
 	}
 	impl treasury::Trait for Test {
 		type Currency = balances::Module<Test>;

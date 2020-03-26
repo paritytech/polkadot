@@ -44,7 +44,7 @@ pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
 pub use parachains::Call as ParachainsCall;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
-pub use impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor, WeightToFee};
+pub use impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor};
 
 pub type NegativeImbalance<T> = <balances::Module<T> as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
 

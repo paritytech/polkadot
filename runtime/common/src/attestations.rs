@@ -19,13 +19,13 @@
 //! In the future, it is planned that this module will handle dispute resolution
 //! as well.
 
-use rstd::prelude::*;
+use sp_std::prelude::*;
 use codec::{Encode, Decode};
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, traits::Get
 };
 
-use primitives::{Hash, parachain::{AttestedCandidate, CandidateReceipt, Id as ParaId}};
+use primitives::{Hash, parachain::{AttestedCandidate, AbridgedCandidateReceipt, Id as ParaId}};
 use sp_runtime::RuntimeDebug;
 use sp_staking::SessionIndex;
 
@@ -50,7 +50,7 @@ pub struct IncludedBlocks<T: Trait> {
 /// Attestations kept over time on a parachain block.
 #[derive(Encode, Decode)]
 pub struct BlockAttestations<T: Trait> {
-	receipt: CandidateReceipt,
+	receipt: AbridgedCandidateReceipt,
 	valid: Vec<T::AccountId>, // stash account ID of voter.
 	invalid: Vec<T::AccountId>, // stash account ID of voter.
 }
@@ -75,11 +75,19 @@ impl RewardAttestation for () {
 
 impl<T: staking::Trait> RewardAttestation for staking::Module<T> {
 	fn reward_immediate(validator_indices: impl IntoIterator<Item=u32>) {
+		use staking::SessionInterface;
+
 		// The number of points to reward for a validity statement.
 		// https://research.web3.foundation/en/latest/polkadot/Token%20Economics/#payment-details
 		const STAKING_REWARD_POINTS: u32 = 20;
 
-		Self::reward_by_indices(validator_indices.into_iter().map(|i| (i, STAKING_REWARD_POINTS)))
+		let validators = T::SessionInterface::validators();
+
+		let validator_rewards = validator_indices.into_iter()
+			.filter_map(|i| validators.get(i as usize).cloned())
+			.map(|v| (v, STAKING_REWARD_POINTS));
+
+		Self::reward_by_ids(validator_rewards);
 	}
 }
 
@@ -98,11 +106,11 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Attestations {
 		/// A mapping from modular block number (n % AttestationPeriod)
 		/// to session index and the list of candidate hashes.
-		pub RecentParaBlocks: map hasher(blake2_256) T::BlockNumber => Option<IncludedBlocks<T>>;
+		pub RecentParaBlocks: map hasher(twox_64_concat) T::BlockNumber => Option<IncludedBlocks<T>>;
 
 		/// Attestations on a recent parachain block.
 		pub ParaBlockAttestations:
-			double_map hasher(blake2_256) T::BlockNumber, hasher(blake2_128) Hash
+			double_map hasher(twox_64_concat) T::BlockNumber, hasher(identity) Hash
 			=> Option<BlockAttestations<T>>;
 
 		// Did we already have more attestations included in this block?

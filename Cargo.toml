@@ -4,7 +4,7 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-version = "0.7.21"
+version = "0.7.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 build = "build.rs"
 edition = "2018"
@@ -13,6 +13,7 @@ edition = "2018"
 cli = { package = "polkadot-cli", path = "cli" }
 futures = "0.3.4"
 service = { package = "polkadot-service", path = "service" }
+parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [build-dependencies]
 vergen = "3.0.4"
@@ -28,10 +29,13 @@ members = [
 	"collator",
 	"erasure-coding",
 	"network",
+	"network/test",
 	"primitives",
 	"runtime/common",
 	"runtime/polkadot",
 	"runtime/kusama",
+	"runtime/test-runtime",
+	"runtime/test-runtime/client",
 	"service",
 	"statement-table",
 	"service",
@@ -52,6 +56,9 @@ maintenance = { status = "actively-developed" }
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
+
+[features]
+runtime-benchmarks=["cli/runtime-benchmarks"]
 
 [patch.'https://github.com/paritytech/substrate']
 sp-core = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
@@ -93,7 +100,6 @@ pallet-democracy = { git="https://github.com/cheme/substrate", branch="child_tri
 pallet-collective = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 pallet-transaction-payment-rpc = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 pallet-transaction-payment-rpc-runtime-api = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
-
 pallet-transaction-payment = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 pallet-authority-discovery = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 sp-transaction-pool = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
@@ -103,10 +109,9 @@ sp-offchain = { git="https://github.com/cheme/substrate", branch="child_trie_w3_
 sp-consensus-babe = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 pallet-recovery = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 pallet-society = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
-browser-utils = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
+substrate-browser-utils = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 fork-tree = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 pallet-utility = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
-grafana-data-source = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 sc-network = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 sc-cli = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 sc-client-db = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
@@ -134,4 +139,13 @@ sc-transaction-pool = { git="https://github.com/cheme/substrate", branch="child_
 sp-timestamp = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 sc-block-builder = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
 sp-finality-grandpa = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
-
+sp-wasm-interface = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
+substrate-prometheus-endpoint = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
+substrate-test-client = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
+substrate-test-runtime = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
+substrate-test-runtime-client = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
+substrate-wasm-builder-runner = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
+sp-consensus-aura = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
+sc-network-test = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
+frame-benchmarking = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }
+frame-benchmarking-cli = { git="https://github.com/cheme/substrate", branch="child_trie_w3_change" }

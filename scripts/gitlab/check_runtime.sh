@@ -16,13 +16,16 @@
 
 set -e # fail on any error
 
+#Include the common functions library
+#shellcheck source=lib.sh
+. "$(dirname "${0}")/lib.sh"
 
 SUBSTRATE_REPO="https://github.com/paritytech/substrate"
 SUBSTRATE_REPO_CARGO="git\+${SUBSTRATE_REPO}\?branch=polkadot-master"
 SUBSTRATE_VERSIONS_FILE="bin/node/runtime/src/lib.rs"
 
-boldprint () { printf "|\n| \033[1m${@}\033[0m\n|\n" ; }
-boldcat () { printf "|\n"; while read l; do printf "| \033[1m${l}\033[0m\n"; done; printf "|\n" ; }
+boldprint () { printf "|\n| \033[1m%s\033[0m\n|\n" "${@}"; }
+boldcat () { printf "|\n"; while read -r l; do printf "| \033[1m%s\033[0m\n" "${l}"; done; printf "|\n" ; }
 
 
 # figure out the latest release tag
@@ -31,7 +34,7 @@ boldprint "latest release tag ${LATEST_TAG}"
 
 
 boldprint "latest 10 commits of ${CI_COMMIT_REF_NAME}"
-git log --graph --oneline --decorate=short -n 10
+git --no-pager log --graph --oneline --decorate=short -n 10
 
 boldprint "make sure the master branch is available in shallow clones"
 git fetch --depth=${GIT_DEPTH:-100} origin master
@@ -106,6 +109,22 @@ then
 	spec_version or or impl_version have changed in substrate after updating Cargo.lock
 	please make sure versions are bumped in polkadot accordingly
 	EOT
+
+	# Now check if any of the substrate changes have been tagged B2-breaksapi
+	(
+		cd "${SUBSTRATE_CLONE_DIR}"
+		substrate_changes="$(sanitised_git_logs "${SUBSTRATE_PREV_REF}" "${SUBSTRATE_NEW_REF}")"
+		echo "$substrate_changes" | while read -r line; do
+			pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
+
+			if has_label 'paritytech/substrate' "$pr_id" 'B2-breaksapi'; then
+				boldprint "Substrate change labelled with B2-breaksapi. Labelling..."
+				github_label "B2-breaksapi"
+				exit 1
+			fi
+		done
+	)
+
 fi
 
 

@@ -24,7 +24,7 @@ use sp_core::Pair;
 use codec::{Encode, Decode};
 use primitives::{
 	Hash,
-	parachain::{HeadData, BlockData, Id as ParaId, Status as ParachainStatus},
+	parachain::{HeadData, BlockData, Id as ParaId, LocalValidationData},
 };
 use collator::{
 	InvalidHead, ParachainContext, Network, BuildParachainContext, load_spec, Configuration,
@@ -60,10 +60,10 @@ impl ParachainContext for AdderContext {
 	fn produce_candidate(
 		&mut self,
 		_relay_parent: Hash,
-		status: ParachainStatus,
+		local_validation: LocalValidationData,
 	) -> Self::ProduceCandidate
 	{
-		let adder_head = match AdderHead::decode(&mut &status.head_data.0[..]) {
+		let adder_head = match AdderHead::decode(&mut &local_validation.parent_head.0[..]) {
 			Ok(adder_head) => adder_head,
 			Err(_) => return err(InvalidHead)
 		};
@@ -104,9 +104,9 @@ impl BuildParachainContext for AdderContext {
 		self,
 		_: Arc<collator::PolkadotClient<B, E, R>>,
 		_: SP,
-		network: Arc<dyn Network>,
+		network: impl Network + Clone + 'static,
 	) -> Result<Self::ParachainContext, ()> {
-		Ok(Self { _network: Some(network), ..self })
+		Ok(Self { _network: Some(Arc::new(network)), ..self })
 	}
 }
 
@@ -133,7 +133,7 @@ fn main() {
 	};
 
 	let mut config = Configuration::default();
-	config.chain_spec = load_spec("dev").unwrap();
+	config.chain_spec = Some(load_spec("dev", false).unwrap());
 
 	let res = collator::run_collator(
 		context,

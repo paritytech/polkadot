@@ -28,7 +28,7 @@ variables:
   artifacts:
     name:                          "${CI_JOB_NAME}_${CI_COMMIT_REF_NAME}"
     when:                          on_success
-    expire_in:                     7 days
+    expire_in:                     28 days
     paths:
       - artifacts/
 
@@ -111,14 +111,14 @@ check-line-width:
   interruptible:                   true
   allow_failure:                   true
 
-alert-pending-release:
+publish-draft-release:
   stage:                           test
   image:                           parity/tools:latest
   only:
     - tags
     - /^v[0-9]+\.[0-9]+\.[0-9]+.*$/        # i.e. v1.0.1, v2.1.0rc1
   script:
-    - ./scripts/gitlab/alert_pending_release.sh
+    - ./scripts/gitlab/publish_draft_release.sh
   interruptible:                   true
   allow_failure:                   true
 
@@ -159,6 +159,17 @@ check-web-wasm:                    &test
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path primitives/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path rpc/Cargo.toml
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path statement-table/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path cli/Cargo.toml --no-default-features --features browser
+    - sccache -s
+
+check-runtime-benchmarks:          &test
+  stage:                           test
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler_info
+  script:
+    # Check that the node will compile with `runtime-benchmarks` feature flag.
+    - time cargo check --features runtime-benchmarks
     - sccache -s
 
 
@@ -253,33 +264,27 @@ publish-s3-release:
     BUCKET:                        "releases.parity.io"
     PREFIX:                        "polkadot/${ARCH}-${DOCKER_OS}"
   script:
-    - echo "uploading objects to ${BUCKET}/${PREFIX}/${VERSION}"
+    - echo "uploading objects to https://${BUCKET}/${PREFIX}/${VERSION}"
     - aws s3 sync ./artifacts/ s3://${BUCKET}/${PREFIX}/${VERSION}/
-    - echo "update objects at ${BUCKET}/${PREFIX}/${EXTRATAG}/${name}"
+    - echo "update objects at https://${BUCKET}/${PREFIX}/${EXTRATAG}"
     - for file in ./artifacts/*; do
       name="$(basename ${file})";
       aws s3api copy-object
         --copy-source ${BUCKET}/${PREFIX}/${VERSION}/${name}
         --bucket ${BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
       done
+    - |
+      cat <<-EOM
+      |
+      |  polkadot binary paths:
+      |
+      |  - https://${BUCKET}/${PREFIX}/${EXTRATAG}/polkadot
+      |  - https://${BUCKET}/${PREFIX}/${VERSION}/polkadot
+      |
+      EOM
   after_script:
     - aws s3 ls s3://${BUCKET}/${PREFIX}/${EXTRATAG}/
         --recursive --human-readable --summarize
-
-
-
-
-publish-draft-release:
-  stage:                           deploy
-  image:                           parity/tools:latest
-  only:
-    - tags
-    - /^v[0-9]+\.[0-9]+\.[0-9]+.*$/        # i.e. v1.0.1, v2.1.0rc1
-  script:
-    - ./scripts/gitlab/publish_draft_release.sh
-  interruptible:                   true
-  allow_failure:                   true
-
 
 
 
@@ -380,5 +385,3 @@ deploy-polkasync-kusama:
         -F "ref=master" \
         -F "variables[POLKADOT_BUILD_REF]=${CI_COMMIT_REF_NAME}" \
         ${GITLAB_API}/projects/${GITHUB_API_PROJECT}/trigger/pipeline | jq .
-
-

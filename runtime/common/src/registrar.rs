@@ -18,9 +18,9 @@
 //! registered and which are scheduled. Doesn't manage any of the actual execution/validation logic
 //! which is left to `parachains.rs`.
 
-use rstd::{prelude::*, result};
+use sp_std::{prelude::*, result};
 #[cfg(any(feature = "std", test))]
-use rstd::marker::PhantomData;
+use sp_std::marker::PhantomData;
 use codec::{Encode, Decode};
 
 use sp_runtime::{
@@ -31,7 +31,7 @@ use sp_runtime::{
 use frame_support::{
 	decl_storage, decl_module, decl_event, decl_error, ensure,
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
-	weights::{SimpleDispatchInfo, DispatchInfo},
+	weights::{SimpleDispatchInfo, DispatchInfo, Weight, WeighData},
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
@@ -177,16 +177,16 @@ decl_storage! {
 		NextFreeId: ParaId = LOWEST_USER_ID;
 
 		/// Pending swap operations.
-		PendingSwap: map hasher(blake2_256) ParaId => Option<ParaId>;
+		PendingSwap: map hasher(twox_64_concat) ParaId => Option<ParaId>;
 
 		/// Map of all registered parathreads/chains.
-		Paras get(paras): map hasher(blake2_256) ParaId => Option<ParaInfo>;
+		Paras get(fn paras): map hasher(twox_64_concat) ParaId => Option<ParaInfo>;
 
 		/// The current queue for parathreads that should be retried.
-		RetryQueue get(retry_queue): Vec<Vec<(ParaId, CollatorId)>>;
+		RetryQueue get(fn retry_queue): Vec<Vec<(ParaId, CollatorId)>>;
 
 		/// Users who have paid a parathread's deposit
-		Debtors: map hasher(blake2_256) ParaId => T::AccountId;
+		Debtors: map hasher(twox_64_concat) ParaId => T::AccountId;
 	}
 	add_extra_genesis {
 		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
@@ -312,7 +312,7 @@ decl_module! {
 		) {
 			let who = ensure_signed(origin)?;
 
-			T::Currency::reserve(&who, T::ParathreadDeposit::get())?;
+			<T as Trait>::Currency::reserve(&who, T::ParathreadDeposit::get())?;
 
 			let info = ParaInfo {
 				scheduling: Scheduling::Dynamic,
@@ -371,7 +371,7 @@ decl_module! {
 			Self::force_unschedule(|i| i == id);
 
 			let debtor = <Debtors<T>>::take(id);
-			let _ = T::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
+			let _ = <T as Trait>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
 			Self::deposit_event(Event::ParathreadRegistered(id));
 		}
@@ -397,13 +397,13 @@ decl_module! {
 				Parachains::mutate(|ids| swap_ordered_existence(ids, id, other));
 				Paras::mutate(id, |i|
 					Paras::mutate(other, |j|
-						rstd::mem::swap(i, j)
+						sp_std::mem::swap(i, j)
 					)
 				);
 
 				<Debtors<T>>::mutate(id, |i|
 					<Debtors<T>>::mutate(other, |j|
-						rstd::mem::swap(i, j)
+						sp_std::mem::swap(i, j)
 					)
 				);
 				let _ = T::SwapAux::on_swap(id, other);
@@ -413,7 +413,7 @@ decl_module! {
 		}
 
 		/// Block initializer. Clears SelectedThreads and constructs/replaces Active.
-		fn on_initialize() {
+		fn on_initialize() -> Weight {
 			let next_up = SelectedThreads::mutate(|t| {
 				let r = if t.len() >= T::QueueSize::get() {
 					// Take the first set of parathreads in queue
@@ -453,6 +453,8 @@ decl_module! {
 			paras.sort_by_key(|&(ref id, _)| *id);
 
 			Active::put(paras);
+
+			SimpleDispatchInfo::default().weigh_data(())
 		}
 
 		fn on_finalize() {
@@ -546,13 +548,13 @@ impl<T: Trait> ActiveParas for Module<T> {
 
 /// Ensure that parathread selections happen prioritized by fees.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
-pub struct LimitParathreadCommits<T: Trait + Send + Sync>(rstd::marker::PhantomData<T>) where
+pub struct LimitParathreadCommits<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
 
-impl<T: Trait + Send + Sync> rstd::fmt::Debug for LimitParathreadCommits<T> where
+impl<T: Trait + Send + Sync> sp_std::fmt::Debug for LimitParathreadCommits<T> where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>
 {
-	fn fmt(&self, f: &mut rstd::fmt::Formatter) -> rstd::fmt::Result {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
 		write!(f, "LimitParathreadCommits<T>")
 	}
 }
@@ -577,7 +579,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self)
-		-> rstd::result::Result<Self::AdditionalSigned, TransactionValidityError>
+		-> sp_std::result::Result<Self::AdditionalSigned, TransactionValidityError>
 	{
 		Ok(())
 	}
@@ -624,7 +626,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 
 				// updated the selected threads.
 				selected_threads.insert(pos, (*id, collator.clone()));
-				rstd::mem::drop(selected_threads);
+				sp_std::mem::drop(selected_threads);
 				SelectedThreads::put(upcoming_selected_threads);
 
 				// provides the state-transition for this head-data-hash; this should cue the pool
@@ -644,18 +646,20 @@ mod tests {
 	use sp_core::{H256, Pair};
 	use sp_runtime::{
 		traits::{
-			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, Dispatchable,
+			BlakeTwo256, IdentityLookup, Dispatchable,
 			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header}, Perbill
+		}, testing::{UintAuthorityId, Header}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{
 			ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
-			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain, CollatorPair,
+			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
+			CollatorPair, CandidateCommitments, GlobalValidationSchedule, LocalValidationData,
 		},
 		Balance, BlockNumber,
 	};
 	use frame_support::{
+		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
 	};
 	use keyring::Sr25519Keyring;
@@ -675,6 +679,17 @@ mod tests {
 			parachains::Parachains,
 			registrar::Registrar,
 		}
+	}
+
+	pallet_staking_reward_curve::build! {
+		const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
+			min_inflation: 0_025_000,
+			max_inflation: 0_100_000,
+			ideal_stake: 0_500_000,
+			falloff: 0_050_000,
+			max_piece_count: 40,
+			test_precision: 0_005_000,
+		);
 	}
 
 	#[derive(Clone, Eq, PartialEq)]
@@ -704,7 +719,7 @@ mod tests {
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u128>;
 		type OnNewAccount = ();
-		type OnReapAccount = Balances;
+		type OnKilledAccount = Balances;
 	}
 
 	parameter_types! {
@@ -734,7 +749,12 @@ mod tests {
 	}
 
 	parameter_types!{
+		pub const SlashDeferDuration: staking::EraIndex = 7;
 		pub const AttestationPeriod: BlockNumber = 100;
+		pub const MinimumPeriod: u64 = 3;
+		pub const SessionsPerEra: sp_staking::SessionIndex = 6;
+		pub const BondingDuration: staking::EraIndex = 28;
+		pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	}
 
 	impl attestations::Trait for Test {
@@ -747,6 +767,7 @@ mod tests {
 		pub const Period: BlockNumber = 1;
 		pub const Offset: BlockNumber = 0;
 		pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
+		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	}
 
 	impl session::Trait for Test {
@@ -765,6 +786,34 @@ mod tests {
 		pub const MaxCodeSize: u32 = 100;
 	}
 
+	impl staking::Trait for Test {
+		type RewardRemainder = ();
+		type CurrencyToVote = ();
+		type Event = ();
+		type Currency = balances::Module<Test>;
+		type Slash = ();
+		type Reward = ();
+		type SessionsPerEra = SessionsPerEra;
+		type BondingDuration = BondingDuration;
+		type SlashDeferDuration = SlashDeferDuration;
+		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
+		type SessionInterface = Self;
+		type Time = timestamp::Module<Test>;
+		type RewardCurve = RewardCurve;
+		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	}
+
+	impl timestamp::Trait for Test {
+		type Moment = u64;
+		type OnTimestampSet = ();
+		type MinimumPeriod = MinimumPeriod;
+	}
+
+	impl session::historical::Trait for Test {
+		type FullIdentification = staking::Exposure<u64, Balance>;
+		type FullIdentificationOf = staking::ExposureOf<Self>;
+	}
+
 	impl parachains::Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
@@ -774,6 +823,11 @@ mod tests {
 		type Randomness = RandomnessCollectiveFlip;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
+		type Proof = session::historical::Proof;
+		type KeyOwnerProofSystem = session::historical::Module<Test>;
+		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+		type ReportOffence = ();
+		type BlockHashConversion = sp_runtime::traits::Identity;
 	}
 
 	parameter_types! {
@@ -826,7 +880,7 @@ mod tests {
 
 		// stashes are the index.
 		let session_keys: Vec<_> = authority_keys.iter().enumerate()
-			.map(|(i, _k)| (i as u64, UintAuthorityId(i as u64)))
+			.map(|(i, _k)| (i as u64, i as u64, UintAuthorityId(i as u64)))
 			.collect();
 
 		let authorities: Vec<_> = authority_keys.iter().map(|k| ValidatorId::from(k.public())).collect();
@@ -894,20 +948,33 @@ mod tests {
 		LOWEST_USER_ID + i
 	}
 
-	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], parent_head: &[u8], block_data: &[u8]) -> AttestedCandidate {
-		let block_data_hash = BlakeTwo256::hash(block_data);
+	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], block_data: &[u8]) -> AttestedCandidate {
+		let pov_block_hash = BlakeTwo256::hash(block_data);
+		let relay_parent = System::parent_hash();
 		let candidate = CandidateReceipt {
 			parachain_index: id,
-			collator: collator.public(),
-			signature: block_data_hash.using_encoded(|d| collator.sign(d)),
+			relay_parent,
 			head_data: HeadData(head_data.to_vec()),
-			parent_head: HeadData(parent_head.to_vec()),
-			fees: 0,
-			block_data_hash,
-			upward_messages: vec![],
-			erasure_root: [1; 32].into(),
+			collator: collator.public(),
+			signature: pov_block_hash.using_encoded(|d| collator.sign(d)),
+			pov_block_hash,
+			global_validation: GlobalValidationSchedule {
+				max_code_size: <Test as parachains::Trait>::MaxCodeSize::get(),
+				max_head_data_size: <Test as parachains::Trait>::MaxHeadDataSize::get(),
+			},
+			local_validation: LocalValidationData {
+				balance: Balances::free_balance(&id.into_account()),
+				parent_head: HeadData(Parachains::parachain_head(&id).unwrap()),
+			},
+			commitments: CandidateCommitments {
+				fees: 0,
+				upward_messages: vec![],
+				erasure_root: [1; 32].into(),
+			},
 		};
-		let payload = (Statement::Valid(candidate.hash()), System::parent_hash()).encode();
+		let (candidate, _) = candidate.abridge();
+		let candidate_hash = candidate.hash();
+		let payload = (Statement::Valid(candidate_hash), session::Module::<Test>::current_index(), System::parent_hash()).encode();
 		let roster = Parachains::calculate_duty_roster().0.validator_duty;
 		AttestedCandidate {
 			candidate,
@@ -1175,7 +1242,7 @@ mod tests {
 				(user_id(0), Some((col.clone(), Retriable::WithRetries(0))))
 			]);
 			assert_ok!(Parachains::set_heads(Origin::NONE, vec![
-				attest(user_id(0), &Sr25519Keyring::One.pair().into(), &[3; 3], &[3; 3], &[0; 0])
+				attest(user_id(0), &Sr25519Keyring::One.pair().into(), &[3; 3], &[0; 0])
 			]));
 
 			run_to_block(6);

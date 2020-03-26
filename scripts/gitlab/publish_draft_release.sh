@@ -1,52 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Function to take 2 git tags/commits and get any lines from commit messages
-# that contain something that looks like a PR reference: e.g., (#1234)
-sanitised_git_logs(){
-  git --no-pager log --pretty=format:"%s" "$1..$2" |
-  # Only find messages referencing a PR
-  grep -E '\(#[0-9]+\)' |
-  # Strip any asterisks
-  sed 's/^* //g' |
-  # And add them all back
-  sed 's/^/* /g'
-}
-
-check_tag () {
-  tagver=$1
-  tag_out=$(curl -H "Authorization: token $GITHUB_RELEASE_TOKEN" -s "$api_base/git/refs/tags/$tagver")
-  tag_sha=$(echo "$tag_out" | jq -r .object.sha)
-  object_url=$(echo "$tag_out" | jq -r .object.url)
-  if [ "$tag_sha" == "null" ]; then
-    return 2
-  fi
-  verified_str=$(curl -H "Authorization: token $GITHUB_RELEASE_TOKEN" -s "$object_url" | jq -r .verification.verified)
-  if [ "$verified_str" == "true" ]; then
-    # Verified, everything is good
-    return 0
-  else
-    # Not verified. Bad juju.
-    return 1
-  fi
-}
-
-# structure_message $content $formatted_content (optional)
-structure_message() {
-  if [ -z "$2" ]; then
-    body=$(jq -Rs --arg body "$1" '{"msgtype": "m.text", $body}' < /dev/null)
-  else
-    body=$(jq -Rs --arg body "$1" --arg formatted_body "$2" '{"msgtype": "m.text", $body, "format": "org.matrix.custom.html", $formatted_body}' < /dev/null)
-  fi
-  echo "$body"
-}
-
-# send_message $body (json formatted) $room_id $access_token
-send_message() {
-curl -XPOST -d "$1" "https://matrix.parity.io/_matrix/client/r0/rooms/$2/send/m.room.message?access_token=$3"
-}
+# shellcheck source=lib.sh
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/lib.sh"
 
 # Set initial variables
-api_base="https://api.github.com/repos/paritytech/polkadot"
 substrate_repo="https://github.com/paritytech/substrate"
 substrate_dir='./substrate'
 
@@ -61,43 +18,100 @@ echo "[+] Version: $version; Previous version: $last_version"
 
 # Check that a signed tag exists on github for this version
 echo '[+] Checking tag has been signed'
-check_tag "$version"
+check_tag "paritytech/polkadot" "$version"
 case $? in
   0) echo '[+] Tag found and has been signed'
     ;;
   1) echo '[!] Tag found but has not been signed. Aborting release.'; exit 1
     ;;
-  2) echo '[!] Tag not found. Aborting release.'; exit 
+  2) echo '[!] Tag not found. Aborting release.'; exit
 esac
 
 # Start with referencing current native runtime
 # and find any referenced PRs since last release
+# Note: Drop any changes that begin with '[contracts]' or 'contracts:'
 spec=$(grep spec_version runtime/kusama/src/lib.rs | tail -n 1 | grep -Eo '[0-9]{4}')
 echo "[+] Spec version: $spec"
 release_text="Native for runtime $spec.
 
-$(sanitised_git_logs "$last_version" "$version")"
+$(sanitised_git_logs "$last_version" "$version" | \
+  sed '/^\[contracts\].*/d' | \
+  sed '/^contracts:.*/d' \
+)"
 
 # Get substrate changes between last polkadot version and current
 cur_substrate_commit=$(grep -A 2 'name = "sc-cli"' Cargo.lock | grep -E -o '[a-f0-9]{40}')
-git checkout "$last_version" 2> /dev/null
+git checkout "$last_version"
 old_substrate_commit=$(grep -A 2 'name = "sc-cli"' Cargo.lock | grep -E -o '[a-f0-9]{40}')
 
 pushd $substrate_dir || exit
   git checkout polkadot-master > /dev/null
   git pull > /dev/null
-  substrate_changes="$(sanitised_git_logs "$old_substrate_commit" "$cur_substrate_commit" | sed 's/(#/(paritytech\/substrate#/')"
+  all_substrate_changes="$(sanitised_git_logs "$old_substrate_commit" "$cur_substrate_commit" | sed 's/(#/(paritytech\/substrate#/')"
+  substrate_runtime_changes=""
+  substrate_api_changes=""
+  substrate_client_changes=""
+  substrate_changes=""
+
+  echo "[+] Iterating through substrate changes to find labelled PRs"
+  while IFS= read -r line; do
+    pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
+
+    # Skip if the PR has the silent label - this allows us to skip a few requests
+    if has_label 'paritytech/substrate' "$pr_id" 'B0-silent'; then
+      continue
+    fi
+    if has_label 'paritytech/substrate' "$pr_id" 'B1-runtimenoteworthy'; then
+      substrate_runtime_changes="$substrate_runtime_changes
+$line"
+    fi
+    if has_label 'paritytech/substrate' "$pr_id" 'B1-clientnoteworthy'; then
+      substrate_client_changes="$substrate_client_changes
+$line"
+    fi
+     if has_label 'paritytech/substrate' "$pr_id" 'B1-apinoteworthy' ; then
+      substrate_api_changes="$substrate_api_changes
+$line"
+      continue
+    fi
+  done <<< "$all_substrate_changes"
 popd || exit
 
 echo "[+] Changes generated. Removing temporary repos"
-# Should be done with substrate repo now, clean it up
-rm -rf $substrate_dir
 
-if [ -n "$substrate_changes" ]; then
-  release_text="$release_text
-
+# Make the substrate section if there are any substrate changes
+if [ -n "$substrate_runtime_changes" ] ||
+   [ -n "$substrate_api_changes" ] ||
+   [ -n "$substrate_client_changes" ]; then
+  substrate_changes=$(cat << EOF
 Substrate changes
 -----------------
+
+EOF
+)
+  if [ -n "$substrate_runtime_changes" ]; then
+    substrate_changes="$substrate_changes
+
+Runtime
+-------
+$substrate_runtime_changes"
+  fi
+  if [ -n "$substrate_client_changes" ]; then
+    substrate_changes="$substrate_changes
+
+Client
+------
+$substrate_client_changes"
+  fi
+  if [ -n "$substrate_api_changes" ]; then
+    substrate_changes="$substrate_changes
+
+API
+---
+$substrate_api_changes"
+  fi
+  release_text="$release_text
+
 $substrate_changes"
 fi
 
@@ -119,7 +133,7 @@ data=$(jq -Rs --arg version "$version" \
   "prerelease": false
 }' < /dev/null)
 
-out=$(curl -s -X POST --data "$data" -H "Authorization: token $GITHUB_RELEASE_TOKEN" "$api_base/releases")
+out=$(curl -s -X POST --data "$data" -H "Authorization: token $GITHUB_RELEASE_TOKEN" "$api_base/paritytech/polkadot/releases")
 
 html_url=$(echo "$out" | jq -r .html_url)
 
@@ -127,6 +141,8 @@ if [ "$html_url" == "null" ]
 then
   echo "[!] Something went wrong posting:"
   echo "$out"
+  # If we couldn't post, don't want to announce in Matrix
+  exit 1
 else
   echo "[+] Release draft created: $html_url"
 fi
@@ -134,15 +150,17 @@ fi
 echo '[+] Sending draft release URL to Matrix'
 
 msg_body=$(cat <<EOF
-**Gav: Release pipeline for Polkadot $version complete.**
-Draft release created: $html_url
+**New version of polkadot tagged:** $CI_COMMIT_TAG.
+Gav: Draft release created: $html_url
+Build pipeline: $CI_PIPELINE_URL
 EOF
 )
 formatted_msg_body=$(cat <<EOF
-<strong>Gav: Release pipeline for Polkadot $version complete.</strong><br />
-Draft release created: $html_url
+<strong>New version of polkadot tagged:</strong> $CI_COMMIT_TAG<br />
+Gav: Draft release created: $html_url <br />
+Build pipeline: $CI_PIPELINE_URL
 EOF
 )
-send_message "$(structure_message "$msg_body" "$formatted_msg_body")" "$MATRIX_ROCCESS_TOKEN"
+send_message "$(structure_message "$msg_body" "$formatted_msg_body")" "$MATRIX_ROOM_ID" "$MATRIX_ACCESS_TOKEN"
 
 echo "[+] Done! Maybe the release worked..."

@@ -33,24 +33,19 @@ use std::{
 	collections::{HashMap, HashSet},
 	sync::Arc,
 };
-
 use codec::Encode;
-use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
-	Id as ParaId, Chain, DutyRoster, CandidateReceipt,
+	Id as ParaId, Chain, DutyRoster, AbridgedCandidateReceipt,
 	Statement as PrimitiveStatement,
-	Collation, PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
-	ValidatorPair, ValidatorId,
+	PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
+	ValidatorPair, ValidatorId, SigningContext,
 };
 use primitives::Pair;
 
 use futures::prelude::*;
 
 pub use self::block_production::ProposerFactory;
-pub use self::collation::{
-	validate_collation, message_queue_root, egress_roots, Collators,
-	produce_receipt_and_chunks,
-};
+pub use self::collation::Collators;
 pub use self::error::Error;
 pub use self::shared_table::{
 	SharedTable, ParachainWork, PrimedParachainWork, Validated, Statement, SignedStatement,
@@ -62,13 +57,13 @@ pub use self::validation_service::{ServiceHandle, ServiceBuilder};
 pub use parachain::wasm_executor::{run_worker as run_validation_worker};
 
 mod dynamic_inclusion;
-mod evaluation;
 mod error;
 mod shared_table;
 
-pub mod collation;
-pub mod validation_service;
 pub mod block_production;
+pub mod collation;
+pub mod pipeline;
+pub mod validation_service;
 
 /// A handle to a statement table router.
 ///
@@ -83,12 +78,11 @@ pub trait TableRouter: Clone {
 	/// Future that resolves when candidate data is fetched.
 	type FetchValidationProof: Future<Output=Result<PoVBlock, Self::Error>>;
 
-	/// Call with local candidate data. This will make the data available on the network,
-	/// and sign, import, and broadcast a statement about the candidate.
+	/// Call with local candidate data. This will sign, import, and broadcast a statement about the candidate.
 	fn local_collation(
 		&self,
-		collation: Collation,
-		receipt: CandidateReceipt,
+		receipt: AbridgedCandidateReceipt,
+		pov_block: PoVBlock,
 		chunks: (ValidatorIndex, &[ErasureChunk]),
 	) -> Self::SendLocalCollation;
 
@@ -96,7 +90,7 @@ pub trait TableRouter: Clone {
 	///
 	/// This future must conclude once all `Clone`s of this `TableRouter` have
 	/// been cleaned up.
-	fn fetch_pov_block(&self, candidate: &CandidateReceipt) -> Self::FetchValidationProof;
+	fn fetch_pov_block(&self, candidate: &AbridgedCandidateReceipt) -> Self::FetchValidationProof;
 }
 
 /// A long-lived network which can create parachain statement and BFT message routing processes on demand.
@@ -140,12 +134,13 @@ pub struct GroupInfo {
 /// Sign a table statement against a parent hash.
 /// The actual message signed is the encoded statement concatenated with the
 /// parent hash.
-pub fn sign_table_statement(statement: &Statement, key: &ValidatorPair, parent_hash: &Hash) -> ValidatorSignature {
-	// we sign using the primitive statement type because that's what the runtime
-	// expects. These types probably encode the same way so this clone could be optimized
-	// out in the future.
-	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
-	encoded.extend(parent_hash.as_ref());
+pub fn sign_table_statement(
+	statement: &Statement,
+	key: &ValidatorPair,
+	signing_context: &SigningContext,
+) -> ValidatorSignature {
+	let mut encoded = PrimitiveStatement::from(statement).encode();
+	encoded.extend(signing_context.encode());
 
 	key.sign(&encoded)
 }
@@ -155,12 +150,12 @@ pub fn check_statement(
 	statement: &Statement,
 	signature: &ValidatorSignature,
 	signer: ValidatorId,
-	parent_hash: &Hash,
+	signing_context: &SigningContext,
 ) -> bool {
 	use runtime_primitives::traits::AppVerify;
 
-	let mut encoded = PrimitiveStatement::from(statement.clone()).encode();
-	encoded.extend(parent_hash.as_ref());
+	let mut encoded = PrimitiveStatement::from(statement).encode();
+	encoded.extend(signing_context.encode());
 
 	signature.verify(&encoded[..], &signer)
 }
@@ -211,7 +206,6 @@ pub fn make_group_info(
 	});
 
 	Ok((map, local_duty))
-
 }
 
 #[cfg(test)]
@@ -223,11 +217,19 @@ mod tests {
 	fn sign_and_check_statement() {
 		let statement: Statement = GenericStatement::Valid([1; 32].into());
 		let parent_hash = [2; 32].into();
+		let signing_context = SigningContext {
+			session_index: Default::default(),
+			parent_hash,
+		};
 
-		let sig = sign_table_statement(&statement, &Sr25519Keyring::Alice.pair().into(), &parent_hash);
+		let sig = sign_table_statement(&statement, &Sr25519Keyring::Alice.pair().into(), &signing_context);
 
-		assert!(check_statement(&statement, &sig, Sr25519Keyring::Alice.public().into(), &parent_hash));
-		assert!(!check_statement(&statement, &sig, Sr25519Keyring::Alice.public().into(), &[0xff; 32].into()));
-		assert!(!check_statement(&statement, &sig, Sr25519Keyring::Bob.public().into(), &parent_hash));
+		let wrong_signing_context = SigningContext {
+			session_index: Default::default(),
+			parent_hash: [0xff; 32].into(),
+		};
+		assert!(check_statement(&statement, &sig, Sr25519Keyring::Alice.public().into(), &signing_context));
+		assert!(!check_statement(&statement, &sig, Sr25519Keyring::Alice.public().into(), &wrong_signing_context));
+		assert!(!check_statement(&statement, &sig, Sr25519Keyring::Bob.public().into(), &signing_context));
 	}
 }

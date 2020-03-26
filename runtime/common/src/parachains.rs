@@ -16,31 +16,46 @@
 
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
-use rstd::prelude::*;
-use rstd::result;
-use codec::{Encode, Decode};
+use sp_std::prelude::*;
+use sp_std::result;
+use codec::{Decode, Encode};
 
-use sp_runtime::traits::{
-	Hash as HashT, BlakeTwo256, Saturating, One, Dispatchable,
-	AccountIdConversion, BadOrigin,
+use sp_runtime::{
+	KeyTypeId, Perbill, RuntimeDebug,
+	traits::{
+		Hash as HashT, BlakeTwo256, Saturating, One, Dispatchable,
+		AccountIdConversion, BadOrigin, Convert, SignedExtension, AppVerify,
+	},
+	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
 };
-use frame_support::weights::SimpleDispatchInfo;
+use sp_staking::{
+	SessionIndex,
+	offence::{ReportOffence, Offence, Kind},
+};
+use frame_support::{
+	traits::KeyOwnerProofSystem,
+	dispatch::{IsSubType},
+	weights::{DispatchInfo, SimpleDispatchInfo, Weight, WeighData},
+};
 use primitives::{
 	Balance,
 	parachain::{
 		self, Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
-		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable,
-		NEW_HEADS_IDENTIFIER,
+		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
+		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
+		LocalValidationData, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
+		ValidatorSignature, SigningContext,
 	},
 };
 use frame_support::{
 	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
+use sp_runtime::transaction_validity::InvalidTransaction;
 
 use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
 
-use system::ensure_none;
+use system::{ensure_none, ensure_signed};
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
 
@@ -97,7 +112,91 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 }
 
 /// Interface to the persistent (stash) identities of the current validators.
-pub struct ValidatorIdentities<T>(rstd::marker::PhantomData<T>);
+pub struct ValidatorIdentities<T>(sp_std::marker::PhantomData<T>);
+
+/// A structure used to report conflicting votes by validators.
+///
+/// It is generic over two parameters:
+/// `Proof` - proof of historical ownership of a key by some validator.
+/// `Hash` - a type of a hash used in the runtime.
+#[derive(RuntimeDebug, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq)]
+pub struct DoubleVoteReport<Proof> {
+	/// Identity of the double-voter.
+	pub identity: ValidatorId,
+	/// First vote of the double-vote.
+	pub first: (Statement, ValidatorSignature),
+	/// Second vote of the double-vote.
+	pub second: (Statement, ValidatorSignature),
+	/// Proof that the validator with `identity` id was actually a validator at `parent_hash`.
+	pub proof: Proof,
+	/// A `SigningContext` with a session and a parent hash of the moment this offence was commited.
+	pub signing_context: SigningContext,
+}
+
+impl<Proof: Parameter + GetSessionNumber> DoubleVoteReport<Proof> {
+	fn verify<T: Trait<Proof = Proof>>(
+		&self,
+	) -> Result<(), DoubleVoteValidityError> {
+		let first = self.first.clone();
+		let second = self.second.clone();
+		let id = self.identity.encode();
+
+		T::KeyOwnerProofSystem::check_proof((PARACHAIN_KEY_TYPE_ID, id), self.proof.clone())
+			.ok_or(DoubleVoteValidityError::InvalidProof)?;
+
+		if self.proof.session() != self.signing_context.session_index {
+			return Err(DoubleVoteValidityError::InvalidReport);
+		}
+
+		// Check signatures.
+		Self::verify_vote(
+			&first,
+			&self.signing_context,
+			&self.identity,
+		)?;
+		Self::verify_vote(
+			&second,
+			&self.signing_context,
+			&self.identity,
+		)?;
+
+		match (&first.0, &second.0) {
+			// If issuing a `Candidate` message on a parachain block, neither a `Valid` or
+			// `Invalid` vote cannot be issued on that parachain block, as the `Candidate`
+			// message is an implicit validity vote.
+			(Statement::Candidate(candidate_hash), Statement::Valid(hash)) |
+			(Statement::Candidate(candidate_hash), Statement::Invalid(hash)) |
+			(Statement::Valid(hash), Statement::Candidate(candidate_hash)) |
+			(Statement::Invalid(hash), Statement::Candidate(candidate_hash))
+			if *candidate_hash == *hash => {},
+			// Otherwise, it is illegal to cast both a `Valid` and
+			// `Invalid` vote on a given parachain block.
+			(Statement::Valid(hash_1), Statement::Invalid(hash_2)) |
+			(Statement::Invalid(hash_1), Statement::Valid(hash_2))
+			if *hash_1 == *hash_2 => {},
+			_ => {
+				return Err(DoubleVoteValidityError::NotDoubleVote);
+			}
+		}
+
+		Ok(())
+	}
+
+	fn verify_vote(
+		vote: &(Statement, ValidatorSignature),
+		signing_context: &SigningContext,
+		authority: &ValidatorId,
+	) -> Result<(), DoubleVoteValidityError> {
+		let payload = localized_payload(vote.0.clone(), signing_context);
+
+		if !vote.1.verify(&payload[..], authority) {
+			return Err(DoubleVoteValidityError::InvalidSignature);
+		}
+
+		Ok(())
+	}
+}
 
 impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
 	fn get() -> Vec<T::ValidatorId> {
@@ -105,7 +204,18 @@ impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
 	}
 }
 
-pub trait Trait: attestations::Trait {
+/// A trait to get a session number the `Proof` belongs to.
+pub trait GetSessionNumber {
+	fn session(&self) -> SessionIndex;
+}
+
+impl GetSessionNumber for session::historical::Proof {
+	fn session(&self) -> SessionIndex {
+		self.session()
+	}
+}
+
+pub trait Trait: attestations::Trait + session::historical::Trait {
 	/// The outer origin type.
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
 
@@ -131,6 +241,33 @@ pub trait Trait: attestations::Trait {
 
 	/// Max head data size.
 	type MaxHeadDataSize: Get<u32>;
+
+	/// Proof type.
+	///
+	/// We need this type to bind the `KeyOwnerProofSystem::Proof` to necessary bounds.
+	/// As soon as https://rust-lang.github.io/rfcs/2289-associated-type-bounds.html
+	/// gets in this can be simplified.
+	type Proof: Parameter + GetSessionNumber;
+
+	/// Compute and check proofs of historical key owners.
+	type KeyOwnerProofSystem: KeyOwnerProofSystem<
+		(KeyTypeId, Vec<u8>),
+		Proof = Self::Proof,
+		IdentificationTuple = Self::IdentificationTuple,
+	>;
+
+	/// An identification tuple type bound to `Parameter`.
+	type IdentificationTuple: Parameter;
+
+	/// Report an offence.
+	type ReportOffence: ReportOffence<
+		Self::AccountId,
+		Self::IdentificationTuple,
+		DoubleVoteOffence<Self::IdentificationTuple>
+	>;
+
+	/// A type that converts the opaque hash type to exact one.
+	type BlockHashConversion: Convert<Self::Hash, primitives::Hash>;
 }
 
 /// Origin for the parachains module.
@@ -139,6 +276,44 @@ pub trait Trait: attestations::Trait {
 pub enum Origin {
 	/// It comes from a parachain.
 	Parachain(ParaId),
+}
+
+/// An offence that is filed if the validator has submitted a double vote.
+#[derive(RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Clone, PartialEq, Eq))]
+pub struct DoubleVoteOffence<Offender> {
+	/// The current session index in which we report a validator.
+	session_index: SessionIndex,
+	/// The size of the validator set in current session/era.
+	validator_set_count: u32,
+	/// An offender that has submitted two conflicting votes.
+	offender: Offender,
+}
+
+impl<Offender: Clone> Offence<Offender> for DoubleVoteOffence<Offender> {
+	const ID: Kind = *b"para:double-vote";
+	type TimeSlot = SessionIndex;
+
+	fn offenders(&self) -> Vec<Offender> {
+		vec![self.offender.clone()]
+	}
+
+	fn session_index(&self) -> SessionIndex {
+		self.session_index
+	}
+
+	fn validator_set_count(&self) -> u32 {
+		self.validator_set_count
+	}
+
+	fn time_slot(&self) -> Self::TimeSlot {
+		self.session_index
+	}
+
+	fn slash_fraction(_offenders_count: u32, _validator_set_count: u32) -> Perbill {
+		// Slash 100%.
+		Perbill::from_percent(100)
+	}
 }
 
 /// Total number of individual messages allowed in the parachain -> relay-chain message queue.
@@ -152,18 +327,18 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Parachains
 	{
 		/// All authorities' keys at the moment.
-		pub Authorities get(authorities): Vec<ValidatorId>;
+		pub Authorities get(fn authorities): Vec<ValidatorId>;
 		/// The parachains registered at present.
-		pub Code get(parachain_code): map hasher(blake2_256) ParaId => Option<Vec<u8>>;
+		pub Code get(fn parachain_code): map hasher(twox_64_concat) ParaId => Option<Vec<u8>>;
 		/// The heads of the parachains registered at present.
-		pub Heads get(parachain_head): map hasher(blake2_256) ParaId => Option<Vec<u8>>;
+		pub Heads get(fn parachain_head): map hasher(twox_64_concat) ParaId => Option<Vec<u8>>;
 		/// Messages ready to be dispatched onto the relay chain. It is subject to
 		/// `MAX_MESSAGE_COUNT` and `WATERMARK_MESSAGE_SIZE`.
-		pub RelayDispatchQueue: map hasher(blake2_256) ParaId => Vec<UpwardMessage>;
+		pub RelayDispatchQueue: map hasher(twox_64_concat) ParaId => Vec<UpwardMessage>;
 		/// Size of the dispatch queues. Separated from actual data in order to avoid costly
 		/// decoding when checking receipt validity. First item in tuple is the count of messages
 		///	second if the total length (in bytes) of the message payloads.
-		pub RelayDispatchQueueSize: map hasher(blake2_256) ParaId => (u32, u32);
+		pub RelayDispatchQueueSize: map hasher(twox_64_concat) ParaId => (u32, u32);
 		/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
 		NeedsDispatch: Vec<ParaId>;
 
@@ -211,6 +386,10 @@ decl_error! {
 		ParentMismatch,
 		/// Head data was too large.
 		HeadDataTooLarge,
+		/// Para does not have enough balance to pay fees.
+		CannotPayFees,
+		/// Unexpected relay-parent for a candidate receipt.
+		UnexpectedRelayParent,
 	}
 }
 
@@ -231,6 +410,11 @@ decl_module! {
 			ensure!(heads.len() <= parachain_count, Error::<T>::TooManyParaCandidates);
 
 			let mut proceeded = Vec::with_capacity(heads.len());
+
+			let schedule = GlobalValidationSchedule {
+				max_code_size: T::MaxCodeSize::get(),
+				max_head_data_size: T::MaxHeadDataSize::get(),
+			};
 
 			if !active_parachains.is_empty() {
 				// perform integrity checks before writing to storage.
@@ -256,7 +440,7 @@ decl_module! {
 
 						Self::check_upward_messages(
 							id,
-							&head.candidate.upward_messages,
+							&head.candidate.commitments.upward_messages,
 							MAX_QUEUE_COUNT,
 							WATERMARK_QUEUE_SIZE,
 						)?;
@@ -267,7 +451,11 @@ decl_module! {
 					}
 				}
 
-				let para_blocks = Self::check_candidates(&heads, &active_parachains)?;
+				let para_blocks = Self::check_candidates(
+					&schedule,
+					&heads,
+					&active_parachains,
+				)?;
 
 				<attestations::Module<T>>::note_included(&heads, para_blocks);
 
@@ -275,6 +463,9 @@ decl_module! {
 					&heads,
 				);
 
+				// note: we dispatch new messages _after_ the call to `check_candidates`
+				// which deducts any fees. if that were not the case, an upward message
+				// could be dispatched and spend money that invalidated a candidate.
 				Self::dispatch_upward_messages(
 					MAX_QUEUE_COUNT,
 					WATERMARK_QUEUE_SIZE,
@@ -287,8 +478,50 @@ decl_module! {
 			Ok(())
 		}
 
-		fn on_initialize() {
+		/// Provide a proof that some validator has commited a double-vote.
+		///
+		/// The weight is 0; in order to avoid DoS a `SignedExtension` validation
+		/// is implemented.
+		#[weight = SimpleDispatchInfo::FixedNormal(0)]
+		pub fn report_double_vote(
+			origin,
+			report: DoubleVoteReport<
+				<T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof,
+			>,
+		) -> DispatchResult {
+			let reporter = ensure_signed(origin)?;
+
+			let validators = <session::Module<T>>::validators();
+			let validator_set_count = validators.len() as u32;
+
+			let session_index = report.proof.session();
+			let DoubleVoteReport { identity, proof, .. } = report;
+
+			// We have already checked this proof in `SignedExtension`, but we need
+			// this here to get the full identification of the offender.
+			let offender = T::KeyOwnerProofSystem::check_proof(
+					(PARACHAIN_KEY_TYPE_ID, identity.encode()),
+					proof,
+				).ok_or("Invalid/outdated key ownership proof.")?;
+
+			let offence = DoubleVoteOffence {
+				session_index,
+				validator_set_count,
+				offender,
+			};
+
+			// Checks if this is actually a double vote are
+			// implemented in `ValidateDoubleVoteReports::validete`.
+			T::ReportOffence::report_offence(vec![reporter], offence)
+				.map_err(|_| "Failed to report offence")?;
+
+			Ok(())
+		}
+
+		fn on_initialize() -> Weight {
 			<Self as Store>::DidUpdate::kill();
+
+			SimpleDispatchInfo::default().weigh_data(())
 		}
 
 		fn on_finalize() {
@@ -301,9 +534,12 @@ fn majority_of(list_len: usize) -> usize {
 	list_len / 2 + list_len % 2
 }
 
-fn localized_payload<H: AsRef<[u8]>>(statement: Statement, parent_hash: H) -> Vec<u8> {
+fn localized_payload(
+	statement: Statement,
+	signing_context: &SigningContext,
+) -> Vec<u8> {
 	let mut encoded = statement.encode();
-	encoded.extend(parent_hash.as_ref());
+	signing_context.using_encoded(|s| encoded.extend(s));
 	encoded
 }
 
@@ -323,6 +559,17 @@ impl<T: Trait> Module<T> {
 	) {
 		<Code>::remove(id);
 		<Heads>::remove(id);
+	}
+
+	/// Get a `SigningContext` with a current `SessionIndex` and parent hash.
+	pub fn signing_context() -> SigningContext {
+		let session_index = <session::Module<T>>::current_index();
+		let parent_hash = <system::Module<T>>::parent_hash();
+
+		SigningContext {
+			session_index,
+			parent_hash: T::BlockHashConversion::convert(parent_hash),
+		}
 	}
 
 	/// Dispatch some messages from a parachain.
@@ -397,7 +644,7 @@ impl<T: Trait> Module<T> {
 			// Queue up upwards messages (from parachains to relay chain).
 			Self::queue_upward_messages(
 				id,
-				&head.candidate.upward_messages,
+				&head.candidate.commitments.upward_messages,
 				&mut ordered_needs_dispatch,
 			);
 		}
@@ -433,7 +680,8 @@ impl<T: Trait> Module<T> {
 		}
 	}
 
-	/// Simple FIFO dispatcher.
+	/// Simple FIFO dispatcher. This must be called after parachain fees are checked,
+	/// as dispatched messages may spend parachain funds.
 	fn dispatch_upward_messages(
 		max_queue_count: usize,
 		watermark_queue_size: usize,
@@ -522,7 +770,7 @@ impl<T: Trait> Module<T> {
 			let offset = (i * 4 % 32) as usize;
 
 			// number of roles remaining to select from.
-			let remaining = rstd::cmp::max(1, (validator_count - i) as usize);
+			let remaining = sp_std::cmp::max(1, (validator_count - i) as usize);
 
 			// 8 32-bit ints per 256-bit seed.
 			let val_index = u32::decode(&mut &seed[offset..offset + 4])
@@ -540,18 +788,19 @@ impl<T: Trait> Module<T> {
 		(DutyRoster { validator_duty: roles_val, }, orig_seed)
 	}
 
-	/// Get the parachain status necessary for validation.
-	pub fn parachain_status(id: &parachain::Id) -> Option<parachain::Status> {
-		let balance = T::ParachainCurrency::free_balance(*id);
-		Self::parachain_head(id).map(|head_data| parachain::Status {
-			head_data: parachain::HeadData(head_data),
-			balance,
-			// TODO: https://github.com/paritytech/polkadot/issues/92
-			// plug in some real values here. most likely governable.
-			fee_schedule: parachain::FeeSchedule {
-				base: 0,
-				per_byte: 0,
-			}
+	/// Get the global validation schedule for all parachains.
+	pub fn global_validation_schedule() -> GlobalValidationSchedule {
+		GlobalValidationSchedule {
+			max_code_size: T::MaxCodeSize::get(),
+			max_head_data_size: T::MaxHeadDataSize::get(),
+		}
+	}
+
+	/// Get the local validation schedule for a particular parachain.
+	pub fn local_validation_data(id: &parachain::Id) -> Option<LocalValidationData> {
+		Self::parachain_head(id).map(|parent_head| LocalValidationData {
+			parent_head: primitives::parachain::HeadData(parent_head),
+			balance: T::ParachainCurrency::free_balance(*id),
 		})
 	}
 
@@ -563,13 +812,11 @@ impl<T: Trait> Module<T> {
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
 	fn check_candidates(
+		schedule: &GlobalValidationSchedule,
 		attested_candidates: &[AttestedCandidate],
 		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
-	) -> rstd::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError>
+	) -> sp_std::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError>
 	{
-		use primitives::parachain::ValidityAttestation;
-		use sp_runtime::traits::AppVerify;
-
 		// returns groups of slices that have the same chain ID.
 		// assumes the inner slice is sorted by id.
 		struct GroupedDutyIter<'a> {
@@ -635,27 +882,53 @@ impl<T: Trait> Module<T> {
 			sorted_duties
 		};
 
+		// computes the omitted validation data for a particular parachain.
+		let full_candidate = |abridged: &AbridgedCandidateReceipt|
+			-> sp_std::result::Result<CandidateReceipt, sp_runtime::DispatchError>
+		{
+			let para_id = abridged.parachain_index;
+			let parent_head = match Self::parachain_head(&para_id)
+				.map(primitives::parachain::HeadData)
+			{
+				Some(p) => p,
+				None => Err(Error::<T>::ParentMismatch)?,
+			};
+
+			let omitted = OmittedValidationData {
+				global_validation: schedule.clone(),
+				local_validation: LocalValidationData {
+					parent_head,
+					balance: T::ParachainCurrency::free_balance(para_id),
+				},
+			};
+
+			Ok(abridged.clone().complete(omitted))
+		};
+
 		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
 
 		let parent_hash = <system::Module<T>>::parent_hash();
-		let localized_payload = |statement: Statement| localized_payload(statement, parent_hash);
+		let signing_context = Self::signing_context();
+		let localized_payload = |statement: Statement| localized_payload(statement, &signing_context);
 
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
 
 		let mut para_block_hashes = Vec::new();
 
-		let max_head_data_size = T::MaxHeadDataSize::get();
 		for candidate in attested_candidates {
 			let para_id = candidate.parachain_index();
 			let validator_group = validator_groups.group_for(para_id)
 				.ok_or(Error::<T>::NoValidatorGroup)?;
 
-			let actual_head = Self::parachain_head(&para_id)
-				.map(primitives::parachain::HeadData);
-
+			// NOTE: when changing this to allow older blocks,
+			// care must be taken in the availability store pruning to ensure that
+			// data is stored correctly. A block containing a candidate C can be
+			// orphaned before a block containing C is finalized. Care must be taken
+			// not to prune the data for C simply because an orphaned block contained
+			// it.
 			ensure!(
-				actual_head.as_ref() == Some(&candidate.candidate.parent_head),
-				Error::<T>::ParentMismatch,
+				candidate.candidate().relay_parent.as_ref() == parent_hash.as_ref(),
+				Error::<T>::UnexpectedRelayParent,
 			);
 
 			ensure!(
@@ -669,14 +942,21 @@ impl<T: Trait> Module<T> {
 			);
 
 			ensure!(
-				max_head_data_size >= candidate.candidate().head_data.0.len() as _,
+				schedule.max_head_data_size >= candidate.candidate().head_data.0.len() as _,
 				Error::<T>::HeadDataTooLarge,
 			);
 
-			let fees = candidate.candidate().fees;
+			let full_candidate = full_candidate(candidate.candidate())?;
+			let fees = full_candidate.commitments.fees;
+
+			ensure!(
+				full_candidate.local_validation.balance >= full_candidate.commitments.fees,
+				Error::<T>::CannotPayFees,
+			);
+
 			T::ParachainCurrency::deduct(para_id, fees)?;
 
-			let mut candidate_hash = None;
+			let candidate_hash = candidate.candidate().hash();
 			let mut encoded_implicit = None;
 			let mut encoded_explicit = None;
 
@@ -702,18 +982,14 @@ impl<T: Trait> Module<T> {
 				let (payload, sig) = match validity_attestation {
 					ValidityAttestation::Implicit(sig) => {
 						let payload = encoded_implicit.get_or_insert_with(|| localized_payload(
-							Statement::Candidate(candidate.candidate.clone()),
+							Statement::Candidate(candidate_hash),
 						));
 
 						(payload, sig)
 					}
 					ValidityAttestation::Explicit(sig) => {
-						let hash = candidate_hash
-							.get_or_insert_with(|| candidate.candidate.hash())
-							.clone();
-
 						let payload = encoded_explicit.get_or_insert_with(|| localized_payload(
-							Statement::Valid(hash),
+							Statement::Valid(candidate_hash),
 						));
 
 						(payload, sig)
@@ -726,12 +1002,12 @@ impl<T: Trait> Module<T> {
 				);
 			}
 
-			para_block_hashes.push(candidate_hash.unwrap_or_else(|| candidate.candidate().hash()));
-
 			ensure!(
 				candidate.validity_votes.len() == expected_votes_len,
 				Error::<T>::UntaggedVotes
 			);
+
+			para_block_hashes.push(candidate_hash);
 		}
 
 		Ok(IncludedBlocks {
@@ -818,6 +1094,102 @@ pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, B
 	}
 }
 
+
+/// Ensure that double vote reports are only processed if valid.
+#[derive(Encode, Decode, Clone, Eq, PartialEq)]
+pub struct ValidateDoubleVoteReports<T>(sp_std::marker::PhantomData<T>);
+
+impl<T> sp_std::fmt::Debug for ValidateDoubleVoteReports<T> where
+{
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+		write!(f, "ValidateDoubleVoteReports<T>")
+	}
+}
+
+/// Custom validity error used while validating double vote reports.
+#[derive(RuntimeDebug)]
+#[repr(u8)]
+pub enum DoubleVoteValidityError {
+	/// The authority being reported is not in the authority set.
+	NotAnAuthority = 0,
+
+	/// Failed to convert offender's `FullIdentificationOf`.
+	FailedToConvertId = 1,
+
+	/// The signature on one or both of the statements in the report is wrong.
+	InvalidSignature = 2,
+
+	/// The two statements in the report are not conflicting.
+	NotDoubleVote = 3,
+
+	/// Invalid report. Indicates that statement doesn't match the attestation on one of the votes.
+	InvalidReport = 4,
+
+	/// The proof provided in the report is not valid.
+	InvalidProof = 5,
+}
+
+impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+{
+	const IDENTIFIER: &'static str = "ValidateDoubleVoteReports";
+	type AccountId = T::AccountId;
+	type Call = <T as system::Trait>::Call;
+	type AdditionalSigned = ();
+	type Pre = ();
+	type DispatchInfo = DispatchInfo;
+
+	fn additional_signed(&self)
+		-> sp_std::result::Result<Self::AdditionalSigned, TransactionValidityError>
+	{
+		Ok(())
+	}
+
+	fn validate(
+		&self,
+		_who: &Self::AccountId,
+		call: &Self::Call,
+		_info: DispatchInfo,
+		_len: usize,
+	) -> TransactionValidity {
+		let r = ValidTransaction::default();
+
+		if let Some(local_call) = call.is_sub_type() {
+			if let Call::report_double_vote(report) = local_call {
+				let validators = <session::Module<T>>::validators();
+
+				let expected_session = report.signing_context.session_index;
+				let session = report.proof.session();
+
+				if session != expected_session {
+					return Err(InvalidTransaction::BadProof.into());
+				}
+
+				let authorities = Module::<T>::authorities();
+				let offender_idx = match authorities.iter().position(|a| *a == report.identity) {
+					Some(idx) => idx,
+					None => return Err(InvalidTransaction::Custom(
+						DoubleVoteValidityError::NotAnAuthority as u8).into()
+					),
+				};
+
+				if T::FullIdentificationOf::convert(validators[offender_idx].clone()).is_none() {
+					return Err(InvalidTransaction::Custom(
+						DoubleVoteValidityError::FailedToConvertId as u8).into()
+					);
+				}
+
+				report
+					.verify::<T>()
+					.map_err(|e| TransactionValidityError::from(InvalidTransaction::Custom(e as u8)))?;
+			}
+		}
+
+		Ok(r)
+	}
+}
+
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -827,23 +1199,30 @@ mod tests {
 	use sp_core::{H256, Blake2Hasher};
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
-		Perbill, curve::PiecewiseLinear, testing::{UintAuthorityId, Header},
-		traits::{BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize},
+		impl_opaque_keys,
+		Perbill, curve::PiecewiseLinear, testing::{Header},
+		traits::{
+			BlakeTwo256, IdentityLookup, SaturatedConversion,
+			OpaqueKeys,
+		},
 	};
 	use primitives::{
 		parachain::{
 			CandidateReceipt, HeadData, ValidityAttestation, ValidatorId, Info as ParaInfo,
-			Scheduling,
+			Scheduling, LocalValidationData, CandidateCommitments,
 		},
 		BlockNumber,
 	};
 	use keyring::Sr25519Keyring;
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
+		traits::{OnInitialize, OnFinalize},
 	};
 	use crate::parachains;
 	use crate::registrar;
 	use crate::slots;
+	use session::{SessionHandler, SessionManager};
+	use staking::EraIndex;
 
 	// result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
 	const EMPTY_TRIE_ROOT: [u8; 32] = [
@@ -860,6 +1239,12 @@ mod tests {
 	impl_outer_dispatch! {
 		pub enum Call for Test where origin: Origin {
 			parachains::Parachains,
+		}
+	}
+
+	impl_opaque_keys! {
+		pub struct TestSessionKeys {
+			pub parachain_validator: super::Module<Test>,
 		}
 	}
 
@@ -891,7 +1276,7 @@ mod tests {
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u128>;
 		type OnNewAccount = ();
-		type OnReapAccount = ();
+		type OnKilledAccount = ();
 	}
 
 	parameter_types! {
@@ -900,14 +1285,28 @@ mod tests {
 		pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	}
 
+	/// Custom `SessionHandler` since we use `TestSessionKeys` as `Keys`.
+	pub struct TestSessionHandler;
+	impl<AId> SessionHandler<AId> for TestSessionHandler {
+		const KEY_TYPE_IDS: &'static [KeyTypeId] = &[PARACHAIN_KEY_TYPE_ID];
+
+		fn on_genesis_session<Ks: OpaqueKeys>(_: &[(AId, Ks)]) {}
+
+		fn on_new_session<Ks: OpaqueKeys>(_: bool, _: &[(AId, Ks)], _: &[(AId, Ks)]) {}
+
+		fn on_before_session_ending() {}
+
+		fn on_disabled(_: usize) {}
+	}
+
 	impl session::Trait for Test {
 		type Event = ();
 		type ValidatorId = u64;
 		type ValidatorIdOf = staking::StashOf<Self>;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
-		type SessionManager = ();
-		type SessionHandler = session::TestSessionHandler;
-		type Keys = UintAuthorityId;
+		type SessionManager = session::historical::NoteHistoricalRoot<Self, Staking>;
+		type SessionHandler = TestSessionHandler;
+		type Keys = TestSessionKeys;
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	}
 
@@ -970,18 +1369,29 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const SessionsPerEra: sp_staking::SessionIndex = 6;
-		pub const BondingDuration: staking::EraIndex = 28;
-		pub const SlashDeferDuration: staking::EraIndex = 7;
+		pub const SessionsPerEra: sp_staking::SessionIndex = 3;
+		pub const BondingDuration: staking::EraIndex = 3;
+		pub const SlashDeferDuration: staking::EraIndex = 0;
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
+		pub const MaxNominatorRewardedPerValidator: u32 = 64;
+	}
+
+	pub struct CurrencyToVoteHandler;
+
+	impl Convert<u128, u128> for CurrencyToVoteHandler {
+		fn convert(x: u128) -> u128 { x }
+	}
+
+	impl Convert<u128, u64> for CurrencyToVoteHandler {
+		fn convert(x: u128) -> u64 { x.saturated_into() }
 	}
 
 	impl staking::Trait for Test {
 		type RewardRemainder = ();
-		type CurrencyToVote = ();
+		type CurrencyToVote = CurrencyToVoteHandler;
 		type Event = ();
-		type Currency = balances::Module<Test>;
+		type Currency = Balances;
 		type Slash = ();
 		type Reward = ();
 		type SessionsPerEra = SessionsPerEra;
@@ -991,6 +1401,7 @@ mod tests {
 		type SessionInterface = Self;
 		type Time = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
+		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	}
 
 	impl attestations::Trait for Test {
@@ -1006,7 +1417,7 @@ mod tests {
 
 	impl slots::Trait for Test {
 		type Event = ();
-		type Currency = balances::Module<Test>;
+		type Currency = Balances;
 		type Parachains = registrar::Module<Test>;
 		type EndingPeriod = EndingPeriod;
 		type LeasePeriod = LeasePeriod;
@@ -1022,11 +1433,17 @@ mod tests {
 	impl registrar::Trait for Test {
 		type Event = ();
 		type Origin = Origin;
-		type Currency = balances::Module<Test>;
+		type Currency = Balances;
 		type ParathreadDeposit = ParathreadDeposit;
 		type SwapAux = slots::Module<Test>;
 		type QueueSize = QueueSize;
 		type MaxRetries = MaxRetries;
+	}
+
+	impl offences::Trait for Test {
+		type Event = ();
+		type IdentificationTuple = session::historical::IdentificationTuple<Self>;
+		type OnOffenceHandler = Staking;
 	}
 
 	parameter_types! {
@@ -1037,18 +1454,29 @@ mod tests {
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
-		type ParachainCurrency = balances::Module<Test>;
+		type ParachainCurrency = Balances;
 		type Randomness = RandomnessCollectiveFlip;
 		type ActiveParachains = registrar::Module<Test>;
 		type Registrar = registrar::Module<Test>;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
+		type Proof = <Historical as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof;
+		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+		type ReportOffence = Offences;
+		type BlockHashConversion = sp_runtime::traits::Identity;
+		type KeyOwnerProofSystem = Historical;
 	}
 
 	type Parachains = Module<Test>;
+	type Balances = balances::Module<Test>;
 	type System = system::Module<Test>;
+	type Offences = offences::Module<Test>;
+	type Staking = staking::Module<Test>;
+	type Session = session::Module<Test>;
+	type Timestamp = timestamp::Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 	type Registrar = registrar::Module<Test>;
+	type Historical = session::historical::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities {
 		use staking::StakerStatus;
@@ -1069,7 +1497,9 @@ mod tests {
 
 		// stashes are the index.
 		let session_keys: Vec<_> = authority_keys.iter().enumerate()
-			.map(|(i, _k)| (i as u64, UintAuthorityId(i as u64)))
+			.map(|(i, k)| (i as u64, i as u64, TestSessionKeys {
+				parachain_validator: ValidatorId::from(k.public()),
+			}))
 			.collect();
 
 		let authorities: Vec<_> = authority_keys.iter().map(|k| ValidatorId::from(k.public())).collect();
@@ -1110,10 +1540,10 @@ mod tests {
 		}.assimilate_storage(&mut t).unwrap();
 
 		staking::GenesisConfig::<Test> {
-			current_era: 0,
 			stakers,
-			validator_count: 10,
-			minimum_validator_count: 8,
+			validator_count: 8,
+			force_era: staking::Forcing::ForceNew,
+			minimum_validator_count: 0,
 			invulnerables: vec![],
 			.. Default::default()
 		}.assimilate_storage(&mut t).unwrap();
@@ -1125,9 +1555,52 @@ mod tests {
 		ParachainsCall::set_heads(v)
 	}
 
+	fn report_double_vote(
+		report: DoubleVoteReport<session::historical::Proof>,
+	) -> Result<ParachainsCall<Test>, TransactionValidityError> {
+		let inner = ParachainsCall::report_double_vote(report);
+		let call = Call::Parachains(inner.clone());
+
+		ValidateDoubleVoteReports::<Test>(sp_std::marker::PhantomData)
+			.validate(&0, &call, DispatchInfo::default(), 0)?;
+
+		Ok(inner)
+	}
+
+	// creates a template candidate which pins to correct relay-chain state.
+	fn raw_candidate(para_id: ParaId) -> CandidateReceipt {
+		CandidateReceipt {
+			parachain_index: para_id,
+			relay_parent: System::parent_hash(),
+			head_data: Default::default(),
+			collator: Default::default(),
+			signature: Default::default(),
+			pov_block_hash: Default::default(),
+			global_validation: GlobalValidationSchedule {
+				max_code_size: <Test as Trait>::MaxCodeSize::get(),
+				max_head_data_size: <Test as Trait>::MaxHeadDataSize::get(),
+			},
+			local_validation: LocalValidationData {
+				parent_head: HeadData(Parachains::parachain_head(&para_id).unwrap()),
+				balance: <Balances as ParachainCurrency<u64>>::free_balance(para_id),
+			},
+			commitments: CandidateCommitments::default(),
+		}
+	}
+
+	// makes a blank attested candidate from a `CandidateReceipt`.
+	fn make_blank_attested(candidate: CandidateReceipt) -> AttestedCandidate {
+		let (candidate, _) = candidate.abridge();
+
+		AttestedCandidate {
+			validity_votes: vec![],
+			validator_indices: BitVec::new(),
+			candidate,
+		}
+	}
+
 	fn make_attestations(candidate: &mut AttestedCandidate) {
 		let mut vote_implicit = false;
-		let parent_hash = <system::Module<Test>>::parent_hash();
 
 		let (duty_roster, _) = Parachains::calculate_duty_roster();
 		let candidate_hash = candidate.candidate.hash();
@@ -1150,12 +1623,13 @@ mod tests {
 			let key = extract_key(authorities[idx].clone());
 
 			let statement = if vote_implicit {
-				Statement::Candidate(candidate.candidate.clone())
+				Statement::Candidate(candidate_hash.clone())
 			} else {
 				Statement::Valid(candidate_hash.clone())
 			};
 
-			let payload = localized_payload(statement, parent_hash);
+			let signing_context = Parachains::signing_context();
+			let payload = localized_payload(statement, &signing_context);
 			let signature = key.sign(&payload[..]).into();
 
 			candidate.validity_votes.push(if vote_implicit {
@@ -1176,27 +1650,56 @@ mod tests {
 		id: u32,
 		upward_messages: Vec<(ParachainDispatchOrigin, Vec<u8>)>
 	) -> AttestedCandidate {
-		AttestedCandidate {
-			validity_votes: vec![],
-			validator_indices: BitVec::new(),
-			candidate: CandidateReceipt {
-				parachain_index: id.into(),
-				collator: Default::default(),
-				signature: Default::default(),
-				head_data: HeadData(vec![1, 2, 3]),
-				parent_head: HeadData(vec![]),
-				fees: 0,
-				block_data_hash: Default::default(),
-				upward_messages: upward_messages.into_iter()
-					.map(|x| UpwardMessage { origin: x.0, data: x.1 })
-					.collect(),
-				erasure_root: [1u8; 32].into(),
+		let mut raw_candidate = raw_candidate(id.into());
+		raw_candidate.commitments.upward_messages = upward_messages.into_iter()
+			.map(|x| UpwardMessage { origin: x.0, data: x.1 })
+			.collect();
+
+		make_blank_attested(raw_candidate)
+	}
+
+	fn start_session(session_index: SessionIndex) {
+		let mut parent_hash = System::parent_hash();
+		use sp_runtime::traits::Header;
+
+		for i in Session::current_index()..session_index {
+			println!("session index {}", i);
+			Staking::on_finalize(System::block_number());
+			System::set_block_number((i + 1).into());
+			Timestamp::set_timestamp(System::block_number() * 6000);
+
+			// In order to be able to use `System::parent_hash()` in the tests
+			// we need to first get it via `System::finalize` and then set it
+			// the `System::initialize`. However, it is needed to be taken into
+			// consideration that finalizing will prune some data in `System`
+			// storage including old values `BlockHash` if that reaches above
+			// `BlockHashCount` capacity.
+			if System::block_number() > 1 {
+				let hdr = System::finalize();
+				parent_hash = hdr.hash();
 			}
+
+			System::initialize(
+				&(i as u64 + 1),
+				&parent_hash,
+				&Default::default(),
+				&Default::default(),
+				Default::default(),
+			);
+			init_block();
 		}
+
+		assert_eq!(Session::current_index(), session_index);
+	}
+
+	fn start_era(era_index: EraIndex) {
+		start_session((era_index * 3).into());
+		assert_eq!(Staking::current_era(), Some(era_index));
 	}
 
 	fn init_block() {
 		println!("Initializing {}", System::block_number());
+		Session::on_initialize(System::block_number());
 		System::on_initialize(System::block_number());
 		Registrar::on_initialize(System::block_number());
 		Parachains::on_initialize(System::block_number());
@@ -1210,6 +1713,7 @@ mod tests {
 				Registrar::on_finalize(System::block_number());
 				System::on_finalize(System::block_number());
 			}
+			Staking::new_session(System::block_number() as u32);
 			System::set_block_number(System::block_number() + 1);
 			init_block();
 		}
@@ -1586,23 +2090,7 @@ mod tests {
 
 		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
-			let candidate = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				},
-
-			};
-
+			let candidate = make_blank_attested(raw_candidate(0.into()));
 			assert!(Parachains::dispatch(set_heads(vec![candidate]), Origin::NONE).is_err());
 		})
 	}
@@ -1618,37 +2106,8 @@ mod tests {
 			run_to_block(2);
 			assert_eq!(Parachains::active_parachains().len(), 2);
 
-			let mut candidate_a = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
-
-			let mut candidate_b = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 1.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![2, 3, 4]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
+			let mut candidate_a = make_blank_attested(raw_candidate(0.into()));
+			let mut candidate_b = make_blank_attested(raw_candidate(1.into()));
 
 			make_attestations(&mut candidate_a);
 			make_attestations(&mut candidate_b);
@@ -1674,22 +2133,8 @@ mod tests {
 
 		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
-			let mut candidate = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
 
+			let mut candidate = make_blank_attested(raw_candidate(0.into()));
 			make_attestations(&mut candidate);
 
 			let mut double_validity = candidate.clone();
@@ -1712,22 +2157,8 @@ mod tests {
 
 		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
-			let mut candidate = AttestedCandidate {
-				validity_votes: vec![],
-				validator_indices: BitVec::new(),
-				candidate: CandidateReceipt {
-					parachain_index: 0.into(),
-					collator: Default::default(),
-					signature: Default::default(),
-					head_data: HeadData(vec![1, 2, 3]),
-					parent_head: HeadData(vec![]),
-					fees: 0,
-					block_data_hash: Default::default(),
-					upward_messages: vec![],
-					erasure_root: [1u8; 32].into(),
-				}
-			};
 
+			let mut candidate = make_blank_attested(raw_candidate(0.into()));
 			make_attestations(&mut candidate);
 
 			// Change the last vote index to make it not corresponding to the assigned group.
@@ -1745,5 +2176,552 @@ mod tests {
 	fn empty_trie_root_const_is_blake2_hashed_null_node() {
 		let hashed_null_node = <NodeCodec<Blake2Hasher> as trie_db::NodeCodec>::hashed_null_node();
 		assert_eq!(hashed_null_node, EMPTY_TRIE_ROOT.into())
+	}
+
+	#[test]
+	fn double_vote_candidate_and_valid_works() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
+		};
+
+		// Test that a Candidate and Valid statements on the same candidate get slashed.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
+			assert_eq!(Staking::current_era(), Some(0));
+			assert_eq!(Session::current_index(), 0);
+
+			start_era(1);
+
+			let authorities = Parachains::authorities();
+			let authority_index = 0;
+			let key = extract_key(authorities[authority_index].clone());
+
+			let statement_candidate = Statement::Candidate(candidate_hash.clone());
+			let statement_valid = Statement::Valid(candidate_hash.clone());
+
+			let signing_context = Parachains::signing_context();
+			let payload_1 = localized_payload(statement_candidate.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_valid.clone(), &signing_context);
+
+			let signature_1 = key.sign(&payload_1[..]).into();
+			let signature_2 = key.sign(&payload_2[..]).into();
+
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(1, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
+			let encoded_key = key.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_candidate, signature_1),
+				second: (statement_valid, signature_2),
+				proof,
+				signing_context,
+			};
+
+			let inner = report_double_vote(report).unwrap();
+
+			assert_ok!(Parachains::dispatch(inner, Origin::signed(1)));
+
+			start_era(2);
+
+			// Check that the balance of 0-th validator is slashed 100%.
+			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
+			assert_eq!(Staking::slashable_balance_of(&0), 0);
+
+			assert_eq!(
+				Staking::eras_stakers(2, 0),
+				staking::Exposure {
+					total: 0,
+					own: 0,
+					others: vec![],
+				},
+			);
+
+			// Check that the balances of all other validators are left intact.
+			for i in 1..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(2, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+		});
+	}
+
+	#[test]
+	fn double_vote_candidate_and_invalid_works() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
+		};
+
+		// Test that a Candidate and Invalid statements on the same candidate get slashed.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
+			start_era(1);
+
+			let authorities = Parachains::authorities();
+			let authority_index = 0;
+			let key = extract_key(authorities[authority_index].clone());
+
+			let statement_candidate = Statement::Candidate(candidate_hash);
+			let statement_invalid = Statement::Invalid(candidate_hash.clone());
+
+			let signing_context = Parachains::signing_context();
+			let payload_1 = localized_payload(statement_candidate.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_invalid.clone(), &signing_context);
+
+			let signature_1 = key.sign(&payload_1[..]).into();
+			let signature_2 = key.sign(&payload_2[..]).into();
+
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(1, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
+			let encoded_key = key.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_candidate, signature_1),
+				second: (statement_invalid, signature_2),
+				proof,
+				signing_context,
+			};
+
+			assert_ok!(Parachains::dispatch(
+				report_double_vote(report).unwrap(),
+				Origin::signed(1),
+			));
+
+			start_era(2);
+
+			// Check that the balance of 0-th validator is slashed 100%.
+			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
+			assert_eq!(Staking::slashable_balance_of(&0), 0);
+
+			assert_eq!(
+				Staking::eras_stakers(Staking::current_era().unwrap(), 0),
+				staking::Exposure {
+					total: 0,
+					own: 0,
+					others: vec![],
+				},
+			);
+
+			// Check that the balances of all other validators are left intact.
+			for i in 1..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(2, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
+		});
+	}
+
+	#[test]
+	fn double_vote_valid_and_invalid_works() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
+		};
+
+		// Test that an Invalid and Valid statements on the same candidate get slashed.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
+			start_era(1);
+
+			let authorities = Parachains::authorities();
+			let authority_index = 0;
+			let key = extract_key(authorities[authority_index].clone());
+
+			let statement_invalid = Statement::Invalid(candidate_hash.clone());
+			let statement_valid = Statement::Valid(candidate_hash.clone());
+
+			let signing_context = Parachains::signing_context();
+			let payload_1 = localized_payload(statement_invalid.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_valid.clone(), &signing_context);
+
+			let signature_1 = key.sign(&payload_1[..]).into();
+			let signature_2 = key.sign(&payload_2[..]).into();
+
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(1, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
+			let encoded_key = key.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_invalid, signature_1),
+				second: (statement_valid, signature_2),
+				proof,
+				signing_context,
+			};
+
+			assert_ok!(Parachains::dispatch(
+				report_double_vote(report).unwrap(),
+				Origin::signed(1),
+			));
+
+			start_era(2);
+
+			// Check that the balance of 0-th validator is slashed 100%.
+			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
+			assert_eq!(Staking::slashable_balance_of(&0), 0);
+
+			assert_eq!(
+				Staking::eras_stakers(2, 0),
+				staking::Exposure {
+					total: 0,
+					own: 0,
+					others: vec![],
+				},
+			);
+
+			// Check that the balances of all other validators are left intact.
+			for i in 1..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(2, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+		});
+	}
+
+	// Check that submitting the same report twice errors.
+	#[test]
+	fn double_vote_submit_twice_works() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
+		};
+
+		// Test that a Candidate and Valid statements on the same candidate get slashed.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
+			assert_eq!(Staking::current_era(), Some(0));
+			assert_eq!(Session::current_index(), 0);
+
+			start_era(1);
+
+			let authorities = Parachains::authorities();
+			let authority_index = 0;
+			let key = extract_key(authorities[authority_index].clone());
+
+			let statement_candidate = Statement::Candidate(candidate_hash.clone());
+			let statement_valid = Statement::Valid(candidate_hash.clone());
+
+			let signing_context = Parachains::signing_context();
+			let payload_1 = localized_payload(statement_candidate.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_valid.clone(), &signing_context);
+
+			let signature_1 = key.sign(&payload_1[..]).into();
+			let signature_2 = key.sign(&payload_2[..]).into();
+
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(1, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
+			let encoded_key = key.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_candidate, signature_1),
+				second: (statement_valid, signature_2),
+				proof,
+				signing_context,
+			};
+
+			assert_ok!(Parachains::dispatch(
+				report_double_vote(report.clone()).unwrap(),
+				Origin::signed(1),
+			));
+
+			assert!(Parachains::dispatch(
+					report_double_vote(report).unwrap(),
+					Origin::signed(1),
+				).is_err()
+			);
+
+			start_era(2);
+
+			// Check that the balance of 0-th validator is slashed 100%.
+			assert_eq!(Balances::total_balance(&0), 10_000_000 - 10_000);
+			assert_eq!(Staking::slashable_balance_of(&0), 0);
+
+			assert_eq!(
+				Staking::eras_stakers(2, 0),
+				staking::Exposure {
+					total: 0,
+					own: 0,
+					others: vec![],
+				},
+			);
+
+			// Check that the balances of all other validators are left intact.
+			for i in 1..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(2, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+		});
+	}
+
+	// Check that submitting invalid reports fail.
+	#[test]
+	fn double_vote_submit_invalid_works() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
+		};
+
+		// Test that a Candidate and Valid statements on the same candidate get slashed.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
+			assert_eq!(Staking::current_era(), Some(0));
+			assert_eq!(Session::current_index(), 0);
+
+			start_era(1);
+
+			let authorities = Parachains::authorities();
+			let authority_1_index = 0;
+			let authority_2_index = 1;
+			let key_1 = extract_key(authorities[authority_1_index].clone());
+			let key_2 = extract_key(authorities[authority_2_index].clone());
+
+			let statement_candidate = Statement::Candidate(candidate_hash.clone());
+			let statement_valid = Statement::Valid(candidate_hash.clone());
+
+			let signing_context = Parachains::signing_context();
+			let payload_1 = localized_payload(statement_candidate.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_valid.clone(), &signing_context);
+
+			let signature_1 = key_1.sign(&payload_1[..]).into();
+			let signature_2 = key_2.sign(&payload_2[..]).into();
+
+			let encoded_key = key_1.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key_1.public()),
+				first: (statement_candidate, signature_1),
+				second: (statement_valid, signature_2),
+				proof,
+				signing_context,
+			};
+
+			assert_eq!(
+				report_double_vote(report.clone()),
+				Err(TransactionValidityError::Invalid(
+						InvalidTransaction::Custom(DoubleVoteValidityError::InvalidSignature as u8)
+					)
+				),
+			);
+		});
+	}
+
+	#[test]
+	fn double_vote_proof_session_mismatch_fails() {
+		let parachains = vec![
+			(1u32.into(), vec![], vec![]),
+		];
+
+		let extract_key = |public: ValidatorId| {
+			let mut raw_public = [0; 32];
+			raw_public.copy_from_slice(public.as_ref());
+			Sr25519Keyring::from_raw_public(raw_public).unwrap()
+		};
+
+		// Test that submitting a report with a session mismatch between the `parent_hash`
+		// and the proof itself fails.
+		new_test_ext(parachains.clone()).execute_with(|| {
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
+
+			assert_eq!(Staking::current_era(), Some(0));
+			assert_eq!(Session::current_index(), 0);
+
+			start_era(1);
+
+			let authorities = Parachains::authorities();
+			let authority_index = 0;
+			let key = extract_key(authorities[authority_index].clone());
+
+			let statement_candidate = Statement::Candidate(candidate_hash.clone());
+			let statement_valid = Statement::Valid(candidate_hash.clone());
+			let parent_hash = System::parent_hash();
+
+			let signing_context = SigningContext {
+				session_index: Session::current_index() - 1,
+				parent_hash,
+			};
+			let payload_1 = localized_payload(statement_candidate.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_valid.clone(), &signing_context);
+
+			let signature_1 = key.sign(&payload_1[..]).into();
+			let signature_2 = key.sign(&payload_2[..]).into();
+
+			// Check that in the beginning the genesis balances are there.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(1, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+
+			// Get the proof from another session.
+			start_era(2);
+			let encoded_key = key.encode();
+			let proof = Historical::prove((PARACHAIN_KEY_TYPE_ID, &encoded_key[..])).unwrap();
+
+			let report = DoubleVoteReport {
+				identity: ValidatorId::from(key.public()),
+				first: (statement_candidate, signature_1),
+				second: (statement_valid, signature_2),
+				proof,
+				signing_context,
+			};
+
+			assert!(report_double_vote(report.clone()).is_err());
+
+			start_era(3);
+
+			// Check that the balances are unchanged.
+			for i in 0..authorities.len() {
+				assert_eq!(Balances::total_balance(&(i as u64)), 10_000_000);
+				assert_eq!(Staking::slashable_balance_of(&(i as u64)), 10_000);
+
+				assert_eq!(
+					Staking::eras_stakers(1, i as u64),
+					staking::Exposure {
+						total: 10_000,
+						own: 10_000,
+						others: vec![],
+					},
+				);
+			}
+		});
 	}
 }
