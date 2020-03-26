@@ -36,7 +36,7 @@ wasm-bindgen-futures = { version = "0.4.7", optional = true }
 browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli", optional = true }
 
 [build-dependencies]
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
 
 [features]
 default = [ "wasmtime", "rocksdb", "cli" ]

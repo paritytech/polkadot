@@ -18,11 +18,11 @@ use log::info;
 use sp_runtime::traits::BlakeTwo256;
 use service::{IsKusama, Block, self, RuntimeApiCollection, TFullClient};
 use sp_api::ConstructRuntimeApi;
-use sc_cli::{substrate_cli_configuration, SubstrateCli, Result};
+use sc_cli::{substrate_cli, SubstrateCli, Result};
 use sc_executor::NativeExecutionDispatch;
 use crate::cli::{Cli, Subcommand};
 
-#[substrate_cli_configuration(
+#[substrate_cli(
 	impl_name = "parity-polkadot",
 	support_url = "https://github.com/paritytech/polkadot/issues/new",
 	copyright_start_year = 2017,
