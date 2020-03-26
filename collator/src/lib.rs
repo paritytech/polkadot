@@ -66,7 +66,7 @@ use polkadot_cli::{
 	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
 	service::{self, Roles}
 };
-pub use polkadot_cli::{VersionInfo, load_spec, service::Configuration};
+pub use polkadot_cli::service::Configuration;
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
 pub use sc_network::PeerId;
@@ -343,7 +343,7 @@ where
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
-	let is_kusama = config.expect_chain_spec().is_kusama();
+	let is_kusama = config.chain_spec.is_kusama();
 	match (is_kusama, config.roles) {
 		(_, Roles::LIGHT) => return Err(
 			polkadot_service::Error::Other("light nodes are unsupported as collator".into())
@@ -373,45 +373,6 @@ fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRo
 		.filter_map(|(i, _)| session_keys.get(i))
 		.cloned()
 		.collect()
-}
-
-/// Run a collator node with the given `RelayChainContext` and `ParachainContext`
-/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
-///
-/// This function blocks until done.
-pub fn run_collator<P>(
-	build_parachain_context: P,
-	para_id: ParaId,
-	key: Arc<CollatorPair>,
-	config: Configuration,
-) -> polkadot_cli::Result<()> where
-	P: BuildParachainContext,
-	P::ParachainContext: Send + 'static,
-	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
-{
-	match (config.expect_chain_spec().is_kusama(), config.roles) {
-		(_, Roles::LIGHT) => return Err(
-			polkadot_cli::Error::Input("light nodes are unsupported as collator".into())
-		).into(),
-		(true, _) =>
-			sc_cli::run_service_until_exit(config, |config| {
-				build_collator_service(
-					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
-					para_id,
-					key,
-					build_parachain_context,
-				)
-			}),
-		(false, _) =>
-			sc_cli::run_service_until_exit(config, |config| {
-				build_collator_service(
-					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
-					para_id,
-					key,
-					build_parachain_context,
-				)
-			}),
-	}
 }
 
 #[cfg(test)]
