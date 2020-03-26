@@ -335,7 +335,8 @@ pub fn polkadot_staging_testnet_config() -> PolkadotChainSpec {
 		"polkadot_staging_testnet",
 		polkadot_staging_testnet_config_genesis,
 		boot_nodes,
-		Some(TelemetryEndpoints::new(vec![(POLKADOT_STAGING_TELEMETRY_URL.to_string(), 0)])),
+		Some(TelemetryEndpoints::new(vec![(POLKADOT_STAGING_TELEMETRY_URL.to_string(), 0)])
+			.expect("Polkadot Staging telemetry url is valid; qed")),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
@@ -350,7 +351,8 @@ pub fn kusama_staging_testnet_config() -> KusamaChainSpec {
 		"kusama_staging_testnet",
 		kusama_staging_testnet_config_genesis,
 		boot_nodes,
-		Some(TelemetryEndpoints::new(vec![(KUSAMA_STAGING_TELEMETRY_URL.to_string(), 0)])),
+		Some(TelemetryEndpoints::new(vec![(KUSAMA_STAGING_TELEMETRY_URL.to_string(), 0)])
+			.expect("Kusama Staging telemetry url is valid; qed")),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
