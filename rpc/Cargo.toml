@@ -5,13 +5,13 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "master" }
+client = { package = "sc-client", git = "https://github.com/paritytech/substrate", branch = "gav-democracy-uses-scheduler" }
 jsonrpc-core = "14.0.3"
 polkadot-primitives = { path = "../primitives" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master"  }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master"  }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master"  }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "gav-democracy-uses-scheduler"  }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "gav-democracy-uses-scheduler"  }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "gav-democracy-uses-scheduler" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "gav-democracy-uses-scheduler" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "gav-democracy-uses-scheduler"  }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "gav-democracy-uses-scheduler" }
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false }
