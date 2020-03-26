@@ -67,10 +67,12 @@ use polkadot_cli::{
 	service::{self, Roles}
 };
 pub use polkadot_cli::service::Configuration;
+pub use polkadot_cli::Cli;
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
 pub use sc_network::PeerId;
 pub use service::RuntimeApiCollection;
+pub use sc_cli::SubstrateCli;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
