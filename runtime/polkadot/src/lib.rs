@@ -36,7 +36,9 @@ use primitives::{
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, RuntimeDebug,
-	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
+	transaction_validity::{
+		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource,
+	},
 	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto,
@@ -694,8 +696,11 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl tx_pool_api::runtime_api::TaggedTransactionQueue<Block> for Runtime {
-		fn validate_transaction(tx: <Block as BlockT>::Extrinsic) -> TransactionValidity {
-			Executive::validate_transaction(tx)
+		fn validate_transaction(
+			source: TransactionSource,
+			tx: <Block as BlockT>::Extrinsic,
+		) -> TransactionValidity {
+			Executive::validate_transaction(source, tx)
 		}
 	}
 
