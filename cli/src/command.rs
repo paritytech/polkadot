@@ -53,7 +53,7 @@ pub fn run() -> Result<()> {
 
 	match &cli.subcommand {
 		None => {
-			let runtime = cli.create_runtime(&cli.run.base)?;
+			let runtime = cli.create_runner(&cli.run.base)?;
 			let config = runtime.config();
 			let is_kusama = config.chain_spec.is_kusama();
 			let authority_discovery_enabled = cli.run.authority_discovery_enabled;
@@ -87,7 +87,7 @@ pub fn run() -> Result<()> {
 			}
 		},
 		Some(Subcommand::Base(subcommand)) => {
-			let runtime = cli.create_runtime(subcommand)?;
+			let runtime = cli.create_runner(subcommand)?;
 			let is_kusama = runtime.config().chain_spec.is_kusama();
 
 			if is_kusama {
@@ -120,7 +120,7 @@ pub fn run() -> Result<()> {
 			}
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
-			let runtime = cli.create_runtime(cmd)?;
+			let runtime = cli.create_runner(cmd)?;
 			let is_kusama = runtime.config().chain_spec.is_kusama();
 
 			if is_kusama {
