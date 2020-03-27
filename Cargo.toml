@@ -28,6 +28,7 @@ members = [
 	"cli",
 	"collator",
 	"erasure-coding",
+	"gossip-primitives",
 	"network",
 	"network/test",
 	"primitives",

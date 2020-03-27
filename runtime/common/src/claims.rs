@@ -29,8 +29,9 @@ use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
 use sp_runtime::traits::Zero;
 use sp_runtime::traits::CheckedSub;
 use sp_runtime::{
-	RuntimeDebug, transaction_validity::{
-		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction
+	RuntimeDebug,
+	transaction_validity::{
+		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction, TransactionSource,
 	},
 };
 use primitives::ValidityError;
@@ -288,7 +289,7 @@ impl<T: Trait> Module<T> {
 impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
-	fn validate_unsigned(call: &Self::Call) -> TransactionValidity {
+	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
 		const PRIORITY: u64 = 100;
 
 		match call {
@@ -607,10 +608,11 @@ mod tests {
 	#[test]
 	fn validate_unsigned_works() {
 		use sp_runtime::traits::ValidateUnsigned;
+		let source = sp_runtime::transaction_validity::TransactionSource::External;
 
 		new_test_ext().execute_with(|| {
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(1, sig::<Test>(&alice(), &1u64.encode()))),
+				<Module<Test>>::validate_unsigned(source, &Call::claim(1, sig::<Test>(&alice(), &1u64.encode()))),
 				Ok(ValidTransaction {
 					priority: 100,
 					requires: vec![],
@@ -620,15 +622,15 @@ mod tests {
 				})
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(0, EcdsaSignature([0; 65]))),
+				<Module<Test>>::validate_unsigned(source, &Call::claim(0, EcdsaSignature([0; 65]))),
 				InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()).into(),
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(1, sig::<Test>(&bob(), &1u64.encode()))),
+				<Module<Test>>::validate_unsigned(source, &Call::claim(1, sig::<Test>(&bob(), &1u64.encode()))),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(&Call::claim(0, sig::<Test>(&bob(), &1u64.encode()))),
+				<Module<Test>>::validate_unsigned(source, &Call::claim(0, sig::<Test>(&bob(), &1u64.encode()))),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 		});
@@ -690,8 +692,9 @@ mod benchmarking {
 			let account: T::AccountId = account("user", c, SEED);
 			let signature = sig::<T>(&secret_key, &account.encode());
 			let call = Call::<T>::claim(account, signature);
+			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
-			super::Module::<T>::validate_unsigned(&call)?
+			super::Module::<T>::validate_unsigned(source, &call)?
 		}
 
 		// Benchmark the time it takes to do `repeat` number of keccak256 hashes

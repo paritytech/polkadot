@@ -24,7 +24,7 @@ use rstd::prelude::*;
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas, AbridgedCandidateReceipt}, ValidityError,
+	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext}, ValidityError,
 };
 use runtime_common::{attestations, claims, parachains, registrar, slots,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment},
@@ -35,7 +35,9 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, Perbill, RuntimeDebug, KeyTypeId,
-	transaction_validity::{TransactionValidity, InvalidTransaction, TransactionValidityError},
+	transaction_validity::{
+		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource,
+	},
 	curve::PiecewiseLinear,
 	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto},
 };
@@ -75,7 +77,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot-test-runtime"),
 	impl_name: create_runtime_str!("parity-polkadot-test-runtime"),
 	authoring_version: 2,
-	spec_version: 1048,
+	spec_version: 1049,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -319,6 +321,7 @@ impl parachains::Trait for Runtime {
 			Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>
 		>::IdentificationTuple;
 	type ReportOffence = Offences;
+	type BlockHashConversion = sp_runtime::traits::Identity;
 }
 
 impl offences::Trait for Runtime {
@@ -497,8 +500,11 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl tx_pool_api::runtime_api::TaggedTransactionQueue<Block> for Runtime {
-		fn validate_transaction(tx: <Block as BlockT>::Extrinsic) -> TransactionValidity {
-			Executive::validate_transaction(tx)
+		fn validate_transaction(
+			source: TransactionSource,
+			tx: <Block as BlockT>::Extrinsic,
+		) -> TransactionValidity {
+			Executive::validate_transaction(source, tx)
 		}
 	}
 
@@ -535,6 +541,9 @@ sp_api::impl_runtime_apis! {
 					}
 					Err(_) => None,
 				})
+		}
+		fn signing_context() -> SigningContext {
+			Parachains::signing_context()
 		}
 	}
 

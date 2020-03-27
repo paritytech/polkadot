@@ -32,21 +32,21 @@
 
 use sc_network_gossip::{ValidationResult as GossipValidationResult};
 use sc_network::ReputationChange;
-pub use polkadot_statement_table::generic::Statement as GenericStatement;
+use polkadot_statement_table::generic::Statement as GenericStatement;
 use polkadot_primitives::Hash;
 
 use std::collections::{HashMap, HashSet};
 
 use log::warn;
 
-use crate::networking::{
+use super::{
 	cost, benefit, attestation_topic, MAX_CHAIN_HEADS, LeavesVec,
 	ChainContext, Known, MessageValidationData, GossipStatement,
 };
 
 // knowledge about attestations on a single parent-hash.
 #[derive(Default)]
-pub(super) struct Knowledge {
+pub struct Knowledge {
 	candidates: HashSet<Hash>,
 }
 
@@ -64,13 +64,13 @@ impl Knowledge {
 }
 
 #[derive(Default)]
-pub(super) struct PeerData {
+pub struct PeerData {
 	live: HashMap<Hash, Knowledge>,
 }
 
 impl PeerData {
 	/// Update leaves, returning a list of which leaves are new.
-	pub(super) fn update_leaves(&mut self, leaves: &LeavesVec) -> LeavesVec {
+	pub fn update_leaves(&mut self, leaves: &LeavesVec) -> LeavesVec {
 		let mut new = LeavesVec::new();
 		self.live.retain(|k, _| leaves.contains(k));
 		for &leaf in leaves {
@@ -90,13 +90,13 @@ impl PeerData {
 		}
 	}
 
-	pub(super) fn knowledge_at_mut(&mut self, parent_hash: &Hash) -> Option<&mut Knowledge> {
+	pub fn knowledge_at_mut(&mut self, parent_hash: &Hash) -> Option<&mut Knowledge> {
 		self.live.get_mut(parent_hash)
 	}
 }
 
 /// An impartial view of what topics and data are valid based on attestation session data.
-pub(super) struct View {
+pub struct View {
 	leaf_work: Vec<(Hash, LeafView)>, // hashes of the best DAG-leaves paired with validation data.
 	topics: HashMap<Hash, Hash>, // maps topic hashes to block hashes.
 }
@@ -122,7 +122,7 @@ impl View {
 	}
 
 	/// Get our leaves-set. Guaranteed to have length <= MAX_CHAIN_HEADS.
-	pub(super) fn neighbor_info<'a>(&'a self) -> impl Iterator<Item=Hash> + 'a + Clone {
+	pub fn neighbor_info<'a>(&'a self) -> impl Iterator<Item=Hash> + 'a + Clone {
 		self.leaf_work.iter().take(MAX_CHAIN_HEADS).map(|(p, _)| p.clone())
 	}
 
@@ -131,9 +131,13 @@ impl View {
 	///
 	/// This will be pruned later on a call to `prune_old_leaves`, when this leaf
 	/// is not a leaf anymore.
-	pub(super) fn new_local_leaf(&mut self, relay_chain_leaf: Hash, validation_data: MessageValidationData) {
+	pub fn new_local_leaf(
+		&mut self,
+		validation_data: MessageValidationData,
+	) {
+		let relay_chain_leaf = validation_data.signing_context.parent_hash.clone();
 		self.leaf_work.push((
-			relay_chain_leaf,
+			validation_data.signing_context.parent_hash.clone(),
 			LeafView {
 				validation_data,
 				knowledge: Default::default(),
@@ -143,7 +147,7 @@ impl View {
 	}
 
 	/// Prune old leaf-work that fails the leaf predicate.
-	pub(super) fn prune_old_leaves<F: Fn(&Hash) -> bool>(&mut self, is_leaf: F) {
+	pub fn prune_old_leaves<F: Fn(&Hash) -> bool>(&mut self, is_leaf: F) {
 		let leaf_work = &mut self.leaf_work;
 		leaf_work.retain(|&(ref relay_chain_leaf, _)| is_leaf(relay_chain_leaf));
 		self.topics.retain(|_, v| leaf_work.iter().find(|(p, _)| p == v).is_some());
@@ -151,19 +155,19 @@ impl View {
 
 	/// Whether a message topic is considered live relative to our view. non-live
 	/// topics do not pertain to our perceived leaves, and are uninteresting to us.
-	pub(super) fn is_topic_live(&self, topic: &Hash) -> bool {
+	pub fn is_topic_live(&self, topic: &Hash) -> bool {
 		self.topics.contains_key(topic)
 	}
 
 	/// The relay-chain block hash corresponding to a topic.
-	pub(super) fn topic_block(&self, topic: &Hash) -> Option<&Hash> {
+	pub fn topic_block(&self, topic: &Hash) -> Option<&Hash> {
 		self.topics.get(topic)
 	}
 
 
 	/// Validate the signature on an attestation statement of some kind. Should be done before
 	/// any repropagation of that statement.
-	pub(super) fn validate_statement_signature<C: ChainContext + ?Sized>(
+	pub fn validate_statement_signature<C: ChainContext + ?Sized>(
 		&mut self,
 		message: GossipStatement,
 		chain: &C,
@@ -207,7 +211,6 @@ impl View {
 
 				// validate signature.
 				let res = view.validation_data.check_statement(
-					&message.relay_chain_leaf,
 					&message.signed_statement,
 				);
 
@@ -224,7 +227,7 @@ impl View {
 
 	/// whether it's allowed to send a statement to a peer with given knowledge
 	/// about the relay parent the statement refers to.
-	pub(super) fn statement_allowed(
+	pub fn statement_allowed(
 		&mut self,
 		statement: &GossipStatement,
 		relay_chain_leaf: &Hash,

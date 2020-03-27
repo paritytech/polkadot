@@ -1,14 +1,13 @@
 [package]
-name = "polkadot-availability-store"
-description = "Persistent database for parachain data"
+name = "polkadot-gossip-primitives"
 version = "0.7.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
+
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
-polkadot-gossip-primitives = { path = "../gossip-primitives" }
 parking_lot = "0.9.0"
 derive_more = "0.99"
 log = "0.4.8"
@@ -28,5 +27,6 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 kvdb = "0.5.0"
 kvdb-memorydb = "0.5.0"
 
-[target.'cfg(not(target_os = "unknown"))'.dependencies]
-kvdb-rocksdb = "0.7.0"
+sc-network-gossip = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-statement-table = { path = "../statement-table" }
+arrayvec = "*"

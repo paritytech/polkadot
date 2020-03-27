@@ -36,7 +36,7 @@ use consensus::SelectChain;
 use futures::{future::ready, prelude::*, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
-	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
+	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair, SigningContext,
 };
 use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
@@ -44,7 +44,7 @@ use sp_api::{ApiExt, ProvideRuntimeApi};
 use runtime_primitives::traits::HashFor;
 use availability_store::Store as AvailabilityStore;
 
-use log::{warn, error, info, debug};
+use log::{warn, error, info, debug, trace};
 
 use super::{Network, Collators, SharedTable, TableRouter};
 use crate::Error;
@@ -334,11 +334,29 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 			}
 		}
 
+		let api = self.client.runtime_api();
+
+		let signing_context = if api.has_api_with::<dyn ParachainHost<Block, Error = ()>, _>(
+			&BlockId::hash(parent_hash),
+			|version| version >= 3,
+		)? {
+			api.signing_context(&id)?
+		} else {
+			trace!(
+				target: "validation",
+				"Expected runtime with ParachainHost version >= 3",
+			);
+			SigningContext {
+				session_index: 0,
+				parent_hash,
+			}
+		};
+
 		let table = Arc::new(SharedTable::new(
 			validators.clone(),
 			group_info,
 			sign_with,
-			parent_hash,
+			signing_context,
 			self.availability_store.clone(),
 			max_block_data_size,
 		));

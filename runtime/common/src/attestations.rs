@@ -131,6 +131,7 @@ decl_module! {
 		type Error = Error<T>;
 
 		/// Provide candidate receipts for parachains, in ascending order by id.
+		#[weight = frame_support::weights::SimpleDispatchInfo::default()]
 		fn more_attestations(origin, _more: MoreAttestations) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!DidUpdate::exists(), Error::<T>::TooManyAttestations);

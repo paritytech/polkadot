@@ -32,4 +32,9 @@ use log::debug;
 use std::pin::Pin;
 use std::task::{Context as PollContext, Poll};
 
-pub use av_store::networking::{*, self as gossip};
+pub use gossip::{GossipService, GossipMessage};
+
+pub mod gossip {
+    pub use polkadot_gossip_primitives::*;
+    pub use av_store::networking::*;
+}

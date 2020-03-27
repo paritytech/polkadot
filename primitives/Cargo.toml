@@ -13,6 +13,7 @@ application-crypto = { package = "sp-application-crypto", git = "https://github.
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -33,6 +34,7 @@ std = [
 	"sp-api/std",
 	"sp-std/std",
 	"sp-version/std",
+	"sp-staking/std",
 	"runtime_primitives/std",
 	"serde",
 	"polkadot-parachain/std",
