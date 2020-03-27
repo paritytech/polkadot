@@ -420,11 +420,15 @@ mod tests {
 	fn start_collator_is_send() {
 		fn check_send<T: Send>(_: T) {}
 
+		let cli = Cli::from_iter(&["-dev"]);
+		let task_executor = Arc::new(|_| unimplemented!());
+		let config = cli.create_configuration(&cli.run.base, task_executor).unwrap();
+
 		check_send(start_collator(
 			BuildDummyParachainContext,
 			0.into(),
 			Arc::new(CollatorPair::generate().0),
-			Default::default(),
+			config,
 		));
 	}
 }
