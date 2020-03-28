@@ -14,4 +14,4 @@ sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master"  }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false }
+codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false }
