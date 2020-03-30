@@ -293,6 +293,7 @@ decl_module! {
 		/// - `count`: The number of parathreads.
 		///
 		/// Must be called from Root origin.
+		#[weight = SimpleDispatchInfo::default()]
 		fn set_thread_count(origin, count: u32) {
 			ensure_root(origin)?;
 			ThreadCount::put(count);
@@ -306,6 +307,7 @@ decl_module! {
 		/// Unlike `register_para`, this function does check that the maximum code size
 		/// and head data size are respected, as parathread registration is an atomic
 		/// action.
+		#[weight = SimpleDispatchInfo::default()]
 		fn register_parathread(origin,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>,
@@ -345,6 +347,7 @@ decl_module! {
 		/// This is a kind of special transaction that should be heavily prioritized in the
 		/// transaction pool according to the `value`; only `ThreadCount` of them may be presented
 		/// in any single block.
+		#[weight = SimpleDispatchInfo::default()]
 		fn select_parathread(origin,
 			#[compact] _id: ParaId,
 			_collator: CollatorId,
@@ -361,6 +364,7 @@ decl_module! {
 		/// Ensure that before calling this that any funds you want emptied from the parathread's
 		/// account is moved out; after this it will be impossible to retrieve them (without
 		/// governance intervention).
+		#[weight = SimpleDispatchInfo::default()]
 		fn deregister_parathread(origin) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -384,6 +388,7 @@ decl_module! {
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
+		#[weight = SimpleDispatchInfo::default()]
 		fn swap(origin, #[compact] other: ParaId) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -648,7 +653,7 @@ mod tests {
 		traits::{
 			BlakeTwo256, IdentityLookup, Dispatchable,
 			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header}, KeyTypeId, Perbill, curve::PiecewiseLinear,
+		}, testing::{UintAuthorityId, Header, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{
@@ -678,6 +683,7 @@ mod tests {
 		pub enum Call for Test where origin: Origin {
 			parachains::Parachains,
 			registrar::Registrar,
+			staking::Staking,
 		}
 	}
 
@@ -774,6 +780,7 @@ mod tests {
 		type SessionManager = ();
 		type Keys = UintAuthorityId;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+		type NextSessionRotation = session::PeriodicSessions<Period, Offset>;
 		type SessionHandler = session::TestSessionHandler;
 		type Event = ();
 		type ValidatorId = u64;
@@ -784,6 +791,7 @@ mod tests {
 	parameter_types! {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
+		pub const ElectionLookahead: BlockNumber = 0;
 	}
 
 	impl staking::Trait for Test {
@@ -798,9 +806,13 @@ mod tests {
 		type SlashDeferDuration = SlashDeferDuration;
 		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
 		type SessionInterface = Self;
-		type Time = timestamp::Module<Test>;
+		type UnixTime = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+		type NextNewSession = Session;
+		type ElectionLookahead = ElectionLookahead;
+		type Call = Call;
+		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
 	}
 
 	impl timestamp::Trait for Test {
@@ -852,6 +864,8 @@ mod tests {
 	type Slots = slots::Module<Test>;
 	type Registrar = Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
+	type Session = session::Module<Test>;
+	type Staking = staking::Module<Test>;
 
 	const AUTHORITY_KEYS: [Sr25519Keyring; 8] = [
 		Sr25519Keyring::Alice,

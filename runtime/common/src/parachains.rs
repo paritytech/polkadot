@@ -964,7 +964,7 @@ impl<T: Trait> Module<T> {
 			for (vote_index, (auth_index, _)) in candidate.validator_indices
 				.iter()
 				.enumerate()
-				.filter(|(_, bit)| *bit)
+				.filter(|(_, bit)| **bit)
 				.enumerate()
 			{
 				let validity_attestation = match candidate.validity_votes.get(vote_index) {
@@ -1200,11 +1200,12 @@ mod tests {
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
 		impl_opaque_keys,
-		Perbill, curve::PiecewiseLinear, testing::{Header},
+		Perbill, curve::PiecewiseLinear, testing::Header,
 		traits::{
 			BlakeTwo256, IdentityLookup, SaturatedConversion,
 			OpaqueKeys,
 		},
+		testing::TestXt,
 	};
 	use primitives::{
 		parachain::{
@@ -1239,6 +1240,7 @@ mod tests {
 	impl_outer_dispatch! {
 		pub enum Call for Test where origin: Origin {
 			parachains::Parachains,
+			staking::Staking,
 		}
 	}
 
@@ -1304,6 +1306,7 @@ mod tests {
 		type ValidatorId = u64;
 		type ValidatorIdOf = staking::StashOf<Self>;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+		type NextSessionRotation = session::PeriodicSessions<Period, Offset>;
 		type SessionManager = session::historical::NoteHistoricalRoot<Self, Staking>;
 		type SessionHandler = TestSessionHandler;
 		type Keys = TestSessionKeys;
@@ -1375,6 +1378,7 @@ mod tests {
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 		pub const MaxNominatorRewardedPerValidator: u32 = 64;
+		pub const ElectionLookahead: BlockNumber = 0;
 	}
 
 	pub struct CurrencyToVoteHandler;
@@ -1399,9 +1403,13 @@ mod tests {
 		type SlashDeferDuration = SlashDeferDuration;
 		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
 		type SessionInterface = Self;
-		type Time = timestamp::Module<Test>;
+		type UnixTime = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+		type NextNewSession = Session;
+		type ElectionLookahead = ElectionLookahead;
+		type Call = Call;
+		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
 	}
 
 	impl attestations::Trait for Test {
