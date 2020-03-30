@@ -1,13 +1,13 @@
 [package]
 name = "kusama-runtime"
-version = "0.7.28-pre1"
+version = "0.7.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
 
 [dependencies]
-bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
-codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
+bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
+codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
 log = { version = "0.3.9", optional = true }
 rustc-hex = { version = "2.0.1", default-features = false }
 serde = { version = "1.0.102", default-features = false }
@@ -136,4 +136,9 @@ std = [
 	"randomness-collective-flip/std",
 	"runtime-common/std",
 ]
-runtime-benchmarks = ["frame-benchmarking", "runtime-common/runtime-benchmarks"]
+runtime-benchmarks = [
+	"frame-benchmarking",
+	"frame-support/runtime-benchmarks",
+	"runtime-common/runtime-benchmarks",
+	"elections-phragmen/runtime-benchmarks"
+]

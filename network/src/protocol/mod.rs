@@ -162,7 +162,6 @@ impl NetworkServiceOps for PolkadotNetworkService {
 trait GossipOps: Clone + Send + crate::legacy::GossipService + 'static {
 	fn new_local_leaf(
 		&self,
-		relay_parent: Hash,
 		validation_data: crate::legacy::gossip::MessageValidationData,
 	) -> crate::legacy::gossip::NewLeafActions;
 
@@ -177,10 +176,12 @@ trait GossipOps: Clone + Send + crate::legacy::GossipService + 'static {
 impl GossipOps for RegisteredMessageValidator {
 	fn new_local_leaf(
 		&self,
-		relay_parent: Hash,
 		validation_data: crate::legacy::gossip::MessageValidationData,
 	) -> crate::legacy::gossip::NewLeafActions {
-		RegisteredMessageValidator::new_local_leaf(self, relay_parent, validation_data)
+		RegisteredMessageValidator::new_local_leaf(
+			self,
+			validation_data,
+		)
 	}
 
 	fn register_availability_store(
@@ -804,7 +805,6 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 		authorities: Vec<ValidatorId>,
 	) {
 		// glue: let gossip know about our new local leaf.
-		let relay_parent = table.consensus_parent_hash().clone();
 		let (signal, exit) = exit_future::signal();
 
 		let key = table.session_key();
@@ -814,19 +814,20 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 			}
 		}
 
+		let signing_context = table.signing_context().clone();
+		let relay_parent = signing_context.parent_hash.clone();
 		let new_leaf_actions = self.gossip_handle.new_local_leaf(
-			relay_parent,
-			crate::legacy::gossip::MessageValidationData { authorities },
+			crate::legacy::gossip::MessageValidationData { authorities, signing_context },
 		);
 
 		new_leaf_actions.perform(&self.gossip_handle);
 
 		self.protocol_handler.consensus_instances.insert(
-			relay_parent,
+			relay_parent.clone(),
 			ConsensusNetworkingInstance {
 				statement_table: table.clone(),
-				relay_parent,
-				attestation_topic: crate::legacy::gossip::attestation_topic(relay_parent),
+				relay_parent: relay_parent.clone(),
+				attestation_topic: crate::legacy::gossip::attestation_topic(relay_parent.clone()),
 				_drop_signal: signal,
 			},
 		);
@@ -1324,7 +1325,7 @@ impl ParachainNetwork for Service {
 	) -> Self::BuildTableRouter {
 		let authorities = authorities.to_vec();
 		let mut sender = self.sender.clone();
-		let relay_parent = table.consensus_parent_hash().clone();
+		let relay_parent = table.signing_context().parent_hash.clone();
 
 		Box::pin(async move {
 			sender.send(

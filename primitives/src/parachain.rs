@@ -601,6 +601,15 @@ pub enum ValidityAttestation {
 	Explicit(ValidatorSignature),
 }
 
+/// A type returned by runtime with current session index and a parent hash.
+#[derive(Clone, Eq, PartialEq, Default, Decode, Encode, RuntimeDebug)]
+pub struct SigningContext {
+	/// Current session index.
+	pub session_index: sp_staking::SessionIndex,
+	/// Hash of the parent.
+	pub parent_hash: Hash,
+}
+
 /// An attested candidate. This is submitted to the relay chain by a block author.
 #[derive(Clone, PartialEq, Decode, Encode, RuntimeDebug)]
 pub struct AttestedCandidate {
@@ -610,7 +619,7 @@ pub struct AttestedCandidate {
 	/// Validity attestations.
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// Indices of the corresponding validity votes.
-	pub validator_indices: BitVec<bitvec::cursor::LittleEndian, u8>,
+	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
 }
 
 impl AttestedCandidate {
@@ -666,6 +675,8 @@ sp_api::decl_runtime_apis! {
 		/// Extract the abridged head that was set in the extrinsics.
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
 			-> Option<Vec<AbridgedCandidateReceipt>>;
+		/// Get a `SigningContext` with current `SessionIndex` and parent hash.
+		fn signing_context() -> SigningContext;
 	}
 }
 

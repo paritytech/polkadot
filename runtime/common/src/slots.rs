@@ -22,11 +22,11 @@ use sp_std::{prelude::*, mem::swap, convert::TryInto};
 use sp_runtime::traits::{
 	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
 };
-use frame_support::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode, Codec};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
+	weights::{SimpleDispatchInfo, WeighData, Weight},
 };
 use primitives::parachain::{
 	SwapAux, PARACHAIN_INFO, Id as ParaId
@@ -131,11 +131,11 @@ type WinnersData<T> =
 decl_storage! {
 	trait Store for Module<T: Trait> as Slots {
 		/// The number of auctions that have been started so far.
-		pub AuctionCounter get(auction_counter): AuctionIndex;
+		pub AuctionCounter get(fn auction_counter): AuctionIndex;
 
 		/// Ordered list of all `ParaId` values that are managed by this module. This includes
 		/// chains that are not yet deployed (but have won an auction in the future).
-		pub ManagedIds get(managed_ids): Vec<ParaId>;
+		pub ManagedIds get(fn managed_ids): Vec<ParaId>;
 
 		/// Various amounts on deposit for each parachain. An entry in `ManagedIds` implies a non-
 		/// default entry here.
@@ -150,40 +150,40 @@ decl_storage! {
 		/// If a parachain doesn't exist *yet* but is scheduled to exist in the future, then it
 		/// will be left-padded with one or more zeroes to denote the fact that nothing is held on
 		/// deposit for the non-existent chain currently, but is held at some point in the future.
-		pub Deposits get(deposits): map hasher(twox_64_concat) ParaId => Vec<BalanceOf<T>>;
+		pub Deposits get(fn deposits): map hasher(twox_64_concat) ParaId => Vec<BalanceOf<T>>;
 
 		/// Information relating to the current auction, if there is one.
 		///
 		/// The first item in the tuple is the lease period index that the first of the four
 		/// contiguous lease periods on auction is for. The second is the block number when the
 		/// auction will "begin to end", i.e. the first block of the Ending Period of the auction.
-		pub AuctionInfo get(auction_info): Option<(LeasePeriodOf<T>, T::BlockNumber)>;
+		pub AuctionInfo get(fn auction_info): Option<(LeasePeriodOf<T>, T::BlockNumber)>;
 
 		/// The winning bids for each of the 10 ranges at each block in the final Ending Period of
 		/// the current auction. The map's key is the 0-based index into the Ending Period. The
 		/// first block of the ending period is 0; the last is `EndingPeriod - 1`.
-		pub Winning get(winning): map hasher(twox_64_concat) T::BlockNumber => Option<WinningData<T>>;
+		pub Winning get(fn winning): map hasher(twox_64_concat) T::BlockNumber => Option<WinningData<T>>;
 
 		/// Amounts currently reserved in the accounts of the bidders currently winning
 		/// (sub-)ranges.
-		pub ReservedAmounts get(reserved_amounts):
+		pub ReservedAmounts get(fn reserved_amounts):
 			map hasher(twox_64_concat) Bidder<T::AccountId> => Option<BalanceOf<T>>;
 
 		/// The set of Para IDs that have won and need to be on-boarded at an upcoming lease-period.
 		/// This is cleared out on the first block of the lease period.
-		pub OnboardQueue get(onboard_queue): map hasher(twox_64_concat) LeasePeriodOf<T> => Vec<ParaId>;
+		pub OnboardQueue get(fn onboard_queue): map hasher(twox_64_concat) LeasePeriodOf<T> => Vec<ParaId>;
 
 		/// The actual on-boarding information. Only exists when one of the following is true:
 		/// - It is before the lease period that the parachain should be on-boarded.
 		/// - The full on-boarding information has not yet been provided and the parachain is not
 		/// yet due to be off-boarded.
-		pub Onboarding get(onboarding):
+		pub Onboarding get(fn onboarding):
 			map hasher(twox_64_concat) ParaId =>
 			Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId, T::Hash>)>;
 
 		/// Off-boarding account; currency held on deposit for the parachain gets placed here if the
 		/// parachain gets off-boarded; i.e. its lease period is up and it isn't renewed.
-		pub Offboarding get(offboarding): map hasher(twox_64_concat) ParaId => T::AccountId;
+		pub Offboarding get(fn offboarding): map hasher(twox_64_concat) ParaId => T::AccountId;
 	}
 }
 
@@ -267,7 +267,7 @@ decl_module! {
 
 		fn deposit_event() = default;
 
-		fn on_initialize(n: T::BlockNumber) {
+		fn on_initialize(n: T::BlockNumber) -> Weight {
 			let lease_period = T::LeasePeriod::get();
 			let lease_period_index: LeasePeriodOf<T> = (n / lease_period).into();
 
@@ -285,6 +285,8 @@ decl_module! {
 			if (n % lease_period).is_zero() {
 				Self::manage_lease_period_start(lease_period_index);
 			}
+
+			SimpleDispatchInfo::default().weigh_data(())
 		}
 
 		fn on_finalize(now: T::BlockNumber) {
@@ -877,9 +879,12 @@ mod tests {
 	use sp_core::H256;
 	use sp_runtime::{
 		Perbill,
-		traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
+		traits::{BlakeTwo256, Hash, IdentityLookup},
 	};
-	use frame_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
+	use frame_support::{
+		impl_outer_origin, parameter_types, assert_ok, assert_noop,
+		traits::{OnInitialize, OnFinalize}
+	};
 	use balances;
 	use primitives::{BlockNumber, Header};
 	use primitives::parachain::{Id as ParaId, Info as ParaInfo, Scheduling};

@@ -131,6 +131,7 @@ decl_module! {
 		type Error = Error<T>;
 
 		/// Provide candidate receipts for parachains, in ascending order by id.
+		#[weight = frame_support::weights::SimpleDispatchInfo::default()]
 		fn more_attestations(origin, _more: MoreAttestations) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!DidUpdate::exists(), Error::<T>::TooManyAttestations);
@@ -167,7 +168,7 @@ impl<T: Trait> Module<T> {
 				let attesting_indices = head.validator_indices
 					.iter()
 					.enumerate()
-					.filter(|(_, bit)| *bit)
+					.filter(|(_, bit)| **bit)
 					.inspect(|&(auth_index, _)| {
 						if let Some(stash_id) = validators.get(auth_index) {
 							valid.push(stash_id.clone());
