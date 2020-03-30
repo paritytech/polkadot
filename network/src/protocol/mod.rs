@@ -878,27 +878,9 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 				);
 			}
 			ServiceToWorkerMsg::FetchPoVBlock(candidate, mut sender) => {
-				let candidate_hash = candidate.hash();
-				let topic = crate::legacy::gossip::pov_block_topic(candidate_hash);
-
 				// The gossip system checks that the correct pov-block data is present
 				// before placing in the pool, so we can safely check by candidate hash.
-				let get_msg = self.gossip_handle.gossip_messages_for(topic)
-					.filter_map(move |(msg, _)| {
-						future::ready(match msg {
-							GossipMessage::PoVBlock(pov_block_message) =>
-								if pov_block_message.candidate_hash == candidate_hash {
-									Some(pov_block_message.pov_block)
-								} else {
-									None
-								},
-							_ => None,
-						})
-					})
-					.into_future()
-					.map(|(item, _)| item.expect(
-						"gossip message streams do not conclude early; qed"
-					));
+				let get_msg = fetch_pov_from_gossip(&candidate, &self.gossip_handle);
 
 				let _ = self.executor.spawn(async move {
 					let res = future::select(get_msg, AwaitCanceled { inner: &mut sender }).await;
@@ -1159,16 +1141,14 @@ async fn statement_import_loop<Api>(
 		statements.insert(0, statement);
 
 		let producers: Vec<_> = {
-			// TODO: fetch these from gossip.
-			// https://github.com/paritytech/polkadot/issues/742
-			fn ignore_pov_fetch_requests(_: &AbridgedCandidateReceipt)
-				-> future::Pending<Result<PoVBlock, std::io::Error>>
-			{
-				future::pending()
-			}
+			let gossip_handle = &gossip_handle;
+			let fetch_pov = |candidate: &AbridgedCandidateReceipt| fetch_pov_from_gossip(
+				candidate,
+				gossip_handle,
+			).map(Result::<_, std::io::Error>::Ok);
 
 			table.import_remote_statements(
-				&ignore_pov_fetch_requests,
+				&fetch_pov,
 				statements.iter().cloned(),
 			)
 		};
@@ -1216,6 +1196,33 @@ async fn statement_import_loop<Api>(
 			}
 		}
 	}
+}
+
+fn fetch_pov_from_gossip(
+	candidate: &AbridgedCandidateReceipt,
+	gossip_handle: &impl GossipOps,
+) -> impl Future<Output = PoVBlock> + Send {
+	let candidate_hash = candidate.hash();
+	let topic = crate::legacy::gossip::pov_block_topic(candidate_hash);
+
+	// The gossip system checks that the correct pov-block data is present
+	// before placing in the pool, so we can safely check by candidate hash.
+	gossip_handle.gossip_messages_for(topic)
+		.filter_map(move |(msg, _)| {
+			future::ready(match msg {
+				GossipMessage::PoVBlock(pov_block_message) =>
+					if pov_block_message.candidate_hash == candidate_hash {
+						Some(pov_block_message.pov_block)
+					} else {
+						None
+					},
+				_ => None,
+			})
+		})
+		.into_future()
+		.map(|(item, _)| item.expect(
+			"gossip message streams do not conclude early; qed"
+		))
 }
 
 // distribute a "local collation": this is the collation gotten by a validator
