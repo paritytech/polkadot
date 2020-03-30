@@ -28,7 +28,7 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use primitives::bytes;
 use primitives::RuntimeDebug;
-use runtime_primitives::traits::{Block as BlockT};
+use runtime_primitives::traits::Block as BlockT;
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
