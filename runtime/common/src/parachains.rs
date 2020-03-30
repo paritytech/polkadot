@@ -964,7 +964,7 @@ impl<T: Trait> Module<T> {
 			for (vote_index, (auth_index, _)) in candidate.validator_indices
 				.iter()
 				.enumerate()
-				.filter(|(_, bit)| *bit)
+				.filter(|(_, bit)| **bit)
 				.enumerate()
 			{
 				let validity_attestation = match candidate.validity_votes.get(vote_index) {
@@ -1200,7 +1200,7 @@ mod tests {
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
 		impl_opaque_keys,
-		Perbill, curve::PiecewiseLinear, testing::{Header},
+		Perbill, curve::PiecewiseLinear, testing::Header,
 		traits::{
 			BlakeTwo256, IdentityLookup, SaturatedConversion,
 			OpaqueKeys,
