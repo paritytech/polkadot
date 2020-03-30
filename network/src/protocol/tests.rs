@@ -20,7 +20,7 @@ use polkadot_primitives::{Block, Header, BlockId};
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
 	Retriable, CollatorId, AbridgedCandidateReceipt,
-	GlobalValidationSchedule, LocalValidationData, ErasureChunk,
+	GlobalValidationSchedule, LocalValidationData, ErasureChunk, SigningContext,
 };
 use polkadot_validation::SharedTable;
 
@@ -114,7 +114,6 @@ impl crate::legacy::GossipService for MockGossip {
 impl GossipOps for MockGossip {
 	fn new_local_leaf(
 		&self,
-		_relay_parent: Hash,
 		_validation_data: crate::legacy::gossip::MessageValidationData,
 	) -> crate::legacy::gossip::NewLeafActions {
 		crate::legacy::gossip::NewLeafActions::new()
@@ -294,6 +293,22 @@ impl ParachainHost<Block> for RuntimeApi {
 	) -> ClientResult<NativeOrEncoded<Option<Vec<AbridgedCandidateReceipt>>>> {
 		Ok(NativeOrEncoded::Native(Some(Vec::new())))
 	}
+
+	fn ParachainHost_signing_context_runtime_api_impl(
+		&self,
+		_at: &BlockId,
+		_: ExecutionContext,
+		_: Option<()>,
+		_: Vec<u8>,
+	) -> ClientResult<NativeOrEncoded<SigningContext>> {
+		Ok(NativeOrEncoded::Native(
+				SigningContext {
+					session_index: Default::default(),
+					parent_hash: Default::default(),
+				}
+			)
+		)
+	}
 }
 
 impl super::Service {
@@ -389,11 +404,15 @@ fn consensus_instances_cleaned_up() {
 	let relay_parent = [0; 32].into();
 	let authorities = Vec::new();
 
+	let signing_context = SigningContext {
+		session_index: Default::default(),
+		parent_hash: relay_parent,
+	};
 	let table = Arc::new(SharedTable::new(
 		Vec::new(),
 		HashMap::new(),
 		None,
-		relay_parent,
+		signing_context,
 		AvailabilityStore::new_in_memory(service.clone()),
 		None,
 	));

@@ -31,7 +31,7 @@ use sp_runtime::{
 use frame_support::{
 	decl_storage, decl_module, decl_event, decl_error, ensure,
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
-	weights::{SimpleDispatchInfo, DispatchInfo},
+	weights::{SimpleDispatchInfo, DispatchInfo, Weight, WeighData},
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
@@ -293,6 +293,7 @@ decl_module! {
 		/// - `count`: The number of parathreads.
 		///
 		/// Must be called from Root origin.
+		#[weight = SimpleDispatchInfo::default()]
 		fn set_thread_count(origin, count: u32) {
 			ensure_root(origin)?;
 			ThreadCount::put(count);
@@ -306,6 +307,7 @@ decl_module! {
 		/// Unlike `register_para`, this function does check that the maximum code size
 		/// and head data size are respected, as parathread registration is an atomic
 		/// action.
+		#[weight = SimpleDispatchInfo::default()]
 		fn register_parathread(origin,
 			code: Vec<u8>,
 			initial_head_data: Vec<u8>,
@@ -345,6 +347,7 @@ decl_module! {
 		/// This is a kind of special transaction that should be heavily prioritized in the
 		/// transaction pool according to the `value`; only `ThreadCount` of them may be presented
 		/// in any single block.
+		#[weight = SimpleDispatchInfo::default()]
 		fn select_parathread(origin,
 			#[compact] _id: ParaId,
 			_collator: CollatorId,
@@ -361,6 +364,7 @@ decl_module! {
 		/// Ensure that before calling this that any funds you want emptied from the parathread's
 		/// account is moved out; after this it will be impossible to retrieve them (without
 		/// governance intervention).
+		#[weight = SimpleDispatchInfo::default()]
 		fn deregister_parathread(origin) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -384,6 +388,7 @@ decl_module! {
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
+		#[weight = SimpleDispatchInfo::default()]
 		fn swap(origin, #[compact] other: ParaId) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -413,7 +418,7 @@ decl_module! {
 		}
 
 		/// Block initializer. Clears SelectedThreads and constructs/replaces Active.
-		fn on_initialize() {
+		fn on_initialize() -> Weight {
 			let next_up = SelectedThreads::mutate(|t| {
 				let r = if t.len() >= T::QueueSize::get() {
 					// Take the first set of parathreads in queue
@@ -453,6 +458,8 @@ decl_module! {
 			paras.sort_by_key(|&(ref id, _)| *id);
 
 			Active::put(paras);
+
+			SimpleDispatchInfo::default().weigh_data(())
 		}
 
 		fn on_finalize() {
@@ -644,9 +651,9 @@ mod tests {
 	use sp_core::{H256, Pair};
 	use sp_runtime::{
 		traits::{
-			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, Dispatchable,
+			BlakeTwo256, IdentityLookup, Dispatchable,
 			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header}, KeyTypeId, Perbill, curve::PiecewiseLinear,
+		}, testing::{UintAuthorityId, Header, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{
@@ -657,7 +664,7 @@ mod tests {
 		Balance, BlockNumber,
 	};
 	use frame_support::{
-		traits::KeyOwnerProofSystem,
+		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
 	};
 	use keyring::Sr25519Keyring;
@@ -676,6 +683,7 @@ mod tests {
 		pub enum Call for Test where origin: Origin {
 			parachains::Parachains,
 			registrar::Registrar,
+			staking::Staking,
 		}
 	}
 
@@ -772,6 +780,7 @@ mod tests {
 		type SessionManager = ();
 		type Keys = UintAuthorityId;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+		type NextSessionRotation = session::PeriodicSessions<Period, Offset>;
 		type SessionHandler = session::TestSessionHandler;
 		type Event = ();
 		type ValidatorId = u64;
@@ -782,6 +791,7 @@ mod tests {
 	parameter_types! {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
+		pub const ElectionLookahead: BlockNumber = 0;
 	}
 
 	impl staking::Trait for Test {
@@ -796,9 +806,13 @@ mod tests {
 		type SlashDeferDuration = SlashDeferDuration;
 		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
 		type SessionInterface = Self;
-		type Time = timestamp::Module<Test>;
+		type UnixTime = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+		type NextNewSession = Session;
+		type ElectionLookahead = ElectionLookahead;
+		type Call = Call;
+		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
 	}
 
 	impl timestamp::Trait for Test {
@@ -825,6 +839,7 @@ mod tests {
 		type KeyOwnerProofSystem = session::historical::Module<Test>;
 		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 		type ReportOffence = ();
+		type BlockHashConversion = sp_runtime::traits::Identity;
 	}
 
 	parameter_types! {
@@ -849,6 +864,8 @@ mod tests {
 	type Slots = slots::Module<Test>;
 	type Registrar = Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
+	type Session = session::Module<Test>;
+	type Staking = staking::Module<Test>;
 
 	const AUTHORITY_KEYS: [Sr25519Keyring; 8] = [
 		Sr25519Keyring::Alice,
@@ -971,7 +988,7 @@ mod tests {
 		};
 		let (candidate, _) = candidate.abridge();
 		let candidate_hash = candidate.hash();
-		let payload = (Statement::Valid(candidate_hash), System::parent_hash()).encode();
+		let payload = (Statement::Valid(candidate_hash), session::Module::<Test>::current_index(), System::parent_hash()).encode();
 		let roster = Parachains::calculate_duty_roster().0.validator_duty;
 		AttestedCandidate {
 			candidate,

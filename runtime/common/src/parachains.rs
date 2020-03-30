@@ -35,7 +35,7 @@ use sp_staking::{
 use frame_support::{
 	traits::KeyOwnerProofSystem,
 	dispatch::{IsSubType},
-	weights::{DispatchInfo, SimpleDispatchInfo},
+	weights::{DispatchInfo, SimpleDispatchInfo, Weight, WeighData},
 };
 use primitives::{
 	Balance,
@@ -44,7 +44,7 @@ use primitives::{
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
 		LocalValidationData, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
-		ValidatorSignature,
+		ValidatorSignature, SigningContext,
 	},
 };
 use frame_support::{
@@ -121,7 +121,7 @@ pub struct ValidatorIdentities<T>(sp_std::marker::PhantomData<T>);
 /// `Hash` - a type of a hash used in the runtime.
 #[derive(RuntimeDebug, Encode, Decode)]
 #[derive(Clone, Eq, PartialEq)]
-pub struct DoubleVoteReport<Proof, Hash> {
+pub struct DoubleVoteReport<Proof> {
 	/// Identity of the double-voter.
 	pub identity: ValidatorId,
 	/// First vote of the double-vote.
@@ -130,11 +130,11 @@ pub struct DoubleVoteReport<Proof, Hash> {
 	pub second: (Statement, ValidatorSignature),
 	/// Proof that the validator with `identity` id was actually a validator at `parent_hash`.
 	pub proof: Proof,
-	/// Parent hash of the block this offence was commited.
-	pub parent_hash: Hash,
+	/// A `SigningContext` with a session and a parent hash of the moment this offence was commited.
+	pub signing_context: SigningContext,
 }
 
-impl<Proof: Parameter + GetSessionNumber, Hash: AsRef<[u8]>> DoubleVoteReport<Proof, Hash> {
+impl<Proof: Parameter + GetSessionNumber> DoubleVoteReport<Proof> {
 	fn verify<T: Trait<Proof = Proof>>(
 		&self,
 	) -> Result<(), DoubleVoteValidityError> {
@@ -145,9 +145,21 @@ impl<Proof: Parameter + GetSessionNumber, Hash: AsRef<[u8]>> DoubleVoteReport<Pr
 		T::KeyOwnerProofSystem::check_proof((PARACHAIN_KEY_TYPE_ID, id), self.proof.clone())
 			.ok_or(DoubleVoteValidityError::InvalidProof)?;
 
+		if self.proof.session() != self.signing_context.session_index {
+			return Err(DoubleVoteValidityError::InvalidReport);
+		}
+
 		// Check signatures.
-		Self::verify_vote(&first, &self.parent_hash, &self.identity)?;
-		Self::verify_vote(&second, &self.parent_hash, &self.identity)?;
+		Self::verify_vote(
+			&first,
+			&self.signing_context,
+			&self.identity,
+		)?;
+		Self::verify_vote(
+			&second,
+			&self.signing_context,
+			&self.identity,
+		)?;
 
 		match (&first.0, &second.0) {
 			// If issuing a `Candidate` message on a parachain block, neither a `Valid` or
@@ -173,10 +185,10 @@ impl<Proof: Parameter + GetSessionNumber, Hash: AsRef<[u8]>> DoubleVoteReport<Pr
 
 	fn verify_vote(
 		vote: &(Statement, ValidatorSignature),
-		parent_hash: &Hash,
+		signing_context: &SigningContext,
 		authority: &ValidatorId,
 	) -> Result<(), DoubleVoteValidityError> {
-		let payload = localized_payload(vote.0.clone(), parent_hash);
+		let payload = localized_payload(vote.0.clone(), signing_context);
 
 		if !vote.1.verify(&payload[..], authority) {
 			return Err(DoubleVoteValidityError::InvalidSignature);
@@ -203,7 +215,7 @@ impl GetSessionNumber for session::historical::Proof {
 	}
 }
 
-pub trait Trait: attestations::Trait + session::historical::Trait + staking::Trait {
+pub trait Trait: attestations::Trait + session::historical::Trait {
 	/// The outer origin type.
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
 
@@ -253,6 +265,9 @@ pub trait Trait: attestations::Trait + session::historical::Trait + staking::Tra
 		Self::IdentificationTuple,
 		DoubleVoteOffence<Self::IdentificationTuple>
 	>;
+
+	/// A type that converts the opaque hash type to exact one.
+	type BlockHashConversion: Convert<Self::Hash, primitives::Hash>;
 }
 
 /// Origin for the parachains module.
@@ -332,18 +347,6 @@ decl_storage! {
 		///
 		/// `None` if not yet updated.
 		pub DidUpdate: Option<Vec<ParaId>>;
-
-		/// The mapping from parent block hashes to session indexes.
-		///
-		/// Used for double vote report validation.
-		pub ParentToSessionIndex get(fn session_at_block):
-			map hasher(twox_64_concat) T::Hash => SessionIndex;
-
-		/// The era that is active currently.
-		///
-		/// Changes with the `ActiveEra` from `staking`. Upon these changes `ParentToSessionIndex`
-		/// is pruned.
-		ActiveEra get(fn active_era): Option<staking::EraIndex>;
 	}
 	add_extra_genesis {
 		config(authorities): Vec<ValidatorId>;
@@ -484,7 +487,6 @@ decl_module! {
 			origin,
 			report: DoubleVoteReport<
 				<T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof,
-				T::Hash,
 			>,
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
@@ -516,28 +518,10 @@ decl_module! {
 			Ok(())
 		}
 
-		fn on_initialize() {
+		fn on_initialize() -> Weight {
 			<Self as Store>::DidUpdate::kill();
 
-			let current_session = <session::Module<T>>::current_index();
-			let parent_hash = <system::Module<T>>::parent_hash();
-
-			match Self::active_era() {
-				Some(era) => {
-					if let Some(active_era) = <staking::Module<T>>::current_era() {
-						if era != active_era {
-							<Self as Store>::ActiveEra::put(active_era);
-							<ParentToSessionIndex<T>>::remove_all();
-						}
-					}
-				}
-				None => {
-					if let Some(active_era) = <staking::Module<T>>::current_era() {
-						<Self as Store>::ActiveEra::set(Some(active_era));
-					}
-				}
-			}
-			<ParentToSessionIndex<T>>::insert(parent_hash, current_session);
+			SimpleDispatchInfo::default().weigh_data(())
 		}
 
 		fn on_finalize() {
@@ -550,9 +534,12 @@ fn majority_of(list_len: usize) -> usize {
 	list_len / 2 + list_len % 2
 }
 
-fn localized_payload<H: AsRef<[u8]>>(statement: Statement, parent_hash: H) -> Vec<u8> {
+fn localized_payload(
+	statement: Statement,
+	signing_context: &SigningContext,
+) -> Vec<u8> {
 	let mut encoded = statement.encode();
-	encoded.extend(parent_hash.as_ref());
+	signing_context.using_encoded(|s| encoded.extend(s));
 	encoded
 }
 
@@ -572,6 +559,17 @@ impl<T: Trait> Module<T> {
 	) {
 		<Code>::remove(id);
 		<Heads>::remove(id);
+	}
+
+	/// Get a `SigningContext` with a current `SessionIndex` and parent hash.
+	pub fn signing_context() -> SigningContext {
+		let session_index = <session::Module<T>>::current_index();
+		let parent_hash = <system::Module<T>>::parent_hash();
+
+		SigningContext {
+			session_index,
+			parent_hash: T::BlockHashConversion::convert(parent_hash),
+		}
 	}
 
 	/// Dispatch some messages from a parachain.
@@ -910,7 +908,8 @@ impl<T: Trait> Module<T> {
 		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
 
 		let parent_hash = <system::Module<T>>::parent_hash();
-		let localized_payload = |statement: Statement| localized_payload(statement, parent_hash);
+		let signing_context = Self::signing_context();
+		let localized_payload = |statement: Statement| localized_payload(statement, &signing_context);
 
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
 
@@ -965,7 +964,7 @@ impl<T: Trait> Module<T> {
 			for (vote_index, (auth_index, _)) in candidate.validator_indices
 				.iter()
 				.enumerate()
-				.filter(|(_, bit)| *bit)
+				.filter(|(_, bit)| **bit)
 				.enumerate()
 			{
 				let validity_attestation = match candidate.validity_votes.get(vote_index) {
@@ -1158,9 +1157,8 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 		if let Some(local_call) = call.is_sub_type() {
 			if let Call::report_double_vote(report) = local_call {
 				let validators = <session::Module<T>>::validators();
-				let parent_hash = report.parent_hash;
 
-				let expected_session = Module::<T>::session_at_block(parent_hash);
+				let expected_session = report.signing_context.session_index;
 				let session = report.proof.session();
 
 				if session != expected_session {
@@ -1202,11 +1200,12 @@ mod tests {
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
 		impl_opaque_keys,
-		Perbill, curve::PiecewiseLinear, testing::{Header},
+		Perbill, curve::PiecewiseLinear, testing::Header,
 		traits::{
-			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, SaturatedConversion,
+			BlakeTwo256, IdentityLookup, SaturatedConversion,
 			OpaqueKeys,
 		},
+		testing::TestXt,
 	};
 	use primitives::{
 		parachain::{
@@ -1218,6 +1217,7 @@ mod tests {
 	use keyring::Sr25519Keyring;
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
+		traits::{OnInitialize, OnFinalize},
 	};
 	use crate::parachains;
 	use crate::registrar;
@@ -1240,6 +1240,7 @@ mod tests {
 	impl_outer_dispatch! {
 		pub enum Call for Test where origin: Origin {
 			parachains::Parachains,
+			staking::Staking,
 		}
 	}
 
@@ -1305,6 +1306,7 @@ mod tests {
 		type ValidatorId = u64;
 		type ValidatorIdOf = staking::StashOf<Self>;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+		type NextSessionRotation = session::PeriodicSessions<Period, Offset>;
 		type SessionManager = session::historical::NoteHistoricalRoot<Self, Staking>;
 		type SessionHandler = TestSessionHandler;
 		type Keys = TestSessionKeys;
@@ -1376,6 +1378,7 @@ mod tests {
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 		pub const MaxNominatorRewardedPerValidator: u32 = 64;
+		pub const ElectionLookahead: BlockNumber = 0;
 	}
 
 	pub struct CurrencyToVoteHandler;
@@ -1400,9 +1403,13 @@ mod tests {
 		type SlashDeferDuration = SlashDeferDuration;
 		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
 		type SessionInterface = Self;
-		type Time = timestamp::Module<Test>;
+		type UnixTime = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+		type NextNewSession = Session;
+		type ElectionLookahead = ElectionLookahead;
+		type Call = Call;
+		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
 	}
 
 	impl attestations::Trait for Test {
@@ -1464,6 +1471,7 @@ mod tests {
 		type Proof = <Historical as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof;
 		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 		type ReportOffence = Offences;
+		type BlockHashConversion = sp_runtime::traits::Identity;
 		type KeyOwnerProofSystem = Historical;
 	}
 
@@ -1556,7 +1564,7 @@ mod tests {
 	}
 
 	fn report_double_vote(
-		report: DoubleVoteReport<session::historical::Proof, <Test as system::Trait>::Hash>,
+		report: DoubleVoteReport<session::historical::Proof>,
 	) -> Result<ParachainsCall<Test>, TransactionValidityError> {
 		let inner = ParachainsCall::report_double_vote(report);
 		let call = Call::Parachains(inner.clone());
@@ -1601,7 +1609,6 @@ mod tests {
 
 	fn make_attestations(candidate: &mut AttestedCandidate) {
 		let mut vote_implicit = false;
-		let parent_hash = <system::Module<Test>>::parent_hash();
 
 		let (duty_roster, _) = Parachains::calculate_duty_roster();
 		let candidate_hash = candidate.candidate.hash();
@@ -1629,7 +1636,8 @@ mod tests {
 				Statement::Valid(candidate_hash.clone())
 			};
 
-			let payload = localized_payload(statement, parent_hash);
+			let signing_context = Parachains::signing_context();
+			let payload = localized_payload(statement, &signing_context);
 			let signature = key.sign(&payload[..]).into();
 
 			candidate.validity_votes.push(if vote_implicit {
@@ -2206,10 +2214,10 @@ mod tests {
 
 			let statement_candidate = Statement::Candidate(candidate_hash.clone());
 			let statement_valid = Statement::Valid(candidate_hash.clone());
-			let parent_hash = System::parent_hash();
 
-			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
-			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
+			let signing_context = Parachains::signing_context();
+			let payload_1 = localized_payload(statement_candidate.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_valid.clone(), &signing_context);
 
 			let signature_1 = key.sign(&payload_1[..]).into();
 			let signature_2 = key.sign(&payload_2[..]).into();
@@ -2237,7 +2245,7 @@ mod tests {
 				first: (statement_candidate, signature_1),
 				second: (statement_valid, signature_2),
 				proof,
-				parent_hash,
+				signing_context,
 			};
 
 			let inner = report_double_vote(report).unwrap();
@@ -2301,10 +2309,10 @@ mod tests {
 
 			let statement_candidate = Statement::Candidate(candidate_hash);
 			let statement_invalid = Statement::Invalid(candidate_hash.clone());
-			let parent_hash = System::parent_hash();
 
-			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
-			let payload_2 = localized_payload(statement_invalid.clone(), parent_hash);
+			let signing_context = Parachains::signing_context();
+			let payload_1 = localized_payload(statement_candidate.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_invalid.clone(), &signing_context);
 
 			let signature_1 = key.sign(&payload_1[..]).into();
 			let signature_2 = key.sign(&payload_2[..]).into();
@@ -2332,7 +2340,7 @@ mod tests {
 				first: (statement_candidate, signature_1),
 				second: (statement_invalid, signature_2),
 				proof,
-				parent_hash,
+				signing_context,
 			};
 
 			assert_ok!(Parachains::dispatch(
@@ -2398,10 +2406,10 @@ mod tests {
 
 			let statement_invalid = Statement::Invalid(candidate_hash.clone());
 			let statement_valid = Statement::Valid(candidate_hash.clone());
-			let parent_hash = System::parent_hash();
 
-			let payload_1 = localized_payload(statement_invalid.clone(), parent_hash);
-			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
+			let signing_context = Parachains::signing_context();
+			let payload_1 = localized_payload(statement_invalid.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_valid.clone(), &signing_context);
 
 			let signature_1 = key.sign(&payload_1[..]).into();
 			let signature_2 = key.sign(&payload_2[..]).into();
@@ -2429,7 +2437,7 @@ mod tests {
 				first: (statement_invalid, signature_1),
 				second: (statement_valid, signature_2),
 				proof,
-				parent_hash,
+				signing_context,
 			};
 
 			assert_ok!(Parachains::dispatch(
@@ -2498,10 +2506,10 @@ mod tests {
 
 			let statement_candidate = Statement::Candidate(candidate_hash.clone());
 			let statement_valid = Statement::Valid(candidate_hash.clone());
-			let parent_hash = System::parent_hash();
 
-			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
-			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
+			let signing_context = Parachains::signing_context();
+			let payload_1 = localized_payload(statement_candidate.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_valid.clone(), &signing_context);
 
 			let signature_1 = key.sign(&payload_1[..]).into();
 			let signature_2 = key.sign(&payload_2[..]).into();
@@ -2529,7 +2537,7 @@ mod tests {
 				first: (statement_candidate, signature_1),
 				second: (statement_valid, signature_2),
 				proof,
-				parent_hash,
+				signing_context,
 			};
 
 			assert_ok!(Parachains::dispatch(
@@ -2606,10 +2614,10 @@ mod tests {
 
 			let statement_candidate = Statement::Candidate(candidate_hash.clone());
 			let statement_valid = Statement::Valid(candidate_hash.clone());
-			let parent_hash = System::parent_hash();
 
-			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
-			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
+			let signing_context = Parachains::signing_context();
+			let payload_1 = localized_payload(statement_candidate.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_valid.clone(), &signing_context);
 
 			let signature_1 = key_1.sign(&payload_1[..]).into();
 			let signature_2 = key_2.sign(&payload_2[..]).into();
@@ -2622,7 +2630,7 @@ mod tests {
 				first: (statement_candidate, signature_1),
 				second: (statement_valid, signature_2),
 				proof,
-				parent_hash,
+				signing_context,
 			};
 
 			assert_eq!(
@@ -2666,8 +2674,12 @@ mod tests {
 			let statement_valid = Statement::Valid(candidate_hash.clone());
 			let parent_hash = System::parent_hash();
 
-			let payload_1 = localized_payload(statement_candidate.clone(), parent_hash);
-			let payload_2 = localized_payload(statement_valid.clone(), parent_hash);
+			let signing_context = SigningContext {
+				session_index: Session::current_index() - 1,
+				parent_hash,
+			};
+			let payload_1 = localized_payload(statement_candidate.clone(), &signing_context);
+			let payload_2 = localized_payload(statement_valid.clone(), &signing_context);
 
 			let signature_1 = key.sign(&payload_1[..]).into();
 			let signature_2 = key.sign(&payload_2[..]).into();
@@ -2697,7 +2709,7 @@ mod tests {
 				first: (statement_candidate, signature_1),
 				second: (statement_valid, signature_2),
 				proof,
-				parent_hash,
+				signing_context,
 			};
 
 			assert!(report_double_vote(report.clone()).is_err());
@@ -2718,31 +2730,6 @@ mod tests {
 					},
 				);
 			}
-		});
-	}
-
-	#[test]
-	fn double_vote_hash_to_session_gets_pruned() {
-		let parachains = vec![
-			(1u32.into(), vec![], vec![]),
-		];
-
-		// Test that `ParentToSessionIndex` is pruned upon eras turn.
-		new_test_ext(parachains.clone()).execute_with(|| {
-			start_era(1);
-
-			let parent_hash_1 = System::parent_hash();
-			// The mapping should know about the session at this block.
-			assert_eq!(Parachains::session_at_block(parent_hash_1), 3);
-
-			start_era(2);
-
-			let parent_hash_2 = System::parent_hash();
-
-			// Info about a block from pevious era is removed.
-			assert_eq!(Parachains::session_at_block(parent_hash_1), 0);
-			// Info about a block form this era is present.
-			assert_eq!(Parachains::session_at_block(parent_hash_2), 6);
 		});
 	}
 }

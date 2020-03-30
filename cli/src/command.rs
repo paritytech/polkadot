@@ -53,12 +53,12 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
 			info!("  by {}, 2017-2020", version.author);
-			info!("Chain specification: {}", config.expect_chain_spec().name());
-			info!("Node name: {}", config.name);
-			info!("Roles: {}", config.display_role());
+			info!("📋 Chain specification: {}", config.expect_chain_spec().name());
+			info!("🏷 Node name: {}", config.name);
+			info!("👤 Roles: {}", config.display_role());
 
 			if is_kusama {
-				info!("Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
+				info!("⛓ Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
 				info!("----------------------------");
 				info!("This chain is not in any way");
 				info!("      endorsed by the       ");
@@ -71,7 +71,7 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 					service::kusama_runtime::UncheckedExtrinsic,
 				>(config, opt.authority_discovery_enabled, grandpa_pause)
 			} else {
-				info!("Native runtime: {}", service::PolkadotExecutor::native_version().runtime_version);
+				info!("⛓ Native runtime: {}", service::PolkadotExecutor::native_version().runtime_version);
 
 				run_service_until_exit::<
 					service::polkadot_runtime::RuntimeApi,

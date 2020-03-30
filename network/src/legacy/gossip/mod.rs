@@ -60,7 +60,7 @@ use sc_network_gossip::{
 use polkadot_validation::{SignedStatement};
 use polkadot_primitives::{Block, Hash};
 use polkadot_primitives::parachain::{
-	ParachainHost, ValidatorId, ErasureChunk as PrimitiveChunk, PoVBlock,
+	ParachainHost, ValidatorId, ErasureChunk as PrimitiveChunk, SigningContext, PoVBlock,
 };
 use polkadot_erasure_coding::{self as erasure};
 use codec::{Decode, Encode};
@@ -403,13 +403,12 @@ impl RegisteredMessageValidator {
 	/// relevant to this leaf.
 	pub(crate) fn new_local_leaf(
 		&self,
-		relay_chain_leaf: Hash,
 		validation: MessageValidationData,
 	) -> NewLeafActions {
 		// add an entry in attestation_view
 		// prune any entries from attestation_view which are no longer leaves
 		let mut inner = self.inner.inner.write();
-		inner.attestation_view.new_local_leaf(relay_chain_leaf, validation);
+		inner.attestation_view.new_local_leaf(validation);
 
 		let mut actions = Vec::new();
 
@@ -486,11 +485,13 @@ impl GossipService for RegisteredMessageValidator {
 pub(crate) struct MessageValidationData {
 	/// The authorities' parachain validation keys at a block.
 	pub(crate) authorities: Vec<ValidatorId>,
+	/// The signing context.
+	pub(crate) signing_context: SigningContext,
 }
 
 impl MessageValidationData {
 	// check a statement's signature.
-	fn check_statement(&self, relay_chain_leaf: &Hash, statement: &SignedStatement) -> Result<(), ()> {
+	fn check_statement(&self, statement: &SignedStatement) -> Result<(), ()> {
 		let sender = match self.authorities.get(statement.sender as usize) {
 			Some(val) => val,
 			None => return Err(()),
@@ -501,7 +502,7 @@ impl MessageValidationData {
 				&statement.statement,
 				&statement.signature,
 				sender.clone(),
-				relay_chain_leaf,
+				&self.signing_context,
 			);
 
 		if good {
@@ -882,7 +883,9 @@ mod tests {
 		let topic_c = attestation_topic(hash_c);
 
 		// topic_a is in all 3 views -> succeed
-		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
+		let mut validation_data = MessageValidationData::default();
+		validation_data.signing_context.parent_hash = hash_a;
+		validator.inner.write().attestation_view.new_local_leaf(validation_data);
 		// topic_b is in the neighbor's view but not ours -> fail
 		// topic_c is not in either -> fail
 
@@ -986,7 +989,9 @@ mod tests {
 				validator_context.clear();
 		}
 
-		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
+		let mut validation_data = MessageValidationData::default();
+		validation_data.signing_context.parent_hash = hash_a;
+		validator.inner.write().attestation_view.new_local_leaf(validation_data);
 	}
 
 	#[test]
@@ -1053,8 +1058,9 @@ mod tests {
 			pov_block,
 		});
 		let encoded = message.encode();
-
-		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
+		let mut validation_data = MessageValidationData::default();
+		validation_data.signing_context.parent_hash = hash_a;
+		validator.inner.write().attestation_view.new_local_leaf(validation_data);
 
 		{
 			let mut message_allowed = validator.message_allowed();
@@ -1155,7 +1161,9 @@ mod tests {
 		let encoded = message.encode();
 		let bad_encoded = bad_message.encode();
 
-		validator.inner.write().attestation_view.new_local_leaf(hash_a, MessageValidationData::default());
+		let mut validation_data = MessageValidationData::default();
+		validation_data.signing_context.parent_hash = hash_a;
+		validator.inner.write().attestation_view.new_local_leaf(validation_data);
 
 		// before sending `Candidate` message, neither are allowed.
 		{
