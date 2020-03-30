@@ -337,7 +337,7 @@ impl View {
 		statement: &super::GossipPoVBlock,
 		peer_knowledge: &mut Knowledge,
 	) -> bool {
-		dbg!(peer_knowledge.is_aware_of(&statement.candidate_hash))
+		peer_knowledge.is_aware_of(&statement.candidate_hash)
 	}
 }
 
