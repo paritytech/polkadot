@@ -166,7 +166,6 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 			NotifyImport(sc_client_api::BlockImportNotification<Block>),
 		}
 
-
 		let collators = self.collators.clone();
 
 		let mut parachain_validation = ParachainValidationInstances {
