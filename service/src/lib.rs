@@ -328,7 +328,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let name = config.name.clone();
 	let authority_discovery_enabled = authority_discovery_enabled;
 	let sentry_nodes = config.network.sentry_nodes.clone();
-	let slot_duration = slot_duration;
+	let reserved_nodes = config.network.reserved_nodes.clone();
 
 	// sentry nodes announce themselves as authorities to the network
 	// and should run the same protocols authorities do, but it should
@@ -472,7 +472,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
 				service.client(),
 				network,
-				sentry_nodes,
+				sentry_nodes.clone(),
 				service.keystore(),
 				dht_event_stream,
 				service.prometheus_registry(),
@@ -489,12 +489,21 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		None
 	};
 
+	// add reserved and sentry nodes as favorite peers to GRANDPA
+	let favorite_peers = reserved_nodes
+		.into_iter()
+		.chain(sentry_nodes.into_iter())
+		.filter_map(|n| sc_network::config::parse_str_addr(&n).ok())
+		.map(|(peer_id, _)| peer_id)
+		.collect();
+
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
 		gossip_duration: Duration::from_millis(1000),
 		justification_period: 512,
 		name: Some(name),
 		observer_enabled: false,
+		favorite_peers,
 		keystore,
 		is_authority,
 	};
