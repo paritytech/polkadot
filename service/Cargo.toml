@@ -19,45 +19,45 @@ polkadot-runtime = { path = "../runtime/polkadot" }
 kusama-runtime = { path = "../runtime/kusama" }
 polkadot-network = { path = "../network", optional = true }
 polkadot-rpc = { path = "../rpc" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "master" }
+authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 codec = { package = "parity-scale-codec", version = "1.3.0" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 polkadot-test-runtime-client = { path = "../runtime/test-runtime/client" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["rocksdb", "full-node"]

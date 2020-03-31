@@ -17,26 +17,26 @@ crate-type = ["cdylib", "rlib"]
 log = "0.4.8"
 futures = { version = "0.3.4", features = ["compat"] }
 structopt = "0.3.8"
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
 
 tokio = { version = "0.2.13", features = ["rt-threaded"], optional = true }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli", optional = true }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli", optional = true }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli", optional = true }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 
 wasm-bindgen = { version = "0.2.57", optional = true }
 wasm-bindgen-futures = { version = "0.4.7", optional = true }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli", optional = true }
+browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "cecton-the-revenge-of-the-cli" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = [ "wasmtime", "rocksdb", "cli" ]
