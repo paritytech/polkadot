@@ -1203,7 +1203,7 @@ fn fetch_pov_from_gossip(
 	gossip_handle: &impl GossipOps,
 ) -> impl Future<Output = PoVBlock> + Send {
 	let candidate_hash = candidate.hash();
-	let topic = crate::legacy::gossip::pov_block_topic(candidate_hash);
+	let topic = crate::legacy::gossip::pov_block_topic(candidate.relay_parent);
 
 	// The gossip system checks that the correct pov-block data is present
 	// before placing in the pool, so we can safely check by candidate hash.
