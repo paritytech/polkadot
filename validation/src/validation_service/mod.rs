@@ -39,7 +39,7 @@ use polkadot_primitives::parachain::{
 	CollationInfo, SigningContext,
 };
 use keystore::KeyStorePtr;
-use sp_api::ProvideRuntimeApi;
+use sp_api::{ProvideRuntimeApi, ApiExt};
 use runtime_primitives::traits::HashFor;
 use availability_store::Store as AvailabilityStore;
 
@@ -539,7 +539,7 @@ mod tests {
 	use polkadot_primitives::parachain::{
 		PoVBlock, AbridgedCandidateReceipt, ErasureChunk, ValidatorIndex,
 		CollationInfo, DutyRoster, GlobalValidationSchedule, LocalValidationData,
-		Retriable, CollatorId, BlockData, Chain, AvailableData,
+		Retriable, CollatorId, BlockData, Chain, AvailableData, SigningContext,
 	};
 	use runtime_primitives::traits::Block as BlockT;
 	use std::pin::Pin;
@@ -692,6 +692,9 @@ mod tests {
 			fn parachain_code(_: ParaId) -> Option<Vec<u8>> { None }
 			fn get_heads(_: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<AbridgedCandidateReceipt>> {
 				None
+			}
+			fn signing_context() -> SigningContext {
+				Default::default()
 			}
 		}
 	}
