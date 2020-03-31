@@ -549,7 +549,7 @@ impl SharedTable {
 				validity_votes.sort_by(|(id1, _), (id2, _)| id1.cmp(id2));
 
 				let mut validator_indices = bitvec![
-					bitvec::cursor::LittleEndian, u8;
+					bitvec::order::Lsb0, u8;
 					0;
 					validity_votes.last().map(|(i, _)| i + 1).unwrap_or_default()
 				];
