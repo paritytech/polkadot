@@ -16,7 +16,7 @@
 use super::*;
 use parking_lot::Mutex;
 
-use polkadot_primitives::{Block, Header, BlockId};
+use polkadot_primitives::Block;
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
 	Retriable, CollatorId, AbridgedCandidateReceipt,
@@ -26,11 +26,9 @@ use polkadot_validation::SharedTable;
 
 use av_store::{Store as AvailabilityStore, ErasureNetworking};
 use sc_network_gossip::TopicNotification;
-use sp_blockchain::Result as ClientResult;
-use sp_api::{ApiRef, Core, RuntimeVersion, StorageProof, ApiErrorExt, ApiExt, ProvideRuntimeApi};
-use sp_runtime::traits::{Block as BlockT, HashFor, NumberFor};
-use sp_state_machine::ChangesTrieState;
-use sp_core::{crypto::Pair, NativeOrEncoded, ExecutionContext};
+use sp_api::{ApiRef, ProvideRuntimeApi};
+use sp_runtime::traits::Block as BlockT;
+use sp_core::crypto::Pair;
 use sp_keyring::Sr25519Keyring;
 
 use futures::executor::LocalPool;
@@ -112,19 +110,11 @@ impl crate::legacy::GossipService for MockGossip {
 }
 
 impl GossipOps for MockGossip {
-	fn new_local_leaf(
-		&self,
-		_validation_data: crate::legacy::gossip::MessageValidationData,
-	) -> crate::legacy::gossip::NewLeafActions {
+	fn new_local_leaf(&self, _: crate::legacy::gossip::MessageValidationData) -> crate::legacy::gossip::NewLeafActions {
 		crate::legacy::gossip::NewLeafActions::new()
 	}
 
-	fn register_availability_store(
-		&self,
-		_store: av_store::Store,
-	) {
-
-	}
+	fn register_availability_store(&self, _store: av_store::Store) {}
 }
 
 #[derive(Default)]
@@ -152,162 +142,46 @@ impl ProvideRuntimeApi<Block> for TestApi {
 	}
 }
 
-impl Core<Block> for RuntimeApi {
-	fn Core_version_runtime_api_impl(
-		&self,
-		_: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<RuntimeVersion>> {
-		unimplemented!("Not required for testing!")
-	}
+sp_api::mock_impl_runtime_apis! {
+	impl ParachainHost<Block> for RuntimeApi {
+		type Error = sp_blockchain::Error;
 
-	fn Core_execute_block_runtime_api_impl(
-		&self,
-		_: &BlockId,
-		_: ExecutionContext,
-		_: Option<Block>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<()>> {
-		unimplemented!("Not required for testing!")
-	}
+		fn validators(&self) -> Vec<ValidatorId> {
+			self.data.lock().validators.clone()
+		}
 
-	fn Core_initialize_block_runtime_api_impl(
-		&self,
-		_: &BlockId,
-		_: ExecutionContext,
-		_: Option<&Header>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<()>> {
-		unimplemented!("Not required for testing!")
-	}
-}
+		fn duty_roster(&self) -> DutyRoster {
+			DutyRoster {
+				validator_duty: self.data.lock().duties.clone(),
+			}
+		}
 
-impl ApiErrorExt for RuntimeApi {
-	type Error = sp_blockchain::Error;
-}
+		fn active_parachains(&self) -> Vec<(ParaId, Option<(CollatorId, Retriable)>)> {
+			self.data.lock().active_parachains.clone()
+		}
 
-impl ApiExt<Block> for RuntimeApi {
-	type StateBackend = sp_state_machine::InMemoryBackend<sp_api::HashFor<Block>>;
+		fn parachain_code(_: ParaId) -> Option<Vec<u8>> {
+			Some(Vec::new())
+		}
 
-	fn map_api_result<F: FnOnce(&Self) -> Result<R, E>, R, E>(
-		&self,
-		_: F
-	) -> Result<R, E> {
-		unimplemented!("Not required for testing!")
-	}
+		fn global_validation_schedule() -> GlobalValidationSchedule {
+			Default::default()
+		}
 
-	fn runtime_version_at(&self, _: &BlockId) -> ClientResult<RuntimeVersion> {
-		unimplemented!("Not required for testing!")
-	}
+		fn local_validation_data(_: ParaId) -> Option<LocalValidationData> {
+			Some(Default::default())
+		}
 
-	fn record_proof(&mut self) { }
+		fn get_heads(_: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<AbridgedCandidateReceipt>> {
+			Some(Vec::new())
+		}
 
-	fn extract_proof(&mut self) -> Option<StorageProof> {
-		None
-	}
-
-	fn into_storage_changes(
-		&self,
-		_: &Self::StateBackend,
-		_: Option<&ChangesTrieState<HashFor<Block>, NumberFor<Block>>>,
-		_: <Block as sp_api::BlockT>::Hash,
-	) -> std::result::Result<sp_api::StorageChanges<Self::StateBackend, Block>, String>
-		where Self: Sized
-	{
-		unimplemented!("Not required for testing!")
-	}
-}
-
-impl ParachainHost<Block> for RuntimeApi {
-	fn ParachainHost_validators_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Vec<ValidatorId>>> {
-		Ok(NativeOrEncoded::Native(self.data.lock().validators.clone()))
-	}
-
-	fn ParachainHost_duty_roster_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<DutyRoster>> {
-
-		Ok(NativeOrEncoded::Native(DutyRoster {
-			validator_duty: self.data.lock().duties.clone(),
-		}))
-	}
-
-	fn ParachainHost_active_parachains_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Vec<(ParaId, Option<(CollatorId, Retriable)>)>>> {
-		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
-	}
-
-	fn ParachainHost_parachain_code_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<ParaId>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<Vec<u8>>>> {
-		Ok(NativeOrEncoded::Native(Some(Vec::new())))
-	}
-
-	fn ParachainHost_global_validation_schedule_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<GlobalValidationSchedule>> {
-		Ok(NativeOrEncoded::Native(Default::default()))
-	}
-
-	fn ParachainHost_local_validation_data_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<ParaId>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<LocalValidationData>>> {
-		Ok(NativeOrEncoded::Native(Some(Default::default())))
-	}
-
-	fn ParachainHost_get_heads_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_extrinsics: Option<Vec<<Block as BlockT>::Extrinsic>>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<Vec<AbridgedCandidateReceipt>>>> {
-		Ok(NativeOrEncoded::Native(Some(Vec::new())))
-	}
-
-	fn ParachainHost_signing_context_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<SigningContext>> {
-		Ok(NativeOrEncoded::Native(
-				SigningContext {
-					session_index: Default::default(),
-					parent_hash: Default::default(),
-				}
-			)
-		)
+		fn signing_context() -> SigningContext {
+			SigningContext {
+				session_index: Default::default(),
+				parent_hash: Default::default(),
+			}
+		}
 	}
 }
 
