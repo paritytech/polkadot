@@ -14,6 +14,7 @@
 //! Tests for the protocol.
 
 use super::*;
+use crate::legacy::gossip::GossipPoVBlock;
 use parking_lot::Mutex;
 
 use polkadot_primitives::Block;
@@ -21,8 +22,9 @@ use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
 	Retriable, CollatorId, AbridgedCandidateReceipt,
 	GlobalValidationSchedule, LocalValidationData, ErasureChunk, SigningContext,
+	PoVBlock, BlockData,
 };
-use polkadot_validation::SharedTable;
+use polkadot_validation::{SharedTable, TableRouter};
 
 use av_store::{Store as AvailabilityStore, ErasureNetworking};
 use sc_network_gossip::TopicNotification;
@@ -276,7 +278,6 @@ fn worker_task_shuts_down_when_sender_dropped() {
 fn consensus_instances_cleaned_up() {
 	let (mut service, _gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
 	let relay_parent = [0; 32].into();
-	let authorities = Vec::new();
 
 	let signing_context = SigningContext {
 		session_index: Default::default(),
@@ -294,7 +295,7 @@ fn consensus_instances_cleaned_up() {
 	pool.spawner().spawn_local(worker_task).unwrap();
 
 	let router = pool.run_until(
-		service.build_table_router(table, &authorities)
+		service.build_table_router(table, &[])
 	).unwrap();
 
 	drop(router);
@@ -463,4 +464,55 @@ fn erasure_fetch_drop_also_drops_gossip_sender() {
 	};
 
 	pool.run_until(test_work);
+}
+
+#[test]
+fn fetches_pov_block_from_gossip() {
+	let (service, gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
+	let relay_parent = [255; 32].into();
+
+	let pov_block = PoVBlock {
+		block_data: BlockData(vec![1, 2, 3]),
+	};
+
+	let mut candidate = AbridgedCandidateReceipt::default();
+	candidate.relay_parent = relay_parent;
+	candidate.pov_block_hash = pov_block.hash();
+	let candidate_hash = candidate.hash();
+
+	let signing_context = SigningContext {
+		session_index: Default::default(),
+		parent_hash: relay_parent,
+	};
+
+	let table = Arc::new(SharedTable::new(
+		Vec::new(),
+		HashMap::new(),
+		None,
+		signing_context,
+		AvailabilityStore::new_in_memory(service.clone()),
+		None,
+	));
+
+	let spawner = pool.spawner();
+
+	spawner.spawn_local(worker_task).unwrap();
+	let topic = crate::legacy::gossip::pov_block_topic(relay_parent);
+	let (mut gossip_tx, _gossip_taken_rx) = gossip.add_gossip_stream(topic);
+
+	let test_work = async move {
+		let router = service.build_table_router(table, &[]).await.unwrap();
+		let pov_block_listener = router.fetch_pov_block(&candidate);
+
+		let message = GossipMessage::PoVBlock(GossipPoVBlock {
+			relay_chain_leaf: relay_parent,
+			candidate_hash,
+			pov_block,
+		}).encode();
+
+		gossip_tx.send(TopicNotification { message, sender: None }).await.unwrap();
+		pov_block_listener.await
+	};
+
+	pool.run_until(test_work).unwrap();
 }
