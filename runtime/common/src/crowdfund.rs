@@ -787,7 +787,7 @@ mod tests {
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(System::block_number(), 1);
+			assert_eq!(System::block_number(), 0);
 			assert_eq!(Crowdfund::fund_count(), 0);
 			assert_eq!(Crowdfund::funds(0), None);
 			let empty: Vec<FundIndex> = Vec::new();
