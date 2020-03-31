@@ -899,27 +899,20 @@ sp_api::impl_runtime_apis! {
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(
-			module: Vec<u8>,
-			extrinsic: Vec<u8>,
+			pallet: Vec<u8>,
+			benchmark: Vec<u8>,
 			lowest_range_values: Vec<u32>,
 			highest_range_values: Vec<u32>,
 			steps: Vec<u32>,
 			repeat: u32,
-		) -> Result<Vec<frame_benchmarking::BenchmarkResults>, RuntimeString> {
-			use frame_benchmarking::Benchmarking;
+		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, RuntimeString> {
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark};
 
-			let result = match module.as_slice() {
-				b"claims" => Claims::run_benchmark(
-					extrinsic,
-					lowest_range_values,
-					highest_range_values,
-					steps,
-					repeat,
-				),
-				_ => Err("Benchmark not found for this pallet."),
-			};
-
-			result.map_err(|e| e.into())
+			let mut batches = Vec::<BenchmarkBatch>::new();
+			let params = (&pallet, &benchmark, &lowest_range_values, &highest_range_values, &steps, repeat);
+			add_benchmark!(params, batches, b"claims", Claims);
+			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
+			Ok(batches)
 		}
 	}
 }
