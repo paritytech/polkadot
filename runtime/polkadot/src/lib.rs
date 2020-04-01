@@ -384,6 +384,7 @@ impl elections_phragmen::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type ChangeMembers = Council;
+	type InitializeMembers = Council;
 	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type CandidacyBond = CandidacyBond;
 	type VotingBond = VotingBond;
@@ -605,7 +606,7 @@ construct_runtime! {
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		ElectionsPhragmen: elections_phragmen::{Module, Call, Storage, Event<T>},
+		ElectionsPhragmen: elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>},
 		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
 
