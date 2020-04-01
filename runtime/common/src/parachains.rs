@@ -141,7 +141,7 @@ impl<Proof: Parameter + GetSessionNumber> DoubleVoteReport<Proof> {
 	) -> Result<(), DoubleVoteValidityError> {
 		let first = self.first.clone();
 		let second = self.second.clone();
-		let id = self.identity.encode();
+		let id = self.identity.clone();
 
 		T::KeyOwnerProofSystem::check_proof((PARACHAIN_KEY_TYPE_ID, id), self.proof.clone())
 			.ok_or(DoubleVoteValidityError::InvalidProof)?;
@@ -272,7 +272,7 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 
 	/// Compute and check proofs of historical key owners.
 	type KeyOwnerProofSystem: KeyOwnerProofSystem<
-		(KeyTypeId, Vec<u8>),
+		(KeyTypeId, ValidatorId),
 		Proof = Self::Proof,
 		IdentificationTuple = Self::IdentificationTuple,
 	>;
@@ -629,7 +629,7 @@ decl_module! {
 		pub fn report_double_vote(
 			origin,
 			report: DoubleVoteReport<
-				<T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof,
+				<T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::Proof,
 			>,
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
@@ -643,7 +643,7 @@ decl_module! {
 			// We have already checked this proof in `SignedExtension`, but we need
 			// this here to get the full identification of the offender.
 			let offender = T::KeyOwnerProofSystem::check_proof(
-					(PARACHAIN_KEY_TYPE_ID, identity.encode()),
+					(PARACHAIN_KEY_TYPE_ID, identity),
 					proof,
 				).ok_or("Invalid/outdated key ownership proof.")?;
 
@@ -851,6 +851,7 @@ impl<T: Trait> Module<T> {
 
 		for head in heads.iter() {
 			let id = head.parachain_index();
+			Heads::insert(id, &head.candidate.head_data.0);
 
 			// Queue up upwards messages (from parachains to relay chain).
 			Self::queue_upward_messages(
@@ -1795,8 +1796,10 @@ mod tests {
 		type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
 		type ValidationUpgradeDelay = ValidationUpgradeDelay;
 		type SlashPeriod = SlashPeriod;
-		type Proof = <Historical as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof;
-		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+		type Proof =
+			<Historical as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::Proof;
+		type IdentificationTuple =
+			<Historical as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::IdentificationTuple;
 		type ReportOffence = Offences;
 		type BlockHashConversion = sp_runtime::traits::Identity;
 		type KeyOwnerProofSystem = Historical;
@@ -1904,10 +1907,13 @@ mod tests {
 
 	// creates a template candidate which pins to correct relay-chain state.
 	fn raw_candidate(para_id: ParaId) -> CandidateReceipt {
+		let mut head_data = Parachains::parachain_head(&para_id).unwrap();
+		head_data.extend(para_id.encode());
+
 		CandidateReceipt {
 			parachain_index: para_id,
 			relay_parent: System::parent_hash(),
-			head_data: Default::default(),
+			head_data: HeadData(head_data),
 			collator: Default::default(),
 			signature: Default::default(),
 			pov_block_hash: Default::default(),
@@ -2453,6 +2459,9 @@ mod tests {
 				set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
 				Origin::NONE,
 			));
+
+			assert_eq!(Heads::get(&ParaId::from(0)).map(HeadData), Some(candidate_a.candidate.head_data));
+			assert_eq!(Heads::get(&ParaId::from(1)).map(HeadData), Some(candidate_b.candidate.head_data));
 		});
 	}
 

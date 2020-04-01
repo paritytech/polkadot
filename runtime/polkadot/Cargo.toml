@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.7.28"
+version = "0.7.29-pre1"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -32,7 +32,7 @@ authorship = { package = "pallet-authorship", git = "https://github.com/parityte
 babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+transaction-payment-rpc-runtime-api = { package = "pallet-transaction-payment-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 collective = { package = "pallet-collective", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 democracy = { package = "pallet-democracy", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 elections-phragmen = { package = "pallet-elections-phragmen", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -46,6 +46,7 @@ membership = { package = "pallet-membership", git = "https://github.com/parityte
 nicks = { package = "pallet-nicks", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+scheduler = { package = "pallet-scheduler", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 session = { package = "pallet-session", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -97,7 +98,7 @@ std = [
 	"authorship/std",
 	"balances/std",
 	"transaction-payment/std",
-	"pallet-transaction-payment-rpc-runtime-api/std",
+	"transaction-payment-rpc-runtime-api/std",
 	"collective/std",
 	"elections-phragmen/std",
 	"democracy/std",
@@ -112,6 +113,7 @@ std = [
 	"offences/std",
 	"sp-runtime/std",
 	"sp-staking/std",
+	"scheduler/std",
 	"session/std",
 	"staking/std",
 	"system/std",
