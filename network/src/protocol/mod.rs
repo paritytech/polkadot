@@ -26,7 +26,8 @@ use codec::{Decode, Encode};
 use futures::channel::{mpsc, oneshot};
 use futures::future::Either;
 use futures::prelude::*;
-use futures::task::{Spawn, SpawnExt};
+use futures::task::{Spawn, SpawnExt, Context, Poll};
+use futures::stream::{FuturesUnordered, StreamFuture};
 use log::{debug, trace};
 
 use polkadot_primitives::{
@@ -76,8 +77,7 @@ enum ServiceToWorkerMsg {
 	PeerDisconnected(PeerId),
 
 	// service messages.
-	BuildConsensusNetworking(Arc<SharedTable>, Vec<ValidatorId>),
-	DropConsensusNetworking(Hash),
+	BuildConsensusNetworking(mpsc::Receiver<ServiceToWorkerMsg>, Arc<SharedTable>, Vec<ValidatorId>),
 	SubmitValidatedCollation(
 		AbridgedCandidateReceipt,
 		PoVBlock,
@@ -782,6 +782,21 @@ fn send_peer_collations(
 	}
 }
 
+/// Receives messages associated to a certain consensus networking instance.
+struct ConsensusNetworkingReceiver {
+	receiver: mpsc::Receiver<ServiceToWorkerMsg>,
+	/// The relay parent of this consensus network.
+	relay_parent: Hash,
+}
+
+impl Stream for ConsensusNetworkingReceiver {
+	type Item = ServiceToWorkerMsg;
+
+	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+		Pin::new(&mut self.receiver).poll_next(cx)
+	}
+}
+
 struct Worker<Api, Sp, Gossip> {
 	protocol_handler: ProtocolHandler,
 	api: Arc<Api>,
@@ -790,6 +805,7 @@ struct Worker<Api, Sp, Gossip> {
 	background_to_main_sender: mpsc::Sender<BackgroundToWorkerMsg>,
 	background_receiver: mpsc::Receiver<BackgroundToWorkerMsg>,
 	service_receiver: mpsc::Receiver<ServiceToWorkerMsg>,
+	consensus_networking_receivers: FuturesUnordered<StreamFuture<ConsensusNetworkingReceiver>>,
 }
 
 impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
@@ -801,6 +817,7 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 	// spawns a background task to spawn consensus networking.
 	fn build_consensus_networking(
 		&mut self,
+		receiver: mpsc::Receiver<ServiceToWorkerMsg>,
 		table: Arc<SharedTable>,
 		authorities: Vec<ValidatorId>,
 	) {
@@ -832,6 +849,9 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 			},
 		);
 
+		let relay_parent = table.signing_context().parent_hash;
+		self.consensus_networking_receivers.push(ConsensusNetworkingReceiver { receiver, relay_parent }.into_future());
+
 		// glue the incoming messages, shared table, and validation
 		// work together.
 		let _ = self.executor.spawn(statement_import_loop(
@@ -855,12 +875,8 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 			ServiceToWorkerMsg::PeerMessage(remote, messages) => {
 				self.protocol_handler.on_raw_messages(remote, messages)
 			}
-
-			ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities) => {
-				self.build_consensus_networking(table, authorities);
-			}
-			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
-				self.protocol_handler.drop_consensus_networking(&relay_parent);
+			ServiceToWorkerMsg::BuildConsensusNetworking(receiver, table, authorities) => {
+				self.build_consensus_networking(receiver, table, authorities);
 			}
 			ServiceToWorkerMsg::SubmitValidatedCollation(receipt, pov_block, chunks) => {
 				let relay_parent = receipt.relay_parent;
@@ -985,6 +1001,16 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 					Some(msg) => self.handle_service_message(msg),
 					None => return,
 				},
+				consensus_service_msg = self.consensus_networking_receivers.next() => match consensus_service_msg {
+					Some((Some(msg), receiver)) => {
+						self.handle_service_message(msg);
+						self.consensus_networking_receivers.push(receiver.into_future());
+					},
+					Some((None, receiver)) => {
+						self.protocol_handler.drop_consensus_networking(&receiver.relay_parent);
+					},
+					None => {},
+				},
 				background_msg = self.background_receiver.next() => match background_msg {
 					Some(msg) => self.handle_background_message(msg),
 					None => return,
@@ -1017,6 +1043,7 @@ async fn worker_loop<Api, Sp>(
 		background_to_main_sender: background_tx,
 		background_receiver: background_rx,
 		service_receiver: receiver,
+		consensus_networking_receivers: Default::default(),
 	};
 
 	worker.main_loop().await
@@ -1296,24 +1323,6 @@ struct RouterInner {
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
 }
 
-impl Drop for RouterInner  {
-	fn drop(&mut self) {
-		let res = self.sender.try_send(
-			ServiceToWorkerMsg::DropConsensusNetworking(self.relay_parent)
-		);
-
-		if let Err(e) = res {
-			assert!(
-				!e.is_full(),
-				"futures 0.3 guarantees at least one free slot in the capacity \
-				per sender; this is the first message sent via this sender; \
-				therefore we will not have to wait for capacity; qed"
-			);
-			// other error variants (disconnection) are fine here.
-		}
-	}
-}
-
 impl Service {
 	/// Register an availablility-store that the network can query.
 	pub fn register_availability_store(&self, store: av_store::Store) {
@@ -1379,14 +1388,15 @@ impl ParachainNetwork for Service {
 		let relay_parent = table.signing_context().parent_hash.clone();
 
 		Box::pin(async move {
+			let (router_sender, receiver) = mpsc::channel(0);
 			sender.send(
-				ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities)
+				ServiceToWorkerMsg::BuildConsensusNetworking(receiver, table, authorities)
 			).await?;
 
 			Ok(Router {
 				inner: Arc::new(RouterInner {
 					relay_parent,
-					sender,
+					sender: router_sender,
 				})
 			})
 		})
