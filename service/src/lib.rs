@@ -31,7 +31,7 @@ use inherents::InherentDataProviders;
 use sc_executor::native_executor_instance;
 use log::info;
 pub use service::{
-	AbstractService, Roles, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
+	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
 	Configuration, ChainSpec,
 };
@@ -316,7 +316,8 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	use futures::stream::StreamExt;
 
 	let is_collator = collating_for.is_some();
-	let is_authority = config.roles.is_authority() && !is_collator;
+	let role = config.role.clone();
+	let is_authority = role.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = max_block_data_size;
 	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.expect_database() {
@@ -327,7 +328,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.name.clone();
 	let authority_discovery_enabled = authority_discovery_enabled;
-	let sentry_nodes = config.network.sentry_nodes.clone();
 	let slot_duration = slot_duration;
 
 	// sentry nodes announce themselves as authorities to the network
@@ -390,7 +390,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		service.spawn_task_handle(),
 	).map_err(|e| format!("Could not spawn network worker: {:?}", e))?;
 
-	if participates_in_consensus {
+	if let (Role::Authority { sentry_nodes }, true) = (&role, participates_in_consensus) {
 		let availability_store = {
 			use std::path::PathBuf;
 
@@ -472,7 +472,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
 				service.client(),
 				network,
-				sentry_nodes,
+				sentry_nodes.clone(),
 				service.keystore(),
 				dht_event_stream,
 				service.prometheus_registry(),
