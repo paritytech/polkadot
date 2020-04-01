@@ -19,6 +19,8 @@
 //! This manages routing for parachain statements, parachain block and outgoing message
 //! data fetching, communication between collators and validators, and more.
 
+#![recursion_limit="256"]
+
 use polkadot_primitives::{Block, Hash, BlakeTwo256, HashT};
 
 pub mod legacy;

@@ -54,6 +54,7 @@ type GossipStreamEntry = (mpsc::UnboundedReceiver<TopicNotification>, oneshot::S
 #[derive(Default, Clone)]
 struct MockGossip {
 	inner: Arc<Mutex<HashMap<Hash, GossipStreamEntry>>>,
+	gossip_messages: Arc<Mutex<HashMap<Hash, GossipMessage>>>,
 }
 
 impl MockGossip {
@@ -102,8 +103,8 @@ impl crate::legacy::GossipService for MockGossip {
 		})
 	}
 
-	fn gossip_message(&self, _topic: Hash, _message: GossipMessage) {
-
+	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
+		self.gossip_messages.lock().insert(topic, message);
 	}
 
 	fn send_message(&self, _who: PeerId, _message: GossipMessage) {
@@ -251,27 +252,35 @@ fn test_setup(config: Config) -> (
 }
 
 #[test]
-fn router_inner_drop_sends_worker_message() {
-	let parent = [1; 32].into();
-
-	let (sender, mut receiver) = mpsc::channel(0);
-	drop(RouterInner {
-		relay_parent: parent,
-		sender,
-	});
-
-	match receiver.try_next() {
-		Ok(Some(ServiceToWorkerMsg::DropConsensusNetworking(x))) => assert_eq!(parent, x),
-		_ => panic!("message not sent"),
-	}
-}
-
-#[test]
 fn worker_task_shuts_down_when_sender_dropped() {
 	let (service, _gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
 
 	drop(service);
 	let _ = pool.run_until(worker_task);
+}
+
+/// Given the async nature of `select!` that is being used in the main loop of the worker
+/// and that consensus instances use their own channels, we don't know when the synchronize message
+/// is handled. This helper functions checks multiple times that the given instance is dropped. Even
+/// if the first round fails, the second one should be successful as the consensus instance drop
+/// should be already handled this time.
+fn wait_for_instance_drop(service: &mut Service, pool: &mut LocalPool, instance: Hash) {
+	let mut try_counter = 0;
+	let max_tries = 3;
+
+	while try_counter < max_tries {
+		let dropped = pool.run_until(service.synchronize(move |proto| {
+			!proto.consensus_instances.contains_key(&instance)
+		}));
+
+		if dropped {
+			return;
+		}
+
+		try_counter += 1;
+	}
+
+	panic!("Consensus instance `{}` wasn't dropped!", instance);
 }
 
 #[test]
@@ -300,10 +309,60 @@ fn consensus_instances_cleaned_up() {
 
 	drop(router);
 
+	wait_for_instance_drop(&mut service, &mut pool, relay_parent);
+}
+
+#[test]
+fn collation_is_received_with_dropped_router() {
+	let (mut service, gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
+	let relay_parent = [0; 32].into();
+	let topic = crate::legacy::gossip::attestation_topic(relay_parent);
+
+	let signing_context = SigningContext {
+		session_index: Default::default(),
+		parent_hash: relay_parent,
+	};
+	let table = Arc::new(SharedTable::new(
+		vec![Sr25519Keyring::Alice.public().into()],
+		HashMap::new(),
+		Some(Arc::new(Sr25519Keyring::Alice.pair().into())),
+		signing_context,
+		AvailabilityStore::new_in_memory(service.clone()),
+		None,
+	));
+
+	pool.spawner().spawn_local(worker_task).unwrap();
+
+	let router = pool.run_until(
+		service.build_table_router(table, &[])
+	).unwrap();
+
+	let receipt = AbridgedCandidateReceipt { relay_parent, ..Default::default() };
+	let local_collation_future = router.local_collation(
+		receipt,
+		PoVBlock { block_data: BlockData(Vec::new()) },
+		(0, &[]),
+	);
+
+	// Drop the router and make sure that the consensus instance is still alive
+	drop(router);
+
 	assert!(pool.run_until(service.synchronize(move |proto| {
-		!proto.consensus_instances.contains_key(&relay_parent)
+		proto.consensus_instances.contains_key(&relay_parent)
+	})));
+
+	// The gossip message should still be unknown
+	assert!(!gossip.gossip_messages.lock().contains_key(&topic));
+
+	pool.run_until(local_collation_future).unwrap();
+
+	// Make sure the instance is now dropped and the message was gossiped
+	wait_for_instance_drop(&mut service, &mut pool, relay_parent);
+	assert!(pool.run_until(service.synchronize(move |_| {
+		gossip.gossip_messages.lock().contains_key(&topic)
 	})));
 }
+
 
 #[test]
 fn validator_peer_cleaned_up() {
