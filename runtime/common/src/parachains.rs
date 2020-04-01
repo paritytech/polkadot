@@ -140,7 +140,7 @@ impl<Proof: Parameter + GetSessionNumber> DoubleVoteReport<Proof> {
 	) -> Result<(), DoubleVoteValidityError> {
 		let first = self.first.clone();
 		let second = self.second.clone();
-		let id = self.identity.encode();
+		let id = self.identity.clone();
 
 		T::KeyOwnerProofSystem::check_proof((PARACHAIN_KEY_TYPE_ID, id), self.proof.clone())
 			.ok_or(DoubleVoteValidityError::InvalidProof)?;
@@ -251,7 +251,7 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 
 	/// Compute and check proofs of historical key owners.
 	type KeyOwnerProofSystem: KeyOwnerProofSystem<
-		(KeyTypeId, Vec<u8>),
+		(KeyTypeId, ValidatorId),
 		Proof = Self::Proof,
 		IdentificationTuple = Self::IdentificationTuple,
 	>;
@@ -486,7 +486,7 @@ decl_module! {
 		pub fn report_double_vote(
 			origin,
 			report: DoubleVoteReport<
-				<T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof,
+				<T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::Proof,
 			>,
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
@@ -500,7 +500,7 @@ decl_module! {
 			// We have already checked this proof in `SignedExtension`, but we need
 			// this here to get the full identification of the offender.
 			let offender = T::KeyOwnerProofSystem::check_proof(
-					(PARACHAIN_KEY_TYPE_ID, identity.encode()),
+					(PARACHAIN_KEY_TYPE_ID, identity),
 					proof,
 				).ok_or("Invalid/outdated key ownership proof.")?;
 
@@ -1468,8 +1468,10 @@ mod tests {
 		type Registrar = registrar::Module<Test>;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
-		type Proof = <Historical as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof;
-		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+		type Proof =
+			<Historical as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::Proof;
+		type IdentificationTuple =
+			<Historical as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::IdentificationTuple;
 		type ReportOffence = Offences;
 		type BlockHashConversion = sp_runtime::traits::Identity;
 		type KeyOwnerProofSystem = Historical;

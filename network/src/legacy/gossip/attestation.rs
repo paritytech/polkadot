@@ -35,7 +35,7 @@ use sc_network::ReputationChange;
 use polkadot_validation::GenericStatement;
 use polkadot_primitives::Hash;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use log::warn;
 
@@ -44,22 +44,34 @@ use super::{
 	ChainContext, Known, MessageValidationData, GossipStatement,
 };
 
+/// Meta-data that we keep about a candidate in the `Knowledge`.
+#[derive(Debug, Clone)]
+pub(super) struct CandidateMeta {
+	/// The hash of the pov-block data.
+	pub(super) pov_block_hash: Hash,
+}
+
 // knowledge about attestations on a single parent-hash.
 #[derive(Default)]
 pub(super) struct Knowledge {
-	candidates: HashSet<Hash>,
+	candidates: HashMap<Hash, CandidateMeta>,
 }
 
 impl Knowledge {
 	// whether the peer is aware of a candidate with given hash.
 	fn is_aware_of(&self, candidate_hash: &Hash) -> bool {
-		self.candidates.contains(candidate_hash)
+		self.candidates.contains_key(candidate_hash)
+	}
+
+	// Get candidate meta data for a candidate by hash.
+	fn candidate_meta(&self, candidate_hash: &Hash) -> Option<&CandidateMeta> {
+		self.candidates.get(candidate_hash)
 	}
 
 	// note that the peer is aware of a candidate with given hash. this should
 	// be done after observing an incoming candidate message via gossip.
-	fn note_aware(&mut self, candidate_hash: Hash) {
-		self.candidates.insert(candidate_hash);
+	fn note_aware(&mut self, candidate_hash: Hash, candidate_meta: CandidateMeta) {
+		self.candidates.insert(candidate_hash, candidate_meta);
 	}
 }
 
@@ -84,9 +96,14 @@ impl PeerData {
 	}
 
 	#[cfg(test)]
-	pub(super) fn note_aware_under_leaf(&mut self, relay_chain_leaf: &Hash, candidate_hash: Hash) {
+	pub(super) fn note_aware_under_leaf(
+		&mut self,
+		relay_chain_leaf: &Hash,
+		candidate_hash: Hash,
+		meta: CandidateMeta,
+	) {
 		if let Some(knowledge) = self.live.get_mut(relay_chain_leaf) {
-			knowledge.note_aware(candidate_hash);
+			knowledge.note_aware(candidate_hash, meta);
 		}
 	}
 
@@ -144,6 +161,7 @@ impl View {
 			},
 		));
 		self.topics.insert(attestation_topic(relay_chain_leaf), relay_chain_leaf);
+		self.topics.insert(super::pov_block_topic(relay_chain_leaf), relay_chain_leaf);
 	}
 
 	/// Prune old leaf-work that fails the leaf predicate.
@@ -164,6 +182,17 @@ impl View {
 		self.topics.get(topic)
 	}
 
+	#[cfg(test)]
+	pub(super) fn note_aware_under_leaf(
+		&mut self,
+		relay_chain_leaf: &Hash,
+		candidate_hash: Hash,
+		meta: CandidateMeta,
+	) {
+		if let Some(view) = self.leaf_view_mut(relay_chain_leaf) {
+			view.knowledge.note_aware(candidate_hash, meta);
+		}
+	}
 
 	/// Validate the signature on an attestation statement of some kind. Should be done before
 	/// any repropagation of that statement.
@@ -225,15 +254,59 @@ impl View {
 		}
 	}
 
+	/// Validate a pov-block message.
+	pub(super) fn validate_pov_block_message<C: ChainContext + ?Sized>(
+		&mut self,
+		message: &super::GossipPoVBlock,
+		chain: &C,
+	)
+		-> (GossipValidationResult<Hash>, ReputationChange)
+	{
+		match self.leaf_view(&message.relay_chain_leaf) {
+			None => {
+				let cost = match chain.is_known(&message.relay_chain_leaf) {
+					Some(Known::Leaf) => {
+						warn!(
+							target: "network",
+							"Leaf block {} not considered live for attestation",
+							message.relay_chain_leaf,
+						);
+						cost::NONE
+					}
+					Some(Known::Old) => cost::POV_BLOCK_UNWANTED,
+					_ => cost::FUTURE_MESSAGE,
+				};
+
+				(GossipValidationResult::Discard, cost)
+			}
+			Some(view) => {
+				// we only accept pov-blocks for candidates that we have
+				// and consider active.
+				match view.knowledge.candidate_meta(&message.candidate_hash) {
+					None => (GossipValidationResult::Discard, cost::POV_BLOCK_UNWANTED),
+					Some(meta) => {
+						// check that the pov-block hash is actually correct.
+						if meta.pov_block_hash == message.pov_block.hash() {
+							let topic = super::pov_block_topic(message.relay_chain_leaf);
+							(GossipValidationResult::ProcessAndKeep(topic), benefit::NEW_POV_BLOCK)
+						} else {
+							(GossipValidationResult::Discard, cost::POV_BLOCK_BAD_DATA)
+						}
+					}
+				}
+			}
+		}
+	}
+
 	/// whether it's allowed to send a statement to a peer with given knowledge
 	/// about the relay parent the statement refers to.
 	pub(super) fn statement_allowed(
 		&mut self,
 		statement: &GossipStatement,
-		relay_chain_leaf: &Hash,
 		peer_knowledge: &mut Knowledge,
 	) -> bool {
 		let signed = &statement.signed_statement;
+		let relay_chain_leaf = &statement.relay_chain_leaf;
 
 		match signed.statement {
 			GenericStatement::Valid(ref h) | GenericStatement::Invalid(ref h) => {
@@ -245,9 +318,10 @@ impl View {
 				// if we are sending a `Candidate` message we should make sure that
 				// attestation_view and their_view reflects that we know about the candidate.
 				let hash = c.hash();
-				peer_knowledge.note_aware(hash);
+				let meta = CandidateMeta { pov_block_hash: c.pov_block_hash };
+				peer_knowledge.note_aware(hash, meta.clone());
 				if let Some(attestation_view) = self.leaf_view_mut(&relay_chain_leaf) {
-					attestation_view.knowledge.note_aware(hash);
+					attestation_view.knowledge.note_aware(hash, meta);
 				}
 
 				// at this point, the peer hasn't seen the message or the candidate
@@ -255,6 +329,15 @@ impl View {
 				true
 			}
 		}
+	}
+
+	/// whether it's allowed to send a pov-block to a peer.
+	pub(super) fn pov_block_allowed(
+		&mut self,
+		statement: &super::GossipPoVBlock,
+		peer_knowledge: &mut Knowledge,
+	) -> bool {
+		peer_knowledge.is_aware_of(&statement.candidate_hash)
 	}
 }
 
