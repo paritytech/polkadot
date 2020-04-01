@@ -21,9 +21,8 @@ mod block_import;
 
 use std::{collections::HashMap, pin::Pin, sync::Arc, marker::PhantomData, task::{Poll, Context as FutureContext}};
 
-use libp2p::build_multiaddr;
 use log::trace;
-use sc_network::config::FinalityProofProvider;
+use sc_network::config::{build_multiaddr, FinalityProofProvider, Role};
 use sp_blockchain::{
 	Result as ClientResult, well_known_cache_keys::{self, Id as CacheKeyId}, Info as BlockchainInfo,
 };
@@ -525,7 +524,7 @@ pub trait TestNetFactory: Sized {
 	/// Create new test network with this many peers.
 	fn new(n: usize) -> Self {
 		trace!(target: "test_network", "Creating test network");
-		let mut net = Self::from_config(&config);
+		let mut net = Self::from_config(&Default::default());
 
 		for i in 0..n {
 			trace!(target: "test_network", "Adding peer {}", i);
@@ -558,7 +557,7 @@ pub trait TestNetFactory: Sized {
 
 		let verifier = self.make_verifier(
 			PeersClient::Full(client.clone(), backend.clone()),
-			config,
+			&Default::default(),
 			&data,
 		);
 		let verifier = VerifierAdapter::new(Arc::new(Mutex::new(Box::new(verifier) as Box<_>)));
@@ -573,7 +572,7 @@ pub trait TestNetFactory: Sized {
 		let listen_addr = build_multiaddr![Memory(rand::random::<u64>())];
 
 		let network = NetworkWorker::new(sc_network::config::Params {
-			roles: config.roles,
+			role: Role::Full,
 			executor: None,
 			network_config: NetworkConfiguration {
 				listen_addresses: vec![listen_addr.clone()],
@@ -629,7 +628,7 @@ pub trait TestNetFactory: Sized {
 
 		let verifier = self.make_verifier(
 			PeersClient::Light(client.clone(), backend.clone()),
-			&config,
+			&Default::default(),
 			&data,
 		);
 		let verifier = VerifierAdapter::new(Arc::new(Mutex::new(Box::new(verifier) as Box<_>)));
@@ -644,7 +643,7 @@ pub trait TestNetFactory: Sized {
 		let listen_addr = build_multiaddr![Memory(rand::random::<u64>())];
 
 		let network = NetworkWorker::new(sc_network::config::Params {
-			roles: config.roles,
+			role: Role::Full,
 			executor: None,
 			network_config: NetworkConfiguration {
 				listen_addresses: vec![listen_addr.clone()],
