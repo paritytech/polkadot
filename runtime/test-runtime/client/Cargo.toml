@@ -6,15 +6,15 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
 polkadot-test-runtime = { path = ".." }
-substrate-test-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
+sc-client = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch-dev" }
 futures = "0.3.1"
