@@ -12,7 +12,7 @@ tokio = { version = "0.2.13", features = ["rt-core", "blocking"] }
 derive_more = "0.14.1"
 log = "0.4.8"
 exit-future = "0.2.0"
-codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
 availability_store = { package = "polkadot-availability-store", path = "../availability-store" }
 parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
@@ -30,7 +30,7 @@ sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "mast
 block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "master" }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
 runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master" }
-bitvec = { version = "0.15.2", default-features = false, features = ["alloc"] }
+bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "master" }

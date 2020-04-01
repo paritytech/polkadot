@@ -168,7 +168,7 @@ impl<T: Trait> Module<T> {
 				let attesting_indices = head.validator_indices
 					.iter()
 					.enumerate()
-					.filter(|(_, bit)| *bit)
+					.filter(|(_, bit)| **bit)
 					.inspect(|&(auth_index, _)| {
 						if let Some(stash_id) = validators.get(auth_index) {
 							valid.push(stash_id.clone());
