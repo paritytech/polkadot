@@ -64,7 +64,7 @@ pub fn run() -> Result<()> {
 			};
 
 			if is_kusama {
-				info!("⛓ Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
+				info!("⛓  Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
 				info!("----------------------------");
 				info!("This chain is not in any way");
 				info!("      endorsed by the       ");
@@ -77,7 +77,7 @@ pub fn run() -> Result<()> {
 					service::kusama_runtime::UncheckedExtrinsic,
 				>(runtime, authority_discovery_enabled, grandpa_pause)
 			} else {
-				info!("⛓ Native runtime: {}", service::PolkadotExecutor::native_version().runtime_version);
+				info!("⛓  Native runtime: {}", service::PolkadotExecutor::native_version().runtime_version);
 
 				run_node::<
 					service::polkadot_runtime::RuntimeApi,
