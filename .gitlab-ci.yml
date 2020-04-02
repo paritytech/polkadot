@@ -64,9 +64,6 @@ variables:
     - schedules
     - web
     - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
-  except:
-    variables:
-      - $DEPLOY_TAG
 
 .test-refs:                        &test-refs
   only:
@@ -75,9 +72,6 @@ variables:
     - web
     - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
     - /^[0-9]+$/
-  except:
-    variables:
-      - $DEPLOY_TAG
 
 
 
@@ -281,11 +275,10 @@ publish-s3-release:
 
 deploy-polkasync-kusama:
   stage:                           deploy
+  <<:                              *build-refs
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
-  dependencies:
-    - publish-docker-release
   only:
     - ci-testnet-deployment
   allow_failure:                   true
