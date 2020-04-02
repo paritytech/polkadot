@@ -4145,6 +4145,7 @@ dependencies = [
 name = "polkadot-cli"
 version = "0.7.29-pre1"
 dependencies = [
+ "chrono",
  "frame-benchmarking-cli",
  "futures 0.3.4",
  "log 0.4.8",

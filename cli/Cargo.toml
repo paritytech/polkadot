@@ -17,6 +17,7 @@ crate-type = ["cdylib", "rlib"]
 log = "0.4.8"
 futures = { version = "0.3.4", features = ["compat"] }
 structopt = "0.3.8"
+chrono = "0.4.10"
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }

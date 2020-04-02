@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use chrono::prelude::*;
 use log::info;
 use sp_runtime::traits::BlakeTwo256;
 use service::{IsKusama, Block, self, RuntimeApiCollection, TFullClient};
@@ -51,8 +52,8 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 			let is_kusama = config.expect_chain_spec().is_kusama();
 
 			info!("{}", version.name);
-			info!("  version {}", config.full_version());
-			info!("  by {}, 2017-2020", version.author);
+			info!("✌️  version {}", config.full_version());
+			info!("❤️  by {}, {}-{}", version.author, version.copyright_start_year, Local::today().year());
 			info!("📋 Chain specification: {}", config.expect_chain_spec().name());
 			info!("🏷  Node name: {}", config.name);
 			info!("👤 Roles: {}", config.display_role());
