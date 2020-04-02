@@ -1061,7 +1061,7 @@ impl<T: Trait> Module<T> {
 	/// block height.
 	pub fn current_local_validation_data(id: &ParaId) -> Option<LocalValidationData> {
 		let now: T::BlockNumber = <system::Module<T>>::block_number();
-		if now >= One::one() {
+		if dbg!(now) >= One::one() {
 			Self::local_validation_data(id, now - One::one())
 		} else {
 			None
@@ -1529,7 +1529,7 @@ mod tests {
 	use primitives::{
 		parachain::{
 			CandidateReceipt, ValidityAttestation, ValidatorId, Info as ParaInfo,
-			Scheduling, CandidateCommitments,
+			Scheduling, CandidateCommitments, HeadData,
 		},
 		BlockNumber,
 		Header,
@@ -2923,13 +2923,13 @@ mod tests {
 
 		// Test that a Candidate and Valid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
-			let candidate = raw_candidate(1.into()).abridge().0;
-			let candidate_hash = candidate.hash();
-
 			assert_eq!(Staking::current_era(), Some(0));
 			assert_eq!(Session::current_index(), 0);
 
 			start_era(1);
+
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
 
 			let authorities = Parachains::authorities();
 			let authority_index = 0;
@@ -3021,10 +3021,10 @@ mod tests {
 
 		// Test that a Candidate and Invalid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
+			start_era(1);
+
 			let candidate = raw_candidate(1.into()).abridge().0;
 			let candidate_hash = candidate.hash();
-
-			start_era(1);
 
 			let authorities = Parachains::authorities();
 			let authority_index = 0;
@@ -3118,10 +3118,10 @@ mod tests {
 
 		// Test that an Invalid and Valid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
+			start_era(1);
+
 			let candidate = raw_candidate(1.into()).abridge().0;
 			let candidate_hash = candidate.hash();
-
-			start_era(1);
 
 			let authorities = Parachains::authorities();
 			let authority_index = 0;
@@ -3215,13 +3215,13 @@ mod tests {
 
 		// Test that a Candidate and Valid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
-			let candidate = raw_candidate(1.into()).abridge().0;
-			let candidate_hash = candidate.hash();
-
 			assert_eq!(Staking::current_era(), Some(0));
 			assert_eq!(Session::current_index(), 0);
 
 			start_era(1);
+
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
 
 			let authorities = Parachains::authorities();
 			let authority_index = 0;
@@ -3321,13 +3321,13 @@ mod tests {
 
 		// Test that a Candidate and Valid statements on the same candidate get slashed.
 		new_test_ext(parachains.clone()).execute_with(|| {
-			let candidate = raw_candidate(1.into()).abridge().0;
-			let candidate_hash = candidate.hash();
-
 			assert_eq!(Staking::current_era(), Some(0));
 			assert_eq!(Session::current_index(), 0);
 
 			start_era(1);
+
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
 
 			let authorities = Parachains::authorities();
 			let authority_1_index = 0;
@@ -3381,13 +3381,13 @@ mod tests {
 		// Test that submitting a report with a session mismatch between the `parent_hash`
 		// and the proof itself fails.
 		new_test_ext(parachains.clone()).execute_with(|| {
-			let candidate = raw_candidate(1.into()).abridge().0;
-			let candidate_hash = candidate.hash();
-
 			assert_eq!(Staking::current_era(), Some(0));
 			assert_eq!(Session::current_index(), 0);
 
 			start_era(1);
+
+			let candidate = raw_candidate(1.into()).abridge().0;
+			let candidate_hash = candidate.hash();
 
 			let authorities = Parachains::authorities();
 			let authority_index = 0;
