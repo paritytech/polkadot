@@ -1061,7 +1061,7 @@ impl<T: Trait> Module<T> {
 	/// block height.
 	pub fn current_local_validation_data(id: &ParaId) -> Option<LocalValidationData> {
 		let now: T::BlockNumber = <system::Module<T>>::block_number();
-		if dbg!(now) >= One::one() {
+		if now >= One::one() {
 			Self::local_validation_data(id, now - One::one())
 		} else {
 			None
