@@ -1,55 +1,46 @@
 [[group]]
-name = "align-rustc-predicate"
-label = "Align rustc predicates with chalk predicates"
+name = "two-phase-inclusion"
+requires = "distribute-erasure-pieces"
 items = [
-  { label = "isolate Binder into a Forall goal" },
-  { label = "introduce Implication" },
-  { label = "introduce Forall goals with types" },
+	{ label = "Buffer submitted parachain candidate until considered available." },
+	{ label = "Validators submit signed bitfields re: availability of parachains" },
+	{ label = "relay chain fully includes candidate once considered available" }
 ]
 
 [[group]]
-name = "recursive-solver"
-label = "Experiment with a recursive chalk solver"
+name = "secondary-checking"
+requires = "two-phase-inclusion"
 items = [
-  { label = "write-up the idea that Niko had" },
-  { label = "build prototype and evaluate" },
+	{ label = "Extract #VCheck for all checkable candidates" },
+	{ label = "Maintain a frontier of candidates that are likely to be checked soon" },
+	{ label = "Listen for new reports on candidates and new checks to update frontier" },
 ]
 
 [[group]]
-name = "rust-analyzer-integration"
-label = "Integrate with rust-analyzer"
+name = "runtime-availabilty-validity-slashing"
+label = "Availability & Validity slashing in the runtime"
+requires = ["two-phase-inclusion"]
 items = [
-  { label = "How to model impl Trait" },
-  { label = "Ensure that we never need to ask for impls of unknown types", port = "askfor", requires = ["syntactic-semantic-equality"] },
-  { label = "Deal with performance problems" },
-  { label = "Deal with memory usage" },
+	{ label = "Track all candidates within the slash period as well as their session" },
+	{ label = "Submit secondary checks to runtime", requires = ["secondary-checking"] },
+	{ label = "Track reports and attestatations for candidates. When overwhelmingly bad" },
 ]
 
 [[group]]
-name = "syntactic-semantic-equality"
-label = "Separate syntactic equality from semantic equality"
-requires = ["map-chalk-types-to-rustc-types:debruijn"]
+name = "non-direct-ancestor"
+label = "Allow candidates with non-direct ancestor"
 items = [
+	{ label = "Extend GlobalValidationData with random seed and session index"},
+	{ label = "Block author can provide minimally-attested candidate with older relay parent" },
+	{ label = "Runtime can accept and process candidates with older relay-parent" },
+	{ label = "Revise availability-store pruning to ensure only needed data is kept" },
 ]
 
 [[group]]
-name = "map-chalk-types-to-rustc-types"
-label = "Map chalk types to rustc types"
-href = "http://example.org"
+name = "grandpa-voting-rule"
+requires = ["runtime-availability-validity-slashing"]
 items = [
-  { label = "Move Identifier to TypeFamily" },
-  { label = "Adapt rutsc's debruijn index model", port="debruijn" },
-  { label = "Remove all vectors, boxes" },
-  { label = "Make intern methods take &amp;self" },
+	{ label = "Add a utility to flag a block and all of its ancestors as abandoned" },
+	{ label = "Accept new blocks on abandoned but mark them abandoned as well." },
+	{ label = "Do not vote or build on abandoned chains" },
 ]
-
-[[group]]
-name = "rustc-integration-mvp"
-label = "Integrate chalk-solve into rustc"
-requires = [ "map-chalk-types-to-rustc-types" ]
-items = [
-  { label="remove old chalk support" },
-  { label="create" },
-]
-
-
