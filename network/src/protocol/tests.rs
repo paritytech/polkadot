@@ -14,23 +14,23 @@
 //! Tests for the protocol.
 
 use super::*;
+use crate::legacy::gossip::GossipPoVBlock;
 use parking_lot::Mutex;
 
-use polkadot_primitives::{Block, Header, BlockId};
+use polkadot_primitives::Block;
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
 	Retriable, CollatorId, AbridgedCandidateReceipt,
 	GlobalValidationSchedule, LocalValidationData, ErasureChunk, SigningContext,
+	PoVBlock, BlockData,
 };
-use polkadot_validation::SharedTable;
+use polkadot_validation::{SharedTable, TableRouter};
 
 use av_store::{Store as AvailabilityStore, ErasureNetworking};
 use sc_network_gossip::TopicNotification;
-use sp_blockchain::Result as ClientResult;
-use sp_api::{ApiRef, Core, RuntimeVersion, StorageProof, ApiErrorExt, ApiExt, ProvideRuntimeApi};
-use sp_runtime::traits::{Block as BlockT, HashFor, NumberFor};
-use sp_state_machine::ChangesTrieState;
-use sp_core::{crypto::Pair, NativeOrEncoded, ExecutionContext};
+use sp_api::{ApiRef, ProvideRuntimeApi};
+use sp_runtime::traits::Block as BlockT;
+use sp_core::crypto::Pair;
 use sp_keyring::Sr25519Keyring;
 
 use futures::executor::LocalPool;
@@ -54,6 +54,7 @@ type GossipStreamEntry = (mpsc::UnboundedReceiver<TopicNotification>, oneshot::S
 #[derive(Default, Clone)]
 struct MockGossip {
 	inner: Arc<Mutex<HashMap<Hash, GossipStreamEntry>>>,
+	gossip_messages: Arc<Mutex<HashMap<Hash, GossipMessage>>>,
 }
 
 impl MockGossip {
@@ -102,8 +103,8 @@ impl crate::legacy::GossipService for MockGossip {
 		})
 	}
 
-	fn gossip_message(&self, _topic: Hash, _message: GossipMessage) {
-
+	fn gossip_message(&self, topic: Hash, message: GossipMessage) {
+		self.gossip_messages.lock().insert(topic, message);
 	}
 
 	fn send_message(&self, _who: PeerId, _message: GossipMessage) {
@@ -112,19 +113,11 @@ impl crate::legacy::GossipService for MockGossip {
 }
 
 impl GossipOps for MockGossip {
-	fn new_local_leaf(
-		&self,
-		_validation_data: crate::legacy::gossip::MessageValidationData,
-	) -> crate::legacy::gossip::NewLeafActions {
+	fn new_local_leaf(&self, _: crate::legacy::gossip::MessageValidationData) -> crate::legacy::gossip::NewLeafActions {
 		crate::legacy::gossip::NewLeafActions::new()
 	}
 
-	fn register_availability_store(
-		&self,
-		_store: av_store::Store,
-	) {
-
-	}
+	fn register_availability_store(&self, _store: av_store::Store) {}
 }
 
 #[derive(Default)]
@@ -152,162 +145,46 @@ impl ProvideRuntimeApi<Block> for TestApi {
 	}
 }
 
-impl Core<Block> for RuntimeApi {
-	fn Core_version_runtime_api_impl(
-		&self,
-		_: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<RuntimeVersion>> {
-		unimplemented!("Not required for testing!")
-	}
+sp_api::mock_impl_runtime_apis! {
+	impl ParachainHost<Block> for RuntimeApi {
+		type Error = sp_blockchain::Error;
 
-	fn Core_execute_block_runtime_api_impl(
-		&self,
-		_: &BlockId,
-		_: ExecutionContext,
-		_: Option<Block>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<()>> {
-		unimplemented!("Not required for testing!")
-	}
+		fn validators(&self) -> Vec<ValidatorId> {
+			self.data.lock().validators.clone()
+		}
 
-	fn Core_initialize_block_runtime_api_impl(
-		&self,
-		_: &BlockId,
-		_: ExecutionContext,
-		_: Option<&Header>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<()>> {
-		unimplemented!("Not required for testing!")
-	}
-}
+		fn duty_roster(&self) -> DutyRoster {
+			DutyRoster {
+				validator_duty: self.data.lock().duties.clone(),
+			}
+		}
 
-impl ApiErrorExt for RuntimeApi {
-	type Error = sp_blockchain::Error;
-}
+		fn active_parachains(&self) -> Vec<(ParaId, Option<(CollatorId, Retriable)>)> {
+			self.data.lock().active_parachains.clone()
+		}
 
-impl ApiExt<Block> for RuntimeApi {
-	type StateBackend = sp_state_machine::InMemoryBackend<sp_api::HashFor<Block>>;
+		fn parachain_code(_: ParaId) -> Option<Vec<u8>> {
+			Some(Vec::new())
+		}
 
-	fn map_api_result<F: FnOnce(&Self) -> Result<R, E>, R, E>(
-		&self,
-		_: F
-	) -> Result<R, E> {
-		unimplemented!("Not required for testing!")
-	}
+		fn global_validation_schedule() -> GlobalValidationSchedule {
+			Default::default()
+		}
 
-	fn runtime_version_at(&self, _: &BlockId) -> ClientResult<RuntimeVersion> {
-		unimplemented!("Not required for testing!")
-	}
+		fn local_validation_data(_: ParaId) -> Option<LocalValidationData> {
+			Some(Default::default())
+		}
 
-	fn record_proof(&mut self) { }
+		fn get_heads(_: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<AbridgedCandidateReceipt>> {
+			Some(Vec::new())
+		}
 
-	fn extract_proof(&mut self) -> Option<StorageProof> {
-		None
-	}
-
-	fn into_storage_changes(
-		&self,
-		_: &Self::StateBackend,
-		_: Option<&ChangesTrieState<HashFor<Block>, NumberFor<Block>>>,
-		_: <Block as sp_api::BlockT>::Hash,
-	) -> std::result::Result<sp_api::StorageChanges<Self::StateBackend, Block>, String>
-		where Self: Sized
-	{
-		unimplemented!("Not required for testing!")
-	}
-}
-
-impl ParachainHost<Block> for RuntimeApi {
-	fn ParachainHost_validators_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Vec<ValidatorId>>> {
-		Ok(NativeOrEncoded::Native(self.data.lock().validators.clone()))
-	}
-
-	fn ParachainHost_duty_roster_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<DutyRoster>> {
-
-		Ok(NativeOrEncoded::Native(DutyRoster {
-			validator_duty: self.data.lock().duties.clone(),
-		}))
-	}
-
-	fn ParachainHost_active_parachains_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Vec<(ParaId, Option<(CollatorId, Retriable)>)>>> {
-		Ok(NativeOrEncoded::Native(self.data.lock().active_parachains.clone()))
-	}
-
-	fn ParachainHost_parachain_code_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<ParaId>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<Vec<u8>>>> {
-		Ok(NativeOrEncoded::Native(Some(Vec::new())))
-	}
-
-	fn ParachainHost_global_validation_schedule_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<GlobalValidationSchedule>> {
-		Ok(NativeOrEncoded::Native(Default::default()))
-	}
-
-	fn ParachainHost_local_validation_data_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<ParaId>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<LocalValidationData>>> {
-		Ok(NativeOrEncoded::Native(Some(Default::default())))
-	}
-
-	fn ParachainHost_get_heads_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_extrinsics: Option<Vec<<Block as BlockT>::Extrinsic>>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<Option<Vec<AbridgedCandidateReceipt>>>> {
-		Ok(NativeOrEncoded::Native(Some(Vec::new())))
-	}
-
-	fn ParachainHost_signing_context_runtime_api_impl(
-		&self,
-		_at: &BlockId,
-		_: ExecutionContext,
-		_: Option<()>,
-		_: Vec<u8>,
-	) -> ClientResult<NativeOrEncoded<SigningContext>> {
-		Ok(NativeOrEncoded::Native(
-				SigningContext {
-					session_index: Default::default(),
-					parent_hash: Default::default(),
-				}
-			)
-		)
+		fn signing_context() -> SigningContext {
+			SigningContext {
+				session_index: Default::default(),
+				parent_hash: Default::default(),
+			}
+		}
 	}
 }
 
@@ -375,22 +252,6 @@ fn test_setup(config: Config) -> (
 }
 
 #[test]
-fn router_inner_drop_sends_worker_message() {
-	let parent = [1; 32].into();
-
-	let (sender, mut receiver) = mpsc::channel(0);
-	drop(RouterInner {
-		relay_parent: parent,
-		sender,
-	});
-
-	match receiver.try_next() {
-		Ok(Some(ServiceToWorkerMsg::DropConsensusNetworking(x))) => assert_eq!(parent, x),
-		_ => panic!("message not sent"),
-	}
-}
-
-#[test]
 fn worker_task_shuts_down_when_sender_dropped() {
 	let (service, _gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
 
@@ -398,11 +259,34 @@ fn worker_task_shuts_down_when_sender_dropped() {
 	let _ = pool.run_until(worker_task);
 }
 
+/// Given the async nature of `select!` that is being used in the main loop of the worker
+/// and that consensus instances use their own channels, we don't know when the synchronize message
+/// is handled. This helper functions checks multiple times that the given instance is dropped. Even
+/// if the first round fails, the second one should be successful as the consensus instance drop
+/// should be already handled this time.
+fn wait_for_instance_drop(service: &mut Service, pool: &mut LocalPool, instance: Hash) {
+	let mut try_counter = 0;
+	let max_tries = 3;
+
+	while try_counter < max_tries {
+		let dropped = pool.run_until(service.synchronize(move |proto| {
+			!proto.consensus_instances.contains_key(&instance)
+		}));
+
+		if dropped {
+			return;
+		}
+
+		try_counter += 1;
+	}
+
+	panic!("Consensus instance `{}` wasn't dropped!", instance);
+}
+
 #[test]
 fn consensus_instances_cleaned_up() {
 	let (mut service, _gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
 	let relay_parent = [0; 32].into();
-	let authorities = Vec::new();
 
 	let signing_context = SigningContext {
 		session_index: Default::default(),
@@ -420,15 +304,65 @@ fn consensus_instances_cleaned_up() {
 	pool.spawner().spawn_local(worker_task).unwrap();
 
 	let router = pool.run_until(
-		service.build_table_router(table, &authorities)
+		service.build_table_router(table, &[])
 	).unwrap();
 
 	drop(router);
 
+	wait_for_instance_drop(&mut service, &mut pool, relay_parent);
+}
+
+#[test]
+fn collation_is_received_with_dropped_router() {
+	let (mut service, gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
+	let relay_parent = [0; 32].into();
+	let topic = crate::legacy::gossip::attestation_topic(relay_parent);
+
+	let signing_context = SigningContext {
+		session_index: Default::default(),
+		parent_hash: relay_parent,
+	};
+	let table = Arc::new(SharedTable::new(
+		vec![Sr25519Keyring::Alice.public().into()],
+		HashMap::new(),
+		Some(Arc::new(Sr25519Keyring::Alice.pair().into())),
+		signing_context,
+		AvailabilityStore::new_in_memory(service.clone()),
+		None,
+	));
+
+	pool.spawner().spawn_local(worker_task).unwrap();
+
+	let router = pool.run_until(
+		service.build_table_router(table, &[])
+	).unwrap();
+
+	let receipt = AbridgedCandidateReceipt { relay_parent, ..Default::default() };
+	let local_collation_future = router.local_collation(
+		receipt,
+		PoVBlock { block_data: BlockData(Vec::new()) },
+		(0, &[]),
+	);
+
+	// Drop the router and make sure that the consensus instance is still alive
+	drop(router);
+
 	assert!(pool.run_until(service.synchronize(move |proto| {
-		!proto.consensus_instances.contains_key(&relay_parent)
+		proto.consensus_instances.contains_key(&relay_parent)
+	})));
+
+	// The gossip message should still be unknown
+	assert!(!gossip.gossip_messages.lock().contains_key(&topic));
+
+	pool.run_until(local_collation_future).unwrap();
+
+	// Make sure the instance is now dropped and the message was gossiped
+	wait_for_instance_drop(&mut service, &mut pool, relay_parent);
+	assert!(pool.run_until(service.synchronize(move |_| {
+		gossip.gossip_messages.lock().contains_key(&topic)
 	})));
 }
+
 
 #[test]
 fn validator_peer_cleaned_up() {
@@ -589,4 +523,55 @@ fn erasure_fetch_drop_also_drops_gossip_sender() {
 	};
 
 	pool.run_until(test_work);
+}
+
+#[test]
+fn fetches_pov_block_from_gossip() {
+	let (service, gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
+	let relay_parent = [255; 32].into();
+
+	let pov_block = PoVBlock {
+		block_data: BlockData(vec![1, 2, 3]),
+	};
+
+	let mut candidate = AbridgedCandidateReceipt::default();
+	candidate.relay_parent = relay_parent;
+	candidate.pov_block_hash = pov_block.hash();
+	let candidate_hash = candidate.hash();
+
+	let signing_context = SigningContext {
+		session_index: Default::default(),
+		parent_hash: relay_parent,
+	};
+
+	let table = Arc::new(SharedTable::new(
+		Vec::new(),
+		HashMap::new(),
+		None,
+		signing_context,
+		AvailabilityStore::new_in_memory(service.clone()),
+		None,
+	));
+
+	let spawner = pool.spawner();
+
+	spawner.spawn_local(worker_task).unwrap();
+	let topic = crate::legacy::gossip::pov_block_topic(relay_parent);
+	let (mut gossip_tx, _gossip_taken_rx) = gossip.add_gossip_stream(topic);
+
+	let test_work = async move {
+		let router = service.build_table_router(table, &[]).await.unwrap();
+		let pov_block_listener = router.fetch_pov_block(&candidate);
+
+		let message = GossipMessage::PoVBlock(GossipPoVBlock {
+			relay_chain_leaf: relay_parent,
+			candidate_hash,
+			pov_block,
+		}).encode();
+
+		gossip_tx.send(TopicNotification { message, sender: None }).await.unwrap();
+		pov_block_listener.await
+	};
+
+	pool.run_until(test_work).unwrap();
 }

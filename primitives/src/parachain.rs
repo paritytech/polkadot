@@ -75,9 +75,10 @@ pub type ValidatorId = validator_app::Public;
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
 pub type ValidatorIndex = u32;
 
-/// A Parachain validator keypair.
-#[cfg(feature = "std")]
-pub type ValidatorPair = validator_app::Pair;
+application_crypto::with_pair! {
+	/// A Parachain validator keypair.
+	pub type ValidatorPair = validator_app::Pair;
+}
 
 /// Signature with which parachain validators sign blocks.
 ///
