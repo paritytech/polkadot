@@ -24,7 +24,7 @@ use polkadot_erasure_coding as erasure;
 use polkadot_primitives::parachain::{
 	CollationInfo, PoVBlock, LocalValidationData, GlobalValidationSchedule, OmittedValidationData,
 	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, ParachainHost,
-	Id as ParaId, AbridgedCandidateReceipt
+	Id as ParaId, AbridgedCandidateReceipt, ValidationCode,
 };
 use polkadot_primitives::{Block, BlockId, Balance, Hash};
 use parachain::{
@@ -230,7 +230,7 @@ pub fn validate<'a>(
 	pov_block: &'a PoVBlock,
 	local_validation: &'a LocalValidationData,
 	global_validation: &'a GlobalValidationSchedule,
-	validation_code: &[u8],
+	validation_code: &ValidationCode,
 ) -> Result<ValidatedCandidate<'a>, Error> {
 	if collation.head_data.0.len() > global_validation.max_head_data_size as _ {
 		return Err(Error::HeadDataTooLarge(
@@ -260,7 +260,7 @@ pub fn validate<'a>(
 
 	let ext = Externalities::new(local_validation.balance, fee_schedule);
 	match wasm_executor::validate_candidate(
-		&validation_code,
+		&validation_code.0,
 		params,
 		ext.clone(),
 		execution_mode,
@@ -291,7 +291,7 @@ pub fn validate<'a>(
 
 /// Extracts validation parameters from a Polkadot runtime API for a specific parachain.
 pub fn validation_params<P>(api: &P, relay_parent: Hash, para_id: ParaId)
-	-> Result<(LocalValidationData, GlobalValidationSchedule, Vec<u8>), Error>
+	-> Result<(LocalValidationData, GlobalValidationSchedule, ValidationCode), Error>
 where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
