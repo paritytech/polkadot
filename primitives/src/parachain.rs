@@ -672,7 +672,7 @@ sp_api::decl_runtime_apis! {
 		/// Get the local validation data for a particular parachain.
 		fn local_validation_data(id: Id) -> Option<LocalValidationData>;
 		/// Get the given parachain's head code blob.
-		fn parachain_code(id: Id) -> Option<Vec<u8>>;
+		fn parachain_code(id: Id) -> Option<ValidationCode>;
 		/// Extract the abridged head that was set in the extrinsics.
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
 			-> Option<Vec<AbridgedCandidateReceipt>>;
