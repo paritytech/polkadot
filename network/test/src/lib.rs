@@ -22,7 +22,7 @@ mod block_import;
 use std::{collections::HashMap, pin::Pin, sync::Arc, marker::PhantomData, task::{Poll, Context as FutureContext}};
 
 use log::trace;
-use sc_network::{config::build_multiaddr, FinalityProofProvider};
+use sc_network::config::{build_multiaddr, FinalityProofProvider};
 use sp_blockchain::{
 	Result as ClientResult, well_known_cache_keys::{self, Id as CacheKeyId}, Info as BlockchainInfo,
 };
