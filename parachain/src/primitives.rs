@@ -37,10 +37,22 @@ pub type RelayChainBlockNumber = u32;
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Default))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
+impl From<Vec<u8>> for HeadData {
+	fn from(head: Vec<u8>) -> Self {
+		HeadData(head)
+	}
+}
+
 /// Parachain validation code.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+
+impl From<Vec<u8>> for ValidationCode {
+	fn from(code: Vec<u8>) -> Self {
+		ValidationCode(code)
+	}
+}
 
 /// Parachain block data.
 ///

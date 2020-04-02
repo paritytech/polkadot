@@ -214,7 +214,7 @@ pub struct CandidateCommitments {
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: Hash,
 	/// New validation code.
-	pub new_validation_code: Option<Vec<u8>>,
+	pub new_validation_code: Option<ValidationCode>,
 }
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
