@@ -28,6 +28,7 @@ use sp_externalities::ExternalitiesExt;
 #[runtime_interface]
 pub trait Parachain {
 	/// Post a message to this parachain's relay chain.
+	#[allow(dead_code)]
 	fn post_upward_message(&mut self, msg: UpwardMessage) {
 		self.extension::<crate::wasm_executor::ParachainExt>()
 			.expect("No `ParachainExt` associated with the current context.")
