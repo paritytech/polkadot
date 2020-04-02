@@ -21,9 +21,8 @@ mod block_import;
 
 use std::{collections::HashMap, pin::Pin, sync::Arc, marker::PhantomData, task::{Poll, Context as FutureContext}};
 
-use libp2p::build_multiaddr;
 use log::trace;
-use sc_network::config::FinalityProofProvider;
+use sc_network::config::{build_multiaddr, FinalityProofProvider};
 use sp_blockchain::{
 	Result as ClientResult, well_known_cache_keys::{self, Id as CacheKeyId}, Info as BlockchainInfo,
 };
@@ -47,10 +46,9 @@ use sp_consensus::{BlockOrigin, BlockImportParams, BlockCheckParams, Justificati
 use futures::prelude::*;
 use sc_network::{NetworkWorker, NetworkStateInfo, NetworkService, ReportHandle, config::ProtocolId};
 use sc_network::config::{NetworkConfiguration, TransportConfig, BoxFinalityProofRequestBuilder};
-use libp2p::PeerId;
 use parking_lot::Mutex;
 use sp_core::H256;
-use sc_network::config::{ProtocolConfig, TransactionPool};
+use sc_network::{PeerId, config::{ProtocolConfig, TransactionPool}};
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
 use sp_runtime::Justification;

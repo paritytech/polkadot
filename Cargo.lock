@@ -4237,7 +4237,6 @@ version = "0.8.0"
 dependencies = [
  "env_logger 0.7.1",
  "futures 0.3.4",
- "libp2p",
  "log 0.4.8",
  "parking_lot 0.10.0",
  "polkadot-test-runtime-client",
