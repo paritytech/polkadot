@@ -591,7 +591,7 @@ fn validator_sends_key_to_collator_on_status() {
 	pool.spawner().spawn_local(worker_task).unwrap();
 	pool.run_until(async move {
 		service_clone.synchronize(move |proto| { proto.local_keys.insert(validator_id_clone); }).await;
-		service_clone.connect_peer(peer_clone.clone(), Roles::AUTHORITY).await;
+		service_clone.connect_peer(peer_clone.clone(), ObservedRole::Authority).await;
 		service_clone.peer_message(peer_clone.clone(), Message::Status(Status {
 			version: VERSION,
 			collating_for: Some((collator_id, para_id)),
