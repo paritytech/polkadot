@@ -55,7 +55,10 @@ use sp_runtime::transaction_validity::InvalidTransaction;
 
 use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
 
-use system::{ensure_none, ensure_signed};
+use system::{
+	ensure_none, ensure_signed,
+	offchain::SubmitSignedTransaction,
+};
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
 
@@ -220,7 +223,7 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
 
 	/// The outer call dispatch type.
-	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
+	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin> + From<Call<Self>>;
 
 	/// Some way of interacting with balances for fees.
 	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
@@ -268,6 +271,9 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 
 	/// A type that converts the opaque hash type to exact one.
 	type BlockHashConversion: Convert<Self::Hash, primitives::Hash>;
+
+	/// Submit a signed transaction.
+	type SubmitSignedTransaction: SubmitSignedTransaction<Self, <Self as Trait>::Call>;
 }
 
 /// Origin for the parachains module.
@@ -541,6 +547,23 @@ fn localized_payload(
 	let mut encoded = statement.encode();
 	signing_context.using_encoded(|s| encoded.extend(s));
 	encoded
+}
+
+impl<T: Trait<Proof = session::historical::Proof>> Module<T> {
+	/// Submit a double vote report.
+	pub fn submit_double_vote_report(
+		report: DoubleVoteReport<session::historical::Proof>,
+	) -> Option<()> {
+		let call = Call::report_double_vote(report);
+
+		let res = T::SubmitSignedTransaction::submit_signed(call);
+
+		if res.iter().any(|(_, r)| r.is_ok()) {
+			Some(())
+		} else {
+			None
+		}
+	}
 }
 
 impl<T: Trait> Module<T> {
@@ -1107,6 +1130,13 @@ impl<T> sp_std::fmt::Debug for ValidateDoubleVoteReports<T> where
 	}
 }
 
+impl<T> ValidateDoubleVoteReports<T> {
+	/// Create a new `ValidateDoubleVoteReports` struct.
+	pub fn new() -> Self {
+		ValidateDoubleVoteReports(sp_std::marker::PhantomData)
+	}
+}
+
 /// Custom validity error used while validating double vote reports.
 #[derive(RuntimeDebug)]
 #[repr(u8)]
@@ -1204,7 +1234,7 @@ mod tests {
 		Perbill, curve::PiecewiseLinear, testing::Header,
 		traits::{
 			BlakeTwo256, IdentityLookup, SaturatedConversion,
-			OpaqueKeys,
+			OpaqueKeys, Extrinsic as ExtrinsicT,
 		},
 		testing::TestXt,
 	};
@@ -1460,6 +1490,31 @@ mod tests {
 		pub const MaxCodeSize: u32 = 100;
 	}
 
+	// This is needed for a custom `AccountId` type which is `u64` in testing here.
+	pub mod test_keys {
+		use sp_core::crypto::KeyTypeId;
+
+		pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
+
+		mod app {
+			use sp_application_crypto::{app_crypto, sr25519};
+			use super::super::Parachains;
+
+			app_crypto!(sr25519, super::KEY_TYPE);
+
+			impl sp_runtime::traits::IdentifyAccount for Public {
+				type AccountId = u64;
+
+				fn into_account(self) -> Self::AccountId {
+					Parachains::authorities().iter().position(|b| *b == self.0.clone().into()).unwrap() as u64
+				}
+			}
+		}
+
+		pub type ReporterId = app::Public;
+		pub type ReporterSignature = app::Signature;
+	}
+
 	impl Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
@@ -1476,6 +1531,27 @@ mod tests {
 		type ReportOffence = Offences;
 		type BlockHashConversion = sp_runtime::traits::Identity;
 		type KeyOwnerProofSystem = Historical;
+		type SubmitSignedTransaction = system::offchain::TransactionSubmitter<
+			test_keys::ReporterId,
+			Test,
+			Extrinsic,
+		>;
+	}
+
+	type Extrinsic = TestXt<Call, ()>;
+
+	impl system::offchain::CreateTransaction<Test, Extrinsic> for Test {
+		type Public = test_keys::ReporterId;
+		type Signature = test_keys::ReporterSignature;
+
+		fn create_transaction<F: system::offchain::Signer<Self::Public, Self::Signature>>(
+			call: <Extrinsic as ExtrinsicT>::Call,
+			_public: Self::Public,
+			_account: <Test as system::Trait>::AccountId,
+			nonce: <Test as system::Trait>::Index,
+		) -> Option<(<Extrinsic as ExtrinsicT>::Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+			Some((call, (nonce, ())))
+		}
 	}
 
 	type Parachains = Module<Test>;
