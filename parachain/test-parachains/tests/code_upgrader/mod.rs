@@ -33,6 +33,8 @@ const TEST_CODE: &[u8] = code_upgrader::WASM_BINARY;
 
 #[test]
 pub fn execute_good_no_upgrade() {
+	let pool = parachain::wasm_executor::ValidationPool::new();
+
 	let parent_head = HeadData {
 		number: 0,
 		parent_hash: [0; 32],
@@ -55,7 +57,7 @@ pub fn execute_good_no_upgrade() {
 			code_upgrade_allowed: None,
 		},
 		DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
+		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	).unwrap();
 
 	let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
@@ -68,6 +70,8 @@ pub fn execute_good_no_upgrade() {
 
 #[test]
 pub fn execute_good_with_upgrade() {
+	let pool = parachain::wasm_executor::ValidationPool::new();
+
 	let parent_head = HeadData {
 		number: 0,
 		parent_hash: [0; 32],
@@ -90,7 +94,7 @@ pub fn execute_good_with_upgrade() {
 			code_upgrade_allowed: Some(20),
 		},
 		DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
+		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	).unwrap();
 
 	let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
@@ -110,6 +114,8 @@ pub fn execute_good_with_upgrade() {
 #[test]
 #[should_panic]
 pub fn code_upgrade_not_allowed() {
+	let pool = parachain::wasm_executor::ValidationPool::new();
+
 	let parent_head = HeadData {
 		number: 0,
 		parent_hash: [0; 32],
@@ -132,12 +138,14 @@ pub fn code_upgrade_not_allowed() {
 			code_upgrade_allowed: None,
 		},
 		DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
+		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	).unwrap();
 }
 
 #[test]
 pub fn applies_code_upgrade_after_delay() {
+	let pool = parachain::wasm_executor::ValidationPool::new();
+
 	let (new_head, state) = {
 		let parent_head = HeadData {
 			number: 0,
@@ -161,7 +169,7 @@ pub fn applies_code_upgrade_after_delay() {
 				code_upgrade_allowed: Some(2),
 			},
 			DummyExt,
-			parachain::wasm_executor::ExecutionMode::RemoteTest,
+			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 		).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
@@ -197,7 +205,7 @@ pub fn applies_code_upgrade_after_delay() {
 				code_upgrade_allowed: None,
 			},
 			DummyExt,
-			parachain::wasm_executor::ExecutionMode::RemoteTest,
+			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 		).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
