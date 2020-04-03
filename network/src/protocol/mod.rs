@@ -318,6 +318,7 @@ pub enum Message {
 
 // ensures collator-protocol messages are sent in correct order.
 // session key must be sent before collator role.
+#[derive(Debug)]
 enum CollatorState {
 	Fresh,
 	RolePending(CollatorRole),
@@ -343,6 +344,7 @@ impl CollatorState {
 	}
 }
 
+#[derive(Debug)]
 enum ProtocolState {
 	Fresh,
 	Ready(Status, CollatorState),
@@ -417,7 +419,7 @@ pub struct Config {
 const RECENT_SESSIONS: usize = 3;
 
 /// Result when inserting recent session key.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub(crate) enum InsertedRecentKey {
 	/// Key was already known.
 	AlreadyKnown,
@@ -450,6 +452,11 @@ impl RecentValidatorIds {
 	/// As a slice. Most recent is last.
 	fn as_slice(&self) -> &[ValidatorId] {
 		&*self.inner
+	}
+
+	/// Returns the last inserted session key.
+	fn latest(&self) -> Option<&ValidatorId> {
+		self.inner.last()
 	}
 }
 
@@ -484,6 +491,7 @@ impl ProtocolHandler {
 	}
 
 	fn on_connect(&mut self, peer: PeerId, roles: Roles) {
+		eprintln!("ON CONNECT");
 		let claimed_validator = roles.contains(Roles::AUTHORITY);
 
 		self.peers.insert(peer.clone(), PeerData {
@@ -492,10 +500,10 @@ impl ProtocolHandler {
 			session_keys: Default::default(),
 		});
 
-		let status = Message::Status(Status {
+		let status = Message::Status(dbg!(Status {
 			version: VERSION,
 			collating_for: self.config.collating_for.clone(),
-		}).encode();
+		})).encode();
 
 		self.service.write_notification(peer, POLKADOT_ENGINE_ID, status);
 	}
@@ -564,14 +572,15 @@ impl ProtocolHandler {
 	}
 
 	fn on_status(&mut self, remote: PeerId, status: Status) {
+		eprintln!("ON STATUS");
 		let peer = match self.peers.get_mut(&remote) {
-			None => { self.service.report_peer(remote, cost::UNKNOWN_PEER); return }
+			None => { eprintln!("UNKNOWN"); self.service.report_peer(remote, cost::UNKNOWN_PEER); return }
 			Some(p) => p,
 		};
 
-		match peer.protocol_state {
+		match dbg!(&peer.protocol_state) {
 			ProtocolState::Fresh => {
-				peer.protocol_state = ProtocolState::Ready(status, CollatorState::Fresh);
+				peer.protocol_state = ProtocolState::Ready(dbg!(status), CollatorState::Fresh);
 				if let Some((collator_id, para_id)) = peer.ready_and_collating_for() {
 					let collator_attached = self.collators
 						.collator_id_to_peer_id(&collator_id)
@@ -582,7 +591,19 @@ impl ProtocolHandler {
 						let role = self.collators
 							.on_new_collator(collator_id, para_id, remote.clone());
 						let service = &self.service;
+						let send_key = peer.should_send_key();
+
 						if let Some(c_state) = peer.collator_state_mut() {
+							if dbg!(send_key) {
+								if let Some(key) = self.local_keys.latest() {
+									c_state.send_key(key.clone(), |msg| service.write_notification(
+										remote.clone(),
+										POLKADOT_ENGINE_ID,
+										msg.encode(),
+									));
+								}
+							}
+
 							c_state.set_role(role, |msg| service.write_notification(
 								remote.clone(),
 								POLKADOT_ENGINE_ID,
@@ -665,15 +686,17 @@ impl ProtocolHandler {
 		let mut collations_to_send = Vec::new();
 		let mut invalidated_key = None;
 
+		eprintln!("HEY ON VALIDATOR");
 		{
 			let peer = match self.peers.get_mut(&remote) {
-				None => { self.service.report_peer(remote, cost::UNKNOWN_PEER); return }
+				None => { eprintln!("UNKNOWN"); self.service.report_peer(remote, cost::UNKNOWN_PEER); return }
 				Some(p) => p,
 			};
 
 			match peer.protocol_state {
 				ProtocolState::Fresh => {
 					self.service.report_peer(remote, cost::UNEXPECTED_MESSAGE);
+					eprintln!("FRESH");
 					return
 				}
 				ProtocolState::Ready(_, _) => {
@@ -688,6 +711,7 @@ impl ProtocolHandler {
 		if let Some(invalidated) = invalidated_key {
 			self.validator_representative_removed(invalidated, &remote);
 		}
+		println!("VALIDATORID: {}", key);
 		self.connected_validators.entry(key).or_insert_with(HashSet::new).insert(remote.clone());
 
 		send_peer_collations(&*self.service, remote, collations_to_send);
@@ -731,9 +755,10 @@ impl ProtocolHandler {
 		let service = &self.service;
 
 		for (peer_id, peer) in self.peers.iter_mut() {
-			if !peer.should_send_key() { continue }
+			if dbg!(!peer.should_send_key()) { continue }
 
 			if let Some(c_state) = peer.collator_state_mut() {
+				eprintln!("SEND: {}", peer_id);
 				c_state.send_key(key.clone(), |msg| service.write_notification(
 					peer_id.clone(),
 					POLKADOT_ENGINE_ID,
@@ -825,8 +850,8 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 		let (signal, exit) = exit_future::signal();
 
 		let key = table.session_key();
-		if let Some(key) = key {
-			if let InsertedRecentKey::New(_) = self.protocol_handler.local_keys.insert(key.clone()) {
+		if let Some(key) = dbg!(key) {
+			if let InsertedRecentKey::New(_) = dbg!(self.protocol_handler.local_keys.insert(key.clone())) {
 				self.protocol_handler.distribute_new_session_key(key);
 			}
 		}
