@@ -6,15 +6,15 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/tomaka/polkadot", branch = "fix-notifs-warning" }
+substrate-test-client = { git = "https://github.com/tomaka/polkadot", branch = "fix-notifs-warning" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "fix-notifs-warning" }
 polkadot-test-runtime = { path = ".." }
-substrate-test-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-runtime = { git = "https://github.com/tomaka/polkadot", branch = "fix-notifs-warning" }
+sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "fix-notifs-warning" }
+sp-api = { git = "https://github.com/tomaka/polkadot", branch = "fix-notifs-warning" }
+sp-blockchain = { git = "https://github.com/tomaka/polkadot", branch = "fix-notifs-warning" }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/tomaka/polkadot", branch = "fix-notifs-warning" }
+sc-client = { git = "https://github.com/tomaka/polkadot", branch = "fix-notifs-warning" }
 futures = "0.3.1"

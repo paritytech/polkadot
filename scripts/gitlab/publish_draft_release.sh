@@ -4,7 +4,7 @@
 source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/lib.sh"
 
 # Set initial variables
-substrate_repo="https://github.com/paritytech/substrate"
+substrate_repo="https://github.com/tomaka/polkadot"
 substrate_dir='./substrate'
 
 # Cloning repos to ensure freshness
@@ -58,18 +58,18 @@ pushd $substrate_dir || exit
     pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
 
     # Skip if the PR has the silent label - this allows us to skip a few requests
-    if has_label 'paritytech/substrate' "$pr_id" 'B0-silent'; then
+    if has_label 'tomaka/polkadot' "$pr_id" 'B0-silent'; then
       continue
     fi
-    if has_label 'paritytech/substrate' "$pr_id" 'B1-runtimenoteworthy'; then
+    if has_label 'tomaka/polkadot' "$pr_id" 'B1-runtimenoteworthy'; then
       substrate_runtime_changes="$substrate_runtime_changes
 $line"
     fi
-    if has_label 'paritytech/substrate' "$pr_id" 'B1-clientnoteworthy'; then
+    if has_label 'tomaka/polkadot' "$pr_id" 'B1-clientnoteworthy'; then
       substrate_client_changes="$substrate_client_changes
 $line"
     fi
-     if has_label 'paritytech/substrate' "$pr_id" 'B1-apinoteworthy' ; then
+     if has_label 'tomaka/polkadot' "$pr_id" 'B1-apinoteworthy' ; then
       substrate_api_changes="$substrate_api_changes
 $line"
       continue
