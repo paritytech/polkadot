@@ -141,7 +141,7 @@ test-linux-stable:                 &test
         find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate": { s:branch = "polkadot-(master|testing)":branch = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \;
         sed -i -r 's:github.com/paritytech/substrate\?branch=polkadot-(master|testing):gitlab.parity.io/parity/substrate.git?branch=kusama-nightly-staging:' Cargo.lock
         time cargo test --all --release --verbose -- --nocapture) || \
-      time cargo test --all --release --verbose --locked -- --nocapture
+      time cargo test --release --verbose --locked -p test-parachains parallel_exec -- --nocapture
     - sccache -s
 
 
