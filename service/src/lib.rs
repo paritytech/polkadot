@@ -491,7 +491,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		name: Some(name),
 		observer_enabled: false,
 		keystore,
-		is_authority,
+		is_authority: role.is_network_authority(),
 	};
 
 	let enable_grandpa = !disable_grandpa;
