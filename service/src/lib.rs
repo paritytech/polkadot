@@ -330,11 +330,6 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let authority_discovery_enabled = authority_discovery_enabled;
 	let slot_duration = slot_duration;
 
-	// sentry nodes announce themselves as authorities to the network
-	// and should run the same protocols authorities do, but it should
-	// never actively participate in any consensus process.
-	let participates_in_consensus = is_authority && !config.sentry_mode;
-
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config, Runtime, Dispatch);
 
 	let backend = builder.backend().clone();
@@ -390,7 +385,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		service.spawn_task_handle(),
 	).map_err(|e| format!("Could not spawn network worker: {:?}", e))?;
 
-	if let (Role::Authority { sentry_nodes }, true) = (&role, participates_in_consensus) {
+	if let Role::Authority { sentry_nodes } = &role {
 		let availability_store = {
 			use std::path::PathBuf;
 
@@ -483,7 +478,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
-	let keystore = if participates_in_consensus {
+	let keystore = if is_authority {
 		Some(service.keystore())
 	} else {
 		None
