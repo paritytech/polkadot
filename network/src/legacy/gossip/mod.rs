@@ -833,7 +833,7 @@ mod tests {
 		let peer_a = PeerId::random();
 
 		let mut validator_context = MockValidatorContext::default();
-		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::FULL);
+		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::Full);
 		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
@@ -911,7 +911,7 @@ mod tests {
 		let peer_a = PeerId::random();
 
 		let mut validator_context = MockValidatorContext::default();
-		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::FULL);
+		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::Full);
 		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
@@ -953,7 +953,7 @@ mod tests {
 		let peer_a = PeerId::random();
 
 		let mut validator_context = MockValidatorContext::default();
-		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::FULL);
+		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::Full);
 		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
@@ -1007,7 +1007,7 @@ mod tests {
 		let peer_a = PeerId::random();
 
 		let mut validator_context = MockValidatorContext::default();
-		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::FULL);
+		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::Full);
 		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
@@ -1099,7 +1099,7 @@ mod tests {
 		let peer_a = PeerId::random();
 
 		let mut validator_context = MockValidatorContext::default();
-		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::FULL);
+		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::Full);
 		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
