@@ -549,23 +549,6 @@ fn localized_payload(
 	encoded
 }
 
-impl<T: Trait<Proof = session::historical::Proof>> Module<T> {
-	/// Submit a double vote report.
-	pub fn submit_double_vote_report(
-		report: DoubleVoteReport<session::historical::Proof>,
-	) -> Option<()> {
-		let call = Call::report_double_vote(report);
-
-		let res = T::SubmitSignedTransaction::submit_signed(call);
-
-		if res.iter().any(|(_, r)| r.is_ok()) {
-			Some(())
-		} else {
-			None
-		}
-	}
-}
-
 impl<T: Trait> Module<T> {
 	/// Initialize the state of a new parachain/parathread.
 	pub fn initialize_para(
@@ -592,6 +575,21 @@ impl<T: Trait> Module<T> {
 		SigningContext {
 			session_index,
 			parent_hash: T::BlockHashConversion::convert(parent_hash),
+		}
+	}
+
+	/// Submit a double vote report.
+	pub fn submit_double_vote_report(
+		report: DoubleVoteReport<T::Proof>,
+	) -> Option<()> {
+		let call = Call::report_double_vote(report);
+
+		let res = T::SubmitSignedTransaction::submit_signed(call);
+
+		if res.iter().any(|(_, r)| r.is_ok()) {
+			Some(())
+		} else {
+			None
 		}
 	}
 

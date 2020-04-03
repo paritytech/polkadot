@@ -81,7 +81,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot-test-runtime"),
 	impl_name: create_runtime_str!("parity-polkadot-test-runtime"),
 	authoring_version: 2,
-	spec_version: 1049,
+	spec_version: 1050,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -332,7 +332,7 @@ impl parachains::Trait for Runtime {
 		>::IdentificationTuple;
 	type ReportOffence = Offences;
 	type BlockHashConversion = sp_runtime::traits::Identity;
-	type SubmitSignedTransaction = TransactionSubmitter<parachain::ReporterId, Runtime, UncheckedExtrinsic>;
+	type SubmitSignedTransaction = TransactionSubmitter<parachain::FishermanId, Runtime, UncheckedExtrinsic>;
 }
 
 impl system::offchain::CreateTransaction<Runtime, UncheckedExtrinsic> for Runtime {
