@@ -53,7 +53,7 @@ use frame_support::{
 	weights::DispatchInfo,
 };
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
-use session::{historical as session_historical};
+use session::historical as session_historical;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
