@@ -294,10 +294,10 @@ impl ValidationHost {
 		debug!("{} Signaling candidate", self.id);
 		memory.set(Event::CandidateReady as usize, EventState::Signaled)?;
 
-		debug!("{} Waiting for results", self.id);
+		debug!("{} Waiting for results ({} seconds)", self.id, EXECUTION_TIMEOUT_SEC);
 		match memory.wait(Event::ResultReady as usize, shared_memory::Timeout::Sec(EXECUTION_TIMEOUT_SEC as usize)) {
 			Err(e) => {
-				debug!("Worker timeout: {:?}", e);
+				debug!("{} Worker timeout: {:?}", e);
 				if let Some(mut worker) = self.worker.take() {
 					worker.kill().ok();
 				}
