@@ -48,6 +48,7 @@ use log::{warn, error, info, debug, trace};
 
 use super::{Network, Collators, SharedTable, TableRouter};
 use crate::Error;
+use crate::pipeline::ValidationPool;
 
 /// A handle to spawn background tasks onto.
 pub type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
@@ -175,6 +176,7 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 			spawner: self.spawner,
 			availability_store: self.availability_store,
 			live_instances: HashMap::new(),
+			validation_pool: ValidationPool::new(),
 		};
 
 		let client = self.client;
@@ -262,6 +264,8 @@ pub(crate) struct ParachainValidationInstances<C, N, P, SP> {
 	/// Live agreements. Maps relay chain parent hashes to attestation
 	/// instances.
 	live_instances: HashMap<Hash, ValidationInstanceHandle>,
+	/// The underlying validation pool of processes to use.
+	validation_pool: ValidationPool,
 }
 
 impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
@@ -359,6 +363,7 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 			signing_context,
 			self.availability_store.clone(),
 			max_block_data_size,
+			Some(self.validation_pool.clone()),
 		));
 
 		let router = self.network.build_table_router(
@@ -397,10 +402,12 @@ impl<C, N, P, SP> ParachainValidationInstances<C, N, P, SP> where
 	) {
 		let (collators, client) = (self.collators.clone(), self.client.clone());
 		let availability_store = self.availability_store.clone();
+		let validation_pool = Some(self.validation_pool.clone());
 
 		let with_router = move |router: N::TableRouter| {
 			// fetch a local collation from connected collators.
 			let collation_work = crate::collation::collation_fetch(
+				validation_pool,
 				validation_para,
 				relay_parent,
 				collators,
