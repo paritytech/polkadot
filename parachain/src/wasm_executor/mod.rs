@@ -51,7 +51,7 @@ impl ParachainExt {
 /// A stub validation-pool defined when compiling for WASM.
 #[cfg(target_os = "unknown")]
 #[derive(Clone)]
-pub struct ValidatonPool {
+pub struct ValidationPool {
 	_inner: (), // private field means not publicly-instantiable
 }
 
