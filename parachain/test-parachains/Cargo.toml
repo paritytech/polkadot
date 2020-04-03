@@ -13,6 +13,7 @@ parachain = { package = "polkadot-parachain", path = ".." }
 adder = { package = "test-parachain-adder", path = "adder" }
 halt = { package = "test-parachain-halt", path = "halt" }
 code-upgrader = { package = "test-parachain-code-upgrader", path = "code-upgrader" }
+env_logger = "0.7.1"
 
 [features]
 default = [ "std" ]

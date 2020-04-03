@@ -34,6 +34,7 @@ impl Externalities for DummyExt {
 // It then passes "validation_worker" on CLI effectivly making rust test executor to run this single test.
 #[test]
 fn validation_worker() {
+	env_logger::try_init();
 	if let Some(id) = std::env::args().find(|a| a.starts_with("/shmem_rs_")) {
 		run_worker(&id).unwrap()
 	}

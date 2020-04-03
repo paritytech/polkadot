@@ -52,6 +52,7 @@ fn terminates_on_timeout() {
 
 #[test]
 fn parallel_execution() {
+	env_logger::try_init();
 	let start = std::time::Instant::now();
 	let thread = std::thread::spawn(move ||
 		parachain::wasm_executor::validate_candidate(

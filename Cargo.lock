@@ -7425,6 +7425,7 @@ dependencies = [
 name = "test-parachains"
 version = "0.7.22"
 dependencies = [
+ "env_logger 0.7.1",
  "parity-scale-codec",
  "polkadot-parachain",
  "test-parachain-adder",
