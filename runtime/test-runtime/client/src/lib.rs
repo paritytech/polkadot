@@ -26,7 +26,7 @@ pub use sc_client::LongestChain;
 
 use sp_core::{sr25519, ChangesTrieConfiguration, map, twox_128};
 use sp_core::storage::{ChildInfo, Storage, StorageChild};
-use substrate_test_runtime::genesismap::{GenesisConfig};
+use polkadot_test_runtime::genesismap::GenesisConfig;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Hash as HashT, HashFor};
 use sc_client::{
 	light::fetcher::{
@@ -93,11 +93,6 @@ impl GenesisParameters {
 				sr25519::Public::from(Sr25519Keyring::Alice).into(),
 				sr25519::Public::from(Sr25519Keyring::Bob).into(),
 				sr25519::Public::from(Sr25519Keyring::Charlie).into(),
-			],
-			vec![
-				AccountKeyring::Alice.into(),
-				AccountKeyring::Bob.into(),
-				AccountKeyring::Charlie.into(),
 			],
 			1000,
 			self.heap_pages_override,
@@ -274,7 +269,7 @@ impl LightFetcher {
 	/// Sets remote body callback.
 	pub fn with_remote_body(
 		self,
-		body: MaybeFetcherCallback<RemoteBodyRequest<polkadot_test_runtime::Header>, Vec<polkadot_test_runtimeg::Extrinsic>>,
+		body: MaybeFetcherCallback<RemoteBodyRequest<polkadot_test_runtime::Header>, Vec<polkadot_test_runtime::Extrinsic>>,
 	) -> Self {
 		LightFetcher {
 			call: self.call,

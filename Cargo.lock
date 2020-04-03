@@ -4520,6 +4520,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "rustc-hex",
+ "sc-client",
  "serde",
  "serde_derive",
  "serde_json",
@@ -4557,7 +4558,6 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "substrate-test-client",
- "substrate-test-runtime",
 ]
 
 [[package]]
