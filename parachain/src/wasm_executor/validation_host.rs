@@ -301,6 +301,7 @@ impl ValidationHost {
 				if let Some(mut worker) = self.worker.take() {
 					worker.kill().ok();
 				}
+				debug!("{} Worker killed", self.id);
 				return Err(Error::Timeout.into());
 			}
 			Ok(()) => {}

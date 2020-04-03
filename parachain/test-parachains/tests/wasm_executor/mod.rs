@@ -54,7 +54,8 @@ fn terminates_on_timeout() {
 fn parallel_execution() {
 	env_logger::try_init();
 	let start = std::time::Instant::now();
-	let thread = std::thread::spawn(move ||
+	let thread = std::thread::spawn(move || {
+		println!("Validating in aux thread");
 		parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
 		ValidationParams {
@@ -67,7 +68,10 @@ fn parallel_execution() {
 		},
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
-	).ok());
+	).ok();
+		println!("Done in aux thread");
+	});
+	println!("Validating in test thread");
 	let _ = parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
 		ValidationParams {
@@ -81,6 +85,7 @@ fn parallel_execution() {
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest,
 	);
+	println!("Done in test thread");
 	thread.join().unwrap();
 	// total time should be < 2 x EXECUTION_TIMEOUT_SEC
 	assert!(
