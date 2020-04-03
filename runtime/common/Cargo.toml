@@ -78,5 +78,6 @@ std = [
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
 	"frame-benchmarking",
-	"frame-support/runtime-benchmarks"
+	"frame-support/runtime-benchmarks",
+	"system/runtime-benchmarks",
 ]

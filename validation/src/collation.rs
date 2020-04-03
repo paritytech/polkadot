@@ -59,6 +59,7 @@ pub trait Collators: Clone {
 
 /// A future which resolves when a collation is available.
 pub async fn collation_fetch<C: Collators, P>(
+	validation_pool: Option<crate::pipeline::ValidationPool>,
 	parachain: ParaId,
 	relay_parent: Hash,
 	collators: C,
@@ -76,6 +77,7 @@ pub async fn collation_fetch<C: Collators, P>(
 		let collation = collators.collate(parachain, relay_parent).await?;
 		let Collation { info, pov } = collation;
 		let res = crate::pipeline::full_output_validation_with_api(
+			validation_pool.as_ref(),
 			&*client,
 			&info,
 			&pov,
