@@ -726,7 +726,7 @@ mod tests {
 	}
 
 	#[test]
-	fn router_is_build_on_relay_chain_validator() {
+	fn router_is_built_on_relay_chain_validator() {
 		let executor = ThreadPool::new().unwrap();
 		let keystore = keystore::Store::new_in_memory();
 
