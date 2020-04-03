@@ -55,7 +55,7 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 			info!("  by {}, 2017-2020", version.author);
 			info!("📋 Chain specification: {}", config.expect_chain_spec().name());
 			info!("🏷  Node name: {}", config.name);
-			info!("👤 Roles: {}", config.display_role());
+			info!("👤 Role: {}", config.display_role());
 
 			if is_kusama {
 				info!("⛓  Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);

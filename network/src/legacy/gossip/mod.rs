@@ -635,7 +635,7 @@ impl<C: ChainContext + ?Sized> MessageValidator<C> {
 }
 
 impl<C: ChainContext + ?Sized> sc_network_gossip::Validator<Block> for MessageValidator<C> {
-	fn new_peer(&self, _context: &mut dyn ValidatorContext<Block>, who: &PeerId, _roles: ObservedRole) {
+	fn new_peer(&self, _context: &mut dyn ValidatorContext<Block>, who: &PeerId, _role: ObservedRole) {
 		let mut inner = self.inner.write();
 		inner.peers.insert(who.clone(), PeerData::default());
 	}

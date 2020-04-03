@@ -189,8 +189,8 @@ sp_api::mock_impl_runtime_apis! {
 }
 
 impl super::Service<MockNetworkOps> {
-	async fn connect_peer(&mut self, peer: PeerId, roles: ObservedRole) {
-		self.sender.send(ServiceToWorkerMsg::PeerConnected(peer, roles)).await.unwrap();
+	async fn connect_peer(&mut self, peer: PeerId, role: ObservedRole) {
+		self.sender.send(ServiceToWorkerMsg::PeerConnected(peer, role)).await.unwrap();
 	}
 
 	async fn peer_message(&mut self, peer: PeerId, message: Message) {
