@@ -320,7 +320,7 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	N::BuildTableRouter: Unpin + Send + 'static,
 	SP: Spawn + Send + 'static,
-	CF: CollationFetch + Clone + Send + 'static,
+	CF: CollationFetch + Clone + Send + Sync + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
@@ -429,15 +429,13 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 			};
 
 			if let Some((Chain::Parachain(id), index)) = local_duty.map(|d| (d.validation, d.index)) {
+				let n_validators = validators.len();
+
 				launch_work(
-					collation_fetch,
-					client,
+					move || collation_fetch.collation_fetch(id, parent_hash, client, max_block_data_size, n_validators),
 					availability_store,
-					parent_hash,
-					id,
 					router,
-					max_block_data_size,
-					validators.len(),
+					n_validators,
 					index,
 				).await;
 			}
@@ -464,28 +462,18 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 }
 
 // launch parachain work asynchronously.
-async fn launch_work<Client>(
-	collation_fetch: impl CollationFetch,
-	client: Arc<Client>,
+async fn launch_work<CFF, E>(
+	collation_fetch: impl FnOnce() -> CFF,
 	availability_store: AvailabilityStore,
-	relay_parent: Hash,
-	validation_para: ParaId,
 	router: impl TableRouter,
-	max_block_data_size: Option<u64>,
 	n_validators: usize,
 	local_id: ValidatorIndex,
 ) where
-	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
-	Client::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
+	E: std::fmt::Debug,
+	CFF: Future<Output = Result<(CollationInfo, FullOutput), E>> + Send,
 {
 	// fetch a local collation from connected collators.
-	let (collation_info, full_output) = match collation_fetch.collation_fetch(
-		validation_para,
-		relay_parent,
-		client,
-		max_block_data_size,
-		n_validators,
-	).await {
+	let (collation_info, full_output) = match collation_fetch().await {
 		Ok(res) => res,
 		Err(e) => {
 			warn!(target: "validation", "Failed to collate candidate: {:?}", e);
