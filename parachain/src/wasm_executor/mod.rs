@@ -28,8 +28,7 @@ use sp_core::traits::CallInWasm;
 use sp_wasm_interface::HostFunctions as _;
 
 #[cfg(not(target_os = "unknown"))]
-pub use validation_host::{run_worker, EXECUTION_TIMEOUT_SEC};
-pub use validation_host::ValidationPool;
+pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC};
 
 mod validation_host;
 
@@ -46,6 +45,21 @@ sp_externalities::decl_extension! {
 impl ParachainExt {
 	pub fn new<T: Externalities + 'static>(ext: T) -> Self {
 		Self(Box::new(ext))
+	}
+}
+
+/// A stub validation-pool defined when compiling for WASM.
+#[cfg(target_os = "unknown")]
+#[derive(Clone)]
+pub struct ValidationPool {
+	_inner: (), // private field means not publicly-instantiable
+}
+
+#[cfg(target_os = "unknown")]
+impl ValidationPool {
+	/// Create a new `ValidationPool`.
+	pub fn new() -> Self {
+		ValidationPool { _inner: () }
 	}
 }
 
