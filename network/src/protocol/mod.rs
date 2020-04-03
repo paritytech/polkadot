@@ -41,7 +41,7 @@ use polkadot_validation::{
 	SharedTable, TableRouter, Network as ParachainNetwork, Validated, GenericStatement, Collators,
 	SignedStatement,
 };
-use sc_network::{config::Roles, Event, PeerId};
+use sc_network::{ObservedRole, Event, PeerId};
 use sp_api::ProvideRuntimeApi;
 use sp_runtime::ConsensusEngineId;
 
@@ -72,7 +72,7 @@ mod tests;
 // Messages from the service API or network adapter.
 enum ServiceToWorkerMsg {
 	// basic peer messages.
-	PeerConnected(PeerId, Roles),
+	PeerConnected(PeerId, ObservedRole),
 	PeerMessage(PeerId, Vec<bytes::Bytes>),
 	PeerDisconnected(PeerId),
 
@@ -255,11 +255,11 @@ pub fn start<C, Api, SP>(
 				Event::NotificationStreamOpened {
 					remote,
 					engine_id,
-					roles,
+					role,
 				} => {
 					if engine_id != POLKADOT_ENGINE_ID { continue }
 
-					worker_sender.send(ServiceToWorkerMsg::PeerConnected(remote, roles)).await
+					worker_sender.send(ServiceToWorkerMsg::PeerConnected(remote, role)).await
 				},
 				Event::NotificationStreamClosed {
 					remote,
@@ -496,8 +496,8 @@ impl ProtocolHandler {
 		}
 	}
 
-	fn on_connect(&mut self, peer: PeerId, roles: Roles) {
-		let claimed_validator = roles.contains(Roles::AUTHORITY);
+	fn on_connect(&mut self, peer: PeerId, role: ObservedRole) {
+		let claimed_validator = matches!(role, ObservedRole::OurSentry | ObservedRole::OurGuardedAuthority | ObservedRole::Authority);
 
 		self.peers.insert(peer.clone(), PeerData {
 			claimed_validator,

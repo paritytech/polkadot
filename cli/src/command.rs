@@ -151,8 +151,8 @@ where
 		TLightClient<R, D>
 	>,
 {
-	match config.roles {
-		service::Roles::LIGHT =>
+	match config.role {
+		service::Role::Light =>
 			sc_cli::run_service_until_exit(
 				config,
 				|config| service::new_light::<R, D, E>(config),

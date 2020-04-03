@@ -189,7 +189,7 @@ sp_api::mock_impl_runtime_apis! {
 }
 
 impl super::Service<MockNetworkOps> {
-	async fn connect_peer(&mut self, peer: PeerId, roles: Roles) {
+	async fn connect_peer(&mut self, peer: PeerId, roles: ObservedRole) {
 		self.sender.send(ServiceToWorkerMsg::PeerConnected(peer, roles)).await.unwrap();
 	}
 
@@ -373,7 +373,7 @@ fn validator_peer_cleaned_up() {
 
 	pool.spawner().spawn_local(worker_task).unwrap();
 	pool.run_until(async move {
-		service.connect_peer(peer.clone(), Roles::AUTHORITY).await;
+		service.connect_peer(peer.clone(), ObservedRole::Authority).await;
 		service.peer_message(peer.clone(), Message::Status(Status {
 			version: VERSION,
 			collating_for: None,
@@ -433,7 +433,7 @@ fn validator_key_spillover_cleaned() {
 
 	pool.spawner().spawn_local(worker_task).unwrap();
 	pool.run_until(async move {
-		service.connect_peer(peer.clone(), Roles::AUTHORITY).await;
+		service.connect_peer(peer.clone(), ObservedRole::Authority).await;
 		service.peer_message(peer.clone(), Message::Status(Status {
 			version: VERSION,
 			collating_for: None,

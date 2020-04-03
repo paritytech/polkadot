@@ -51,7 +51,7 @@
 
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 use sp_blockchain::Error as ClientError;
-use sc_network::{config::Roles, PeerId, ReputationChange};
+use sc_network::{ObservedRole, PeerId, ReputationChange};
 use sc_network::NetworkService;
 use sc_network_gossip::{
 	ValidationResult as GossipValidationResult,
@@ -635,7 +635,7 @@ impl<C: ChainContext + ?Sized> MessageValidator<C> {
 }
 
 impl<C: ChainContext + ?Sized> sc_network_gossip::Validator<Block> for MessageValidator<C> {
-	fn new_peer(&self, _context: &mut dyn ValidatorContext<Block>, who: &PeerId, _roles: Roles) {
+	fn new_peer(&self, _context: &mut dyn ValidatorContext<Block>, who: &PeerId, _roles: ObservedRole) {
 		let mut inner = self.inner.write();
 		inner.peers.insert(who.clone(), PeerData::default());
 	}
@@ -833,7 +833,7 @@ mod tests {
 		let peer_a = PeerId::random();
 
 		let mut validator_context = MockValidatorContext::default();
-		validator.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::Full);
 		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
@@ -911,7 +911,7 @@ mod tests {
 		let peer_a = PeerId::random();
 
 		let mut validator_context = MockValidatorContext::default();
-		validator.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::Full);
 		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
@@ -953,7 +953,7 @@ mod tests {
 		let peer_a = PeerId::random();
 
 		let mut validator_context = MockValidatorContext::default();
-		validator.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::Full);
 		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
@@ -1007,7 +1007,7 @@ mod tests {
 		let peer_a = PeerId::random();
 
 		let mut validator_context = MockValidatorContext::default();
-		validator.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::Full);
 		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
@@ -1099,7 +1099,7 @@ mod tests {
 		let peer_a = PeerId::random();
 
 		let mut validator_context = MockValidatorContext::default();
-		validator.new_peer(&mut validator_context, &peer_a, Roles::FULL);
+		validator.new_peer(&mut validator_context, &peer_a, ObservedRole::Full);
 		assert!(validator_context.events.is_empty());
 		validator_context.clear();
 
