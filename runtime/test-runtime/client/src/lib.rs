@@ -256,7 +256,7 @@ type MaybeFetcherCallback<Req, Resp> = Option<Box<dyn Fn(Req) -> Result<Resp, sp
 #[derive(Default)]
 pub struct LightFetcher {
 	call: MaybeFetcherCallback<RemoteCallRequest<polkadot_test_runtime::Header>, Vec<u8>>,
-	body: MaybeFetcherCallback<RemoteBodyRequest<polkadot_test_runtime::Header>, Vec<substrate_test_runtime::Extrinsic>>,
+	body: MaybeFetcherCallback<RemoteBodyRequest<polkadot_test_runtime::Header>, Vec<polkadot_test_runtime::Extrinsic>>,
 }
 
 impl LightFetcher {
@@ -274,7 +274,7 @@ impl LightFetcher {
 	/// Sets remote body callback.
 	pub fn with_remote_body(
 		self,
-		body: MaybeFetcherCallback<RemoteBodyRequest<polkadot_test_runtime::Header>, Vec<substrate_test_runtime::Extrinsic>>,
+		body: MaybeFetcherCallback<RemoteBodyRequest<polkadot_test_runtime::Header>, Vec<polkadot_test_runtimeg::Extrinsic>>,
 	) -> Self {
 		LightFetcher {
 			call: self.call,
