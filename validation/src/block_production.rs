@@ -277,7 +277,16 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 		{
 			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
 			for inherent in inherents {
-				block_builder.push(inherent)?;
+				match block_builder.push(inherent) {
+					Err(sp_blockchain::Error::ApplyExtrinsicFailed(sp_blockchain::ApplyExtrinsicFailed::Validity(e)))
+						if e.exhausted_resources() => {
+							warn!("⚠️  Dropping non-mandatory inherent from overweight block.");
+						}
+					Err(e) => {
+						warn!("❗️ Inherent extrinsic returned unexpected error: {}. Dropping.", e);
+					}
+					Ok(_) => {}
+				}
 			}
 
 			let mut unqueue_invalid = Vec::new();
