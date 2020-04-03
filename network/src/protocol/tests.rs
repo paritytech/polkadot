@@ -189,8 +189,8 @@ sp_api::mock_impl_runtime_apis! {
 }
 
 impl super::Service<MockNetworkOps> {
-	async fn connect_peer(&mut self, peer: PeerId, roles: ObservedRole) {
-		self.sender.send(ServiceToWorkerMsg::PeerConnected(peer, roles)).await.unwrap();
+	async fn connect_peer(&mut self, peer: PeerId, role: ObservedRole) {
+		self.sender.send(ServiceToWorkerMsg::PeerConnected(peer, role)).await.unwrap();
 	}
 
 	async fn peer_message(&mut self, peer: PeerId, message: Message) {
@@ -591,7 +591,7 @@ fn validator_sends_key_to_collator_on_status() {
 	pool.spawner().spawn_local(worker_task).unwrap();
 	pool.run_until(async move {
 		service_clone.synchronize(move |proto| { proto.local_keys.insert(validator_id_clone); }).await;
-		service_clone.connect_peer(peer_clone.clone(), Roles::AUTHORITY).await;
+		service_clone.connect_peer(peer_clone.clone(), ObservedRole::Authority).await;
 		service_clone.peer_message(peer_clone.clone(), Message::Status(Status {
 			version: VERSION,
 			collating_for: Some((collator_id, para_id)),

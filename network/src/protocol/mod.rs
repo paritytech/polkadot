@@ -891,8 +891,8 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 
 	fn handle_service_message(&mut self, message: ServiceToWorkerMsg) {
 		match message {
-			ServiceToWorkerMsg::PeerConnected(remote, roles) => {
-				self.protocol_handler.on_connect(remote, roles);
+			ServiceToWorkerMsg::PeerConnected(remote, role) => {
+				self.protocol_handler.on_connect(remote, role);
 			}
 			ServiceToWorkerMsg::PeerDisconnected(remote) => {
 				self.protocol_handler.on_disconnect(remote);

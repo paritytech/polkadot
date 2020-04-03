@@ -133,8 +133,10 @@ std = [
 	"vesting/std",
 ]
 runtime-benchmarks = [
+	"collective/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
 	"runtime-common/runtime-benchmarks",
-	"elections-phragmen/runtime-benchmarks"
+	"elections-phragmen/runtime-benchmarks",
+	"system/runtime-benchmarks",
 ]
