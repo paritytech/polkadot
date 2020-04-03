@@ -54,7 +54,7 @@ pub use self::shared_table::{
 pub use self::validation_service::{ServiceHandle, ServiceBuilder};
 
 #[cfg(not(target_os = "unknown"))]
-pub use parachain::wasm_executor::{run_worker as run_validation_worker};
+pub use parachain::wasm_executor::run_worker as run_validation_worker;
 
 mod dynamic_inclusion;
 mod error;
@@ -108,6 +108,7 @@ pub trait Network {
 
 	/// Instantiate a table router using the given shared table.
 	/// Also pass through any outgoing messages to be broadcast to peers.
+	#[must_use]
 	fn build_table_router(
 		&self,
 		table: Arc<SharedTable>,
