@@ -233,7 +233,7 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 }
 
 /// Abstraction over `collation_fetch`.
-pub trait CollationFetch {
+pub(crate) trait CollationFetch {
 	/// Error type used by `collation_fetch`.
 	type Error: std::fmt::Debug;
 
