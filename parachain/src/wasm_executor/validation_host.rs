@@ -297,7 +297,7 @@ impl ValidationHost {
 		debug!("{} Waiting for results ({} seconds)", self.id, EXECUTION_TIMEOUT_SEC);
 		match memory.wait(Event::ResultReady as usize, shared_memory::Timeout::Sec(EXECUTION_TIMEOUT_SEC as usize)) {
 			Err(e) => {
-				debug!("{} Worker timeout: {:?}", e);
+				debug!("{} Worker timeout: {:?}", self.id, e);
 				if let Some(mut worker) = self.worker.take() {
 					worker.kill().ok();
 				}
