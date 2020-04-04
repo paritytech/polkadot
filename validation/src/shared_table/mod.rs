@@ -39,7 +39,7 @@ use self::includable::IncludabilitySender;
 use primitives::Pair;
 use sp_api::ProvideRuntimeApi;
 
-use crate::pipeline::FullOutput;
+use crate::pipeline::{FullOutput, ValidationPool};
 use crate::Error;
 
 mod includable;
@@ -132,6 +132,7 @@ struct SharedTableInner {
 	trackers: Vec<IncludabilitySender>,
 	availability_store: AvailabilityStore,
 	validated: HashMap<Hash, ValidationWork>,
+	validation_pool: Option<ValidationPool>,
 }
 
 impl SharedTableInner {
@@ -193,6 +194,7 @@ impl SharedTableInner {
 		};
 
 		work.map(|work| ParachainWork {
+			validation_pool: self.validation_pool.clone(),
 			availability_store: self.availability_store.clone(),
 			relay_parent: context.signing_context.parent_hash.clone(),
 			work,
@@ -259,6 +261,7 @@ impl Validated {
 
 /// Future that performs parachain validation work.
 pub struct ParachainWork<Fetch> {
+	validation_pool: Option<ValidationPool>,
 	work: Work<Fetch>,
 	relay_parent: Hash,
 	availability_store: AvailabilityStore,
@@ -283,9 +286,11 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 		let n_validators = self.n_validators;
 		let expected_relay_parent = self.relay_parent;
 
+		let pool = self.validation_pool.clone();
 		let validate = move |pov_block: &PoVBlock, candidate: &AbridgedCandidateReceipt| {
 			let collation_info = candidate.to_collation_info();
 			let full_output = crate::pipeline::full_output_validation_with_api(
+				pool.as_ref(),
 				&*api,
 				&collation_info,
 				pov_block,
@@ -416,6 +421,7 @@ impl SharedTable {
 		signing_context: SigningContext,
 		availability_store: AvailabilityStore,
 		max_block_data_size: Option<u64>,
+		validation_pool: Option<ValidationPool>,
 	) -> Self {
 		SharedTable {
 			context: Arc::new(TableContext { groups, key, signing_context, validators: validators.clone(), }),
@@ -425,6 +431,7 @@ impl SharedTable {
 				validated: HashMap::new(),
 				trackers: Vec::new(),
 				availability_store,
+				validation_pool,
 			}))
 		}
 	}
@@ -685,6 +692,7 @@ mod tests {
 			signing_context.clone(),
 			AvailabilityStore::new_in_memory(DummyErasureNetworking),
 			None,
+			None,
 		);
 
 		let mut candidate = AbridgedCandidateReceipt::default();
@@ -740,6 +748,7 @@ mod tests {
 			Some(local_key.clone()),
 			signing_context.clone(),
 			AvailabilityStore::new_in_memory(DummyErasureNetworking),
+			None,
 			None,
 		);
 
@@ -798,6 +807,7 @@ mod tests {
 			availability_store: store.clone(),
 			max_block_data_size: None,
 			n_validators,
+			validation_pool: None,
 		};
 
 		for i in 0..n_validators {
@@ -867,6 +877,7 @@ mod tests {
 			availability_store: store.clone(),
 			max_block_data_size: None,
 			n_validators,
+			validation_pool: None,
 		};
 
 		let validated = block_on(producer.prime_with(|_, _| Ok(
@@ -920,6 +931,7 @@ mod tests {
 			Some(local_key.clone()),
 			signing_context.clone(),
 			AvailabilityStore::new_in_memory(DummyErasureNetworking),
+			None,
 			None,
 		);
 
@@ -987,6 +999,7 @@ mod tests {
 			Some(local_key.clone()),
 			signing_context.clone(),
 			AvailabilityStore::new_in_memory(DummyErasureNetworking),
+			None,
 			None,
 		);
 

@@ -47,6 +47,7 @@ use log::{warn, error, info, debug, trace};
 
 use super::{Network, Collators, SharedTable, TableRouter};
 use crate::Error;
+use crate::pipeline::ValidationPool;
 
 /// A handle to spawn background tasks onto.
 pub type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
@@ -164,13 +165,15 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 			NotifyImport(sc_client_api::BlockImportNotification<Block>),
 		}
 
+		let validation_pool = Some(ValidationPool::new());
 		let mut parachain_validation = ParachainValidationInstances {
 			client: self.client.clone(),
 			network: self.network,
 			spawner: self.spawner,
 			availability_store: self.availability_store,
 			live_instances: HashMap::new(),
-			collation_fetch: DefaultCollationFetch(self.collators),
+			validation_pool: validation_pool.clone(),
+			collation_fetch: DefaultCollationFetch(self.collators, validation_pool),
 		};
 
 		let client = self.client;
@@ -252,7 +255,7 @@ pub(crate) trait CollationFetch {
 }
 
 #[derive(Clone)]
-struct DefaultCollationFetch<C>(C);
+struct DefaultCollationFetch<C>(C, Option<ValidationPool>);
 impl<C> CollationFetch for DefaultCollationFetch<C>
 	where
 		C: Collators + Send + Sync + Unpin + 'static,
@@ -272,10 +275,12 @@ impl<C> CollationFetch for DefaultCollationFetch<C>
 			P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 			P: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	{
+		let DefaultCollationFetch(collators, validation_pool) = self;
 		crate::collation::collation_fetch(
+			validation_pool,
 			parachain,
 			relay_parent,
-			self.0,
+			collators,
 			client,
 			max_block_data_size,
 			n_validators,
@@ -307,6 +312,9 @@ pub(crate) struct ParachainValidationInstances<N, P, SP, CF> {
 	/// Live agreements. Maps relay chain parent hashes to attestation
 	/// instances.
 	live_instances: HashMap<Hash, ValidationInstanceHandle>,
+	/// The underlying validation pool of processes to use.
+	/// Only `None` in tests.
+	validation_pool: Option<ValidationPool>,
 	/// Used to fetch a collation.
 	collation_fetch: CF,
 }
@@ -406,6 +414,7 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 			signing_context,
 			self.availability_store.clone(),
 			max_block_data_size,
+			self.validation_pool.clone(),
 		));
 
 		let build_router = self.network.build_table_router(
@@ -709,6 +718,7 @@ mod tests {
 			spawner: executor.clone(),
 			availability_store: AvailabilityStore::new_in_memory(MockErasureNetworking),
 			live_instances: HashMap::new(),
+			validation_pool: None,
 		};
 
 		parachain_validation.get_or_instantiate(Default::default(), &keystore, None)
@@ -747,6 +757,7 @@ mod tests {
 			spawner: executor.clone(),
 			availability_store: AvailabilityStore::new_in_memory(MockErasureNetworking),
 			live_instances: HashMap::new(),
+			validation_pool: None,
 		};
 
 		parachain_validation.get_or_instantiate(Default::default(), &keystore, None)
