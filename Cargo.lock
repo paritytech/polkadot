@@ -4260,7 +4260,6 @@ dependencies = [
  "adder",
  "derive_more 0.99.3",
  "halt",
- "lazy_static",
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.0",

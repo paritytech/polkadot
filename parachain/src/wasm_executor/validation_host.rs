@@ -67,10 +67,6 @@ enum Event {
 	WorkerReady = 2,
 }
 
-lazy_static::lazy_static! {
-	static ref HOSTS: [Mutex<ValidationHost>; DEFAULT_NUM_HOSTS] = Default::default();
-}
-
 /// A pool of hosts.
 #[derive(Clone)]
 pub struct ValidationPool {

@@ -16,7 +16,6 @@ sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = 
 sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-lazy_static = { version = "1.4.0", optional = true }
 parking_lot = { version = "0.10.0", optional = true }
 log = { version = "0.4.8", optional = true }
 
@@ -38,7 +37,6 @@ std = [
 	"sp-std/std",
 	"shared_memory",
 	"sp-core/std",
-	"lazy_static",
 	"parking_lot",
 	"log",
 	"sp-runtime-interface/std",
