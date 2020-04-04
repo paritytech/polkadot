@@ -40,7 +40,7 @@ use txpool_api::{TransactionPool, InPoolTransaction};
 use futures::prelude::*;
 use inherents::InherentData;
 use sp_timestamp::TimestampInherentData;
-use log::{info, debug, trace};
+use log::{info, debug, warn, trace};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
 use crate::validation_service::ServiceHandle;
