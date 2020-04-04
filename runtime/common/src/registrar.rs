@@ -498,7 +498,7 @@ decl_event!{
 }
 
 impl<T: Trait> Module<T> {
-        /// Ensures that the given `ParaId` corresponds to a registered parathread, and returns a descriptor if so.
+	/// Ensures that the given `ParaId` corresponds to a registered parathread, and returns a descriptor if so.
 	pub fn ensure_thread_id(id: ParaId) -> Option<ParaInfo> {
 		Paras::get(id).and_then(|info| if let Scheduling::Dynamic = info.scheduling {
 			Some(info)
