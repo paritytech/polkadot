@@ -64,7 +64,7 @@ use polkadot_primitives::{
 };
 use polkadot_cli::{
 	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
-	service::{self, Roles}
+	service::{self, Role}
 };
 pub use polkadot_cli::{VersionInfo, load_spec, service::Configuration};
 pub use polkadot_validation::SignedStatement;
@@ -344,8 +344,8 @@ where
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
 	let is_kusama = config.expect_chain_spec().is_kusama();
-	match (is_kusama, config.roles) {
-		(_, Roles::LIGHT) => return Err(
+	match (is_kusama, &config.role) {
+		(_, Role::Light) => return Err(
 			polkadot_service::Error::Other("light nodes are unsupported as collator".into())
 		).into(),
 		(true, _) =>
@@ -389,8 +389,8 @@ pub fn run_collator<P>(
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
-	match (config.expect_chain_spec().is_kusama(), config.roles) {
-		(_, Roles::LIGHT) => return Err(
+	match (config.expect_chain_spec().is_kusama(), &config.role) {
+		(_, Role::Light) => return Err(
 			polkadot_cli::Error::Input("light nodes are unsupported as collator".into())
 		).into(),
 		(true, _) =>
