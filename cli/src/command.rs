@@ -170,7 +170,6 @@ where
 			grandpa_pause,
 		).map(|(s, _)| s),
 	)
-	//
 }
 
 // We can't simply use `service::TLightClient` due to a
