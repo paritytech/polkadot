@@ -63,26 +63,9 @@ pub fn hash_state(state: u64) -> [u8; 32] {
 	tiny_keccak::keccak256(state.encode().as_slice())
 }
 
-#[derive(Default, Encode, Decode)]
-pub struct AddMessage {
-	/// The amount to add based on this message.
-	pub amount: u64,
-}
-
 /// Start state mismatched with parent header's state hash.
 #[derive(Debug)]
 pub struct StateMismatch;
-
-/// Process all incoming messages, yielding the amount of addition from messages.
-///
-/// Ignores unknown message kinds.
-pub fn process_messages<I, T>(iterable: I) -> u64
-	where I: IntoIterator<Item=T>, T: AsRef<[u8]>
-{
-	iterable.into_iter()
-		.filter_map(|data| AddMessage::decode(&mut data.as_ref()).ok())
-		.fold(0u64, |a, c| a.overflowing_add(c.amount).0)
-}
 
 /// Execute a block body on top of given parent head, producing new parent head
 /// if valid.

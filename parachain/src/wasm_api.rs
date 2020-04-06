@@ -16,7 +16,9 @@
 
 //! Utilities for writing parachain WASM.
 
-use crate::UpwardMessage;
+#[cfg(any(feature = "std", all(not(feature = "std"), feature = "wasm-api")))]
+use crate::primitives::UpwardMessage;
+#[cfg(any(feature = "std", all(not(feature = "std"), feature = "wasm-api")))]
 use sp_runtime_interface::runtime_interface;
 #[cfg(feature = "std")]
 use sp_externalities::ExternalitiesExt;
@@ -42,7 +44,9 @@ pub trait Parachain {
 /// Offset and length must have been provided by the validation
 /// function's entry point.
 #[cfg(not(feature = "std"))]
-pub unsafe fn load_params(params: *const u8, len: usize) -> crate::ValidationParams {
+pub unsafe fn load_params(params: *const u8, len: usize)
+	-> crate::primitives::ValidationParams
+{
 	let mut slice = sp_std::slice::from_raw_parts(params, len);
 
 	codec::Decode::decode(&mut slice).expect("Invalid input data")
@@ -53,6 +57,6 @@ pub unsafe fn load_params(params: *const u8, len: usize) -> crate::ValidationPar
 /// As described in the crate docs, this is a pointer to the appended length
 /// of the vector.
 #[cfg(not(feature = "std"))]
-pub fn write_result(result: &crate::ValidationResult) -> u64 {
+pub fn write_result(result: &crate::primitives::ValidationResult) -> u64 {
 	sp_core::to_substrate_wasm_fn_return_value(&result)
 }

@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot parachain types.
+//! Primitives which are necessary for parachain execution from a relay-chain
+//! perspective.
 
 use sp_std::prelude::*;
 use sp_std::cmp::Ordering;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
-use super::{Hash, Balance};
+use super::{Hash, Balance, BlockNumber};
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -32,8 +33,9 @@ use runtime_primitives::traits::Block as BlockT;
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
-pub use polkadot_parachain::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage,
+pub use polkadot_parachain::primitives::{
+	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
+	ValidationCode,
 };
 
 /// The key type ID for a collator key.
@@ -174,6 +176,8 @@ pub struct GlobalValidationSchedule {
 	pub max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
 	pub max_head_data_size: u32,
+	/// The relay-chain block number this is in the context of.
+	pub block_number: BlockNumber,
 }
 
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
@@ -185,6 +189,18 @@ pub struct LocalValidationData {
 	pub parent_head: HeadData,
 	/// The balance of the parachain at the moment of validation.
 	pub balance: Balance,
+	/// Whether the parachain is allowed to upgrade its validation code.
+	///
+	/// This is `Some` if so, and contains the number of the minimum relay-chain
+	/// height at which the upgrade will be applied, if an upgrade is signaled
+	/// now.
+	///
+	/// A parachain should enact its side of the upgrade at the end of the first
+	/// parablock executing in the context of a relay-chain block with at least this
+	/// height. This may be equal to the current perceived relay-chain block height, in
+	/// which case the code upgrade should be applied at the end of the signaling
+	/// block.
+	pub code_upgrade_allowed: Option<BlockNumber>,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
@@ -197,6 +213,8 @@ pub struct CandidateCommitments {
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: Hash,
+	/// New validation code.
+	pub new_validation_code: Option<Vec<u8>>,
 }
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
@@ -532,13 +550,6 @@ pub struct AvailableData {
 	// In the future, outgoing messages as well.
 }
 
-/// Parachain block data.
-///
-/// Contains everything required to validate para-block, may contain block and witness data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
 /// A chunk of erasure-encoded block data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, Default)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
@@ -551,28 +562,10 @@ pub struct ErasureChunk {
 	pub proof: Vec<Vec<u8>>,
 }
 
-impl BlockData {
-	/// Compute hash of block data.
-	#[cfg(feature = "std")]
-	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
-		BlakeTwo256::hash(&self.0[..])
-	}
-}
 /// Parachain header raw bytes wrapper type.
 #[derive(PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct Header(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-/// Parachain head data included in the chain.
-#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Default))]
-pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-/// Parachain validation code.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Activity bit field.
 #[derive(PartialEq, Eq, Clone, Default, Encode, Decode)]
@@ -648,13 +641,13 @@ impl AttestedCandidate {
 pub struct FeeSchedule {
 	/// The base fee charged for all messages.
 	pub base: Balance,
-	/// The per-byte fee charged on top of that.
+	/// The per-byte fee for messages charged on top of that.
 	pub per_byte: Balance,
 }
 
 impl FeeSchedule {
 	/// Compute the fee for a message of given size.
-	pub fn compute_fee(&self, n_bytes: usize) -> Balance {
+	pub fn compute_message_fee(&self, n_bytes: usize) -> Balance {
 		use sp_std::mem;
 		debug_assert!(mem::size_of::<Balance>() >= mem::size_of::<usize>());
 

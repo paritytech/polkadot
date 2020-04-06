@@ -21,7 +21,7 @@
 //! a WASM VM for re-execution of a parachain candidate.
 
 use std::any::{TypeId, Any};
-use crate::{ValidationParams, ValidationResult, UpwardMessage};
+use crate::primitives::{ValidationParams, ValidationResult, UpwardMessage};
 use codec::{Decode, Encode};
 use sp_core::storage::{ChildStorageKey, ChildInfo};
 use sp_core::traits::CallInWasm;

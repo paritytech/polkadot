@@ -28,8 +28,7 @@ pub mod parachain;
 pub use parity_scale_codec::Compact;
 
 /// An index to a block.
-/// 32-bits will allow for 136 years of blocks assuming 1 block per second.
-pub type BlockNumber = u32;
+pub type BlockNumber = polkadot_parachain::primitives::RelayChainBlockNumber;
 
 /// An instant or duration in time.
 pub type Moment = u64;

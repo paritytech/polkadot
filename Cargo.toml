@@ -41,13 +41,15 @@ members = [
 	"service",
 	"validation",
 
-	"test-parachains/adder",
-	"test-parachains/adder/collator",
+	"parachain/test-parachains",
+	"parachain/test-parachains/adder",
+	"parachain/test-parachains/adder/collator",
+	"parachain/test-parachains/code-upgrader",
 ]
 exclude = [
 	"runtime/polkadot/wasm",
 	"runtime/kusama/wasm",
-	"test-parachains/adder/wasm",
+	"parachain/test-parachains/adder/wasm",
 ]
 
 [badges]

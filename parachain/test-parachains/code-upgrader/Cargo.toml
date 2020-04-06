@@ -1,14 +1,14 @@
 [package]
-name = "adder"
-version = "0.7.29-pre1"
+name = "test-parachain-code-upgrader"
+version = "0.7.22"
 authors = ["Parity Technologies <admin@parity.io>"]
-description = "Test parachain which adds to a number as its state transition"
+description = "Test parachain which can upgrade code"
 edition = "2018"
 build = "build.rs"
 
 [dependencies]
-parachain = { package = "polkadot-parachain", path = "../../parachain/", default-features = false, features = [ "wasm-api" ] }
-codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
+parachain = { package = "polkadot-parachain", path = "../../", default-features = false, features = [ "wasm-api" ] }
+codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = ["derive"] }
 tiny-keccak = "1.5.0"
 dlmalloc = { version = "0.1.3", features = [ "global" ] }
 
@@ -20,4 +20,4 @@ wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.
 
 [features]
 default = [ "std" ]
-std = []
+std = ["parachain/std"]

@@ -582,7 +582,7 @@ mod tests {
 	};
 	use frame_support::traits::Contains;
 	use sp_core::H256;
-	use primitives::parachain::{Info as ParaInfo, Id as ParaId};
+	use primitives::parachain::{Info as ParaInfo, Id as ParaId, Scheduling};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
@@ -696,6 +696,10 @@ mod tests {
 
 		fn code_size_allowed(code_size: u32) -> bool {
 			code_size <= MAX_CODE_SIZE
+		}
+
+		fn para_info(_id: ParaId) -> Option<ParaInfo> {
+			Some(ParaInfo { scheduling: Scheduling::Always })
 		}
 
 		fn register_para(

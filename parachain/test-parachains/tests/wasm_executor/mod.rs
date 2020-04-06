@@ -16,9 +16,12 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-use polkadot_parachain as parachain;
+use parachain;
 use crate::{adder, DummyExt};
-use crate::parachain::{ValidationParams, wasm_executor::EXECUTION_TIMEOUT_SEC};
+use crate::parachain::{
+	primitives::{BlockData, ValidationParams},
+	wasm_executor::EXECUTION_TIMEOUT_SEC,
+};
 
 // Code that exposes `validate_block` and loops infinitely
 const INFINITE_LOOP_CODE: &[u8] = halt::WASM_BINARY;
@@ -30,8 +33,12 @@ fn terminates_on_timeout() {
 	let result = parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
 		ValidationParams {
+			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
-			block_data: Vec::new(),
+			max_code_size: 1024,
+			max_head_data_size: 1024,
+			relay_chain_height: 1,
+			code_upgrade_allowed: None,
 		},
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
@@ -56,8 +63,12 @@ fn parallel_execution() {
 		parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
 		ValidationParams {
+			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
-			block_data: Vec::new(),
+			max_code_size: 1024,
+			max_head_data_size: 1024,
+			relay_chain_height: 1,
+			code_upgrade_allowed: None,
 		},
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool2),
@@ -65,8 +76,12 @@ fn parallel_execution() {
 	let _ = parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
 		ValidationParams {
+			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
-			block_data: Vec::new(),
+			max_code_size: 1024,
+			max_head_data_size: 1024,
+			relay_chain_height: 1,
+			code_upgrade_allowed: None,
 		},
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),

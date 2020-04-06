@@ -24,7 +24,7 @@ use sp_core::Pair;
 use codec::{Encode, Decode};
 use primitives::{
 	Hash,
-	parachain::{HeadData, BlockData, Id as ParaId, LocalValidationData},
+	parachain::{HeadData, BlockData, Id as ParaId, LocalValidationData, GlobalValidationSchedule},
 };
 use collator::{
 	InvalidHead, ParachainContext, Network, BuildParachainContext, load_spec, Configuration,
@@ -60,6 +60,7 @@ impl ParachainContext for AdderContext {
 	fn produce_candidate(
 		&mut self,
 		_relay_parent: Hash,
+		_global_validation: GlobalValidationSchedule,
 		local_validation: LocalValidationData,
 	) -> Self::ProduceCandidate
 	{
@@ -83,7 +84,7 @@ impl ParachainContext for AdderContext {
 			add: adder_head.number % 100,
 		};
 
-		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body)
+		let next_head = adder::execute(adder_head.hash(), adder_head, &next_body)
 			.expect("good execution params; qed");
 
 		let encoded_head = HeadData(next_head.encode());

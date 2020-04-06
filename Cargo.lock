@@ -11,34 +11,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "adder"
-version = "0.7.29-pre1"
-dependencies = [
- "dlmalloc",
- "parity-scale-codec",
- "polkadot-parachain",
- "sp-io",
- "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "tiny-keccak 1.5.0",
-]
-
-[[package]]
-name = "adder-collator"
-version = "0.1.0"
-dependencies = [
- "adder",
- "futures 0.3.4",
- "parity-scale-codec",
- "parking_lot 0.10.0",
- "polkadot-collator",
- "polkadot-parachain",
- "polkadot-primitives",
- "sc-client",
- "sc-client-api",
- "sp-core",
-]
-
-[[package]]
 name = "adler32"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1776,13 +1748,6 @@ dependencies = [
  "slab",
  "tokio 0.2.13",
  "tokio-util",
-]
-
-[[package]]
-name = "halt"
-version = "0.7.29-pre1"
-dependencies = [
- "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4294,9 +4259,7 @@ dependencies = [
 name = "polkadot-parachain"
 version = "0.7.29-pre1"
 dependencies = [
- "adder",
  "derive_more 0.99.3",
- "halt",
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.0",
@@ -4309,7 +4272,6 @@ dependencies = [
  "sp-runtime-interface",
  "sp-std",
  "sp-wasm-interface",
- "tiny-keccak 1.5.0",
 ]
 
 [[package]]
@@ -4317,7 +4279,6 @@ name = "polkadot-primitives"
 version = "0.7.29-pre1"
 dependencies = [
  "bitvec",
- "pallet-babe",
  "parity-scale-codec",
  "polkadot-parachain",
  "pretty_assertions",
@@ -7522,6 +7483,65 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb6bfa289a4d7c5766392812c0a1f4c1ba45afa1ad47803c11e1f407d846d75f"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "test-parachain-adder"
+version = "0.7.29-pre1"
+dependencies = [
+ "dlmalloc",
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "sp-io",
+ "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tiny-keccak 1.5.0",
+]
+
+[[package]]
+name = "test-parachain-adder-collator"
+version = "0.1.0"
+dependencies = [
+ "futures 0.3.4",
+ "parity-scale-codec",
+ "parking_lot 0.10.0",
+ "polkadot-collator",
+ "polkadot-parachain",
+ "polkadot-primitives",
+ "sc-client",
+ "sc-client-api",
+ "sp-core",
+ "test-parachain-adder",
+]
+
+[[package]]
+name = "test-parachain-code-upgrader"
+version = "0.7.22"
+dependencies = [
+ "dlmalloc",
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "sp-io",
+ "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tiny-keccak 1.5.0",
+]
+
+[[package]]
+name = "test-parachain-halt"
+version = "0.7.29-pre1"
+dependencies = [
+ "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "test-parachains"
+version = "0.7.22"
+dependencies = [
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "test-parachain-adder",
+ "test-parachain-code-upgrader",
+ "test-parachain-halt",
+ "tiny-keccak 1.5.0",
 ]
 
 [[package]]
