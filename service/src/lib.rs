@@ -25,7 +25,7 @@ use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
 #[cfg(feature = "full-node")]
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
-use service::{error::{Error as ServiceError}, ServiceBuilder};
+use service::{error::Error as ServiceError, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use sc_executor::native_executor_instance;
@@ -103,11 +103,9 @@ where
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
-pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static
-{}
+pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
 
-impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static
-{}
+impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
 pub trait IsKusama {

@@ -130,7 +130,7 @@ enum BackgroundToWorkerMsg {
 }
 
 /// Operations that a handle to an underlying network service should provide.
-trait NetworkServiceOps: Send + Sync {
+pub trait NetworkServiceOps: Send + Sync {
 	/// Report the peer as having a particular positive or negative value.
 	fn report_peer(&self, peer: PeerId, value: sc_network::ReputationChange);
 
@@ -193,10 +193,18 @@ impl GossipOps for RegisteredMessageValidator {
 }
 
 /// An async handle to the network service.
-#[derive(Clone)]
-pub struct Service {
+pub struct Service<N = PolkadotNetworkService> {
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
-	network_service: Arc<dyn NetworkServiceOps>,
+	network_service: Arc<N>,
+}
+
+impl<N> Clone for Service<N> {
+	fn clone(&self) -> Self {
+		Self {
+			sender: self.sender.clone(),
+			network_service: self.network_service.clone(),
+		}
+	}
 }
 
 /// Registers the protocol.
@@ -209,7 +217,7 @@ pub fn start<C, Api, SP>(
 	chain_context: C,
 	api: Arc<Api>,
 	executor: SP,
-) -> Result<Service, futures::task::SpawnError> where
+) -> Result<Service<PolkadotNetworkService>, futures::task::SpawnError> where
 	C: ChainContext + 'static,
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
@@ -292,14 +300,14 @@ pub fn start<C, Api, SP>(
 }
 
 /// The Polkadot protocol status message.
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, PartialEq)]
 pub struct Status {
 	version: u32, // protocol version.
 	collating_for: Option<(CollatorId, ParaId)>,
 }
 
 /// Polkadot-specific messages from peer to peer.
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, PartialEq)]
 pub enum Message {
 	/// Exchange status with a peer. This should be the first message sent.
 	#[codec(index = "0")]
@@ -451,6 +459,11 @@ impl RecentValidatorIds {
 	fn as_slice(&self) -> &[ValidatorId] {
 		&*self.inner
 	}
+
+	/// Returns the last inserted session key.
+	fn latest(&self) -> Option<&ValidatorId> {
+		self.inner.last()
+	}
 }
 
 struct ProtocolHandler {
@@ -582,7 +595,19 @@ impl ProtocolHandler {
 						let role = self.collators
 							.on_new_collator(collator_id, para_id, remote.clone());
 						let service = &self.service;
+						let send_key = peer.should_send_key();
+
 						if let Some(c_state) = peer.collator_state_mut() {
+							if send_key {
+								if let Some(key) = self.local_keys.latest() {
+									c_state.send_key(key.clone(), |msg| service.write_notification(
+										remote.clone(),
+										POLKADOT_ENGINE_ID,
+										msg.encode(),
+									));
+								}
+							}
+
 							c_state.set_role(role, |msg| service.write_notification(
 								remote.clone(),
 								POLKADOT_ENGINE_ID,
@@ -1323,7 +1348,7 @@ struct RouterInner {
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
 }
 
-impl Service {
+impl<N: NetworkServiceOps> Service<N> {
 	/// Register an availablility-store that the network can query.
 	pub fn register_availability_store(&self, store: av_store::Store) {
 		let _ = self.sender.clone()
@@ -1373,7 +1398,7 @@ impl Service {
 	}
 }
 
-impl ParachainNetwork for Service {
+impl<N> ParachainNetwork for Service<N> {
 	type Error = mpsc::SendError;
 	type TableRouter = Router;
 	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router,Self::Error>> + Send>>;
@@ -1403,7 +1428,7 @@ impl ParachainNetwork for Service {
 	}
 }
 
-impl Collators for Service {
+impl<N> Collators for Service<N> {
 	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
 	type Collation = Pin<Box<dyn Future<Output = Result<Collation, Self::Error>> + Send>>;
 
@@ -1425,7 +1450,7 @@ impl Collators for Service {
 	}
 }
 
-impl av_store::ErasureNetworking for Service {
+impl<N> av_store::ErasureNetworking for Service<N> {
 	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
 
 	fn fetch_erasure_chunk(&self, candidate_hash: &Hash, index: u32)
