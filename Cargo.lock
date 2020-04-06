@@ -3447,6 +3447,7 @@ name = "pallet-collective"
 version = "2.0.0-alpha.5"
 source = "git+https://github.com/paritytech/substrate#41ded05195e6422746d6efbf433eaa65bf0557d7"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
