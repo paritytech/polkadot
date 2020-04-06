@@ -64,10 +64,6 @@ variables:
     - schedules
     - web
     - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
-    - kusama-nightly-staging
-  except:
-    variables:
-      - $DEPLOY_TAG
 
 .test-refs:                        &test-refs
   only:
@@ -75,11 +71,7 @@ variables:
     - schedules
     - web
     - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
-    - kusama-nightly-staging
     - /^[0-9]+$/
-  except:
-    variables:
-      - $DEPLOY_TAG
 
 
 
@@ -134,13 +126,7 @@ test-linux-stable:                 &test
     RUSTFLAGS: -Cdebug-assertions=y
     TARGET: native
   script:
-    - |
-      test "${CI_COMMIT_REF_NAME}" = "kusama-nightly-staging" && (
-        echo "kusama-nightly-staging: change Cargo.toml to build against substrate:kusama-nightly-staging"
-        find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate": { s:branch = "polkadot-(master|testing)":branch = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \;
-        sed -i -r 's:github.com/paritytech/substrate\?branch=polkadot-(master|testing):gitlab.parity.io/parity/substrate.git?branch=kusama-nightly-staging:' Cargo.lock
-        time cargo test --all --release --verbose) || \
-      time cargo test --all --release --verbose --locked
+    - time cargo test --all --release --verbose --locked
     - sccache -s
 
 
@@ -180,11 +166,6 @@ build-linux-release:               &build
   <<:                              *docker-env
   <<:                              *compiler_info
   script:
-    - |
-      test "${CI_COMMIT_REF_NAME}" = "kusama-nightly-staging" && (
-        echo "kusama-nightly-staging: change Cargo.toml to build against substrate:kusama-nightly-staging"
-        find . -name Cargo.toml -exec sed -i -r -e ':github.com/paritytech/substrate": { s:branch = "polkadot-(master|testing)":branch = "kusama-nightly-staging":; s:github.com/paritytech/substrate:gitlab.parity.io/parity/substrate.git:}' '{}' \;
-        sed -i -r 's:github.com/paritytech/substrate\?branch=polkadot-(master|testing):gitlab.parity.io/parity/substrate.git?branch=kusama-nightly-staging:' Cargo.lock )
     - time cargo build --release --verbose
     - mkdir -p ./artifacts
     - mv ./target/release/polkadot ./artifacts/.
@@ -289,99 +270,17 @@ publish-s3-release:
 
 
 
-.deploy-template:                  &deploy
-  stage:                           deploy
-  when:                            manual
-  cache:                           {}
-  retry:                           1
-  image:                           parity/kubetools:latest
-  <<:                              *build-refs
-  tags:
-    # this is the runner that is used to deploy it
-    - kubernetes-parity-build
-  before_script:
-    - test -z "${DEPLOY_TAG}" &&
-      test "${CI_COMMIT_TAG}" -o -f ./artifacts/VERSION &&
-      DEPLOY_TAG="${CI_COMMIT_TAG:-$(cat ./artifacts/VERSION)}"
-    - test "${DEPLOY_TAG}" || ( echo "Neither DEPLOY_TAG nor VERSION information available"; exit 1 )
-  script:
-    - echo "Polkadot version = ${DEPLOY_TAG}"
-    # or use helm to render the template
-    - helm template
-      --values ./scripts/kubernetes/values.yaml
-      --set image.tag=${DEPLOY_TAG}
-      ./scripts/kubernetes | kubectl apply -f - --dry-run=false
-    - echo "# polkadot namespace"
-    - kubectl -n polkadot get all
-    - echo "# polkadot's nodes' external ip addresses:"
-    - kubectl get nodes -l node=polkadot
-      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range @.status.addresses[?(@.type=="ExternalIP")]}{.address}{"\n"}{end}'
-    - echo "# polkadots' nodes"
-    - kubectl -n polkadot get pods
-      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.nodeName}{"\n"}{end}'
-
-
-
-
-
-.deploy-cibuild:                   &deploy-cibuild
-  <<:                              *deploy
-  dependencies:
-    - publish-docker-release
-
-.deploy-tag:                       &deploy-tag
-  <<:                              *deploy
-  only:
-    variables:
-      - $DEPLOY_TAG
-  except:
-    variables:
-      - $DEPLOY_TAG == ""
-
-
-
-# have environment:url eventually point to the logs
-deploy-ew3:
-  <<:                              *deploy-cibuild
-  environment:
-    name:                          parity-prod-ew3
-
-deploy-ue1:
-  <<:                              *deploy-cibuild
-  environment:
-    name:                          parity-prod-ue1
-
-deploy-ew3-tag:
-  <<:                              *deploy-tag
-  environment:
-    name:                          parity-prod-ew3
-
-deploy-ue1-tag:
-  <<:                              *deploy-tag
-  environment:
-    name:                          parity-prod-ue1
 
 
 
 deploy-polkasync-kusama:
   stage:                           deploy
-  cache:                           {}
-  retry:                           1
-  image:                           parity/tools:latest
-  only:
-    - kusama-nightly-staging
-  tags:
-    - kubernetes-parity-build
+  <<:                              *build-refs
   variables:
-    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
-    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fparity-testnet"
-    GIT_STRATEGY:                  none
+    POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
+    POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
+  only:
+    - ci-testnet-deployment
   allow_failure:                   true
-  script:
-    - |
-      echo "kusama-nightly-staging: triggering roll-out on parity-testnet"
-      curl -sS -X POST \
-        -F "token=${CI_JOB_TOKEN}" \
-        -F "ref=master" \
-        -F "variables[POLKADOT_BUILD_REF]=${CI_COMMIT_REF_NAME}" \
-        ${GITLAB_API}/projects/${GITHUB_API_PROJECT}/trigger/pipeline | jq .
+  trigger:                         "parity/infrastructure/parity-testnet"
+
