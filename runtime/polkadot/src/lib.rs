@@ -60,7 +60,7 @@ use frame_support::{
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use system::offchain::TransactionSubmitter;
-use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::{historical as session_historical};
 
 #[cfg(feature = "std")]
@@ -151,6 +151,13 @@ impl system::Trait for Runtime {
 	type AccountData = balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
+}
+
+impl scheduler::Trait for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type Call = Call;
+	type MaximumWeight = MaximumBlockWeight;
 }
 
 parameter_types! {
@@ -258,6 +265,7 @@ impl session::Trait for Runtime {
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = staking::StashOf<Self>;
 	type ShouldEndSession = Babe;
+	type NextSessionRotation = Babe;
 	type SessionManager = Staking;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
@@ -288,11 +296,13 @@ parameter_types! {
 	pub const SlashDeferDuration: staking::EraIndex = 28;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
+	// quarter of the last session will be for election.
+	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 }
 
 impl staking::Trait for Runtime {
 	type Currency = Balances;
-	type Time = Timestamp;
+	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type RewardRemainder = Treasury;
 	type Event = Event;
@@ -306,6 +316,10 @@ impl staking::Trait for Runtime {
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type NextNewSession = Session;
+	type ElectionLookahead = ElectionLookahead;
+	type Call = Call;
+	type SubmitTransaction = TransactionSubmitter<(), Runtime, UncheckedExtrinsic>;
 }
 
 parameter_types! {
@@ -349,6 +363,7 @@ impl democracy::Trait for Runtime {
 	type CooloffPeriod = CooloffPeriod;
 	type PreimageByteDeposit = PreimageByteDeposit;
 	type Slash = Treasury;
+	type Scheduler = Scheduler;
 }
 
 parameter_types! {
@@ -377,6 +392,7 @@ impl elections_phragmen::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type ChangeMembers = Council;
+	type InitializeMembers = Council;
 	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type CandidacyBond = CandidacyBond;
 	type VotingBond = VotingBond;
@@ -574,6 +590,7 @@ construct_runtime! {
 		// Basic stuff; balances is uncallable initially.
 		System: system::{Module, Call, Storage, Config, Event<T>},
 		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Storage},
+		Scheduler: scheduler::{Module, Call, Storage, Event<T>},
 
 		// Must be before session.
 		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
@@ -598,7 +615,7 @@ construct_runtime! {
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		ElectionsPhragmen: elections_phragmen::{Module, Call, Storage, Event<T>},
+		ElectionsPhragmen: elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>},
 		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
 
@@ -801,7 +818,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
+	impl transaction_payment_rpc_runtime_api::TransactionPaymentApi<
 		Block,
 		Balance,
 		UncheckedExtrinsic,
@@ -814,27 +831,20 @@ sp_api::impl_runtime_apis! {
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(
-			module: Vec<u8>,
-			extrinsic: Vec<u8>,
+			pallet: Vec<u8>,
+			benchmark: Vec<u8>,
 			lowest_range_values: Vec<u32>,
 			highest_range_values: Vec<u32>,
 			steps: Vec<u32>,
 			repeat: u32,
-		) -> Result<Vec<frame_benchmarking::BenchmarkResults>, RuntimeString> {
-			use frame_benchmarking::Benchmarking;
+		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, RuntimeString> {
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark};
 
-			let result = match module.as_slice() {
-				b"claims" => Claims::run_benchmark(
-					extrinsic,
-					lowest_range_values,
-					highest_range_values,
-					steps,
-					repeat,
-				),
-				_ => Err("Benchmark not found for this pallet."),
-			};
-
-			result.map_err(|e| e.into())
+			let mut batches = Vec::<BenchmarkBatch>::new();
+			let params = (&pallet, &benchmark, &lowest_range_values, &highest_range_values, &steps, repeat);
+			add_benchmark!(params, batches, b"claims", Claims);
+			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
+			Ok(batches)
 		}
 	}
 }

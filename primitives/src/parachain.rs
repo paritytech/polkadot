@@ -28,7 +28,7 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use primitives::bytes;
 use primitives::RuntimeDebug;
-use runtime_primitives::traits::{Block as BlockT};
+use runtime_primitives::traits::Block as BlockT;
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
@@ -75,9 +75,10 @@ pub type ValidatorId = validator_app::Public;
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
 pub type ValidatorIndex = u32;
 
-/// A Parachain validator keypair.
-#[cfg(feature = "std")]
-pub type ValidatorPair = validator_app::Pair;
+application_crypto::with_pair! {
+	/// A Parachain validator keypair.
+	pub type ValidatorPair = validator_app::Pair;
+}
 
 /// Signature with which parachain validators sign blocks.
 ///
@@ -626,7 +627,7 @@ pub struct AttestedCandidate {
 	/// Validity attestations.
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// Indices of the corresponding validity votes.
-	pub validator_indices: BitVec<bitvec::cursor::LittleEndian, u8>,
+	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
 }
 
 impl AttestedCandidate {

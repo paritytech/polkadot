@@ -140,6 +140,7 @@ fn polkadot_staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 			slash_reward_fraction: Perbill::from_percent(10),
 			.. Default::default()
 		}),
+		elections_phragmen: Some(Default::default()),
 		democracy: Some(Default::default()),
 		collective_Instance1: Some(polkadot::CouncilConfig {
 			members: vec![],
@@ -294,6 +295,7 @@ fn kusama_staging_testnet_config_genesis() -> kusama::GenesisConfig {
 				slash_reward_fraction: Perbill::from_percent(10),
 				.. Default::default()
 		}),
+		elections_phragmen: Some(Default::default()),
 		democracy: Some(Default::default()),
 		collective_Instance1: Some(kusama::CouncilConfig {
 			members: vec![],
@@ -335,7 +337,8 @@ pub fn polkadot_staging_testnet_config() -> PolkadotChainSpec {
 		"polkadot_staging_testnet",
 		polkadot_staging_testnet_config_genesis,
 		boot_nodes,
-		Some(TelemetryEndpoints::new(vec![(POLKADOT_STAGING_TELEMETRY_URL.to_string(), 0)])),
+		Some(TelemetryEndpoints::new(vec![(POLKADOT_STAGING_TELEMETRY_URL.to_string(), 0)])
+			.expect("Polkadot Staging telemetry url is valid; qed")),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
@@ -350,7 +353,8 @@ pub fn kusama_staging_testnet_config() -> KusamaChainSpec {
 		"kusama_staging_testnet",
 		kusama_staging_testnet_config_genesis,
 		boot_nodes,
-		Some(TelemetryEndpoints::new(vec![(KUSAMA_STAGING_TELEMETRY_URL.to_string(), 0)])),
+		Some(TelemetryEndpoints::new(vec![(KUSAMA_STAGING_TELEMETRY_URL.to_string(), 0)])
+			.expect("Kusama Staging telemetry url is valid; qed")),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
@@ -450,6 +454,7 @@ pub fn polkadot_testnet_genesis(
 				slash_reward_fraction: Perbill::from_percent(10),
 				.. Default::default()
 		}),
+		elections_phragmen: Some(Default::default()),
 		democracy: Some(polkadot::DemocracyConfig::default()),
 		collective_Instance1: Some(polkadot::CouncilConfig {
 			members: vec![],
@@ -526,6 +531,7 @@ pub fn kusama_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			.. Default::default()
 		}),
+		elections_phragmen: Some(Default::default()),
 		democracy: Some(kusama::DemocracyConfig::default()),
 		collective_Instance1: Some(kusama::CouncilConfig {
 			members: vec![],

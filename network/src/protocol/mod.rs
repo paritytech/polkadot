@@ -26,7 +26,8 @@ use codec::{Decode, Encode};
 use futures::channel::{mpsc, oneshot};
 use futures::future::Either;
 use futures::prelude::*;
-use futures::task::{Spawn, SpawnExt};
+use futures::task::{Spawn, SpawnExt, Context, Poll};
+use futures::stream::{FuturesUnordered, StreamFuture};
 use log::{debug, trace};
 
 use polkadot_primitives::{
@@ -40,7 +41,7 @@ use polkadot_validation::{
 	SharedTable, TableRouter, Network as ParachainNetwork, Validated, GenericStatement, Collators,
 	SignedStatement,
 };
-use sc_network::{config::Roles, Event, PeerId};
+use sc_network::{ObservedRole, Event, PeerId};
 use sp_api::ProvideRuntimeApi;
 use sp_runtime::ConsensusEngineId;
 
@@ -71,13 +72,12 @@ mod tests;
 // Messages from the service API or network adapter.
 enum ServiceToWorkerMsg {
 	// basic peer messages.
-	PeerConnected(PeerId, Roles),
+	PeerConnected(PeerId, ObservedRole),
 	PeerMessage(PeerId, Vec<bytes::Bytes>),
 	PeerDisconnected(PeerId),
 
 	// service messages.
-	BuildConsensusNetworking(Arc<SharedTable>, Vec<ValidatorId>),
-	DropConsensusNetworking(Hash),
+	BuildConsensusNetworking(mpsc::Receiver<ServiceToWorkerMsg>, Arc<SharedTable>, Vec<ValidatorId>),
 	SubmitValidatedCollation(
 		AbridgedCandidateReceipt,
 		PoVBlock,
@@ -130,7 +130,7 @@ enum BackgroundToWorkerMsg {
 }
 
 /// Operations that a handle to an underlying network service should provide.
-trait NetworkServiceOps: Send + Sync {
+pub trait NetworkServiceOps: Send + Sync {
 	/// Report the peer as having a particular positive or negative value.
 	fn report_peer(&self, peer: PeerId, value: sc_network::ReputationChange);
 
@@ -193,10 +193,18 @@ impl GossipOps for RegisteredMessageValidator {
 }
 
 /// An async handle to the network service.
-#[derive(Clone)]
-pub struct Service {
+pub struct Service<N = PolkadotNetworkService> {
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
-	network_service: Arc<dyn NetworkServiceOps>,
+	network_service: Arc<N>,
+}
+
+impl<N> Clone for Service<N> {
+	fn clone(&self) -> Self {
+		Self {
+			sender: self.sender.clone(),
+			network_service: self.network_service.clone(),
+		}
+	}
 }
 
 /// Registers the protocol.
@@ -209,7 +217,7 @@ pub fn start<C, Api, SP>(
 	chain_context: C,
 	api: Arc<Api>,
 	executor: SP,
-) -> Result<Service, futures::task::SpawnError> where
+) -> Result<Service<PolkadotNetworkService>, futures::task::SpawnError> where
 	C: ChainContext + 'static,
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
@@ -247,11 +255,11 @@ pub fn start<C, Api, SP>(
 				Event::NotificationStreamOpened {
 					remote,
 					engine_id,
-					roles,
+					role,
 				} => {
 					if engine_id != POLKADOT_ENGINE_ID { continue }
 
-					worker_sender.send(ServiceToWorkerMsg::PeerConnected(remote, roles)).await
+					worker_sender.send(ServiceToWorkerMsg::PeerConnected(remote, role)).await
 				},
 				Event::NotificationStreamClosed {
 					remote,
@@ -292,14 +300,14 @@ pub fn start<C, Api, SP>(
 }
 
 /// The Polkadot protocol status message.
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, PartialEq)]
 pub struct Status {
 	version: u32, // protocol version.
 	collating_for: Option<(CollatorId, ParaId)>,
 }
 
 /// Polkadot-specific messages from peer to peer.
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, PartialEq)]
 pub enum Message {
 	/// Exchange status with a peer. This should be the first message sent.
 	#[codec(index = "0")]
@@ -451,6 +459,11 @@ impl RecentValidatorIds {
 	fn as_slice(&self) -> &[ValidatorId] {
 		&*self.inner
 	}
+
+	/// Returns the last inserted session key.
+	fn latest(&self) -> Option<&ValidatorId> {
+		self.inner.last()
+	}
 }
 
 struct ProtocolHandler {
@@ -483,8 +496,8 @@ impl ProtocolHandler {
 		}
 	}
 
-	fn on_connect(&mut self, peer: PeerId, roles: Roles) {
-		let claimed_validator = roles.contains(Roles::AUTHORITY);
+	fn on_connect(&mut self, peer: PeerId, role: ObservedRole) {
+		let claimed_validator = matches!(role, ObservedRole::OurSentry | ObservedRole::OurGuardedAuthority | ObservedRole::Authority);
 
 		self.peers.insert(peer.clone(), PeerData {
 			claimed_validator,
@@ -582,7 +595,19 @@ impl ProtocolHandler {
 						let role = self.collators
 							.on_new_collator(collator_id, para_id, remote.clone());
 						let service = &self.service;
+						let send_key = peer.should_send_key();
+
 						if let Some(c_state) = peer.collator_state_mut() {
+							if send_key {
+								if let Some(key) = self.local_keys.latest() {
+									c_state.send_key(key.clone(), |msg| service.write_notification(
+										remote.clone(),
+										POLKADOT_ENGINE_ID,
+										msg.encode(),
+									));
+								}
+							}
+
 							c_state.set_role(role, |msg| service.write_notification(
 								remote.clone(),
 								POLKADOT_ENGINE_ID,
@@ -782,6 +807,21 @@ fn send_peer_collations(
 	}
 }
 
+/// Receives messages associated to a certain consensus networking instance.
+struct ConsensusNetworkingReceiver {
+	receiver: mpsc::Receiver<ServiceToWorkerMsg>,
+	/// The relay parent of this consensus network.
+	relay_parent: Hash,
+}
+
+impl Stream for ConsensusNetworkingReceiver {
+	type Item = ServiceToWorkerMsg;
+
+	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+		Pin::new(&mut self.receiver).poll_next(cx)
+	}
+}
+
 struct Worker<Api, Sp, Gossip> {
 	protocol_handler: ProtocolHandler,
 	api: Arc<Api>,
@@ -790,6 +830,7 @@ struct Worker<Api, Sp, Gossip> {
 	background_to_main_sender: mpsc::Sender<BackgroundToWorkerMsg>,
 	background_receiver: mpsc::Receiver<BackgroundToWorkerMsg>,
 	service_receiver: mpsc::Receiver<ServiceToWorkerMsg>,
+	consensus_networking_receivers: FuturesUnordered<StreamFuture<ConsensusNetworkingReceiver>>,
 }
 
 impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
@@ -801,6 +842,7 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 	// spawns a background task to spawn consensus networking.
 	fn build_consensus_networking(
 		&mut self,
+		receiver: mpsc::Receiver<ServiceToWorkerMsg>,
 		table: Arc<SharedTable>,
 		authorities: Vec<ValidatorId>,
 	) {
@@ -832,6 +874,9 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 			},
 		);
 
+		let relay_parent = table.signing_context().parent_hash;
+		self.consensus_networking_receivers.push(ConsensusNetworkingReceiver { receiver, relay_parent }.into_future());
+
 		// glue the incoming messages, shared table, and validation
 		// work together.
 		let _ = self.executor.spawn(statement_import_loop(
@@ -846,8 +891,8 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 
 	fn handle_service_message(&mut self, message: ServiceToWorkerMsg) {
 		match message {
-			ServiceToWorkerMsg::PeerConnected(remote, roles) => {
-				self.protocol_handler.on_connect(remote, roles);
+			ServiceToWorkerMsg::PeerConnected(remote, role) => {
+				self.protocol_handler.on_connect(remote, role);
 			}
 			ServiceToWorkerMsg::PeerDisconnected(remote) => {
 				self.protocol_handler.on_disconnect(remote);
@@ -855,12 +900,8 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 			ServiceToWorkerMsg::PeerMessage(remote, messages) => {
 				self.protocol_handler.on_raw_messages(remote, messages)
 			}
-
-			ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities) => {
-				self.build_consensus_networking(table, authorities);
-			}
-			ServiceToWorkerMsg::DropConsensusNetworking(relay_parent) => {
-				self.protocol_handler.drop_consensus_networking(&relay_parent);
+			ServiceToWorkerMsg::BuildConsensusNetworking(receiver, table, authorities) => {
+				self.build_consensus_networking(receiver, table, authorities);
 			}
 			ServiceToWorkerMsg::SubmitValidatedCollation(receipt, pov_block, chunks) => {
 				let relay_parent = receipt.relay_parent;
@@ -877,9 +918,17 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 					&self.gossip_handle,
 				);
 			}
-			ServiceToWorkerMsg::FetchPoVBlock(_candidate, _sender) => {
-				// TODO https://github.com/paritytech/polkadot/issues/742:
-				// create a filter on gossip for it and send to sender.
+			ServiceToWorkerMsg::FetchPoVBlock(candidate, mut sender) => {
+				// The gossip system checks that the correct pov-block data is present
+				// before placing in the pool, so we can safely check by candidate hash.
+				let get_msg = fetch_pov_from_gossip(&candidate, &self.gossip_handle);
+
+				let _ = self.executor.spawn(async move {
+					let res = future::select(get_msg, AwaitCanceled { inner: &mut sender }).await;
+					if let Either::Left((pov_block, _)) = res {
+						let _ = sender.send(pov_block);
+					}
+				});
 			}
 			ServiceToWorkerMsg::FetchErasureChunk(candidate_hash, validator_index, mut sender) => {
 				let topic = crate::erasure_coding_topic(&candidate_hash);
@@ -977,6 +1026,16 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 					Some(msg) => self.handle_service_message(msg),
 					None => return,
 				},
+				consensus_service_msg = self.consensus_networking_receivers.next() => match consensus_service_msg {
+					Some((Some(msg), receiver)) => {
+						self.handle_service_message(msg);
+						self.consensus_networking_receivers.push(receiver.into_future());
+					},
+					Some((None, receiver)) => {
+						self.protocol_handler.drop_consensus_networking(&receiver.relay_parent);
+					},
+					None => {},
+				},
 				background_msg = self.background_receiver.next() => match background_msg {
 					Some(msg) => self.handle_background_message(msg),
 					None => return,
@@ -1009,6 +1068,7 @@ async fn worker_loop<Api, Sp>(
 		background_to_main_sender: background_tx,
 		background_receiver: background_rx,
 		service_receiver: receiver,
+		consensus_networking_receivers: Default::default(),
 	};
 
 	worker.main_loop().await
@@ -1133,16 +1193,14 @@ async fn statement_import_loop<Api>(
 		statements.insert(0, statement);
 
 		let producers: Vec<_> = {
-			// TODO: fetch these from gossip.
-			// https://github.com/paritytech/polkadot/issues/742
-			fn ignore_pov_fetch_requests(_: &AbridgedCandidateReceipt)
-				-> future::Pending<Result<PoVBlock, std::io::Error>>
-			{
-				future::pending()
-			}
+			let gossip_handle = &gossip_handle;
+			let fetch_pov = |candidate: &AbridgedCandidateReceipt| fetch_pov_from_gossip(
+				candidate,
+				gossip_handle,
+			).map(Result::<_, std::io::Error>::Ok);
 
 			table.import_remote_statements(
-				&ignore_pov_fetch_requests,
+				&fetch_pov,
 				statements.iter().cloned(),
 			)
 		};
@@ -1192,6 +1250,33 @@ async fn statement_import_loop<Api>(
 	}
 }
 
+fn fetch_pov_from_gossip(
+	candidate: &AbridgedCandidateReceipt,
+	gossip_handle: &impl GossipOps,
+) -> impl Future<Output = PoVBlock> + Send {
+	let candidate_hash = candidate.hash();
+	let topic = crate::legacy::gossip::pov_block_topic(candidate.relay_parent);
+
+	// The gossip system checks that the correct pov-block data is present
+	// before placing in the pool, so we can safely check by candidate hash.
+	gossip_handle.gossip_messages_for(topic)
+		.filter_map(move |(msg, _)| {
+			future::ready(match msg {
+				GossipMessage::PoVBlock(pov_block_message) =>
+					if pov_block_message.candidate_hash == candidate_hash {
+						Some(pov_block_message.pov_block)
+					} else {
+						None
+					},
+				_ => None,
+			})
+		})
+		.into_future()
+		.map(|(item, _)| item.expect(
+			"gossip message streams do not conclude early; qed"
+		))
+}
+
 // distribute a "local collation": this is the collation gotten by a validator
 // from a collator. it needs to be distributed to other validators in the same
 // group.
@@ -1206,19 +1291,37 @@ fn distribute_validated_collation(
 	let hash = receipt.hash();
 	let validated = Validated::collated_local(
 		receipt,
-		pov_block,
+		pov_block.clone(),
 	);
 
-	let statement = crate::legacy::gossip::GossipStatement::new(
-		instance.relay_parent,
-		match instance.statement_table.import_validated(validated) {
-			None => return,
-			Some(s) => s,
-		}
-	);
+	// gossip the signed statement.
+	{
+		let statement = crate::legacy::gossip::GossipStatement::new(
+			instance.relay_parent,
+			match instance.statement_table.import_validated(validated) {
+				None => return,
+				Some(s) => s,
+			}
+		);
 
-	gossip_handle.gossip_message(instance.attestation_topic, statement.into());
+		gossip_handle.gossip_message(instance.attestation_topic, statement.into());
+	}
 
+	// gossip the PoV block.
+	{
+		let pov_block_message = crate::legacy::gossip::GossipPoVBlock {
+			relay_chain_leaf: instance.relay_parent,
+			candidate_hash: hash,
+			pov_block,
+		};
+
+		gossip_handle.gossip_message(
+			crate::legacy::gossip::pov_block_topic(instance.relay_parent),
+			pov_block_message.into(),
+		);
+	}
+
+	// gossip erasure chunks.
 	for chunk in chunks.1 {
 		let message = crate::legacy::gossip::ErasureChunkMessage {
 			chunk,
@@ -1245,25 +1348,7 @@ struct RouterInner {
 	sender: mpsc::Sender<ServiceToWorkerMsg>,
 }
 
-impl Drop for RouterInner  {
-	fn drop(&mut self) {
-		let res = self.sender.try_send(
-			ServiceToWorkerMsg::DropConsensusNetworking(self.relay_parent)
-		);
-
-		if let Err(e) = res {
-			assert!(
-				!e.is_full(),
-				"futures 0.3 guarantees at least one free slot in the capacity \
-				per sender; this is the first message sent via this sender; \
-				therefore we will not have to wait for capacity; qed"
-			);
-			// other error variants (disconnection) are fine here.
-		}
-	}
-}
-
-impl Service {
+impl<N: NetworkServiceOps> Service<N> {
 	/// Register an availablility-store that the network can query.
 	pub fn register_availability_store(&self, store: av_store::Store) {
 		let _ = self.sender.clone()
@@ -1313,7 +1398,7 @@ impl Service {
 	}
 }
 
-impl ParachainNetwork for Service {
+impl<N> ParachainNetwork for Service<N> {
 	type Error = mpsc::SendError;
 	type TableRouter = Router;
 	type BuildTableRouter = Pin<Box<dyn Future<Output=Result<Router,Self::Error>> + Send>>;
@@ -1328,21 +1413,22 @@ impl ParachainNetwork for Service {
 		let relay_parent = table.signing_context().parent_hash.clone();
 
 		Box::pin(async move {
+			let (router_sender, receiver) = mpsc::channel(0);
 			sender.send(
-				ServiceToWorkerMsg::BuildConsensusNetworking(table, authorities)
+				ServiceToWorkerMsg::BuildConsensusNetworking(receiver, table, authorities)
 			).await?;
 
 			Ok(Router {
 				inner: Arc::new(RouterInner {
 					relay_parent,
-					sender,
+					sender: router_sender,
 				})
 			})
 		})
 	}
 }
 
-impl Collators for Service {
+impl<N> Collators for Service<N> {
 	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
 	type Collation = Pin<Box<dyn Future<Output = Result<Collation, Self::Error>> + Send>>;
 
@@ -1364,7 +1450,7 @@ impl Collators for Service {
 	}
 }
 
-impl av_store::ErasureNetworking for Service {
+impl<N> av_store::ErasureNetworking for Service<N> {
 	type Error = future::Either<mpsc::SendError, oneshot::Canceled>;
 
 	fn fetch_erasure_chunk(&self, candidate_hash: &Hash, index: u32)

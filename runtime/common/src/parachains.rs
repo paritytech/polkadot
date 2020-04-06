@@ -140,7 +140,7 @@ impl<Proof: Parameter + GetSessionNumber> DoubleVoteReport<Proof> {
 	) -> Result<(), DoubleVoteValidityError> {
 		let first = self.first.clone();
 		let second = self.second.clone();
-		let id = self.identity.encode();
+		let id = self.identity.clone();
 
 		T::KeyOwnerProofSystem::check_proof((PARACHAIN_KEY_TYPE_ID, id), self.proof.clone())
 			.ok_or(DoubleVoteValidityError::InvalidProof)?;
@@ -251,7 +251,7 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 
 	/// Compute and check proofs of historical key owners.
 	type KeyOwnerProofSystem: KeyOwnerProofSystem<
-		(KeyTypeId, Vec<u8>),
+		(KeyTypeId, ValidatorId),
 		Proof = Self::Proof,
 		IdentificationTuple = Self::IdentificationTuple,
 	>;
@@ -337,7 +337,7 @@ decl_storage! {
 		pub RelayDispatchQueue: map hasher(twox_64_concat) ParaId => Vec<UpwardMessage>;
 		/// Size of the dispatch queues. Separated from actual data in order to avoid costly
 		/// decoding when checking receipt validity. First item in tuple is the count of messages
-		///	second if the total length (in bytes) of the message payloads.
+		/// second if the total length (in bytes) of the message payloads.
 		pub RelayDispatchQueueSize: map hasher(twox_64_concat) ParaId => (u32, u32);
 		/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
 		NeedsDispatch: Vec<ParaId>;
@@ -399,7 +399,7 @@ decl_module! {
 		type Error = Error<T>;
 
 		/// Provide candidate receipts for parachains, in ascending order by id.
-		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
+		#[weight = SimpleDispatchInfo::FixedMandatory(1_000_000)]
 		pub fn set_heads(origin, heads: Vec<AttestedCandidate>) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), Error::<T>::TooManyHeadUpdates);
@@ -486,7 +486,7 @@ decl_module! {
 		pub fn report_double_vote(
 			origin,
 			report: DoubleVoteReport<
-				<T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof,
+				<T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::Proof,
 			>,
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
@@ -500,7 +500,7 @@ decl_module! {
 			// We have already checked this proof in `SignedExtension`, but we need
 			// this here to get the full identification of the offender.
 			let offender = T::KeyOwnerProofSystem::check_proof(
-					(PARACHAIN_KEY_TYPE_ID, identity.encode()),
+					(PARACHAIN_KEY_TYPE_ID, identity),
 					proof,
 				).ok_or("Invalid/outdated key ownership proof.")?;
 
@@ -640,6 +640,7 @@ impl<T: Trait> Module<T> {
 
 		for head in heads.iter() {
 			let id = head.parachain_index();
+			Heads::insert(id, &head.candidate.head_data.0);
 
 			// Queue up upwards messages (from parachains to relay chain).
 			Self::queue_upward_messages(
@@ -964,7 +965,7 @@ impl<T: Trait> Module<T> {
 			for (vote_index, (auth_index, _)) in candidate.validator_indices
 				.iter()
 				.enumerate()
-				.filter(|(_, bit)| *bit)
+				.filter(|(_, bit)| **bit)
 				.enumerate()
 			{
 				let validity_attestation = match candidate.validity_votes.get(vote_index) {
@@ -1200,11 +1201,12 @@ mod tests {
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
 		impl_opaque_keys,
-		Perbill, curve::PiecewiseLinear, testing::{Header},
+		Perbill, curve::PiecewiseLinear, testing::Header,
 		traits::{
 			BlakeTwo256, IdentityLookup, SaturatedConversion,
 			OpaqueKeys,
 		},
+		testing::TestXt,
 	};
 	use primitives::{
 		parachain::{
@@ -1239,6 +1241,7 @@ mod tests {
 	impl_outer_dispatch! {
 		pub enum Call for Test where origin: Origin {
 			parachains::Parachains,
+			staking::Staking,
 		}
 	}
 
@@ -1304,6 +1307,7 @@ mod tests {
 		type ValidatorId = u64;
 		type ValidatorIdOf = staking::StashOf<Self>;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+		type NextSessionRotation = session::PeriodicSessions<Period, Offset>;
 		type SessionManager = session::historical::NoteHistoricalRoot<Self, Staking>;
 		type SessionHandler = TestSessionHandler;
 		type Keys = TestSessionKeys;
@@ -1375,6 +1379,7 @@ mod tests {
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 		pub const MaxNominatorRewardedPerValidator: u32 = 64;
+		pub const ElectionLookahead: BlockNumber = 0;
 	}
 
 	pub struct CurrencyToVoteHandler;
@@ -1399,9 +1404,13 @@ mod tests {
 		type SlashDeferDuration = SlashDeferDuration;
 		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
 		type SessionInterface = Self;
-		type Time = timestamp::Module<Test>;
+		type UnixTime = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+		type NextNewSession = Session;
+		type ElectionLookahead = ElectionLookahead;
+		type Call = Call;
+		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
 	}
 
 	impl attestations::Trait for Test {
@@ -1460,8 +1469,10 @@ mod tests {
 		type Registrar = registrar::Module<Test>;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
-		type Proof = <Historical as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof;
-		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+		type Proof =
+			<Historical as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::Proof;
+		type IdentificationTuple =
+			<Historical as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::IdentificationTuple;
 		type ReportOffence = Offences;
 		type BlockHashConversion = sp_runtime::traits::Identity;
 		type KeyOwnerProofSystem = Historical;
@@ -1569,10 +1580,13 @@ mod tests {
 
 	// creates a template candidate which pins to correct relay-chain state.
 	fn raw_candidate(para_id: ParaId) -> CandidateReceipt {
+		let mut head_data = Parachains::parachain_head(&para_id).unwrap();
+		head_data.extend(para_id.encode());
+
 		CandidateReceipt {
 			parachain_index: para_id,
 			relay_parent: System::parent_hash(),
-			head_data: Default::default(),
+			head_data: HeadData(head_data),
 			collator: Default::default(),
 			signature: Default::default(),
 			pov_block_hash: Default::default(),
@@ -2121,6 +2135,9 @@ mod tests {
 				set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
 				Origin::NONE,
 			));
+
+			assert_eq!(Heads::get(&ParaId::from(0)).map(HeadData), Some(candidate_a.candidate.head_data));
+			assert_eq!(Heads::get(&ParaId::from(1)).map(HeadData), Some(candidate_b.candidate.head_data));
 		});
 	}
 

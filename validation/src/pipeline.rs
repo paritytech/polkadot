@@ -36,6 +36,8 @@ use sp_api::ProvideRuntimeApi;
 use parking_lot::Mutex;
 use crate::Error;
 
+pub use parachain::wasm_executor::ValidationPool;
+
 /// Does basic checks of a collation. Provide the encoded PoV-block.
 pub fn basic_checks(
 	collation: &CollationInfo,
@@ -227,6 +229,7 @@ impl<'a> ValidatedCandidate<'a> {
 
 /// Does full checks of a collation, with provided PoV-block and contextual data.
 pub fn validate<'a>(
+	validation_pool: Option<&'_ ValidationPool>,
 	collation: &'a CollationInfo,
 	pov_block: &'a PoVBlock,
 	local_validation: &'a LocalValidationData,
@@ -251,12 +254,16 @@ pub fn validate<'a>(
 		per_byte: 0,
 	};
 
+	let execution_mode = validation_pool
+		.map(ExecutionMode::Remote)
+		.unwrap_or(ExecutionMode::Local);
+
 	let ext = Externalities::new(local_validation.balance, fee_schedule);
 	match wasm_executor::validate_candidate(
 		&validation_code,
 		params,
 		ext.clone(),
-		ExecutionMode::Remote,
+		execution_mode,
 	) {
 		Ok(result) => {
 			if result.head_data == collation.head_data.0 {
@@ -306,6 +313,7 @@ where
 
 /// Does full-pipeline validation of a collation with provided contextual parameters.
 pub fn full_output_validation_with_api<P>(
+	validation_pool: Option<&ValidationPool>,
 	api: &P,
 	collation: &CollationInfo,
 	pov_block: &PoVBlock,
@@ -330,6 +338,7 @@ pub fn full_output_validation_with_api<P>(
 		&encoded_pov,
 	)
 		.and_then(|()| validate(
+			validation_pool,
 			&collation,
 			&pov_block,
 			&local_validation,

@@ -25,6 +25,8 @@ const INFINITE_LOOP_CODE: &[u8] = halt::WASM_BINARY;
 
 #[test]
 fn terminates_on_timeout() {
+	let pool = parachain::wasm_executor::ValidationPool::new();
+
 	let result = parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
 		ValidationParams {
@@ -32,7 +34,7 @@ fn terminates_on_timeout() {
 			block_data: Vec::new(),
 		},
 		DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
+		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	);
 	match result {
 		Err(parachain::wasm_executor::Error::Timeout) => {},
@@ -45,7 +47,11 @@ fn terminates_on_timeout() {
 
 #[test]
 fn parallel_execution() {
+	let pool = parachain::wasm_executor::ValidationPool::new();
+
 	let start = std::time::Instant::now();
+
+	let pool2 = pool.clone();
 	let thread = std::thread::spawn(move ||
 		parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
@@ -54,7 +60,7 @@ fn parallel_execution() {
 			block_data: Vec::new(),
 		},
 		DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
+		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool2),
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
@@ -63,7 +69,7 @@ fn parallel_execution() {
 			block_data: Vec::new(),
 		},
 		DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
+		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	);
 	thread.join().unwrap();
 	// total time should be < 2 x EXECUTION_TIMEOUT_SEC

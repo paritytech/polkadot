@@ -28,7 +28,7 @@ use sp_core::traits::CallInWasm;
 use sp_wasm_interface::HostFunctions as _;
 
 #[cfg(not(target_os = "unknown"))]
-pub use validation_host::{run_worker, EXECUTION_TIMEOUT_SEC};
+pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC};
 
 mod validation_host;
 
@@ -48,16 +48,31 @@ impl ParachainExt {
 	}
 }
 
+/// A stub validation-pool defined when compiling for WASM.
+#[cfg(target_os = "unknown")]
+#[derive(Clone)]
+pub struct ValidationPool {
+	_inner: (), // private field means not publicly-instantiable
+}
+
+#[cfg(target_os = "unknown")]
+impl ValidationPool {
+	/// Create a new `ValidationPool`.
+	pub fn new() -> Self {
+		ValidationPool { _inner: () }
+	}
+}
+
 /// WASM code execution mode.
 ///
 /// > Note: When compiling for WASM, the `Remote` variants are not available.
-pub enum ExecutionMode {
+pub enum ExecutionMode<'a> {
 	/// Execute in-process. The execution can not be interrupted or aborted.
 	Local,
 	/// Remote execution in a spawned process.
-	Remote,
+	Remote(&'a ValidationPool),
 	/// Remote execution in a spawned test runner.
-	RemoteTest,
+	RemoteTest(&'a ValidationPool),
 }
 
 /// Error type for the wasm executor
@@ -115,27 +130,27 @@ pub fn validate_candidate<E: Externalities + 'static>(
 	validation_code: &[u8],
 	params: ValidationParams,
 	ext: E,
-	options: ExecutionMode,
+	options: ExecutionMode<'_>,
 ) -> Result<ValidationResult, Error> {
 	match options {
 		ExecutionMode::Local => {
 			validate_candidate_internal(validation_code, &params.encode(), ext)
 		},
 		#[cfg(not(target_os = "unknown"))]
-		ExecutionMode::Remote => {
-			validation_host::validate_candidate(validation_code, params, ext, false)
+		ExecutionMode::Remote(pool) => {
+			pool.validate_candidate(validation_code, params, ext, false)
 		},
 		#[cfg(not(target_os = "unknown"))]
-		ExecutionMode::RemoteTest => {
-			validation_host::validate_candidate(validation_code, params, ext, true)
+		ExecutionMode::RemoteTest(pool) => {
+			pool.validate_candidate(validation_code, params, ext, true)
 		},
 		#[cfg(target_os = "unknown")]
-		ExecutionMode::Remote =>
+		ExecutionMode::Remote(pool) =>
 			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
 				"Remote validator not available".to_string()
 			) as Box<_>)),
 		#[cfg(target_os = "unknown")]
-		ExecutionMode::RemoteTest =>
+		ExecutionMode::RemoteTest(pool) =>
 			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
 				"Remote validator not available".to_string()
 			) as Box<_>)),

@@ -21,9 +21,8 @@ mod block_import;
 
 use std::{collections::HashMap, pin::Pin, sync::Arc, marker::PhantomData, task::{Poll, Context as FutureContext}};
 
-use libp2p::build_multiaddr;
 use log::trace;
-use sc_network::config::FinalityProofProvider;
+use sc_network::config::{build_multiaddr, FinalityProofProvider, Role};
 use sp_blockchain::{
 	Result as ClientResult, well_known_cache_keys::{self, Id as CacheKeyId}, Info as BlockchainInfo,
 };
@@ -36,7 +35,6 @@ use sc_client_api::{
 };
 use sc_block_builder::{BlockBuilder, BlockBuilderProvider};
 use sc_client::LongestChain;
-use sc_network::config::Roles;
 use sp_consensus::block_validation::DefaultBlockAnnounceValidator;
 use sp_consensus::import_queue::{
 	BasicQueue, BoxJustificationImport, Verifier, BoxFinalityProofImport,
@@ -47,10 +45,9 @@ use sp_consensus::{BlockOrigin, BlockImportParams, BlockCheckParams, Justificati
 use futures::prelude::*;
 use sc_network::{NetworkWorker, NetworkStateInfo, NetworkService, ReportHandle, config::ProtocolId};
 use sc_network::config::{NetworkConfiguration, TransportConfig, BoxFinalityProofRequestBuilder};
-use libp2p::PeerId;
 use parking_lot::Mutex;
 use sp_core::H256;
-use sc_network::config::{ProtocolConfig, TransactionPool};
+use sc_network::{PeerId, config::{ProtocolConfig, TransactionPool}};
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
 use sp_runtime::Justification;
@@ -248,7 +245,7 @@ impl<D> Peer<D> {
 				Default::default()
 			};
 			self.block_import.import_block(import_block, cache).expect("block_import failed");
-			self.network.on_block_imported(header, Vec::new(), true);
+			self.network.on_block_imported(header, true);
 			at = hash;
 		}
 
@@ -526,22 +523,21 @@ pub trait TestNetFactory: Sized {
 	/// Create new test network with this many peers.
 	fn new(n: usize) -> Self {
 		trace!(target: "test_network", "Creating test network");
-		let config = Self::default_config();
-		let mut net = Self::from_config(&config);
+		let mut net = Self::from_config(&Default::default());
 
 		for i in 0..n {
 			trace!(target: "test_network", "Adding peer {}", i);
-			net.add_full_peer(&config);
+			net.add_full_peer();
 		}
 		net
 	}
 
-	fn add_full_peer(&mut self, config: &ProtocolConfig) {
-		self.add_full_peer_with_states(config, None)
+	fn add_full_peer(&mut self,) {
+		self.add_full_peer_with_states(None)
 	}
 
 	/// Add a full peer.
-	fn add_full_peer_with_states(&mut self, config: &ProtocolConfig, keep_blocks: Option<u32>) {
+	fn add_full_peer_with_states(&mut self, keep_blocks: Option<u32>) {
 		let test_client_builder = match keep_blocks {
 			Some(keep_blocks) => TestClientBuilder::with_pruning_window(keep_blocks),
 			None => TestClientBuilder::with_default_backend(),
@@ -560,7 +556,7 @@ pub trait TestNetFactory: Sized {
 
 		let verifier = self.make_verifier(
 			PeersClient::Full(client.clone(), backend.clone()),
-			config,
+			&Default::default(),
 			&data,
 		);
 		let verifier = VerifierAdapter::new(Arc::new(Mutex::new(Box::new(verifier) as Box<_>)));
@@ -575,7 +571,7 @@ pub trait TestNetFactory: Sized {
 		let listen_addr = build_multiaddr![Memory(rand::random::<u64>())];
 
 		let network = NetworkWorker::new(sc_network::config::Params {
-			roles: config.roles,
+			role: Role::Full,
 			executor: None,
 			network_config: NetworkConfiguration {
 				listen_addresses: vec![listen_addr.clone()],
@@ -618,10 +614,7 @@ pub trait TestNetFactory: Sized {
 	}
 
 	/// Add a light peer.
-	fn add_light_peer(&mut self, config: &ProtocolConfig) {
-		let mut config = config.clone();
-		config.roles = Roles::LIGHT;
-
+	fn add_light_peer(&mut self) {
 		let (c, backend) = polkadot_test_runtime_client::new_light();
 		let client = Arc::new(c);
 		let (
@@ -634,7 +627,7 @@ pub trait TestNetFactory: Sized {
 
 		let verifier = self.make_verifier(
 			PeersClient::Light(client.clone(), backend.clone()),
-			&config,
+			&Default::default(),
 			&data,
 		);
 		let verifier = VerifierAdapter::new(Arc::new(Mutex::new(Box::new(verifier) as Box<_>)));
@@ -649,7 +642,7 @@ pub trait TestNetFactory: Sized {
 		let listen_addr = build_multiaddr![Memory(rand::random::<u64>())];
 
 		let network = NetworkWorker::new(sc_network::config::Params {
-			roles: config.roles,
+			role: Role::Full,
 			executor: None,
 			network_config: NetworkConfiguration {
 				listen_addresses: vec![listen_addr.clone()],
@@ -760,7 +753,6 @@ pub trait TestNetFactory: Sized {
 				while let Poll::Ready(Some(notification)) = peer.imported_blocks_stream.as_mut().poll_next(cx) {
 					peer.network.on_block_imported(
 						notification.header,
-						Vec::new(),
 						true,
 					);
 				}
