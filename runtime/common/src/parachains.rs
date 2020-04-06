@@ -536,7 +536,7 @@ decl_module! {
 
 			Self::do_old_code_pruning(now);
 
-			// TODO [now]: adjust.
+			// TODO https://github.com/paritytech/polkadot/issues/977: set correctly
 			SimpleDispatchInfo::default().weigh_data(())
 		}
 
