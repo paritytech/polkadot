@@ -23,18 +23,20 @@ use codec::Encode;
 use polkadot_erasure_coding as erasure;
 use polkadot_primitives::parachain::{
 	CollationInfo, PoVBlock, LocalValidationData, GlobalValidationSchedule, OmittedValidationData,
-	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, HeadData, ParachainHost,
-	Id as ParaId, AbridgedCandidateReceipt,
+	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, ParachainHost,
+	Id as ParaId, AbridgedCandidateReceipt
 };
 use polkadot_primitives::{Block, BlockId, Balance, Hash};
 use parachain::{
 	wasm_executor::{self, ExecutionMode},
-	UpwardMessage, ValidationParams,
+	primitives::{UpwardMessage, ValidationParams},
 };
 use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 use sp_api::ProvideRuntimeApi;
 use parking_lot::Mutex;
 use crate::Error;
+
+pub use parachain::wasm_executor::ValidationPool;
 
 /// Does basic checks of a collation. Provide the encoded PoV-block.
 pub fn basic_checks(
@@ -93,7 +95,7 @@ impl ExternalitiesInner {
 	}
 
 	fn apply_message_fee(&mut self, message_len: usize) -> Result<(), String> {
-		let fee = self.fee_schedule.compute_fee(message_len);
+		let fee = self.fee_schedule.compute_message_fee(message_len);
 		let new_fees_charged = self.fees_charged.saturating_add(fee);
 		if new_fees_charged > self.free_balance {
 			Err("could not cover fee.".into())
@@ -158,8 +160,7 @@ impl FullOutput {
 pub struct ValidatedCandidate<'a> {
 	pov_block: &'a PoVBlock,
 	global_validation: &'a GlobalValidationSchedule,
-	parent_head: &'a HeadData,
-	balance: Balance,
+	local_validation: &'a LocalValidationData,
 	upward_messages: Vec<UpwardMessage>,
 	fees: Balance,
 }
@@ -171,18 +172,14 @@ impl<'a> ValidatedCandidate<'a> {
 		let ValidatedCandidate {
 			pov_block,
 			global_validation,
-			parent_head,
-			balance,
+			local_validation,
 			upward_messages,
 			fees,
 		} = self;
 
 		let omitted_validation = OmittedValidationData {
 			global_validation: global_validation.clone(),
-			local_validation: LocalValidationData {
-				parent_head: parent_head.clone(),
-				balance,
-			},
+			local_validation: local_validation.clone(),
 		};
 
 		let available_data = AvailableData {
@@ -214,6 +211,7 @@ impl<'a> ValidatedCandidate<'a> {
 			upward_messages,
 			fees,
 			erasure_root,
+			new_validation_code: None,
 		};
 
 		Ok(FullOutput {
@@ -227,6 +225,7 @@ impl<'a> ValidatedCandidate<'a> {
 
 /// Does full checks of a collation, with provided PoV-block and contextual data.
 pub fn validate<'a>(
+	validation_pool: Option<&'_ ValidationPool>,
 	collation: &'a CollationInfo,
 	pov_block: &'a PoVBlock,
 	local_validation: &'a LocalValidationData,
@@ -241,8 +240,12 @@ pub fn validate<'a>(
 	}
 
 	let params = ValidationParams {
-		parent_head: local_validation.parent_head.0.clone(),
-		block_data: pov_block.block_data.0.clone(),
+		parent_head: local_validation.parent_head.clone(),
+		block_data: pov_block.block_data.clone(),
+		max_code_size: global_validation.max_code_size,
+		max_head_data_size: global_validation.max_head_data_size,
+		relay_chain_height: global_validation.block_number,
+		code_upgrade_allowed: local_validation.code_upgrade_allowed,
 	};
 
 	// TODO: remove when ext does not do this.
@@ -251,15 +254,19 @@ pub fn validate<'a>(
 		per_byte: 0,
 	};
 
+	let execution_mode = validation_pool
+		.map(ExecutionMode::Remote)
+		.unwrap_or(ExecutionMode::Local);
+
 	let ext = Externalities::new(local_validation.balance, fee_schedule);
 	match wasm_executor::validate_candidate(
 		&validation_code,
 		params,
 		ext.clone(),
-		ExecutionMode::Remote,
+		execution_mode,
 	) {
 		Ok(result) => {
-			if result.head_data == collation.head_data.0 {
+			if result.head_data == collation.head_data {
 				let (upward_messages, fees) = Arc::try_unwrap(ext.0)
 					.map_err(|_| "<non-unique>")
 					.expect("Wasm executor drops passed externalities on completion; \
@@ -270,8 +277,7 @@ pub fn validate<'a>(
 				Ok(ValidatedCandidate {
 					pov_block,
 					global_validation,
-					parent_head: &local_validation.parent_head,
-					balance: local_validation.balance,
+					local_validation,
 					upward_messages,
 					fees,
 				})
@@ -306,6 +312,7 @@ where
 
 /// Does full-pipeline validation of a collation with provided contextual parameters.
 pub fn full_output_validation_with_api<P>(
+	validation_pool: Option<&ValidationPool>,
 	api: &P,
 	collation: &CollationInfo,
 	pov_block: &PoVBlock,
@@ -330,6 +337,7 @@ pub fn full_output_validation_with_api<P>(
 		&encoded_pov,
 	)
 		.and_then(|()| validate(
+			validation_pool,
 			&collation,
 			&pov_block,
 			&local_validation,
@@ -343,13 +351,13 @@ pub fn full_output_validation_with_api<P>(
 mod tests {
 	use super::*;
 	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
-	use parachain::ParachainDispatchOrigin;
+	use parachain::primitives::ParachainDispatchOrigin;
 
 	#[test]
 	fn ext_checks_fees_and_updates_correctly() {
 		let mut ext = ExternalitiesInner {
 			upward: vec![
-				UpwardMessage{ data: vec![42], origin: ParachainDispatchOrigin::Parachain },
+				UpwardMessage { data: vec![42], origin: ParachainDispatchOrigin::Parachain },
 			],
 			fees_charged: 0,
 			free_balance: 1_000_000,

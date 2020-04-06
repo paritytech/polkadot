@@ -642,6 +642,7 @@ mod benchmarking {
 	use super::*;
 	use secp_utils::*;
 	use system::RawOrigin;
+	use system as frame_system; // NOTE: required for the benchmarks! macro
 	use frame_benchmarking::{benchmarks, account};
 	use sp_runtime::DispatchResult;
 	use sp_runtime::traits::ValidateUnsigned;

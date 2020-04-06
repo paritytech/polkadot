@@ -56,7 +56,7 @@ use frame_support::{
 	weights::DispatchInfo,
 };
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
-use session::{historical as session_historical};
+use session::historical as session_historical;
 use system::offchain::TransactionSubmitter;
 
 #[cfg(feature = "std")]
@@ -314,17 +314,27 @@ impl attestations::Trait for Runtime {
 parameter_types! {
 	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
 	pub const MaxHeadDataSize: u32 = 20 * 1024; // 20 KB
+
+	pub const ValidationUpgradeFrequency: BlockNumber = 2;
+	pub const ValidationUpgradeDelay: BlockNumber = 1;
+	pub const SlashPeriod: BlockNumber = 1 * MINUTES;
 }
 
 impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
+	type BlockNumberConversion = sp_runtime::traits::Identity;
 	type Randomness = RandomnessCollectiveFlip;
 	type ActiveParachains = Registrar;
 	type Registrar = Registrar;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadDataSize = MaxHeadDataSize;
+
+	type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
+	type ValidationUpgradeDelay = ValidationUpgradeDelay;
+	type SlashPeriod = SlashPeriod;
+
 	type Proof = session::historical::Proof;
 	type KeyOwnerProofSystem = session::historical::Module<Self>;
 	type IdentificationTuple = <
@@ -451,7 +461,7 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
-		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>},
+		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		Offences: offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
@@ -574,7 +584,7 @@ sp_api::impl_runtime_apis! {
 			Parachains::global_validation_schedule()
 		}
 		fn local_validation_data(id: parachain::Id) -> Option<parachain::LocalValidationData> {
-			Parachains::local_validation_data(&id)
+			Parachains::current_local_validation_data(&id)
 		}
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)

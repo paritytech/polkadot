@@ -59,12 +59,12 @@ use polkadot_primitives::{
 	BlockId, Hash, Block,
 	parachain::{
 		self, BlockData, DutyRoster, HeadData, Id as ParaId,
-		PoVBlock, ValidatorId, CollatorPair, LocalValidationData
+		PoVBlock, ValidatorId, CollatorPair, LocalValidationData, GlobalValidationSchedule,
 	}
 };
 use polkadot_cli::{
 	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
-	service::{self, Roles}
+	service::{self, Role}
 };
 pub use polkadot_cli::{VersionInfo, load_spec, service::Configuration};
 pub use polkadot_validation::SignedStatement;
@@ -154,7 +154,8 @@ pub trait ParachainContext: Clone {
 	fn produce_candidate(
 		&mut self,
 		relay_parent: Hash,
-		status: LocalValidationData,
+		global_validation: GlobalValidationSchedule,
+		local_validation: LocalValidationData,
 	) -> Self::ProduceCandidate;
 }
 
@@ -162,6 +163,7 @@ pub trait ParachainContext: Clone {
 pub async fn collate<P>(
 	relay_parent: Hash,
 	local_id: ParaId,
+	global_validation: GlobalValidationSchedule,
 	local_validation_data: LocalValidationData,
 	mut para_context: P,
 	key: Arc<CollatorPair>,
@@ -173,6 +175,7 @@ pub async fn collate<P>(
 {
 	let (block_data, head_data) = para_context.produce_candidate(
 		relay_parent,
+		global_validation,
 		local_validation_data,
 	).map_err(Error::Collator).await?;
 
@@ -281,6 +284,7 @@ fn build_collator_service<S, P, Extrinsic>(
 
 			let work = future::lazy(move |_| {
 				let api = client.runtime_api();
+				let global_validation = try_fr!(api.global_validation_schedule(&id));
 				let local_validation = match try_fr!(api.local_validation_data(&id, para_id)) {
 					Some(local_validation) => local_validation,
 					None => return future::Either::Left(future::ok(())),
@@ -297,6 +301,7 @@ fn build_collator_service<S, P, Extrinsic>(
 				let collation_work = collate(
 					relay_parent,
 					para_id,
+					global_validation,
 					local_validation,
 					parachain_context,
 					key,
@@ -344,8 +349,8 @@ where
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
 	let is_kusama = config.expect_chain_spec().is_kusama();
-	match (is_kusama, config.roles) {
-		(_, Roles::LIGHT) => return Err(
+	match (is_kusama, &config.role) {
+		(_, Role::Light) => return Err(
 			polkadot_service::Error::Other("light nodes are unsupported as collator".into())
 		).into(),
 		(true, _) =>
@@ -389,8 +394,8 @@ pub fn run_collator<P>(
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
-	match (config.expect_chain_spec().is_kusama(), config.roles) {
-		(_, Roles::LIGHT) => return Err(
+	match (config.expect_chain_spec().is_kusama(), &config.role) {
+		(_, Role::Light) => return Err(
 			polkadot_cli::Error::Input("light nodes are unsupported as collator".into())
 		).into(),
 		(true, _) =>
@@ -427,6 +432,7 @@ mod tests {
 		fn produce_candidate(
 			&mut self,
 			_relay_parent: Hash,
+			_global: GlobalValidationSchedule,
 			_local_validation: LocalValidationData,
 		) -> Self::ProduceCandidate {
 			// send messages right back.

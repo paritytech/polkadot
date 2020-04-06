@@ -16,23 +16,32 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-use polkadot_parachain as parachain;
+use parachain;
 use crate::{adder, DummyExt};
-use crate::parachain::{ValidationParams, wasm_executor::EXECUTION_TIMEOUT_SEC};
+use crate::parachain::{
+	primitives::{BlockData, ValidationParams},
+	wasm_executor::EXECUTION_TIMEOUT_SEC,
+};
 
 // Code that exposes `validate_block` and loops infinitely
 const INFINITE_LOOP_CODE: &[u8] = halt::WASM_BINARY;
 
 #[test]
 fn terminates_on_timeout() {
+	let pool = parachain::wasm_executor::ValidationPool::new();
+
 	let result = parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
 		ValidationParams {
+			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
-			block_data: Vec::new(),
+			max_code_size: 1024,
+			max_head_data_size: 1024,
+			relay_chain_height: 1,
+			code_upgrade_allowed: None,
 		},
 		DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
+		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	);
 	match result {
 		Err(parachain::wasm_executor::Error::Timeout) => {},
@@ -45,25 +54,37 @@ fn terminates_on_timeout() {
 
 #[test]
 fn parallel_execution() {
+	let pool = parachain::wasm_executor::ValidationPool::new();
+
 	let start = std::time::Instant::now();
+
+	let pool2 = pool.clone();
 	let thread = std::thread::spawn(move ||
 		parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
 		ValidationParams {
+			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
-			block_data: Vec::new(),
+			max_code_size: 1024,
+			max_head_data_size: 1024,
+			relay_chain_height: 1,
+			code_upgrade_allowed: None,
 		},
 		DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
+		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool2),
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
 		INFINITE_LOOP_CODE,
 		ValidationParams {
+			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
-			block_data: Vec::new(),
+			max_code_size: 1024,
+			max_head_data_size: 1024,
+			relay_chain_height: 1,
+			code_upgrade_allowed: None,
 		},
 		DummyExt,
-		parachain::wasm_executor::ExecutionMode::RemoteTest,
+		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	);
 	thread.join().unwrap();
 	// total time should be < 2 x EXECUTION_TIMEOUT_SEC

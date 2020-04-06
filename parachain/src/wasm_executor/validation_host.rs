@@ -18,7 +18,7 @@
 
 use std::{process, env, sync::Arc, sync::atomic, mem};
 use codec::{Decode, Encode, EncodeAppend};
-use crate::{ValidationParams, ValidationResult, UpwardMessage};
+use crate::primitives::{ValidationParams, ValidationResult, UpwardMessage};
 use super::{validate_candidate_internal, Error, Externalities};
 use super::{MAX_CODE_MEM, MAX_RUNTIME_MEM};
 use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
@@ -32,8 +32,6 @@ const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 /// CLI Argument to start in validation worker mode.
 const WORKER_ARG: &'static str = "validation-worker";
 const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
-
-const NUM_HOSTS: usize = 8;
 
 /// Execution timeout in seconds;
 #[cfg(debug_assertions)]
@@ -69,8 +67,42 @@ enum Event {
 	WorkerReady = 2,
 }
 
-lazy_static::lazy_static! {
-	static ref HOSTS: [Mutex<ValidationHost>; NUM_HOSTS] = Default::default();
+/// A pool of hosts.
+#[derive(Clone)]
+pub struct ValidationPool {
+	hosts: Arc<Vec<Mutex<ValidationHost>>>,
+}
+
+const DEFAULT_NUM_HOSTS: usize = 8;
+
+impl ValidationPool {
+	/// Creates a validation pool with the default configuration.
+	pub fn new() -> ValidationPool {
+		ValidationPool {
+			hosts: Arc::new((0..DEFAULT_NUM_HOSTS).map(|_| Default::default()).collect()),
+		}
+	}
+
+	/// Validate a candidate under the given validation code using the next
+	/// free validation host.
+	///
+	/// This will fail if the validation code is not a proper parachain validation module.
+	pub fn validate_candidate<E: Externalities>(
+		&self,
+		validation_code: &[u8],
+		params: ValidationParams,
+		externalities: E,
+		test_mode: bool,
+	) -> Result<ValidationResult, Error> {
+		for host in self.hosts.iter() {
+			if let Some(mut host) = host.try_lock() {
+				return host.validate_candidate(validation_code, params, externalities, test_mode);
+			}
+		}
+
+		// all workers are busy, just wait for the first one
+		self.hosts[0].lock().validate_candidate(validation_code, params, externalities, test_mode)
+	}
 }
 
 /// Validation worker process entry point. Runs a loop waiting for candidates to validate
@@ -182,25 +214,6 @@ struct ValidationHost {
 	worker: Option<process::Child>,
 	memory: Option<SharedMem>,
 	id: u32,
-}
-
-/// Validate a candidate under the given validation code.
-///
-/// This will fail if the validation code is not a proper parachain validation module.
-pub fn validate_candidate<E: Externalities>(
-	validation_code: &[u8],
-	params: ValidationParams,
-	externalities: E,
-	test_mode: bool,
-) -> Result<ValidationResult, Error> {
-	for host in HOSTS.iter() {
-		if let Some(mut host) = host.try_lock() {
-			return host.validate_candidate(validation_code, params, externalities, test_mode);
-		}
-	}
-
-	// all workers are busy, just wait for the first one
-	HOSTS[0].lock().validate_candidate(validation_code, params, externalities, test_mode)
 }
 
 impl Drop for ValidationHost {
