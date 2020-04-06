@@ -18,17 +18,25 @@ use log::info;
 use sp_runtime::traits::BlakeTwo256;
 use service::{IsKusama, Block, self, RuntimeApiCollection, TFullClient};
 use sp_api::ConstructRuntimeApi;
-use sc_cli::{substrate_cli, SubstrateCli, Result};
+use sc_cli::{SubstrateCli, Result};
 use sc_executor::NativeExecutionDispatch;
 use crate::cli::{Cli, Subcommand};
 
-#[substrate_cli(
-	impl_name = "parity-polkadot",
-	support_url = "https://github.com/paritytech/polkadot/issues/new",
-	copyright_start_year = 2017,
-	executable_name = "polkadot",
-)]
 impl SubstrateCli for Cli {
+	fn impl_name() -> &'static str { "parity-polkadot" }
+
+	fn impl_version() -> &'static str { env!("SUBSTRATE_CLI_IMPL_VERSION") }
+
+	fn description() -> &'static str { env!("CARGO_PKG_DESCRIPTION") }
+
+	fn author() -> &'static str { env!("CARGO_PKG_AUTHORS") }
+
+	fn support_url() -> &'static str { "https://github.com/paritytech/polkadot/issues/new" }
+
+	fn copyright_start_year() -> i32 { 2017 }
+
+	fn executable_name() -> &'static str { "polkadot" }
+
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		Ok(match id {
 			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()),
