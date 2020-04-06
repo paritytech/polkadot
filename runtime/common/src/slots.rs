@@ -878,7 +878,7 @@ mod tests {
 
 	use sp_core::H256;
 	use sp_runtime::{
-		Perbill, testing::Header,
+		Perbill,
 		traits::{BlakeTwo256, Hash, IdentityLookup},
 	};
 	use frame_support::{
@@ -886,7 +886,8 @@ mod tests {
 		traits::{OnInitialize, OnFinalize}
 	};
 	use balances;
-	use primitives::parachain::{Id as ParaId, Info as ParaInfo};
+	use primitives::{BlockNumber, Header};
+	use primitives::parachain::{Id as ParaId, Info as ParaInfo, Scheduling};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -907,7 +908,7 @@ mod tests {
 		type Origin = Origin;
 		type Call = ();
 		type Index = u64;
-		type BlockNumber = u64;
+		type BlockNumber = BlockNumber;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
@@ -963,6 +964,10 @@ mod tests {
 			code_size <= MAX_CODE_SIZE
 		}
 
+		fn para_info(_id: ParaId) -> Option<ParaInfo> {
+			Some(ParaInfo { scheduling: Scheduling::Always })
+		}
+
 		fn register_para(
 			id: ParaId,
 			_info: ParaInfo,
@@ -997,8 +1002,8 @@ mod tests {
 	}
 
 	parameter_types!{
-		pub const LeasePeriod: u64 = 10;
-		pub const EndingPeriod: u64 = 3;
+		pub const LeasePeriod: BlockNumber = 10;
+		pub const EndingPeriod: BlockNumber = 3;
 	}
 
 	impl Trait for Test {
@@ -1025,7 +1030,7 @@ mod tests {
 		t.into()
 	}
 
-	fn run_to_block(n: u64) {
+	fn run_to_block(n: BlockNumber) {
 		while System::block_number() < n {
 			Slots::on_finalize(System::block_number());
 			Balances::on_finalize(System::block_number());
@@ -1453,8 +1458,8 @@ mod tests {
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 
-			for i in 1..6 {
-				run_to_block(i);
+			for i in 1..6u64 {
+				run_to_block(i as _);
 				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
 				for j in 1..6 {
 					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
@@ -1481,8 +1486,8 @@ mod tests {
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 
-			for i in 1..6 {
-				run_to_block(i + 3);
+			for i in 1..6u64 {
+				run_to_block((i + 3) as _);
 				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
 				for j in 1..6 {
 					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });

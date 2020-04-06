@@ -299,6 +299,7 @@ fn consensus_instances_cleaned_up() {
 		signing_context,
 		AvailabilityStore::new_in_memory(service.clone()),
 		None,
+		None,
 	));
 
 	pool.spawner().spawn_local(worker_task).unwrap();
@@ -328,6 +329,7 @@ fn collation_is_received_with_dropped_router() {
 		Some(Arc::new(Sr25519Keyring::Alice.pair().into())),
 		signing_context,
 		AvailabilityStore::new_in_memory(service.clone()),
+		None,
 		None,
 	));
 
@@ -549,6 +551,7 @@ fn fetches_pov_block_from_gossip() {
 		None,
 		signing_context,
 		AvailabilityStore::new_in_memory(service.clone()),
+		None,
 		None,
 	));
 

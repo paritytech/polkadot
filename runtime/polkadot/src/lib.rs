@@ -507,17 +507,27 @@ impl attestations::Trait for Runtime {
 parameter_types! {
 	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
 	pub const MaxHeadDataSize: u32 = 20 * 1024; // 20 KB
+
+	pub const ValidationUpgradeFrequency: BlockNumber = 7 * DAYS;
+	pub const ValidationUpgradeDelay: BlockNumber = 1 * DAYS;
+	pub const SlashPeriod: BlockNumber = 28 * DAYS;
 }
 
 impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
+	type BlockNumberConversion = sp_runtime::traits::Identity;
 	type Randomness = RandomnessCollectiveFlip;
 	type ActiveParachains = Registrar;
 	type Registrar = Registrar;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadDataSize = MaxHeadDataSize;
+
+	type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
+	type ValidationUpgradeDelay = ValidationUpgradeDelay;
+	type SlashPeriod = SlashPeriod;
+
 	type Proof = session::historical::Proof;
 	type KeyOwnerProofSystem = session::historical::Module<Self>;
 	type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
@@ -741,7 +751,7 @@ sp_api::impl_runtime_apis! {
 			Parachains::global_validation_schedule()
 		}
 		fn local_validation_data(id: parachain::Id) -> Option<parachain::LocalValidationData> {
-			Parachains::local_validation_data(&id)
+			Parachains::current_local_validation_data(&id)
 		}
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)
