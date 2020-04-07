@@ -144,6 +144,13 @@ impl system::Trait for Runtime {
 	type OnKilledAccount = ();
 }
 
+impl<C> system::offchain::SendTransactionTypes<C> for Runtime where
+	Call: From<C>,
+{
+	type OverarchingCall = Call;
+	type Extrinsic = UncheckedExtrinsic;
+}
+
 impl scheduler::Trait for Runtime {
 	type Event = Event;
 	type Origin = Origin;
