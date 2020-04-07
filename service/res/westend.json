@@ -1,4 +1,6 @@
-  "id": "westend",
+{
+  "name": "Westend",
+  "id": "westend2",
   "bootNodes": [
     "/ip4/104.155.79.90/tcp/30333/p2p/QmZ4HcUygvbrPaABU9MfjqFsSPUKwmH6LyXBFYX2xSXGo2",
     "/ip4/104.155.79.90/tcp/30334/ws/p2p/QmZ4HcUygvbrPaABU9MfjqFsSPUKwmH6LyXBFYX2xSXGo2",
