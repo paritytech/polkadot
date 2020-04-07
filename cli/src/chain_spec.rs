@@ -89,8 +89,11 @@ impl ChainSpec {
 	}
 }
 
+/// A network whose spec we want to force the loading of.
 pub enum ForceNetwork {
+	/// The Kusama network.
 	Kusama,
+	/// The Westend network.
 	Westend,
 }
 
