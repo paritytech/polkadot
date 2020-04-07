@@ -65,7 +65,7 @@ pub type KusamaChainSpec = service::GenericChainSpec<
 	Extensions,
 >;
 
-/// The `ChainSpec parametrised for kusama runtime`.
+/// The `ChainSpec parametrised for westend runtime`.
 pub type WestendChainSpec = service::GenericChainSpec<
 	westend::GenesisConfig,
 	Extensions,

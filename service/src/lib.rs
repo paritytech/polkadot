@@ -31,9 +31,9 @@ use inherents::InherentDataProviders;
 use sc_executor::native_executor_instance;
 use log::info;
 pub use service::{
-	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
+	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec,
+	Configuration, ChainSpec, ServiceBuilderCommand,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig, full_version_from_strs};
 pub use sc_executor::NativeExecutionDispatch;
@@ -45,7 +45,7 @@ pub use consensus_common::SelectChain;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec};
+pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
 #[cfg(not(target_os = "unknown"))]
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
