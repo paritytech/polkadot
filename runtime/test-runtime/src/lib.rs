@@ -141,6 +141,13 @@ impl system::Trait for Runtime {
 	type OnKilledAccount = ();
 }
 
+impl<C> system::offchain::SendTransactionTypes<C> for Runtime where
+	Call: From<C>,
+{
+	type OverarchingCall = Call;
+	type Extrinsic = UncheckedExtrinsic;
+}
+
 parameter_types! {
 	pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
@@ -290,7 +297,6 @@ impl staking::Trait for Runtime {
 	type NextNewSession = Session;
 	type ElectionLookahead = ElectionLookahead;
 	type Call = Call;
-	type SubmitTransaction = system::offchain::TransactionSubmitter<(), Runtime, Extrinsic>;
 }
 
 impl grandpa::Trait for Runtime {
