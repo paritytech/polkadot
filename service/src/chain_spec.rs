@@ -20,8 +20,10 @@ use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use polkadot_primitives::{AccountId, AccountPublic, parachain::ValidatorId};
 use polkadot_runtime as polkadot;
 use kusama_runtime as kusama;
+use westend_runtime as westend;
 use polkadot::constants::currency::DOTS;
 use kusama::constants::currency::DOTS as KSM;
+use westend::constants::currency::DOTS as WND;
 use sc_chain_spec::ChainSpecExtension;
 use sp_runtime::{traits::IdentifyAccount, Perbill};
 use serde::{Serialize, Deserialize};
@@ -35,6 +37,7 @@ use pallet_staking::Forcing;
 
 const POLKADOT_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const KUSAMA_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
+const WESTEND_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// Node `ChainSpec` extensions.
@@ -59,6 +62,12 @@ pub type PolkadotChainSpec = service::GenericChainSpec<
 /// The `ChainSpec parametrised for kusama runtime`.
 pub type KusamaChainSpec = service::GenericChainSpec<
 	kusama::GenesisConfig,
+	Extensions,
+>;
+
+/// The `ChainSpec parametrised for kusama runtime`.
+pub type WestendChainSpec = service::GenericChainSpec<
+	westend::GenesisConfig,
 	Extensions,
 >;
 
@@ -88,6 +97,16 @@ fn kusama_session_keys(
 	authority_discovery: AuthorityDiscoveryId
 ) -> kusama::SessionKeys {
 	kusama::SessionKeys { babe, grandpa, im_online, parachain_validator, authority_discovery }
+}
+
+fn westend_session_keys(
+	babe: BabeId,
+	grandpa: GrandpaId,
+	im_online: ImOnlineId,
+	parachain_validator: ValidatorId,
+	authority_discovery: AuthorityDiscoveryId
+) -> westend::SessionKeys {
+	westend::SessionKeys { babe, grandpa, im_online, parachain_validator, authority_discovery }
 }
 
 fn polkadot_staging_testnet_config_genesis() -> polkadot::GenesisConfig {
@@ -172,6 +191,146 @@ fn polkadot_staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 			vesting: vec![],
 		}),
 		sudo: Some(polkadot::SudoConfig {
+			key: endowed_accounts[0].clone(),
+		}),
+	}
+}
+
+fn westend_staging_testnet_config_genesis() -> westend::GenesisConfig {
+// subkey inspect "$SECRET"
+	let endowed_accounts = vec![
+		// 5CVFESwfkk7NmhQ6FwHCM9roBvr9BGa4vJHFYU8DnGQxrXvz
+		hex!["12b782529c22032ed4694e0f6e7d486be7daa6d12088f6bc74d593b3900b8438"].into(),
+	];
+
+	// for i in 1 2 3 4; do for j in stash controller; do subkey inspect "$SECRET//$i//$j"; done; done
+	// for i in 1 2 3 4; do for j in babe; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
+	// for i in 1 2 3 4; do for j in grandpa; do subkey --ed25519 inspect "$SECRET//$i//$j"; done; done
+	// for i in 1 2 3 4; do for j in im_online; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
+	// for i in 1 2 3 4; do for j in parachains; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
+	let initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		BabeId,
+		GrandpaId,
+		ImOnlineId,
+		ValidatorId,
+		AuthorityDiscoveryId
+	)> = vec![(
+		// 5DD7Q4VEfPTLEdn11CnThoHT5f9xKCrnofWJL5SsvpTghaAT
+		hex!["32a5718e87d16071756d4b1370c411bbbb947eb62f0e6e0b937d5cbfc0ea633b"].into(),
+		// 5GNzaEqhrZAtUQhbMe2gn9jBuNWfamWFZHULryFwBUXyd1cG
+		hex!["bee39fe862c85c91aaf343e130d30b643c6ea0b4406a980206f1df8331f7093b"].into(),
+		// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
+		hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"].unchecked_into(),
+		// 5EjvdwATjyFFikdZibVvx1q5uBHhphS2Mnsq5c7yfaYK25vm
+		hex!["76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"].unchecked_into(),
+		// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
+		hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"].unchecked_into(),
+		// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
+		hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"].unchecked_into(),
+		// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
+		hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"].unchecked_into(),
+	),(
+		// 5G9VGb8ESBeS8Ca4or43RfhShzk9y7T5iTmxHk5RJsjZwsRx
+		hex!["b496c98a405ceab59b9e970e59ef61acd7765a19b704e02ab06c1cdfe171e40f"].into(),
+		// 5F7V9Y5FcxKXe1aroqvPeRiUmmeQwTFcL3u9rrPXcMuMiCNx
+		hex!["86d3a7571dd60139d297e55d8238d0c977b2e208c5af088f7f0136b565b0c103"].into(),
+		// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
+		hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"].unchecked_into(),
+		// 5HBDAaybNqjmY7ww8ZcZZY1L5LHxvpnyfqJwoB7HhR6raTmG
+		hex!["e2234d661bee4a04c38392c75d1566200aa9e6ae44dd98ee8765e4cc9af63cb7"].unchecked_into(),
+		// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
+		hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"].unchecked_into(),
+		// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
+		hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"].unchecked_into(),
+		// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
+		hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"].unchecked_into(),
+	),(
+		// 5FzwpgGvk2kk9agow6KsywLYcPzjYc8suKej2bne5G5b9YU3
+		hex!["ae12f70078a22882bf5135d134468f77301927aa67c376e8c55b7ff127ace115"].into(),
+		// 5EqoZhVC2BcsM4WjvZNidu2muKAbu5THQTBKe3EjvxXkdP7A
+		hex!["7addb914ec8486bbc60643d2647685dcc06373401fa80e09813b630c5831d54b"].into(),
+		// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
+		hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"].unchecked_into(),
+		// 5E8ULLQrDAtWhfnVfZmX41Yux86zNAwVJYguWJZVWrJvdhBe
+		hex!["5b57ed1443c8967f461db1f6eb2ada24794d163a668f1cf9d9ce3235dfad8799"].unchecked_into(),
+		// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
+		hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"].unchecked_into(),
+		// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
+		hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"].unchecked_into(),
+		// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
+		hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"].unchecked_into(),
+	),(
+		// 5CFj6Kg9rmVn1vrqpyjau2ztyBzKeVdRKwNPiA3tqhB5HPqq
+		hex!["0867dbb49721126df589db100dda728dc3b475cbf414dad8f72a1d5e84897252"].into(),
+		// 5CwQXP6nvWzigFqNhh2jvCaW9zWVzkdveCJY3tz2MhXMjTon
+		hex!["26ab2b4b2eba2263b1e55ceb48f687bb0018130a88df0712fbdaf6a347d50e2a"].into(),
+		// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
+		hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"].unchecked_into(),
+		// 5HGLmrZsiTFTPp3QoS1W8w9NxByt8PVq79reqvdxNcQkByqK
+		hex!["e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"].unchecked_into(),
+		// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
+		hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"].unchecked_into(),
+		// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
+		hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"].unchecked_into(),
+		// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
+		hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"].unchecked_into(),
+	)];
+
+	const ENDOWMENT: u128 = 1_000_000 * WND;
+	const STASH: u128 = 100 * WND;
+
+	westend::GenesisConfig {
+		system: Some(westend::SystemConfig {
+			code: westend::WASM_BINARY.to_vec(),
+			changes_trie_config: Default::default(),
+		}),
+		balances: Some(westend::BalancesConfig {
+			balances: endowed_accounts.iter()
+				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
+				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
+				.collect(),
+		}),
+		indices: Some(westend::IndicesConfig {
+			indices: vec![],
+		}),
+		session: Some(westend::SessionConfig {
+			keys: initial_authorities.iter().map(|x| (
+				x.0.clone(),
+				x.0.clone(),
+				westend_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
+			)).collect::<Vec<_>>(),
+		}),
+		staking: Some(westend::StakingConfig {
+			validator_count: 50,
+			minimum_validator_count: 4,
+			stakers: initial_authorities
+				.iter()
+				.map(|x| (x.0.clone(), x.1.clone(), STASH, westend::StakerStatus::Validator))
+				.collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			force_era: Forcing::ForceNone,
+			slash_reward_fraction: Perbill::from_percent(10),
+			.. Default::default()
+		}),
+		babe: Some(Default::default()),
+		grandpa: Some(Default::default()),
+		im_online: Some(Default::default()),
+		authority_discovery: Some(westend::AuthorityDiscoveryConfig {
+			keys: vec![],
+		}),
+		parachains: Some(westend::ParachainsConfig {
+			authorities: vec![],
+		}),
+		registrar: Some(westend::RegistrarConfig {
+			parachains: vec![],
+			_phdata: Default::default(),
+		}),
+		vesting: Some(westend::VestingConfig {
+			vesting: vec![],
+		}),
+		sudo: Some(westend::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		}),
 	}
@@ -355,6 +514,22 @@ pub fn kusama_staging_testnet_config() -> KusamaChainSpec {
 		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(KUSAMA_STAGING_TELEMETRY_URL.to_string(), 0)])
 			.expect("Kusama Staging telemetry url is valid; qed")),
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	)
+}
+
+/// Westend staging testnet config.
+pub fn westend_staging_testnet_config() -> WestendChainSpec {
+	let boot_nodes = vec![];
+	WestendChainSpec::from_genesis(
+		"Westend Staging Testnet",
+		"westend_staging_testnet",
+		westend_staging_testnet_config_genesis,
+		boot_nodes,
+		Some(TelemetryEndpoints::new(vec![(WESTEND_STAGING_TELEMETRY_URL.to_string(), 0)])
+			.expect("Westend Staging telemetry url is valid; qed")),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
@@ -565,6 +740,68 @@ pub fn kusama_testnet_genesis(
 	}
 }
 
+/// Helper function to create polkadot GenesisConfig for testing
+pub fn westend_testnet_genesis(
+	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
+	root_key: AccountId,
+	endowed_accounts: Option<Vec<AccountId>>,
+) -> westend::GenesisConfig {
+	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
+
+	const ENDOWMENT: u128 = 1_000_000 * DOTS;
+	const STASH: u128 = 100 * DOTS;
+
+	westend::GenesisConfig {
+		system: Some(westend::SystemConfig {
+			code: westend::WASM_BINARY.to_vec(),
+			changes_trie_config: Default::default(),
+		}),
+		indices: Some(westend::IndicesConfig {
+			indices: vec![],
+		}),
+		balances: Some(westend::BalancesConfig {
+			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
+		}),
+		session: Some(westend::SessionConfig {
+			keys: initial_authorities.iter().map(|x| (
+				x.0.clone(),
+				x.0.clone(),
+				westend_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
+			)).collect::<Vec<_>>(),
+		}),
+		staking: Some(westend::StakingConfig {
+			minimum_validator_count: 1,
+			validator_count: 2,
+			stakers: initial_authorities.iter()
+				.map(|x| (x.0.clone(), x.1.clone(), STASH, westend::StakerStatus::Validator))
+				.collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			force_era: Forcing::NotForcing,
+			slash_reward_fraction: Perbill::from_percent(10),
+			.. Default::default()
+		}),
+		babe: Some(Default::default()),
+		grandpa: Some(Default::default()),
+		im_online: Some(Default::default()),
+		authority_discovery: Some(westend::AuthorityDiscoveryConfig {
+			keys: vec![],
+		}),
+		parachains: Some(westend::ParachainsConfig {
+			authorities: vec![],
+		}),
+		registrar: Some(westend::RegistrarConfig{
+			parachains: vec![],
+			_phdata: Default::default(),
+		}),
+		vesting: Some(westend::VestingConfig {
+			vesting: vec![],
+		}),
+		sudo: Some(westend::SudoConfig {
+			key: root_key,
+		}),
+	}
+}
+
 fn polkadot_development_config_genesis() -> polkadot::GenesisConfig {
 	polkadot_testnet_genesis(
 		vec![
@@ -578,7 +815,17 @@ fn polkadot_development_config_genesis() -> polkadot::GenesisConfig {
 fn kusama_development_config_genesis() -> kusama::GenesisConfig {
 	kusama_testnet_genesis(
 		vec![
-		get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Alice"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
+fn westend_development_config_genesis() -> westend::GenesisConfig {
+	westend_testnet_genesis(
+		vec![
+			get_authority_keys_from_seed("Alice"),
 		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
@@ -605,6 +852,20 @@ pub fn kusama_development_config() -> KusamaChainSpec {
 		"Development",
 		"kusama_dev",
 		kusama_development_config_genesis,
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	)
+}
+
+/// Westend development config (single validator Alice)
+pub fn westend_development_config() -> WestendChainSpec {
+	WestendChainSpec::from_genesis(
+		"Development",
+		"westend_dev",
+		westend_development_config_genesis,
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
@@ -655,6 +916,31 @@ pub fn kusama_local_testnet_config() -> KusamaChainSpec {
 		"Kusama Local Testnet",
 		"kusama_local_testnet",
 		kusama_local_testnet_genesis,
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	)
+}
+
+fn westend_local_testnet_genesis() -> westend::GenesisConfig {
+	westend_testnet_genesis(
+		vec![
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
+/// Westend local testnet config (multivalidator Alice + Bob)
+pub fn westend_local_testnet_config() -> WestendChainSpec {
+	WestendChainSpec::from_genesis(
+		"Westend Local Testnet",
+		"westend_local_testnet",
+		westend_local_testnet_genesis,
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),

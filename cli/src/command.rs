@@ -16,12 +16,13 @@
 
 use log::info;
 use sp_runtime::traits::BlakeTwo256;
-use service::{IsKusama, Block, self, RuntimeApiCollection, TFullClient};
+use service::{IdentifyVariant, Block, self, RuntimeApiCollection, TFullClient};
 use sp_api::ConstructRuntimeApi;
 use sc_executor::NativeExecutionDispatch;
 use crate::chain_spec::load_spec;
 use crate::cli::{Cli, Subcommand};
 use sc_cli::VersionInfo;
+use crate::ForceNetwork;
 
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
@@ -30,6 +31,12 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 	let mut config = service::Configuration::from_version(&version);
 	config.impl_name = "parity-polkadot";
 	let force_kusama = opt.run.force_kusama;
+	let force_westend = opt.run.force_westend;
+	let force_network = match (force_kusama, force_westend) {
+		(true, _) => Some(ForceNetwork::Kusama),
+		(false, true) => Some(ForceNetwork::Westend),
+		(false, false) => None,
+	};
 
 	let grandpa_pause = if opt.grandpa_pause.is_empty() {
 		None
@@ -44,11 +51,9 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 			opt.run.base.init(&version)?;
 			opt.run.base.update_config(
 				&mut config,
-				|id| load_spec(id, force_kusama),
+				|id| load_spec(id, force_network),
 				&version
 			)?;
-
-			let is_kusama = config.expect_chain_spec().is_kusama();
 
 			info!("{}", version.name);
 			info!("  version {}", config.full_version());
@@ -57,7 +62,7 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 			info!("🏷  Node name: {}", config.name);
 			info!("👤 Role: {}", config.display_role());
 
-			if is_kusama {
+			if config.expect_chain_spec().is_kusama() {
 				info!("⛓  Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
 				info!("----------------------------");
 				info!("This chain is not in any way");
@@ -69,6 +74,14 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 					service::kusama_runtime::RuntimeApi,
 					service::KusamaExecutor,
 					service::kusama_runtime::UncheckedExtrinsic,
+				>(config, opt.authority_discovery_enabled, grandpa_pause)
+			} else if config.expect_chain_spec().is_westend() {
+				info!("⛓  Native runtime: {}", service::WestendExecutor::native_version().runtime_version);
+
+				run_service_until_exit::<
+					service::westend_runtime::RuntimeApi,
+					service::WestendExecutor,
+					service::westend_runtime::UncheckedExtrinsic,
 				>(config, opt.authority_discovery_enabled, grandpa_pause)
 			} else {
 				info!("⛓  Native runtime: {}", service::PolkadotExecutor::native_version().runtime_version);
@@ -84,17 +97,21 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 			cmd.init(&version)?;
 			cmd.update_config(
 				&mut config,
-				|id| load_spec(id, force_kusama),
+				|id| load_spec(id, force_network),
 				&version
 			)?;
 
-			let is_kusama = config.expect_chain_spec().is_kusama();
-
-			if is_kusama {
+			if config.expect_chain_spec().is_kusama() {
 				cmd.run(config, service::new_chain_ops::<
 					service::kusama_runtime::RuntimeApi,
 					service::KusamaExecutor,
 					service::kusama_runtime::UncheckedExtrinsic,
+				>)
+			} else if config.expect_chain_spec().is_westend() {
+				cmd.run(config, service::new_chain_ops::<
+					service::westend_runtime::RuntimeApi,
+					service::WestendExecutor,
+					service::westend_runtime::UncheckedExtrinsic,
 				>)
 			} else {
 				cmd.run(config, service::new_chain_ops::<
@@ -117,10 +134,11 @@ pub fn run(version: VersionInfo) -> sc_cli::Result<()> {
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			cmd.init(&version)?;
-			cmd.update_config(&mut config, |id| load_spec(id, force_kusama), &version)?;
-			let is_kusama = config.expect_chain_spec().is_kusama();
-			if is_kusama {
+			cmd.update_config(&mut config, |id| load_spec(id, force_network), &version)?;
+			if config.expect_chain_spec().is_kusama() {
 				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
+			} else if config.expect_chain_spec().is_westend() {
+				cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(config)
 			} else {
 				cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
 			}

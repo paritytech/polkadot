@@ -54,6 +54,10 @@ pub struct RunCmd {
 	/// Force using Kusama native runtime.
 	#[structopt(long = "force-kusama")]
 	pub force_kusama: bool,
+
+	/// Force using Westend native runtime.
+	#[structopt(long = "force-westend")]
+	pub force_westend: bool,
 }
 
 #[allow(missing_docs)]

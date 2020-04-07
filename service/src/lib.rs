@@ -108,14 +108,20 @@ pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
 impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
-pub trait IsKusama {
+pub trait IdentifyVariant {
 	/// Returns if this is a configuration for the `Kusama` network.
 	fn is_kusama(&self) -> bool;
+
+	/// Returns if this is a configuration for the `Westend` network.
+	fn is_westend(&self) -> bool;
 }
 
-impl IsKusama for &dyn ChainSpec {
+impl IdentifyVariant for &dyn ChainSpec {
 	fn is_kusama(&self) -> bool {
 		self.id().starts_with("kusama") || self.id().starts_with("ksm")
+	}
+	fn is_westend(&self) -> bool {
+		self.id().starts_with("westend") || self.id().starts_with("wnd")
 	}
 }
 

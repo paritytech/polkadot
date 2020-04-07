@@ -38,6 +38,12 @@ pub enum ChainSpec {
 	KusamaStagingTestnet,
 	/// Whatever the current kusama runtime is, with simple Alice/Bob auths.
 	KusamaLocalTestnet,
+	/// Whatever the current westend runtime is, with just Alice as an auth.
+	WestendDevelopment,
+	/// Whatever the current westend runtime is, with simple Alice/Bob auths.
+	WestendLocalTestnet,
+	/// Whatever the current westend runtime is with the "global testnet" defaults.
+	WestendStagingTestnet,
 }
 
 impl Default for ChainSpec {
@@ -56,6 +62,9 @@ impl ChainSpec {
 			ChainSpec::KusamaDevelopment =>Box::new(service::chain_spec::kusama_development_config()),
 			ChainSpec::KusamaLocalTestnet => Box::new(service::chain_spec::kusama_local_testnet_config()),
 			ChainSpec::KusamaStagingTestnet => Box::new(service::chain_spec::kusama_staging_testnet_config()),
+			ChainSpec::WestendDevelopment =>Box::new(service::chain_spec::westend_development_config()),
+			ChainSpec::WestendLocalTestnet => Box::new(service::chain_spec::westend_local_testnet_config()),
+			ChainSpec::WestendStagingTestnet => Box::new(service::chain_spec::westend_staging_testnet_config()),
 			ChainSpec::Westend => Box::new(service::chain_spec::westend_config()?),
 			ChainSpec::Kusama => Box::new(service::chain_spec::kusama_config()?),
 		})
@@ -69,6 +78,9 @@ impl ChainSpec {
 			"kusama-dev" => Some(ChainSpec::KusamaDevelopment),
 			"kusama-local" => Some(ChainSpec::KusamaLocalTestnet),
 			"kusama-staging" => Some(ChainSpec::KusamaStagingTestnet),
+			"westend-dev" => Some(ChainSpec::WestendDevelopment),
+			"westend-local" => Some(ChainSpec::WestendLocalTestnet),
+			"westend-staging" => Some(ChainSpec::WestendStagingTestnet),
 			"kusama" => Some(ChainSpec::Kusama),
 			"westend" => Some(ChainSpec::Westend),
 			"" => Some(ChainSpec::default()),
@@ -77,12 +89,20 @@ impl ChainSpec {
 	}
 }
 
+pub enum ForceNetwork {
+	Kusama,
+	Westend,
+}
+
 /// Load the `ChainSpec` for the given `id`.
 /// `force_kusama` treats chain specs coming from a file as kusama specs.
-pub fn load_spec(id: &str, force_kusama: bool) -> Result<Box<dyn service::ChainSpec>, String> {
+pub fn load_spec(id: &str, force_network: Option<ForceNetwork>) -> Result<Box<dyn service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
 		Some(spec) => spec.load()?,
-		None if force_kusama => Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(id))?),
+		None if matches!(force_network, ForceNetwork::Kusama)
+			=> Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(id))?),
+		None if matches!(force_network, ForceNetwork::Westend)
+			=> Box::new(service::WestendChainSpec::from_json_file(std::path::PathBuf::from(id))?),
 		None => Box::new(service::PolkadotChainSpec::from_json_file(std::path::PathBuf::from(id))?),
 	})
 }
