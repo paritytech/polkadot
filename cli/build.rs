@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright 2015-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,28 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot CLI library.
-
-#![warn(missing_docs)]
-#![warn(unused_extern_crates)]
-
-#[cfg(feature = "browser")]
-mod browser;
-#[cfg(feature = "cli")]
-mod cli;
-#[cfg(feature = "cli")]
-mod command;
-
-pub use service::{
-	AbstractService, ProvideRuntimeApi, CoreApi, ParachainHost, IdentifyVariant,
-	Block, self, RuntimeApiCollection, TFullClient
-};
-
-#[cfg(feature = "cli")]
-pub use cli::*;
-
-#[cfg(feature = "cli")]
-pub use command::*;
-
-#[cfg(feature = "cli")]
-pub use sc_cli::{Error, Result};
+fn main() {
+	substrate_build_script_utils::generate_cargo_keys();
+}

@@ -279,8 +279,6 @@ deploy-polkasync-kusama:
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
-  only:
-    - ci-testnet-deployment
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 

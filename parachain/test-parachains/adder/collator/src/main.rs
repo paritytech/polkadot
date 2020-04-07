@@ -24,13 +24,13 @@ use sp_core::Pair;
 use codec::{Encode, Decode};
 use primitives::{
 	Hash,
-	parachain::{HeadData, BlockData, Id as ParaId, LocalValidationData},
+	parachain::{HeadData, BlockData, Id as ParaId, LocalValidationData, GlobalValidationSchedule},
 };
 use collator::{
-	InvalidHead, ParachainContext, Network, BuildParachainContext, load_spec, Configuration,
+	InvalidHead, ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli,
 };
 use parking_lot::Mutex;
-use futures::future::{Ready, ok, err};
+use futures::future::{Ready, ok, err, TryFutureExt};
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
@@ -60,6 +60,7 @@ impl ParachainContext for AdderContext {
 	fn produce_candidate(
 		&mut self,
 		_relay_parent: Hash,
+		_global_validation: GlobalValidationSchedule,
 		local_validation: LocalValidationData,
 	) -> Self::ProduceCandidate
 	{
@@ -83,7 +84,7 @@ impl ParachainContext for AdderContext {
 			add: adder_head.number % 100,
 		};
 
-		let next_head = ::adder::execute(adder_head.hash(), adder_head, &next_body)
+		let next_head = adder::execute(adder_head.hash(), adder_head, &next_body)
 			.expect("good execution params; qed");
 
 		let encoded_head = HeadData(next_head.encode());
@@ -110,7 +111,7 @@ impl BuildParachainContext for AdderContext {
 	}
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let key = Arc::new(Pair::from_seed(&[1; 32]));
 	let id: ParaId = 100.into();
 
@@ -132,17 +133,16 @@ fn main() {
 		_network: None,
 	};
 
-	let mut config = Configuration::default();
-	config.chain_spec = Some(load_spec("dev", None).unwrap());
+	let cli = Cli::from_iter(&["-dev"]);
+	let runner = cli.create_runner(&cli.run.base)?;
+	runner.async_run(|config| {
+		collator::start_collator(
+			context,
+			id,
+			key,
+			config,
+		).map_err(|e| e.into())
+	})?;
 
-	let res = collator::run_collator(
-		context,
-		id,
-		key,
-		config,
-	);
-
-	if let Err(e) = res {
-		println!("{}", e);
-	}
+	Ok(())
 }

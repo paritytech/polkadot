@@ -59,18 +59,20 @@ use polkadot_primitives::{
 	BlockId, Hash, Block,
 	parachain::{
 		self, BlockData, DutyRoster, HeadData, Id as ParaId,
-		PoVBlock, ValidatorId, CollatorPair, LocalValidationData
+		PoVBlock, ValidatorId, CollatorPair, LocalValidationData, GlobalValidationSchedule,
 	}
 };
 use polkadot_cli::{
 	ProvideRuntimeApi, AbstractService, ParachainHost, IdentifyVariant,
 	service::{self, Role}
 };
-pub use polkadot_cli::{VersionInfo, load_spec, service::Configuration};
+pub use polkadot_cli::service::Configuration;
+pub use polkadot_cli::Cli;
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
 pub use sc_network::PeerId;
 pub use service::RuntimeApiCollection;
+pub use sc_cli::SubstrateCli;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -154,7 +156,8 @@ pub trait ParachainContext: Clone {
 	fn produce_candidate(
 		&mut self,
 		relay_parent: Hash,
-		status: LocalValidationData,
+		global_validation: GlobalValidationSchedule,
+		local_validation: LocalValidationData,
 	) -> Self::ProduceCandidate;
 }
 
@@ -162,6 +165,7 @@ pub trait ParachainContext: Clone {
 pub async fn collate<P>(
 	relay_parent: Hash,
 	local_id: ParaId,
+	global_validation: GlobalValidationSchedule,
 	local_validation_data: LocalValidationData,
 	mut para_context: P,
 	key: Arc<CollatorPair>,
@@ -173,6 +177,7 @@ pub async fn collate<P>(
 {
 	let (block_data, head_data) = para_context.produce_candidate(
 		relay_parent,
+		global_validation,
 		local_validation_data,
 	).map_err(Error::Collator).await?;
 
@@ -281,6 +286,7 @@ fn build_collator_service<S, P, Extrinsic>(
 
 			let work = future::lazy(move |_| {
 				let api = client.runtime_api();
+				let global_validation = try_fr!(api.global_validation_schedule(&id));
 				let local_validation = match try_fr!(api.local_validation_data(&id, para_id)) {
 					Some(local_validation) => local_validation,
 					None => return future::Either::Left(future::ok(())),
@@ -297,6 +303,7 @@ fn build_collator_service<S, P, Extrinsic>(
 				let collation_work = collate(
 					relay_parent,
 					para_id,
+					global_validation,
 					local_validation,
 					parachain_context,
 					key,
@@ -343,7 +350,7 @@ where
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
-	let is_kusama = config.expect_chain_spec().is_kusama();
+	let is_kusama = config.chain_spec.is_kusama();
 	match (is_kusama, &config.role) {
 		(_, Role::Light) => return Err(
 			polkadot_service::Error::Other("light nodes are unsupported as collator".into())
@@ -375,45 +382,6 @@ fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRo
 		.collect()
 }
 
-/// Run a collator node with the given `RelayChainContext` and `ParachainContext`
-/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
-///
-/// This function blocks until done.
-pub fn run_collator<P>(
-	build_parachain_context: P,
-	para_id: ParaId,
-	key: Arc<CollatorPair>,
-	config: Configuration,
-) -> polkadot_cli::Result<()> where
-	P: BuildParachainContext,
-	P::ParachainContext: Send + 'static,
-	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
-{
-	match (config.expect_chain_spec().is_kusama(), &config.role) {
-		(_, Role::Light) => return Err(
-			polkadot_cli::Error::Input("light nodes are unsupported as collator".into())
-		).into(),
-		(true, _) =>
-			sc_cli::run_service_until_exit(config, |config| {
-				build_collator_service(
-					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
-					para_id,
-					key,
-					build_parachain_context,
-				)
-			}),
-		(false, _) =>
-			sc_cli::run_service_until_exit(config, |config| {
-				build_collator_service(
-					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
-					para_id,
-					key,
-					build_parachain_context,
-				)
-			}),
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -427,6 +395,7 @@ mod tests {
 		fn produce_candidate(
 			&mut self,
 			_relay_parent: Hash,
+			_global: GlobalValidationSchedule,
 			_local_validation: LocalValidationData,
 		) -> Self::ProduceCandidate {
 			// send messages right back.
@@ -457,11 +426,15 @@ mod tests {
 	fn start_collator_is_send() {
 		fn check_send<T: Send>(_: T) {}
 
+		let cli = Cli::from_iter(&["-dev"]);
+		let task_executor = Arc::new(|_| unimplemented!());
+		let config = cli.create_configuration(&cli.run.base, task_executor).unwrap();
+
 		check_send(start_collator(
 			BuildDummyParachainContext,
 			0.into(),
 			Arc::new(CollatorPair::generate().0),
-			Default::default(),
+			config,
 		));
 	}
 }

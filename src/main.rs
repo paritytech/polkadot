@@ -18,19 +18,6 @@
 
 #![warn(missing_docs)]
 
-use cli::VersionInfo;
-
-fn main() -> Result<(), cli::Error> {
-	let version = VersionInfo {
-		name: "Parity Polkadot",
-		commit: env!("VERGEN_SHA_SHORT"),
-		version: env!("CARGO_PKG_VERSION"),
-		executable_name: "polkadot",
-		author: "Parity Team <admin@parity.io>",
-		description: "Polkadot Relay-chain Client Node",
-		support_url: "https://github.com/paritytech/polkadot/issues/new",
-		copyright_start_year: 2017,
-	};
-
-	cli::run(version)
+fn main() -> cli::Result<()> {
+	cli::run()
 }

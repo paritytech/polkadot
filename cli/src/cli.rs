@@ -58,23 +58,6 @@ pub struct RunCmd {
 	/// Force using Westend native runtime.
 	#[structopt(long = "force-westend")]
 	pub force_westend: bool,
-}
-
-#[allow(missing_docs)]
-#[derive(Debug, StructOpt, Clone)]
-#[structopt(settings = &[
-	structopt::clap::AppSettings::GlobalVersion,
-	structopt::clap::AppSettings::ArgsNegateSubcommands,
-	structopt::clap::AppSettings::SubcommandsNegateReqs,
-])]
-pub struct Cli {
-	#[allow(missing_docs)]
-	#[structopt(subcommand)]
-	pub subcommand: Option<Subcommand>,
-
-	#[allow(missing_docs)]
-	#[structopt(flatten)]
-	pub run: RunCmd,
 
 	#[allow(missing_docs)]
 	#[structopt(long = "enable-authority-discovery")]
@@ -88,4 +71,16 @@ pub struct Cli {
 	/// elapsed (i.e. until a block at height `pause_block + delay` is imported).
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, StructOpt, Clone)]
+pub struct Cli {
+	#[allow(missing_docs)]
+	#[structopt(subcommand)]
+	pub subcommand: Option<Subcommand>,
+
+	#[allow(missing_docs)]
+	#[structopt(flatten)]
+	pub run: RunCmd,
 }

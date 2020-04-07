@@ -52,6 +52,9 @@ pub trait Registrar<AccountId> {
 	/// Checks whether the given validation code falls within the limit.
 	fn code_size_allowed(code_size: u32) -> bool;
 
+	/// Fetches metadata for a para by ID, if any.
+	fn para_info(id: ParaId) -> Option<ParaInfo>;
+
 	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
 	/// result in a error.
 	///
@@ -81,6 +84,10 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 
 	fn code_size_allowed(code_size: u32) -> bool {
 		code_size <= <T as parachains::Trait>::MaxCodeSize::get()
+	}
+
+	fn para_info(id: ParaId) -> Option<ParaInfo> {
+		Self::paras(&id)
 	}
 
 	fn register_para(
@@ -653,15 +660,15 @@ mod tests {
 		traits::{
 			BlakeTwo256, IdentityLookup, Dispatchable,
 			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
+		}, testing::{UintAuthorityId, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{
 			ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
 			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
-			CollatorPair, CandidateCommitments, GlobalValidationSchedule, LocalValidationData,
+			CollatorPair, CandidateCommitments,
 		},
-		Balance, BlockNumber,
+		Balance, BlockNumber, Header,
 	};
 	use frame_support::{
 		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},
@@ -710,7 +717,7 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;
-		type BlockNumber = u64;
+		type BlockNumber = BlockNumber;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
@@ -741,8 +748,8 @@ mod tests {
 	}
 
 	parameter_types!{
-		pub const LeasePeriod: u64 = 10;
-		pub const EndingPeriod: u64 = 3;
+		pub const LeasePeriod: BlockNumber = 10;
+		pub const EndingPeriod: BlockNumber = 3;
 	}
 
 	impl slots::Trait for Test {
@@ -791,6 +798,10 @@ mod tests {
 	parameter_types! {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
+
+		pub const ValidationUpgradeFrequency: BlockNumber = 10;
+		pub const ValidationUpgradeDelay: BlockNumber = 2;
+		pub const SlashPeriod: BlockNumber = 50;
 		pub const ElectionLookahead: BlockNumber = 0;
 	}
 
@@ -830,11 +841,15 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
+		type BlockNumberConversion = sp_runtime::traits::Identity;
 		type ActiveParachains = Registrar;
 		type Registrar = Registrar;
 		type Randomness = RandomnessCollectiveFlip;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
+		type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
+		type ValidationUpgradeDelay = ValidationUpgradeDelay;
+		type SlashPeriod = SlashPeriod;
 		type Proof = session::historical::Proof;
 		type KeyOwnerProofSystem = session::historical::Module<Test>;
 		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
@@ -929,7 +944,7 @@ mod tests {
 		Slots::on_initialize(System::block_number());
 	}
 
-	fn run_to_block(n: u64) {
+	fn run_to_block(n: BlockNumber) {
 		println!("Running until block {}", n);
 		while System::block_number() < n {
 			if System::block_number() > 1 {
@@ -972,18 +987,13 @@ mod tests {
 			collator: collator.public(),
 			signature: pov_block_hash.using_encoded(|d| collator.sign(d)),
 			pov_block_hash,
-			global_validation: GlobalValidationSchedule {
-				max_code_size: <Test as parachains::Trait>::MaxCodeSize::get(),
-				max_head_data_size: <Test as parachains::Trait>::MaxHeadDataSize::get(),
-			},
-			local_validation: LocalValidationData {
-				balance: Balances::free_balance(&id.into_account()),
-				parent_head: HeadData(Parachains::parachain_head(&id).unwrap()),
-			},
+			global_validation: Parachains::global_validation_schedule(),
+			local_validation: Parachains::current_local_validation_data(&id).unwrap(),
 			commitments: CandidateCommitments {
 				fees: 0,
 				upward_messages: vec![],
 				erasure_root: [1; 32].into(),
+				new_validation_code: None,
 			},
 		};
 		let (candidate, _) = candidate.abridge();

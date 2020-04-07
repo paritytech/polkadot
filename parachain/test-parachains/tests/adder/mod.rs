@@ -16,9 +16,16 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-use polkadot_parachain as parachain;
-
-use crate::{DummyExt, parachain::ValidationParams};
+use crate::{
+	DummyExt,
+	parachain,
+	parachain::primitives::{
+		RelayChainBlockNumber,
+		BlockData as GenericBlockData,
+		HeadData as GenericHeadData,
+		ValidationParams,
+	},
+};
 use codec::{Decode, Encode};
 
 /// Head data for this parachain.
@@ -39,12 +46,6 @@ struct BlockData {
 	state: u64,
 	/// Amount to add (overflowing)
 	add: u64,
-}
-
-#[derive(Encode, Decode)]
-struct AddMessage {
-	/// amount to add.
-	amount: u64,
 }
 
 const TEST_CODE: &[u8] = adder::WASM_BINARY;
@@ -75,14 +76,18 @@ pub fn execute_good_on_parent() {
 	let ret = parachain::wasm_executor::validate_candidate(
 		TEST_CODE,
 		ValidationParams {
-			parent_head: parent_head.encode(),
-			block_data: block_data.encode(),
+			parent_head: GenericHeadData(parent_head.encode()),
+			block_data: GenericBlockData(block_data.encode()),
+			max_code_size: 1024,
+			max_head_data_size: 1024,
+			relay_chain_height: 1,
+			code_upgrade_allowed: None,
 		},
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	).unwrap();
 
-	let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();
+	let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
 
 	assert_eq!(new_head.number, 1);
 	assert_eq!(new_head.parent_hash, hash_head(&parent_head));
@@ -111,14 +116,18 @@ fn execute_good_chain_on_parent() {
 		let ret = parachain::wasm_executor::validate_candidate(
 			TEST_CODE,
 			ValidationParams {
-				parent_head: parent_head.encode(),
-				block_data: block_data.encode(),
+				parent_head: GenericHeadData(parent_head.encode()),
+				block_data: GenericBlockData(block_data.encode()),
+				max_code_size: 1024,
+				max_head_data_size: 1024,
+				relay_chain_height: number as RelayChainBlockNumber + 1,
+				code_upgrade_allowed: None,
 			},
 			DummyExt,
 			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 		).unwrap();
 
-		let new_head = HeadData::decode(&mut &ret.head_data[..]).unwrap();
+		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
 
 		assert_eq!(new_head.number, number + 1);
 		assert_eq!(new_head.parent_hash, hash_head(&parent_head));
@@ -148,8 +157,12 @@ fn execute_bad_on_parent() {
 	let _ret = parachain::wasm_executor::validate_candidate(
 		TEST_CODE,
 		ValidationParams {
-			parent_head: parent_head.encode(),
-			block_data: block_data.encode(),
+			parent_head: GenericHeadData(parent_head.encode()),
+			block_data: GenericBlockData(block_data.encode()),
+			max_code_size: 1024,
+			max_head_data_size: 1024,
+			relay_chain_height: 1,
+			code_upgrade_allowed: None,
 		},
 		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
