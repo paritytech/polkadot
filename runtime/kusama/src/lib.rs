@@ -55,7 +55,6 @@ use frame_support::{
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use system::offchain::TransactionSubmitter;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::{historical as session_historical};
 
@@ -312,7 +311,6 @@ impl staking::Trait for Runtime {
 	type NextNewSession = Session;
 	type ElectionLookahead = ElectionLookahead;
 	type Call = Call;
-	type SubmitTransaction = TransactionSubmitter<(), Runtime, UncheckedExtrinsic>;
 }
 
 parameter_types! {
@@ -456,8 +454,6 @@ impl offences::Trait for Runtime {
 
 impl authority_discovery::Trait for Runtime {}
 
-type SubmitTransaction = TransactionSubmitter<ImOnlineId, Runtime, UncheckedExtrinsic>;
-
 parameter_types! {
 	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
 }
@@ -465,8 +461,6 @@ parameter_types! {
 impl im_online::Trait for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
-	type Call = Call;
-	type SubmitTransaction = SubmitTransaction;
 	type ReportUnresponsiveness = Offences;
 	type SessionDuration = SessionDuration;
 }
