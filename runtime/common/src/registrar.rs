@@ -739,7 +739,7 @@ mod tests {
 		Call: From<C>,
 	{
 		type OverarchingCall = Call;
-		type Extrinsic = UncheckedExtrinsic;
+		type Extrinsic = TestXt<Call, ()>;
 	}
 
 	parameter_types! {
