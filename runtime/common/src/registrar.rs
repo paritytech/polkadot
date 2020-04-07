@@ -735,6 +735,13 @@ mod tests {
 		type OnKilledAccount = Balances;
 	}
 
+	impl<C> system::offchain::SendTransactionTypes<C> for Runtime where
+		Call: From<C>,
+	{
+		type OverarchingCall = Call;
+		type Extrinsic = UncheckedExtrinsic;
+	}
+
 	parameter_types! {
 		pub const ExistentialDeposit: Balance = 1;
 	}
@@ -823,7 +830,6 @@ mod tests {
 		type NextNewSession = Session;
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
-		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
 	}
 
 	impl timestamp::Trait for Test {

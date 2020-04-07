@@ -1601,6 +1601,13 @@ mod tests {
 		type OnKilledAccount = ();
 	}
 
+	impl<C> system::offchain::SendTransactionTypes<C> for Runtime where
+		Call: From<C>,
+	{
+		type OverarchingCall = Call;
+		type Extrinsic = UncheckedExtrinsic;
+	}
+
 	parameter_types! {
 		pub const Period: BlockNumber = 1;
 		pub const Offset: BlockNumber = 0;
@@ -1729,7 +1736,6 @@ mod tests {
 		type NextNewSession = Session;
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
-		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
 	}
 
 	impl attestations::Trait for Test {
