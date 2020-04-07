@@ -24,7 +24,9 @@
     "tokenSymbol": "WND"
   },
   "forkBlocks": null,
-  "badBlocks": null,
+  "badBlocks": [
+          "0x4d62a235315042558b3e9a498225ea1588dab508427740dec8c6dd4d42e39e93"
+  ],
   "consensusEngine": null,
   "genesis": {
     "raw": {
