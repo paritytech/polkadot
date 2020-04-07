@@ -20,14 +20,26 @@ use sp_consensus::ImportedAux;
 use sp_consensus::import_queue::{
 	import_single_block, BasicQueue, BlockImportError, BlockImportResult, IncomingBlock,
 };
+use sp_runtime::generic::UncheckedExtrinsic;
 use polkadot_test_runtime_client::{self, prelude::*};
-use polkadot_test_runtime_client::runtime::{Block, Hash};
+use polkadot_test_runtime_client::runtime::{Block, Hash, Call};
+use polkadot_runtime_common::ParachainsCall;
+use pallet_timestamp::Call as TimestampCall;
 use sp_runtime::generic::BlockId;
 use super::*;
 
 fn prepare_good_block() -> (TestClient, Hash, u64, PeerId, IncomingBlock<Block>) {
 	let mut client = polkadot_test_runtime_client::new();
-	let block = client.new_block(Default::default()).unwrap().build().unwrap().block;
+	let mut builder = client.new_block(Default::default()).unwrap();
+	builder.push(UncheckedExtrinsic {
+		function: Call::Parachains(ParachainsCall::set_heads(Vec::new())),
+		signature: None,
+	}).unwrap();
+	builder.push(UncheckedExtrinsic {
+		function: Call::Timestamp(TimestampCall::set(0)),
+		signature: None,
+	}).unwrap();
+	let block = builder.build().unwrap().block;
 	client.import(BlockOrigin::File, block).unwrap();
 
 	let (hash, number) = (client.block_hash(1).unwrap().unwrap(), 1);
@@ -47,6 +59,8 @@ fn prepare_good_block() -> (TestClient, Hash, u64, PeerId, IncomingBlock<Block>)
 
 #[test]
 fn import_single_good_block_works() {
+	env_logger::init();
+
 	let (_, _hash, number, peer_id, block) = prepare_good_block();
 
 	let mut expected_aux = ImportedAux::default();
