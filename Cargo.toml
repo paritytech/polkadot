@@ -6,7 +6,6 @@ path = "src/main.rs"
 name = "polkadot"
 version = "0.7.29-pre1"
 authors = ["Parity Technologies <admin@parity.io>"]
-build = "build.rs"
 edition = "2018"
 
 [dependencies]
@@ -14,9 +13,6 @@ cli = { package = "polkadot-cli", path = "cli" }
 futures = "0.3.4"
 service = { package = "polkadot-service", path = "service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
-
-[build-dependencies]
-vergen = "3.0.4"
 
 [dev-dependencies]
 assert_cmd = "0.12"

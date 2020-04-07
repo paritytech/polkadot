@@ -66,11 +66,13 @@ use polkadot_cli::{
 	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
 	service::{self, Role}
 };
-pub use polkadot_cli::{VersionInfo, load_spec, service::Configuration};
+pub use polkadot_cli::service::Configuration;
+pub use polkadot_cli::Cli;
 pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
 pub use sc_network::PeerId;
 pub use service::RuntimeApiCollection;
+pub use sc_cli::SubstrateCli;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -348,7 +350,7 @@ where
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
-	let is_kusama = config.expect_chain_spec().is_kusama();
+	let is_kusama = config.chain_spec.is_kusama();
 	match (is_kusama, &config.role) {
 		(_, Role::Light) => return Err(
 			polkadot_service::Error::Other("light nodes are unsupported as collator".into())
@@ -378,45 +380,6 @@ fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRo
 		.filter_map(|(i, _)| session_keys.get(i))
 		.cloned()
 		.collect()
-}
-
-/// Run a collator node with the given `RelayChainContext` and `ParachainContext`
-/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
-///
-/// This function blocks until done.
-pub fn run_collator<P>(
-	build_parachain_context: P,
-	para_id: ParaId,
-	key: Arc<CollatorPair>,
-	config: Configuration,
-) -> polkadot_cli::Result<()> where
-	P: BuildParachainContext,
-	P::ParachainContext: Send + 'static,
-	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
-{
-	match (config.expect_chain_spec().is_kusama(), &config.role) {
-		(_, Role::Light) => return Err(
-			polkadot_cli::Error::Input("light nodes are unsupported as collator".into())
-		).into(),
-		(true, _) =>
-			sc_cli::run_service_until_exit(config, |config| {
-				build_collator_service(
-					service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
-					para_id,
-					key,
-					build_parachain_context,
-				)
-			}),
-		(false, _) =>
-			sc_cli::run_service_until_exit(config, |config| {
-				build_collator_service(
-					service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
-					para_id,
-					key,
-					build_parachain_context,
-				)
-			}),
-	}
 }
 
 #[cfg(test)]
@@ -463,11 +426,15 @@ mod tests {
 	fn start_collator_is_send() {
 		fn check_send<T: Send>(_: T) {}
 
+		let cli = Cli::from_iter(&["-dev"]);
+		let task_executor = Arc::new(|_| unimplemented!());
+		let config = cli.create_configuration(&cli.run.base, task_executor).unwrap();
+
 		check_send(start_collator(
 			BuildDummyParachainContext,
 			0.into(),
 			Arc::new(CollatorPair::generate().0),
-			Default::default(),
+			config,
 		));
 	}
 }

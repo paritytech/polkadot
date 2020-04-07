@@ -35,7 +35,7 @@ pub use service::{
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
 	Configuration, ChainSpec,
 };
-pub use service::config::{DatabaseConfig, PrometheusConfig, full_version_from_strs};
+pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
 pub use sc_client::{ExecutionStrategy, CallExecutor, Client};
 pub use sc_client_api::backend::Backend;
@@ -113,7 +113,7 @@ pub trait IsKusama {
 	fn is_kusama(&self) -> bool;
 }
 
-impl IsKusama for &dyn ChainSpec {
+impl IsKusama for Box<dyn ChainSpec> {
 	fn is_kusama(&self) -> bool {
 		self.id().starts_with("kusama") || self.id().starts_with("ksm")
 	}
@@ -153,7 +153,7 @@ macro_rules! new_full_start {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 
-				let grandpa_hard_forks = if config.expect_chain_spec().is_kusama() {
+				let grandpa_hard_forks = if config.chain_spec.is_kusama() {
 					grandpa_support::kusama_hard_forks()
 				} else {
 					Vec::new()
@@ -318,13 +318,13 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let is_authority = role.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = max_block_data_size;
-	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.expect_database() {
+	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.database {
 		path.clone()
 	} else {
 		return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into());
 	};
 	let disable_grandpa = config.disable_grandpa;
-	let name = config.name.clone();
+	let name = config.network.node_name.clone();
 	let authority_discovery_enabled = authority_discovery_enabled;
 	let slot_duration = slot_duration;
 
