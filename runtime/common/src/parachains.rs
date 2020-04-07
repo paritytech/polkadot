@@ -1601,7 +1601,7 @@ mod tests {
 		type OnKilledAccount = ();
 	}
 
-	impl<C> system::offchain::SendTransactionTypes<C> for Runtime where
+	impl<C> system::offchain::SendTransactionTypes<C> for Test where
 		Call: From<C>,
 	{
 		type OverarchingCall = Call;
