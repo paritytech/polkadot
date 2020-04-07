@@ -99,9 +99,9 @@ pub enum ForceNetwork {
 pub fn load_spec(id: &str, force_network: Option<ForceNetwork>) -> Result<Box<dyn service::ChainSpec>, String> {
 	Ok(match ChainSpec::from(id) {
 		Some(spec) => spec.load()?,
-		None if matches!(force_network, ForceNetwork::Kusama)
+		None if matches!(force_network, Some(ForceNetwork::Kusama))
 			=> Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(id))?),
-		None if matches!(force_network, ForceNetwork::Westend)
+		None if matches!(force_network, Some(ForceNetwork::Westend))
 			=> Box::new(service::WestendChainSpec::from_json_file(std::path::PathBuf::from(id))?),
 		None => Box::new(service::PolkadotChainSpec::from_json_file(std::path::PathBuf::from(id))?),
 	})

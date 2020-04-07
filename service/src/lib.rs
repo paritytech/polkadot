@@ -51,6 +51,7 @@ pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
+pub use westend_runtime;
 use prometheus_endpoint::Registry;
 
 native_executor_instance!(
@@ -64,6 +65,13 @@ native_executor_instance!(
 	pub KusamaExecutor,
 	kusama_runtime::api::dispatch,
 	kusama_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
+);
+
+native_executor_instance!(
+	pub WestendExecutor,
+	westend_runtime::api::dispatch,
+	westend_runtime::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
@@ -261,6 +269,37 @@ pub fn kusama_new_full(
 		impl AbstractService<
 			Block = Block,
 			RuntimeApi = kusama_runtime::RuntimeApi,
+			Backend = TFullBackend<Block>,
+			SelectChain = LongestChain<TFullBackend<Block>, Block>,
+			CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
+		>,
+		FullNodeHandles,
+	), ServiceError>
+{
+	new_full(
+		config,
+		collating_for,
+		max_block_data_size,
+		authority_discovery_enabled,
+		slot_duration,
+		grandpa_pause,
+	)
+}
+
+/// Create a new Kusama service for a full node.
+#[cfg(feature = "full-node")]
+pub fn westend_new_full(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+	grandpa_pause: Option<(u32, u32)>,
+)
+	-> Result<(
+		impl AbstractService<
+			Block = Block,
+			RuntimeApi = westend_runtime::RuntimeApi,
 			Backend = TFullBackend<Block>,
 			SelectChain = LongestChain<TFullBackend<Block>, Block>,
 			CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
@@ -574,6 +613,21 @@ pub fn kusama_new_light(
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = kusama_runtime::RuntimeApi,
+		Backend = TLightBackend<Block>,
+		SelectChain = LongestChain<TLightBackend<Block>, Block>,
+		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,
+	>, ServiceError>
+{
+	new_light(config)
+}
+
+/// Create a new Westend service for a light client.
+pub fn westend_new_light(
+	config: Configuration,
+)
+	-> Result<impl AbstractService<
+		Block = Block,
+		RuntimeApi = westend_runtime::RuntimeApi,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,
