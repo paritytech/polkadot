@@ -31,14 +31,19 @@ use super::*;
 fn prepare_good_block() -> (TestClient, Hash, u64, PeerId, IncomingBlock<Block>) {
 	let mut client = polkadot_test_runtime_client::new();
 	let mut builder = client.new_block(Default::default()).unwrap();
-	builder.push(UncheckedExtrinsic {
+
+	let set_heads = UncheckedExtrinsic {
 		function: Call::Parachains(ParachainsCall::set_heads(Vec::new())),
 		signature: None,
-	}).unwrap();
-	builder.push(UncheckedExtrinsic {
+	};
+
+	let timestamp = UncheckedExtrinsic {
 		function: Call::Timestamp(TimestampCall::set(0)),
 		signature: None,
-	}).unwrap();
+	};
+
+	builder.push(set_heads.clone()).unwrap();
+	builder.push(timestamp.clone()).unwrap();
 	let block = builder.build().unwrap().block;
 	client.import(BlockOrigin::File, block).unwrap();
 
@@ -49,7 +54,7 @@ fn prepare_good_block() -> (TestClient, Hash, u64, PeerId, IncomingBlock<Block>)
 	(client, hash, number, peer_id.clone(), IncomingBlock {
 		hash,
 		header,
-		body: Some(Vec::new()),
+		body: Some(vec![set_heads, timestamp]),
 		justification,
 		origin: Some(peer_id.clone()),
 		allow_missing_state: false,
