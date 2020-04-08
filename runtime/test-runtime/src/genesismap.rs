@@ -89,29 +89,3 @@ impl GenesisConfig {
 		storage
 	}
 }
-
-pub fn insert_genesis_block(
-	storage: &mut Storage,
-) -> sp_core::hash::H256 {
-	let child_roots = storage.children.iter().map(|(sk, child_content)| {
-		let state_root = <<<crate::Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
-			child_content.data.clone().into_iter().collect(),
-		);
-		(sk.clone(), state_root.encode())
-	});
-	// add child roots to storage
-	storage.top.extend(child_roots);
-	let state_root = <<<crate::Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
-		storage.top.clone().into_iter().collect()
-	);
-	let block: crate::Block = sc_client::genesis::construct_genesis_block(state_root);
-	let genesis_hash = block.header.hash();
-	storage.top.extend(additional_storage_with_genesis(&block));
-	genesis_hash
-}
-
-pub fn additional_storage_with_genesis(genesis_block: &crate::Block) -> BTreeMap<Vec<u8>, Vec<u8>> {
-	map![
-		twox_128(&b"latest"[..]).to_vec() => genesis_block.hash().as_fixed_bytes().to_vec()
-	]
-}
