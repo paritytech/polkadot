@@ -22,7 +22,7 @@ use polkadot_runtime as polkadot;
 use kusama_runtime as kusama;
 use polkadot::constants::currency::DOTS;
 use kusama::constants::currency::DOTS as KSM;
-use sc_chain_spec::ChainSpecExtension;
+use sc_chain_spec::{ChainSpecExtension, ChainType};
 use sp_runtime::{traits::IdentifyAccount, Perbill};
 use serde::{Serialize, Deserialize};
 use telemetry::TelemetryEndpoints;
@@ -335,6 +335,7 @@ pub fn polkadot_staging_testnet_config() -> PolkadotChainSpec {
 	PolkadotChainSpec::from_genesis(
 		"Polkadot Staging Testnet",
 		"polkadot_staging_testnet",
+		ChainType::Live,
 		polkadot_staging_testnet_config_genesis,
 		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(POLKADOT_STAGING_TELEMETRY_URL.to_string(), 0)])
@@ -351,6 +352,7 @@ pub fn kusama_staging_testnet_config() -> KusamaChainSpec {
 	KusamaChainSpec::from_genesis(
 		"Kusama Staging Testnet",
 		"kusama_staging_testnet",
+		ChainType::Live,
 		kusama_staging_testnet_config_genesis,
 		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(KUSAMA_STAGING_TELEMETRY_URL.to_string(), 0)])
@@ -590,6 +592,7 @@ pub fn polkadot_development_config() -> PolkadotChainSpec {
 	PolkadotChainSpec::from_genesis(
 		"Development",
 		"dev",
+		ChainType::Development,
 		polkadot_development_config_genesis,
 		vec![],
 		None,
@@ -604,6 +607,7 @@ pub fn kusama_development_config() -> KusamaChainSpec {
 	KusamaChainSpec::from_genesis(
 		"Development",
 		"kusama_dev",
+		ChainType::Development,
 		kusama_development_config_genesis,
 		vec![],
 		None,
@@ -629,6 +633,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 	PolkadotChainSpec::from_genesis(
 		"Local Testnet",
 		"local_testnet",
+		ChainType::Local,
 		polkadot_local_testnet_genesis,
 		vec![],
 		None,
@@ -654,6 +659,7 @@ pub fn kusama_local_testnet_config() -> KusamaChainSpec {
 	KusamaChainSpec::from_genesis(
 		"Kusama Local Testnet",
 		"kusama_local_testnet",
+		ChainType::Local,
 		kusama_local_testnet_genesis,
 		vec![],
 		None,
