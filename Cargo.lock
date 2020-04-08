@@ -5108,10 +5108,11 @@ dependencies = [
 
 [[package]]
 name = "reed-solomon-erasure"
-version = "4.0.0"
-source = "git+https://github.com/paritytech/reed-solomon-erasure#63c609beaef0f8174a9a21f058d7d3e46c3a762c"
+version = "4.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a415a013dd7c5d4221382329a5a3482566da675737494935cbbbcdec04662f9d"
 dependencies = [
- "smallvec 0.6.13",
+ "smallvec 1.2.0",
 ]
 
 [[package]]
