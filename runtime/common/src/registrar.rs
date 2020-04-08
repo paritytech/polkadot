@@ -25,13 +25,13 @@ use codec::{Encode, Decode};
 
 use sp_runtime::{
 	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
-	traits::{Hash as HashT, SignedExtension}
+	traits::{Hash as HashT, SignedExtension, DispatchInfoOf},
 };
 
 use frame_support::{
 	decl_storage, decl_module, decl_event, decl_error, ensure,
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
-	weights::{SimpleDispatchInfo, DispatchInfo, Weight, WeighData},
+	weights::{SimpleDispatchInfo, Weight, WeighData},
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
@@ -588,7 +588,6 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	type Call = <T as system::Trait>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self)
 		-> sp_std::result::Result<Self::AdditionalSigned, TransactionValidityError>
@@ -600,7 +599,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 		&self,
 		_who: &Self::AccountId,
 		call: &Self::Call,
-		_info: DispatchInfo,
+		_info: &DispatchInfoOf<Self::Call>,
 		_len: usize,
 	) -> TransactionValidity {
 		let mut r = ValidTransaction::default();
@@ -673,6 +672,7 @@ mod tests {
 	use frame_support::{
 		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
+		weights::DispatchInfo,
 	};
 	use keyring::Sr25519Keyring;
 
@@ -969,7 +969,7 @@ mod tests {
 		let inner_call = super::Call::select_parathread(id, col.clone(), hdh);
 		let call = Call::Registrar(inner_call);
 		let origin = 4u64;
-		assert!(tx.validate(&origin, &call, Default::default(), 0).is_ok());
+		assert!(tx.validate(&origin, &call, &Default::default(), 0).is_ok());
 		assert_ok!(call.dispatch(Origin::signed(origin)));
 	}
 
@@ -1416,7 +1416,7 @@ mod tests {
 			let bad_para_id = user_id(1);
 			let bad_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 2, 1]);
 			let good_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 1, 1]);
-			let info = DispatchInfo::default();
+			let info = &DispatchInfo::default();
 
 			// Allow for threads
 			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 10));
@@ -1481,7 +1481,7 @@ mod tests {
 				let head_hash = <Test as system::Trait>::Hashing::hash(&vec![x; 3]);
 				let inner = super::Call::select_parathread(para_id, collator_id, head_hash);
 				let call = Call::Registrar(inner);
-				let info = DispatchInfo::default();
+				let info = &DispatchInfo::default();
 
 				// First 3 transactions win a slot
 				if x < 3 {

@@ -39,7 +39,10 @@ use sp_runtime::{
 		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource,
 	},
 	curve::PiecewiseLinear,
-	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto},
+	traits::{
+		BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto,
+		DispatchInfoOf,
+	},
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
@@ -50,7 +53,6 @@ use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime,
 	traits::{KeyOwnerProofSystem, Randomness},
-	weights::DispatchInfo,
 };
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
@@ -100,11 +102,16 @@ impl SignedExtension for RestrictFunctionality {
 	type Call = Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self) -> rstd::result::Result<(), TransactionValidityError> { Ok(()) }
 
-	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
+	fn validate(
+		&self,
+		_: &Self::AccountId,
+		call: &Self::Call,
+		_: &DispatchInfoOf<Self::Call>,
+		_: usize
+	)
 		-> TransactionValidity
 	{
 		match call {
