@@ -1700,6 +1700,7 @@ mod tests {
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 		pub const MaxNominatorRewardedPerValidator: u32 = 64;
 		pub const ElectionLookahead: BlockNumber = 0;
+		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
 	}
 
 	pub struct CurrencyToVoteHandler;
@@ -1731,6 +1732,7 @@ mod tests {
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
 		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
+		type UnsignedPriority = StakingUnsignedPriority;
 	}
 
 	impl attestations::Trait for Test {

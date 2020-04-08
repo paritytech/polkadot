@@ -803,6 +803,7 @@ mod tests {
 		pub const ValidationUpgradeDelay: BlockNumber = 2;
 		pub const SlashPeriod: BlockNumber = 50;
 		pub const ElectionLookahead: BlockNumber = 0;
+		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
 	}
 
 	impl staking::Trait for Test {
@@ -824,6 +825,7 @@ mod tests {
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
 		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
+		type UnsignedPriority = StakingUnsignedPriority;
 	}
 
 	impl timestamp::Trait for Test {
