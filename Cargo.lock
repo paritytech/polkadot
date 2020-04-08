@@ -4235,12 +4235,9 @@ dependencies = [
 name = "polkadot-network-test"
 version = "0.8.0"
 dependencies = [
- "env_logger 0.7.1",
  "futures 0.3.4",
  "log 0.4.8",
- "pallet-timestamp",
  "parking_lot 0.10.0",
- "polkadot-runtime-common",
  "polkadot-test-runtime-client",
  "rand 0.7.3",
  "sc-block-builder",
@@ -4522,7 +4519,6 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "rustc-hex",
- "sc-client",
  "serde",
  "serde_derive",
  "serde_json",
@@ -4550,7 +4546,9 @@ name = "polkadot-test-runtime-client"
 version = "2.0.0"
 dependencies = [
  "futures 0.3.4",
+ "pallet-timestamp",
  "parity-scale-codec",
+ "polkadot-runtime-common",
  "polkadot-test-runtime",
  "sc-block-builder",
  "sc-client",

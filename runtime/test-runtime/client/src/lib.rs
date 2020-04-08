@@ -316,3 +316,20 @@ pub fn new_light_fetcher() -> LightFetcher {
 pub fn new_native_executor() -> sc_executor::NativeExecutor<LocalExecutor> {
 	sc_executor::NativeExecutor::new(sc_executor::WasmExecutionMethod::Interpreted, None, 8)
 }
+
+/// Extrinsics that must be included in each block.
+pub fn needed_extrinsics() -> (polkadot_test_runtime::UncheckedExtrinsic, polkadot_test_runtime::UncheckedExtrinsic) {
+	use polkadot_runtime_common::parachains;
+
+	let set_heads = polkadot_test_runtime::UncheckedExtrinsic {
+		function: polkadot_test_runtime::Call::Parachains(parachains::Call::set_heads(Vec::new())),
+		signature: None,
+	};
+
+	let timestamp = polkadot_test_runtime::UncheckedExtrinsic {
+		function: polkadot_test_runtime::Call::Timestamp(pallet_timestamp::Call::set(0)),
+		signature: None,
+	};
+
+	(set_heads, timestamp)
+}

@@ -250,7 +250,13 @@ mod tests {
 			let mut client = client.clone();
 			move |n| {
 				for _ in 0..n {
-					let block = client.new_block(Default::default()).unwrap().build().unwrap().block;
+					let mut builder = client.new_block(Default::default()).unwrap();
+
+					let (set_heads, timestamp) = polkadot_test_runtime_client::needed_extrinsics();
+					builder.push(set_heads).unwrap();
+					builder.push(timestamp).unwrap();
+
+					let block = builder.build().unwrap().block;
 					client.import(BlockOrigin::Own, block).unwrap();
 				}
 			}

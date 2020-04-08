@@ -17,13 +17,12 @@
 //! Tool for creating the genesis block.
 
 use std::collections::BTreeMap;
-use sp_io::hashing::{blake2_256, twox_128};
+use sp_io::hashing::blake2_256;
 use super::{AccountId, WASM_BINARY};
 use codec::{Encode, KeyedVec, Joiner};
-use sp_core::{ChangesTrieConfiguration, map};
+use sp_core::ChangesTrieConfiguration;
 use sp_core::storage::{well_known_keys, Storage};
 use sp_runtime::BuildStorage;
-use sp_runtime::traits::{Block as BlockT, Hash as HashT, Header as HeaderT};
 
 /// Configuration of a general Substrate test genesis block.
 pub struct GenesisConfig {
