@@ -76,7 +76,7 @@ pub fn run() -> Result<()> {
 				Some((cli.run.grandpa_pause[0], cli.run.grandpa_pause[1]))
 			};
 
-			if config.expect_chain_spec().is_kusama() {
+			if config.chain_spec.is_kusama() {
 				info!("⛓  Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
 				info!("----------------------------");
 				info!("This chain is not in any way");
@@ -89,7 +89,7 @@ pub fn run() -> Result<()> {
 					service::KusamaExecutor,
 					service::kusama_runtime::UncheckedExtrinsic,
 				>(runtime, authority_discovery_enabled, grandpa_pause)
-			} else if config.expect_chain_spec().is_westend() {
+			} else if config.chain_spec.is_westend() {
 				info!("⛓  Native runtime: {}", service::WestendExecutor::native_version().runtime_version);
 
 				run_node::<
