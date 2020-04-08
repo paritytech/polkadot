@@ -25,6 +25,7 @@ use sp_runtime::{
 	traits::{
 		Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
 		AccountIdConversion, BadOrigin, Convert, SignedExtension, AppVerify,
+		DispatchInfoOf,
 	},
 	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
 };
@@ -35,7 +36,7 @@ use sp_staking::{
 use frame_support::{
 	traits::KeyOwnerProofSystem,
 	dispatch::{IsSubType},
-	weights::{DispatchInfo, SimpleDispatchInfo, Weight, WeighData},
+	weights::{SimpleDispatchInfo, Weight, WeighData},
 };
 use primitives::{
 	Balance,
@@ -1456,7 +1457,6 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 	type Call = <T as system::Trait>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self)
 		-> sp_std::result::Result<Self::AdditionalSigned, TransactionValidityError>
@@ -1468,7 +1468,7 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 		&self,
 		_who: &Self::AccountId,
 		call: &Self::Call,
-		_info: DispatchInfo,
+		_info: &DispatchInfoOf<Self::Call>,
 		_len: usize,
 	) -> TransactionValidity {
 		let r = ValidTransaction::default();
@@ -1538,6 +1538,7 @@ mod tests {
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, parameter_types,
 		traits::{OnInitialize, OnFinalize},
+		weights::DispatchInfo,
 	};
 	use crate::parachains;
 	use crate::registrar;
@@ -1699,6 +1700,7 @@ mod tests {
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 		pub const MaxNominatorRewardedPerValidator: u32 = 64;
 		pub const ElectionLookahead: BlockNumber = 0;
+		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
 	}
 
 	pub struct CurrencyToVoteHandler;
@@ -1730,6 +1732,7 @@ mod tests {
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
 		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
+		type UnsignedPriority = StakingUnsignedPriority;
 	}
 
 	impl attestations::Trait for Test {
@@ -1900,7 +1903,7 @@ mod tests {
 		let call = Call::Parachains(inner.clone());
 
 		ValidateDoubleVoteReports::<Test>(sp_std::marker::PhantomData)
-			.validate(&0, &call, DispatchInfo::default(), 0)?;
+			.validate(&0, &call, &DispatchInfo::default(), 0)?;
 
 		Ok(inner)
 	}
