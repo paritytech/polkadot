@@ -207,6 +207,12 @@ impl<N> Clone for Service<N> {
 	}
 }
 
+impl<N> Service<N> {
+	pub fn network_service(&self) -> Arc<N> {
+		self.network_service.clone()
+	}
+}
+
 /// Registers the protocol.
 ///
 /// You are very strongly encouraged to call this method very early on. Any connection open

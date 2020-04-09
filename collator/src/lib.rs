@@ -84,11 +84,18 @@ pub trait Network: Send + Sync {
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
 	fn checked_statements(&self, relay_parent: Hash) -> Pin<Box<dyn Stream<Item=SignedStatement> + Send>>;
+
+	/// Returns the `NetworkService`
+	fn network_service(&self) -> Arc<polkadot_network::PolkadotNetworkService>;
 }
 
 impl Network for polkadot_network::protocol::Service {
 	fn checked_statements(&self, relay_parent: Hash) -> Pin<Box<dyn Stream<Item=SignedStatement> + Send>> {
 		polkadot_network::protocol::Service::checked_statements(self, relay_parent).boxed()
+	}
+
+	fn network_service(&self) -> Arc<polkadot_network::PolkadotNetworkService> {
+		polkadot_network::protocol::Service::network_service(self)
 	}
 }
 
