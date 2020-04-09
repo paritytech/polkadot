@@ -10,7 +10,6 @@ log = "0.4.8"
 parking_lot = "0.10.0"
 futures = "0.3.1"
 rand = "0.7.2"
-libp2p = { version = "0.16.2", default-features = false, features = ["libp2p-websocket"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }

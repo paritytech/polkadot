@@ -36,10 +36,13 @@ use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, Perbill, RuntimeDebug, KeyTypeId,
 	transaction_validity::{
-		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource,
+		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource, TransactionPriority,
 	},
 	curve::PiecewiseLinear,
-	traits::{BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto},
+	traits::{
+		BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto,
+		DispatchInfoOf,
+	},
 };
 use version::RuntimeVersion;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
@@ -50,10 +53,9 @@ use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime,
 	traits::{KeyOwnerProofSystem, Randomness},
-	weights::DispatchInfo,
 };
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
-use session::{historical as session_historical};
+use session::historical as session_historical;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -100,11 +102,16 @@ impl SignedExtension for RestrictFunctionality {
 	type Call = Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self) -> rstd::result::Result<(), TransactionValidityError> { Ok(()) }
 
-	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
+	fn validate(
+		&self,
+		_: &Self::AccountId,
+		call: &Self::Call,
+		_: &DispatchInfoOf<Self::Call>,
+		_: usize
+	)
 		-> TransactionValidity
 	{
 		match call {
@@ -269,6 +276,7 @@ parameter_types! {
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	pub const ElectionLookahead: BlockNumber = 0;
+	pub const StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
 }
 
 impl staking::Trait for Runtime {
@@ -291,6 +299,7 @@ impl staking::Trait for Runtime {
 	type ElectionLookahead = ElectionLookahead;
 	type Call = Call;
 	type SubmitTransaction = system::offchain::TransactionSubmitter<(), Runtime, Extrinsic>;
+	type UnsignedPriority = StakingUnsignedPriority;
 }
 
 impl grandpa::Trait for Runtime {
@@ -310,17 +319,27 @@ impl attestations::Trait for Runtime {
 parameter_types! {
 	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
 	pub const MaxHeadDataSize: u32 = 20 * 1024; // 20 KB
+
+	pub const ValidationUpgradeFrequency: BlockNumber = 2;
+	pub const ValidationUpgradeDelay: BlockNumber = 1;
+	pub const SlashPeriod: BlockNumber = 1 * MINUTES;
 }
 
 impl parachains::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
+	type BlockNumberConversion = sp_runtime::traits::Identity;
 	type Randomness = RandomnessCollectiveFlip;
 	type ActiveParachains = Registrar;
 	type Registrar = Registrar;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadDataSize = MaxHeadDataSize;
+
+	type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
+	type ValidationUpgradeDelay = ValidationUpgradeDelay;
+	type SlashPeriod = SlashPeriod;
+
 	type Proof = session::historical::Proof;
 	type KeyOwnerProofSystem = session::historical::Module<Self>;
 	type IdentificationTuple = <
@@ -407,7 +426,7 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
-		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>},
+		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		Offences: offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
@@ -528,7 +547,7 @@ sp_api::impl_runtime_apis! {
 			Parachains::global_validation_schedule()
 		}
 		fn local_validation_data(id: parachain::Id) -> Option<parachain::LocalValidationData> {
-			Parachains::local_validation_data(&id)
+			Parachains::current_local_validation_data(&id)
 		}
 		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
 			Parachains::parachain_code(&id)

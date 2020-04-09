@@ -16,9 +16,9 @@
 
 //! WASM validation for adder parachain.
 
-use crate::{HeadData, BlockData};
+use crate::{HeadData, BlockData, RelayChainParams};
 use core::{intrinsics, panic};
-use parachain::ValidationResult;
+use parachain::primitives::{ValidationResult, HeadData as GenericHeadData};
 use codec::{Encode, Decode};
 
 #[panic_handler]
@@ -40,17 +40,31 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 #[no_mangle]
 pub extern fn validate_block(params: *const u8, len: usize) -> u64 {
 	let params = unsafe { parachain::load_params(params, len) };
-	let parent_head = HeadData::decode(&mut &params.parent_head[..])
+	let parent_head = HeadData::decode(&mut &params.parent_head.0[..])
 		.expect("invalid parent head format.");
 
-	let block_data = BlockData::decode(&mut &params.block_data[..])
+	let block_data = BlockData::decode(&mut &params.block_data.0[..])
 		.expect("invalid block data format.");
 
-	let parent_hash = tiny_keccak::keccak256(&params.parent_head[..]);
+	let parent_hash = tiny_keccak::keccak256(&params.parent_head.0[..]);
 
-	match crate::execute(parent_hash, parent_head, &block_data) {
-		Ok(new_head) => parachain::write_result(
-			&ValidationResult { head_data: new_head.encode() }
+	let res = crate::execute(
+		parent_hash,
+		parent_head,
+		block_data,
+		&RelayChainParams {
+			code_upgrade_allowed: params.code_upgrade_allowed,
+			max_code_size: params.max_code_size,
+			relay_chain_block_number: params.relay_chain_height,
+		},
+	);
+
+	match res {
+		Ok(output) => parachain::write_result(
+			&ValidationResult {
+				head_data: GenericHeadData(output.head_data.encode()),
+				new_validation_code: output.new_validation_code,
+			}
 		),
 		Err(_) => panic!("execution failure"),
 	}

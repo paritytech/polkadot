@@ -25,17 +25,17 @@ use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
 #[cfg(feature = "full-node")]
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
-use service::{error::{Error as ServiceError}, ServiceBuilder};
+use service::{error::Error as ServiceError, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use sc_executor::native_executor_instance;
 use log::info;
 pub use service::{
-	AbstractService, Roles, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
+	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
 	Configuration, ChainSpec,
 };
-pub use service::config::{DatabaseConfig, PrometheusConfig, full_version_from_strs};
+pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
 pub use sc_client::{ExecutionStrategy, CallExecutor, Client};
 pub use sc_client_api::backend::Backend;
@@ -103,11 +103,9 @@ where
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
-pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static
-{}
+pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
 
-impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static
-{}
+impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
 pub trait IsKusama {
@@ -115,7 +113,7 @@ pub trait IsKusama {
 	fn is_kusama(&self) -> bool;
 }
 
-impl IsKusama for &dyn ChainSpec {
+impl IsKusama for Box<dyn ChainSpec> {
 	fn is_kusama(&self) -> bool {
 		self.id().starts_with("kusama") || self.id().starts_with("ksm")
 	}
@@ -155,7 +153,7 @@ macro_rules! new_full_start {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 
-				let grandpa_hard_forks = if config.expect_chain_spec().is_kusama() {
+				let grandpa_hard_forks = if config.chain_spec.is_kusama() {
 					grandpa_support::kusama_hard_forks()
 				} else {
 					Vec::new()
@@ -316,24 +314,19 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	use futures::stream::StreamExt;
 
 	let is_collator = collating_for.is_some();
-	let is_authority = config.roles.is_authority() && !is_collator;
+	let role = config.role.clone();
+	let is_authority = role.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = max_block_data_size;
-	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.expect_database() {
+	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.database {
 		path.clone()
 	} else {
 		return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into());
 	};
 	let disable_grandpa = config.disable_grandpa;
-	let name = config.name.clone();
+	let name = config.network.node_name.clone();
 	let authority_discovery_enabled = authority_discovery_enabled;
-	let sentry_nodes = config.network.sentry_nodes.clone();
 	let slot_duration = slot_duration;
-
-	// sentry nodes announce themselves as authorities to the network
-	// and should run the same protocols authorities do, but it should
-	// never actively participate in any consensus process.
-	let participates_in_consensus = is_authority && !config.sentry_mode;
 
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config, Runtime, Dispatch);
 
@@ -390,7 +383,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		service.spawn_task_handle(),
 	).map_err(|e| format!("Could not spawn network worker: {:?}", e))?;
 
-	if participates_in_consensus {
+	if let Role::Authority { sentry_nodes } = &role {
 		let availability_store = {
 			use std::path::PathBuf;
 
@@ -472,7 +465,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
 				service.client(),
 				network,
-				sentry_nodes,
+				sentry_nodes.clone(),
 				service.keystore(),
 				dht_event_stream,
 				service.prometheus_registry(),
@@ -483,7 +476,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
-	let keystore = if participates_in_consensus {
+	let keystore = if is_authority {
 		Some(service.keystore())
 	} else {
 		None
@@ -496,7 +489,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		name: Some(name),
 		observer_enabled: false,
 		keystore,
-		is_authority,
+		is_authority: role.is_network_authority(),
 	};
 
 	let enable_grandpa = !disable_grandpa;

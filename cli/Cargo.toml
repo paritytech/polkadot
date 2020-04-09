@@ -2,7 +2,7 @@
 name = "polkadot-cli"
 version = "0.7.29-pre1"
 authors = ["Parity Technologies <admin@parity.io>"]
-description = "Polkadot node implementation in Rust."
+description = "Polkadot Relay-chain Client Node"
 edition = "2018"
 
 [package.metadata.wasm-pack.profile.release]
@@ -29,10 +29,14 @@ service = { package = "polkadot-service", path = "../service", default-features 
 tokio = { version = "0.2.13", features = ["rt-threaded"], optional = true }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 
 wasm-bindgen = { version = "0.2.57", optional = true }
 wasm-bindgen-futures = { version = "0.4.7", optional = true }
 browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = [ "wasmtime", "rocksdb", "cli" ]
@@ -41,6 +45,7 @@ rocksdb = [ "service/rocksdb" ]
 cli = [
 	"tokio",
 	"sc-cli",
+	"sc-service",
 	"frame-benchmarking-cli",
 	"service/full-node",
 ]

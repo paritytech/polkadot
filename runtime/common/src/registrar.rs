@@ -25,13 +25,13 @@ use codec::{Encode, Decode};
 
 use sp_runtime::{
 	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
-	traits::{Hash as HashT, SignedExtension}
+	traits::{Hash as HashT, SignedExtension, DispatchInfoOf},
 };
 
 use frame_support::{
 	decl_storage, decl_module, decl_event, decl_error, ensure,
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
-	weights::{SimpleDispatchInfo, DispatchInfo, Weight, WeighData},
+	weights::{SimpleDispatchInfo, Weight, WeighData},
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
@@ -51,6 +51,9 @@ pub trait Registrar<AccountId> {
 
 	/// Checks whether the given validation code falls within the limit.
 	fn code_size_allowed(code_size: u32) -> bool;
+
+	/// Fetches metadata for a para by ID, if any.
+	fn para_info(id: ParaId) -> Option<ParaInfo>;
 
 	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
 	/// result in a error.
@@ -81,6 +84,10 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 
 	fn code_size_allowed(code_size: u32) -> bool {
 		code_size <= <T as parachains::Trait>::MaxCodeSize::get()
+	}
+
+	fn para_info(id: ParaId) -> Option<ParaInfo> {
+		Self::paras(&id)
 	}
 
 	fn register_para(
@@ -498,7 +505,7 @@ decl_event!{
 }
 
 impl<T: Trait> Module<T> {
-        /// Ensures that the given `ParaId` corresponds to a registered parathread, and returns a descriptor if so.
+	/// Ensures that the given `ParaId` corresponds to a registered parathread, and returns a descriptor if so.
 	pub fn ensure_thread_id(id: ParaId) -> Option<ParaInfo> {
 		Paras::get(id).and_then(|info| if let Scheduling::Dynamic = info.scheduling {
 			Some(info)
@@ -581,7 +588,6 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	type Call = <T as system::Trait>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self)
 		-> sp_std::result::Result<Self::AdditionalSigned, TransactionValidityError>
@@ -593,7 +599,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 		&self,
 		_who: &Self::AccountId,
 		call: &Self::Call,
-		_info: DispatchInfo,
+		_info: &DispatchInfoOf<Self::Call>,
 		_len: usize,
 	) -> TransactionValidity {
 		let mut r = ValidTransaction::default();
@@ -653,19 +659,20 @@ mod tests {
 		traits::{
 			BlakeTwo256, IdentityLookup, Dispatchable,
 			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
+		}, testing::{UintAuthorityId, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{
 			ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
 			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
-			CollatorPair, CandidateCommitments, GlobalValidationSchedule, LocalValidationData,
+			CollatorPair, CandidateCommitments,
 		},
-		Balance, BlockNumber,
+		Balance, BlockNumber, Header,
 	};
 	use frame_support::{
 		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
+		weights::DispatchInfo,
 	};
 	use keyring::Sr25519Keyring;
 
@@ -710,7 +717,7 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;
-		type BlockNumber = u64;
+		type BlockNumber = BlockNumber;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
@@ -741,8 +748,8 @@ mod tests {
 	}
 
 	parameter_types!{
-		pub const LeasePeriod: u64 = 10;
-		pub const EndingPeriod: u64 = 3;
+		pub const LeasePeriod: BlockNumber = 10;
+		pub const EndingPeriod: BlockNumber = 3;
 	}
 
 	impl slots::Trait for Test {
@@ -791,7 +798,12 @@ mod tests {
 	parameter_types! {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
+
+		pub const ValidationUpgradeFrequency: BlockNumber = 10;
+		pub const ValidationUpgradeDelay: BlockNumber = 2;
+		pub const SlashPeriod: BlockNumber = 50;
 		pub const ElectionLookahead: BlockNumber = 0;
+		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
 	}
 
 	impl staking::Trait for Test {
@@ -813,6 +825,7 @@ mod tests {
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
 		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
+		type UnsignedPriority = StakingUnsignedPriority;
 	}
 
 	impl timestamp::Trait for Test {
@@ -830,11 +843,15 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
+		type BlockNumberConversion = sp_runtime::traits::Identity;
 		type ActiveParachains = Registrar;
 		type Registrar = Registrar;
 		type Randomness = RandomnessCollectiveFlip;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
+		type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
+		type ValidationUpgradeDelay = ValidationUpgradeDelay;
+		type SlashPeriod = SlashPeriod;
 		type Proof = session::historical::Proof;
 		type KeyOwnerProofSystem = session::historical::Module<Test>;
 		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
@@ -929,7 +946,7 @@ mod tests {
 		Slots::on_initialize(System::block_number());
 	}
 
-	fn run_to_block(n: u64) {
+	fn run_to_block(n: BlockNumber) {
 		println!("Running until block {}", n);
 		while System::block_number() < n {
 			if System::block_number() > 1 {
@@ -954,7 +971,7 @@ mod tests {
 		let inner_call = super::Call::select_parathread(id, col.clone(), hdh);
 		let call = Call::Registrar(inner_call);
 		let origin = 4u64;
-		assert!(tx.validate(&origin, &call, Default::default(), 0).is_ok());
+		assert!(tx.validate(&origin, &call, &Default::default(), 0).is_ok());
 		assert_ok!(call.dispatch(Origin::signed(origin)));
 	}
 
@@ -972,18 +989,13 @@ mod tests {
 			collator: collator.public(),
 			signature: pov_block_hash.using_encoded(|d| collator.sign(d)),
 			pov_block_hash,
-			global_validation: GlobalValidationSchedule {
-				max_code_size: <Test as parachains::Trait>::MaxCodeSize::get(),
-				max_head_data_size: <Test as parachains::Trait>::MaxHeadDataSize::get(),
-			},
-			local_validation: LocalValidationData {
-				balance: Balances::free_balance(&id.into_account()),
-				parent_head: HeadData(Parachains::parachain_head(&id).unwrap()),
-			},
+			global_validation: Parachains::global_validation_schedule(),
+			local_validation: Parachains::current_local_validation_data(&id).unwrap(),
 			commitments: CandidateCommitments {
 				fees: 0,
 				upward_messages: vec![],
 				erasure_root: [1; 32].into(),
+				new_validation_code: None,
 			},
 		};
 		let (candidate, _) = candidate.abridge();
@@ -1406,7 +1418,7 @@ mod tests {
 			let bad_para_id = user_id(1);
 			let bad_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 2, 1]);
 			let good_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 1, 1]);
-			let info = DispatchInfo::default();
+			let info = &DispatchInfo::default();
 
 			// Allow for threads
 			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 10));
@@ -1471,7 +1483,7 @@ mod tests {
 				let head_hash = <Test as system::Trait>::Hashing::hash(&vec![x; 3]);
 				let inner = super::Call::select_parathread(para_id, collator_id, head_hash);
 				let call = Call::Registrar(inner);
-				let info = DispatchInfo::default();
+				let info = &DispatchInfo::default();
 
 				// First 3 transactions win a slot
 				if x < 3 {

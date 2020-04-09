@@ -1,0 +1,23 @@
+[package]
+name = "test-parachain-adder"
+version = "0.7.29-pre1"
+authors = ["Parity Technologies <admin@parity.io>"]
+description = "Test parachain which adds to a number as its state transition"
+edition = "2018"
+build = "build.rs"
+
+[dependencies]
+parachain = { package = "polkadot-parachain", path = "../../", default-features = false, features = [ "wasm-api" ] }
+codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
+tiny-keccak = "1.5.0"
+dlmalloc = { version = "0.1.3", features = [ "global" ] }
+
+# We need to make sure the global allocator is disabled until we have support of full substrate externalities
+runtime-io = { package = "sp-io", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = [ "disable_allocator" ] }
+
+[build-dependencies]
+wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.5" }
+
+[features]
+default = [ "std" ]
+std = ["parachain/std"]

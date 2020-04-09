@@ -1,0 +1,64 @@
+# Phase 0
+
+[[group]]
+name = "phase-0"
+label = "Phase 0: MVP"
+items = []
+
+# Phase 1
+
+[[group]]
+name = "two-phase-inclusion"
+label = "Two-phase inclusion of parachain candidates"
+requires = ["phase-0"]
+items = [
+	{ label = "Buffer submitted parachain candidate until considered available." },
+	{ label = "Validators submit signed bitfields re: availability of parachains" },
+	{ label = "relay chain fully includes candidate once considered available" }
+]
+
+[[group]]
+name = "secondary-checking"
+label = "Secondary checks and self-selection by validators"
+requires = ["two-phase-inclusion"]
+items = [
+	{ label = "Extract #VCheck for all checkable candidates" },
+	{ label = "Maintain a frontier of candidates that are likely to be checked soon" },
+	{ label = "Listen for new reports on candidates and new checks to update frontier" },
+]
+
+[[group]]
+name = "runtime-availability-validity-slashing"
+label = "Availability and Validity slashing in the runtime"
+requires = ["two-phase-inclusion"]
+items = [
+	{ label = "Track all candidates within the slash period as well as their session" },
+	{ label = "Submit secondary checks to runtime", port = "submitsecondary", requires = ["secondary-checking"]},
+	{ label = "Track reports and attestatations for candidates" },
+]
+
+[[group]]
+name = "non-direct-ancestor"
+label = "Allow candidates with non-direct ancestor"
+items = [
+	{ label = "Extend GlobalValidationData with random seed and session index"},
+	{ label = "Block author can provide minimally-attested candidate with older relay parent" },
+	{ label = "Runtime can accept and process candidates with older relay-parent" },
+	{ label = "Revise availability-store pruning to ensure only needed data is kept" },
+]
+
+[[group]]
+name = "grandpa-voting-rule"
+label = "GRANDPA voting rule to follow valid/available chains"
+requires = ["runtime-availability-validity-slashing"]
+items = [
+	{ label = "Add a utility to flag a block and all of its ancestors as abandoned" },
+	{ label = "Accept new blocks on abandoned but mark them abandoned as well." },
+	{ label = "Do not vote or build on abandoned chains" },
+]
+
+[[group]]
+name = "phase-1"
+label = "Phase 1: Availability and Validity"
+requires = ["non-direct-ancestor", "grandpa-voting-rule", "runtime-availability-validity-slashing"]
+items = []

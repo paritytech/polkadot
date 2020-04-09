@@ -18,7 +18,6 @@ runtime_primitives = { package = "sp-runtime", git = "https://github.com/parityt
 polkadot-parachain = { path = "../parachain", default-features = false }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
 sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -39,5 +38,4 @@ std = [
 	"serde",
 	"polkadot-parachain/std",
 	"bitvec/std",
-	"babe/std"
 ]
