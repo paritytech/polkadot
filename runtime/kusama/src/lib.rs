@@ -36,10 +36,13 @@ use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, RuntimeDebug,
 	transaction_validity::{
-		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource,
+		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource, TransactionPriority,
 	},
 	curve::PiecewiseLinear,
-	traits::{BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto, IdentityLookup},
+	traits::{
+		BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto, IdentityLookup,
+		DispatchInfoOf,
+	},
 };
 #[cfg(feature = "runtime-benchmarks")]
 use sp_runtime::RuntimeString;
@@ -51,7 +54,6 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness},
-	weights::DispatchInfo,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -103,11 +105,16 @@ impl SignedExtension for RestrictFunctionality {
 	type Call = Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self) -> sp_std::result::Result<(), TransactionValidityError> { Ok(()) }
 
-	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
+	fn validate(
+		&self,
+		_: &Self::AccountId,
+		call: &Self::Call,
+		_: &DispatchInfoOf<Self::Call>,
+		_: usize
+	)
 		-> TransactionValidity
 	{
 		match call {
@@ -318,6 +325,7 @@ impl staking::Trait for Runtime {
 	type NextNewSession = Session;
 	type ElectionLookahead = ElectionLookahead;
 	type Call = Call;
+	type UnsignedPriority = StakingUnsignedPriority;
 }
 
 parameter_types! {
@@ -465,11 +473,17 @@ parameter_types! {
 	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
 }
 
+parameter_types! {
+	pub const StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
+	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl im_online::Trait for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
 	type ReportUnresponsiveness = Offences;
 	type SessionDuration = SessionDuration;
+	type UnsignedPriority = StakingUnsignedPriority;
 }
 
 impl grandpa::Trait for Runtime {
