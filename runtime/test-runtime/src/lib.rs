@@ -196,7 +196,7 @@ impl transaction_payment::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
+	pub const MinimumPeriod: u64 = 0;
 }
 impl timestamp::Trait for Runtime {
 	type Moment = u64;

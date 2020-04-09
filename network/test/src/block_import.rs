@@ -29,9 +29,12 @@ fn prepare_good_block() -> (TestClient, Hash, u64, PeerId, IncomingBlock<Block>)
 	let mut client = polkadot_test_runtime_client::new();
 	let mut builder = client.new_block(Default::default()).unwrap();
 
-	let (set_heads, timestamp) = polkadot_test_runtime_client::needed_extrinsics();
-	builder.push(set_heads.clone()).unwrap();
-	builder.push(timestamp.clone()).unwrap();
+	let extrinsics = polkadot_test_runtime_client::needed_extrinsics(vec![]);
+
+	for extrinsic in &extrinsics {
+		builder.push(extrinsic.clone()).unwrap();
+	}
+
 	let block = builder.build().unwrap().block;
 	client.import(BlockOrigin::File, block).unwrap();
 
@@ -42,7 +45,7 @@ fn prepare_good_block() -> (TestClient, Hash, u64, PeerId, IncomingBlock<Block>)
 	(client, hash, number, peer_id.clone(), IncomingBlock {
 		hash,
 		header,
-		body: Some(vec![set_heads, timestamp]),
+		body: Some(extrinsics),
 		justification,
 		origin: Some(peer_id.clone()),
 		allow_missing_state: false,

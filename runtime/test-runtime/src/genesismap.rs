@@ -17,18 +17,15 @@
 //! Tool for creating the genesis block.
 
 use std::collections::BTreeMap;
-use sp_io::hashing::blake2_256;
-use super::{AccountId, WASM_BINARY};
-use codec::{Encode, KeyedVec, Joiner};
+use super::{AccountId, WASM_BINARY, constants::currency};
 use sp_core::ChangesTrieConfiguration;
-use sp_core::storage::{well_known_keys, Storage};
+use sp_core::storage::Storage;
 use sp_runtime::BuildStorage;
 
 /// Configuration of a general Substrate test genesis block.
 pub struct GenesisConfig {
 	changes_trie_config: Option<ChangesTrieConfiguration>,
-	balances: Vec<(AccountId, u64)>,
-	heap_pages_override: Option<u64>,
+	balances: Vec<(AccountId, u128)>,
 	/// Additional storage key pairs that will be added to the genesis map.
 	extra_storage: Storage,
 }
@@ -37,44 +34,29 @@ impl GenesisConfig {
 	pub fn new(
 		changes_trie_config: Option<ChangesTrieConfiguration>,
 		endowed_accounts: Vec<AccountId>,
-		balance: u64,
-		heap_pages_override: Option<u64>,
+		balance: u128,
 		extra_storage: Storage,
 	) -> Self {
 		GenesisConfig {
 			changes_trie_config,
-			balances: endowed_accounts.into_iter().map(|a| (a, balance)).collect(),
-			heap_pages_override,
+			balances: endowed_accounts.into_iter().map(|a| (a, balance * currency::DOLLARS)).collect(),
 			extra_storage,
 		}
 	}
 
 	pub fn genesis_map(&self) -> Storage {
-		let wasm_runtime = WASM_BINARY.to_vec();
-		let mut map: BTreeMap<Vec<u8>, Vec<u8>> = self.balances.iter()
-			.map(|&(ref account, balance)| (account.to_keyed_vec(b"balance:"), vec![].and(&balance)))
-			.map(|(k, v)| (blake2_256(&k[..])[..].to_vec(), v.to_vec()))
-			.chain(vec![
-				(well_known_keys::CODE.into(), wasm_runtime),
-				(
-					well_known_keys::HEAP_PAGES.into(),
-					vec![].and(&(self.heap_pages_override.unwrap_or(16 as u64))),
-				),
-			].into_iter())
-			.collect();
-		if let Some(ref changes_trie_config) = self.changes_trie_config {
-			map.insert(well_known_keys::CHANGES_TRIE_CONFIG.to_vec(), changes_trie_config.encode());
-		}
-		// Add the extra storage entries.
-		map.extend(self.extra_storage.top.clone().into_iter());
-
 		// Assimilate the system genesis config.
-		let mut storage = Storage { top: map, children: self.extra_storage.children.clone()};
+		let mut storage = Storage { top: BTreeMap::new(), children: self.extra_storage.children.clone()};
 		let config = crate::GenesisConfig {
-            system: None,
+            system: Some(system::GenesisConfig {
+				changes_trie_config: self.changes_trie_config.clone(),
+				code: WASM_BINARY.to_vec(),
+			}),
             babe: None,
             indices: None,
-            balances: None,
+            balances: Some(balances::GenesisConfig {
+				balances: self.balances.clone()
+			}),
             staking: None,
             session: None,
             grandpa: None,

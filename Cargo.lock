@@ -4424,6 +4424,7 @@ dependencies = [
 name = "polkadot-service"
 version = "0.7.29-pre1"
 dependencies = [
+ "env_logger 0.7.1",
  "frame-benchmarking",
  "frame-system-rpc-runtime-api",
  "futures 0.3.4",
@@ -4548,6 +4549,7 @@ dependencies = [
  "futures 0.3.4",
  "pallet-timestamp",
  "parity-scale-codec",
+ "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-test-runtime",
  "sc-block-builder",

@@ -81,7 +81,6 @@ pub type LightExecutor = sc_client::light::call_executor::GenesisCallExecutor<
 #[derive(Default)]
 pub struct GenesisParameters {
 	changes_trie_config: Option<ChangesTrieConfiguration>,
-	heap_pages_override: Option<u64>,
 	extra_storage: Storage,
 }
 
@@ -95,7 +94,6 @@ impl GenesisParameters {
 				sr25519::Public::from(Sr25519Keyring::Charlie).into(),
 			],
 			1000,
-			self.heap_pages_override,
 			self.extra_storage.clone(),
 		)
 	}
@@ -168,12 +166,6 @@ pub trait TestClientBuilderExt<B>: Sized {
 	/// Set changes trie configuration for genesis.
 	fn changes_trie_config(mut self, config: Option<ChangesTrieConfiguration>) -> Self {
 		self.genesis_init_mut().changes_trie_config = config;
-		self
-	}
-
-	/// Override the default value for Wasm heap pages.
-	fn set_heap_pages(mut self, heap_pages: u64) -> Self {
-		self.genesis_init_mut().heap_pages_override = Some(heap_pages);
 		self
 	}
 
@@ -318,18 +310,21 @@ pub fn new_native_executor() -> sc_executor::NativeExecutor<LocalExecutor> {
 }
 
 /// Extrinsics that must be included in each block.
-pub fn needed_extrinsics() -> (polkadot_test_runtime::UncheckedExtrinsic, polkadot_test_runtime::UncheckedExtrinsic) {
+pub fn needed_extrinsics(heads: Vec<polkadot_primitives::parachain::AttestedCandidate>) -> Vec<polkadot_test_runtime::UncheckedExtrinsic> {
 	use polkadot_runtime_common::parachains;
 
-	let set_heads = polkadot_test_runtime::UncheckedExtrinsic {
-		function: polkadot_test_runtime::Call::Parachains(parachains::Call::set_heads(Vec::new())),
-		signature: None,
-	};
-
-	let timestamp = polkadot_test_runtime::UncheckedExtrinsic {
-		function: polkadot_test_runtime::Call::Timestamp(pallet_timestamp::Call::set(0)),
-		signature: None,
-	};
-
-	(set_heads, timestamp)
+	vec![
+		polkadot_test_runtime::UncheckedExtrinsic {
+			function: polkadot_test_runtime::Call::Parachains(parachains::Call::set_heads(heads)),
+			signature: None,
+		},
+		polkadot_test_runtime::UncheckedExtrinsic {
+			function: polkadot_test_runtime::Call::Timestamp(pallet_timestamp::Call::set({
+				std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+					.expect("now always later than unix epoch; qed")
+					.as_millis() as u64
+			})),
+			signature: None,
+		}
+	]
 }

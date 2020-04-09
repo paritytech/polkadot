@@ -244,6 +244,8 @@ mod tests {
 
 	#[test]
 	fn grandpa_pause_voting_rule_works() {
+		env_logger::init();
+
 		let client = Arc::new(polkadot_test_runtime_client::new());
 
 		let mut push_blocks = {
@@ -252,9 +254,9 @@ mod tests {
 				for _ in 0..n {
 					let mut builder = client.new_block(Default::default()).unwrap();
 
-					let (set_heads, timestamp) = polkadot_test_runtime_client::needed_extrinsics();
-					builder.push(set_heads).unwrap();
-					builder.push(timestamp).unwrap();
+					for extrinsic in polkadot_test_runtime_client::needed_extrinsics(vec![]) {
+						builder.push(extrinsic).unwrap()
+					}
 
 					let block = builder.build().unwrap().block;
 					client.import(BlockOrigin::Own, block).unwrap();
