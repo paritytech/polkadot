@@ -27,8 +27,8 @@ fn running_the_node_works_and_can_be_interrupted() {
 	use nix::unistd::Pid;
 
 	fn run_command_and_kill(signal: Signal) {
-		let tmp = tempdir().expect("coult not create temp dir");
-		let base_path = tmp.path().to_str().expect("path should be valid utf8");
+		let tmpdir = tempdir().expect("coult not create temp dir");
+		let base_path = tmpdir.path().to_str().expect("path should be valid utf8");
 
 		let mut cmd = Command::new(cargo_bin("polkadot"))
 			.args(&["--dev", "-d", base_path])
