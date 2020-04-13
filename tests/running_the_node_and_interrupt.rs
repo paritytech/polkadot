@@ -31,7 +31,7 @@ fn running_the_node_works_and_can_be_interrupted() {
 
 		let mut cmd = Command::new(cargo_bin("polkadot"))
 			.args(&["--dev", "-d"])
-			.args(tmpdir.path())
+			.arg(tmpdir.path())
 			.spawn()
 			.unwrap();
 

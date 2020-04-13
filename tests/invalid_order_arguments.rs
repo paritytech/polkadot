@@ -25,8 +25,8 @@ fn invalid_order_arguments() {
 
 	let status = Command::new(cargo_bin("polkadot"))
 		.args(&["--dev", "invalid_order_arguments", "-d"])
-		.args(tmpdir.path())
-		.args(&["-y"])
+		.arg(tmpdir.path())
+		.arg("-y")
 		.status()
 		.unwrap();
 	assert!(!status.success());

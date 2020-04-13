@@ -30,7 +30,7 @@ fn purge_chain_works() {
 
 	let mut cmd = Command::new(cargo_bin("polkadot"))
 		.args(&["--dev", "-d"])
-		.args(tmpdir.path())
+		.arg(tmpdir.path())
 		.spawn()
 		.unwrap();
 
@@ -45,8 +45,8 @@ fn purge_chain_works() {
 	// Purge chain
 	let status = Command::new(cargo_bin("polkadot"))
 		.args(&["purge-chain", "--dev", "-d"])
-		.args(tmpdir.path())
-		.args( &["-y"])
+		.arg(tmpdir.path())
+		.arg( "-y")
 		.status()
 		.unwrap();
 	assert!(status.success());
