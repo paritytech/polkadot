@@ -549,7 +549,7 @@ sp_api::impl_runtime_apis! {
 		fn local_validation_data(id: parachain::Id) -> Option<parachain::LocalValidationData> {
 			Parachains::current_local_validation_data(&id)
 		}
-		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
+		fn parachain_code(id: parachain::Id) -> Option<parachain::ValidationCode> {
 			Parachains::parachain_code(&id)
 		}
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
