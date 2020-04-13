@@ -46,7 +46,7 @@ fn purge_chain_works() {
 	let status = Command::new(cargo_bin("polkadot"))
 		.args(&["purge-chain", "--dev", "-d"])
 		.arg(tmpdir.path())
-		.arg( "-y")
+		.arg("-y")
 		.status()
 		.unwrap();
 	assert!(status.success());
