@@ -15,7 +15,8 @@
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_cmd::cargo::cargo_bin;
-use std::{convert::TryInto, process::Command, thread, time::Duration, fs, path::PathBuf};
+use std::{convert::TryInto, process::Command, thread, time::Duration};
+use tempfile::tempdir;
 
 mod common;
 
@@ -25,9 +26,9 @@ fn purge_chain_works() {
 	use nix::sys::signal::{kill, Signal::SIGINT};
 	use nix::unistd::Pid;
 
-	let base_path = "purge_chain_test";
+	let tmpdir = tempdir().expect("could not create temp dir");
+	let base_path = tmpdir.path().to_str().expect("path should consist of valid utf8 characters");
 
-	let _ = fs::remove_dir_all(base_path);
 	let mut cmd = Command::new(cargo_bin("polkadot"))
 		.args(&["--dev", "-d", base_path])
 		.spawn()
@@ -49,6 +50,6 @@ fn purge_chain_works() {
 	assert!(status.success());
 
 	// Make sure that the `dev` chain folder exists, but the `db` is deleted.
-	assert!(PathBuf::from(base_path).join("chains/dev/").exists());
-	assert!(!PathBuf::from(base_path).join("chains/dev/db").exists());
+	assert!(tmpdir.path().join("chains/dev/").exists());
+	assert!(!tmpdir.path().join("chains/dev/db").exists());
 }
