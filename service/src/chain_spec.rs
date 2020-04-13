@@ -528,6 +528,7 @@ pub fn westend_staging_testnet_config() -> WestendChainSpec {
 	WestendChainSpec::from_genesis(
 		"Westend Staging Testnet",
 		"westend_staging_testnet",
+		ChainType::Live,
 		westend_staging_testnet_config_genesis,
 		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(WESTEND_STAGING_TELEMETRY_URL.to_string(), 0)])
@@ -869,6 +870,7 @@ pub fn westend_development_config() -> WestendChainSpec {
 	WestendChainSpec::from_genesis(
 		"Development",
 		"westend_dev",
+		ChainType::Development,
 		westend_development_config_genesis,
 		vec![],
 		None,
@@ -946,6 +948,7 @@ pub fn westend_local_testnet_config() -> WestendChainSpec {
 	WestendChainSpec::from_genesis(
 		"Westend Local Testnet",
 		"westend_local_testnet",
+		ChainType::Local,
 		westend_local_testnet_genesis,
 		vec![],
 		None,

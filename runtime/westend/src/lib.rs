@@ -35,9 +35,13 @@ use sp_runtime::{
 	ApplyExtrinsicResult, KeyTypeId, Perbill, RuntimeDebug,
 	transaction_validity::{
 		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource,
+		TransactionPriority,
 	},
 	curve::PiecewiseLinear,
-	traits::{BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto, IdentityLookup},
+	traits::{
+		BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto, IdentityLookup,
+		DispatchInfoOf,
+	},
 };
 #[cfg(feature = "runtime-benchmarks")]
 use sp_runtime::RuntimeString;
@@ -47,10 +51,7 @@ use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
-use frame_support::{
-	parameter_types, construct_runtime, weights::DispatchInfo,
-	traits::{KeyOwnerProofSystem, Randomness},
-};
+use frame_support::{parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Randomness}};
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use system::offchain::TransactionSubmitter;
@@ -102,11 +103,16 @@ impl SignedExtension for RestrictFunctionality {
 	type Call = Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self) -> sp_std::result::Result<(), TransactionValidityError> { Ok(()) }
 
-	fn validate(&self, _: &Self::AccountId, call: &Self::Call, _: DispatchInfo, _: usize)
+	fn validate(
+		&self,
+		_: &Self::AccountId,
+		call: &Self::Call,
+		_: &DispatchInfoOf<Self::Call>,
+		_: usize
+	)
 		-> TransactionValidity
 	{
 		match call {
@@ -303,6 +309,7 @@ impl staking::Trait for Runtime {
 	type ElectionLookahead = ElectionLookahead;
 	type Call = Call;
 	type SubmitTransaction = TransactionSubmitter<(), Runtime, UncheckedExtrinsic>;
+	type UnsignedPriority = StakingUnsignedPriority;
 }
 
 parameter_types! {
@@ -331,6 +338,11 @@ parameter_types! {
 	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
 }
 
+parameter_types! {
+	pub const StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
+	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl im_online::Trait for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
@@ -338,6 +350,7 @@ impl im_online::Trait for Runtime {
 	type SubmitTransaction = SubmitTransaction;
 	type ReportUnresponsiveness = Offences;
 	type SessionDuration = SessionDuration;
+	type UnsignedPriority = StakingUnsignedPriority;
 }
 
 impl grandpa::Trait for Runtime {
@@ -644,7 +657,7 @@ sp_api::impl_runtime_apis! {
 		fn local_validation_data(id: parachain::Id) -> Option<parachain::LocalValidationData> {
 			Parachains::current_local_validation_data(&id)
 		}
-		fn parachain_code(id: parachain::Id) -> Option<Vec<u8>> {
+		fn parachain_code(id: parachain::Id) -> Option<parachain::ValidationCode> {
 			Parachains::parachain_code(&id)
 		}
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
