@@ -27,10 +27,10 @@ fn purge_chain_works() {
 	use nix::unistd::Pid;
 
 	let tmpdir = tempdir().expect("could not create temp dir");
-	let base_path = tmpdir.path().to_str().expect("path should consist of valid utf8 characters");
 
 	let mut cmd = Command::new(cargo_bin("polkadot"))
-		.args(&["--dev", "-d", base_path])
+		.args(&["--dev", "-d"])
+		.args(tmpdir.path())
 		.spawn()
 		.unwrap();
 
@@ -44,7 +44,9 @@ fn purge_chain_works() {
 
 	// Purge chain
 	let status = Command::new(cargo_bin("polkadot"))
-		.args(&["purge-chain", "--dev", "-d", base_path, "-y"])
+		.args(&["purge-chain", "--dev", "-d"])
+		.args(tmpdir.path())
+		.args( &["-y"])
 		.status()
 		.unwrap();
 	assert!(status.success());

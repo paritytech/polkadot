@@ -22,10 +22,11 @@ use tempfile::tempdir;
 #[cfg(unix)]
 fn invalid_order_arguments() {
 	let tmpdir = tempdir().expect("could not create temp dir");
-	let base_path = tmpdir.path().to_str().expect("path should consist of valid utf8 characters");
 
 	let status = Command::new(cargo_bin("polkadot"))
-		.args(&["--dev", "invalid_order_arguments", "-d", base_path, "-y"])
+		.args(&["--dev", "invalid_order_arguments", "-d"])
+		.args(tmpdir.path())
+		.args(&["-y"])
 		.status()
 		.unwrap();
 	assert!(!status.success());
