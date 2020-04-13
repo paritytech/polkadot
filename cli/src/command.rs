@@ -19,11 +19,10 @@ use sp_runtime::traits::BlakeTwo256;
 use service::{IdentifyVariant, Block, self, RuntimeApiCollection, TFullClient};
 use sp_api::ConstructRuntimeApi;
 use sc_cli::{SubstrateCli, Result};
-use sc_executor::NativeExecutionDispatch;
 use crate::cli::{Cli, Subcommand};
 
 impl SubstrateCli for Cli {
-	fn impl_name() -> &'static str { "parity-polkadot" }
+	fn impl_name() -> &'static str { "Parity Polkadot" }
 
 	fn impl_version() -> &'static str { env!("SUBSTRATE_CLI_IMPL_VERSION") }
 
@@ -77,7 +76,6 @@ pub fn run() -> Result<()> {
 			};
 
 			if config.chain_spec.is_kusama() {
-				info!("⛓  Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
 				info!("----------------------------");
 				info!("This chain is not in any way");
 				info!("      endorsed by the       ");
@@ -90,16 +88,12 @@ pub fn run() -> Result<()> {
 					service::kusama_runtime::UncheckedExtrinsic,
 				>(runtime, authority_discovery_enabled, grandpa_pause)
 			} else if config.chain_spec.is_westend() {
-				info!("⛓  Native runtime: {}", service::WestendExecutor::native_version().runtime_version);
-
 				run_node::<
 					service::westend_runtime::RuntimeApi,
 					service::WestendExecutor,
 					service::westend_runtime::UncheckedExtrinsic,
 				>(runtime, authority_discovery_enabled, grandpa_pause)
 			} else {
-				info!("⛓  Native runtime: {}", service::PolkadotExecutor::native_version().runtime_version);
-
 				run_node::<
 					service::polkadot_runtime::RuntimeApi,
 					service::PolkadotExecutor,
@@ -200,6 +194,7 @@ where
 			6000,
 			grandpa_pause,
 		).map(|(s, _)| s),
+		D::native_version().runtime_version,
 	)
 }
 
