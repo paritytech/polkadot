@@ -17,6 +17,7 @@ parity-util-mem = { version = "*", default-features = false, features = ["jemall
 [dev-dependencies]
 assert_cmd = "0.12"
 nix = "0.17"
+tempfile = "3.1.0"
 
 [workspace]
 members = [

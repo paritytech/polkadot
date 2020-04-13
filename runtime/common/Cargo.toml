@@ -32,7 +32,6 @@ offences = { package = "pallet-offences", git = "https://github.com/paritytech/s
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-polkadot-parachain = { path = "../../parachain", default-features = false }
 libsecp256k1 = { version = "0.3.2", default-features = false, optional = true }
 
 [dev-dependencies]
@@ -57,7 +56,6 @@ std = [
 	"codec/std",
 	"inherents/std",
 	"sp-core/std",
-	"polkadot-parachain/std",
 	"sp-api/std",
 	"sp-std/std",
 	"sp-io/std",

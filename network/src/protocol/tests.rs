@@ -22,7 +22,7 @@ use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
 	Retriable, CollatorId, AbridgedCandidateReceipt,
 	GlobalValidationSchedule, LocalValidationData, ErasureChunk, SigningContext,
-	PoVBlock, BlockData,
+	PoVBlock, BlockData, ValidationCode,
 };
 use polkadot_validation::{SharedTable, TableRouter};
 
@@ -163,8 +163,8 @@ sp_api::mock_impl_runtime_apis! {
 			self.data.lock().active_parachains.clone()
 		}
 
-		fn parachain_code(_: ParaId) -> Option<Vec<u8>> {
-			Some(Vec::new())
+		fn parachain_code(_: ParaId) -> Option<ValidationCode> {
+			Some(ValidationCode(Vec::new()))
 		}
 
 		fn global_validation_schedule() -> GlobalValidationSchedule {

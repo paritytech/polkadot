@@ -64,7 +64,6 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
@@ -91,7 +90,6 @@ std = [
 	"codec/std",
 	"inherents/std",
 	"sp-core/std",
-	"polkadot-parachain/std",
 	"sp-api/std",
 	"tx-pool-api/std",
 	"block-builder-api/std",
