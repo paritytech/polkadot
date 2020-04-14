@@ -147,6 +147,11 @@ pub trait SwapAux {
 	fn on_swap(one: Id, other: Id) -> Result<(), &'static str>;
 }
 
+impl SwapAux for () {
+	fn ensure_can_swap(_: Id, _: Id) -> Result<(), &'static str> { Err("Swapping disabled") }
+	fn on_swap(_: Id, _: Id) -> Result<(), &'static str> { Err("Swapping disabled") }
+}
+
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
 #[derive(Copy, Clone, PartialEq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
@@ -214,7 +219,7 @@ pub struct CandidateCommitments {
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: Hash,
 	/// New validation code.
-	pub new_validation_code: Option<Vec<u8>>,
+	pub new_validation_code: Option<ValidationCode>,
 }
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
@@ -672,7 +677,7 @@ sp_api::decl_runtime_apis! {
 		/// Get the local validation data for a particular parachain.
 		fn local_validation_data(id: Id) -> Option<LocalValidationData>;
 		/// Get the given parachain's head code blob.
-		fn parachain_code(id: Id) -> Option<Vec<u8>>;
+		fn parachain_code(id: Id) -> Option<ValidationCode>;
 		/// Extract the abridged head that was set in the extrinsics.
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
 			-> Option<Vec<AbridgedCandidateReceipt>>;

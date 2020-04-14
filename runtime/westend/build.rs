@@ -1,5 +1,5 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
-// This file is part of Substrate.
+// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
 
 // Substrate is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -14,20 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-use assert_cmd::cargo::cargo_bin;
-use std::process::Command;
-use tempfile::tempdir;
+use wasm_builder_runner::WasmBuilder;
 
-#[test]
-#[cfg(unix)]
-fn invalid_order_arguments() {
-	let tmpdir = tempdir().expect("could not create temp dir");
-
-	let status = Command::new(cargo_bin("polkadot"))
-		.args(&["--dev", "invalid_order_arguments", "-d"])
-		.arg(tmpdir.path())
-		.arg("-y")
-		.status()
-		.unwrap();
-	assert!(!status.success());
+fn main() {
+	WasmBuilder::new()
+		.with_current_project()
+		.with_wasm_builder_from_git("https://github.com/paritytech/substrate.git", "8c672e107789ed10973d937ba8cac245404377e2")
+		.import_memory()
+		.export_heap_base()
+		.build()
 }

@@ -21,22 +21,21 @@
 #![recursion_limit="256"]
 
 use sp_std::prelude::*;
-use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext}, ValidityError,
 };
-use runtime_common::{attestations, claims, parachains, registrar, slots,
+use runtime_common::{attestations, parachains, registrar,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
-	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
-	MaximumBlockLength,
+	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, RuntimeDebug,
 	transaction_validity::{
-		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource, TransactionPriority,
+		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource,
+		TransactionPriority,
 	},
 	curve::PiecewiseLinear,
 	traits::{
@@ -52,9 +51,7 @@ use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
-use frame_support::{
-	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness},
-};
+use frame_support::{parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Randomness}};
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use system::offchain::TransactionSubmitter;
@@ -80,10 +77,10 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Runtime version (Kusama).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("kusama"),
-	impl_name: create_runtime_str!("parity-kusama"),
+	spec_name: create_runtime_str!("westend"),
+	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 1057,
+	spec_version: 2,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -119,7 +116,7 @@ impl SignedExtension for RestrictFunctionality {
 		-> TransactionValidity
 	{
 		match call {
-			Call::Slots(_) | Call::Registrar(_)
+			Call::Registrar(_)
 				=> Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
 			_ => Ok(Default::default()),
 		}
@@ -187,14 +184,6 @@ parameter_types! {
 	pub const ExistentialDeposit: Balance = 1 * CENTS;
 }
 
-/// Splits fees 80/20 between treasury and block author.
-pub type DealWithFees = SplitTwoWays<
-	Balance,
-	NegativeImbalance<Runtime>,
-	_4, Treasury,   // 4 parts (80%) goes to the treasury.
-	_1, ToAuthor<Runtime>,   // 1 part (20%) goes to the block author.
->;
-
 impl balances::Trait for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
@@ -212,7 +201,7 @@ parameter_types! {
 
 impl transaction_payment::Trait for Runtime {
 	type Currency = Balances;
-	type OnTransactionPayment = DealWithFees;
+	type OnTransactionPayment = ToAuthor<Runtime>;
 	type TransactionBaseFee = TransactionBaseFee;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
@@ -304,15 +293,15 @@ impl staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVoteHandler<Self>;
-	type RewardRemainder = Treasury;
+	type RewardRemainder = ();
 	type Event = Event;
-	type Slash = Treasury;
+	type Slash = ();
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	// A majority of the council can cancel the slash.
-	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
+	type SlashCancelOrigin = system::EnsureRoot<AccountId>;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
@@ -333,127 +322,6 @@ parameter_types! {
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 10 * MILLICENTS;
 	pub const InstantAllowed: bool = true;
-}
-
-impl democracy::Trait for Runtime {
-	type Proposal = Call;
-	type Event = Event;
-	type Currency = Balances;
-	type EnactmentPeriod = EnactmentPeriod;
-	type LaunchPeriod = LaunchPeriod;
-	type VotingPeriod = VotingPeriod;
-	type MinimumDeposit = MinimumDeposit;
-	/// A straight majority of the council can decide what their next motion is.
-	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
-	/// A majority can have the next scheduled referendum be a straight majority-carries vote.
-	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
-	/// A unanimous council can have the next scheduled referendum be a straight default-carries
-	/// (NTB) vote.
-	type ExternalDefaultOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>;
-	/// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
-	/// be tabled immediately and with a shorter voting/enactment period.
-	type FastTrackOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>;
-	type InstantOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>;
-	type InstantAllowed = InstantAllowed;
-	type FastTrackVotingPeriod = FastTrackVotingPeriod;
-	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
-	type CancellationOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>;
-	// Any single technical committee member may veto a coming council proposal, however they can
-	// only do it once and it lasts only for the cooloff period.
-	type VetoOrigin = collective::EnsureMember<AccountId, TechnicalCollective>;
-	type CooloffPeriod = CooloffPeriod;
-	type PreimageByteDeposit = PreimageByteDeposit;
-	type Slash = Treasury;
-	type Scheduler = Scheduler;
-}
-
-parameter_types! {
-	pub const CouncilMotionDuration: BlockNumber = 3 * DAYS;
-}
-
-type CouncilCollective = collective::Instance1;
-impl collective::Trait<CouncilCollective> for Runtime {
-	type Origin = Origin;
-	type Proposal = Call;
-	type Event = Event;
-	type MotionDuration = CouncilMotionDuration;
-}
-
-parameter_types! {
-	pub const CandidacyBond: Balance = 1 * DOLLARS;
-	pub const VotingBond: Balance = 5 * CENTS;
-	/// Daily council elections.
-	pub const TermDuration: BlockNumber = 24 * HOURS;
-	pub const DesiredMembers: u32 = 13;
-	pub const DesiredRunnersUp: u32 = 7;
-}
-
-impl elections_phragmen::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type ChangeMembers = Council;
-	type InitializeMembers = Council;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
-	type CandidacyBond = CandidacyBond;
-	type VotingBond = VotingBond;
-	type LoserCandidate = Treasury;
-	type BadReport = Treasury;
-	type KickedMember = Treasury;
-	type DesiredMembers = DesiredMembers;
-	type DesiredRunnersUp = DesiredRunnersUp;
-	type TermDuration = TermDuration;
-}
-
-parameter_types! {
-	pub const TechnicalMotionDuration: BlockNumber = 3 * DAYS;
-}
-
-type TechnicalCollective = collective::Instance2;
-impl collective::Trait<TechnicalCollective> for Runtime {
-	type Origin = Origin;
-	type Proposal = Call;
-	type Event = Event;
-	type MotionDuration = TechnicalMotionDuration;
-}
-
-impl membership::Trait<membership::Instance1> for Runtime {
-	type Event = Event;
-	type AddOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type RemoveOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type SwapOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type ResetOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type PrimeOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type MembershipInitialized = TechnicalCommittee;
-	type MembershipChanged = TechnicalCommittee;
-}
-
-parameter_types! {
-	pub const ProposalBond: Permill = Permill::from_percent(5);
-	pub const ProposalBondMinimum: Balance = 20 * DOLLARS;
-	pub const SpendPeriod: BlockNumber = 6 * DAYS;
-	pub const Burn: Permill = Permill::from_percent(0);
-
-	pub const TipCountdown: BlockNumber = 1 * DAYS;
-	pub const TipFindersFee: Percent = Percent::from_percent(20);
-	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
-	pub const TipReportDepositPerByte: Balance = 1 * CENTS;
-}
-
-impl treasury::Trait for Runtime {
-	type Currency = Balances;
-	type ApproveOrigin = collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
-	type RejectOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type Tippers = ElectionsPhragmen;
-	type TipCountdown = TipCountdown;
-	type TipFindersFee = TipFindersFee;
-	type TipReportDepositBase = TipReportDepositBase;
-	type TipReportDepositPerByte = TipReportDepositPerByte;
-	type Event = Event;
-	type ProposalRejection = Treasury;
-	type ProposalBond = ProposalBond;
-	type ProposalBondMinimum = ProposalBondMinimum;
-	type SpendPeriod = SpendPeriod;
-	type Burn = Burn;
 }
 
 impl offences::Trait for Runtime {
@@ -551,33 +419,9 @@ impl registrar::Trait for Runtime {
 	type Origin = Origin;
 	type Currency = Balances;
 	type ParathreadDeposit = ParathreadDeposit;
-	type SwapAux = Slots;
+	type SwapAux = ();
 	type QueueSize = QueueSize;
 	type MaxRetries = MaxRetries;
-}
-
-parameter_types! {
-	pub const LeasePeriod: BlockNumber = 100_000;
-	pub const EndingPeriod: BlockNumber = 1000;
-}
-
-impl slots::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type Parachains = Registrar;
-	type LeasePeriod = LeasePeriod;
-	type EndingPeriod = EndingPeriod;
-	type Randomness = RandomnessCollectiveFlip;
-}
-
-parameter_types! {
-	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
-}
-
-impl claims::Trait for Runtime {
-	type Event = Event;
-	type VestingSchedule = Vesting;
-	type Prefix = Prefix;
 }
 
 parameter_types! {
@@ -592,14 +436,14 @@ parameter_types! {
 impl identity::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
-	type Slashed = Treasury;
+	type Slashed = ();
 	type BasicDeposit = BasicDeposit;
 	type FieldDeposit = FieldDeposit;
 	type SubAccountDeposit = SubAccountDeposit;
 	type MaxSubAccounts = MaxSubAccounts;
 	type MaxAdditionalFields = MaxAdditionalFields;
-	type RegistrarOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type ForceOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type RegistrarOrigin = system::EnsureRoot<AccountId>;
+	type ForceOrigin = system::EnsureRoot<AccountId>;
 }
 
 parameter_types! {
@@ -637,32 +481,6 @@ impl recovery::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const CandidateDeposit: Balance = 10 * DOLLARS;
-	pub const WrongSideDeduction: Balance = 2 * DOLLARS;
-	pub const MaxStrikes: u32 = 10;
-	pub const RotationPeriod: BlockNumber = 80 * HOURS;
-	pub const PeriodSpend: Balance = 500 * DOLLARS;
-	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
-	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
-}
-
-impl society::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type Randomness = RandomnessCollectiveFlip;
-	type CandidateDeposit = CandidateDeposit;
-	type WrongSideDeduction = WrongSideDeduction;
-	type MaxStrikes = MaxStrikes;
-	type PeriodSpend = PeriodSpend;
-	type MembershipChanged = ();
-	type RotationPeriod = RotationPeriod;
-	type MaxLockDuration = MaxLockDuration;
-	type FounderSetOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type SuspensionJudgementOrigin = society::EnsureFounder<Runtime>;
-	type ChallengePeriod = ChallengePeriod;
-}
-
-parameter_types! {
 	pub const MinVestedTransfer: Balance = 100 * DOLLARS;
 }
 
@@ -671,6 +489,11 @@ impl vesting::Trait for Runtime {
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
+}
+
+impl sudo::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
 }
 
 construct_runtime! {
@@ -693,7 +516,7 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
-		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
+		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>},
 		Offences: offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
@@ -702,22 +525,10 @@ construct_runtime! {
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
-		// Governance stuff; uncallable initially.
-		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
-		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		ElectionsPhragmen: elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>},
-		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
-		Treasury: treasury::{Module, Call, Storage, Event<T>},
-
-		// Claims. Usable initially.
-		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
-
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
 		// have no public dispatchables.
 		Parachains: parachains::{Module, Call, Storage, Config, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
-		Slots: slots::{Module, Call, Storage, Event<T>},
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
 
 		// Utility module.
@@ -725,9 +536,6 @@ construct_runtime! {
 
 		// Less simple identity module.
 		Identity: identity::{Module, Call, Storage, Event<T>},
-
-		// Society module.
-		Society: society::{Module, Call, Storage, Event<T>},
 
 		// Social recovery module.
 		Recovery: recovery::{Module, Call, Storage, Event<T>},
@@ -737,6 +545,9 @@ construct_runtime! {
 
 		// System scheduler.
 		Scheduler: scheduler::{Module, Call, Storage, Event<T>},
+
+		// Sudo.
+		Sudo: sudo::{Module, Call, Storage, Event<T>, Config<T>}
 	}
 }
 
@@ -945,7 +756,6 @@ sp_api::impl_runtime_apis! {
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&pallet, &benchmark, &lowest_range_values, &highest_range_values, &steps, repeat);
-			add_benchmark!(params, batches, b"claims", Claims);
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}

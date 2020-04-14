@@ -27,7 +27,7 @@ mod cli;
 mod command;
 
 pub use service::{
-	AbstractService, ProvideRuntimeApi, CoreApi, ParachainHost, IsKusama,
+	AbstractService, ProvideRuntimeApi, CoreApi, ParachainHost, IdentifyVariant,
 	Block, self, RuntimeApiCollection, TFullClient
 };
 
