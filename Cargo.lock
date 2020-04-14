@@ -6662,7 +6662,7 @@ dependencies = [
 [[package]]
 name = "sp-database"
 version = "2.0.0-alpha.5"
-source = "git+https://github.com/paritytech/substrate?branch=gav-db-trait#8c69d5ab51704badb0fea24aba3e5730e05368e5"
+source = "git+https://github.com/paritytech/substrate?branch=gav-db-trait#1b8ffb9437d98b05761d037b1218dfa884e8aae2"
 dependencies = [
  "kvdb",
  "parking_lot 0.10.0",
