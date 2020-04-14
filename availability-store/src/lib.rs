@@ -28,16 +28,17 @@ use keystore::KeyStorePtr;
 use polkadot_primitives::{
 	Hash, Block,
 	parachain::{
-		Id as ParaId, BlockData, CandidateReceipt, Message, AvailableMessages, ErasureChunk,
-		ParachainHost,
+		PoVBlock, AbridgedCandidateReceipt, ErasureChunk,
+		ParachainHost, AvailableData, OmittedValidationData,
 	},
 };
-use sp_runtime::traits::{BlakeTwo256, Hash as HashT, HasherFor};
+use sp_runtime::traits::HashFor;
 use sp_blockchain::{Result as ClientResult};
 use client::{
-	BlockchainEvents, BlockBody,
+	BlockchainEvents, BlockBackend,
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
+use codec::{Encode, Decode};
 
 use log::warn;
 
@@ -51,15 +52,13 @@ mod worker;
 mod store;
 
 pub use worker::AvailabilityBlockImport;
+pub use store::AwaitedFrontierEntry;
 
 use worker::{
-	Worker, WorkerHandle, Chunks, ParachainBlocks, WorkerMsg, MakeAvailable,
+	Worker, WorkerHandle, IncludedParachainBlocks, WorkerMsg, MakeAvailable, Chunks
 };
 
 use store::{Store as InnerStore};
-
-/// Abstraction over an executor that lets you spawn tasks in the background.
-pub(crate) type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 
 const LOG_TARGET: &str = "availability";
 
@@ -71,68 +70,46 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
-/// Compute gossip topic for the erasure chunk messages given the relay parent,
-/// root and the chunk index.
-///
-/// Since at this point we are not able to use [`network`] directly, but both
-/// of them need to compute these topics, this lives here and not there.
-///
-/// [`network`]: ../polkadot_network/index.html
-pub fn erasure_coding_topic(relay_parent: Hash, erasure_root: Hash, index: u32) -> Hash {
-	let mut v = relay_parent.as_ref().to_vec();
-	v.extend(erasure_root.as_ref());
-	v.extend(&index.to_le_bytes()[..]);
-	v.extend(b"erasure_chunks");
-
-	BlakeTwo256::hash(&v[..])
-}
-
-/// A trait that provides a shim for the [`NetworkService`] trait.
+/// An abstraction around networking for the availablity-store.
 ///
 /// Currently it is not possible to use the networking code in the availability store
-/// core directly due to a number of loop dependencies it require:
+/// core directly due to a number of loop dependencies it requires:
 ///
 /// `availability-store` -> `network` -> `availability-store`
 ///
 /// `availability-store` -> `network` -> `validation` -> `availability-store`
 ///
-/// So we provide this shim trait that gets implemented for a wrapper newtype in
-/// the [`network`] module.
+/// So we provide this trait that gets implemented for a type in
+/// the [`network`] module or a mock in tests.
 ///
-/// [`NetworkService`]: ../polkadot_network/trait.NetworkService.html
 /// [`network`]: ../polkadot_network/index.html
-pub trait ProvideGossipMessages {
-	/// Get a stream of gossip erasure chunk messages for a given topic.
-	///
-	/// Each item is a tuple (relay_parent, candidate_hash, erasure_chunk)
-	fn gossip_messages_for(
-		&self,
-		topic: Hash,
-	) -> Pin<Box<dyn Stream<Item = (Hash, Hash, ErasureChunk)> + Send>>;
+pub trait ErasureNetworking {
+	/// Errors that can occur when fetching erasure chunks.
+	type Error: std::fmt::Debug + 'static;
 
-	/// Gossip an erasure chunk message.
-	fn gossip_erasure_chunk(
+	/// Fetch an erasure chunk from the networking service.
+	fn fetch_erasure_chunk(
 		&self,
-		relay_parent: Hash,
+		candidate_hash: &Hash,
+		index: u32,
+	) -> Pin<Box<dyn Future<Output = Result<ErasureChunk, Self::Error>> + Send>>;
+
+	/// Distributes an erasure chunk to the correct validator node.
+	fn distribute_erasure_chunk(
+		&self,
 		candidate_hash: Hash,
-		erasure_root: Hash,
 		chunk: ErasureChunk,
 	);
 }
 
-/// Some data to keep available about a parachain block candidate.
-#[derive(Debug)]
-pub struct Data {
-	/// The relay chain parent hash this should be localized to.
-	pub relay_parent: Hash,
-	/// The parachain index for this candidate.
-	pub parachain_id: ParaId,
-	/// Block data.
-	pub block_data: BlockData,
-	/// Outgoing message queues from execution of the block, if any.
-	///
-	/// The tuple pairs the message queue root and the queue data.
-	pub outgoing_queues: Option<AvailableMessages>,
+/// Data that, when combined with an `AbridgedCandidateReceipt`, is enough
+/// to fully re-execute a block.
+#[derive(Debug, Encode, Decode, PartialEq)]
+pub struct ExecutionData {
+	/// The `PoVBlock`.
+	pub pov_block: PoVBlock,
+	/// The data omitted from the `AbridgedCandidateReceipt`.
+	pub omitted_validation: OmittedValidationData,
 }
 
 /// Handle to the availability store.
@@ -149,16 +126,16 @@ pub struct Store {
 }
 
 impl Store {
-	/// Create a new `Store` with given condig on disk.
+	/// Create a new `Store` with given config on disk.
 	///
-	/// Creating a store among other things starts a background worker thread which
+	/// Creating a store among other things starts a background worker thread that
 	/// handles most of the write operations to the storage.
 	#[cfg(not(target_os = "unknown"))]
-	pub fn new<PGM>(config: Config, gossip: PGM) -> io::Result<Self>
-		where PGM: ProvideGossipMessages + Send + Sync + Clone + 'static
+	pub fn new<EN>(config: Config, network: EN) -> io::Result<Self>
+		where EN: ErasureNetworking + Send + Sync + Clone + 'static
 	{
 		let inner = InnerStore::new(config)?;
-		let worker = Arc::new(Worker::start(inner.clone(), gossip));
+		let worker = Arc::new(Worker::start(inner.clone(), network));
 		let to_worker = worker.to_worker().clone();
 
 		Ok(Self {
@@ -168,15 +145,15 @@ impl Store {
 		})
 	}
 
-	/// Create a new `Store` in-memory. Useful for tests.
+	/// Create a new in-memory `Store`. Useful for tests.
 	///
 	/// Creating a store among other things starts a background worker thread
-	/// which handles most of the write operations to the storage.
-	pub fn new_in_memory<PGM>(gossip: PGM) -> Self
-		where PGM: ProvideGossipMessages + Send + Sync + Clone + 'static
+	/// that handles most of the write operations to the storage.
+	pub fn new_in_memory<EN>(network: EN) -> Self
+		where EN: ErasureNetworking + Send + Sync + Clone + 'static
 	{
 		let inner = InnerStore::new_in_memory();
-		let worker = Arc::new(Worker::start(inner.clone(), gossip));
+		let worker = Arc::new(Worker::start(inner.clone(), network));
 		let to_worker = worker.to_worker().clone();
 
 		Self {
@@ -197,23 +174,22 @@ impl Store {
 		&self,
 		wrapped_block_import: I,
 		client: Arc<P>,
-		thread_pool: TaskExecutor,
+		spawner: impl Spawn,
 		keystore: KeyStorePtr,
 	) -> ClientResult<AvailabilityBlockImport<I, P>>
 	where
-		P: ProvideRuntimeApi<Block> + BlockchainEvents<Block> + BlockBody<Block> + Send + Sync + 'static,
+		P: ProvideRuntimeApi<Block> + BlockchainEvents<Block> + BlockBackend<Block> + Send + Sync + 'static,
 		P::Api: ParachainHost<Block>,
 		P::Api: ApiExt<Block, Error=sp_blockchain::Error>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+		sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 	{
 		let to_worker = self.to_worker.clone();
 
 		let import = AvailabilityBlockImport::new(
-			self.inner.clone(),
 			client,
 			wrapped_block_import,
-			thread_pool,
+			spawner,
 			keystore,
 			to_worker,
 		);
@@ -228,17 +204,17 @@ impl Store {
 	/// in order to persist that data to disk and so it can be queried and provided
 	/// to other nodes in the network.
 	///
-	/// The message data of `Data` is optional but is expected
-	/// to be present with the exception of the case where there is no message data
-	/// due to the block's invalidity. Determination of invalidity is beyond the
-	/// scope of this function.
+	/// Determination of invalidity is beyond the scope of this function.
 	///
-	/// This method will send the `Data` to the background worker, allowing caller to
-	/// asynchrounously wait for the result.
-	pub async fn make_available(&self, data: Data) -> io::Result<()> {
+	/// This method will send the data to the background worker, allowing the caller to
+	/// asynchronously wait for the result.
+	pub async fn make_available(&self, candidate_hash: Hash, available_data: AvailableData)
+		-> io::Result<()>
+	{
 		let (s, r) = oneshot::channel();
 		let msg = WorkerMsg::MakeAvailable(MakeAvailable {
-			data,
+			candidate_hash,
+			available_data,
 			result: s,
 		});
 
@@ -252,39 +228,9 @@ impl Store {
 
 	}
 
-	/// Get a set of all chunks we are waiting for grouped by
-	/// `(relay_parent, erasure_root, candidate_hash, our_id)`.
-	pub fn awaited_chunks(&self) -> Option<HashSet<(Hash, Hash, Hash, u32)>> {
+	/// Get a set of all chunks we are waiting for.
+	pub fn awaited_chunks(&self) -> Option<HashSet<AwaitedFrontierEntry>> {
 		self.inner.awaited_chunks()
-	}
-
-	/// Qery which candidates were included in the relay chain block by block's parent.
-	pub fn get_candidates_in_relay_block(&self, relay_block: &Hash) -> Option<Vec<Hash>> {
-		self.inner.get_candidates_in_relay_block(relay_block)
-	}
-
-	/// Make a validator's index and a number of validators at a relay parent available.
-	///
-	/// This information is needed before the `add_candidates_in_relay_block` is called
-	/// since that call forms the awaited frontier of chunks.
-	/// In the current implementation this function is called in the `get_or_instantiate` at
-	/// the start of the parachain agreement process on top of some parent hash.
-	pub fn add_validator_index_and_n_validators(
-		&self,
-		relay_parent: &Hash,
-		validator_index: u32,
-		n_validators: u32,
-	) -> io::Result<()> {
-		self.inner.add_validator_index_and_n_validators(
-			relay_parent,
-			validator_index,
-			n_validators,
-		)
-	}
-
-	/// Query a validator's index and n_validators by relay parent.
-	pub fn get_validator_index_and_n_validators(&self, relay_parent: &Hash) -> Option<(u32, u32)> {
-		self.inner.get_validator_index_and_n_validators(relay_parent)
 	}
 
 	/// Adds an erasure chunk to storage.
@@ -292,40 +238,43 @@ impl Store {
 	/// The chunk should be checked for validity against the root of encoding
 	/// and its proof prior to calling this.
 	///
-	/// This method will send the chunk to the background worker, allowing caller to
-	/// asynchrounously wait for the result.
+	/// This method will send the chunk to the background worker, allowing the caller to
+	/// asynchronously wait for the result.
 	pub async fn add_erasure_chunk(
 		&self,
-		relay_parent: Hash,
-		receipt: CandidateReceipt,
+		candidate: AbridgedCandidateReceipt,
+		n_validators: u32,
 		chunk: ErasureChunk,
 	) -> io::Result<()> {
-		self.add_erasure_chunks(relay_parent, receipt, vec![chunk]).await
+		self.add_erasure_chunks(candidate, n_validators, std::iter::once(chunk)).await
 	}
 
 	/// Adds a set of erasure chunks to storage.
 	///
 	/// The chunks should be checked for validity against the root of encoding
-	/// and it's proof prior to calling this.
+	/// and its proof prior to calling this.
 	///
-	/// This method will send the chunks to the background worker, allowing caller to
-	/// asynchrounously waiting for the result.
+	/// This method will send the chunks to the background worker, allowing the caller to
+	/// asynchronously wait for the result.
 	pub async fn add_erasure_chunks<I>(
 		&self,
-		relay_parent: Hash,
-		receipt: CandidateReceipt,
+		candidate: AbridgedCandidateReceipt,
+		n_validators: u32,
 		chunks: I,
 	) -> io::Result<()>
 		where I: IntoIterator<Item = ErasureChunk>
 	{
-		self.add_candidate(relay_parent, receipt.clone()).await?;
+		let candidate_hash = candidate.hash();
+
+		self.add_candidate(candidate).await?;
+
 		let (s, r) = oneshot::channel();
 		let chunks = chunks.into_iter().collect();
-		let candidate_hash = receipt.hash();
+
 		let msg = WorkerMsg::Chunks(Chunks {
-			relay_parent,
 			candidate_hash,
 			chunks,
+			n_validators,
 			result: s,
 		});
 
@@ -338,27 +287,44 @@ impl Store {
 		}
 	}
 
-	/// Queries an erasure chunk by its block's parent and hash and index.
+	/// Queries an erasure chunk by the candidate hash and validator index.
 	pub fn get_erasure_chunk(
 		&self,
-		relay_parent: &Hash,
-		block_data_hash: Hash,
-		index: usize,
+		candidate_hash: &Hash,
+		validator_index: usize,
 	) -> Option<ErasureChunk> {
-		self.inner.get_erasure_chunk(relay_parent, block_data_hash, index)
+		self.inner.get_erasure_chunk(candidate_hash, validator_index)
 	}
 
-	/// Stores a candidate receipt.
-	pub async fn add_candidate(
+	/// Note a validator's index and a number of validators at a relay parent in the
+	/// store.
+	///
+	/// This should be done before adding erasure chunks with this relay parent.
+	pub fn note_validator_index_and_n_validators(
 		&self,
-		relay_parent: Hash,
-		receipt: CandidateReceipt,
+		relay_parent: &Hash,
+		validator_index: u32,
+		n_validators: u32,
+	) -> io::Result<()> {
+		self.inner.note_validator_index_and_n_validators(
+			relay_parent,
+			validator_index,
+			n_validators,
+		)
+	}
+
+	// Stores a candidate receipt.
+	async fn add_candidate(
+		&self,
+		candidate: AbridgedCandidateReceipt,
 	) -> io::Result<()> {
 		let (s, r) = oneshot::channel();
 
-		let msg = WorkerMsg::ParachainBlocks(ParachainBlocks {
-			relay_parent,
-			blocks: vec![(receipt, None)],
+		let msg = WorkerMsg::IncludedParachainBlocks(IncludedParachainBlocks {
+			blocks: vec![crate::worker::IncludedParachainBlock {
+				candidate,
+				available_data: None,
+			}],
 			result: s,
 		});
 
@@ -371,25 +337,17 @@ impl Store {
 		}
 	}
 
-	/// Queries a candidate receipt by it's hash.
-	pub fn get_candidate(&self, candidate_hash: &Hash) -> Option<CandidateReceipt> {
+	/// Queries a candidate receipt by its hash.
+	pub fn get_candidate(&self, candidate_hash: &Hash)
+		-> Option<AbridgedCandidateReceipt>
+	{
 		self.inner.get_candidate(candidate_hash)
 	}
 
-	/// Query block data.
-	pub fn block_data(&self, relay_parent: Hash, block_data_hash: Hash) -> Option<BlockData> {
-		self.inner.block_data(relay_parent, block_data_hash)
-	}
-
-	/// Query block data by corresponding candidate receipt's hash.
-	pub fn block_data_by_candidate(&self, relay_parent: Hash, candidate_hash: Hash)
-		-> Option<BlockData>
+	/// Query execution data by pov-block hash.
+	pub fn execution_data(&self, candidate_hash: &Hash)
+		-> Option<ExecutionData>
 	{
-		self.inner.block_data_by_candidate(relay_parent, candidate_hash)
-	}
-
-	/// Query message queue data by message queue root hash.
-	pub fn queue_by_root(&self, queue_root: &Hash) -> Option<Vec<Message>> {
-		self.inner.queue_by_root(queue_root)
+		self.inner.execution_data(candidate_hash)
 	}
 }

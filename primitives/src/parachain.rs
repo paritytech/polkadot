@@ -14,10 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot parachain types.
+//! Primitives which are necessary for parachain execution from a relay-chain
+//! perspective.
 
-use rstd::prelude::*;
-use rstd::cmp::Ordering;
+use sp_std::prelude::*;
+use sp_std::cmp::Ordering;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 use super::{Hash, Balance, BlockNumber};
@@ -28,14 +29,13 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use primitives::bytes;
 use primitives::RuntimeDebug;
+use runtime_primitives::traits::Block as BlockT;
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
-#[cfg(feature = "std")]
-use trie::TrieConfiguration;
-
-pub use polkadot_parachain::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, TargetedMessage,
+pub use polkadot_parachain::primitives::{
+	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
+	ValidationCode,
 };
 
 /// The key type ID for a collator key.
@@ -70,20 +70,21 @@ mod validator_app {
 
 /// Identity that parachain validators use when signing validation messages.
 ///
-/// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
+/// For now we assert that parachain validator set is exactly equivalent to the authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorId = validator_app::Public;
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
 pub type ValidatorIndex = u32;
 
-/// A Parachain validator keypair.
-#[cfg(feature = "std")]
-pub type ValidatorPair = validator_app::Pair;
+application_crypto::with_pair! {
+	/// A Parachain validator keypair.
+	pub type ValidatorPair = validator_app::Pair;
+}
 
- /// Signature with which parachain validators sign blocks.
+/// Signature with which parachain validators sign blocks.
 ///
-/// For now we assert that parachain validator set is exactly equivalent to the (Aura) authority set, and
+/// For now we assert that parachain validator set is exactly equivalent to the authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorSignature = validator_app::Signature;
 
@@ -91,7 +92,7 @@ pub type ValidatorSignature = validator_app::Signature;
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum Retriable {
-	/// Ineligible for retry. This means it's either a parachain which is always scheduled anyway or
+	/// Ineligible for retry. This means it's either a parachain that is always scheduled anyway or
 	/// has been removed/swapped.
 	Never,
 	/// Eligible for retry; the associated value is the number of retries that the para already had.
@@ -131,19 +132,24 @@ pub const PARACHAIN_INFO: Info = Info {
 	scheduling: Scheduling::Always,
 };
 
-/// Auxilliary for when there's an attempt to swapped two parachains/parathreads.
+/// Auxilliary for when there's an attempt to swap two parachains/parathreads.
 pub trait SwapAux {
 	/// Result describing whether it is possible to swap two parachains. Doesn't mutate state.
 	fn ensure_can_swap(one: Id, other: Id) -> Result<(), &'static str>;
 
 	/// Updates any needed state/references to enact a logical swap of two parachains. Identity,
-	/// code and head_data remain equivalent for all parachains/threads, however other properties
+	/// code and `head_data` remain equivalent for all parachains/threads, however other properties
 	/// such as leases, deposits held and thread/chain nature are swapped.
 	///
 	/// May only be called on a state that `ensure_can_swap` has previously returned `Ok` for: if this is
 	/// not the case, the result is undefined. May only return an error if `ensure_can_swap` also returns
 	/// an error.
 	fn on_swap(one: Id, other: Id) -> Result<(), &'static str>;
+}
+
+impl SwapAux for () {
+	fn ensure_can_swap(_: Id, _: Id) -> Result<(), &'static str> { Err("Swapping disabled") }
+	fn on_swap(_: Id, _: Id) -> Result<(), &'static str> { Err("Swapping disabled") }
 }
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
@@ -164,163 +170,159 @@ pub struct DutyRoster {
 	pub validator_duty: Vec<Chain>,
 }
 
-/// Outgoing message data for a parachain candidate.
+/// Extra data that is needed along with the other fields in a `CandidateReceipt`
+/// to fully validate the candidate.
 ///
-/// This is data produced by evaluating the candidate. It contains
-/// full records of all outgoing messages to other parachains.
+/// These are global parameters that apply to all parachain candidates in a block.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
-#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
-pub struct OutgoingMessages {
-	/// The outgoing messages from the execution of the parachain.
-	///
-	/// This must be sorted in ascending order by parachain ID.
-	pub outgoing_messages: Vec<TargetedMessage>
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct GlobalValidationSchedule {
+	/// The maximum code size permitted, in bytes.
+	pub max_code_size: u32,
+	/// The maximum head-data size permitted, in bytes.
+	pub max_head_data_size: u32,
+	/// The relay-chain block number this is in the context of.
+	pub block_number: BlockNumber,
 }
 
-impl OutgoingMessages {
-	/// Returns an iterator of slices of all outgoing message queues.
-	///
-	/// All messages in a given slice are guaranteed to have the same target.
-	pub fn message_queues(&'_ self) -> impl Iterator<Item=&'_ [TargetedMessage]> + '_ {
-		let mut outgoing = &self.outgoing_messages[..];
-
-		rstd::iter::from_fn(move || {
-			if outgoing.is_empty() { return None }
-			let target = outgoing[0].target;
-			let mut end = 1; // the index of the last matching item + 1.
-			loop {
-				match outgoing.get(end) {
-					None => break,
-					Some(x) => if x.target != target { break },
-				}
-				end += 1;
-			}
-
-			let item = &outgoing[..end];
-			outgoing = &outgoing[end..];
-			Some(item)
-		})
-	}
-}
-
-/// Messages by queue root that are stored in the availability store.
-#[derive(PartialEq, Clone, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
-pub struct AvailableMessages(pub Vec<(Hash, Vec<Message>)>);
-
-
-/// Compute a trie root for a set of messages, given the raw message data.
-#[cfg(feature = "std")]
-pub fn message_queue_root<A, I: IntoIterator<Item=A>>(messages: I) -> Hash
-	where A: AsRef<[u8]>
-{
-	trie::trie_types::Layout::<primitives::Blake2Hasher>::ordered_trie_root(messages)
-}
-
-#[cfg(feature = "std")]
-impl From<OutgoingMessages> for AvailableMessages {
-	fn from(outgoing: OutgoingMessages) -> Self {
-		let queues = outgoing.message_queues().filter_map(|queue| {
-			let queue_root = message_queue_root(queue);
-			let queue_data = queue.iter().map(|msg| msg.clone().into()).collect();
-			Some((queue_root, queue_data))
-		}).collect();
-
-		AvailableMessages(queues)
-	}
-}
-
-/// Candidate receipt type.
+/// Extra data that is needed along with the other fields in a `CandidateReceipt`
+/// to fully validate the candidate. These fields are parachain-specific.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct CollationInfo {
-	/// The ID of the parachain this is a candidate for.
-	pub parachain_index: Id,
-	/// The collator's relay-chain account ID
-	pub collator: CollatorId,
-	/// Signature on blake2-256 of the block data by collator.
-	pub signature: CollatorSignature,
-	/// Egress queue roots. Must be sorted lexicographically (ascending)
-	/// by parachain ID.
-	pub egress_queue_roots: Vec<(Id, Hash)>,
-	/// The head-data
-	pub head_data: HeadData,
-	/// blake2-256 Hash of block data.
-	pub block_data_hash: Hash,
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct LocalValidationData {
+	/// The parent head-data.
+	pub parent_head: HeadData,
+	/// The balance of the parachain at the moment of validation.
+	pub balance: Balance,
+	/// Whether the parachain is allowed to upgrade its validation code.
+	///
+	/// This is `Some` if so, and contains the number of the minimum relay-chain
+	/// height at which the upgrade will be applied, if an upgrade is signaled
+	/// now.
+	///
+	/// A parachain should enact its side of the upgrade at the end of the first
+	/// parablock executing in the context of a relay-chain block with at least this
+	/// height. This may be equal to the current perceived relay-chain block height, in
+	/// which case the code upgrade should be applied at the end of the signaling
+	/// block.
+	pub code_upgrade_allowed: Option<BlockNumber>,
+}
+
+/// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct CandidateCommitments {
+	/// Fees paid from the chain to the relay chain validators.
+	pub fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
+	/// The root of a block's erasure encoding Merkle tree.
+	pub erasure_root: Hash,
+	/// New validation code.
+	pub new_validation_code: Option<ValidationCode>,
 }
 
-impl From<CandidateReceipt> for CollationInfo {
-	fn from(receipt: CandidateReceipt) -> Self {
-		CollationInfo {
-			parachain_index: receipt.parachain_index,
-			collator: receipt.collator,
-			signature: receipt.signature,
-			egress_queue_roots: receipt.egress_queue_roots,
-			head_data: receipt.head_data,
-			block_data_hash: receipt.block_data_hash,
-			upward_messages: receipt.upward_messages,
-		}
+/// Get a collator signature payload on a relay-parent, block-data combo.
+pub fn collator_signature_payload(
+	relay_parent: &Hash,
+	parachain_index: &Id,
+	pov_block_hash: &Hash,
+) -> [u8; 68] {
+	// 32-byte hash length is protected in a test below.
+	let mut payload = [0u8; 68];
+
+	payload[0..32].copy_from_slice(relay_parent.as_ref());
+	u32::from(*parachain_index).using_encoded(|s| payload[32..32 + s.len()].copy_from_slice(s));
+	payload[36..68].copy_from_slice(pov_block_hash.as_ref());
+
+	payload
+}
+
+fn check_collator_signature(
+	relay_parent: &Hash,
+	parachain_index: &Id,
+	pov_block_hash: &Hash,
+	collator: &CollatorId,
+	signature: &CollatorSignature,
+) -> Result<(),()> {
+	use runtime_primitives::traits::AppVerify;
+
+	let payload = collator_signature_payload(relay_parent, parachain_index, pov_block_hash);
+	if signature.verify(&payload[..], collator) {
+		Ok(())
+	} else {
+		Err(())
 	}
 }
 
-impl CollationInfo {
-	/// Check integrity vs. provided block data.
-	pub fn check_signature(&self) -> Result<(), ()> {
-		use runtime_primitives::traits::AppVerify;
-
-		if self.signature.verify(self.block_data_hash.as_ref(), &self.collator) {
-			Ok(())
-		} else {
-			Err(())
-		}
-	}
-}
-
-/// Candidate receipt type.
+/// All data pertaining to the execution of a parachain candidate.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct CandidateReceipt {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
+	/// The hash of the relay-chain block this should be executed in
+	/// the context of.
+	pub relay_parent: Hash,
+	/// The head-data
+	pub head_data: HeadData,
 	/// The collator's relay-chain account ID
 	pub collator: CollatorId,
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CollatorSignature,
-	/// The head-data
-	pub head_data: HeadData,
-	/// Egress queue roots. Must be sorted lexicographically (ascending)
-	/// by parachain ID.
-	pub egress_queue_roots: Vec<(Id, Hash)>,
-	/// Fees paid from the chain to the relay chain validators
-	pub fees: Balance,
-	/// blake2-256 Hash of block data.
-	pub block_data_hash: Hash,
-	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<UpwardMessage>,
-	/// The root of a block's erasure encoding Merkle tree.
-	pub erasure_root: Hash,
+	/// The hash of the PoV-block.
+	pub pov_block_hash: Hash,
+	/// The global validation schedule.
+	pub global_validation: GlobalValidationSchedule,
+	/// The local validation data.
+	pub local_validation: LocalValidationData,
+	/// Commitments made as a result of validation.
+	pub commitments: CandidateCommitments,
 }
 
 impl CandidateReceipt {
-	/// Get the blake2_256 hash
-	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
-		BlakeTwo256::hash_of(self)
-	}
-
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
-		use runtime_primitives::traits::AppVerify;
+		check_collator_signature(
+			&self.relay_parent,
+			&self.parachain_index,
+			&self.pov_block_hash,
+			&self.collator,
+			&self.signature,
+		)
+	}
 
-		if self.signature.verify(self.block_data_hash.as_ref(), &self.collator) {
-			Ok(())
-		} else {
-			Err(())
-		}
+	/// Abridge this `CandidateReceipt`, splitting it into an `AbridgedCandidateReceipt`
+	/// and its omitted component.
+	pub fn abridge(self) -> (AbridgedCandidateReceipt, OmittedValidationData) {
+		let CandidateReceipt {
+			parachain_index,
+			relay_parent,
+			head_data,
+			collator,
+			signature,
+			pov_block_hash,
+			global_validation,
+			local_validation,
+			commitments,
+		} = self;
+
+		let abridged = AbridgedCandidateReceipt {
+			parachain_index,
+			relay_parent,
+			head_data,
+			collator,
+			signature,
+			pov_block_hash,
+			commitments,
+		};
+
+		let omitted = OmittedValidationData {
+			global_validation,
+			local_validation,
+		};
+
+		(abridged, omitted)
 	}
 }
 
@@ -330,24 +332,187 @@ impl PartialOrd for CandidateReceipt {
 	}
 }
 
-impl PartialEq<CollationInfo> for CandidateReceipt {
-	fn eq(&self, info: &CollationInfo) -> bool {
-		self.parachain_index == info.parachain_index &&
-		self.collator == info.collator &&
-		self.signature == info.signature &&
-		self.egress_queue_roots == info.egress_queue_roots &&
-		self.head_data == info.head_data &&
-		self.block_data_hash == info.block_data_hash &&
-		self.upward_messages == info.upward_messages
-	}
-}
-
 impl Ord for CandidateReceipt {
 	fn cmp(&self, other: &Self) -> Ordering {
 		// TODO: compare signatures or something more sane
 		// https://github.com/paritytech/polkadot/issues/222
 		self.parachain_index.cmp(&other.parachain_index)
 			.then_with(|| self.head_data.cmp(&other.head_data))
+	}
+}
+
+/// All the data which is omitted in an `AbridgedCandidateReceipt`, but that
+/// is necessary for validation of the parachain candidate.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct OmittedValidationData {
+	/// The global validation schedule.
+	pub global_validation: GlobalValidationSchedule,
+	/// The local validation data.
+	pub local_validation: LocalValidationData,
+}
+
+/// An abridged candidate-receipt.
+///
+/// Much info in a candidate-receipt is duplicated from the relay-chain state.
+/// When submitting to the relay-chain, this data should be omitted as it can
+/// be re-generated from relay-chain state.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct AbridgedCandidateReceipt {
+	/// The ID of the parachain this is a candidate for.
+	pub parachain_index: Id,
+	/// The hash of the relay-chain block this should be executed in
+	/// the context of.
+	// NOTE: the fact that the hash includes this value means that code depends
+	// on this for deduplication. Removing this field is likely to break things.
+	pub relay_parent: Hash,
+	/// The head-data
+	pub head_data: HeadData,
+	/// The collator's relay-chain account ID
+	pub collator: CollatorId,
+	/// Signature on blake2-256 of the block data by collator.
+	pub signature: CollatorSignature,
+	/// The hash of the pov-block.
+	pub pov_block_hash: Hash,
+	/// Commitments made as a result of validation.
+	pub commitments: CandidateCommitments,
+}
+
+impl AbridgedCandidateReceipt {
+	/// Compute the hash of the abridged candidate receipt.
+	///
+	/// This is often used as the canonical hash of the receipt, rather than
+	/// the hash of the full receipt. The reason being that all data in the full
+	/// receipt is committed to in the abridged receipt; this receipt references
+	/// the relay-chain block in which context it should be executed, which implies
+	/// any blockchain state that must be referenced.
+	pub fn hash(&self) -> Hash {
+		use runtime_primitives::traits::{BlakeTwo256, Hash};
+		BlakeTwo256::hash_of(self)
+	}
+
+	/// Combine the abridged candidate receipt with the omitted data,
+	/// forming a full `CandidateReceipt`.
+	pub fn complete(self, omitted: OmittedValidationData) -> CandidateReceipt {
+		let AbridgedCandidateReceipt {
+			parachain_index,
+			relay_parent,
+			head_data,
+			collator,
+			signature,
+			pov_block_hash,
+			commitments,
+		} = self;
+
+		let OmittedValidationData {
+			global_validation,
+			local_validation,
+		} = omitted;
+
+		CandidateReceipt {
+			parachain_index,
+			relay_parent,
+			head_data,
+			collator,
+			signature,
+			pov_block_hash,
+			local_validation,
+			global_validation,
+			commitments,
+		}
+	}
+
+	/// Clone the relevant portions of the `CandidateReceipt` to form a `CollationInfo`.
+	pub fn to_collation_info(&self) -> CollationInfo {
+		let AbridgedCandidateReceipt {
+			parachain_index,
+			relay_parent,
+			head_data,
+			collator,
+			signature,
+			pov_block_hash,
+			commitments: _commitments,
+		} = self;
+
+		CollationInfo {
+			parachain_index: *parachain_index,
+			relay_parent: *relay_parent,
+			head_data: head_data.clone(),
+			collator: collator.clone(),
+			signature: signature.clone(),
+			pov_block_hash: *pov_block_hash,
+		}
+	}
+}
+
+
+impl PartialOrd for AbridgedCandidateReceipt {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl Ord for AbridgedCandidateReceipt {
+	fn cmp(&self, other: &Self) -> Ordering {
+		// TODO: compare signatures or something more sane
+		// https://github.com/paritytech/polkadot/issues/222
+		self.parachain_index.cmp(&other.parachain_index)
+			.then_with(|| self.head_data.cmp(&other.head_data))
+	}
+}
+
+/// A collation sent by a collator.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct CollationInfo {
+	/// The ID of the parachain this is a candidate for.
+	pub parachain_index: Id,
+	/// The relay-chain block hash this block should execute in the
+	/// context of.
+	pub relay_parent: Hash,
+	/// The collator's relay-chain account ID
+	pub collator: CollatorId,
+	/// Signature on blake2-256 of the block data by collator.
+	pub signature: CollatorSignature,
+	/// The head-data
+	pub head_data: HeadData,
+	/// blake2-256 Hash of the pov-block
+	pub pov_block_hash: Hash,
+}
+
+impl CollationInfo {
+	/// Check integrity vs. a pov-block.
+	pub fn check_signature(&self) -> Result<(), ()> {
+		check_collator_signature(
+			&self.relay_parent,
+			&self.parachain_index,
+			&self.pov_block_hash,
+			&self.collator,
+			&self.signature,
+		)
+	}
+
+	/// Turn this into an `AbridgedCandidateReceipt` by supplying a set of commitments.
+	pub fn into_receipt(self, commitments: CandidateCommitments) -> AbridgedCandidateReceipt {
+		let CollationInfo {
+			parachain_index,
+			relay_parent,
+			collator,
+			signature,
+			head_data,
+			pov_block_hash,
+		} = self;
+
+		AbridgedCandidateReceipt {
+			parachain_index,
+			relay_parent,
+			collator,
+			signature,
+			head_data,
+			pov_block_hash,
+			commitments,
+		}
 	}
 }
 
@@ -367,74 +532,28 @@ pub struct Collation {
 pub struct PoVBlock {
 	/// Block data.
 	pub block_data: BlockData,
-	/// Ingress for the parachain.
-	pub ingress: ConsolidatedIngress,
 }
 
-/// Parachain ingress queue message.
-#[derive(PartialEq, Eq, Clone, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
-pub struct Message(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-impl AsRef<[u8]> for Message {
-	fn as_ref(&self) -> &[u8] {
-		&self.0[..]
+impl PoVBlock {
+	/// Compute hash of block data.
+	#[cfg(feature = "std")]
+	pub fn hash(&self) -> Hash {
+		use runtime_primitives::traits::{BlakeTwo256, Hash};
+		BlakeTwo256::hash_of(&self)
 	}
 }
 
-impl From<TargetedMessage> for Message {
-	fn from(targeted: TargetedMessage) -> Self {
-		Message(targeted.data)
-	}
+/// The data that is kept available about a particular parachain block.
+#[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "std", derive(Debug, Encode, Decode))]
+pub struct AvailableData {
+	/// The PoV block.
+	pub pov_block: PoVBlock,
+	/// Data that is omitted from an abridged candidate receipt
+	/// that is necessary for validation.
+	pub omitted_validation: OmittedValidationData,
+	// In the future, outgoing messages as well.
 }
-
-/// All ingress roots at one block.
-///
-/// This is an ordered vector of other parachain's egress queue roots from a specific block.
-/// empty roots are omitted. Each parachain may appear once at most.
-#[derive(Default, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
-pub struct BlockIngressRoots(pub Vec<(Id, Hash)>);
-
-/// All ingress roots, grouped by block number (ascending). To properly
-/// interpret this struct, the user must have knowledge of which fork of the relay
-/// chain all block numbers correspond to.
-#[derive(Default, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Decode))]
-pub struct StructuredUnroutedIngress(pub Vec<(BlockNumber, BlockIngressRoots)>);
-
-#[cfg(feature = "std")]
-impl StructuredUnroutedIngress {
-	/// Get the length of all the ingress roots across all blocks.
-	pub fn len(&self) -> usize {
-		self.0.iter().fold(0, |a, (_, roots)| a + roots.0.len())
-	}
-
-	/// Returns an iterator over all ingress roots. The block number indicates
-	/// the height at which that root was posted to the relay chain. The parachain ID is the
-	/// message sender.
-	pub fn iter(&self) -> impl Iterator<Item=(BlockNumber, &Id, &Hash)> {
-		self.0.iter().flat_map(|&(n, ref roots)|
-			roots.0.iter().map(move |&(ref from, ref root)| (n, from, root))
-		)
-	}
-}
-
-/// Consolidated ingress queue data.
-///
-/// This is just an ordered vector of other parachains' egress queues,
-/// obtained according to the routing rules. The same parachain may appear
-/// more than once.
-#[derive(Default, PartialEq, Eq, Clone, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Encode, Debug))]
-pub struct ConsolidatedIngress(pub Vec<(Id, Vec<Message>)>);
-
-/// Parachain block data.
-///
-/// contains everything required to validate para-block, may contain block and witness data
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// A chunk of erasure-encoded block data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, Default)]
@@ -448,55 +567,37 @@ pub struct ErasureChunk {
 	pub proof: Vec<Vec<u8>>,
 }
 
-impl BlockData {
-	/// Compute hash of block data.
-	#[cfg(feature = "std")]
-	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
-		BlakeTwo256::hash(&self.0[..])
-	}
-}
 /// Parachain header raw bytes wrapper type.
 #[derive(PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct Header(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
-/// Parachain head data included in the chain.
-#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Default))]
-pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-/// Parachain validation code.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-/// Activity bit field
+/// Activity bit field.
 #[derive(PartialEq, Eq, Clone, Default, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
-/// Statements which can be made about parachain candidates.
-#[derive(Clone, PartialEq, Eq, Encode)]
+/// Statements that can be made about parachain candidates. These are the
+/// actual values that are signed.
+#[derive(Clone, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum Statement {
 	/// Proposal of a parachain candidate.
 	#[codec(index = "1")]
-	Candidate(CandidateReceipt),
+	Candidate(Hash),
 	/// State that a parachain candidate is valid.
 	#[codec(index = "2")]
 	Valid(Hash),
-	/// State a candidate is invalid.
+	/// State that a parachain candidate is invalid.
 	#[codec(index = "3")]
 	Invalid(Hash),
 }
 
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
-#[derive(Clone, PartialEq, Decode, Encode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug)]
 pub enum ValidityAttestation {
-	/// implicit validity attestation by issuing.
+	/// Implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
 	#[codec(index = "1")]
 	Implicit(ValidatorSignature),
@@ -506,20 +607,30 @@ pub enum ValidityAttestation {
 	Explicit(ValidatorSignature),
 }
 
-/// An attested candidate.
+/// A type returned by runtime with current session index and a parent hash.
+#[derive(Clone, Eq, PartialEq, Default, Decode, Encode, RuntimeDebug)]
+pub struct SigningContext {
+	/// Current session index.
+	pub session_index: sp_staking::SessionIndex,
+	/// Hash of the parent.
+	pub parent_hash: Hash,
+}
+
+/// An attested candidate. This is submitted to the relay chain by a block author.
 #[derive(Clone, PartialEq, Decode, Encode, RuntimeDebug)]
 pub struct AttestedCandidate {
-	/// The candidate data.
-	pub candidate: CandidateReceipt,
+	/// The candidate data. This is abridged, because the omitted data
+	/// is already present within the relay chain state.
+	pub candidate: AbridgedCandidateReceipt,
 	/// Validity attestations.
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// Indices of the corresponding validity votes.
-	pub validator_indices: BitVec,
+	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
 }
 
 impl AttestedCandidate {
 	/// Get the candidate.
-	pub fn candidate(&self) -> &CandidateReceipt {
+	pub fn candidate(&self) -> &AbridgedCandidateReceipt {
 		&self.candidate
 	}
 
@@ -535,14 +646,14 @@ impl AttestedCandidate {
 pub struct FeeSchedule {
 	/// The base fee charged for all messages.
 	pub base: Balance,
-	/// The per-byte fee charged on top of that.
+	/// The per-byte fee for messages charged on top of that.
 	pub per_byte: Balance,
 }
 
 impl FeeSchedule {
 	/// Compute the fee for a message of given size.
-	pub fn compute_fee(&self, n_bytes: usize) -> Balance {
-		use rstd::mem;
+	pub fn compute_message_fee(&self, n_bytes: usize) -> Balance {
+		use sp_std::mem;
 		debug_assert!(mem::size_of::<Balance>() >= mem::size_of::<usize>());
 
 		let n_bytes = n_bytes as Balance;
@@ -550,23 +661,9 @@ impl FeeSchedule {
 	}
 }
 
-/// Current Status of a parachain.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct Status {
-	/// The head of the parachain.
-	pub head_data: HeadData,
-	/// The current balance of the parachain.
-	pub balance: Balance,
-	/// The fee schedule for messages coming from this parachain.
-	pub fee_schedule: FeeSchedule,
-}
-
-use runtime_primitives::traits::{Block as BlockT};
-
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	#[api_version(2)]
+	#[api_version(3)]
 	pub trait ParachainHost {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
@@ -574,18 +671,18 @@ sp_api::decl_runtime_apis! {
 		fn duty_roster() -> DutyRoster;
 		/// Get the currently active parachains.
 		fn active_parachains() -> Vec<(Id, Option<(CollatorId, Retriable)>)>;
-		/// Get the given parachain's status.
-		fn parachain_status(id: Id) -> Option<Status>;
+		/// Get the global validation schedule that all parachains should
+		/// be validated under.
+		fn global_validation_schedule() -> GlobalValidationSchedule;
+		/// Get the local validation data for a particular parachain.
+		fn local_validation_data(id: Id) -> Option<LocalValidationData>;
 		/// Get the given parachain's head code blob.
-		fn parachain_code(id: Id) -> Option<Vec<u8>>;
-		/// Get all the unrouted ingress roots at the given block that
-		/// are targeting the given parachain.
-		///
-		/// If `since` is provided, only messages since (including those in) that block
-		/// will be included.
-		fn ingress(to: Id, since: Option<BlockNumber>) -> Option<StructuredUnroutedIngress>;
-		/// Extract the heads that were set by this set of extrinsics.
-		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<CandidateReceipt>>;
+		fn parachain_code(id: Id) -> Option<ValidationCode>;
+		/// Extract the abridged head that was set in the extrinsics.
+		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
+			-> Option<Vec<AbridgedCandidateReceipt>>;
+		/// Get a `SigningContext` with current `SessionIndex` and parent hash.
+		fn signing_context() -> SigningContext;
 	}
 }
 
@@ -607,5 +704,18 @@ mod tests {
 		let zero_u: usize = 0;
 
 		assert!(zero_b.leading_zeros() >= zero_u.leading_zeros());
+	}
+
+	#[test]
+	fn collator_signature_payload_is_valid() {
+		// if this fails, collator signature verification code has to be updated.
+		let h = Hash::default();
+		assert_eq!(h.as_ref().len(), 32);
+
+		let _payload = collator_signature_payload(
+			&[1; 32].into(),
+			&5u32.into(),
+			&[2; 32].into(),
+		);
 	}
 }

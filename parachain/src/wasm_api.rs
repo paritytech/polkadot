@@ -16,7 +16,9 @@
 
 //! Utilities for writing parachain WASM.
 
-use crate::{TargetedMessage, UpwardMessage};
+#[cfg(any(feature = "std", all(not(feature = "std"), feature = "wasm-api")))]
+use crate::primitives::UpwardMessage;
+#[cfg(any(feature = "std", all(not(feature = "std"), feature = "wasm-api")))]
 use sp_runtime_interface::runtime_interface;
 #[cfg(feature = "std")]
 use sp_externalities::ExternalitiesExt;
@@ -27,15 +29,8 @@ use sp_externalities::ExternalitiesExt;
 #[cfg(any(feature = "std", all(not(feature = "std"), feature = "wasm-api")))]
 #[runtime_interface]
 pub trait Parachain {
-	/// Post a message to another parachain.
-	fn post_message(&mut self, msg: TargetedMessage) {
-		self.extension::<crate::wasm_executor::ParachainExt>()
-			.expect("No `ParachainExt` associated with the current context.")
-			.post_message(msg)
-			.expect("Failed to post message")
-	}
-
 	/// Post a message to this parachain's relay chain.
+	#[allow(dead_code)]
 	fn post_upward_message(&mut self, msg: UpwardMessage) {
 		self.extension::<crate::wasm_executor::ParachainExt>()
 			.expect("No `ParachainExt` associated with the current context.")
@@ -49,8 +44,10 @@ pub trait Parachain {
 /// Offset and length must have been provided by the validation
 /// function's entry point.
 #[cfg(not(feature = "std"))]
-pub unsafe fn load_params(params: *const u8, len: usize) -> crate::ValidationParams {
-	let mut slice = rstd::slice::from_raw_parts(params, len);
+pub unsafe fn load_params(params: *const u8, len: usize)
+	-> crate::primitives::ValidationParams
+{
+	let mut slice = sp_std::slice::from_raw_parts(params, len);
 
 	codec::Decode::decode(&mut slice).expect("Invalid input data")
 }
@@ -60,6 +57,6 @@ pub unsafe fn load_params(params: *const u8, len: usize) -> crate::ValidationPar
 /// As described in the crate docs, this is a pointer to the appended length
 /// of the vector.
 #[cfg(not(feature = "std"))]
-pub fn write_result(result: &crate::ValidationResult) -> u64 {
+pub fn write_result(result: &crate::primitives::ValidationResult) -> u64 {
 	sp_core::to_substrate_wasm_fn_return_value(&result)
 }

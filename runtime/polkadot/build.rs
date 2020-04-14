@@ -14,8 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-use wasm_builder_runner::{build_current_project, WasmBuilderSource};
+use wasm_builder_runner::WasmBuilder;
 
 fn main() {
-	build_current_project("wasm_binary.rs", WasmBuilderSource::Crates("1.0.8"));
+	WasmBuilder::new()
+		.with_current_project()
+		.with_wasm_builder_from_git("https://github.com/paritytech/substrate.git", "8c672e107789ed10973d937ba8cac245404377e2")
+		.import_memory()
+		.export_heap_base()
+		.build()
 }

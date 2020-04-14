@@ -18,18 +18,18 @@
 //! auctioning mechanism, for locking balance as part of the "payment", and to provide the requisite
 //! information for commissioning and decommissioning them.
 
-use rstd::{prelude::*, mem::swap, convert::TryInto};
+use sp_std::{prelude::*, mem::swap, convert::TryInto};
 use sp_runtime::traits::{
 	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
 };
-use frame_support::weights::SimpleDispatchInfo;
 use codec::{Encode, Decode, Codec};
 use frame_support::{
-	decl_module, decl_storage, decl_event, ensure, dispatch::DispatchResult,
+	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
+	weights::{SimpleDispatchInfo, WeighData, Weight},
 };
 use primitives::parachain::{
-	SwapAux, PARACHAIN_INFO, Id as ParaId
+	SwapAux, PARACHAIN_INFO, Id as ParaId, ValidationCode, HeadData,
 };
 use system::{ensure_signed, ensure_root};
 use crate::registrar::{Registrar, swap_ordered_existence};
@@ -108,10 +108,14 @@ impl<AccountId: Clone + Default + Codec> Bidder<AccountId> {
 pub enum IncomingParachain<AccountId, Hash> {
 	/// Deploy information not yet set; just the bidder identity.
 	Unset(NewBidder<AccountId>),
-	/// Deploy information set only by code hash; so we store the code hash and head data.
-	Fixed { code_hash: Hash, initial_head_data: Vec<u8> },
+	/// Deploy information set only by code hash; so we store the code hash, code size, and head data.
+	///
+	/// The code size must be included so that checks against a maximum code size
+	/// can be done. If the size of the preimage of the code hash does not match
+	/// the given code size, it will not be possible to register the parachain.
+	Fixed { code_hash: Hash, code_size: u32, initial_head_data: HeadData },
 	/// Deploy information fully set; so we store the code and head data.
-	Deploy { code: Vec<u8>, initial_head_data: Vec<u8> },
+	Deploy { code: ValidationCode, initial_head_data: HeadData },
 }
 
 type LeasePeriodOf<T> = <T as system::Trait>::BlockNumber;
@@ -127,11 +131,11 @@ type WinnersData<T> =
 decl_storage! {
 	trait Store for Module<T: Trait> as Slots {
 		/// The number of auctions that have been started so far.
-		pub AuctionCounter get(auction_counter): AuctionIndex;
+		pub AuctionCounter get(fn auction_counter): AuctionIndex;
 
 		/// Ordered list of all `ParaId` values that are managed by this module. This includes
 		/// chains that are not yet deployed (but have won an auction in the future).
-		pub ManagedIds get(managed_ids): Vec<ParaId>;
+		pub ManagedIds get(fn managed_ids): Vec<ParaId>;
 
 		/// Various amounts on deposit for each parachain. An entry in `ManagedIds` implies a non-
 		/// default entry here.
@@ -146,44 +150,46 @@ decl_storage! {
 		/// If a parachain doesn't exist *yet* but is scheduled to exist in the future, then it
 		/// will be left-padded with one or more zeroes to denote the fact that nothing is held on
 		/// deposit for the non-existent chain currently, but is held at some point in the future.
-		pub Deposits get(deposits): map ParaId => Vec<BalanceOf<T>>;
+		pub Deposits get(fn deposits): map hasher(twox_64_concat) ParaId => Vec<BalanceOf<T>>;
 
 		/// Information relating to the current auction, if there is one.
 		///
 		/// The first item in the tuple is the lease period index that the first of the four
 		/// contiguous lease periods on auction is for. The second is the block number when the
 		/// auction will "begin to end", i.e. the first block of the Ending Period of the auction.
-		pub AuctionInfo get(auction_info): Option<(LeasePeriodOf<T>, T::BlockNumber)>;
+		pub AuctionInfo get(fn auction_info): Option<(LeasePeriodOf<T>, T::BlockNumber)>;
 
 		/// The winning bids for each of the 10 ranges at each block in the final Ending Period of
 		/// the current auction. The map's key is the 0-based index into the Ending Period. The
 		/// first block of the ending period is 0; the last is `EndingPeriod - 1`.
-		pub Winning get(winning): map T::BlockNumber => Option<WinningData<T>>;
+		pub Winning get(fn winning): map hasher(twox_64_concat) T::BlockNumber => Option<WinningData<T>>;
 
 		/// Amounts currently reserved in the accounts of the bidders currently winning
 		/// (sub-)ranges.
-		pub ReservedAmounts get(reserved_amounts): map Bidder<T::AccountId> => Option<BalanceOf<T>>;
+		pub ReservedAmounts get(fn reserved_amounts):
+			map hasher(twox_64_concat) Bidder<T::AccountId> => Option<BalanceOf<T>>;
 
 		/// The set of Para IDs that have won and need to be on-boarded at an upcoming lease-period.
 		/// This is cleared out on the first block of the lease period.
-		pub OnboardQueue get(onboard_queue): map LeasePeriodOf<T> => Vec<ParaId>;
+		pub OnboardQueue get(fn onboard_queue): map hasher(twox_64_concat) LeasePeriodOf<T> => Vec<ParaId>;
 
 		/// The actual on-boarding information. Only exists when one of the following is true:
 		/// - It is before the lease period that the parachain should be on-boarded.
 		/// - The full on-boarding information has not yet been provided and the parachain is not
 		/// yet due to be off-boarded.
-		pub Onboarding get(onboarding): map ParaId =>
+		pub Onboarding get(fn onboarding):
+			map hasher(twox_64_concat) ParaId =>
 			Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId, T::Hash>)>;
 
 		/// Off-boarding account; currency held on deposit for the parachain gets placed here if the
 		/// parachain gets off-boarded; i.e. its lease period is up and it isn't renewed.
-		pub Offboarding get(offboarding): map ParaId => T::AccountId;
+		pub Offboarding get(fn offboarding): map hasher(twox_64_concat) ParaId => T::AccountId;
 	}
 }
 
 impl<T: Trait> SwapAux for Module<T> {
 	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
-		if <Onboarding<T>>::exists(one) || <Onboarding<T>>::exists(other) {
+		if <Onboarding<T>>::contains_key(one) || <Onboarding<T>>::contains_key(other) {
 			Err("can't swap an undeployed parachain")?
 		}
 		Ok(())
@@ -224,11 +230,44 @@ decl_event!(
 	}
 );
 
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// This auction is already in progress.
+		AuctionInProgress,
+		/// The lease period is in the past.
+		LeasePeriodInPast,
+		/// The origin for this call must be a parachain.
+		NotParaOrigin,
+		/// The parachain ID is not onboarding.
+		ParaNotOnboarding,
+		/// The origin for this call must be the origin who registered the parachain.
+		InvalidOrigin,
+		/// Parachain is already registered.
+		AlreadyRegistered,
+		/// The code must correspond to the hash.
+		InvalidCode,
+		/// Deployment data has not been set for this parachain.
+		UnsetDeployData,
+		/// The bid must overlap all intersecting ranges.
+		NonIntersectingRange,
+		/// Not a current auction.
+		NotCurrentAuction,
+		/// Not an auction.
+		NotAuction,
+		/// Given code size is too large.
+		CodeTooLarge,
+		/// Given initial head data is too large.
+		HeadDataTooLarge,
+	}
+}
+
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+		type Error = Error<T>;
+
 		fn deposit_event() = default;
 
-		fn on_initialize(n: T::BlockNumber) {
+		fn on_initialize(n: T::BlockNumber) -> Weight {
 			let lease_period = T::LeasePeriod::get();
 			let lease_period_index: LeasePeriodOf<T> = (n / lease_period).into();
 
@@ -246,6 +285,8 @@ decl_module! {
 			if (n % lease_period).is_zero() {
 				Self::manage_lease_period_start(lease_period_index);
 			}
+
+			SimpleDispatchInfo::default().weigh_data(())
 		}
 
 		fn on_finalize(now: T::BlockNumber) {
@@ -253,7 +294,7 @@ decl_module! {
 			// winner information is duplicated from the previous block in case no bids happened
 			// in this block.
 			if let Some(offset) = Self::is_ending(now) {
-				if !<Winning<T>>::exists(&offset) {
+				if !<Winning<T>>::contains_key(&offset) {
 					<Winning<T>>::insert(offset,
 						offset.checked_sub(&One::one())
 							.and_then(<Winning<T>>::get)
@@ -274,8 +315,8 @@ decl_module! {
 			#[compact] lease_period_index: LeasePeriodOf<T>
 		) {
 			ensure_root(origin)?;
-			ensure!(!Self::is_in_progress(), "auction already in progress");
-			ensure!(lease_period_index >= Self::lease_period_index(), "lease period in past");
+			ensure!(!Self::is_in_progress(), Error::<T>::AuctionInProgress);
+			ensure!(lease_period_index >= Self::lease_period_index(), Error::<T>::LeasePeriodInPast);
 
 			// Bump the counter.
 			let n = <AuctionCounter>::mutate(|n| { *n += 1; *n });
@@ -340,7 +381,7 @@ decl_module! {
 		) {
 			let who = ensure_signed(origin)?;
 			let para_id = <ParaId>::try_from_account(&who)
-				.ok_or("account is not a parachain")?;
+				.ok_or(Error::<T>::NotParaOrigin)?;
 			let bidder = Bidder::Existing(para_id);
 			Self::handle_bid(bidder, auction_index, first_slot, last_slot, amount)?;
 		}
@@ -355,7 +396,7 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 			let dest = T::Lookup::lookup(dest)?;
 			let para_id = <ParaId>::try_from_account(&who)
-				.ok_or("not a parachain origin")?;
+				.ok_or(Error::<T>::NotParaOrigin)?;
 			<Offboarding<T>>::insert(para_id, dest);
 		}
 
@@ -371,17 +412,28 @@ decl_module! {
 			#[compact] sub: SubId,
 			#[compact] para_id: ParaId,
 			code_hash: T::Hash,
-			initial_head_data: Vec<u8>
+			code_size: u32,
+			initial_head_data: HeadData,
 		) {
 			let who = ensure_signed(origin)?;
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
-				.ok_or("parachain id not in onboarding")?;
+				.ok_or(Error::<T>::ParaNotOnboarding)?;
 			if let IncomingParachain::Unset(ref nb) = details {
-				ensure!(nb.who == who && nb.sub == sub, "parachain not registered by origin");
+				ensure!(nb.who == who && nb.sub == sub, Error::<T>::InvalidOrigin);
 			} else {
-				Err("already registered")?
+				Err(Error::<T>::AlreadyRegistered)?
 			}
-			let item = (starts, IncomingParachain::Fixed{code_hash, initial_head_data});
+
+			ensure!(
+				T::Parachains::head_data_size_allowed(initial_head_data.0.len() as _),
+				Error::<T>::HeadDataTooLarge,
+			);
+			ensure!(
+				T::Parachains::code_size_allowed(code_size),
+				Error::<T>::CodeTooLarge,
+			);
+
+			let item = (starts, IncomingParachain::Fixed{code_hash, code_size, initial_head_data});
 			<Onboarding<T>>::insert(&para_id, item);
 		}
 
@@ -398,11 +450,17 @@ decl_module! {
 		/// - `para_id` is the parachain ID whose code will be elaborated.
 		/// - `code` is the preimage of the registered `code_hash` of `para_id`.
 		#[weight = SimpleDispatchInfo::FixedNormal(5_000_000)]
-		pub fn elaborate_deploy_data(_origin, #[compact] para_id: ParaId, code: Vec<u8>) -> DispatchResult {
+		pub fn elaborate_deploy_data(
+			_origin,
+			#[compact] para_id: ParaId,
+			code: ValidationCode,
+		) -> DispatchResult {
 			let (starts, details) = <Onboarding<T>>::get(&para_id)
-				.ok_or("parachain id not in onboarding")?;
-			if let IncomingParachain::Fixed{code_hash, initial_head_data} = details {
-				ensure!(<T as system::Trait>::Hashing::hash(&code) == code_hash, "code not doesn't correspond to hash");
+				.ok_or(Error::<T>::ParaNotOnboarding)?;
+			if let IncomingParachain::Fixed{code_hash, code_size, initial_head_data} = details {
+				ensure!(code.0.len() as u32 == code_size, Error::<T>::InvalidCode);
+				ensure!(<T as system::Trait>::Hashing::hash(&code.0) == code_hash, Error::<T>::InvalidCode);
+
 				if starts > Self::lease_period_index() {
 					// Hasn't yet begun. Replace the on-boarding entry with the new information.
 					let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
@@ -417,7 +475,7 @@ decl_module! {
 
 				Ok(())
 			} else {
-				Err("deploy data not yet fixed".into())
+				Err(Error::<T>::UnsetDeployData)?
 			}
 		}
 	}
@@ -684,9 +742,9 @@ impl<T: Trait> Module<T> {
 		amount: BalanceOf<T>
 	) -> DispatchResult {
 		// Bidding on latest auction.
-		ensure!(auction_index == <AuctionCounter>::get(), "not current auction");
+		ensure!(auction_index == <AuctionCounter>::get(), Error::<T>::NotCurrentAuction);
 		// Assume it's actually an auction (this should never fail because of above).
-		let (first_lease_period, _) = <AuctionInfo<T>>::get().ok_or("not an auction")?;
+		let (first_lease_period, _) = <AuctionInfo<T>>::get().ok_or(Error::<T>::NotAuction)?;
 
 		// Our range.
 		let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
@@ -708,7 +766,7 @@ impl<T: Trait> Module<T> {
 						.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
 					)
 				)),
-				"bidder winning non-intersecting range",
+				Error::<T>::NonIntersectingRange,
 			);
 
 			// Ok; we are the new winner of this range - reserve the additional amount and record.
@@ -824,12 +882,16 @@ mod tests {
 
 	use sp_core::H256;
 	use sp_runtime::{
-		Perbill, testing::Header,
-		traits::{BlakeTwo256, Hash, IdentityLookup, OnInitialize, OnFinalize},
+		Perbill,
+		traits::{BlakeTwo256, Hash, IdentityLookup},
 	};
-	use frame_support::{impl_outer_origin, parameter_types, assert_ok, assert_noop};
+	use frame_support::{
+		impl_outer_origin, parameter_types, assert_ok, assert_noop,
+		traits::{OnInitialize, OnFinalize}
+	};
 	use balances;
-	use primitives::parachain::{Id as ParaId, Info as ParaInfo};
+	use primitives::{BlockNumber, Header};
+	use primitives::parachain::{Id as ParaId, Info as ParaInfo, Scheduling};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -850,7 +912,7 @@ mod tests {
 		type Origin = Origin;
 		type Call = ();
 		type Index = u64;
-		type BlockNumber = u64;
+		type BlockNumber = BlockNumber;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
@@ -863,32 +925,31 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
+		type AccountData = balances::AccountData<u64>;
+		type OnNewAccount = ();
+		type OnKilledAccount = Balances;
 	}
 
 	parameter_types! {
-		pub const ExistentialDeposit: u64 = 0;
-		pub const TransferFee: u64 = 0;
-		pub const CreationFee: u64 = 0;
+		pub const ExistentialDeposit: u64 = 1;
 	}
 
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnFreeBalanceZero = ();
-		type OnReapAccount = System;
-		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
-		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
-		type CreationFee = CreationFee;
+		type AccountStore = System;
 	}
 
 	thread_local! {
 		pub static PARACHAIN_COUNT: RefCell<u32> = RefCell::new(0);
 		pub static PARACHAINS:
-			RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
+			RefCell<HashMap<u32, (ValidationCode, HeadData)>> = RefCell::new(HashMap::new());
 	}
+
+	const MAX_CODE_SIZE: u32 = 100;
+	const MAX_HEAD_DATA_SIZE: u32 = 10;
 
 	pub struct TestParachains;
 	impl Registrar<u64> for TestParachains {
@@ -898,11 +959,24 @@ mod tests {
 				(*p.borrow() - 1).into()
 			})
 		}
+
+		fn head_data_size_allowed(head_data_size: u32) -> bool {
+			head_data_size <= MAX_HEAD_DATA_SIZE
+		}
+
+		fn code_size_allowed(code_size: u32) -> bool {
+			code_size <= MAX_CODE_SIZE
+		}
+
+		fn para_info(_id: ParaId) -> Option<ParaInfo> {
+			Some(ParaInfo { scheduling: Scheduling::Always })
+		}
+
 		fn register_para(
 			id: ParaId,
 			_info: ParaInfo,
-			code: Vec<u8>,
-			initial_head_data: Vec<u8>
+			code: ValidationCode,
+			initial_head_data: HeadData,
 		) -> DispatchResult {
 			PARACHAINS.with(|p| {
 				if p.borrow().contains_key(&id.into()) {
@@ -927,13 +1001,13 @@ mod tests {
 		PARACHAIN_COUNT.with(|p| *p.borrow_mut() = 0);
 	}
 
-	fn with_parachains<T>(f: impl FnOnce(&HashMap<u32, (Vec<u8>, Vec<u8>)>) -> T) -> T {
+	fn with_parachains<T>(f: impl FnOnce(&HashMap<u32, (ValidationCode, HeadData)>) -> T) -> T {
 		PARACHAINS.with(|p| f(&*p.borrow()))
 	}
 
 	parameter_types!{
-		pub const LeasePeriod: u64 = 10;
-		pub const EndingPeriod: u64 = 3;
+		pub const LeasePeriod: BlockNumber = 10;
+		pub const EndingPeriod: BlockNumber = 3;
 	}
 
 	impl Trait for Test {
@@ -956,12 +1030,11 @@ mod tests {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
 
-	fn run_to_block(n: u64) {
+	fn run_to_block(n: BlockNumber) {
 		while System::block_number() < n {
 			Slots::on_finalize(System::block_number());
 			Balances::on_finalize(System::block_number());
@@ -1055,8 +1128,8 @@ mod tests {
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
-			assert_eq!(Balances::reserved_balance(&1), 1);
-			assert_eq!(Balances::free_balance(&1), 9);
+			assert_eq!(Balances::reserved_balance(1), 1);
+			assert_eq!(Balances::free_balance(1), 9);
 
 			run_to_block(9);
 			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
@@ -1064,8 +1137,8 @@ mod tests {
 				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
-			assert_eq!(Balances::reserved_balance(&1), 0);
-			assert_eq!(Balances::free_balance(&1), 9);
+			assert_eq!(Balances::reserved_balance(1), 0);
+			assert_eq!(Balances::free_balance(1), 9);
 		});
 	}
 
@@ -1075,7 +1148,7 @@ mod tests {
 			run_to_block(1);
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
-			assert_eq!(Balances::free_balance(&1), 9);
+			assert_eq!(Balances::free_balance(1), 9);
 
 			run_to_block(9);
 			assert_eq!(Slots::deposit_held(&0.into()), 1);
@@ -1083,7 +1156,7 @@ mod tests {
 
 			run_to_block(50);
 			assert_eq!(Slots::deposit_held(&0.into()), 0);
-			assert_eq!(Balances::free_balance(&1), 10);
+			assert_eq!(Balances::free_balance(1), 10);
 		});
 	}
 
@@ -1104,7 +1177,7 @@ mod tests {
 
 			run_to_block(50);
 			assert_eq!(Slots::deposit_held(&0.into()), 0);
-			assert_eq!(Balances::free_balance(&10), 1);
+			assert_eq!(Balances::free_balance(10), 1);
 		});
 	}
 
@@ -1117,13 +1190,13 @@ mod tests {
 
 			run_to_block(9);
 			let h = BlakeTwo256::hash(&[42u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![69]));
-			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![69].into()));
+			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42].into()));
 
 			run_to_block(10);
 			with_parachains(|p| {
 				assert_eq!(p.len(), 1);
-				assert_eq!(p[&0], (vec![42], vec![69]));
+				assert_eq!(p[&0], (vec![42].into(), vec![69].into()));
 			});
 		});
 	}
@@ -1142,11 +1215,11 @@ mod tests {
 
 			run_to_block(11);
 			let h = BlakeTwo256::hash(&[42u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![69]));
-			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![69].into()));
+			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42].into()));
 			with_parachains(|p| {
 				assert_eq!(p.len(), 1);
-				assert_eq!(p[&0], (vec![42], vec![69]));
+				assert_eq!(p[&0], (vec![42].into(), vec![69].into()));
 			});
 		});
 	}
@@ -1158,8 +1231,8 @@ mod tests {
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 5));
 			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 1, 4, 1));
-			assert_eq!(Balances::reserved_balance(&2), 0);
-			assert_eq!(Balances::free_balance(&2), 20);
+			assert_eq!(Balances::reserved_balance(2), 0);
+			assert_eq!(Balances::free_balance(2), 20);
 			assert_eq!(
 				Slots::winning(0).unwrap()[SlotRange::ZeroThree as u8 as usize],
 				Some((Bidder::New(NewBidder{who: 1, sub: 0}), 5))
@@ -1205,7 +1278,7 @@ mod tests {
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 2, 1));
 			assert_noop!(
 				Slots::bid(Origin::signed(1), 0, 1, 3, 3, 1),
-				"bidder winning non-intersecting range"
+				Error::<Test>::NonIntersectingRange
 			);
 		});
 	}
@@ -1252,33 +1325,33 @@ mod tests {
 
 			for &(para, sub, acc) in &[(0, 0, 1), (1, 0, 2), (2, 0, 3), (3, 1, 4), (4, 1, 5)] {
 				let h = BlakeTwo256::hash(&[acc][..]);
-				assert_ok!(Slots::fix_deploy_data(Origin::signed(acc as _), sub, para.into(), h, vec![acc]));
-				assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), para.into(), vec![acc]));
+				assert_ok!(Slots::fix_deploy_data(Origin::signed(acc as _), sub, para.into(), h, 1, vec![acc].into()));
+				assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), para.into(), vec![acc].into()));
 			}
 
 			run_to_block(10);
 			with_parachains(|p| {
 				assert_eq!(p.len(), 2);
-				assert_eq!(p[&0], (vec![1], vec![1]));
-				assert_eq!(p[&3], (vec![4], vec![4]));
+				assert_eq!(p[&0], (vec![1].into(), vec![1].into()));
+				assert_eq!(p[&3], (vec![4].into(), vec![4].into()));
 			});
 			run_to_block(20);
 			with_parachains(|p| {
 				assert_eq!(p.len(), 2);
-				assert_eq!(p[&1], (vec![2], vec![2]));
-				assert_eq!(p[&3], (vec![4], vec![4]));
+				assert_eq!(p[&1], (vec![2].into(), vec![2].into()));
+				assert_eq!(p[&3], (vec![4].into(), vec![4].into()));
 			});
 			run_to_block(30);
 			with_parachains(|p| {
 				assert_eq!(p.len(), 2);
-				assert_eq!(p[&1], (vec![2], vec![2]));
-				assert_eq!(p[&4], (vec![5], vec![5]));
+				assert_eq!(p[&1], (vec![2].into(), vec![2].into()));
+				assert_eq!(p[&4], (vec![5].into(), vec![5].into()));
 			});
 			run_to_block(40);
 			with_parachains(|p| {
 				assert_eq!(p.len(), 2);
-				assert_eq!(p[&2], (vec![3], vec![3]));
-				assert_eq!(p[&4], (vec![5], vec![5]));
+				assert_eq!(p[&2], (vec![3].into(), vec![3].into()));
+				assert_eq!(p[&4], (vec![5].into(), vec![5].into()));
 			});
 			run_to_block(50);
 			with_parachains(|p| {
@@ -1299,21 +1372,21 @@ mod tests {
 
 			run_to_block(10);
 			let h = BlakeTwo256::hash(&[1u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![1]));
-			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![1].into()));
+			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1].into()));
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 1));
 
 			with_parachains(|p| {
 				assert_eq!(p.len(), 1);
-				assert_eq!(p[&0], (vec![1], vec![1]));
+				assert_eq!(p[&0], (vec![1].into(), vec![1].into()));
 			});
 
 			run_to_block(20);
 			with_parachains(|p| {
 				assert_eq!(p.len(), 1);
-				assert_eq!(p[&0], (vec![1], vec![1]));
+				assert_eq!(p[&0], (vec![1].into(), vec![1].into()));
 			});
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Balances::transfer(Origin::signed(1), ParaId::from(0).into_account(), 1));
@@ -1322,7 +1395,7 @@ mod tests {
 			run_to_block(30);
 			with_parachains(|p| {
 				assert_eq!(p.len(), 1);
-				assert_eq!(p[&0], (vec![1], vec![1]));
+				assert_eq!(p[&0], (vec![1].into(), vec![1].into()));
 			});
 
 			run_to_block(40);
@@ -1344,20 +1417,20 @@ mod tests {
 
 			run_to_block(10);
 			let h = BlakeTwo256::hash(&[1u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, vec![1]));
-			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![1].into()));
+			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1].into()));
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 3));
 
 			run_to_block(20);
-			assert_eq!(Balances::free_balance::<u64>(ParaId::from(0).into_account()), 2);
+			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 2);
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 4));
 
 			run_to_block(30);
-			assert_eq!(Balances::free_balance::<u64>(ParaId::from(0).into_account()), 1);
+			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 1);
 		});
 	}
 
@@ -1389,12 +1462,12 @@ mod tests {
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 
-			for i in 1..6 {
-				run_to_block(i);
+			for i in 1..6u64 {
+				run_to_block(i as _);
 				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
 				for j in 1..6 {
-					assert_eq!(Balances::reserved_balance(&j), if j == i { j } else { 0 });
-					assert_eq!(Balances::free_balance(&j), if j == i { j * 9 } else { j * 10 });
+					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
+					assert_eq!(Balances::free_balance(j), if j == i { j * 9 } else { j * 10 });
 				}
 			}
 
@@ -1405,8 +1478,8 @@ mod tests {
 				Some((1, IncomingParachain::Unset(NewBidder { who: 5, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 5);
-			assert_eq!(Balances::reserved_balance(&5), 0);
-			assert_eq!(Balances::free_balance(&5), 45);
+			assert_eq!(Balances::reserved_balance(5), 0);
+			assert_eq!(Balances::free_balance(5), 45);
 		});
 	}
 
@@ -1417,12 +1490,12 @@ mod tests {
 
 			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
 
-			for i in 1..6 {
-				run_to_block(i + 3);
+			for i in 1..6u64 {
+				run_to_block((i + 3) as _);
 				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
 				for j in 1..6 {
-					assert_eq!(Balances::reserved_balance(&j), if j == i { j } else { 0 });
-					assert_eq!(Balances::free_balance(&j), if j == i { j * 9 } else { j * 10 });
+					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
+					assert_eq!(Balances::free_balance(j), if j == i { j * 9 } else { j * 10 });
 				}
 			}
 
@@ -1433,8 +1506,8 @@ mod tests {
 				Some((1, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
 			);
 			assert_eq!(Slots::deposit_held(&0.into()), 3);
-			assert_eq!(Balances::reserved_balance(&3), 0);
-			assert_eq!(Balances::free_balance(&3), 27);
+			assert_eq!(Balances::reserved_balance(3), 0);
+			assert_eq!(Balances::free_balance(3), 27);
 		});
 	}
 
@@ -1532,5 +1605,95 @@ mod tests {
 			(Some(NewBidder{who: 5,sub: 0}), 2.into(), 1, SlotRange::ThreeThree)
 		];
 		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
+	}
+
+	#[test]
+	fn deploy_code_too_large() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; (MAX_CODE_SIZE + 1) as _];
+			let h = BlakeTwo256::hash(&code[..]);
+			assert_eq!(
+				Slots::fix_deploy_data(
+					Origin::signed(1), 0, 0.into(), h, code.len() as _, vec![1].into(),
+				),
+				Err(Error::<Test>::CodeTooLarge.into()),
+			);
+		});
+	}
+
+	#[test]
+	fn deploy_maximum_ok() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; MAX_HEAD_DATA_SIZE as _].into();
+			let h = BlakeTwo256::hash(&code[..]);
+			assert_ok!(Slots::fix_deploy_data(
+				Origin::signed(1), 0, 0.into(), h, code.len() as _, head_data,
+			));
+		});
+	}
+
+	#[test]
+	fn deploy_head_data_too_large() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; (MAX_HEAD_DATA_SIZE + 1) as _].into();
+			let h = BlakeTwo256::hash(&code[..]);
+			assert_eq!(
+				Slots::fix_deploy_data(
+					Origin::signed(1), 0, 0.into(), h, code.len() as _, head_data,
+				),
+				Err(Error::<Test>::HeadDataTooLarge.into()),
+			);
+		});
+	}
+
+	#[test]
+	fn code_size_must_be_correct() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
+
+			run_to_block(9);
+			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
+
+			run_to_block(10);
+
+			let code = vec![0u8; MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; MAX_HEAD_DATA_SIZE as _].into();
+			let h = BlakeTwo256::hash(&code[..]);
+			assert_ok!(Slots::fix_deploy_data(
+				Origin::signed(1), 0, 0.into(), h, (code.len() - 1) as _, head_data,
+			));
+			assert!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), code.into()).is_err());
+		});
 	}
 }

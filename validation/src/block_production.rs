@@ -29,23 +29,26 @@ use sp_blockchain::HeaderBackend;
 use block_builder::BlockBuilderApi;
 use codec::Encode;
 use consensus::{Proposal, RecordProof};
-use polkadot_primitives::{Hash, Block, BlockId, BlockNumber, Header};
+use polkadot_primitives::{Hash, Block, BlockId, Header};
 use polkadot_primitives::parachain::{
 	ParachainHost, AttestedCandidate, NEW_HEADS_IDENTIFIER,
 };
-use runtime_primitives::traits::{DigestFor, HasherFor};
+use runtime_primitives::traits::{DigestFor, HashFor};
 use futures_timer::Delay;
 use txpool_api::{TransactionPool, InPoolTransaction};
 
 use futures::prelude::*;
 use inherents::InherentData;
 use sp_timestamp::TimestampInherentData;
-use log::{info, debug, trace};
+use log::{info, debug, warn, trace};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
 use crate::validation_service::ServiceHandle;
 use crate::dynamic_inclusion::DynamicInclusion;
 use crate::Error;
+
+// block size limit.
+pub(crate) const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
 
 // Polkadot proposer factory.
 pub struct ProposerFactory<Client, TxPool, Backend> {
@@ -87,7 +90,7 @@ where
 		State = sp_api::StateBackendFor<Client, Block>
 	> + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
+	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HashFor<Block>> + Send,
 {
 	type CreateProposer = Pin<Box<
 		dyn Future<Output = Result<Self::Proposer, Self::Error>> + Send + 'static
@@ -100,7 +103,6 @@ where
 		parent_header: &Header,
 	) -> Self::CreateProposer {
 		let parent_hash = parent_header.hash();
-		let parent_number = parent_header.number;
 		let parent_id = BlockId::hash(parent_hash);
 
 		let client = self.client.clone();
@@ -114,9 +116,7 @@ where
 			.and_then(move |tracker| future::ready(Ok(Proposer {
 				client,
 				tracker,
-				parent_hash,
 				parent_id,
-				parent_number,
 				transaction_pool,
 				slot_duration,
 				backend,
@@ -129,10 +129,8 @@ where
 /// The Polkadot proposer logic.
 pub struct Proposer<Client, TxPool, Backend> {
 	client: Arc<Client>,
-	parent_hash: Hash,
 	parent_id: BlockId,
-	parent_number: BlockNumber,
-	tracker: Arc<crate::validation_service::ValidationInstanceHandle>,
+	tracker: crate::validation_service::ValidationInstanceHandle,
 	transaction_pool: Arc<TxPool>,
 	slot_duration: u64,
 	backend: Arc<Backend>,
@@ -144,7 +142,7 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 	Client::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	Backend: sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>> + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
+	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HashFor<Block>> + Send,
 {
 	type Error = Error;
 	type Transaction = sp_api::TransactionFor<Client, Block>;
@@ -172,8 +170,6 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 			Duration::from_millis(self.slot_duration / SLOT_DURATION_DENOMINATOR),
 		);
 
-		let parent_hash = self.parent_hash.clone();
-		let parent_number = self.parent_number.clone();
 		let parent_id = self.parent_id.clone();
 		let client = self.client.clone();
 		let transaction_pool = self.transaction_pool.clone();
@@ -198,13 +194,9 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 			};
 
 			let data = CreateProposalData {
-				parent_hash,
-				parent_number,
 				parent_id,
 				client,
 				transaction_pool,
-				table,
-				believed_minimum_timestamp: believed_timestamp,
 				inherent_data: Some(inherent_data),
 				inherent_digests,
 				// leave some time for the proposal finalisation
@@ -222,11 +214,11 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 
 			Delay::new(enough_candidates).await;
 
-			tokio_executor::blocking::run(move || {
-				let proposed_candidates = data.table.proposed_set();
+			tokio::task::spawn_blocking(move || {
+				let proposed_candidates = table.proposed_set();
 				data.propose_with(proposed_candidates)
 			})
-				.await
+				.await?
 		}.boxed()
 	}
 }
@@ -239,13 +231,9 @@ fn current_timestamp() -> u64 {
 
 /// Inner data of the create proposal.
 struct CreateProposalData<Client, TxPool, Backend> {
-	parent_hash: Hash,
-	parent_number: BlockNumber,
 	parent_id: BlockId,
 	client: Arc<Client>,
 	transaction_pool: Arc<TxPool>,
-	table: Arc<crate::SharedTable>,
-	believed_minimum_timestamp: u64,
 	inherent_data: Option<InherentData>,
 	inherent_digests: DigestFor<Block>,
 	deadline: Instant,
@@ -259,7 +247,7 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 	Client::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	Backend: sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>> + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HasherFor<Block>> + Send,
+	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HashFor<Block>> + Send,
 {
 	fn propose_with(
 		mut self,
@@ -289,7 +277,16 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 		{
 			let inherents = runtime_api.inherent_extrinsics(&self.parent_id, inherent_data)?;
 			for inherent in inherents {
-				block_builder.push(inherent)?;
+				match block_builder.push(inherent) {
+					Err(sp_blockchain::Error::ApplyExtrinsicFailed(sp_blockchain::ApplyExtrinsicFailed::Validity(e)))
+						if e.exhausted_resources() => {
+							warn!("⚠️  Dropping non-mandatory inherent from overweight block.");
+						}
+					Err(e) => {
+						warn!("❗️ Inherent extrinsic returned unexpected error: {}. Dropping.", e);
+					}
+					Ok(_) => {}
+				}
 			}
 
 			let mut unqueue_invalid = Vec::new();
@@ -298,7 +295,7 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 			let ready_iter = self.transaction_pool.ready();
 			for ready in ready_iter.take(MAX_TRANSACTIONS) {
 				let encoded_size = ready.data().encode().len();
-				if pending_size + encoded_size >= crate::evaluation::MAX_TRANSACTIONS_SIZE {
+				if pending_size + encoded_size >= MAX_TRANSACTIONS_SIZE {
 					break;
 				}
 				if Instant::now() > self.deadline {
@@ -329,7 +326,7 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 
 		let (new_block, storage_changes, proof) = block_builder.build()?.into_inner();
 
-		info!("Prepared block for proposing at {} [hash: {:?}; parent_hash: {}; extrinsics: [{}]]",
+		info!("🎁 Prepared block for proposing at {} [hash: {:?}; parent_hash: {}; extrinsics: [{}]]",
 			new_block.header.number,
 			Hash::from(new_block.header.hash()),
 			new_block.header.parent_hash,
@@ -338,16 +335,6 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 				.collect::<Vec<_>>()
 				.join(", ")
 		);
-
-		// TODO: full re-evaluation (https://github.com/paritytech/polkadot/issues/216)
-		let active_parachains = runtime_api.active_parachains(&self.parent_id)?;
-		assert!(crate::evaluation::evaluate_initial(
-			&new_block,
-			self.believed_minimum_timestamp,
-			&self.parent_hash,
-			self.parent_number,
-			&active_parachains[..],
-		).is_ok());
 
 		Ok(Proposal { block: new_block, storage_changes, proof })
 	}

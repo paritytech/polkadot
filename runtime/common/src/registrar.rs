@@ -18,25 +18,25 @@
 //! registered and which are scheduled. Doesn't manage any of the actual execution/validation logic
 //! which is left to `parachains.rs`.
 
-use rstd::{prelude::*, result};
+use sp_std::{prelude::*, result};
 #[cfg(any(feature = "std", test))]
-use rstd::marker::PhantomData;
+use sp_std::marker::PhantomData;
 use codec::{Encode, Decode};
 
 use sp_runtime::{
 	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
-	traits::{Hash as HashT, SignedExtension}
+	traits::{Hash as HashT, SignedExtension, DispatchInfoOf},
 };
 
 use frame_support::{
-	decl_storage, decl_module, decl_event, ensure,
+	decl_storage, decl_module, decl_event, decl_error, ensure,
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
-	weights::{SimpleDispatchInfo, DispatchInfo},
+	weights::{SimpleDispatchInfo, Weight, WeighData},
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
 	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, SwapAux, Info as ParaInfo, ActiveParas,
-	Retriable
+	Retriable, ValidationCode, HeadData,
 };
 use crate::parachains;
 use sp_runtime::transaction_validity::InvalidTransaction;
@@ -46,13 +46,27 @@ pub trait Registrar<AccountId> {
 	/// Create a new unique parachain identity for later registration.
 	fn new_id() -> ParaId;
 
+	/// Checks whether the given initial head data size falls within the limit.
+	fn head_data_size_allowed(head_data_size: u32) -> bool;
+
+	/// Checks whether the given validation code falls within the limit.
+	fn code_size_allowed(code_size: u32) -> bool;
+
+	/// Fetches metadata for a para by ID, if any.
+	fn para_info(id: ParaId) -> Option<ParaInfo>;
+
 	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
 	/// result in a error.
+	///
+	/// This does not enforce any code size or initial head data limits, as these
+	/// are governable and parameters for parachain initialization are often
+	/// determined long ahead-of-time. Not checking these values ensures that changes to limits
+	/// do not invalidate in-progress auction winners.
 	fn register_para(
 		id: ParaId,
 		info: ParaInfo,
-		code: Vec<u8>,
-		initial_head_data: Vec<u8>,
+		code: ValidationCode,
+		initial_head_data: HeadData,
 	) -> DispatchResult;
 
 	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
@@ -64,17 +78,29 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		<NextFreeId>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
 	}
 
+	fn head_data_size_allowed(head_data_size: u32) -> bool {
+		head_data_size <= <T as parachains::Trait>::MaxHeadDataSize::get()
+	}
+
+	fn code_size_allowed(code_size: u32) -> bool {
+		code_size <= <T as parachains::Trait>::MaxCodeSize::get()
+	}
+
+	fn para_info(id: ParaId) -> Option<ParaInfo> {
+		Self::paras(&id)
+	}
+
 	fn register_para(
 		id: ParaId,
 		info: ParaInfo,
-		code: Vec<u8>,
-		initial_head_data: Vec<u8>,
+		code: ValidationCode,
+		initial_head_data: HeadData,
 	) -> DispatchResult {
-		ensure!(!Paras::exists(id), "Parachain already exists");
+		ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
 		if let Scheduling::Always = info.scheduling {
 			Parachains::mutate(|parachains|
 				match parachains.binary_search(&id) {
-					Ok(_) => Err("Parachain already exists"),
+					Ok(_) => Err(Error::<T>::ParaAlreadyExists),
 					Err(idx) => {
 						parachains.insert(idx, id);
 						Ok(())
@@ -88,12 +114,12 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 	}
 
 	fn deregister_para(id: ParaId) -> DispatchResult {
-		let info = Paras::take(id).ok_or("Invalid id")?;
+		let info = Paras::take(id).ok_or(Error::<T>::InvalidChainId)?;
 		if let Scheduling::Always = info.scheduling {
 			Parachains::mutate(|parachains|
 				parachains.binary_search(&id)
 					.map(|index| parachains.remove(index))
-					.map_err(|_| "Invalid id")
+					.map_err(|_| Error::<T>::InvalidChainId)
 			)?;
 		}
 		<parachains::Module<T>>::cleanup_para(id);
@@ -158,19 +184,19 @@ decl_storage! {
 		NextFreeId: ParaId = LOWEST_USER_ID;
 
 		/// Pending swap operations.
-		PendingSwap: map ParaId => Option<ParaId>;
+		PendingSwap: map hasher(twox_64_concat) ParaId => Option<ParaId>;
 
 		/// Map of all registered parathreads/chains.
-		Paras get(paras): map ParaId => Option<ParaInfo>;
+		Paras get(fn paras): map hasher(twox_64_concat) ParaId => Option<ParaInfo>;
 
 		/// The current queue for parathreads that should be retried.
-		RetryQueue get(retry_queue): Vec<Vec<(ParaId, CollatorId)>>;
+		RetryQueue get(fn retry_queue): Vec<Vec<(ParaId, CollatorId)>>;
 
 		/// Users who have paid a parathread's deposit
-		Debtors: map ParaId => T::AccountId;
+		Debtors: map hasher(twox_64_concat) ParaId => T::AccountId;
 	}
 	add_extra_genesis {
-		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
+		config(parachains): Vec<(ParaId, ValidationCode, HeadData)>;
 		config(_phdata): PhantomData<T>;
 		build(build::<T>);
 	}
@@ -178,8 +204,6 @@ decl_storage! {
 
 #[cfg(feature = "std")]
 fn build<T: Trait>(config: &GenesisConfig<T>) {
-	use sp_runtime::traits::Zero;
-
 	let mut p = config.parachains.clone();
 	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
 	p.dedup_by_key(|&mut (ref id, _, _)| *id);
@@ -193,7 +217,6 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 		// no ingress -- a chain cannot be routed to until it is live.
 		<parachains::Code>::insert(&id, &code);
 		<parachains::Heads>::insert(&id, &genesis);
-		<parachains::Watermarks<T>>::insert(&id, T::BlockNumber::zero());
 		// Save initial parachains in registrar
 		Paras::insert(id, ParaInfo { scheduling: Scheduling::Always })
 	}
@@ -214,21 +237,53 @@ pub fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T,
 	ids.sort();
 }
 
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// Parachain already exists.
+		ParaAlreadyExists,
+		/// Invalid parachain ID.
+		InvalidChainId,
+		/// Invalid parathread ID.
+		InvalidThreadId,
+		/// Invalid para code size.
+		CodeTooLarge,
+		/// Invalid para head data size.
+		HeadDataTooLarge,
+	}
+}
+
 decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+		type Error = Error<T>;
+
 		fn deposit_event() = default;
 
-		/// Register a parachain with given code.
+		/// Register a parachain with given code. Must be called by root.
 		/// Fails if given ID is already used.
+		///
+		/// Unlike the `Registrar` trait function of the same name, this
+		/// checks the code and head data against size limits.
 		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
 		pub fn register_para(origin,
 			#[compact] id: ParaId,
 			info: ParaInfo,
-			code: Vec<u8>,
-			initial_head_data: Vec<u8>,
+			code: ValidationCode,
+			initial_head_data: HeadData,
 		) -> DispatchResult {
 			ensure_root(origin)?;
+
+			ensure!(
+				<Self as Registrar<T::AccountId>>::code_size_allowed(code.0.len() as _),
+				Error::<T>::CodeTooLarge,
+			);
+
+			ensure!(
+				<Self as Registrar<T::AccountId>>::head_data_size_allowed(
+					initial_head_data.0.len() as _
+				),
+				Error::<T>::HeadDataTooLarge,
+			);
 			<Self as Registrar<T::AccountId>>::
 				register_para(id, info, code, initial_head_data)
 		}
@@ -245,6 +300,7 @@ decl_module! {
 		/// - `count`: The number of parathreads.
 		///
 		/// Must be called from Root origin.
+		#[weight = SimpleDispatchInfo::default()]
 		fn set_thread_count(origin, count: u32) {
 			ensure_root(origin)?;
 			ThreadCount::put(count);
@@ -254,17 +310,35 @@ decl_module! {
 		///
 		/// Must be sent from a Signed origin that is able to have ParathreadDeposit reserved.
 		/// `code` and `initial_head_data` are used to initialize the parathread's state.
+		///
+		/// Unlike `register_para`, this function does check that the maximum code size
+		/// and head data size are respected, as parathread registration is an atomic
+		/// action.
+		#[weight = SimpleDispatchInfo::default()]
 		fn register_parathread(origin,
-			code: Vec<u8>,
-			initial_head_data: Vec<u8>,
+			code: ValidationCode,
+			initial_head_data: HeadData,
 		) {
 			let who = ensure_signed(origin)?;
 
-			T::Currency::reserve(&who, T::ParathreadDeposit::get())?;
+			<T as Trait>::Currency::reserve(&who, T::ParathreadDeposit::get())?;
 
 			let info = ParaInfo {
 				scheduling: Scheduling::Dynamic,
 			};
+
+			ensure!(
+				<Self as Registrar<T::AccountId>>::code_size_allowed(code.0.len() as _),
+				Error::<T>::CodeTooLarge,
+			);
+
+			ensure!(
+				<Self as Registrar<T::AccountId>>::head_data_size_allowed(
+					initial_head_data.0.len() as _
+				),
+				Error::<T>::HeadDataTooLarge,
+			);
+
 			let id = <Self as Registrar<T::AccountId>>::new_id();
 
 			let _ = <Self as Registrar<T::AccountId>>::
@@ -280,6 +354,7 @@ decl_module! {
 		/// This is a kind of special transaction that should be heavily prioritized in the
 		/// transaction pool according to the `value`; only `ThreadCount` of them may be presented
 		/// in any single block.
+		#[weight = SimpleDispatchInfo::default()]
 		fn select_parathread(origin,
 			#[compact] _id: ParaId,
 			_collator: CollatorId,
@@ -296,17 +371,18 @@ decl_module! {
 		/// Ensure that before calling this that any funds you want emptied from the parathread's
 		/// account is moved out; after this it will be impossible to retrieve them (without
 		/// governance intervention).
+		#[weight = SimpleDispatchInfo::default()]
 		fn deregister_parathread(origin) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
-			let info = Paras::get(id).ok_or("invalid id")?;
-			if let Scheduling::Dynamic = info.scheduling {} else { Err("invalid parathread id")? }
+			let info = Paras::get(id).ok_or(Error::<T>::InvalidChainId)?;
+			if let Scheduling::Dynamic = info.scheduling {} else { Err(Error::<T>::InvalidThreadId)? }
 
 			<Self as Registrar<T::AccountId>>::deregister_para(id)?;
 			Self::force_unschedule(|i| i == id);
 
 			let debtor = <Debtors<T>>::take(id);
-			let _ = T::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
+			let _ = <T as Trait>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
 			Self::deposit_event(Event::ParathreadRegistered(id));
 		}
@@ -319,6 +395,7 @@ decl_module! {
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
+		#[weight = SimpleDispatchInfo::default()]
 		fn swap(origin, #[compact] other: ParaId) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -332,13 +409,13 @@ decl_module! {
 				Parachains::mutate(|ids| swap_ordered_existence(ids, id, other));
 				Paras::mutate(id, |i|
 					Paras::mutate(other, |j|
-						rstd::mem::swap(i, j)
+						sp_std::mem::swap(i, j)
 					)
 				);
 
 				<Debtors<T>>::mutate(id, |i|
 					<Debtors<T>>::mutate(other, |j|
-						rstd::mem::swap(i, j)
+						sp_std::mem::swap(i, j)
 					)
 				);
 				let _ = T::SwapAux::on_swap(id, other);
@@ -348,7 +425,7 @@ decl_module! {
 		}
 
 		/// Block initializer. Clears SelectedThreads and constructs/replaces Active.
-		fn on_initialize() {
+		fn on_initialize() -> Weight {
 			let next_up = SelectedThreads::mutate(|t| {
 				let r = if t.len() >= T::QueueSize::get() {
 					// Take the first set of parathreads in queue
@@ -388,6 +465,8 @@ decl_module! {
 			paras.sort_by_key(|&(ref id, _)| *id);
 
 			Active::put(paras);
+
+			SimpleDispatchInfo::default().weigh_data(())
 		}
 
 		fn on_finalize() {
@@ -426,7 +505,7 @@ decl_event!{
 }
 
 impl<T: Trait> Module<T> {
-        /// Ensures that the given `ParaId` corresponds to a registered parathread, and returns a descriptor if so.
+	/// Ensures that the given `ParaId` corresponds to a registered parathread, and returns a descriptor if so.
 	pub fn ensure_thread_id(id: ParaId) -> Option<ParaInfo> {
 		Paras::get(id).and_then(|info| if let Scheduling::Dynamic = info.scheduling {
 			Some(info)
@@ -481,20 +560,20 @@ impl<T: Trait> ActiveParas for Module<T> {
 
 /// Ensure that parathread selections happen prioritized by fees.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
-pub struct LimitParathreadCommits<T: Trait + Send + Sync>(rstd::marker::PhantomData<T>) where
+pub struct LimitParathreadCommits<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
 
-impl<T: Trait + Send + Sync> rstd::fmt::Debug for LimitParathreadCommits<T> where
+impl<T: Trait + Send + Sync> sp_std::fmt::Debug for LimitParathreadCommits<T> where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>
 {
-	fn fmt(&self, f: &mut rstd::fmt::Formatter) -> rstd::fmt::Result {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
 		write!(f, "LimitParathreadCommits<T>")
 	}
 }
 
 /// Custom validity errors used in Polkadot while validating transactions.
 #[repr(u8)]
-pub enum Error {
+pub enum ValidityError {
 	/// Parathread ID has already been submitted for this block.
 	Duplicate = 0,
 	/// Parathread ID does not identify a parathread.
@@ -504,14 +583,14 @@ pub enum Error {
 impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>
 {
+	const IDENTIFIER: &'static str = "LimitParathreadCommits";
 	type AccountId = T::AccountId;
 	type Call = <T as system::Trait>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self)
-		-> rstd::result::Result<Self::AdditionalSigned, TransactionValidityError>
+		-> sp_std::result::Result<Self::AdditionalSigned, TransactionValidityError>
 	{
 		Ok(())
 	}
@@ -520,14 +599,14 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 		&self,
 		_who: &Self::AccountId,
 		call: &Self::Call,
-		_info: DispatchInfo,
+		_info: &DispatchInfoOf<Self::Call>,
 		_len: usize,
 	) -> TransactionValidity {
 		let mut r = ValidTransaction::default();
 		if let Some(local_call) = call.is_sub_type() {
 			if let Call::select_parathread(id, collator, hash) = local_call {
 				// ensure that the para ID is actually a parathread.
-				let e = TransactionValidityError::from(InvalidTransaction::Custom(Error::InvalidId as u8));
+				let e = TransactionValidityError::from(InvalidTransaction::Custom(ValidityError::InvalidId as u8));
 				<Module<T>>::ensure_thread_id(*id).ok_or(e)?;
 
 				// ensure that we haven't already had a full complement of selected parathreads.
@@ -544,21 +623,21 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 				);
 
 				// ensure that this is not selecting a duplicate parathread ID
-				let e = TransactionValidityError::from(InvalidTransaction::Custom(Error::Duplicate as u8));
+				let e = TransactionValidityError::from(InvalidTransaction::Custom(ValidityError::Duplicate as u8));
 				let pos = selected_threads
 					.binary_search_by(|&(ref other_id, _)| other_id.cmp(id))
 					.err()
 					.ok_or(e)?;
 
 				// ensure that this is a live bid (i.e. that the thread's chain head matches)
-				let e = TransactionValidityError::from(InvalidTransaction::Custom(Error::InvalidId as u8));
+				let e = TransactionValidityError::from(InvalidTransaction::Custom(ValidityError::InvalidId as u8));
 				let head = <parachains::Module<T>>::parachain_head(id).ok_or(e)?;
-				let actual = T::Hashing::hash(&head);
+				let actual = T::Hashing::hash(&head.0);
 				ensure!(&actual == hash, InvalidTransaction::Stale);
 
 				// updated the selected threads.
 				selected_threads.insert(pos, (*id, collator.clone()));
-				rstd::mem::drop(selected_threads);
+				sp_std::mem::drop(selected_threads);
 				SelectedThreads::put(upcoming_selected_threads);
 
 				// provides the state-transition for this head-data-hash; this should cue the pool
@@ -578,19 +657,22 @@ mod tests {
 	use sp_core::{H256, Pair};
 	use sp_runtime::{
 		traits::{
-			BlakeTwo256, IdentityLookup, OnInitialize, OnFinalize, Dispatchable,
+			BlakeTwo256, IdentityLookup, Dispatchable,
 			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header}, Perbill
+		}, testing::{UintAuthorityId, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{
 			ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
-			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain, CollatorPair,
+			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
+			CollatorPair, CandidateCommitments,
 		},
-		Balance, BlockNumber,
+		Balance, BlockNumber, Header,
 	};
 	use frame_support::{
+		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
+		weights::DispatchInfo,
 	};
 	use keyring::Sr25519Keyring;
 
@@ -608,7 +690,19 @@ mod tests {
 		pub enum Call for Test where origin: Origin {
 			parachains::Parachains,
 			registrar::Registrar,
+			staking::Staking,
 		}
+	}
+
+	pallet_staking_reward_curve::build! {
+		const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
+			min_inflation: 0_025_000,
+			max_inflation: 0_100_000,
+			ideal_stake: 0_500_000,
+			falloff: 0_050_000,
+			max_piece_count: 40,
+			test_precision: 0_005_000,
+		);
 	}
 
 	#[derive(Clone, Eq, PartialEq)]
@@ -623,7 +717,7 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;
-		type BlockNumber = u64;
+		type BlockNumber = BlockNumber;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
@@ -636,30 +730,26 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
+		type AccountData = balances::AccountData<u128>;
+		type OnNewAccount = ();
+		type OnKilledAccount = Balances;
 	}
 
 	parameter_types! {
-		pub const ExistentialDeposit: Balance = 0;
-		pub const TransferFee: Balance = 0;
-		pub const CreationFee: Balance = 0;
+		pub const ExistentialDeposit: Balance = 1;
 	}
 
 	impl balances::Trait for Test {
-		type Balance = Balance;
-		type OnFreeBalanceZero = ();
-		type OnReapAccount = System;
-		type OnNewAccount = ();
-		type Event = ();
+		type Balance = u128;
 		type DustRemoval = ();
-		type TransferPayment = ();
+		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
-		type CreationFee = CreationFee;
+		type AccountStore = System;
 	}
 
 	parameter_types!{
-		pub const LeasePeriod: u64 = 10;
-		pub const EndingPeriod: u64 = 3;
+		pub const LeasePeriod: BlockNumber = 10;
+		pub const EndingPeriod: BlockNumber = 3;
 	}
 
 	impl slots::Trait for Test {
@@ -672,7 +762,12 @@ mod tests {
 	}
 
 	parameter_types!{
+		pub const SlashDeferDuration: staking::EraIndex = 7;
 		pub const AttestationPeriod: BlockNumber = 100;
+		pub const MinimumPeriod: u64 = 3;
+		pub const SessionsPerEra: sp_staking::SessionIndex = 6;
+		pub const BondingDuration: staking::EraIndex = 28;
+		pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	}
 
 	impl attestations::Trait for Test {
@@ -685,27 +780,83 @@ mod tests {
 		pub const Period: BlockNumber = 1;
 		pub const Offset: BlockNumber = 0;
 		pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
+		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	}
 
 	impl session::Trait for Test {
-		type OnSessionEnding = ();
+		type SessionManager = ();
 		type Keys = UintAuthorityId;
 		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
+		type NextSessionRotation = session::PeriodicSessions<Period, Offset>;
 		type SessionHandler = session::TestSessionHandler;
 		type Event = ();
-		type SelectInitialValidators = ();
 		type ValidatorId = u64;
 		type ValidatorIdOf = ();
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+	}
+
+	parameter_types! {
+		pub const MaxHeadDataSize: u32 = 100;
+		pub const MaxCodeSize: u32 = 100;
+
+		pub const ValidationUpgradeFrequency: BlockNumber = 10;
+		pub const ValidationUpgradeDelay: BlockNumber = 2;
+		pub const SlashPeriod: BlockNumber = 50;
+		pub const ElectionLookahead: BlockNumber = 0;
+		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
+	}
+
+	impl staking::Trait for Test {
+		type RewardRemainder = ();
+		type CurrencyToVote = ();
+		type Event = ();
+		type Currency = balances::Module<Test>;
+		type Slash = ();
+		type Reward = ();
+		type SessionsPerEra = SessionsPerEra;
+		type BondingDuration = BondingDuration;
+		type SlashDeferDuration = SlashDeferDuration;
+		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
+		type SessionInterface = Self;
+		type UnixTime = timestamp::Module<Test>;
+		type RewardCurve = RewardCurve;
+		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+		type NextNewSession = Session;
+		type ElectionLookahead = ElectionLookahead;
+		type Call = Call;
+		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
+		type UnsignedPriority = StakingUnsignedPriority;
+	}
+
+	impl timestamp::Trait for Test {
+		type Moment = u64;
+		type OnTimestampSet = ();
+		type MinimumPeriod = MinimumPeriod;
+	}
+
+	impl session::historical::Trait for Test {
+		type FullIdentification = staking::Exposure<u64, Balance>;
+		type FullIdentificationOf = staking::ExposureOf<Self>;
 	}
 
 	impl parachains::Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
+		type BlockNumberConversion = sp_runtime::traits::Identity;
 		type ActiveParachains = Registrar;
 		type Registrar = Registrar;
 		type Randomness = RandomnessCollectiveFlip;
+		type MaxCodeSize = MaxCodeSize;
+		type MaxHeadDataSize = MaxHeadDataSize;
+		type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
+		type ValidationUpgradeDelay = ValidationUpgradeDelay;
+		type SlashPeriod = SlashPeriod;
+		type Proof = session::historical::Proof;
+		type KeyOwnerProofSystem = session::historical::Module<Test>;
+		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+		type ReportOffence = ();
+		type BlockHashConversion = sp_runtime::traits::Identity;
 	}
 
 	parameter_types! {
@@ -730,6 +881,8 @@ mod tests {
 	type Slots = slots::Module<Test>;
 	type Registrar = Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
+	type Session = session::Module<Test>;
+	type Staking = staking::Module<Test>;
 
 	const AUTHORITY_KEYS: [Sr25519Keyring; 8] = [
 		Sr25519Keyring::Alice,
@@ -742,7 +895,7 @@ mod tests {
 		Sr25519Keyring::Two,
 	];
 
-	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities {
+	fn new_test_ext(parachains: Vec<(ParaId, ValidationCode, HeadData)>) -> TestExternalities {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
 		let authority_keys = [
@@ -758,7 +911,7 @@ mod tests {
 
 		// stashes are the index.
 		let session_keys: Vec<_> = authority_keys.iter().enumerate()
-			.map(|(i, _k)| (i as u64, UintAuthorityId(i as u64)))
+			.map(|(i, _k)| (i as u64, i as u64, UintAuthorityId(i as u64)))
 			.collect();
 
 		let authorities: Vec<_> = authority_keys.iter().map(|k| ValidatorId::from(k.public())).collect();
@@ -780,7 +933,6 @@ mod tests {
 
 		balances::GenesisConfig::<Test> {
 			balances,
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 
 		t.into()
@@ -794,7 +946,7 @@ mod tests {
 		Slots::on_initialize(System::block_number());
 	}
 
-	fn run_to_block(n: u64) {
+	fn run_to_block(n: BlockNumber) {
 		println!("Running until block {}", n);
 		while System::block_number() < n {
 			if System::block_number() > 1 {
@@ -819,7 +971,7 @@ mod tests {
 		let inner_call = super::Call::select_parathread(id, col.clone(), hdh);
 		let call = Call::Registrar(inner_call);
 		let origin = 4u64;
-		assert!(tx.validate(&origin, &call, Default::default(), 0).is_ok());
+		assert!(tx.validate(&origin, &call, &Default::default(), 0).is_ok());
 		assert_ok!(call.dispatch(Origin::signed(origin)));
 	}
 
@@ -828,19 +980,27 @@ mod tests {
 	}
 
 	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], block_data: &[u8]) -> AttestedCandidate {
-		let block_data_hash = BlakeTwo256::hash(block_data);
+		let pov_block_hash = BlakeTwo256::hash(block_data);
+		let relay_parent = System::parent_hash();
 		let candidate = CandidateReceipt {
 			parachain_index: id,
-			collator: collator.public(),
-			signature: block_data_hash.using_encoded(|d| collator.sign(d)),
+			relay_parent,
 			head_data: HeadData(head_data.to_vec()),
-			egress_queue_roots: vec![],
-			fees: 0,
-			block_data_hash,
-			upward_messages: vec![],
-			erasure_root: [1; 32].into(),
+			collator: collator.public(),
+			signature: pov_block_hash.using_encoded(|d| collator.sign(d)),
+			pov_block_hash,
+			global_validation: Parachains::global_validation_schedule(),
+			local_validation: Parachains::current_local_validation_data(&id).unwrap(),
+			commitments: CandidateCommitments {
+				fees: 0,
+				upward_messages: vec![],
+				erasure_root: [1; 32].into(),
+				new_validation_code: None,
+			},
 		};
-		let payload = (Statement::Valid(candidate.hash()), System::parent_hash()).encode();
+		let (candidate, _) = candidate.abridge();
+		let candidate_hash = candidate.hash();
+		let payload = (Statement::Valid(candidate_hash), session::Module::<Test>::current_index(), System::parent_hash()).encode();
 		let roster = Parachains::calculate_duty_roster().0.validator_duty;
 		AttestedCandidate {
 			candidate,
@@ -852,7 +1012,7 @@ mod tests {
 				.collect(),
 			validator_indices: roster.iter()
 				.map(|i| i == &Chain::Parachain(id))
-				.collect::<BitVec>(),
+				.collect::<BitVec::<_, _>>(),
 		}
 	}
 
@@ -871,8 +1031,8 @@ mod tests {
 	#[test]
 	fn genesis_registration_works() {
 		let parachains = vec![
-			(5u32.into(), vec![1,2,3], vec![1]),
-			(100u32.into(), vec![4,5,6], vec![2,]),
+			(5u32.into(), vec![1,2,3].into(), vec![1].into()),
+			(100u32.into(), vec![4,5,6].into(), vec![2,].into()),
 		];
 
 		new_test_ext(parachains).execute_with(|| {
@@ -888,8 +1048,8 @@ mod tests {
 				Registrar::paras(&ParaId::from(100u32)),
 				Some(ParaInfo { scheduling: Scheduling::Always }),
 			);
-			assert_eq!(Parachains::parachain_code(&ParaId::from(5u32)), Some(vec![1, 2, 3]));
-			assert_eq!(Parachains::parachain_code(&ParaId::from(100u32)), Some(vec![4, 5, 6]));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(5u32)), Some(vec![1, 2, 3].into()));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(100u32)), Some(vec![4, 5, 6].into()));
 		});
 	}
 
@@ -904,8 +1064,8 @@ mod tests {
 			// Register a new parathread
 			assert_ok!(Registrar::register_parathread(
 				Origin::signed(1u64),
-				vec![1; 3],
-				vec![1; 3],
+				vec![1; 3].into(),
+				vec![1; 3].into(),
 			));
 
 			// Lease out a new parachain
@@ -919,8 +1079,8 @@ mod tests {
 
 			run_to_block(10);
 			let h = BlakeTwo256::hash(&[2u8; 3]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, user_id(1), h, vec![2; 3]));
-			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), user_id(1), vec![2; 3]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, user_id(1), h, 3, vec![2; 3].into()));
+			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), user_id(1), vec![2; 3].into()));
 			assert_ok!(Slots::set_offboarding(Origin::signed(user_id(1).into_account()), 1));
 
 			run_to_block(11);
@@ -940,10 +1100,10 @@ mod tests {
 			assert_eq!(Slots::managed_ids(), vec![user_id(1)]);
 			assert_eq!(Slots::deposits(user_id(1)), vec![1; 3]);
 			assert_eq!(Slots::offboarding(user_id(1)), 1);
-			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![1u8; 3]));
-			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3]));
-			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3]));
-			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3]));
+			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![1u8; 3].into()));
+			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3].into()));
+			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3].into()));
+			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3].into()));
 			// Intention to swap is added
 			assert_eq!(PendingSwap::get(user_id(0)), Some(user_id(1)));
 
@@ -956,10 +1116,10 @@ mod tests {
 			assert_eq!(Slots::managed_ids(), vec![user_id(0)]);
 			assert_eq!(Slots::deposits(user_id(0)), vec![1; 3]);
 			assert_eq!(Slots::offboarding(user_id(0)), 1);
-			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![1u8; 3]));
-			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3]));
-			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3]));
-			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3]));
+			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![1u8; 3].into()));
+			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3].into()));
+			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3].into()));
+			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3].into()));
 
 			// Intention to swap is no longer present
 			assert_eq!(PendingSwap::get(user_id(0)), None);
@@ -986,8 +1146,8 @@ mod tests {
 			// User 1 register a new parathread
 			assert_ok!(Registrar::register_parathread(
 				Origin::signed(1),
-				vec![1; 3],
-				vec![1; 3],
+				vec![1; 3].into(),
+				vec![1; 3].into(),
 			));
 
 			// User 2 leases out a new parachain
@@ -1015,7 +1175,7 @@ mod tests {
 	#[test]
 	fn register_deregister_chains_works() {
 		let parachains = vec![
-			(1u32.into(), vec![1; 3], vec![1; 3]),
+			(1u32.into(), vec![1; 3].into(), vec![1; 3].into()),
 		];
 
 		new_test_ext(parachains).execute_with(|| {
@@ -1028,27 +1188,27 @@ mod tests {
 				Registrar::paras(&ParaId::from(1u32)),
 				Some(ParaInfo { scheduling: Scheduling::Always })
 			);
-			assert_eq!(Parachains::parachain_code(&ParaId::from(1u32)), Some(vec![1; 3]));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(1u32)), Some(vec![1; 3].into()));
 
 			// Register a new parachain
 			assert_ok!(Registrar::register_para(
 				Origin::ROOT,
 				2u32.into(),
 				ParaInfo { scheduling: Scheduling::Always },
-				vec![2; 3],
-				vec![2; 3],
+				vec![2; 3].into(),
+				vec![2; 3].into(),
 			));
 
 			let orig_bal = Balances::free_balance(&3u64);
 			// Register a new parathread
 			assert_ok!(Registrar::register_parathread(
 				Origin::signed(3u64),
-				vec![3; 3],
-				vec![3; 3],
+				vec![3; 3].into(),
+				vec![3; 3].into(),
 			));
 			// deposit should be taken (reserved)
-			assert_eq!(Balances::free_balance(&3u64) + ParathreadDeposit::get(), orig_bal);
-			assert_eq!(Balances::reserved_balance(&3u64), ParathreadDeposit::get());
+			assert_eq!(Balances::free_balance(3u64) + ParathreadDeposit::get(), orig_bal);
+			assert_eq!(Balances::reserved_balance(3u64), ParathreadDeposit::get());
 
 			run_to_block(3);
 
@@ -1062,16 +1222,16 @@ mod tests {
 				Registrar::paras(&user_id(0)),
 				Some(ParaInfo { scheduling: Scheduling::Dynamic })
 			);
-			assert_eq!(Parachains::parachain_code(&ParaId::from(2u32)), Some(vec![2; 3]));
-			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![3; 3]));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(2u32)), Some(vec![2; 3].into()));
+			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![3; 3].into()));
 
 			assert_ok!(Registrar::deregister_para(Origin::ROOT, 2u32.into()));
 			assert_ok!(Registrar::deregister_parathread(
 				parachains::Origin::Parachain(user_id(0)).into()
 			));
 			// reserved balance should be returned.
-			assert_eq!(Balances::free_balance(&3u64), orig_bal);
-			assert_eq!(Balances::reserved_balance(&3u64), 0);
+			assert_eq!(Balances::free_balance(3u64), orig_bal);
+			assert_eq!(Balances::reserved_balance(3u64), 0);
 
 			run_to_block(4);
 
@@ -1093,8 +1253,8 @@ mod tests {
 			// Register a new parathread
 			assert_ok!(Registrar::register_parathread(
 				Origin::signed(3u64),
-				vec![3; 3],
-				vec![3; 3],
+				vec![3; 3].into(),
+				vec![3; 3].into(),
 			));
 
 			run_to_block(3);
@@ -1125,7 +1285,7 @@ mod tests {
 			run_to_block(2);
 
 			// Register some parathreads.
-			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![3; 3], vec![3; 3]));
+			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![3; 3].into(), vec![3; 3].into()));
 
 			run_to_block(3);
 			// transaction submitted to get parathread progressed.
@@ -1140,7 +1300,7 @@ mod tests {
 			run_to_block(5);
 			assert_eq!(Registrar::active_paras(), vec![]);  // should not be scheduled.
 
-			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![4; 3], vec![4; 3]));
+			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![4; 3].into(), vec![4; 3].into()));
 
 			run_to_block(6);
 			// transaction submitted to get parathread progressed.
@@ -1168,9 +1328,9 @@ mod tests {
 			run_to_block(2);
 
 			// Register some parathreads.
-			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![3; 3], vec![3; 3]));
-			assert_ok!(Registrar::register_parathread(Origin::signed(4), vec![4; 3], vec![4; 3]));
-			assert_ok!(Registrar::register_parathread(Origin::signed(5), vec![5; 3], vec![5; 3]));
+			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![3; 3].into(), vec![3; 3].into()));
+			assert_ok!(Registrar::register_parathread(Origin::signed(4), vec![4; 3].into(), vec![4; 3].into()));
+			assert_ok!(Registrar::register_parathread(Origin::signed(5), vec![5; 3].into(), vec![5; 3].into()));
 
 			run_to_block(3);
 
@@ -1246,7 +1406,7 @@ mod tests {
 		new_test_ext(vec![]).execute_with(|| {
 			run_to_block(2);
 			let o = Origin::signed(0);
-			assert_ok!(Registrar::register_parathread(o, vec![7, 8, 9], vec![1, 1, 1]));
+			assert_ok!(Registrar::register_parathread(o, vec![7, 8, 9].into(), vec![1, 1, 1].into()));
 
 			run_to_block(3);
 			assert_eq!(
@@ -1258,7 +1418,7 @@ mod tests {
 			let bad_para_id = user_id(1);
 			let bad_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 2, 1]);
 			let good_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 1, 1]);
-			let info = DispatchInfo::default();
+			let info = &DispatchInfo::default();
 
 			// Allow for threads
 			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 10));
@@ -1301,7 +1461,7 @@ mod tests {
 			// Register 5 parathreads
 			for x in 0..5 {
 				let o = Origin::signed(x as u64);
-				assert_ok!(Registrar::register_parathread(o, vec![x; 3], vec![x; 3]));
+				assert_ok!(Registrar::register_parathread(o, vec![x; 3].into(), vec![x; 3].into()));
 			}
 
 			run_to_block(3);
@@ -1323,7 +1483,7 @@ mod tests {
 				let head_hash = <Test as system::Trait>::Hashing::hash(&vec![x; 3]);
 				let inner = super::Call::select_parathread(para_id, collator_id, head_hash);
 				let call = Call::Registrar(inner);
-				let info = DispatchInfo::default();
+				let info = &DispatchInfo::default();
 
 				// First 3 transactions win a slot
 				if x < 3 {
@@ -1368,6 +1528,28 @@ mod tests {
 					(user_id(2), Some((CollatorId::default(), Retriable::WithRetries(0)))),
 				]
 			);
+		});
+	}
+
+	#[test]
+	fn register_does_not_enforce_limits_when_registering() {
+		new_test_ext(vec![]).execute_with(|| {
+			let bad_code_size = <Test as parachains::Trait>::MaxCodeSize::get() + 1;
+			let bad_head_size = <Test as parachains::Trait>::MaxHeadDataSize::get() + 1;
+
+			let code = vec![1u8; bad_code_size as _].into();
+			let head_data = vec![2u8; bad_head_size as _].into();
+
+			assert!(!<Registrar as super::Registrar<u64>>::code_size_allowed(bad_code_size));
+			assert!(!<Registrar as super::Registrar<u64>>::head_data_size_allowed(bad_head_size));
+
+			let id = <Registrar as super::Registrar<u64>>::new_id();
+			assert_ok!(<Registrar as super::Registrar<u64>>::register_para(
+				id,
+				ParaInfo { scheduling: Scheduling::Always },
+				code,
+				head_data,
+			));
 		});
 	}
 }

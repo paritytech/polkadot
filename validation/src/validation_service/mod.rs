@@ -26,29 +26,28 @@
 //!
 //! These attestation sessions are kept live until they are periodically garbage-collected.
 
-use std::{time::{Duration, Instant}, sync::Arc};
+use std::{time::{Duration, Instant}, sync::Arc, pin::Pin};
 use std::collections::HashMap;
 
-use sc_client_api::{BlockchainEvents, BlockBody};
-use sp_blockchain::HeaderBackend;
-use block_builder::BlockBuilderApi;
+use crate::pipeline::FullOutput;
+use sc_client_api::{BlockchainEvents, BlockBackend};
 use consensus::SelectChain;
-use futures::prelude::*;
-use futures::{future::select, task::{Spawn, SpawnExt}};
+use futures::{prelude::*, task::{Spawn, SpawnExt}};
 use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
 	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
+	CollationInfo, SigningContext,
 };
-use babe_primitives::BabeApi;
 use keystore::KeyStorePtr;
-use sp_api::{ApiExt, ProvideRuntimeApi};
-use runtime_primitives::traits::HasherFor;
+use sp_api::{ProvideRuntimeApi, ApiExt};
+use runtime_primitives::traits::HashFor;
 use availability_store::Store as AvailabilityStore;
 
-use log::{warn, error, info, debug};
+use log::{warn, error, info, debug, trace};
 
 use super::{Network, Collators, SharedTable, TableRouter};
 use crate::Error;
+use crate::pipeline::ValidationPool;
 
 /// A handle to spawn background tasks onto.
 pub type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
@@ -57,14 +56,14 @@ pub type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 // They send a oneshot channel.
 type ValidationInstanceRequest = (
 	Hash,
-	futures::channel::oneshot::Sender<Result<Arc<ValidationInstanceHandle>, Error>>,
+	futures::channel::oneshot::Sender<Result<ValidationInstanceHandle, Error>>,
 );
 
 /// A handle to a single instance of parachain validation, which is pinned to
 /// a specific relay-chain block. This is the instance that should be used when
 /// constructing any
+#[derive(Clone)]
 pub(crate) struct ValidationInstanceHandle {
-	_drop_signal: exit_future::Signal,
 	table: Arc<SharedTable>,
 	started: Instant,
 }
@@ -92,7 +91,7 @@ impl ServiceHandle {
 	///
 	/// This can fail if the service task has shut down for some reason.
 	pub(crate) async fn get_validation_instance(self, relay_parent: Hash)
-		-> Result<Arc<ValidationInstanceHandle>, Error>
+		-> Result<ValidationInstanceHandle, Error>
 	{
 		let mut sender = self.sender;
 		let instance_rx = loop {
@@ -118,7 +117,7 @@ fn interval(duration: Duration) -> impl Stream<Item=()> + Send + Unpin {
 }
 
 /// A builder for the validation service.
-pub struct ServiceBuilder<C, N, P, SC> {
+pub struct ServiceBuilder<C, N, P, SC, SP> {
 	/// The underlying blockchain client.
 	pub client: Arc<P>,
 	/// A handle to the network object used to communicate.
@@ -126,7 +125,7 @@ pub struct ServiceBuilder<C, N, P, SC> {
 	/// A handle to the collator pool we are using.
 	pub collators: C,
 	/// A handle to a background executor.
-	pub task_executor: TaskExecutor,
+	pub spawner: SP,
 	/// A handle to the availability store.
 	pub availability_store: AvailabilityStore,
 	/// A chain selector for determining active leaves in the block-DAG.
@@ -137,21 +136,20 @@ pub struct ServiceBuilder<C, N, P, SC> {
 	pub max_block_data_size: Option<u64>,
 }
 
-impl<C, N, P, SC> ServiceBuilder<C, N, P, SC> where
+impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 	C: Collators + Send + Sync + Unpin + 'static,
 	C::Collation: Send + Unpin + 'static,
-	P: BlockchainEvents<Block> + BlockBody<Block>,
-	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> +
-		BlockBuilderApi<Block> +
-		BabeApi<Block> +
-		ApiExt<Block, Error = sp_blockchain::Error>,
+	P: BlockchainEvents<Block> + BlockBackend<Block>,
+	P: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 	N: Network + Send + Sync + 'static,
-	N::TableRouter: Send + 'static,
+	N::TableRouter: Send + 'static + Sync,
 	N::BuildTableRouter: Send + Unpin + 'static,
+	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	SC: SelectChain<Block> + 'static,
+	SP: Spawn + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
 	/// Build the service - this consists of a handle to it, as well as a background
 	/// future to be run to completion.
@@ -167,13 +165,15 @@ impl<C, N, P, SC> ServiceBuilder<C, N, P, SC> where
 			NotifyImport(sc_client_api::BlockImportNotification<Block>),
 		}
 
+		let validation_pool = Some(ValidationPool::new());
 		let mut parachain_validation = ParachainValidationInstances {
 			client: self.client.clone(),
 			network: self.network,
-			collators: self.collators,
-			handle: self.task_executor,
+			spawner: self.spawner,
 			availability_store: self.availability_store,
 			live_instances: HashMap::new(),
+			validation_pool: validation_pool.clone(),
+			collation_fetch: DefaultCollationFetch(self.collators, validation_pool),
 		};
 
 		let client = self.client;
@@ -235,6 +235,59 @@ impl<C, N, P, SC> ServiceBuilder<C, N, P, SC> where
 	}
 }
 
+/// Abstraction over `collation_fetch`.
+pub(crate) trait CollationFetch {
+	/// Error type used by `collation_fetch`.
+	type Error: std::fmt::Debug;
+
+	/// Fetch a collation for the given `parachain`.
+	fn collation_fetch<P>(
+		self,
+		parachain: ParaId,
+		relay_parent: Hash,
+		client: Arc<P>,
+		max_block_data_size: Option<u64>,
+		n_validators: usize,
+	) -> Pin<Box<dyn Future<Output = Result<(CollationInfo, FullOutput), Self::Error>> + Send>>
+		where
+			P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
+			P: ProvideRuntimeApi<Block> + Send + Sync + 'static;
+}
+
+#[derive(Clone)]
+struct DefaultCollationFetch<C>(C, Option<ValidationPool>);
+impl<C> CollationFetch for DefaultCollationFetch<C>
+	where
+		C: Collators + Send + Sync + Unpin + 'static,
+		C::Collation: Send + Unpin + 'static,
+{
+	type Error = C::Error;
+
+	fn collation_fetch<P>(
+		self,
+		parachain: ParaId,
+		relay_parent: Hash,
+		client: Arc<P>,
+		max_block_data_size: Option<u64>,
+		n_validators: usize,
+	) -> Pin<Box<dyn Future<Output = Result<(CollationInfo, FullOutput), Self::Error>> + Send>>
+		where
+			P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
+			P: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	{
+		let DefaultCollationFetch(collators, validation_pool) = self;
+		crate::collation::collation_fetch(
+			validation_pool,
+			parachain,
+			relay_parent,
+			collators,
+			client,
+			max_block_data_size,
+			n_validators,
+		).boxed()
+	}
+}
+
 // finds the first key we are capable of signing with out of the given set of validators,
 // if any.
 fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc<ValidatorPair>> {
@@ -247,32 +300,37 @@ fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc
 }
 
 /// Constructs parachain-agreement instances.
-pub(crate) struct ParachainValidationInstances<C, N, P> {
+pub(crate) struct ParachainValidationInstances<N, P, SP, CF> {
 	/// The client instance.
 	client: Arc<P>,
 	/// The backing network handle.
 	network: N,
-	/// Parachain collators.
-	collators: C,
-	/// handle to remote task executor
-	handle: TaskExecutor,
+	/// handle to spawner
+	spawner: SP,
 	/// Store for extrinsic data.
 	availability_store: AvailabilityStore,
 	/// Live agreements. Maps relay chain parent hashes to attestation
 	/// instances.
-	live_instances: HashMap<Hash, Arc<ValidationInstanceHandle>>,
+	live_instances: HashMap<Hash, ValidationInstanceHandle>,
+	/// The underlying validation pool of processes to use.
+	/// Only `None` in tests.
+	validation_pool: Option<ValidationPool>,
+	/// Used to fetch a collation.
+	collation_fetch: CF,
 }
 
-impl<C, N, P> ParachainValidationInstances<C, N, P> where
-	C: Collators + Send + Unpin + 'static,
+impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 	N: Network,
-	P: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockBody<Block> + Send + Sync + 'static,
-	P::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
-	C::Collation: Send + Unpin + 'static,
-	N::TableRouter: Send + 'static,
+	N::Error: 'static,
+	P: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
+	N::TableRouter: Send + 'static + Sync,
+	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	N::BuildTableRouter: Unpin + Send + 'static,
+	SP: Spawn + Send + 'static,
+	CF: CollationFetch + Clone + Send + Sync + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HasherFor<Block>>,
+	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
 	/// Get an attestation table for given parent hash.
 	///
@@ -286,9 +344,7 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 		parent_hash: Hash,
 		keystore: &KeyStorePtr,
 		max_block_data_size: Option<u64>,
-	)
-		-> Result<Arc<ValidationInstanceHandle>, Error>
-	{
+	) -> Result<ValidationInstanceHandle, Error> {
 		use primitives::Pair;
 
 		if let Some(tracker) = self.live_instances.get(&parent_hash) {
@@ -321,7 +377,7 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 		// If we are a validator, we need to store our index in this round in availability store.
 		// This will tell which erasure chunk we should store.
 		if let Some(ref local_duty) = local_duty {
-			if let Err(e) = self.availability_store.add_validator_index_and_n_validators(
+			if let Err(e) = self.availability_store.note_validator_index_and_n_validators(
 				&parent_hash,
 				local_duty.index,
 				validators.len() as u32,
@@ -333,32 +389,75 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 			}
 		}
 
+		let api = self.client.runtime_api();
+
+		let signing_context = if api.has_api_with::<dyn ParachainHost<Block, Error = ()>, _>(
+			&BlockId::hash(parent_hash),
+			|version| version >= 3,
+		)? {
+			api.signing_context(&id)?
+		} else {
+			trace!(
+				target: "validation",
+				"Expected runtime with ParachainHost version >= 3",
+			);
+			SigningContext {
+				session_index: 0,
+				parent_hash,
+			}
+		};
+
 		let table = Arc::new(SharedTable::new(
 			validators.clone(),
 			group_info,
 			sign_with,
-			parent_hash,
+			signing_context,
 			self.availability_store.clone(),
 			max_block_data_size,
+			self.validation_pool.clone(),
 		));
 
-		let (_drop_signal, exit) = exit_future::signal();
-
-		let router = self.network.communication_for(
+		let build_router = self.network.build_table_router(
 			table.clone(),
 			&validators,
-			exit.clone(),
 		);
 
-		if let Some((Chain::Parachain(id), index)) = local_duty.as_ref().map(|d| (d.validation, d.index)) {
-			self.launch_work(parent_hash, id, router, max_block_data_size, validators.len(), index, exit);
+		let availability_store = self.availability_store.clone();
+		let client = self.client.clone();
+		let collation_fetch = self.collation_fetch.clone();
+
+		let res = self.spawner.spawn(async move {
+			// It is important that we build the router as it launches tasks internally
+			// that are required to receive gossip messages.
+			let router = match build_router.await {
+				Ok(res) => res,
+				Err(e) => {
+					warn!(target: "validation", "Failed to build router: {:?}", e);
+					return
+				}
+			};
+
+			if let Some((Chain::Parachain(id), index)) = local_duty.map(|d| (d.validation, d.index)) {
+				let n_validators = validators.len();
+
+				launch_work(
+					move || collation_fetch.collation_fetch(id, parent_hash, client, max_block_data_size, n_validators),
+					availability_store,
+					router,
+					n_validators,
+					index,
+				).await;
+			}
+		});
+
+		if let Err(e) = res {
+			error!(target: "validation", "Failed to create router and launch work: {:?}", e);
 		}
 
-		let tracker = Arc::new(ValidationInstanceHandle {
+		let tracker = ValidationInstanceHandle {
 			table,
 			started: Instant::now(),
-			_drop_signal,
-		});
+		};
 
 		self.live_instances.insert(parent_hash, tracker.clone());
 
@@ -369,87 +468,307 @@ impl<C, N, P> ParachainValidationInstances<C, N, P> where
 	fn retain<F: FnMut(&Hash) -> bool>(&mut self, mut pred: F) {
 		self.live_instances.retain(|k, _| pred(k))
 	}
+}
 
-	// launch parachain work asynchronously.
-	fn launch_work(
-		&self,
-		relay_parent: Hash,
-		validation_para: ParaId,
-		build_router: N::BuildTableRouter,
-		max_block_data_size: Option<u64>,
-		authorities_num: usize,
-		local_id: ValidatorIndex,
-		exit: exit_future::Exit,
-	) {
-		let (collators, client) = (self.collators.clone(), self.client.clone());
-		let availability_store = self.availability_store.clone();
+// launch parachain work asynchronously.
+async fn launch_work<CFF, E>(
+	collation_fetch: impl FnOnce() -> CFF,
+	availability_store: AvailabilityStore,
+	router: impl TableRouter,
+	n_validators: usize,
+	local_id: ValidatorIndex,
+) where
+	E: std::fmt::Debug,
+	CFF: Future<Output = Result<(CollationInfo, FullOutput), E>> + Send,
+{
+	// fetch a local collation from connected collators.
+	let (collation_info, full_output) = match collation_fetch().await {
+		Ok(res) => res,
+		Err(e) => {
+			warn!(target: "validation", "Failed to collate candidate: {:?}", e);
+			return
+		}
+	};
 
-		let with_router = move |router: N::TableRouter| async move {
-			// fetch a local collation from connected collators.
-			match crate::collation::collation_fetch(
-				validation_para,
+	let crate::pipeline::FullOutput {
+		commitments,
+		erasure_chunks,
+		available_data,
+		..
+	} = full_output;
+
+	let receipt = collation_info.into_receipt(commitments);
+	let pov_block = available_data.pov_block.clone();
+
+	if let Err(e) = availability_store.make_available(
+		receipt.hash(),
+		available_data,
+	).await {
+		warn!(
+			target: "validation",
+			"Failed to make parachain block data available: {}",
+			e,
+		);
+	}
+
+	if let Err(e) = availability_store.clone().add_erasure_chunks(
+		receipt.clone(),
+		n_validators as _,
+		erasure_chunks.clone(),
+	).await {
+		warn!(target: "validation", "Failed to add erasure chunks: {}", e);
+	}
+
+	if let Err(e) = router.local_collation(
+		receipt,
+		pov_block,
+		(local_id, &erasure_chunks),
+	).await {
+		warn!(target: "validation", "Failed to send local collation: {:?}", e);
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use futures::{executor::{ThreadPool, self}, future::ready, channel::mpsc};
+	use availability_store::ErasureNetworking;
+	use polkadot_primitives::parachain::{
+		PoVBlock, AbridgedCandidateReceipt, ErasureChunk, ValidatorIndex,
+		CollationInfo, DutyRoster, GlobalValidationSchedule, LocalValidationData,
+		Retriable, CollatorId, BlockData, Chain, AvailableData, SigningContext, ValidationCode,
+	};
+	use runtime_primitives::traits::Block as BlockT;
+	use std::pin::Pin;
+	use sp_keyring::sr25519::Keyring;
+
+	/// Events fired while running mock implementations to follow execution.
+	enum Events {
+		BuildTableRouter,
+		CollationFetch,
+		LocalCollation,
+	}
+
+	#[derive(Clone)]
+	struct MockNetwork(mpsc::UnboundedSender<Events>);
+
+	impl Network for MockNetwork {
+		type Error = String;
+		type TableRouter = MockTableRouter;
+		type BuildTableRouter = Pin<Box<dyn Future<Output = Result<MockTableRouter, String>> + Send>>;
+
+		fn build_table_router(
+			&self,
+			_: Arc<SharedTable>,
+			_: &[ValidatorId],
+		) -> Self::BuildTableRouter {
+			let event_sender = self.0.clone();
+			async move {
+				event_sender.unbounded_send(Events::BuildTableRouter).expect("Send `BuildTableRouter`");
+
+				Ok(MockTableRouter(event_sender))
+			}.boxed()
+		}
+	}
+
+	#[derive(Clone)]
+	struct MockTableRouter(mpsc::UnboundedSender<Events>);
+
+	impl TableRouter for MockTableRouter {
+		type Error = String;
+		type SendLocalCollation = Pin<Box<dyn Future<Output = Result<(), String>> + Send>>;
+		type FetchValidationProof = Box<dyn Future<Output = Result<PoVBlock, String>> + Unpin>;
+
+		fn local_collation(
+			&self,
+			_: AbridgedCandidateReceipt,
+			_: PoVBlock,
+			_: (ValidatorIndex, &[ErasureChunk]),
+		) -> Self::SendLocalCollation {
+			let sender = self.0.clone();
+
+			async move {
+				sender.unbounded_send(Events::LocalCollation).expect("Send `LocalCollation`");
+
+				Ok(())
+			}.boxed()
+		}
+
+		fn fetch_pov_block(&self, _: &AbridgedCandidateReceipt) -> Self::FetchValidationProof {
+			unimplemented!("Not required in tests")
+		}
+	}
+
+	#[derive(Clone)]
+	struct MockErasureNetworking;
+
+	impl ErasureNetworking for MockErasureNetworking {
+		type Error = String;
+
+		fn fetch_erasure_chunk(
+			&self,
+			_: &Hash,
+			_: u32,
+		) -> Pin<Box<dyn Future<Output = Result<ErasureChunk, Self::Error>> + Send>> {
+			ready(Err("Not required in tests".to_string())).boxed()
+		}
+
+		fn distribute_erasure_chunk(&self, _: Hash, _: ErasureChunk) {
+			unimplemented!("Not required in tests")
+		}
+	}
+
+	#[derive(Clone)]
+	struct MockCollationFetch(mpsc::UnboundedSender<Events>);
+
+	impl CollationFetch for MockCollationFetch {
+		type Error = ();
+
+		fn collation_fetch<P>(
+			self,
+			parachain: ParaId,
+			relay_parent: Hash,
+			_: Arc<P>,
+			_: Option<u64>,
+			n_validators: usize,
+		) -> Pin<Box<dyn Future<Output = Result<(CollationInfo, FullOutput), ()>> + Send>> {
+			let info = CollationInfo {
+				parachain_index: parachain,
 				relay_parent,
-				collators,
-				client.clone(),
-				max_block_data_size,
-			).await {
-				Ok(collation_work) => {
-					let (collation, outgoing_targeted, fees_charged) = collation_work;
+				collator: Default::default(),
+				signature: Default::default(),
+				head_data: Default::default(),
+				pov_block_hash: Default::default(),
+			};
 
-					match crate::collation::produce_receipt_and_chunks(
-						authorities_num,
-						&collation.pov,
-						&outgoing_targeted,
-						fees_charged,
-						&collation.info,
-					) {
-						Ok((receipt, chunks)) => {
-							// Apparently the `async move` block is the only way to convince
-							// the compiler that we are not moving values out of borrowed context.
-							let av_clone = availability_store.clone();
-							let chunks_clone = chunks.clone();
-							let receipt_clone = receipt.clone();
+			let available_data = AvailableData {
+				pov_block: PoVBlock { block_data: BlockData(Vec::new()) },
+				omitted_validation: Default::default(),
+			};
 
-							if let Err(e) = av_clone.clone().add_erasure_chunks(
-								relay_parent.clone(),
-								receipt_clone,
-								chunks_clone,
-							).await {
-								warn!(
-									target: "validation",
-									"Failed to add erasure chunks: {}", e
-								);
-							} else {
-								router.local_collation(
-									collation,
-									receipt,
-									outgoing_targeted,
-									(local_id, &chunks),
-								);
-							}
-						}
-						Err(e) => {
-							warn!(target: "validation", "Failed to produce a receipt: {:?}", e);
-						}
-					};
-				}
-				Err(e) => {
-					warn!(target: "validation", "Failed to fetch a candidate: {:?}", e);
-				}
+			let full_output = FullOutput {
+				available_data,
+				commitments: Default::default(),
+				erasure_chunks: Default::default(),
+				n_validators,
+			};
+
+			let sender = self.0;
+
+			async move {
+				sender.unbounded_send(Events::CollationFetch).expect("`CollationFetch` event send");
+
+				Ok((info, full_output))
+			}.boxed()
+		}
+	}
+
+	#[derive(Clone)]
+	struct MockRuntimeApi {
+		validators: Vec<ValidatorId>,
+		duty_roster: DutyRoster,
+	}
+
+	impl ProvideRuntimeApi<Block> for MockRuntimeApi {
+		type Api = Self;
+
+		fn runtime_api<'a>(&'a self) -> sp_api::ApiRef<'a, Self::Api> {
+			self.clone().into()
+		}
+	}
+
+	sp_api::mock_impl_runtime_apis! {
+		impl ParachainHost<Block> for MockRuntimeApi {
+			type Error = sp_blockchain::Error;
+
+			fn validators(&self) -> Vec<ValidatorId> { self.validators.clone() }
+			fn duty_roster(&self) -> DutyRoster { self.duty_roster.clone() }
+			fn active_parachains() -> Vec<(ParaId, Option<(CollatorId, Retriable)>)> { vec![(ParaId::from(1), None)] }
+			fn global_validation_schedule() -> GlobalValidationSchedule { Default::default() }
+			fn local_validation_data(_: ParaId) -> Option<LocalValidationData> { None }
+			fn parachain_code(_: ParaId) -> Option<ValidationCode> { None }
+			fn get_heads(_: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<AbridgedCandidateReceipt>> {
+				None
 			}
+			fn signing_context() -> SigningContext {
+				Default::default()
+			}
+		}
+	}
+
+	#[test]
+	fn launch_work_is_executed_properly() {
+		let executor = ThreadPool::new().unwrap();
+		let keystore = keystore::Store::new_in_memory();
+
+		// Make sure `Bob` key is in the keystore, so this mocked node will be a parachain validator.
+		keystore.write().insert_ephemeral_from_seed::<ValidatorPair>(&Keyring::Bob.to_seed())
+			.expect("Insert key into keystore");
+
+		let validators = vec![ValidatorId::from(Keyring::Alice.public()), ValidatorId::from(Keyring::Bob.public())];
+		let validator_duty = vec![Chain::Relay, Chain::Parachain(1.into())];
+		let duty_roster = DutyRoster { validator_duty };
+
+		let (events_sender, events) = mpsc::unbounded();
+
+		let mut parachain_validation = ParachainValidationInstances {
+			client: Arc::new(MockRuntimeApi { validators, duty_roster }),
+			network: MockNetwork(events_sender.clone()),
+			collation_fetch: MockCollationFetch(events_sender.clone()),
+			spawner: executor.clone(),
+			availability_store: AvailabilityStore::new_in_memory(MockErasureNetworking),
+			live_instances: HashMap::new(),
+			validation_pool: None,
 		};
 
-		let router = build_router
-			.map_ok(with_router)
-			.map_err(|e| {
-				warn!(target: "validation" , "Failed to build table router: {:?}", e);
-			});
+		parachain_validation.get_or_instantiate(Default::default(), &keystore, None)
+			.expect("Creates new validation round");
 
-		let cancellable_work = select(exit, router).map(drop);
+		let mut events = executor::block_on_stream(events);
 
-		// spawn onto thread pool.
-		if self.handle.spawn(cancellable_work).is_err() {
-			error!("Failed to spawn cancellable work task");
-		}
+		assert!(matches!(events.next().unwrap(), Events::BuildTableRouter));
+		assert!(matches!(events.next().unwrap(), Events::CollationFetch));
+		assert!(matches!(events.next().unwrap(), Events::LocalCollation));
+
+		drop(events_sender);
+		drop(parachain_validation);
+		assert!(events.next().is_none());
+	}
+
+	#[test]
+	fn router_is_built_on_relay_chain_validator() {
+		let executor = ThreadPool::new().unwrap();
+		let keystore = keystore::Store::new_in_memory();
+
+		// Make sure `Alice` key is in the keystore, so this mocked node will be a relay-chain validator.
+		keystore.write().insert_ephemeral_from_seed::<ValidatorPair>(&Keyring::Alice.to_seed())
+			.expect("Insert key into keystore");
+
+		let validators = vec![ValidatorId::from(Keyring::Alice.public()), ValidatorId::from(Keyring::Bob.public())];
+		let validator_duty = vec![Chain::Relay, Chain::Parachain(1.into())];
+		let duty_roster = DutyRoster { validator_duty };
+
+		let (events_sender, events) = mpsc::unbounded();
+
+		let mut parachain_validation = ParachainValidationInstances {
+			client: Arc::new(MockRuntimeApi { validators, duty_roster }),
+			network: MockNetwork(events_sender.clone()),
+			collation_fetch: MockCollationFetch(events_sender.clone()),
+			spawner: executor.clone(),
+			availability_store: AvailabilityStore::new_in_memory(MockErasureNetworking),
+			live_instances: HashMap::new(),
+			validation_pool: None,
+		};
+
+		parachain_validation.get_or_instantiate(Default::default(), &keystore, None)
+			.expect("Creates new validation round");
+
+		let mut events = executor::block_on_stream(events);
+
+		assert!(matches!(events.next().unwrap(), Events::BuildTableRouter));
+
+		drop(events_sender);
+		drop(parachain_validation);
+		assert!(events.next().is_none());
 	}
 }

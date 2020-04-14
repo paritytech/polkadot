@@ -18,7 +18,7 @@
 
 use std::{process, env, sync::Arc, sync::atomic, mem};
 use codec::{Decode, Encode, EncodeAppend};
-use crate::{ValidationParams, ValidationResult, UpwardMessage, TargetedMessage};
+use crate::primitives::{ValidationParams, ValidationResult, UpwardMessage};
 use super::{validate_candidate_internal, Error, Externalities};
 use super::{MAX_CODE_MEM, MAX_RUNTIME_MEM};
 use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
@@ -33,8 +33,6 @@ const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 const WORKER_ARG: &'static str = "validation-worker";
 const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
 
-const NUM_HOSTS: usize = 8;
-
 /// Execution timeout in seconds;
 #[cfg(debug_assertions)]
 pub const EXECUTION_TIMEOUT_SEC: u64 =  30;
@@ -44,7 +42,6 @@ pub const EXECUTION_TIMEOUT_SEC: u64 =  5;
 
 #[derive(Default)]
 struct WorkerExternalitiesInner {
-	egress_data: Vec<u8>,
 	up_data: Vec<u8>,
 }
 
@@ -54,15 +51,6 @@ struct WorkerExternalities {
 }
 
 impl Externalities for WorkerExternalities {
-	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String> {
-		let mut inner = self.inner.lock();
-		inner.egress_data = <Vec::<TargetedMessage> as EncodeAppend>::append_or_new(
-			mem::replace(&mut inner.egress_data, Vec::new()),
-			std::iter::once(message),
-		).map_err(|e| e.what())?;
-		Ok(())
-	}
-
 	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
 		let mut inner = self.inner.lock();
 		inner.up_data = <Vec::<UpwardMessage> as EncodeAppend>::append_or_new(
@@ -79,8 +67,42 @@ enum Event {
 	WorkerReady = 2,
 }
 
-lazy_static::lazy_static! {
-	static ref HOSTS: [Mutex<ValidationHost>; NUM_HOSTS] = Default::default();
+/// A pool of hosts.
+#[derive(Clone)]
+pub struct ValidationPool {
+	hosts: Arc<Vec<Mutex<ValidationHost>>>,
+}
+
+const DEFAULT_NUM_HOSTS: usize = 8;
+
+impl ValidationPool {
+	/// Creates a validation pool with the default configuration.
+	pub fn new() -> ValidationPool {
+		ValidationPool {
+			hosts: Arc::new((0..DEFAULT_NUM_HOSTS).map(|_| Default::default()).collect()),
+		}
+	}
+
+	/// Validate a candidate under the given validation code using the next
+	/// free validation host.
+	///
+	/// This will fail if the validation code is not a proper parachain validation module.
+	pub fn validate_candidate<E: Externalities>(
+		&self,
+		validation_code: &[u8],
+		params: ValidationParams,
+		externalities: E,
+		test_mode: bool,
+	) -> Result<ValidationResult, Error> {
+		for host in self.hosts.iter() {
+			if let Some(mut host) = host.try_lock() {
+				return host.validate_candidate(validation_code, params, externalities, test_mode);
+			}
+		}
+
+		// all workers are busy, just wait for the first one
+		self.hosts[0].lock().validate_candidate(validation_code, params, externalities, test_mode)
+	}
 }
 
 /// Validation worker process entry point. Runs a loop waiting for candidates to validate
@@ -141,9 +163,8 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 				debug!("{} Candidate header: {:?}", process::id(), header);
 				let (code, rest) = rest.split_at_mut(MAX_CODE_MEM);
 				let (code, _) = code.split_at_mut(header.code_size as usize);
-				let (call_data, rest) = rest.split_at_mut(MAX_RUNTIME_MEM);
+				let (call_data, _) = rest.split_at_mut(MAX_RUNTIME_MEM);
 				let (call_data, _) = call_data.split_at_mut(header.params_size as usize);
-				let message_data = rest;
 
 				let result = validate_candidate_internal(code, call_data, worker_ext.clone());
 				debug!("{} Candidate validated: {:?}", process::id(), result);
@@ -151,18 +172,12 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 				match result {
 					Ok(r) => {
 						let inner = worker_ext.inner.lock();
-						let egress_data = &inner.egress_data;
-						let e_len = egress_data.len();
 						let up_data = &inner.up_data;
 						let up_len = up_data.len();
 
-						if e_len + up_len > MAX_MESSAGE_MEM {
+						if up_len > MAX_MESSAGE_MEM {
 							ValidationResultHeader::Error("Message data is too large".into())
 						} else {
-							message_data[0..e_len].copy_from_slice(egress_data);
-
-							message_data[e_len..(e_len + up_len)].copy_from_slice(&up_data);
-
 							ValidationResultHeader::Ok(r)
 						}
 					},
@@ -199,25 +214,6 @@ struct ValidationHost {
 	worker: Option<process::Child>,
 	memory: Option<SharedMem>,
 	id: u32,
-}
-
-/// Validate a candidate under the given validation code.
-///
-/// This will fail if the validation code is not a proper parachain validation module.
-pub fn validate_candidate<E: Externalities>(
-	validation_code: &[u8],
-	params: ValidationParams,
-	externalities: E,
-	test_mode: bool,
-) -> Result<ValidationResult, Error> {
-	for host in HOSTS.iter() {
-		if let Some(mut host) = host.try_lock() {
-			return host.validate_candidate(validation_code, params, externalities, test_mode);
-		}
-	}
-
-	// all workers are busy, just wait for the first one
-	HOSTS[0].lock().validate_candidate(validation_code, params, externalities, test_mode)
 }
 
 impl Drop for ValidationHost {
@@ -334,14 +330,6 @@ impl ValidationHost {
 			let header = ValidationResultHeader::decode(&mut header_buf).unwrap();
 			match header {
 				ValidationResultHeader::Ok(result) => {
-					let egress = Vec::<TargetedMessage>::decode(&mut message_data)
-						.map_err(|e|
-							Error::External(
-								format!("Could not decode egress messages: {}", e.what())
-							)
-						)?;
-					egress.into_iter().try_for_each(|msg| externalities.post_message(msg))?;
-
 					let upwards = Vec::<UpwardMessage>::decode(&mut message_data)
 						.map_err(|e|
 							Error::External(

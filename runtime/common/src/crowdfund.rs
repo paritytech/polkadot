@@ -67,7 +67,7 @@
 //! funds ultimately end up in module's fund sub-account.
 
 use frame_support::{
-	decl_module, decl_storage, decl_event, storage::child, ensure, traits::{
+	decl_module, decl_storage, decl_event, decl_error, storage::child, ensure, traits::{
 		Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement::AllowDeath
 	}
 };
@@ -78,9 +78,9 @@ use sp_runtime::{ModuleId,
 use frame_support::weights::SimpleDispatchInfo;
 use crate::slots;
 use codec::{Encode, Decode};
-use rstd::vec::Vec;
+use sp_std::vec::Vec;
 use sp_core::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
-use primitives::parachain::Id as ParaId;
+use primitives::parachain::{Id as ParaId, HeadData};
 
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
 
@@ -121,6 +121,15 @@ pub enum LastContribution<BlockNumber> {
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug))]
+struct DeployData<Hash> {
+	code_hash: Hash,
+	code_size: u32,
+	initial_head_data: HeadData,
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug))]
+#[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// The parachain that this fund has funded, if there is one. As long as this is `Some`, then
 	/// the funds may not be withdrawn and the fund cannot be dissolved.
@@ -150,25 +159,26 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// BlockNumber.
 	last_slot: BlockNumber,
 	/// The deployment data associated with this fund, if any. Once set it may not be reset. First
-	/// is the code hash, second is the initial head data.
-	deploy_data: Option<(Hash, Vec<u8>)>,
+	/// is the code hash, second is the code size, third is the initial head data.
+	deploy_data: Option<DeployData<Hash>>,
 }
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Crowdfund {
 		/// Info on all of the funds.
-		Funds get(funds):
-			map FundIndex => Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
+		Funds get(fn funds):
+			map hasher(twox_64_concat) FundIndex
+			=> Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
 
 		/// The total number of funds that have so far been allocated.
-		FundCount get(fund_count): FundIndex;
+		FundCount get(fn fund_count): FundIndex;
 
 		/// The funds that have had additional contributions during the last block. This is used
 		/// in order to determine which funds should submit new or updated bids.
-		NewRaise get(new_raise): Vec<FundIndex>;
+		NewRaise get(fn new_raise): Vec<FundIndex>;
 
 		/// The number of auctions that have entered into their ending period so far.
-		EndingsCount get(endings_count): slots::AuctionIndex;
+		EndingsCount get(fn endings_count): slots::AuctionIndex;
 	}
 }
 
@@ -187,8 +197,56 @@ decl_event! {
 	}
 }
 
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// Last slot must be greater than first slot.
+		LastSlotBeforeFirstSlot,
+		/// The last slot cannot be more then 3 slots after the first slot.
+		LastSlotTooFarInFuture,
+		/// The campaign ends before the current block number. The end must be in the future.
+		CannotEndInPast,
+		/// There was an overflow.
+		Overflow,
+		/// The contribution was below the minimum, `MinContribution`.
+		ContributionTooSmall,
+		/// Invalid fund index.
+		InvalidFundIndex,
+		/// Contributions exceed maximum amount.
+		CapExceeded,
+		/// The contribution period has already ended.
+		ContributionPeriodOver,
+		/// The origin of this call is invalid.
+		InvalidOrigin,
+		/// Deployment data for a fund can only be set once. The deployment data for this fund
+		/// already exists.
+		ExistingDeployData,
+		/// Deployment data has not been set for this fund.
+		UnsetDeployData,
+		/// This fund has already been onboarded.
+		AlreadyOnboard,
+		/// This crowdfund does not correspond to a parachain.
+		NotParachain,
+		/// This parachain still has its deposit. Implies that it has already been offboarded.
+		ParaHasDeposit,
+		/// Funds have not yet been returned.
+		FundsNotReturned,
+		/// Fund has not yet retired.
+		FundNotRetired,
+		/// The crowdfund has not yet ended.
+		FundNotEnded,
+		/// There are no contributions stored in this crowdfund.
+		NoContributions,
+		/// This crowdfund has an active parachain and cannot be dissolved.
+		HasActiveParachain,
+		/// The retirement period has not ended.
+		InRetirementPeriod,
+	}
+}
+
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+		type Error = Error<T>;
+
 		fn deposit_event() = default;
 
 		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
@@ -201,16 +259,16 @@ decl_module! {
 		) {
 			let owner = ensure_signed(origin)?;
 
-			ensure!(first_slot < last_slot, "last slot must be greater than first slot");
-			ensure!(last_slot <= first_slot + 3.into(), "last slot cannot be more then 3 more than first slot");
-			ensure!(end > <system::Module<T>>::block_number(), "end must be in the future");
+			ensure!(first_slot < last_slot, Error::<T>::LastSlotBeforeFirstSlot);
+			ensure!(last_slot <= first_slot + 3.into(), Error::<T>::LastSlotTooFarInFuture);
+			ensure!(end > <system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
 			let deposit = T::SubmissionDeposit::get();
 			let transfer = WithdrawReason::Transfer.into();
 			let imb = T::Currency::withdraw(&owner, deposit, transfer, AllowDeath)?;
 
 			let index = FundCount::get();
-			let next_index = index.checked_add(1).ok_or("overflow when adding fund")?;
+			let next_index = index.checked_add(1).ok_or(Error::<T>::Overflow)?;
 			FundCount::put(next_index);
 
 			// No fees are paid here if we need to create this account; that's why we don't just
@@ -235,18 +293,19 @@ decl_module! {
 
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
-		/// slot is
+		/// slot is unable to be purchased and the timeout expires.
+		#[weight = SimpleDispatchInfo::default()]
 		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>) {
 			let who = ensure_signed(origin)?;
 
-			ensure!(value >= T::MinContribution::get(), "contribution too small");
-			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
-			fund.raised  = fund.raised.checked_add(&value).ok_or("overflow when adding new funds")?;
-			ensure!(fund.raised <= fund.cap, "contributions exceed cap");
+			ensure!(value >= T::MinContribution::get(), Error::<T>::ContributionTooSmall);
+			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
+			fund.raised  = fund.raised.checked_add(&value).ok_or(Error::<T>::Overflow)?;
+			ensure!(fund.raised <= fund.cap, Error::<T>::CapExceeded);
 
 			// Make sure crowdfund has not ended
 			let now = <system::Module<T>>::block_number();
-			ensure!(fund.end > now, "contribution period ended");
+			ensure!(fund.end > now, Error::<T>::ContributionPeriodOver);
 
 			T::Currency::transfer(&who, &Self::fund_account_id(index), value, AllowDeath)?;
 
@@ -294,18 +353,20 @@ decl_module! {
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
+		#[weight = SimpleDispatchInfo::default()]
 		fn fix_deploy_data(origin,
 			#[compact] index: FundIndex,
 			code_hash: T::Hash,
-			initial_head_data: Vec<u8>
+			code_size: u32,
+			initial_head_data: HeadData,
 		) {
 			let who = ensure_signed(origin)?;
 
-			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
-			ensure!(fund.owner == who, "origin must be fund owner");
-			ensure!(fund.deploy_data.is_none(), "deploy data already set");
+			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
+			ensure!(fund.owner == who, Error::<T>::InvalidOrigin); // must be fund owner
+			ensure!(fund.deploy_data.is_none(), Error::<T>::ExistingDeployData);
 
-			fund.deploy_data = Some((code_hash, initial_head_data));
+			fund.deploy_data = Some(DeployData { code_hash, code_size, initial_head_data });
 
 			<Funds<T>>::insert(index, &fund);
 
@@ -318,19 +379,28 @@ decl_module! {
 		///
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `para_id` is the parachain index that this fund won.
+		#[weight = SimpleDispatchInfo::default()]
 		fn onboard(origin,
 			#[compact] index: FundIndex,
 			#[compact] para_id: ParaId
 		) {
 			let _ = ensure_signed(origin)?;
 
-			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
-			let (code_hash, initial_head_data) = fund.clone().deploy_data.ok_or("deploy data not fixed")?;
-			ensure!(fund.parachain.is_none(), "fund already onboarded");
+			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
+			let DeployData { code_hash, code_size, initial_head_data }
+				= fund.clone().deploy_data.ok_or(Error::<T>::UnsetDeployData)?;
+			ensure!(fund.parachain.is_none(), Error::<T>::AlreadyOnboard);
 			fund.parachain = Some(para_id);
 
 			let fund_origin = system::RawOrigin::Signed(Self::fund_account_id(index)).into();
-			<slots::Module<T>>::fix_deploy_data(fund_origin, index, para_id, code_hash, initial_head_data)?;
+			<slots::Module<T>>::fix_deploy_data(
+				fund_origin,
+				index,
+				para_id,
+				code_hash,
+				code_size,
+				initial_head_data,
+			)?;
 
 			<Funds<T>>::insert(index, &fund);
 
@@ -338,16 +408,17 @@ decl_module! {
 		}
 
 		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
+		#[weight = SimpleDispatchInfo::default()]
 		fn begin_retirement(origin, #[compact] index: FundIndex) {
 			let _ = ensure_signed(origin)?;
 
-			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
-			let parachain_id = fund.parachain.take().ok_or("fund has no parachain")?;
+			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
+			let parachain_id = fund.parachain.take().ok_or(Error::<T>::NotParachain)?;
 			// No deposit information implies the parachain was off-boarded
-			ensure!(<slots::Module<T>>::deposits(parachain_id).len() == 0, "parachain still has deposit");
+			ensure!(<slots::Module<T>>::deposits(parachain_id).len() == 0, Error::<T>::ParaHasDeposit);
 			let account = Self::fund_account_id(index);
 			// Funds should be returned at the end of off-boarding
-			ensure!(T::Currency::free_balance(&account) >= fund.raised, "funds not yet returned");
+			ensure!(T::Currency::free_balance(&account) >= fund.raised, Error::<T>::FundsNotReturned);
 
 			// This fund just ended. Withdrawal period begins.
 			let now = <system::Module<T>>::block_number();
@@ -359,18 +430,19 @@ decl_module! {
 		}
 
 		/// Withdraw full balance of a contributor to an unsuccessful or off-boarded fund.
+		#[weight = SimpleDispatchInfo::default()]
 		fn withdraw(origin, #[compact] index: FundIndex) {
 			let who = ensure_signed(origin)?;
 
-			let mut fund = Self::funds(index).ok_or("invalid fund index")?;
-			ensure!(fund.parachain.is_none(), "fund has not retired");
+			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
+			ensure!(fund.parachain.is_none(), Error::<T>::FundNotRetired);
 			let now = <system::Module<T>>::block_number();
 
 			// `fund.end` can represent the end of a failed crowdsale or the beginning of retirement
-			ensure!(now >= fund.end, "fund has not ended");
+			ensure!(now >= fund.end, Error::<T>::FundNotEnded);
 
 			let balance = Self::contribution_get(index, &who);
-			ensure!(balance > Zero::zero(), "no contributions stored");
+			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			// Avoid using transfer to ensure we don't pay any fees.
 			let fund_account = &Self::fund_account_id(index);
@@ -389,15 +461,16 @@ decl_module! {
 		/// Remove a fund after either: it was unsuccessful and it timed out; or it was successful
 		/// but it has been retired from its parachain slot. This places any deposits that were not
 		/// withdrawn into the treasury.
+		#[weight = SimpleDispatchInfo::default()]
 		fn dissolve(origin, #[compact] index: FundIndex) {
 			let _ = ensure_signed(origin)?;
 
-			let fund = Self::funds(index).ok_or("invalid fund index")?;
-			ensure!(fund.parachain.is_none(), "cannot dissolve fund with active parachain");
+			let fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
+			ensure!(fund.parachain.is_none(), Error::<T>::HasActiveParachain);
 			let now = <system::Module<T>>::block_number();
 			ensure!(
 				now >= fund.end.saturating_add(T::RetirementPeriod::get()),
-				"retirement period not over"
+				Error::<T>::InRetirementPeriod
 			);
 
 			let account = Self::fund_account_id(index);
@@ -503,15 +576,18 @@ mod tests {
 	use super::*;
 
 	use std::{collections::HashMap, cell::RefCell};
-	use frame_support::{impl_outer_origin, assert_ok, assert_noop, parameter_types};
+	use frame_support::{
+		impl_outer_origin, assert_ok, assert_noop, parameter_types,
+		traits::{OnInitialize, OnFinalize},
+	};
 	use frame_support::traits::Contains;
 	use sp_core::H256;
-	use primitives::parachain::{Info as ParaInfo, Id as ParaId};
+	use primitives::parachain::{Info as ParaInfo, Id as ParaId, Scheduling, ValidationCode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
 		Perbill, Permill, Percent, testing::Header, DispatchResult,
-		traits::{BlakeTwo256, OnInitialize, OnFinalize, IdentityLookup},
+		traits::{BlakeTwo256, IdentityLookup},
 	};
 	use crate::registrar::Registrar;
 
@@ -547,25 +623,19 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
+		type AccountData = balances::AccountData<u64>;
+		type OnNewAccount = ();
+		type OnKilledAccount = Balances;
 	}
 	parameter_types! {
-		pub const ExistentialDeposit: u64 = 0;
-		// We want to make sure these fees are non zero, so we can check
-		// that our module correctly avoids these fees :)
-		pub const TransferFee: u64 = 10;
-		pub const CreationFee: u64 = 10;
+		pub const ExistentialDeposit: u64 = 1;
 	}
 	impl balances::Trait for Test {
 		type Balance = u64;
-		type OnFreeBalanceZero = ();
-		type OnReapAccount = System;
-		type OnNewAccount = ();
 		type Event = ();
 		type DustRemoval = ();
-		type TransferPayment = ();
 		type ExistentialDeposit = ExistentialDeposit;
-		type TransferFee = TransferFee;
-		type CreationFee = CreationFee;
+		type AccountStore = System;
 	}
 
 	parameter_types! {
@@ -582,6 +652,8 @@ mod tests {
 	impl Contains<u64> for Nobody {
 		fn contains(_: &u64) -> bool { false }
 		fn sorted_members() -> Vec<u64> { vec![] }
+		#[cfg(feature = "runtime-benchmarks")]
+		fn add(_: &u64) { unimplemented!() }
 	}
 	impl treasury::Trait for Test {
 		type Currency = balances::Module<Test>;
@@ -603,8 +675,11 @@ mod tests {
 	thread_local! {
 		pub static PARACHAIN_COUNT: RefCell<u32> = RefCell::new(0);
 		pub static PARACHAINS:
-			RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
+			RefCell<HashMap<u32, (ValidationCode, HeadData)>> = RefCell::new(HashMap::new());
 	}
+
+	const MAX_CODE_SIZE: u32 = 100;
+	const MAX_HEAD_DATA_SIZE: u32 = 10;
 
 	pub struct TestParachains;
 	impl Registrar<u64> for TestParachains {
@@ -615,11 +690,23 @@ mod tests {
 			})
 		}
 
+		fn head_data_size_allowed(head_data_size: u32) -> bool {
+			head_data_size <= MAX_HEAD_DATA_SIZE
+		}
+
+		fn code_size_allowed(code_size: u32) -> bool {
+			code_size <= MAX_CODE_SIZE
+		}
+
+		fn para_info(_id: ParaId) -> Option<ParaInfo> {
+			Some(ParaInfo { scheduling: Scheduling::Always })
+		}
+
 		fn register_para(
 			id: ParaId,
 			_info: ParaInfo,
-			code: Vec<u8>,
-			initial_head_data: Vec<u8>
+			code: ValidationCode,
+			initial_head_data: HeadData,
 		) -> DispatchResult {
 			PARACHAINS.with(|p| {
 				if p.borrow().contains_key(&id.into()) {
@@ -673,6 +760,7 @@ mod tests {
 	type Crowdfund = Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 	use balances::Error as BalancesError;
+	use slots::Error as SlotsError;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
@@ -680,7 +768,6 @@ mod tests {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],
-			vesting: vec![],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
@@ -704,7 +791,7 @@ mod tests {
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(System::block_number(), 1);
+			assert_eq!(System::block_number(), 0);
 			assert_eq!(Crowdfund::fund_count(), 0);
 			assert_eq!(Crowdfund::funds(0), None);
 			let empty: Vec<FundIndex> = Vec::new();
@@ -749,11 +836,20 @@ mod tests {
 	fn create_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Cannot create a crowdfund with bad slots
-			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 4, 1, 9), "last slot must be greater than first slot");
-			assert_noop!(Crowdfund::create(Origin::signed(1), 1000, 1, 5, 9), "last slot cannot be more then 3 more than first slot");
+			assert_noop!(
+				Crowdfund::create(Origin::signed(1), 1000, 4, 1, 9),
+				Error::<Test>::LastSlotBeforeFirstSlot
+			);
+			assert_noop!(
+				Crowdfund::create(Origin::signed(1), 1000, 1, 5, 9),
+				Error::<Test>::LastSlotTooFarInFuture
+			);
 
 			// Cannot create a crowdfund without some deposit funds
-			assert_noop!(Crowdfund::create(Origin::signed(1337), 1000, 1, 3, 9), BalancesError::<Test, _>::InsufficientBalance);
+			assert_noop!(
+				Crowdfund::create(Origin::signed(1337), 1000, 1, 3, 9),
+				BalancesError::<Test, _>::InsufficientBalance
+			);
 		});
 	}
 
@@ -771,7 +867,7 @@ mod tests {
 			// User 1 contributes to their own crowdfund
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
 			// User 1 has spent some funds to do this, transfer fees **are** taken
-			assert_eq!(Balances::free_balance(1), 940);
+			assert_eq!(Balances::free_balance(1), 950);
 			// Contributions are stored in the trie
 			assert_eq!(Crowdfund::contribution_get(0, &1), 49);
 			// Contributions appear in free balance of crowdfund
@@ -791,22 +887,22 @@ mod tests {
 	fn contribute_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Cannot contribute to non-existing fund
-			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 49), "invalid fund index");
+			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 49), Error::<Test>::InvalidFundIndex);
 			// Cannot contribute below minimum contribution
-			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 9), "contribution too small");
+			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 9), Error::<Test>::ContributionTooSmall);
 
 			// Set up a crowdfund
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 101));
 
 			// Cannot contribute past the limit
-			assert_noop!(Crowdfund::contribute(Origin::signed(2), 0, 900), "contributions exceed cap");
+			assert_noop!(Crowdfund::contribute(Origin::signed(2), 0, 900), Error::<Test>::CapExceeded);
 
 			// Move past end date
 			run_to_block(10);
 
 			// Cannot contribute to ended fund
-			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 49), "contribution period ended");
+			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 49), Error::<Test>::ContributionPeriodOver);
 		});
 	}
 
@@ -822,13 +918,21 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]
+				0,
+				vec![0].into()
 			));
 
 			let fund = Crowdfund::funds(0).unwrap();
 
 			// Confirm deploy data is stored correctly
-			assert_eq!(fund.deploy_data, Some((<Test as system::Trait>::Hash::default(), vec![0])));
+			assert_eq!(
+				fund.deploy_data,
+				Some(DeployData {
+					code_hash: <Test as system::Trait>::Hash::default(),
+					code_size: 0,
+					initial_head_data: vec![0].into(),
+				}),
+			);
 		});
 	}
 
@@ -844,8 +948,9 @@ mod tests {
 				Origin::signed(2),
 				0,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]),
-				"origin must be fund owner"
+				0,
+				vec![0].into()),
+				Error::<Test>::InvalidOrigin
 			);
 
 			// Cannot set deploy data to an invalid index
@@ -853,8 +958,9 @@ mod tests {
 				Origin::signed(1),
 				1,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]),
-				"invalid fund index"
+				0,
+				vec![0].into()),
+				Error::<Test>::InvalidFundIndex
 			);
 
 			// Cannot set deploy data after it already has been set
@@ -862,15 +968,17 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]
+				0,
+				vec![0].into(),
 			));
 
 			assert_noop!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
-				vec![1]),
-				"deploy data already set"
+				0,
+				vec![1].into()),
+				Error::<Test>::ExistingDeployData
 			);
 		});
 	}
@@ -888,7 +996,8 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]
+				0,
+				vec![0].into(),
 			));
 
 			// Fund crowdfund
@@ -924,26 +1033,27 @@ mod tests {
 			run_to_block(10);
 
 			// Cannot onboard invalid fund index
-			assert_noop!(Crowdfund::onboard(Origin::signed(1), 1, 0.into()), "invalid fund index");
+			assert_noop!(Crowdfund::onboard(Origin::signed(1), 1, 0.into()), Error::<Test>::InvalidFundIndex);
 			// Cannot onboard crowdfund without deploy data
-			assert_noop!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()), "deploy data not fixed");
+			assert_noop!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()), Error::<Test>::UnsetDeployData);
 
 			// Add deploy data
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]
+				0,
+				vec![0].into(),
 			));
 
 			// Cannot onboard fund with incorrect parachain id
-			assert_noop!(Crowdfund::onboard(Origin::signed(1), 0, 1.into()), "parachain id not in onboarding");
+			assert_noop!(Crowdfund::onboard(Origin::signed(1), 0, 1.into()), SlotsError::<Test>::ParaNotOnboarding);
 
 			// Onboard crowdfund
 			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
 
 			// Cannot onboard fund again
-			assert_noop!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()), "fund already onboarded");
+			assert_noop!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()), Error::<Test>::AlreadyOnboard);
 		});
 	}
 
@@ -960,7 +1070,8 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]
+				0,
+				vec![0].into(),
 			));
 
 			// Fund crowdfund
@@ -1002,7 +1113,8 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]
+				0,
+				vec![0].into(),
 			));
 
 			// Fund crowdfund
@@ -1011,7 +1123,7 @@ mod tests {
 			run_to_block(10);
 
 			// Cannot retire fund that is not onboarded
-			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), "fund has no parachain");
+			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), Error::<Test>::NotParachain);
 
 			// Onboard crowdfund
 			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
@@ -1020,16 +1132,16 @@ mod tests {
 			assert_eq!(fund.parachain, Some(0.into()));
 
 			// Cannot retire fund whose deposit has not been returned
-			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), "parachain still has deposit");
+			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), Error::<Test>::ParaHasDeposit);
 
 			run_to_block(50);
 
 			// Cannot retire invalid fund index
-			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 1), "invalid fund index");
+			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
 
 			// Cannot retire twice
 			assert_ok!(Crowdfund::begin_retirement(Origin::signed(1), 0));
-			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), "fund has no parachain");
+			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), Error::<Test>::NotParachain);
 		});
 	}
 
@@ -1049,13 +1161,13 @@ mod tests {
 
 			// User can withdraw their full balance without fees
 			assert_ok!(Crowdfund::withdraw(Origin::signed(1), 0));
-			assert_eq!(Balances::free_balance(1), 989);
+			assert_eq!(Balances::free_balance(1), 999);
 
 			assert_ok!(Crowdfund::withdraw(Origin::signed(2), 0));
-			assert_eq!(Balances::free_balance(2), 1990);
+			assert_eq!(Balances::free_balance(2), 2000);
 
 			assert_ok!(Crowdfund::withdraw(Origin::signed(3), 0));
-			assert_eq!(Balances::free_balance(3), 2990);
+			assert_eq!(Balances::free_balance(3), 3000);
 		});
 	}
 
@@ -1067,19 +1179,19 @@ mod tests {
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
-			assert_eq!(Balances::free_balance(1), 940);
+			assert_eq!(Balances::free_balance(1), 950);
 
 			run_to_block(5);
 
 			// Cannot withdraw before fund ends
-			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 0), "fund has not ended");
+			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 0), Error::<Test>::FundNotEnded);
 
 			run_to_block(10);
 
 			// Cannot withdraw if they did not contribute
-			assert_noop!(Crowdfund::withdraw(Origin::signed(2), 0), "no contributions stored");
+			assert_noop!(Crowdfund::withdraw(Origin::signed(2), 0), Error::<Test>::NoContributions);
 			// Cannot withdraw from a non-existent fund
-			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 1), "invalid fund index");
+			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
 		});
 	}
 
@@ -1097,6 +1209,8 @@ mod tests {
 			// Skip all the way to the end
 			run_to_block(50);
 
+			// Check initiator's balance.
+			assert_eq!(Balances::free_balance(1), 899);
 			// Check current funds (contributions + deposit)
 			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 601);
 
@@ -1106,7 +1220,7 @@ mod tests {
 			// Fund account is emptied
 			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 0);
 			// Deposit is returned
-			assert_eq!(Balances::free_balance(1), 890);
+			assert_eq!(Balances::free_balance(1), 900);
 			// Treasury account is filled
 			assert_eq!(Balances::free_balance(Treasury::account_id()), 600);
 
@@ -1130,9 +1244,9 @@ mod tests {
 			assert_ok!(Crowdfund::contribute(Origin::signed(3), 0, 300));
 
 			// Cannot dissolve an invalid fund index
-			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 1), "invalid fund index");
+			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
 			// Cannot dissolve a fund in progress
-			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 0), "retirement period not over");
+			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 0), Error::<Test>::InRetirementPeriod);
 
 			run_to_block(10);
 
@@ -1141,12 +1255,13 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]
+				0,
+				vec![0].into(),
 			));
 			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
 
 			// Cannot dissolve an active fund
-			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 0), "cannot dissolve fund with active parachain");
+			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 0), Error::<Test>::HasActiveParachain);
 		});
 	}
 
@@ -1169,7 +1284,8 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]
+				0,
+				vec![0].into(),
 			));
 			// Move to the end of auction...
 			run_to_block(12);
@@ -1207,13 +1323,15 @@ mod tests {
 				Origin::signed(1),
 				0,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]
+				0,
+				vec![0].into(),
 			));
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(2),
 				1,
 				<Test as system::Trait>::Hash::default(),
-				vec![0]
+				0,
+				vec![0].into(),
 			));
 
 			// End the current auction, fund 0 wins!

@@ -21,12 +21,14 @@
 //! a WASM VM for re-execution of a parachain candidate.
 
 use std::any::{TypeId, Any};
-use crate::{ValidationParams, ValidationResult, UpwardMessage, TargetedMessage};
+use crate::primitives::{ValidationParams, ValidationResult, UpwardMessage};
 use codec::{Decode, Encode};
 use sp_core::storage::{ChildStorageKey, ChildInfo};
+use sp_core::traits::CallInWasm;
+use sp_wasm_interface::HostFunctions as _;
 
 #[cfg(not(target_os = "unknown"))]
-pub use validation_host::{run_worker, EXECUTION_TIMEOUT_SEC};
+pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC};
 
 mod validation_host;
 
@@ -46,16 +48,31 @@ impl ParachainExt {
 	}
 }
 
+/// A stub validation-pool defined when compiling for WASM.
+#[cfg(target_os = "unknown")]
+#[derive(Clone)]
+pub struct ValidationPool {
+	_inner: (), // private field means not publicly-instantiable
+}
+
+#[cfg(target_os = "unknown")]
+impl ValidationPool {
+	/// Create a new `ValidationPool`.
+	pub fn new() -> Self {
+		ValidationPool { _inner: () }
+	}
+}
+
 /// WASM code execution mode.
 ///
 /// > Note: When compiling for WASM, the `Remote` variants are not available.
-pub enum ExecutionMode {
+pub enum ExecutionMode<'a> {
 	/// Execute in-process. The execution can not be interrupted or aborted.
 	Local,
 	/// Remote execution in a spawned process.
-	Remote,
+	Remote(&'a ValidationPool),
 	/// Remote execution in a spawned test runner.
-	RemoteTest,
+	RemoteTest(&'a ValidationPool),
 }
 
 /// Error type for the wasm executor
@@ -79,7 +96,7 @@ pub enum Error {
 	#[display(fmt = "IO error: {}", _0)]
 	Io(std::io::Error),
 	#[display(fmt = "System error: {}", _0)]
-	System(Box<dyn std::error::Error>),
+	System(Box<dyn std::error::Error + Send>),
 	#[display(fmt = "WASM worker error: {}", _0)]
 	External(String),
 	#[display(fmt = "Shared memory error: {}", _0)]
@@ -102,9 +119,6 @@ impl std::error::Error for Error {
 
 /// Externalities for parachain validation.
 pub trait Externalities: Send {
-	/// Called when a message is to be posted to another parachain.
-	fn post_message(&mut self, message: TargetedMessage) -> Result<(), String>;
-
 	/// Called when a message is to be posted to the parachain's relay chain.
 	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String>;
 }
@@ -116,33 +130,36 @@ pub fn validate_candidate<E: Externalities + 'static>(
 	validation_code: &[u8],
 	params: ValidationParams,
 	ext: E,
-	options: ExecutionMode,
+	options: ExecutionMode<'_>,
 ) -> Result<ValidationResult, Error> {
 	match options {
 		ExecutionMode::Local => {
 			validate_candidate_internal(validation_code, &params.encode(), ext)
 		},
 		#[cfg(not(target_os = "unknown"))]
-		ExecutionMode::Remote => {
-			validation_host::validate_candidate(validation_code, params, ext, false)
+		ExecutionMode::Remote(pool) => {
+			pool.validate_candidate(validation_code, params, ext, false)
 		},
 		#[cfg(not(target_os = "unknown"))]
-		ExecutionMode::RemoteTest => {
-			validation_host::validate_candidate(validation_code, params, ext, true)
+		ExecutionMode::RemoteTest(pool) => {
+			pool.validate_candidate(validation_code, params, ext, true)
 		},
 		#[cfg(target_os = "unknown")]
-		ExecutionMode::Remote =>
-			Err(Error::System("Remote validator not available".to_string().into())),
+		ExecutionMode::Remote(pool) =>
+			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
+				"Remote validator not available".to_string()
+			) as Box<_>)),
 		#[cfg(target_os = "unknown")]
-		ExecutionMode::RemoteTest =>
-			Err(Error::System("Remote validator not available".to_string().into())),
+		ExecutionMode::RemoteTest(pool) =>
+			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
+				"Remote validator not available".to_string()
+			) as Box<_>)),
 	}
 }
 
 /// The host functions provided by the wasm executor to the parachain wasm blob.
 type HostFunctions = (
 	sp_io::SubstrateHostFunctions,
-	sc_executor::deprecated_host_interface::SubstrateExternals,
 	crate::wasm_api::parachain::HostFunctions,
 );
 
@@ -156,15 +173,20 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 ) -> Result<ValidationResult, Error> {
 	let mut ext = ValidationExternalities(ParachainExt::new(externalities));
 
-	let res = sc_executor::call_in_wasm::<HostFunctions>(
+	let executor = sc_executor::WasmExecutor::new(
+		sc_executor::WasmExecutionMethod::Interpreted,
+		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
+		Some(1024),
+		HostFunctions::host_functions(),
+		false,
+		8
+	);
+	let res = executor.call_in_wasm(
+		validation_code,
+		None,
 		"validate_block",
 		encoded_call_data,
-		sc_executor::WasmExecutionMethod::Interpreted,
 		&mut ext,
-		validation_code,
-		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
-		1024,
-		false,
 	)?;
 
 	ValidationResult::decode(&mut &res[..]).map_err(|_| Error::BadReturn.into())
@@ -261,6 +283,14 @@ impl sp_externalities::Externalities for ValidationExternalities {
 
 	fn storage_commit_transaction(&mut self) {
 		panic!("storage_commit_transaction: unsupported feature for parachain validation")
+	}
+
+	fn wipe(&mut self) {
+		panic!("wipe: unsupported feature for parachain validation")
+	}
+
+	fn commit(&mut self) {
+		panic!("commit: unsupported feature for parachain validation")
 	}
 }
 
