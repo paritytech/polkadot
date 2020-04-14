@@ -546,7 +546,7 @@ decl_module! {
 		}
 
 		/// Provide candidate receipts for parachains, in ascending order by id.
-		#[weight = SimpleDispatchInfo::FixedMandatory(1_000_000)]
+		#[weight = SimpleDispatchInfo::FixedMandatory(1_000_000_000)]
 		pub fn set_heads(origin, heads: Vec<AttestedCandidate>) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), Error::<T>::TooManyHeadUpdates);

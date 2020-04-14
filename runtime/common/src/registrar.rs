@@ -264,7 +264,7 @@ decl_module! {
 		///
 		/// Unlike the `Registrar` trait function of the same name, this
 		/// checks the code and head data against size limits.
-		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
+		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000_000)]
 		pub fn register_para(origin,
 			#[compact] id: ParaId,
 			info: ParaInfo,
@@ -289,7 +289,7 @@ decl_module! {
 		}
 
 		/// Deregister a parachain with given id
-		#[weight = SimpleDispatchInfo::FixedOperational(10_000)]
+		#[weight = SimpleDispatchInfo::FixedOperational(10_000_000)]
 		pub fn deregister_para(origin, #[compact] id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			<Self as Registrar<T::AccountId>>::deregister_para(id)

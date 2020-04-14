@@ -250,7 +250,7 @@ decl_module! {
 		fn deposit_event() = default;
 
 		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
-		#[weight = SimpleDispatchInfo::FixedNormal(100_000)]
+		#[weight = SimpleDispatchInfo::FixedNormal(100_000_000)]
 		fn create(origin,
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: T::BlockNumber,
