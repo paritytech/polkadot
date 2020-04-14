@@ -31,6 +31,7 @@ members = [
 	"runtime/common",
 	"runtime/polkadot",
 	"runtime/kusama",
+	"runtime/westend",
 	"runtime/test-runtime",
 	"runtime/test-runtime/client",
 	"service",
@@ -46,6 +47,7 @@ members = [
 exclude = [
 	"runtime/polkadot/wasm",
 	"runtime/kusama/wasm",
+	"runtime/westend/wasm",
 	"parachain/test-parachains/adder/wasm",
 ]
 

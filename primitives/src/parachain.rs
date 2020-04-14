@@ -147,6 +147,11 @@ pub trait SwapAux {
 	fn on_swap(one: Id, other: Id) -> Result<(), &'static str>;
 }
 
+impl SwapAux for () {
+	fn ensure_can_swap(_: Id, _: Id) -> Result<(), &'static str> { Err("Swapping disabled") }
+	fn on_swap(_: Id, _: Id) -> Result<(), &'static str> { Err("Swapping disabled") }
+}
+
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
 #[derive(Copy, Clone, PartialEq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]

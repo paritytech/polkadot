@@ -31,9 +31,9 @@ use inherents::InherentDataProviders;
 use sc_executor::native_executor_instance;
 use log::info;
 pub use service::{
-	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
+	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec,
+	Configuration, ChainSpec, ServiceBuilderCommand,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
@@ -45,12 +45,13 @@ pub use consensus_common::SelectChain;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec};
+pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
 #[cfg(not(target_os = "unknown"))]
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
+pub use westend_runtime;
 use prometheus_endpoint::Registry;
 
 native_executor_instance!(
@@ -64,6 +65,13 @@ native_executor_instance!(
 	pub KusamaExecutor,
 	kusama_runtime::api::dispatch,
 	kusama_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
+);
+
+native_executor_instance!(
+	pub WestendExecutor,
+	westend_runtime::api::dispatch,
+	westend_runtime::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
@@ -108,14 +116,20 @@ pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
 impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
-pub trait IsKusama {
+pub trait IdentifyVariant {
 	/// Returns if this is a configuration for the `Kusama` network.
 	fn is_kusama(&self) -> bool;
+
+	/// Returns if this is a configuration for the `Westend` network.
+	fn is_westend(&self) -> bool;
 }
 
-impl IsKusama for Box<dyn ChainSpec> {
+impl IdentifyVariant for Box<dyn ChainSpec> {
 	fn is_kusama(&self) -> bool {
 		self.id().starts_with("kusama") || self.id().starts_with("ksm")
+	}
+	fn is_westend(&self) -> bool {
+		self.id().starts_with("westend") || self.id().starts_with("wnd")
 	}
 }
 
@@ -255,6 +269,37 @@ pub fn kusama_new_full(
 		impl AbstractService<
 			Block = Block,
 			RuntimeApi = kusama_runtime::RuntimeApi,
+			Backend = TFullBackend<Block>,
+			SelectChain = LongestChain<TFullBackend<Block>, Block>,
+			CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
+		>,
+		FullNodeHandles,
+	), ServiceError>
+{
+	new_full(
+		config,
+		collating_for,
+		max_block_data_size,
+		authority_discovery_enabled,
+		slot_duration,
+		grandpa_pause,
+	)
+}
+
+/// Create a new Kusama service for a full node.
+#[cfg(feature = "full-node")]
+pub fn westend_new_full(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+	grandpa_pause: Option<(u32, u32)>,
+)
+	-> Result<(
+		impl AbstractService<
+			Block = Block,
+			RuntimeApi = westend_runtime::RuntimeApi,
 			Backend = TFullBackend<Block>,
 			SelectChain = LongestChain<TFullBackend<Block>, Block>,
 			CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
@@ -568,6 +613,21 @@ pub fn kusama_new_light(
 	-> Result<impl AbstractService<
 		Block = Block,
 		RuntimeApi = kusama_runtime::RuntimeApi,
+		Backend = TLightBackend<Block>,
+		SelectChain = LongestChain<TLightBackend<Block>, Block>,
+		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,
+	>, ServiceError>
+{
+	new_light(config)
+}
+
+/// Create a new Westend service for a light client.
+pub fn westend_new_light(
+	config: Configuration,
+)
+	-> Result<impl AbstractService<
+		Block = Block,
+		RuntimeApi = westend_runtime::RuntimeApi,
 		Backend = TLightBackend<Block>,
 		SelectChain = LongestChain<TLightBackend<Block>, Block>,
 		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,

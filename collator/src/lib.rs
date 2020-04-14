@@ -63,7 +63,7 @@ use polkadot_primitives::{
 	}
 };
 use polkadot_cli::{
-	ProvideRuntimeApi, AbstractService, ParachainHost, IsKusama,
+	ProvideRuntimeApi, AbstractService, ParachainHost, IdentifyVariant,
 	service::{self, Role}
 };
 pub use polkadot_cli::service::Configuration;
