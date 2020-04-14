@@ -502,7 +502,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 
 		if authority_discovery_enabled {
 			let network = service.network();
-			let network_event_stream = network.event_stream();
+			let network_event_stream = network.event_stream("authority-discovery");
 			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
 				Event::Dht(e) => Some(e),
 				_ => None,
