@@ -225,7 +225,7 @@ pub fn start<C, Api, SP>(
 {
 	const SERVICE_TO_WORKER_BUF: usize = 256;
 
-	let mut event_stream = service.event_stream();
+	let mut event_stream = service.event_stream("polkadot-network");
 	service.register_notifications_protocol(POLKADOT_ENGINE_ID, POLKADOT_PROTOCOL_NAME);
 	let (mut worker_sender, worker_receiver) = mpsc::channel(SERVICE_TO_WORKER_BUF);
 
