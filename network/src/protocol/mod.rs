@@ -335,9 +335,15 @@ enum CollatorState {
 impl CollatorState {
 	fn send_key<F: FnMut(Message)>(&mut self, key: ValidatorId, mut f: F) {
 		f(Message::ValidatorId(key));
-		if let CollatorState::RolePending(role) = *self {
-			f(Message::CollatorRole(role));
-			*self = CollatorState::Primed(Some(role));
+		match self {
+			CollatorState::RolePending(role) => {
+				f(Message::CollatorRole(*role));
+				*self = CollatorState::Primed(Some(*role));
+			},
+			CollatorState::Fresh => {
+				*self = CollatorState::Primed(None);
+			},
+			CollatorState::Primed(_) => {},
 		}
 	}
 
