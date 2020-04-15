@@ -32,7 +32,7 @@ use runtime_common::{attestations, parachains, registrar,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, Perquintill, RuntimeDebug,
 	transaction_validity::{
 		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource,
 		TransactionPriority,
