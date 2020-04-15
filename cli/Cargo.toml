@@ -39,9 +39,9 @@ browser-utils = { package = "substrate-browser-utils", git = "https://github.com
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = [ "wasmtime", "rocksdb", "cli" ]
+default = [ "wasmtime", "db", "cli" ]
 wasmtime = [ "sc-cli/wasmtime" ]
-rocksdb = [ "service/rocksdb" ]
+db = [ "service/db" ]
 cli = [
 	"tokio",
 	"sc-cli",

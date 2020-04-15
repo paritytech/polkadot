@@ -61,7 +61,7 @@ polkadot-test-runtime-client = { path = "../runtime/test-runtime/client" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = ["rocksdb", "full-node"]
-rocksdb = ["service/rocksdb"]
+default = ["db", "full-node"]
+db = ["service/db"]
 runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks", "westend-runtime/runtime-benchmarks"]
 full-node = ["av_store", "consensus", "polkadot-network"]

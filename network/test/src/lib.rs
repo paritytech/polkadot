@@ -25,6 +25,7 @@ use log::trace;
 use sc_network::config::{build_multiaddr, FinalityProofProvider, Role};
 use sp_blockchain::{
 	Result as ClientResult, well_known_cache_keys::{self, Id as CacheKeyId}, Info as BlockchainInfo,
+	HeaderBackend,
 };
 use sc_client_api::{
 	BlockchainEvents, BlockImportNotification,
@@ -310,8 +311,7 @@ impl<D> Peer<D> {
 	/// by using .info(), you should probably use it instead of this.
 	pub fn blockchain_canon_equals(&self, other: &Self) -> bool {
 		if let (Some(mine), Some(others)) = (self.backend.clone(), other.backend.clone()) {
-			mine.as_in_memory().blockchain()
-				.canon_equals_to(others.as_in_memory().blockchain())
+			mine.blockchain().info().best_hash == others.blockchain().info().best_hash
 		} else {
 			false
 		}
@@ -320,7 +320,7 @@ impl<D> Peer<D> {
 	/// Count the total number of imported blocks.
 	pub fn blocks_count(&self) -> u64 {
 		self.backend.as_ref().map(
-			|backend| backend.blocks_count()
+			|backend| backend.blockchain().info().best_number as u64
 		).unwrap_or(0)
 	}
 
