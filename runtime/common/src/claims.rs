@@ -142,6 +142,18 @@ decl_storage! {
 	}
 }
 
+mod migration {
+	use super::*;
+
+	pub fn migrate<T: Trait>() {
+		if let Ok(addresses) = Vec::<EthereumAddress>::decode(&mut &include_bytes!("./claims.scale")[..]) {
+			for i in &addresses {
+				Claims::<T>::migrate_key_from_blake(i);
+			}
+		}
+	}
+}
+
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
@@ -151,6 +163,11 @@ decl_module! {
 
 		/// Deposit one of this module's events by using the default implementation.
 		fn deposit_event() = default;
+
+		fn on_runtime_upgrade() -> frame_support::weights::Weight {
+			migration::migrate::<T>();
+			SimpleDispatchInfo::default().weigh_data(())
+		}
 
 		/// Make a claim to collect your DOTs.
 		///
