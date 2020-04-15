@@ -87,6 +87,18 @@ impl<N: Saturating + One + PartialOrd + PartialEq + Clone> Iterator for BlockNum
 pub trait ParachainCurrency<AccountId> {
 	fn free_balance(para_id: ParaId) -> Balance;
 	fn deduct(para_id: ParaId, amount: Balance) -> DispatchResult;
+	fn transfer_in(
+		source: &AccountId,
+		dest: ParaId,
+		amount: Balance,
+		existence_requirement: ExistenceRequirement
+	) -> DispatchResult;
+	fn transfer_out(
+		source: ParaId,
+		dest: &AccountId,
+		amount: Balance,
+		existence_requirement: ExistenceRequirement
+	) -> DispatchResult;
 }
 
 impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
@@ -98,6 +110,8 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 		T::free_balance(&para_account).into()
 	}
 
+	// TODO: this should really be the same API as `withdraw`, having NegativeImbalance as an
+	//   associated type.
 	fn deduct(para_id: ParaId, amount: Balance) -> DispatchResult {
 		let para_account = para_id.into_account();
 
@@ -110,6 +124,24 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 		)?;
 
 		Ok(())
+	}
+
+	fn transfer_in(
+		source: &AccountId,
+		dest: ParaId,
+		amount: Balance,
+		existence_requirement: ExistenceRequirement,
+	) -> DispatchResult {
+		T::transfer(source, &dest.into_account(), amount.into(), existence_requirement)
+	}
+
+	fn transfer_out(
+		source: ParaId,
+		dest: &AccountId,
+		amount: Balance,
+		existence_requirement: ExistenceRequirement,
+	) -> DispatchResult {
+		T::transfer(&source.into_account(), dest, amount.into(), existence_requirement)
 	}
 }
 
@@ -224,7 +256,7 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 	/// The outer call dispatch type.
 	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
 
-	/// Some way of interacting with balances for fees.
+	/// Some way of interacting with balances for fees and transfers.
 	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
 
 	/// Polkadot in practice will always use the `BlockNumber` type.
@@ -338,6 +370,8 @@ impl<Offender: Clone> Offence<Offender> for DoubleVoteOffence<Offender> {
 	}
 }
 
+/// Total number of individual messages allowed in the relay-chain -> parachain message queue.
+const MAX_DOWNWARD_QUEUE_COUNT: usize = 10;
 /// Total number of individual messages allowed in the parachain -> relay-chain message queue.
 const MAX_QUEUE_COUNT: usize = 100;
 /// Total size of messages allowed in the parachain -> relay-chain message queue before which no
@@ -437,9 +471,29 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	}
 }
 
+/// The information that goes alongside a transfer_into_parachain operation. Entirely opaque, it
+/// will generally be used for identifying the reason for the transfer. Typically it will hold the
+/// destination account to which the transfer should be credited. If still more information is
+/// needed, then this should be a hash with the pre-image presented via an off-chain mechanism on
+/// the parachain.
+pub type Remark = [u8; 32];
+
+/// These are special "control" messages that can be passed from the Relaychain to a parachain.
+/// They should be handled by all parachains.
+#[derive(Encode, Decode, Clone, RuntimeDebug)]
+pub enum DownwardMessage<AccountId> {
+	/// Some funds were transferred into the parachain's account. The hash is the identifier that
+	/// was given with the transfer.
+	TransferInto(AccountId, Balance, Remark),
+	/// An opaque blob of data. The relay chain must somehow know how to form this so that the
+	/// destination parachain does something sensible.
+	///
+	/// NOTE: Be very careful not to allow users to place arbitrary size information in here.
+	Opaque(Vec<u8>),
+}
+
 decl_storage! {
-	trait Store for Module<T: Trait> as Parachains
-	{
+	trait Store for Module<T: Trait> as Parachains {
 		/// All authorities' keys at the moment.
 		pub Authorities get(fn authorities): Vec<ValidatorId>;
 		/// The active code of a currently-registered parachain.
@@ -477,6 +531,9 @@ decl_storage! {
 		///
 		/// `None` if not yet updated.
 		pub DidUpdate: Option<Vec<ParaId>>;
+
+		/// Messages waiting to be delivered from the Relay chain into the parachain.
+		pub DownwardMessageQueue: map hasher(twox_64_concat) ParaId => Vec<DownwardMessage<T::AccountId>>;
 	}
 	add_extra_genesis {
 		config(authorities): Vec<ValidatorId>;
@@ -659,6 +716,24 @@ decl_module! {
 			T::ReportOffence::report_offence(vec![reporter], offence)
 				.map_err(|_| "Failed to report offence")?;
 
+			Ok(())
+		}
+
+		/// Transfer some tokens into a parachain and leave a message in the downward queue for it.
+		#[weight = SimpleDispatchInfo::FixedNormal(100_000)]
+		pub fn transfer_to_parachain(
+			origin,
+			to: ParaId,
+			amount: Balance,
+			remark: Remark,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let downward_queue_count = DownwardMessageQueue::<T>::decode_len(to)? as usize;
+			ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, "Downward queue full");
+			T::ParachainCurrency::transfer_in(&who, to, amount, ExistenceRequirement::AllowDeath)?;
+			// Really shouldn't fail since decode_len worked above. We can't reorder, so we will
+			// just have to suck up any errors.
+			let _ = DownwardMessageQueue::<T>::append(to, &[DownwardMessage::TransferInto(who, amount, remark)][..]);
 			Ok(())
 		}
 	}
