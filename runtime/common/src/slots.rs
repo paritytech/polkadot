@@ -26,7 +26,7 @@ use codec::{Encode, Decode, Codec};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
-	weights::{SimpleDispatchInfo, WeighData, Weight},
+	weights::{MINIMUM_WEIGHT, SimpleDispatchInfo, Weight},
 };
 use primitives::parachain::{
 	SwapAux, PARACHAIN_INFO, Id as ParaId, ValidationCode, HeadData,
@@ -286,7 +286,7 @@ decl_module! {
 				Self::manage_lease_period_start(lease_period_index);
 			}
 
-			SimpleDispatchInfo::default().weigh_data(())
+			MINIMUM_WEIGHT
 		}
 
 		fn on_finalize(now: T::BlockNumber) {
