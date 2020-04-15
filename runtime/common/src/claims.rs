@@ -19,7 +19,7 @@
 use sp_std::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error};
-use frame_support::weights::SimpleDispatchInfo;
+use frame_support::weights::{SimpleDispatchInfo, Weight, WeighData};
 use frame_support::traits::{Currency, Get, VestingSchedule};
 use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
@@ -164,7 +164,7 @@ decl_module! {
 		/// Deposit one of this module's events by using the default implementation.
 		fn deposit_event() = default;
 
-		fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		fn on_runtime_upgrade() -> Weight {
 			migration::migrate::<T>();
 			SimpleDispatchInfo::default().weigh_data(())
 		}
