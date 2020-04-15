@@ -33,14 +33,26 @@ use sp_core::bytes;
 pub type RelayChainBlockNumber = u32;
 
 /// Parachain head data included in the chain.
-#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Default))]
+#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
+impl From<Vec<u8>> for HeadData {
+	fn from(head: Vec<u8>) -> Self {
+		HeadData(head)
+	}
+}
+
 /// Parachain validation code.
-#[derive(Default, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+
+impl From<Vec<u8>> for ValidationCode {
+	fn from(code: Vec<u8>) -> Self {
+		ValidationCode(code)
+	}
+}
 
 /// Parachain block data.
 ///

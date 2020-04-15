@@ -16,14 +16,13 @@
 
 use log::info;
 use sp_runtime::traits::BlakeTwo256;
-use service::{IsKusama, Block, self, RuntimeApiCollection, TFullClient};
+use service::{IdentifyVariant, Block, self, RuntimeApiCollection, TFullClient};
 use sp_api::ConstructRuntimeApi;
 use sc_cli::{SubstrateCli, Result};
-use sc_executor::NativeExecutionDispatch;
 use crate::cli::{Cli, Subcommand};
 
 impl SubstrateCli for Cli {
-	fn impl_name() -> &'static str { "parity-polkadot" }
+	fn impl_name() -> &'static str { "Parity Polkadot" }
 
 	fn impl_version() -> &'static str { env!("SUBSTRATE_CLI_IMPL_VERSION") }
 
@@ -47,8 +46,14 @@ impl SubstrateCli for Cli {
 			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()),
 			"westend" => Box::new(service::chain_spec::westend_config()?),
 			"kusama" | "" => Box::new(service::chain_spec::kusama_config()?),
+			"westend-dev" => Box::new(service::chain_spec::westend_development_config()),
+			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()),
+			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()),
 			path if self.run.force_kusama => {
 				Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(path))?)
+			},
+			path if self.run.force_westend => {
+				Box::new(service::WestendChainSpec::from_json_file(std::path::PathBuf::from(path))?)
 			},
 			path => Box::new(service::PolkadotChainSpec::from_json_file(std::path::PathBuf::from(path))?),
 		})
@@ -63,7 +68,6 @@ pub fn run() -> Result<()> {
 		None => {
 			let runtime = cli.create_runner(&cli.run.base)?;
 			let config = runtime.config();
-			let is_kusama = config.chain_spec.is_kusama();
 			let authority_discovery_enabled = cli.run.authority_discovery_enabled;
 			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
 				None
@@ -71,8 +75,7 @@ pub fn run() -> Result<()> {
 				Some((cli.run.grandpa_pause[0], cli.run.grandpa_pause[1]))
 			};
 
-			if is_kusama {
-				info!("⛓  Native runtime: {}", service::KusamaExecutor::native_version().runtime_version);
+			if config.chain_spec.is_kusama() {
 				info!("----------------------------");
 				info!("This chain is not in any way");
 				info!("      endorsed by the       ");
@@ -84,9 +87,13 @@ pub fn run() -> Result<()> {
 					service::KusamaExecutor,
 					service::kusama_runtime::UncheckedExtrinsic,
 				>(runtime, authority_discovery_enabled, grandpa_pause)
+			} else if config.chain_spec.is_westend() {
+				run_node::<
+					service::westend_runtime::RuntimeApi,
+					service::WestendExecutor,
+					service::westend_runtime::UncheckedExtrinsic,
+				>(runtime, authority_discovery_enabled, grandpa_pause)
 			} else {
-				info!("⛓  Native runtime: {}", service::PolkadotExecutor::native_version().runtime_version);
-
 				run_node::<
 					service::polkadot_runtime::RuntimeApi,
 					service::PolkadotExecutor,
@@ -96,14 +103,21 @@ pub fn run() -> Result<()> {
 		},
 		Some(Subcommand::Base(subcommand)) => {
 			let runtime = cli.create_runner(subcommand)?;
-			let is_kusama = runtime.config().chain_spec.is_kusama();
 
-			if is_kusama {
+			if runtime.config().chain_spec.is_kusama() {
 				runtime.run_subcommand(subcommand, |config|
 					service::new_chain_ops::<
 						service::kusama_runtime::RuntimeApi,
 						service::KusamaExecutor,
 						service::kusama_runtime::UncheckedExtrinsic,
+					>(config)
+				)
+			} else if runtime.config().chain_spec.is_westend() {
+				runtime.run_subcommand(subcommand, |config|
+					service::new_chain_ops::<
+						service::westend_runtime::RuntimeApi,
+						service::WestendExecutor,
+						service::westend_runtime::UncheckedExtrinsic,
 					>(config)
 				)
 			} else {
@@ -129,11 +143,14 @@ pub fn run() -> Result<()> {
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runtime = cli.create_runner(cmd)?;
-			let is_kusama = runtime.config().chain_spec.is_kusama();
 
-			if is_kusama {
+			if runtime.config().chain_spec.is_kusama() {
 				runtime.sync_run(|config| {
 					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
+				})
+			} else if runtime.config().chain_spec.is_westend() {
+				runtime.sync_run(|config| {
+					cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(config)
 				})
 			} else {
 				runtime.sync_run(|config| {
@@ -177,6 +194,7 @@ where
 			6000,
 			grandpa_pause,
 		).map(|(s, _)| s),
+		D::native_version().runtime_version,
 	)
 }
 

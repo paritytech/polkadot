@@ -80,7 +80,7 @@ use crate::slots;
 use codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use sp_core::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
-use primitives::parachain::Id as ParaId;
+use primitives::parachain::{Id as ParaId, HeadData};
 
 const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
 
@@ -124,7 +124,7 @@ pub enum LastContribution<BlockNumber> {
 struct DeployData<Hash> {
 	code_hash: Hash,
 	code_size: u32,
-	initial_head_data: Vec<u8>,
+	initial_head_data: HeadData,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
@@ -358,7 +358,7 @@ decl_module! {
 			#[compact] index: FundIndex,
 			code_hash: T::Hash,
 			code_size: u32,
-			initial_head_data: Vec<u8>
+			initial_head_data: HeadData,
 		) {
 			let who = ensure_signed(origin)?;
 
@@ -582,7 +582,7 @@ mod tests {
 	};
 	use frame_support::traits::Contains;
 	use sp_core::H256;
-	use primitives::parachain::{Info as ParaInfo, Id as ParaId, Scheduling};
+	use primitives::parachain::{Info as ParaInfo, Id as ParaId, Scheduling, ValidationCode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
@@ -675,7 +675,7 @@ mod tests {
 	thread_local! {
 		pub static PARACHAIN_COUNT: RefCell<u32> = RefCell::new(0);
 		pub static PARACHAINS:
-			RefCell<HashMap<u32, (Vec<u8>, Vec<u8>)>> = RefCell::new(HashMap::new());
+			RefCell<HashMap<u32, (ValidationCode, HeadData)>> = RefCell::new(HashMap::new());
 	}
 
 	const MAX_CODE_SIZE: u32 = 100;
@@ -705,8 +705,8 @@ mod tests {
 		fn register_para(
 			id: ParaId,
 			_info: ParaInfo,
-			code: Vec<u8>,
-			initial_head_data: Vec<u8>
+			code: ValidationCode,
+			initial_head_data: HeadData,
 		) -> DispatchResult {
 			PARACHAINS.with(|p| {
 				if p.borrow().contains_key(&id.into()) {
@@ -919,7 +919,7 @@ mod tests {
 				0,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]
+				vec![0].into()
 			));
 
 			let fund = Crowdfund::funds(0).unwrap();
@@ -930,7 +930,7 @@ mod tests {
 				Some(DeployData {
 					code_hash: <Test as system::Trait>::Hash::default(),
 					code_size: 0,
-					initial_head_data: vec![0],
+					initial_head_data: vec![0].into(),
 				}),
 			);
 		});
@@ -949,7 +949,7 @@ mod tests {
 				0,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]),
+				vec![0].into()),
 				Error::<Test>::InvalidOrigin
 			);
 
@@ -959,7 +959,7 @@ mod tests {
 				1,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]),
+				vec![0].into()),
 				Error::<Test>::InvalidFundIndex
 			);
 
@@ -969,7 +969,7 @@ mod tests {
 				0,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]
+				vec![0].into(),
 			));
 
 			assert_noop!(Crowdfund::fix_deploy_data(
@@ -977,7 +977,7 @@ mod tests {
 				0,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![1]),
+				vec![1].into()),
 				Error::<Test>::ExistingDeployData
 			);
 		});
@@ -997,7 +997,7 @@ mod tests {
 				0,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]
+				vec![0].into(),
 			));
 
 			// Fund crowdfund
@@ -1043,7 +1043,7 @@ mod tests {
 				0,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]
+				vec![0].into(),
 			));
 
 			// Cannot onboard fund with incorrect parachain id
@@ -1071,7 +1071,7 @@ mod tests {
 				0,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]
+				vec![0].into(),
 			));
 
 			// Fund crowdfund
@@ -1114,7 +1114,7 @@ mod tests {
 				0,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]
+				vec![0].into(),
 			));
 
 			// Fund crowdfund
@@ -1256,7 +1256,7 @@ mod tests {
 				0,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]
+				vec![0].into(),
 			));
 			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
 
@@ -1285,7 +1285,7 @@ mod tests {
 				0,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]
+				vec![0].into(),
 			));
 			// Move to the end of auction...
 			run_to_block(12);
@@ -1324,14 +1324,14 @@ mod tests {
 				0,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]
+				vec![0].into(),
 			));
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(2),
 				1,
 				<Test as system::Trait>::Hash::default(),
 				0,
-				vec![0]
+				vec![0].into(),
 			));
 
 			// End the current auction, fund 0 wins!
