@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.7.29-pre1"
+version = "0.7.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -17,6 +17,7 @@ consensus = { package = "polkadot-validation", path = "../validation", optional 
 polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime/polkadot" }
 kusama-runtime = { path = "../runtime/kusama" }
+westend-runtime = { path = "../runtime/westend" }
 polkadot-network = { path = "../network", optional = true }
 polkadot-rpc = { path = "../rpc" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -60,7 +61,7 @@ polkadot-test-runtime-client = { path = "../runtime/test-runtime/client" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = ["rocksdb", "full-node"]
-rocksdb = ["service/rocksdb"]
-runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks"]
+default = ["db", "full-node"]
+db = ["service/db"]
+runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks", "westend-runtime/runtime-benchmarks"]
 full-node = ["av_store", "consensus", "polkadot-network"]
