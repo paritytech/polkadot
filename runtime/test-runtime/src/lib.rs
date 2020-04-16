@@ -380,6 +380,7 @@ impl system::offchain::CreateTransaction<Runtime, UncheckedExtrinsic> for Runtim
 			system::CheckWeight::<Runtime>::new(),
 			transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 			registrar::LimitParathreadCommits::<Runtime>::new(),
+			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
 			debug::warn!("Unable to create signed payload: {:?}", e)
@@ -508,7 +509,8 @@ pub type SignedExtra = (
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
 	transaction_payment::ChargeTransactionPayment::<Runtime>,
-	registrar::LimitParathreadCommits<Runtime>
+	registrar::LimitParathreadCommits<Runtime>,
+	parachains::ValidateDoubleVoteReports<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
