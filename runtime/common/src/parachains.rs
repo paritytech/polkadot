@@ -36,7 +36,7 @@ use sp_staking::{
 use frame_support::{
 	traits::KeyOwnerProofSystem,
 	dispatch::{IsSubType},
-	weights::{SimpleDispatchInfo, Weight, MINIMUM_WEIGHT, WeighData},
+	weights::{SimpleDispatchInfo, Weight, MINIMUM_WEIGHT},
 };
 use primitives::{
 	Balance,
@@ -538,7 +538,7 @@ decl_module! {
 			Self::do_old_code_pruning(now);
 
 			// TODO https://github.com/paritytech/polkadot/issues/977: set correctly
-			SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT).weigh_data(())
+			MINIMUM_WEIGHT
 		}
 
 		fn on_finalize() {
