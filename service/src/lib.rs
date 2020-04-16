@@ -505,7 +505,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let (sentries, authority_discovery_role) = match role {
 				Role::Authority { ref sentry_nodes } => (
 					sentry_nodes.clone(),
-					authority_discovery_role = authority_discovery::Role::Authority (
+					authority_discovery::Role::Authority (
 						service.keystore(),
 					),
 				),
