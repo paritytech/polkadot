@@ -283,7 +283,10 @@ impl sp_externalities::ExtensionStore for ValidationExternalities {
 		panic!("register_extension_with_type_id: unsupported feature for parachain validation")
 	}
 
-	fn deregister_extension_by_type_id(&mut self, _type_id: TypeId) {
+	fn deregister_extension_by_type_id(
+		&mut self,
+		_type_id: TypeId,
+	) -> Result<(), sp_externalities::Error> {
 		panic!("deregister_extension_by_type_id: unsupported feature for parachain validation")
 	}
 }
