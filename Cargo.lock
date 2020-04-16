@@ -4355,6 +4355,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sp-api",
+ "sp-application-crypto",
  "sp-core",
  "sp-inherents",
  "sp-io",
