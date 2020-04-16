@@ -427,7 +427,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		service.spawn_task_handle(),
 	).map_err(|e| format!("Could not spawn network worker: {:?}", e))?;
 
-	if let Role::Authority { sentry_nodes } = &role {
+	if let Role::Authority { .. } = &role {
 		let availability_store = {
 			use std::path::PathBuf;
 
@@ -498,8 +498,24 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 
 		let babe = babe::start_babe(babe_config)?;
 		service.spawn_essential_task("babe", babe);
+	}
 
+	if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
 		if authority_discovery_enabled {
+			let (sentries, authority_discovery_role) = match role {
+				Role::Authority { ref sentry_nodes } => (
+					sentry_nodes.clone(),
+					authority_discovery::Role::Authority (
+						service.keystore(),
+					),
+				),
+				Role::Sentry {..} => (
+					vec![],
+					authority_discovery::Role::Sentry,
+				),
+				_ => unreachable!("Due to outer matches! constraint; qed."),
+			};
+
 			let network = service.network();
 			let network_event_stream = network.event_stream("authority-discovery");
 			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
@@ -509,11 +525,12 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
 				service.client(),
 				network,
-				sentry_nodes.clone(),
-				service.keystore(),
+				sentries,
 				dht_event_stream,
+				authority_discovery_role,
 				service.prometheus_registry(),
 			);
+
 			service.spawn_task("authority-discovery", authority_discovery);
 		}
 	}
