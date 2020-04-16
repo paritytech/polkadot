@@ -25,6 +25,7 @@ use log::trace;
 use sc_network::config::{build_multiaddr, FinalityProofProvider, Role};
 use sp_blockchain::{
 	Result as ClientResult, well_known_cache_keys::{self, Id as CacheKeyId}, Info as BlockchainInfo,
+	HeaderBackend,
 };
 use sc_client_api::{
 	BlockchainEvents, BlockImportNotification,
@@ -43,7 +44,7 @@ use sp_consensus::block_import::{BlockImport, ImportResult};
 use sp_consensus::Error as ConsensusError;
 use sp_consensus::{BlockOrigin, BlockImportParams, BlockCheckParams, JustificationImport};
 use futures::prelude::*;
-use sc_network::{NetworkWorker, NetworkStateInfo, NetworkService, ReportHandle, config::ProtocolId};
+use sc_network::{NetworkWorker, NetworkService, ReportHandle, config::ProtocolId};
 use sc_network::config::{NetworkConfiguration, TransportConfig, BoxFinalityProofRequestBuilder};
 use parking_lot::Mutex;
 use sp_core::H256;
@@ -157,7 +158,7 @@ pub struct Peer<D> {
 
 impl<D> Peer<D> {
 	/// Get this peer ID.
-	pub fn id(&self) -> PeerId {
+	pub fn id(&self) -> &PeerId {
 		self.network.service().local_peer_id()
 	}
 
@@ -310,8 +311,7 @@ impl<D> Peer<D> {
 	/// by using .info(), you should probably use it instead of this.
 	pub fn blockchain_canon_equals(&self, other: &Self) -> bool {
 		if let (Some(mine), Some(others)) = (self.backend.clone(), other.backend.clone()) {
-			mine.as_in_memory().blockchain()
-				.canon_equals_to(others.as_in_memory().blockchain())
+			mine.blockchain().info().best_hash == others.blockchain().info().best_hash
 		} else {
 			false
 		}
@@ -320,7 +320,7 @@ impl<D> Peer<D> {
 	/// Count the total number of imported blocks.
 	pub fn blocks_count(&self) -> u64 {
 		self.backend.as_ref().map(
-			|backend| backend.blocks_count()
+			|backend| backend.blockchain().info().best_number as u64
 		).unwrap_or(0)
 	}
 
@@ -570,14 +570,18 @@ pub trait TestNetFactory: Sized {
 
 		let listen_addr = build_multiaddr![Memory(rand::random::<u64>())];
 
+		let mut network_config = NetworkConfiguration::new(
+			"test-node",
+			"test-client",
+			Default::default(),
+			&std::env::current_dir().expect("current directory must exist"),
+		);
+		network_config.listen_addresses = vec![listen_addr.clone()];
+		network_config.transport = TransportConfig::MemoryOnly;
 		let network = NetworkWorker::new(sc_network::config::Params {
 			role: Role::Full,
 			executor: None,
-			network_config: NetworkConfiguration {
-				listen_addresses: vec![listen_addr.clone()],
-				transport: TransportConfig::MemoryOnly,
-				..NetworkConfiguration::default()
-			},
+			network_config,
 			chain: client.clone(),
 			finality_proof_provider: self.make_finality_proof_provider(
 				PeersClient::Full(client.clone(), backend.clone()),
@@ -593,7 +597,7 @@ pub trait TestNetFactory: Sized {
 
 		self.mut_peers(|peers| {
 			for peer in peers.iter_mut() {
-				peer.network.add_known_address(network.service().local_peer_id(), listen_addr.clone());
+				peer.network.add_known_address(network.service().local_peer_id().clone(), listen_addr.clone());
 			}
 
 			let imported_blocks_stream = Box::pin(client.import_notification_stream().fuse());
@@ -641,14 +645,18 @@ pub trait TestNetFactory: Sized {
 
 		let listen_addr = build_multiaddr![Memory(rand::random::<u64>())];
 
+		let mut network_config = NetworkConfiguration::new(
+			"test-node",
+			"test-client",
+			Default::default(),
+			&std::env::current_dir().expect("current directory must exist"),
+		);
+		network_config.listen_addresses = vec![listen_addr.clone()];
+		network_config.transport = TransportConfig::MemoryOnly;
 		let network = NetworkWorker::new(sc_network::config::Params {
 			role: Role::Full,
 			executor: None,
-			network_config: NetworkConfiguration {
-				listen_addresses: vec![listen_addr.clone()],
-				transport: TransportConfig::MemoryOnly,
-				..NetworkConfiguration::default()
-			},
+			network_config,
 			chain: client.clone(),
 			finality_proof_provider: self.make_finality_proof_provider(
 				PeersClient::Light(client.clone(), backend.clone())
@@ -664,7 +672,7 @@ pub trait TestNetFactory: Sized {
 
 		self.mut_peers(|peers| {
 			for peer in peers.iter_mut() {
-				peer.network.add_known_address(network.service().local_peer_id(), listen_addr.clone());
+				peer.network.add_known_address(network.service().local_peer_id().clone(), listen_addr.clone());
 			}
 
 			let imported_blocks_stream = Box::pin(client.import_notification_stream().fuse());
