@@ -4,9 +4,8 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-version = "0.7.29-pre1"
+version = "0.7.29"
 authors = ["Parity Technologies <admin@parity.io>"]
-build = "build.rs"
 edition = "2018"
 
 [dependencies]
@@ -15,12 +14,10 @@ futures = "0.3.4"
 service = { package = "polkadot-service", path = "service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
-[build-dependencies]
-vergen = "3.0.4"
-
 [dev-dependencies]
 assert_cmd = "0.12"
 nix = "0.17"
+tempfile = "3.1.0"
 
 [workspace]
 members = [
@@ -34,6 +31,7 @@ members = [
 	"runtime/common",
 	"runtime/polkadot",
 	"runtime/kusama",
+	"runtime/westend",
 	"runtime/test-runtime",
 	"runtime/test-runtime/client",
 	"service",
@@ -49,6 +47,7 @@ members = [
 exclude = [
 	"runtime/polkadot/wasm",
 	"runtime/kusama/wasm",
+	"runtime/westend/wasm",
 	"parachain/test-parachains/adder/wasm",
 ]
 

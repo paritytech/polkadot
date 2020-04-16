@@ -1,5 +1,5 @@
 [package]
-name = "kusama-runtime"
+name = "westend-runtime"
 version = "0.7.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -54,6 +54,7 @@ society = { package = "pallet-society", git = "https://github.com/paritytech/sub
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "master" }
+sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -64,6 +65,7 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
@@ -90,6 +92,7 @@ std = [
 	"codec/std",
 	"inherents/std",
 	"sp-core/std",
+	"polkadot-parachain/std",
 	"sp-api/std",
 	"tx-pool-api/std",
 	"block-builder-api/std",
@@ -120,6 +123,7 @@ std = [
 	"session/std",
 	"society/std",
 	"staking/std",
+	"sudo/std",
 	"system/std",
 	"system_rpc_runtime_api/std",
 	"timestamp/std",
