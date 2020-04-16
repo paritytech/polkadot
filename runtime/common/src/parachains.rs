@@ -36,7 +36,7 @@ use sp_staking::{
 use frame_support::{
 	traits::KeyOwnerProofSystem,
 	dispatch::{IsSubType},
-	weights::{SimpleDispatchInfo, Weight, WeighData},
+	weights::{SimpleDispatchInfo, Weight, MINIMUM_WEIGHT},
 };
 use primitives::{
 	Balance,
@@ -538,7 +538,7 @@ decl_module! {
 			Self::do_old_code_pruning(now);
 
 			// TODO https://github.com/paritytech/polkadot/issues/977: set correctly
-			SimpleDispatchInfo::default().weigh_data(())
+			MINIMUM_WEIGHT
 		}
 
 		fn on_finalize() {
@@ -546,7 +546,7 @@ decl_module! {
 		}
 
 		/// Provide candidate receipts for parachains, in ascending order by id.
-		#[weight = SimpleDispatchInfo::FixedMandatory(1_000_000)]
+		#[weight = SimpleDispatchInfo::FixedMandatory(1_000_000_000)]
 		pub fn set_heads(origin, heads: Vec<AttestedCandidate>) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), Error::<T>::TooManyHeadUpdates);
@@ -1593,6 +1593,7 @@ mod tests {
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
+		type DbWeight = ();
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();

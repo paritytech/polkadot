@@ -35,7 +35,7 @@ use primitives::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill, RuntimeDebug,
 	transaction_validity::{
 		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource, TransactionPriority,
 	},
@@ -85,7 +85,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 2,
-	spec_version: 1006,
+	spec_version: 1007,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -148,6 +148,7 @@ impl system::Trait for Runtime {
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type MaximumBlockWeight = MaximumBlockWeight;
+	type DbWeight = ();
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
@@ -212,7 +213,7 @@ parameter_types! {
 	pub const TransactionBaseFee: Balance = 1 * CENTS;
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
 	// for a sane configuration, this should always be less than `AvailableBlockRatio`.
-	pub const TargetBlockFullness: Perbill = Perbill::from_percent(25);
+	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 }
 
 impl transaction_payment::Trait for Runtime {
