@@ -502,22 +502,19 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 
 	if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
 		if authority_discovery_enabled {
-			let sentries;
-			let authority_discovery_role;
-
-			match role {
-				Role::Authority { ref sentry_nodes } => {
-					sentries = sentry_nodes.clone();
+			let (sentries, authority_discovery_role) = match role {
+				Role::Authority { ref sentry_nodes } => (
+					sentry_nodes.clone(),
 					authority_discovery_role = authority_discovery::Role::Authority (
 						service.keystore(),
-					);
-				}
-				Role::Sentry {..} => {
-					sentries = vec![];
-					authority_discovery_role = authority_discovery::Role::Sentry;
-				}
-				_ => unreachable!("Due to outer matches! constraint; qed.")
-			}
+					),
+				),
+				Role::Sentry {..} => (
+					vec![],
+					authority_discovery::Role::Sentry,
+				),
+				_ => unreachable!("Due to outer matches! constraint; qed."),
+			};
 
 			let network = service.network();
 			let network_event_stream = network.event_stream("authority-discovery");
