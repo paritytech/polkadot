@@ -35,14 +35,14 @@ use primitives::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, RuntimeDebug,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill, RuntimeDebug,
 	transaction_validity::{
 		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource, TransactionPriority,
 	},
 	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto,
-		IdentityLookup, DispatchInfoOf,
+		DispatchInfoOf, IdentityLookup, Extrinsic as ExtrinsicT, SaturatedConversion,
 	},
 };
 #[cfg(feature = "runtime-benchmarks")]
@@ -54,7 +54,8 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness},
+	parameter_types, construct_runtime, debug,
+	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness},
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -85,7 +86,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 2,
-	spec_version: 1006,
+	spec_version: 1007,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 };
@@ -148,6 +149,7 @@ impl system::Trait for Runtime {
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type MaximumBlockWeight = MaximumBlockWeight;
+	type DbWeight = ();
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
@@ -212,7 +214,7 @@ parameter_types! {
 	pub const TransactionBaseFee: Balance = 1 * CENTS;
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
 	// for a sane configuration, this should always be less than `AvailableBlockRatio`.
-	pub const TargetBlockFullness: Perbill = Perbill::from_percent(25);
+	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 }
 
 impl transaction_payment::Trait for Runtime {
@@ -544,6 +546,46 @@ impl parachains::Trait for Runtime {
 	type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 	type ReportOffence = Offences;
 	type BlockHashConversion = sp_runtime::traits::Identity;
+	type SubmitSignedTransaction = TransactionSubmitter<parachain::FishermanId, Runtime, UncheckedExtrinsic>;
+}
+
+impl system::offchain::CreateTransaction<Runtime, UncheckedExtrinsic> for Runtime {
+	type Public = <primitives::Signature as sp_runtime::traits::Verify>::Signer;
+	type Signature = primitives::Signature;
+
+	fn create_transaction<TSigner: system::offchain::Signer<Self::Public, Self::Signature>>(
+		call: <UncheckedExtrinsic as ExtrinsicT>::Call,
+		public: Self::Public,
+		account: <Runtime as system::Trait>::AccountId,
+		nonce: <Runtime as system::Trait>::Index,
+	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
+		let period = BlockHashCount::get()
+			.checked_next_power_of_two()
+			.map(|c| c / 2)
+			.unwrap_or(2) as u64;
+
+		let current_block = System::block_number()
+			.saturated_into::<u64>()
+			.saturating_sub(1);
+		let tip = 0;
+		let extra: SignedExtra = (
+			OnlyStakingAndClaims,
+			system::CheckVersion::<Runtime>::new(),
+			system::CheckGenesis::<Runtime>::new(),
+			system::CheckEra::<Runtime>::from(generic::Era::mortal(period, current_block)),
+			system::CheckNonce::<Runtime>::from(nonce),
+			system::CheckWeight::<Runtime>::new(),
+			transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
+			registrar::LimitParathreadCommits::<Runtime>::new(),
+			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
+		);
+		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
+			debug::warn!("Unable to create signed payload: {:?}", e)
+		}).ok()?;
+		let signature = TSigner::sign(public, &raw_payload)?;
+		let (call, extra, _) = raw_payload.deconstruct();
+		Some((call, (account, signature, extra)))
+	}
 }
 
 parameter_types! {
@@ -686,6 +728,8 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
+/// The payload being signed in transactions.
+pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
 sp_api::impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
