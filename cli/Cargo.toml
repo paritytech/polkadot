@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.7.29-pre1"
+version = "0.7.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2018"
@@ -39,9 +39,9 @@ browser-utils = { package = "substrate-browser-utils", git = "https://github.com
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = [ "wasmtime", "rocksdb", "cli" ]
+default = [ "wasmtime", "db", "cli" ]
 wasmtime = [ "sc-cli/wasmtime" ]
-rocksdb = [ "service/rocksdb" ]
+db = [ "service/db" ]
 cli = [
 	"tokio",
 	"sc-cli",

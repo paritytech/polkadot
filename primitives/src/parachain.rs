@@ -88,6 +88,17 @@ application_crypto::with_pair! {
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorSignature = validator_app::Signature;
 
+/// The key type ID for a fisherman key.
+pub const FISHERMAN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"fish");
+
+mod fisherman_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::FISHERMAN_KEY_TYPE_ID);
+}
+
+/// Identity that fishermen use when generating reports.
+pub type FishermanId = fisherman_app::Public;
+
 /// Retriability for a given active para.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
@@ -145,6 +156,11 @@ pub trait SwapAux {
 	/// not the case, the result is undefined. May only return an error if `ensure_can_swap` also returns
 	/// an error.
 	fn on_swap(one: Id, other: Id) -> Result<(), &'static str>;
+}
+
+impl SwapAux for () {
+	fn ensure_can_swap(_: Id, _: Id) -> Result<(), &'static str> { Err("Swapping disabled") }
+	fn on_swap(_: Id, _: Id) -> Result<(), &'static str> { Err("Swapping disabled") }
 }
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
@@ -214,7 +230,7 @@ pub struct CandidateCommitments {
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: Hash,
 	/// New validation code.
-	pub new_validation_code: Option<Vec<u8>>,
+	pub new_validation_code: Option<ValidationCode>,
 }
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
@@ -672,7 +688,7 @@ sp_api::decl_runtime_apis! {
 		/// Get the local validation data for a particular parachain.
 		fn local_validation_data(id: Id) -> Option<LocalValidationData>;
 		/// Get the given parachain's head code blob.
-		fn parachain_code(id: Id) -> Option<Vec<u8>>;
+		fn parachain_code(id: Id) -> Option<ValidationCode>;
 		/// Extract the abridged head that was set in the extrinsics.
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
 			-> Option<Vec<AbridgedCandidateReceipt>>;

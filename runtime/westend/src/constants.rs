@@ -19,7 +19,7 @@ pub mod currency {
 	use primitives::Balance;
 
 	pub const DOTS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = DOTS / 100;
+	pub const DOLLARS: Balance = DOTS;
 	pub const CENTS: Balance = DOLLARS / 100;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 }
@@ -29,7 +29,7 @@ pub mod time {
 	use primitives::{Moment, BlockNumber};
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 4 * HOURS;
+	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 1 * HOURS;
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
@@ -63,8 +63,8 @@ pub mod fee {
 	pub struct WeightToFee;
 	impl Convert<Weight, Balance> for WeightToFee {
 		fn convert(x: Weight) -> Balance {
-			// in Polkadot a weight of 10_000_000 (smallest non-zero weight) is mapped to 1/10 CENT:
-			Balance::from(x).saturating_mul(super::currency::CENTS / (10 * 10_000_000))
+			// in Kusama a weight of 10_000 (smallest non-zero weight) is mapped to 1/10 CENT:
+			Balance::from(x).saturating_mul(super::currency::CENTS / (10 * 10_000))
 		}
 	}
 }
