@@ -74,7 +74,6 @@ where
 	fn convert(x: u128) -> u128 { x * Self::factor() }
 }
 
-
 /// Update the given multiplier based on the following formula
 ///
 ///   diff = (previous_block_weight - target_weight)/max_weight
@@ -95,9 +94,12 @@ impl<T: Get<Perquintill>, R: system::Trait> Convert<Fixed128, Fixed128> for Targ
 		// determines if the first_term is positive
 		let positive = block_weight >= target_weight;
 		let diff_abs = block_weight.max(target_weight) - block_weight.min(target_weight);
-		// TODO: This is not always safe! Diff can be larger than what fits into i64
-		// It is safe as long as `block_weight` is less than `max_weight`
-		let diff = Fixed128::from_rational(diff_abs as i64, NonZeroI128::new(max_weight.max(1) as i128).unwrap());
+		// safe, diff_abs cannot exceed u64 and it can always be computed safely even with the lossy
+		// `Fixed128::from_rational`.
+		let diff = Fixed128::from_rational(
+			diff_abs as i128,
+			NonZeroI128::new(max_weight.max(1) as i128).unwrap(),
+		);
 		let diff_squared = diff.saturating_mul(diff);
 
 		// 0.00004 = 4/100_000 = 40_000/10^9
@@ -114,7 +116,7 @@ impl<T: Get<Perquintill>, R: system::Trait> Convert<Fixed128, Fixed128> for Targ
 			let excess = first_term.saturating_add(second_term);
 			multiplier.saturating_add(excess)
 		} else {
-			// Proof: first_term > second_term. Safe subtraction.
+			// Defensive-only: first_term > second_term. Safe subtraction.
 			let negative = first_term.saturating_sub(second_term);
 			multiplier.saturating_sub(negative)
 				// despite the fact that apply_to saturates weight (final fee cannot go below 0)
