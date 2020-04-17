@@ -63,8 +63,8 @@ pub mod fee {
 	pub struct WeightToFee;
 	impl Convert<Weight, Balance> for WeightToFee {
 		fn convert(x: Weight) -> Balance {
-			// in Polkadot a weight of 10_000 (smallest non-zero weight) is mapped to (1/10 CENT):
-			Balance::from(x).saturating_mul(super::currency::CENTS / (10 * 10_000))
+			// in Polkadot a weight of 10_000_000 (smallest non-zero weight) is mapped to 1/10 CENT:
+			Balance::from(x).saturating_mul(super::currency::CENTS / (10 * 10_000_000))
 		}
 	}
 }
