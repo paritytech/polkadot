@@ -54,7 +54,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
-	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness},
+	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier},
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -691,6 +691,7 @@ parameter_types! {
 	pub const PeriodSpend: Balance = 500 * DOLLARS;
 	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
 	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
+	pub const SocietyModuleId: ModuleId = ModuleId(*b"py/socie");
 }
 
 impl society::Trait for Runtime {
@@ -707,6 +708,7 @@ impl society::Trait for Runtime {
 	type FounderSetOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 	type SuspensionJudgementOrigin = society::EnsureFounder<Runtime>;
 	type ChallengePeriod = ChallengePeriod;
+	type ModuleId = SocietyModuleId;
 }
 
 parameter_types! {
