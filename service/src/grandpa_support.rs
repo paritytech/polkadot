@@ -244,7 +244,7 @@ mod tests {
 
 	#[test]
 	fn grandpa_pause_voting_rule_works() {
-		env_logger::init();
+		let _ = env_logger::try_init();
 
 		let client = Arc::new(polkadot_test_runtime_client::new());
 
