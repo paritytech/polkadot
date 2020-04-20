@@ -22,7 +22,10 @@
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
 use frame_support::{
-	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, traits::Get
+	decl_storage, decl_module, decl_error, ensure,
+	dispatch::DispatchResult,
+	traits::Get,
+	weights::{MINIMUM_WEIGHT, SimpleDispatchInfo},
 };
 
 use primitives::{Hash, parachain::{AttestedCandidate, AbridgedCandidateReceipt, Id as ParaId}};
@@ -131,7 +134,7 @@ decl_module! {
 		type Error = Error<T>;
 
 		/// Provide candidate receipts for parachains, in ascending order by id.
-		#[weight = frame_support::weights::SimpleDispatchInfo::FixedMandatory(10_000)]
+		#[weight = SimpleDispatchInfo::FixedMandatory(MINIMUM_WEIGHT)]
 		fn more_attestations(origin, _more: MoreAttestations) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!DidUpdate::exists(), Error::<T>::TooManyAttestations);

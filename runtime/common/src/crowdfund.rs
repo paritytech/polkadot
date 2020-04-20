@@ -67,15 +67,16 @@
 //! funds ultimately end up in module's fund sub-account.
 
 use frame_support::{
-	decl_module, decl_storage, decl_event, decl_error, storage::child, ensure, traits::{
+	decl_module, decl_storage, decl_event, decl_error, storage::child, ensure,
+	traits::{
 		Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement::AllowDeath
-	}
+	},
+	weights::{MINIMUM_WEIGHT, SimpleDispatchInfo},
 };
 use system::ensure_signed;
 use sp_runtime::{ModuleId,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd}
 };
-use frame_support::weights::SimpleDispatchInfo;
 use crate::slots;
 use codec::{Encode, Decode};
 use sp_std::vec::Vec;
@@ -250,7 +251,7 @@ decl_module! {
 		fn deposit_event() = default;
 
 		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
-		#[weight = SimpleDispatchInfo::FixedNormal(100_000)]
+		#[weight = SimpleDispatchInfo::FixedNormal(100_000_000)]
 		fn create(origin,
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: T::BlockNumber,
@@ -294,7 +295,7 @@ decl_module! {
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
 		/// slot is unable to be purchased and the timeout expires.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
 		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>) {
 			let who = ensure_signed(origin)?;
 
@@ -353,7 +354,7 @@ decl_module! {
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
 		fn fix_deploy_data(origin,
 			#[compact] index: FundIndex,
 			code_hash: T::Hash,
@@ -379,7 +380,7 @@ decl_module! {
 		///
 		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
 		/// - `para_id` is the parachain index that this fund won.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
 		fn onboard(origin,
 			#[compact] index: FundIndex,
 			#[compact] para_id: ParaId
@@ -408,7 +409,7 @@ decl_module! {
 		}
 
 		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
 		fn begin_retirement(origin, #[compact] index: FundIndex) {
 			let _ = ensure_signed(origin)?;
 
@@ -430,7 +431,7 @@ decl_module! {
 		}
 
 		/// Withdraw full balance of a contributor to an unsuccessful or off-boarded fund.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
 		fn withdraw(origin, #[compact] index: FundIndex) {
 			let who = ensure_signed(origin)?;
 
@@ -461,7 +462,7 @@ decl_module! {
 		/// Remove a fund after either: it was unsuccessful and it timed out; or it was successful
 		/// but it has been retired from its parachain slot. This places any deposits that were not
 		/// withdrawn into the treasury.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
 		fn dissolve(origin, #[compact] index: FundIndex) {
 			let _ = ensure_signed(origin)?;
 
@@ -619,6 +620,7 @@ mod tests {
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
+		type DbWeight = ();
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
