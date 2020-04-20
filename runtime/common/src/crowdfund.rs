@@ -95,6 +95,7 @@ pub type NegativeImbalanceOf<T> =
 pub trait Trait: slots::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
+	/// ModuleID for the crowdfund module. An appropriate value could be ```ModuleId(*b"py/cfund")```
 	type ModuleId: Get<ModuleId>;
 
 	/// The amount to be held on deposit by the owner of a crowdfund.
