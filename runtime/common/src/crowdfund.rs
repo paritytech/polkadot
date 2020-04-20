@@ -649,6 +649,7 @@ mod tests {
 		pub const TipFindersFee: Percent = Percent::from_percent(20);
 		pub const TipReportDepositBase: u64 = 1;
 		pub const TipReportDepositPerByte: u64 = 1;
+		pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
 	}
 	pub struct Nobody;
 	impl Contains<u64> for Nobody {
@@ -672,6 +673,7 @@ mod tests {
 		type TipFindersFee = TipFindersFee;
 		type TipReportDepositBase = TipReportDepositBase;
 		type TipReportDepositPerByte = TipReportDepositPerByte;
+		type ModuleId = TreasuryModuleId;
 	}
 
 	thread_local! {
