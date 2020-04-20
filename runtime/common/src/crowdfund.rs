@@ -83,14 +83,11 @@ use sp_std::vec::Vec;
 use sp_core::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
 use primitives::parachain::{Id as ParaId, HeadData};
 
-const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
-
 pub type BalanceOf<T> =
 	<<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 #[allow(dead_code)]
 pub type NegativeImbalanceOf<T> =
 	<<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
-
 
 pub trait Trait: slots::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
@@ -533,7 +530,6 @@ impl<T: Trait> Module<T> {
 	/// This actually does computation. If you need to keep using it, then make sure you cache the
 	/// value and only call this once.
 	pub fn fund_account_id(index: FundIndex) -> T::AccountId {
-		// MODULE_ID.into_sub_account(index)
 		T::ModuleId::get().into_sub_account(index)
 	}
 
