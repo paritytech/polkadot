@@ -22,7 +22,7 @@ use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
 	Retriable, CollatorId, AbridgedCandidateReceipt,
 	GlobalValidationSchedule, LocalValidationData, ErasureChunk, SigningContext,
-	PoVBlock, BlockData,
+	PoVBlock, BlockData, ValidationCode,
 };
 use polkadot_validation::{SharedTable, TableRouter};
 
@@ -37,7 +37,7 @@ use futures::executor::LocalPool;
 use futures::task::LocalSpawnExt;
 
 #[derive(Default)]
-struct MockNetworkOps {
+pub struct MockNetworkOps {
 	recorded: Mutex<Recorded>,
 }
 
@@ -163,8 +163,8 @@ sp_api::mock_impl_runtime_apis! {
 			self.data.lock().active_parachains.clone()
 		}
 
-		fn parachain_code(_: ParaId) -> Option<Vec<u8>> {
-			Some(Vec::new())
+		fn parachain_code(_: ParaId) -> Option<ValidationCode> {
+			Some(ValidationCode(Vec::new()))
 		}
 
 		fn global_validation_schedule() -> GlobalValidationSchedule {
@@ -188,9 +188,9 @@ sp_api::mock_impl_runtime_apis! {
 	}
 }
 
-impl super::Service {
-	async fn connect_peer(&mut self, peer: PeerId, roles: Roles) {
-		self.sender.send(ServiceToWorkerMsg::PeerConnected(peer, roles)).await.unwrap();
+impl super::Service<MockNetworkOps> {
+	async fn connect_peer(&mut self, peer: PeerId, role: ObservedRole) {
+		self.sender.send(ServiceToWorkerMsg::PeerConnected(peer, role)).await.unwrap();
 	}
 
 	async fn peer_message(&mut self, peer: PeerId, message: Message) {
@@ -222,7 +222,7 @@ impl super::Service {
 }
 
 fn test_setup(config: Config) -> (
-	Service,
+	Service<MockNetworkOps>,
 	MockGossip,
 	LocalPool,
 	impl Future<Output = ()> + 'static,
@@ -264,7 +264,7 @@ fn worker_task_shuts_down_when_sender_dropped() {
 /// is handled. This helper functions checks multiple times that the given instance is dropped. Even
 /// if the first round fails, the second one should be successful as the consensus instance drop
 /// should be already handled this time.
-fn wait_for_instance_drop(service: &mut Service, pool: &mut LocalPool, instance: Hash) {
+fn wait_for_instance_drop(service: &mut Service<MockNetworkOps>, pool: &mut LocalPool, instance: Hash) {
 	let mut try_counter = 0;
 	let max_tries = 3;
 
@@ -299,6 +299,7 @@ fn consensus_instances_cleaned_up() {
 		signing_context,
 		AvailabilityStore::new_in_memory(service.clone()),
 		None,
+		None,
 	));
 
 	pool.spawner().spawn_local(worker_task).unwrap();
@@ -328,6 +329,7 @@ fn collation_is_received_with_dropped_router() {
 		Some(Arc::new(Sr25519Keyring::Alice.pair().into())),
 		signing_context,
 		AvailabilityStore::new_in_memory(service.clone()),
+		None,
 		None,
 	));
 
@@ -363,7 +365,6 @@ fn collation_is_received_with_dropped_router() {
 	})));
 }
 
-
 #[test]
 fn validator_peer_cleaned_up() {
 	let (mut service, _gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
@@ -374,7 +375,7 @@ fn validator_peer_cleaned_up() {
 
 	pool.spawner().spawn_local(worker_task).unwrap();
 	pool.run_until(async move {
-		service.connect_peer(peer.clone(), Roles::AUTHORITY).await;
+		service.connect_peer(peer.clone(), ObservedRole::Authority).await;
 		service.peer_message(peer.clone(), Message::Status(Status {
 			version: VERSION,
 			collating_for: None,
@@ -434,7 +435,7 @@ fn validator_key_spillover_cleaned() {
 
 	pool.spawner().spawn_local(worker_task).unwrap();
 	pool.run_until(async move {
-		service.connect_peer(peer.clone(), Roles::AUTHORITY).await;
+		service.connect_peer(peer.clone(), ObservedRole::Authority).await;
 		service.peer_message(peer.clone(), Message::Status(Status {
 			version: VERSION,
 			collating_for: None,
@@ -551,6 +552,7 @@ fn fetches_pov_block_from_gossip() {
 		signing_context,
 		AvailabilityStore::new_in_memory(service.clone()),
 		None,
+		None,
 	));
 
 	let spawner = pool.spawner();
@@ -574,4 +576,61 @@ fn fetches_pov_block_from_gossip() {
 	};
 
 	pool.run_until(test_work).unwrap();
+}
+
+#[test]
+fn validator_sends_key_and_role_to_collator_on_status() {
+	let (service, _gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
+
+	let peer = PeerId::random();
+	let peer_clone = peer.clone();
+	let validator_key = Sr25519Keyring::Alice.pair();
+	let validator_id = ValidatorId::from(validator_key.public());
+	let validator_id_clone = validator_id.clone();
+	let collator_id = CollatorId::from(Sr25519Keyring::Bob.public());
+	let para_id = ParaId::from(100);
+	let mut service_clone = service.clone();
+
+	pool.spawner().spawn_local(worker_task).unwrap();
+	pool.run_until(async move {
+		service_clone.synchronize(move |proto| { proto.local_keys.insert(validator_id_clone); }).await;
+		service_clone.connect_peer(peer_clone.clone(), ObservedRole::Authority).await;
+		service_clone.peer_message(peer_clone.clone(), Message::Status(Status {
+			version: VERSION,
+			collating_for: Some((collator_id, para_id)),
+		})).await;
+	});
+
+	let expected_msg = Message::ValidatorId(validator_id.clone());
+	let validator_id_pos = service.network_service.recorded.lock().notifications.iter().position(|(p, notification)| {
+		peer == *p && *notification == expected_msg
+	});
+
+	let expected_msg = Message::CollatorRole(CollatorRole::Primary);
+	let collator_role_pos = service.network_service.recorded.lock().notifications.iter().position(|(p, notification)| {
+		peer == *p && *notification == expected_msg
+	});
+
+	assert!(validator_id_pos < collator_role_pos);
+}
+
+#[test]
+fn collator_state_send_key_updates_state_correctly() {
+	let mut state = CollatorState::Fresh;
+	state.send_key(Sr25519Keyring::Alice.public().into(), |_| {});
+	assert!(matches!(state, CollatorState::Primed(None)));
+
+	let mut state = CollatorState::RolePending(CollatorRole::Primary);
+
+	let mut counter = 0;
+	state.send_key(Sr25519Keyring::Alice.public().into(), |msg| {
+		match (counter, msg) {
+			(0, Message::ValidatorId(_)) => {
+				counter += 1;
+			},
+			(1, Message::CollatorRole(CollatorRole::Primary)) => {},
+			err @ _ => panic!("Unexpected message: {:?}", err),
+		}
+	});
+	assert!(matches!(state, CollatorState::Primed(Some(CollatorRole::Primary))));
 }

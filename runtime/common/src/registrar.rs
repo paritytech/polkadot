@@ -25,18 +25,18 @@ use codec::{Encode, Decode};
 
 use sp_runtime::{
 	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
-	traits::{Hash as HashT, SignedExtension}
+	traits::{Hash as HashT, SignedExtension, DispatchInfoOf},
 };
 
 use frame_support::{
 	decl_storage, decl_module, decl_event, decl_error, ensure,
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
-	weights::{SimpleDispatchInfo, DispatchInfo, Weight, WeighData},
+	weights::{SimpleDispatchInfo, Weight, MINIMUM_WEIGHT},
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
 	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, SwapAux, Info as ParaInfo, ActiveParas,
-	Retriable
+	Retriable, ValidationCode, HeadData,
 };
 use crate::parachains;
 use sp_runtime::transaction_validity::InvalidTransaction;
@@ -52,6 +52,9 @@ pub trait Registrar<AccountId> {
 	/// Checks whether the given validation code falls within the limit.
 	fn code_size_allowed(code_size: u32) -> bool;
 
+	/// Fetches metadata for a para by ID, if any.
+	fn para_info(id: ParaId) -> Option<ParaInfo>;
+
 	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
 	/// result in a error.
 	///
@@ -62,8 +65,8 @@ pub trait Registrar<AccountId> {
 	fn register_para(
 		id: ParaId,
 		info: ParaInfo,
-		code: Vec<u8>,
-		initial_head_data: Vec<u8>,
+		code: ValidationCode,
+		initial_head_data: HeadData,
 	) -> DispatchResult;
 
 	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
@@ -83,11 +86,15 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 		code_size <= <T as parachains::Trait>::MaxCodeSize::get()
 	}
 
+	fn para_info(id: ParaId) -> Option<ParaInfo> {
+		Self::paras(&id)
+	}
+
 	fn register_para(
 		id: ParaId,
 		info: ParaInfo,
-		code: Vec<u8>,
-		initial_head_data: Vec<u8>,
+		code: ValidationCode,
+		initial_head_data: HeadData,
 	) -> DispatchResult {
 		ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
 		if let Scheduling::Always = info.scheduling {
@@ -189,7 +196,7 @@ decl_storage! {
 		Debtors: map hasher(twox_64_concat) ParaId => T::AccountId;
 	}
 	add_extra_genesis {
-		config(parachains): Vec<(ParaId, Vec<u8>, Vec<u8>)>;
+		config(parachains): Vec<(ParaId, ValidationCode, HeadData)>;
 		config(_phdata): PhantomData<T>;
 		build(build::<T>);
 	}
@@ -257,23 +264,23 @@ decl_module! {
 		///
 		/// Unlike the `Registrar` trait function of the same name, this
 		/// checks the code and head data against size limits.
-		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
+		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000_000)]
 		pub fn register_para(origin,
 			#[compact] id: ParaId,
 			info: ParaInfo,
-			code: Vec<u8>,
-			initial_head_data: Vec<u8>,
+			code: ValidationCode,
+			initial_head_data: HeadData,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 
 			ensure!(
-				<Self as Registrar<T::AccountId>>::code_size_allowed(code.len() as _),
+				<Self as Registrar<T::AccountId>>::code_size_allowed(code.0.len() as _),
 				Error::<T>::CodeTooLarge,
 			);
 
 			ensure!(
 				<Self as Registrar<T::AccountId>>::head_data_size_allowed(
-					initial_head_data.len() as _
+					initial_head_data.0.len() as _
 				),
 				Error::<T>::HeadDataTooLarge,
 			);
@@ -282,7 +289,7 @@ decl_module! {
 		}
 
 		/// Deregister a parachain with given id
-		#[weight = SimpleDispatchInfo::FixedOperational(10_000)]
+		#[weight = SimpleDispatchInfo::FixedOperational(10_000_000)]
 		pub fn deregister_para(origin, #[compact] id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			<Self as Registrar<T::AccountId>>::deregister_para(id)
@@ -293,7 +300,7 @@ decl_module! {
 		/// - `count`: The number of parathreads.
 		///
 		/// Must be called from Root origin.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
 		fn set_thread_count(origin, count: u32) {
 			ensure_root(origin)?;
 			ThreadCount::put(count);
@@ -307,10 +314,10 @@ decl_module! {
 		/// Unlike `register_para`, this function does check that the maximum code size
 		/// and head data size are respected, as parathread registration is an atomic
 		/// action.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
 		fn register_parathread(origin,
-			code: Vec<u8>,
-			initial_head_data: Vec<u8>,
+			code: ValidationCode,
+			initial_head_data: HeadData,
 		) {
 			let who = ensure_signed(origin)?;
 
@@ -321,13 +328,13 @@ decl_module! {
 			};
 
 			ensure!(
-				<Self as Registrar<T::AccountId>>::code_size_allowed(code.len() as _),
+				<Self as Registrar<T::AccountId>>::code_size_allowed(code.0.len() as _),
 				Error::<T>::CodeTooLarge,
 			);
 
 			ensure!(
 				<Self as Registrar<T::AccountId>>::head_data_size_allowed(
-					initial_head_data.len() as _
+					initial_head_data.0.len() as _
 				),
 				Error::<T>::HeadDataTooLarge,
 			);
@@ -347,7 +354,7 @@ decl_module! {
 		/// This is a kind of special transaction that should be heavily prioritized in the
 		/// transaction pool according to the `value`; only `ThreadCount` of them may be presented
 		/// in any single block.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
 		fn select_parathread(origin,
 			#[compact] _id: ParaId,
 			_collator: CollatorId,
@@ -364,7 +371,7 @@ decl_module! {
 		/// Ensure that before calling this that any funds you want emptied from the parathread's
 		/// account is moved out; after this it will be impossible to retrieve them (without
 		/// governance intervention).
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
 		fn deregister_parathread(origin) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -388,7 +395,7 @@ decl_module! {
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
 		fn swap(origin, #[compact] other: ParaId) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -459,7 +466,7 @@ decl_module! {
 
 			Active::put(paras);
 
-			SimpleDispatchInfo::default().weigh_data(())
+			MINIMUM_WEIGHT
 		}
 
 		fn on_finalize() {
@@ -498,7 +505,7 @@ decl_event!{
 }
 
 impl<T: Trait> Module<T> {
-        /// Ensures that the given `ParaId` corresponds to a registered parathread, and returns a descriptor if so.
+	/// Ensures that the given `ParaId` corresponds to a registered parathread, and returns a descriptor if so.
 	pub fn ensure_thread_id(id: ParaId) -> Option<ParaInfo> {
 		Paras::get(id).and_then(|info| if let Scheduling::Dynamic = info.scheduling {
 			Some(info)
@@ -556,6 +563,15 @@ impl<T: Trait> ActiveParas for Module<T> {
 pub struct LimitParathreadCommits<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
 
+impl<T: Trait + Send + Sync> LimitParathreadCommits<T> where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+{
+	/// Create a new `LimitParathreadCommits` struct.
+	pub fn new() -> Self {
+		LimitParathreadCommits(sp_std::marker::PhantomData)
+	}
+}
+
 impl<T: Trait + Send + Sync> sp_std::fmt::Debug for LimitParathreadCommits<T> where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>
 {
@@ -581,7 +597,6 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 	type Call = <T as system::Trait>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
-	type DispatchInfo = DispatchInfo;
 
 	fn additional_signed(&self)
 		-> sp_std::result::Result<Self::AdditionalSigned, TransactionValidityError>
@@ -593,7 +608,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 		&self,
 		_who: &Self::AccountId,
 		call: &Self::Call,
-		_info: DispatchInfo,
+		_info: &DispatchInfoOf<Self::Call>,
 		_len: usize,
 	) -> TransactionValidity {
 		let mut r = ValidTransaction::default();
@@ -626,7 +641,7 @@ impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
 				// ensure that this is a live bid (i.e. that the thread's chain head matches)
 				let e = TransactionValidityError::from(InvalidTransaction::Custom(ValidityError::InvalidId as u8));
 				let head = <parachains::Module<T>>::parachain_head(id).ok_or(e)?;
-				let actual = T::Hashing::hash(&head);
+				let actual = T::Hashing::hash(&head.0);
 				ensure!(&actual == hash, InvalidTransaction::Stale);
 
 				// updated the selected threads.
@@ -652,20 +667,21 @@ mod tests {
 	use sp_runtime::{
 		traits::{
 			BlakeTwo256, IdentityLookup, Dispatchable,
-			AccountIdConversion,
-		}, testing::{UintAuthorityId, Header, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
+			AccountIdConversion, Extrinsic as ExtrinsicT,
+		}, testing::{UintAuthorityId, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
 		parachain::{
 			ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
 			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
-			CollatorPair, CandidateCommitments, GlobalValidationSchedule, LocalValidationData,
+			CollatorPair, CandidateCommitments,
 		},
-		Balance, BlockNumber,
+		Balance, BlockNumber, Header,
 	};
 	use frame_support::{
 		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types, assert_noop,
+		weights::DispatchInfo,
 	};
 	use keyring::Sr25519Keyring;
 
@@ -710,7 +726,7 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;
-		type BlockNumber = u64;
+		type BlockNumber = BlockNumber;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
@@ -719,6 +735,7 @@ mod tests {
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
+		type DbWeight = ();
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
@@ -741,8 +758,8 @@ mod tests {
 	}
 
 	parameter_types!{
-		pub const LeasePeriod: u64 = 10;
-		pub const EndingPeriod: u64 = 3;
+		pub const LeasePeriod: BlockNumber = 10;
+		pub const EndingPeriod: BlockNumber = 3;
 	}
 
 	impl slots::Trait for Test {
@@ -791,7 +808,12 @@ mod tests {
 	parameter_types! {
 		pub const MaxHeadDataSize: u32 = 100;
 		pub const MaxCodeSize: u32 = 100;
+
+		pub const ValidationUpgradeFrequency: BlockNumber = 10;
+		pub const ValidationUpgradeDelay: BlockNumber = 2;
+		pub const SlashPeriod: BlockNumber = 50;
 		pub const ElectionLookahead: BlockNumber = 0;
+		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
 	}
 
 	impl staking::Trait for Test {
@@ -813,6 +835,7 @@ mod tests {
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
 		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
+		type UnsignedPriority = StakingUnsignedPriority;
 	}
 
 	impl timestamp::Trait for Test {
@@ -826,20 +849,71 @@ mod tests {
 		type FullIdentificationOf = staking::ExposureOf<Self>;
 	}
 
+	// This is needed for a custom `AccountId` type which is `u64` in testing here.
+	pub mod test_keys {
+		use sp_core::crypto::KeyTypeId;
+
+		pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
+
+		mod app {
+			use super::super::Parachains;
+			use sp_application_crypto::{app_crypto, sr25519};
+
+			app_crypto!(sr25519, super::KEY_TYPE);
+
+			impl sp_runtime::traits::IdentifyAccount for Public {
+				type AccountId = u64;
+
+				fn into_account(self) -> Self::AccountId {
+					let id = self.0.clone().into();
+					Parachains::authorities().iter().position(|b| *b == id).unwrap() as u64
+				}
+			}
+		}
+
+		pub type ReporterId = app::Public;
+		pub type ReporterSignature = app::Signature;
+	}
+
 	impl parachains::Trait for Test {
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
+		type BlockNumberConversion = sp_runtime::traits::Identity;
 		type ActiveParachains = Registrar;
 		type Registrar = Registrar;
 		type Randomness = RandomnessCollectiveFlip;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadDataSize = MaxHeadDataSize;
+		type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
+		type ValidationUpgradeDelay = ValidationUpgradeDelay;
+		type SlashPeriod = SlashPeriod;
 		type Proof = session::historical::Proof;
 		type KeyOwnerProofSystem = session::historical::Module<Test>;
 		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 		type ReportOffence = ();
 		type BlockHashConversion = sp_runtime::traits::Identity;
+		type SubmitSignedTransaction = system::offchain::TransactionSubmitter<
+			test_keys::ReporterId,
+			Test,
+			Extrinsic,
+		>;
+	}
+
+	type Extrinsic = TestXt<Call, ()>;
+
+	impl system::offchain::CreateTransaction<Test, Extrinsic> for Test {
+		type Public = test_keys::ReporterId;
+		type Signature = test_keys::ReporterSignature;
+
+		fn create_transaction<F: system::offchain::Signer<Self::Public, Self::Signature>>(
+			call: <Extrinsic as ExtrinsicT>::Call,
+			_public: Self::Public,
+			_account: <Test as system::Trait>::AccountId,
+			nonce: <Test as system::Trait>::Index,
+		) -> Option<(<Extrinsic as ExtrinsicT>::Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+			Some((call, (nonce, ())))
+		}
 	}
 
 	parameter_types! {
@@ -878,7 +952,7 @@ mod tests {
 		Sr25519Keyring::Two,
 	];
 
-	fn new_test_ext(parachains: Vec<(ParaId, Vec<u8>, Vec<u8>)>) -> TestExternalities {
+	fn new_test_ext(parachains: Vec<(ParaId, ValidationCode, HeadData)>) -> TestExternalities {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
 		let authority_keys = [
@@ -929,7 +1003,7 @@ mod tests {
 		Slots::on_initialize(System::block_number());
 	}
 
-	fn run_to_block(n: u64) {
+	fn run_to_block(n: BlockNumber) {
 		println!("Running until block {}", n);
 		while System::block_number() < n {
 			if System::block_number() > 1 {
@@ -954,7 +1028,7 @@ mod tests {
 		let inner_call = super::Call::select_parathread(id, col.clone(), hdh);
 		let call = Call::Registrar(inner_call);
 		let origin = 4u64;
-		assert!(tx.validate(&origin, &call, Default::default(), 0).is_ok());
+		assert!(tx.validate(&origin, &call, &Default::default(), 0).is_ok());
 		assert_ok!(call.dispatch(Origin::signed(origin)));
 	}
 
@@ -972,18 +1046,13 @@ mod tests {
 			collator: collator.public(),
 			signature: pov_block_hash.using_encoded(|d| collator.sign(d)),
 			pov_block_hash,
-			global_validation: GlobalValidationSchedule {
-				max_code_size: <Test as parachains::Trait>::MaxCodeSize::get(),
-				max_head_data_size: <Test as parachains::Trait>::MaxHeadDataSize::get(),
-			},
-			local_validation: LocalValidationData {
-				balance: Balances::free_balance(&id.into_account()),
-				parent_head: HeadData(Parachains::parachain_head(&id).unwrap()),
-			},
+			global_validation: Parachains::global_validation_schedule(),
+			local_validation: Parachains::current_local_validation_data(&id).unwrap(),
 			commitments: CandidateCommitments {
 				fees: 0,
 				upward_messages: vec![],
 				erasure_root: [1; 32].into(),
+				new_validation_code: None,
 			},
 		};
 		let (candidate, _) = candidate.abridge();
@@ -1019,8 +1088,8 @@ mod tests {
 	#[test]
 	fn genesis_registration_works() {
 		let parachains = vec![
-			(5u32.into(), vec![1,2,3], vec![1]),
-			(100u32.into(), vec![4,5,6], vec![2,]),
+			(5u32.into(), vec![1,2,3].into(), vec![1].into()),
+			(100u32.into(), vec![4,5,6].into(), vec![2,].into()),
 		];
 
 		new_test_ext(parachains).execute_with(|| {
@@ -1036,8 +1105,8 @@ mod tests {
 				Registrar::paras(&ParaId::from(100u32)),
 				Some(ParaInfo { scheduling: Scheduling::Always }),
 			);
-			assert_eq!(Parachains::parachain_code(&ParaId::from(5u32)), Some(vec![1, 2, 3]));
-			assert_eq!(Parachains::parachain_code(&ParaId::from(100u32)), Some(vec![4, 5, 6]));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(5u32)), Some(vec![1, 2, 3].into()));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(100u32)), Some(vec![4, 5, 6].into()));
 		});
 	}
 
@@ -1052,8 +1121,8 @@ mod tests {
 			// Register a new parathread
 			assert_ok!(Registrar::register_parathread(
 				Origin::signed(1u64),
-				vec![1; 3],
-				vec![1; 3],
+				vec![1; 3].into(),
+				vec![1; 3].into(),
 			));
 
 			// Lease out a new parachain
@@ -1067,8 +1136,8 @@ mod tests {
 
 			run_to_block(10);
 			let h = BlakeTwo256::hash(&[2u8; 3]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, user_id(1), h, 3, vec![2; 3]));
-			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), user_id(1), vec![2; 3]));
+			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, user_id(1), h, 3, vec![2; 3].into()));
+			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), user_id(1), vec![2; 3].into()));
 			assert_ok!(Slots::set_offboarding(Origin::signed(user_id(1).into_account()), 1));
 
 			run_to_block(11);
@@ -1088,10 +1157,10 @@ mod tests {
 			assert_eq!(Slots::managed_ids(), vec![user_id(1)]);
 			assert_eq!(Slots::deposits(user_id(1)), vec![1; 3]);
 			assert_eq!(Slots::offboarding(user_id(1)), 1);
-			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![1u8; 3]));
-			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3]));
-			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3]));
-			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3]));
+			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![1u8; 3].into()));
+			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3].into()));
+			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3].into()));
+			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3].into()));
 			// Intention to swap is added
 			assert_eq!(PendingSwap::get(user_id(0)), Some(user_id(1)));
 
@@ -1104,10 +1173,10 @@ mod tests {
 			assert_eq!(Slots::managed_ids(), vec![user_id(0)]);
 			assert_eq!(Slots::deposits(user_id(0)), vec![1; 3]);
 			assert_eq!(Slots::offboarding(user_id(0)), 1);
-			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![1u8; 3]));
-			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3]));
-			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3]));
-			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3]));
+			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![1u8; 3].into()));
+			assert_eq!(Parachains::parachain_head(&user_id(0)), Some(vec![1u8; 3].into()));
+			assert_eq!(Parachains::parachain_code(&user_id(1)), Some(vec![2u8; 3].into()));
+			assert_eq!(Parachains::parachain_head(&user_id(1)), Some(vec![2u8; 3].into()));
 
 			// Intention to swap is no longer present
 			assert_eq!(PendingSwap::get(user_id(0)), None);
@@ -1134,8 +1203,8 @@ mod tests {
 			// User 1 register a new parathread
 			assert_ok!(Registrar::register_parathread(
 				Origin::signed(1),
-				vec![1; 3],
-				vec![1; 3],
+				vec![1; 3].into(),
+				vec![1; 3].into(),
 			));
 
 			// User 2 leases out a new parachain
@@ -1163,7 +1232,7 @@ mod tests {
 	#[test]
 	fn register_deregister_chains_works() {
 		let parachains = vec![
-			(1u32.into(), vec![1; 3], vec![1; 3]),
+			(1u32.into(), vec![1; 3].into(), vec![1; 3].into()),
 		];
 
 		new_test_ext(parachains).execute_with(|| {
@@ -1176,23 +1245,23 @@ mod tests {
 				Registrar::paras(&ParaId::from(1u32)),
 				Some(ParaInfo { scheduling: Scheduling::Always })
 			);
-			assert_eq!(Parachains::parachain_code(&ParaId::from(1u32)), Some(vec![1; 3]));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(1u32)), Some(vec![1; 3].into()));
 
 			// Register a new parachain
 			assert_ok!(Registrar::register_para(
 				Origin::ROOT,
 				2u32.into(),
 				ParaInfo { scheduling: Scheduling::Always },
-				vec![2; 3],
-				vec![2; 3],
+				vec![2; 3].into(),
+				vec![2; 3].into(),
 			));
 
 			let orig_bal = Balances::free_balance(&3u64);
 			// Register a new parathread
 			assert_ok!(Registrar::register_parathread(
 				Origin::signed(3u64),
-				vec![3; 3],
-				vec![3; 3],
+				vec![3; 3].into(),
+				vec![3; 3].into(),
 			));
 			// deposit should be taken (reserved)
 			assert_eq!(Balances::free_balance(3u64) + ParathreadDeposit::get(), orig_bal);
@@ -1210,8 +1279,8 @@ mod tests {
 				Registrar::paras(&user_id(0)),
 				Some(ParaInfo { scheduling: Scheduling::Dynamic })
 			);
-			assert_eq!(Parachains::parachain_code(&ParaId::from(2u32)), Some(vec![2; 3]));
-			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![3; 3]));
+			assert_eq!(Parachains::parachain_code(&ParaId::from(2u32)), Some(vec![2; 3].into()));
+			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![3; 3].into()));
 
 			assert_ok!(Registrar::deregister_para(Origin::ROOT, 2u32.into()));
 			assert_ok!(Registrar::deregister_parathread(
@@ -1241,8 +1310,8 @@ mod tests {
 			// Register a new parathread
 			assert_ok!(Registrar::register_parathread(
 				Origin::signed(3u64),
-				vec![3; 3],
-				vec![3; 3],
+				vec![3; 3].into(),
+				vec![3; 3].into(),
 			));
 
 			run_to_block(3);
@@ -1273,7 +1342,7 @@ mod tests {
 			run_to_block(2);
 
 			// Register some parathreads.
-			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![3; 3], vec![3; 3]));
+			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![3; 3].into(), vec![3; 3].into()));
 
 			run_to_block(3);
 			// transaction submitted to get parathread progressed.
@@ -1288,7 +1357,7 @@ mod tests {
 			run_to_block(5);
 			assert_eq!(Registrar::active_paras(), vec![]);  // should not be scheduled.
 
-			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![4; 3], vec![4; 3]));
+			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![4; 3].into(), vec![4; 3].into()));
 
 			run_to_block(6);
 			// transaction submitted to get parathread progressed.
@@ -1316,9 +1385,9 @@ mod tests {
 			run_to_block(2);
 
 			// Register some parathreads.
-			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![3; 3], vec![3; 3]));
-			assert_ok!(Registrar::register_parathread(Origin::signed(4), vec![4; 3], vec![4; 3]));
-			assert_ok!(Registrar::register_parathread(Origin::signed(5), vec![5; 3], vec![5; 3]));
+			assert_ok!(Registrar::register_parathread(Origin::signed(3), vec![3; 3].into(), vec![3; 3].into()));
+			assert_ok!(Registrar::register_parathread(Origin::signed(4), vec![4; 3].into(), vec![4; 3].into()));
+			assert_ok!(Registrar::register_parathread(Origin::signed(5), vec![5; 3].into(), vec![5; 3].into()));
 
 			run_to_block(3);
 
@@ -1394,7 +1463,7 @@ mod tests {
 		new_test_ext(vec![]).execute_with(|| {
 			run_to_block(2);
 			let o = Origin::signed(0);
-			assert_ok!(Registrar::register_parathread(o, vec![7, 8, 9], vec![1, 1, 1]));
+			assert_ok!(Registrar::register_parathread(o, vec![7, 8, 9].into(), vec![1, 1, 1].into()));
 
 			run_to_block(3);
 			assert_eq!(
@@ -1406,7 +1475,7 @@ mod tests {
 			let bad_para_id = user_id(1);
 			let bad_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 2, 1]);
 			let good_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 1, 1]);
-			let info = DispatchInfo::default();
+			let info = &DispatchInfo::default();
 
 			// Allow for threads
 			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 10));
@@ -1449,7 +1518,7 @@ mod tests {
 			// Register 5 parathreads
 			for x in 0..5 {
 				let o = Origin::signed(x as u64);
-				assert_ok!(Registrar::register_parathread(o, vec![x; 3], vec![x; 3]));
+				assert_ok!(Registrar::register_parathread(o, vec![x; 3].into(), vec![x; 3].into()));
 			}
 
 			run_to_block(3);
@@ -1471,7 +1540,7 @@ mod tests {
 				let head_hash = <Test as system::Trait>::Hashing::hash(&vec![x; 3]);
 				let inner = super::Call::select_parathread(para_id, collator_id, head_hash);
 				let call = Call::Registrar(inner);
-				let info = DispatchInfo::default();
+				let info = &DispatchInfo::default();
 
 				// First 3 transactions win a slot
 				if x < 3 {
@@ -1525,8 +1594,8 @@ mod tests {
 			let bad_code_size = <Test as parachains::Trait>::MaxCodeSize::get() + 1;
 			let bad_head_size = <Test as parachains::Trait>::MaxHeadDataSize::get() + 1;
 
-			let code = vec![1u8; bad_code_size as _];
-			let head_data = vec![2u8; bad_head_size as _];
+			let code = vec![1u8; bad_code_size as _].into();
+			let head_data = vec![2u8; bad_head_size as _].into();
 
 			assert!(!<Registrar as super::Registrar<u64>>::code_size_allowed(bad_code_size));
 			assert!(!<Registrar as super::Registrar<u64>>::head_data_size_allowed(bad_head_size));

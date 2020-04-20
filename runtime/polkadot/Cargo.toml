@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.7.29-pre1"
+version = "0.7.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -61,7 +61,6 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
@@ -88,7 +87,6 @@ std = [
 	"codec/std",
 	"inherents/std",
 	"sp-core/std",
-	"polkadot-parachain/std",
 	"sp-api/std",
 	"tx-pool-api/std",
 	"block-builder-api/std",
@@ -133,8 +131,10 @@ std = [
 	"vesting/std",
 ]
 runtime-benchmarks = [
+	"collective/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
 	"runtime-common/runtime-benchmarks",
-	"elections-phragmen/runtime-benchmarks"
+	"elections-phragmen/runtime-benchmarks",
+	"system/runtime-benchmarks",
 ]

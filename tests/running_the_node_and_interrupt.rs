@@ -15,7 +15,8 @@
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_cmd::cargo::cargo_bin;
-use std::{convert::TryInto, process::Command, thread, time::Duration, fs};
+use std::{convert::TryInto, process::Command, thread, time::Duration};
+use tempfile::tempdir;
 
 mod common;
 
@@ -26,9 +27,11 @@ fn running_the_node_works_and_can_be_interrupted() {
 	use nix::unistd::Pid;
 
 	fn run_command_and_kill(signal: Signal) {
-		let _ = fs::remove_dir_all("interrupt_test");
+		let tmpdir = tempdir().expect("coult not create temp dir");
+
 		let mut cmd = Command::new(cargo_bin("polkadot"))
-			.args(&["--dev", "-d", "interrupt_test"])
+			.args(&["--dev", "-d"])
+			.arg(tmpdir.path())
 			.spawn()
 			.unwrap();
 

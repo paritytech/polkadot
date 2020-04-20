@@ -25,17 +25,17 @@ use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
 #[cfg(feature = "full-node")]
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
-use service::{error::{Error as ServiceError}, ServiceBuilder};
+use service::{error::Error as ServiceError, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use inherents::InherentDataProviders;
 use sc_executor::native_executor_instance;
 use log::info;
 pub use service::{
-	AbstractService, Roles, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, ServiceBuilderCommand,
+	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec,
+	Configuration, ChainSpec, ServiceBuilderCommand,
 };
-pub use service::config::{DatabaseConfig, PrometheusConfig, full_version_from_strs};
+pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
 pub use sc_client::{ExecutionStrategy, CallExecutor, Client};
 pub use sc_client_api::backend::Backend;
@@ -45,12 +45,13 @@ pub use consensus_common::SelectChain;
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec};
+pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
 #[cfg(not(target_os = "unknown"))]
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
+pub use westend_runtime;
 use prometheus_endpoint::Registry;
 
 native_executor_instance!(
@@ -64,6 +65,13 @@ native_executor_instance!(
 	pub KusamaExecutor,
 	kusama_runtime::api::dispatch,
 	kusama_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
+);
+
+native_executor_instance!(
+	pub WestendExecutor,
+	westend_runtime::api::dispatch,
+	westend_runtime::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
@@ -103,21 +111,25 @@ where
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
-pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static
-{}
+pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
 
-impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static
-{}
+impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
-pub trait IsKusama {
+pub trait IdentifyVariant {
 	/// Returns if this is a configuration for the `Kusama` network.
 	fn is_kusama(&self) -> bool;
+
+	/// Returns if this is a configuration for the `Westend` network.
+	fn is_westend(&self) -> bool;
 }
 
-impl IsKusama for &dyn ChainSpec {
+impl IdentifyVariant for Box<dyn ChainSpec> {
 	fn is_kusama(&self) -> bool {
 		self.id().starts_with("kusama") || self.id().starts_with("ksm")
+	}
+	fn is_westend(&self) -> bool {
+		self.id().starts_with("westend") || self.id().starts_with("wnd")
 	}
 }
 
@@ -146,16 +158,16 @@ macro_rules! new_full_start {
 			.with_select_chain(|_, backend| {
 				Ok(sc_client::LongestChain::new(backend.clone()))
 			})?
-			.with_transaction_pool(|config, client, _fetcher| {
+			.with_transaction_pool(|config, client, _fetcher, prometheus_registry| {
 				let pool_api = sc_transaction_pool::FullChainApi::new(client.clone());
-				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api));
+				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api), prometheus_registry);
 				Ok(pool)
 			})?
 			.with_import_queue(|config, client, mut select_chain, _| {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 
-				let grandpa_hard_forks = if config.expect_chain_spec().is_kusama() {
+				let grandpa_hard_forks = if config.chain_spec.is_kusama() {
 					grandpa_support::kusama_hard_forks()
 				} else {
 					Vec::new()
@@ -274,6 +286,37 @@ pub fn kusama_new_full(
 	)
 }
 
+/// Create a new Kusama service for a full node.
+#[cfg(feature = "full-node")]
+pub fn westend_new_full(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+	grandpa_pause: Option<(u32, u32)>,
+)
+	-> Result<(
+		impl AbstractService<
+			Block = Block,
+			RuntimeApi = westend_runtime::RuntimeApi,
+			Backend = TFullBackend<Block>,
+			SelectChain = LongestChain<TFullBackend<Block>, Block>,
+			CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
+		>,
+		FullNodeHandles,
+	), ServiceError>
+{
+	new_full(
+		config,
+		collating_for,
+		max_block_data_size,
+		authority_discovery_enabled,
+		slot_duration,
+		grandpa_pause,
+	)
+}
+
 /// Handles to other sub-services that full nodes instantiate, which consumers
 /// of the node may use.
 #[cfg(feature = "full-node")]
@@ -316,24 +359,18 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	use futures::stream::StreamExt;
 
 	let is_collator = collating_for.is_some();
-	let is_authority = config.roles.is_authority() && !is_collator;
+	let role = config.role.clone();
+	let is_authority = role.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = max_block_data_size;
-	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.expect_database() {
-		path.clone()
-	} else {
-		return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into());
+	let db_path = match config.database.path() {
+		Some(path) => std::path::PathBuf::from(path),
+		None => return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into()),
 	};
 	let disable_grandpa = config.disable_grandpa;
-	let name = config.name.clone();
+	let name = config.network.node_name.clone();
 	let authority_discovery_enabled = authority_discovery_enabled;
-	let sentry_nodes = config.network.sentry_nodes.clone();
 	let slot_duration = slot_duration;
-
-	// sentry nodes announce themselves as authorities to the network
-	// and should run the same protocols authorities do, but it should
-	// never actively participate in any consensus process.
-	let participates_in_consensus = is_authority && !config.sentry_mode;
 
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config, Runtime, Dispatch);
 
@@ -390,7 +427,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		service.spawn_task_handle(),
 	).map_err(|e| format!("Could not spawn network worker: {:?}", e))?;
 
-	if participates_in_consensus {
+	if let Role::Authority { .. } = &role {
 		let availability_store = {
 			use std::path::PathBuf;
 
@@ -461,10 +498,26 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 
 		let babe = babe::start_babe(babe_config)?;
 		service.spawn_essential_task("babe", babe);
+	}
 
+	if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
 		if authority_discovery_enabled {
+			let (sentries, authority_discovery_role) = match role {
+				Role::Authority { ref sentry_nodes } => (
+					sentry_nodes.clone(),
+					authority_discovery::Role::Authority (
+						service.keystore(),
+					),
+				),
+				Role::Sentry {..} => (
+					vec![],
+					authority_discovery::Role::Sentry,
+				),
+				_ => unreachable!("Due to outer matches! constraint; qed."),
+			};
+
 			let network = service.network();
-			let network_event_stream = network.event_stream();
+			let network_event_stream = network.event_stream("authority-discovery");
 			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
 				Event::Dht(e) => Some(e),
 				_ => None,
@@ -472,18 +525,19 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
 				service.client(),
 				network,
-				sentry_nodes,
-				service.keystore(),
+				sentries,
 				dht_event_stream,
+				authority_discovery_role,
 				service.prometheus_registry(),
 			);
+
 			service.spawn_task("authority-discovery", authority_discovery);
 		}
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
-	let keystore = if participates_in_consensus {
+	let keystore = if is_authority {
 		Some(service.keystore())
 	} else {
 		None
@@ -496,7 +550,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		name: Some(name),
 		observer_enabled: false,
 		keystore,
-		is_authority,
+		is_authority: role.is_network_authority(),
 	};
 
 	let enable_grandpa = !disable_grandpa;
@@ -583,6 +637,21 @@ pub fn kusama_new_light(
 	new_light(config)
 }
 
+/// Create a new Westend service for a light client.
+pub fn westend_new_light(
+	config: Configuration,
+)
+	-> Result<impl AbstractService<
+		Block = Block,
+		RuntimeApi = westend_runtime::RuntimeApi,
+		Backend = TLightBackend<Block>,
+		SelectChain = LongestChain<TLightBackend<Block>, Block>,
+		CallExecutor = TLightCallExecutor<Block, KusamaExecutor>,
+	>, ServiceError>
+{
+	new_light(config)
+}
+
 // We can't use service::TLightClient due to
 // Rust bug: https://github.com/rust-lang/rust/issues/43580
 type TLocalLightClient<Runtime, Dispatch> =  Client<
@@ -633,12 +702,12 @@ where
 		.with_select_chain(|_, backend| {
 			Ok(LongestChain::new(backend.clone()))
 		})?
-		.with_transaction_pool(|config, client, fetcher| {
+		.with_transaction_pool(|config, client, fetcher, prometheus_registry| {
 			let fetcher = fetcher
 				.ok_or_else(|| "Trying to start light transaction pool without active fetcher")?;
 			let pool_api = sc_transaction_pool::LightChainApi::new(client.clone(), fetcher.clone());
 			let pool = sc_transaction_pool::BasicPool::with_revalidation_type(
-				config, Arc::new(pool_api), sc_transaction_pool::RevalidationType::Light,
+				config, Arc::new(pool_api), prometheus_registry, sc_transaction_pool::RevalidationType::Light,
 			);
 			Ok(pool)
 		})?

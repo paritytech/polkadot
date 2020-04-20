@@ -184,7 +184,7 @@ decl_module! {
 		///
 		/// Total Complexity: O(1)
 		/// </weight>
-		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000)]
+		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000_000)]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
@@ -231,7 +231,7 @@ decl_module! {
 		///
 		/// Total Complexity: O(1)
 		/// </weight>
-		#[weight = SimpleDispatchInfo::FixedNormal(30_000)]
+		#[weight = SimpleDispatchInfo::FixedNormal(30_000_000)]
 		fn mint_claim(origin,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
@@ -390,6 +390,7 @@ mod tests {
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
+		type DbWeight = ();
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
@@ -642,6 +643,7 @@ mod benchmarking {
 	use super::*;
 	use secp_utils::*;
 	use system::RawOrigin;
+	use system as frame_system; // NOTE: required for the benchmarks! macro
 	use frame_benchmarking::{benchmarks, account};
 	use sp_runtime::DispatchResult;
 	use sp_runtime::traits::ValidateUnsigned;
