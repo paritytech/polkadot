@@ -31,7 +31,7 @@ use sp_runtime::{
 use frame_support::{
 	decl_storage, decl_module, decl_event, decl_error, ensure,
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
-	weights::{SimpleDispatchInfo, Weight, MINIMUM_WEIGHT},
+	weights::{DispatchClass, Weight, MINIMUM_WEIGHT},
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
@@ -264,7 +264,7 @@ decl_module! {
 		///
 		/// Unlike the `Registrar` trait function of the same name, this
 		/// checks the code and head data against size limits.
-		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000_000)]
+		#[weight = (5_000_000_000, DispatchClass::Operational)]
 		pub fn register_para(origin,
 			#[compact] id: ParaId,
 			info: ParaInfo,
@@ -289,7 +289,7 @@ decl_module! {
 		}
 
 		/// Deregister a parachain with given id
-		#[weight = SimpleDispatchInfo::FixedOperational(10_000_000)]
+		#[weight = (10_000_000, DispatchClass::Operational)]
 		pub fn deregister_para(origin, #[compact] id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			<Self as Registrar<T::AccountId>>::deregister_para(id)
@@ -300,7 +300,7 @@ decl_module! {
 		/// - `count`: The number of parathreads.
 		///
 		/// Must be called from Root origin.
-		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
+		#[weight = MINIMUM_WEIGHT]
 		fn set_thread_count(origin, count: u32) {
 			ensure_root(origin)?;
 			ThreadCount::put(count);
@@ -314,7 +314,7 @@ decl_module! {
 		/// Unlike `register_para`, this function does check that the maximum code size
 		/// and head data size are respected, as parathread registration is an atomic
 		/// action.
-		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
+		#[weight = MINIMUM_WEIGHT]
 		fn register_parathread(origin,
 			code: ValidationCode,
 			initial_head_data: HeadData,
@@ -354,7 +354,7 @@ decl_module! {
 		/// This is a kind of special transaction that should be heavily prioritized in the
 		/// transaction pool according to the `value`; only `ThreadCount` of them may be presented
 		/// in any single block.
-		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
+		#[weight = MINIMUM_WEIGHT]
 		fn select_parathread(origin,
 			#[compact] _id: ParaId,
 			_collator: CollatorId,
@@ -371,7 +371,7 @@ decl_module! {
 		/// Ensure that before calling this that any funds you want emptied from the parathread's
 		/// account is moved out; after this it will be impossible to retrieve them (without
 		/// governance intervention).
-		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
+		#[weight = MINIMUM_WEIGHT]
 		fn deregister_parathread(origin) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -395,7 +395,7 @@ decl_module! {
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
-		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
+		#[weight = MINIMUM_WEIGHT]
 		fn swap(origin, #[compact] other: ParaId) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
