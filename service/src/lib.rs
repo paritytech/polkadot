@@ -320,9 +320,12 @@ pub fn westend_new_full(
 /// Handles to other sub-services that full nodes instantiate, which consumers
 /// of the node may use.
 #[cfg(feature = "full-node")]
+#[derive(Default)]
 pub struct FullNodeHandles {
 	/// A handle to the Polkadot networking protocol.
 	pub polkadot_network: Option<network_protocol::Service>,
+	/// A handle to the validation service.
+	pub validation_service_handle: Option<consensus::ServiceHandle>,
 }
 
 /// Builds a new service for a full client.
@@ -389,7 +392,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let client = service.client();
 	let known_oracle = client.clone();
 
-	let mut handles = FullNodeHandles { polkadot_network: None };
+	let mut handles = FullNodeHandles::default();
 	let select_chain = if let Some(select_chain) = service.select_chain() {
 		select_chain
 	} else {
@@ -427,7 +430,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		service.spawn_task_handle(),
 	).map_err(|e| format!("Could not spawn network worker: {:?}", e))?;
 
-	if let Role::Authority { .. } = &role {
+	let authority_handles = if is_collator || role.is_authority() {
 		let availability_store = {
 			use std::path::PathBuf;
 
@@ -463,6 +466,18 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		}.build();
 
 		service.spawn_essential_task("validation-service", Box::pin(validation_service));
+
+		handles.validation_service_handle = Some(validation_service_handle.clone());
+
+		Some((validation_service_handle, availability_store))
+	} else {
+		None
+	};
+
+	if role.is_authority() {
+		let (validation_service_handle, availability_store) = authority_handles
+			.clone()
+			.expect("Authority handles are set for authority nodes; qed");
 
 		let proposer = consensus::ProposerFactory::new(
 			client.clone(),
