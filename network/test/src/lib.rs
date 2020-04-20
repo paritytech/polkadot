@@ -574,7 +574,7 @@ pub trait TestNetFactory: Sized {
 			"test-node",
 			"test-client",
 			Default::default(),
-			&std::env::current_dir().expect("current directory must exist"),
+			None,
 		);
 		network_config.listen_addresses = vec![listen_addr.clone()];
 		network_config.transport = TransportConfig::MemoryOnly;
@@ -649,7 +649,7 @@ pub trait TestNetFactory: Sized {
 			"test-node",
 			"test-client",
 			Default::default(),
-			&std::env::current_dir().expect("current directory must exist"),
+			None,
 		);
 		network_config.listen_addresses = vec![listen_addr.clone()];
 		network_config.transport = TransportConfig::MemoryOnly;
