@@ -35,7 +35,7 @@ use sp_staking::{
 };
 use frame_support::{
 	traits::KeyOwnerProofSystem,
-	dispatch::{IsSubType},
+	dispatch::IsSubType,
 	weights::{SimpleDispatchInfo, Weight, MINIMUM_WEIGHT},
 };
 use primitives::{
@@ -59,10 +59,29 @@ use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifie
 
 use system::{
 	ensure_none, ensure_signed,
-	offchain::SubmitSignedTransaction,
+	offchain::{CreateSignedTransaction, SendSignedTransaction, Signer},
 };
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
+
+pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"para");
+
+pub mod crypto {
+	use super::KEY_TYPE;
+	use sp_runtime::{
+		app_crypto::{app_crypto, sr25519},
+		traits::Verify,
+	};
+	use sp_core::sr25519::Signature as Sr25519Signature;
+	app_crypto!(sr25519, KEY_TYPE);
+
+	pub struct AuthorityId;
+	impl system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature> for AuthorityId {
+		type RuntimeAppPublic = Public;
+		type GenericSignature = Sr25519Signature;
+		type GenericPublic = sp_core::sr25519::Public;
+	}
+}
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -220,7 +239,10 @@ impl GetSessionNumber for session::historical::Proof {
 	}
 }
 
-pub trait Trait: attestations::Trait + session::historical::Trait {
+pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + session::historical::Trait {
+	// The transaction signing authority
+	type AuthorityId: system::offchain::AppCrypto<Self::Public, Self::Signature>;
+
 	/// The outer origin type.
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
 
@@ -293,9 +315,6 @@ pub trait Trait: attestations::Trait + session::historical::Trait {
 
 	/// A type that converts the opaque hash type to exact one.
 	type BlockHashConversion: Convert<Self::Hash, primitives::Hash>;
-
-	/// Submit a signed transaction.
-	type SubmitSignedTransaction: SubmitSignedTransaction<Self, <Self as Trait>::Call>;
 }
 
 /// Origin for the parachains module.
@@ -794,15 +813,12 @@ impl<T: Trait> Module<T> {
 	pub fn submit_double_vote_report(
 		report: DoubleVoteReport<T::Proof>,
 	) -> Option<()> {
-		let call = Call::report_double_vote(report);
-
-		let res = T::SubmitSignedTransaction::submit_signed(call);
-
-		if res.iter().any(|(_, r)| r.is_ok()) {
-			Some(())
-		} else {
-			None
-		}
+		Signer::<T, T::AuthorityId>::any_account()
+			.send_signed_transaction(
+				move |_account| {
+					Call::report_double_vote(report.clone())
+				}
+			).map(|_| ())
 	}
 
 	/// Dispatch some messages from a parachain.
