@@ -48,23 +48,23 @@ impl GenesisConfig {
 		// Assimilate the system genesis config.
 		let mut storage = Storage { top: BTreeMap::new(), children: self.extra_storage.children.clone()};
 		let config = crate::GenesisConfig {
-            system: Some(system::GenesisConfig {
+			system: Some(system::GenesisConfig {
 				changes_trie_config: self.changes_trie_config.clone(),
 				code: WASM_BINARY.to_vec(),
 			}),
-            babe: None,
-            indices: None,
-            balances: Some(balances::GenesisConfig {
+			babe: None,
+			indices: None,
+			balances: Some(balances::GenesisConfig {
 				balances: self.balances.clone()
 			}),
-            staking: None,
-            session: None,
-            grandpa: None,
-            claims: None,
-            parachains: None,
-            registrar: None,
-            vesting: None,
-        };
+			staking: None,
+			session: None,
+			grandpa: None,
+			claims: None,
+			parachains: None,
+			registrar: None,
+			vesting: None,
+		};
 		config.assimilate_storage(&mut storage).expect("Adding `system::GensisConfig` to the genesis");
 
 		storage
