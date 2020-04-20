@@ -95,8 +95,6 @@ pub type NegativeImbalanceOf<T> =
 pub trait Trait: slots::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
-	// type ModuleId: Get<ModuleId>;
-
 	/// The amount to be held on deposit by the owner of a crowdfund.
 	type SubmissionDeposit: Get<BalanceOf<Self>>;
 
@@ -250,8 +248,6 @@ decl_error! {
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
-
-		// type ModuleId: Get<ModuleId>;
 
 		fn deposit_event() = default;
 
@@ -532,7 +528,6 @@ impl<T: Trait> Module<T> {
 	/// value and only call this once.
 	pub fn fund_account_id(index: FundIndex) -> T::AccountId {
 		MODULE_ID.into_sub_account(index)
-		// T::ModuleId::get().into_sub_account(index)
 	}
 
 	pub fn id_from_index(index: FundIndex) -> Vec<u8> {
