@@ -249,7 +249,6 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
-		// type ModuleId: Get<ModuleId>;
 		const ModuleId: ModuleId = T::ModuleId::get();
 
 		fn deposit_event() = default;
@@ -752,6 +751,8 @@ mod tests {
 		pub const SubmissionDeposit: u64 = 1;
 		pub const MinContribution: u64 = 10;
 		pub const RetirementPeriod: u64 = 5;
+		pub const CrowdfundModuleId: ModuleId = ModuleId(*b"py/cfund");
+
 	}
 	impl Trait for Test {
 		type Event = ();
@@ -759,6 +760,7 @@ mod tests {
 		type MinContribution = MinContribution;
 		type RetirementPeriod = RetirementPeriod;
 		type OrphanedFunds = Treasury;
+		type ModuleId = CrowdfundModuleId;
 	}
 
 	type System = system::Module<Test>;
