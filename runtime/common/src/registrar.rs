@@ -879,9 +879,16 @@ mod tests {
 
 		pub type ReporterId = app::Public;
 		pub type ReporterSignature = app::Signature;
+		pub struct ReporterAuthorityId;
+		impl system::offchain::AppCrypto<<ReporterSignature as Verify>::Signer, ReporterSignature> for ReporterAuthorityId {
+			type RuntimeAppPublic = app::Public;
+			type GenericSignature = sr25519::Signature;
+			type GenericPublic = sr25519::Public;
+		}
 	}
 
 	impl parachains::Trait for Test {
+		type AuthorityId = test_keys::ReporterAuthorityId;
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
@@ -899,25 +906,19 @@ mod tests {
 		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 		type ReportOffence = ();
 		type BlockHashConversion = sp_runtime::traits::Identity;
-		type SubmitSignedTransaction = system::offchain::TransactionSubmitter<
-			test_keys::ReporterId,
-			Test,
-			Extrinsic,
-		>;
 	}
 
 	type Extrinsic = TestXt<Call, ()>;
 
-	impl system::offchain::CreateTransaction<Test, Extrinsic> for Test {
-		type Public = test_keys::ReporterId;
-		type Signature = test_keys::ReporterSignature;
-
-		fn create_transaction<F: system::offchain::Signer<Self::Public, Self::Signature>>(
-			call: <Extrinsic as ExtrinsicT>::Call,
-			_public: Self::Public,
-			_account: <Test as system::Trait>::AccountId,
-			nonce: <Test as system::Trait>::Index,
-		) -> Option<(<Extrinsic as ExtrinsicT>::Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+	impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
+		Call: From<LocalCall>,
+	{
+		fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+			call: Call,
+			_public: <Signature as Verify>::Signer,
+			_account: AccountId,
+			_nonce: <Runtime as system::Trait>::Index,
+		) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 			Some((call, (nonce, ())))
 		}
 	}

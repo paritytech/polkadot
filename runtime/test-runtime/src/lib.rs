@@ -56,7 +56,6 @@ use frame_support::{
 };
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
-use system::offchain::TransactionSubmitter;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -335,6 +334,7 @@ parameter_types! {
 }
 
 impl parachains::Trait for Runtime {
+	type AuthorityId = FishermanAuthorityId;
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
@@ -356,17 +356,22 @@ impl parachains::Trait for Runtime {
 		>::IdentificationTuple;
 	type ReportOffence = Offences;
 	type BlockHashConversion = sp_runtime::traits::Identity;
-	type SubmitSignedTransaction = TransactionSubmitter<parachain::FishermanId, Runtime, UncheckedExtrinsic>;
 }
 
-impl system::offchain::CreateTransaction<Runtime, UncheckedExtrinsic> for Runtime {
-	type Public = <primitives::Signature as sp_runtime::traits::Verify>::Signer;
-	type Signature = primitives::Signature;
+pub struct FishermanAuthorityId;
+impl system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAuthorityId {
+	type RuntimeAppPublic = parachain::FishermanId;
+	type GenericSignature = sr25519::Signature;
+	type GenericPublic = sr25519::Public;
+}
 
-	fn create_transaction<TSigner: system::offchain::Signer<Self::Public, Self::Signature>>(
-		call: <UncheckedExtrinsic as ExtrinsicT>::Call,
-		public: Self::Public,
-		account: <Runtime as system::Trait>::AccountId,
+impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
+	Call: From<LocalCall>,
+{
+	fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+		call: Call,
+		public: <Signature as Verify>::Signer,
+		account: AccountId,
 		nonce: <Runtime as system::Trait>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		let period = BlockHashCount::get()
@@ -390,12 +395,13 @@ impl system::offchain::CreateTransaction<Runtime, UncheckedExtrinsic> for Runtim
 			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
-			debug::warn!("Unable to create signed payload: {:?}", e)
+			debug::warn!("Unable to create signed payload: {:?}", e);
 		}).ok()?;
-		let signature = TSigner::sign(public, &raw_payload)?;
+		let signature = raw_payload.using_encoded(|payload| {
+			C::sign(payload, public)
+		})?;
 		let (call, extra, _) = raw_payload.deconstruct();
-		let address = Indices::unlookup(account);
-		Some((call, (address, signature, extra)))
+		Some((call, (account, signature, extra)))
 	}
 }
 
