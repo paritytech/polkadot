@@ -910,7 +910,7 @@ mod tests {
 
 	type Extrinsic = TestXt<Call, ()>;
 
-	impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
+	impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Test where
 		Call: From<LocalCall>,
 	{
 		fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
