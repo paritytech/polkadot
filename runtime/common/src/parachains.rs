@@ -813,12 +813,13 @@ impl<T: Trait> Module<T> {
 	pub fn submit_double_vote_report(
 		report: DoubleVoteReport<T::Proof>,
 	) -> Option<()> {
-		Signer::<T, T::AuthorityId>::any_account()
+		Signer::<T, T::AuthorityId>::all_accounts()
 			.send_signed_transaction(
 				move |_account| {
 					Call::report_double_vote(report.clone())
 				}
-			).map(|_| ())
+			);
+		return Some(())
 	}
 
 	/// Dispatch some messages from a parachain.
