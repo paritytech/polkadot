@@ -31,7 +31,7 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength,
 };
-
+use sp_core::sr25519;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, Perbill, Perquintill, RuntimeDebug, KeyTypeId,
@@ -41,7 +41,7 @@ use sp_runtime::{
 	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto,
-		DispatchInfoOf, Extrinsic as ExtrinsicT, SaturatedConversion,
+		DispatchInfoOf, Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
 use version::RuntimeVersion;
@@ -401,8 +401,14 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			C::sign(payload, public)
 		})?;
 		let (call, extra, _) = raw_payload.deconstruct();
-		Some((call, (account, signature, extra)))
+		let address = Indices::unlookup(account);
+		Some((call, (address, signature, extra)))
 	}
+}
+
+impl system::offchain::SigningTypes for Runtime {
+	type Public = <Signature as Verify>::Signer;
+	type Signature = Signature;
 }
 
 impl offences::Trait for Runtime {
