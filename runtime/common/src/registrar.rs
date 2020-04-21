@@ -923,6 +923,11 @@ mod tests {
 		}
 	}
 
+	impl system::offchain::SigningTypes for Test {
+		type Public = <Signature as Verify>::Signer;
+		type Signature = Signature;
+	}
+
 	parameter_types! {
 		pub const ParathreadDeposit: Balance = 10;
 		pub const QueueSize: usize = 2;

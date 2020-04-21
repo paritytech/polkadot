@@ -1906,6 +1906,11 @@ mod tests {
 		}
 	}
 
+	impl system::offchain::SigningTypes for Test {
+		type Public = <Signature as Verify>::Signer;
+		type Signature = Signature;
+	}
+
 	type Parachains = Module<Test>;
 	type Balances = balances::Module<Test>;
 	type System = system::Module<Test>;
