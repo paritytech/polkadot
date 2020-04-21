@@ -30,7 +30,6 @@ use runtime_common::{attestations, parachains, registrar,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 };
-use sp_core::sr25519;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Perbill, Perquintill, RuntimeDebug,
@@ -387,7 +386,7 @@ parameter_types! {
 }
 
 impl parachains::Trait for Runtime {
-	type AuthorityId = FishermanAuthorityId;
+	type AuthorityId = parachains::FishermanAuthorityId;
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
@@ -407,13 +406,6 @@ impl parachains::Trait for Runtime {
 	type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 	type ReportOffence = Offences;
 	type BlockHashConversion = sp_runtime::traits::Identity;
-}
-
-pub struct FishermanAuthorityId;
-impl system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAuthorityId {
-	type RuntimeAppPublic = parachain::FishermanId;
-	type GenericSignature = sr25519::Signature;
-	type GenericPublic = sr25519::Public;
 }
 
 impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
