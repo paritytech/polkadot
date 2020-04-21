@@ -46,7 +46,10 @@ impl GenesisConfig {
 
 	pub fn genesis_map(&self) -> Storage {
 		// Assimilate the system genesis config.
-		let mut storage = Storage { top: BTreeMap::new(), children: self.extra_storage.children.clone()};
+		let mut storage = Storage {
+			top: BTreeMap::new(),
+			children_default: self.extra_storage.children_default.clone(),
+		};
 		let config = crate::GenesisConfig {
 			system: Some(system::GenesisConfig {
 				changes_trie_config: self.changes_trie_config.clone(),
