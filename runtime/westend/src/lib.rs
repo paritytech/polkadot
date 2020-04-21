@@ -30,6 +30,7 @@ use runtime_common::{attestations, parachains, registrar,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 };
+use sp_core::sr25519;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Perbill, Perquintill, RuntimeDebug,
@@ -40,7 +41,7 @@ use sp_runtime::{
 	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto, IdentityLookup,
-		DispatchInfoOf, StaticLookup, Extrinsic as ExtrinsicT, SaturatedConversion,
+		DispatchInfoOf, StaticLookup, Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
 #[cfg(feature = "runtime-benchmarks")]
@@ -57,9 +58,8 @@ use frame_support::{
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use system::offchain::TransactionSubmitter;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
-use session::{historical as session_historical};
+use session::historical as session_historical;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -313,7 +313,6 @@ impl staking::Trait for Runtime {
 	type NextNewSession = Session;
 	type ElectionLookahead = ElectionLookahead;
 	type Call = Call;
-	type SubmitTransaction = TransactionSubmitter<(), Runtime, UncheckedExtrinsic>;
 	type UnsignedPriority = StakingUnsignedPriority;
 }
 
@@ -337,8 +336,6 @@ impl offences::Trait for Runtime {
 
 impl authority_discovery::Trait for Runtime {}
 
-type SubmitTransaction = TransactionSubmitter<ImOnlineId, Runtime, UncheckedExtrinsic>;
-
 parameter_types! {
 	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
 }
@@ -351,8 +348,6 @@ parameter_types! {
 impl im_online::Trait for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
-	type Call = Call;
-	type SubmitTransaction = SubmitTransaction;
 	type ReportUnresponsiveness = Offences;
 	type SessionDuration = SessionDuration;
 	type UnsignedPriority = StakingUnsignedPriority;
@@ -392,6 +387,7 @@ parameter_types! {
 }
 
 impl parachains::Trait for Runtime {
+	type AuthorityId = FishermanAuthorityId;
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
@@ -411,17 +407,22 @@ impl parachains::Trait for Runtime {
 	type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 	type ReportOffence = Offences;
 	type BlockHashConversion = sp_runtime::traits::Identity;
-	type SubmitSignedTransaction = TransactionSubmitter<parachain::FishermanId, Runtime, UncheckedExtrinsic>;
 }
 
-impl system::offchain::CreateTransaction<Runtime, UncheckedExtrinsic> for Runtime {
-	type Public = <primitives::Signature as sp_runtime::traits::Verify>::Signer;
-	type Signature = primitives::Signature;
+pub struct FishermanAuthorityId;
+impl system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAuthorityId {
+	type RuntimeAppPublic = parachain::FishermanId;
+	type GenericSignature = sr25519::Signature;
+	type GenericPublic = sr25519::Public;
+}
 
-	fn create_transaction<TSigner: system::offchain::Signer<Self::Public, Self::Signature>>(
-		call: <UncheckedExtrinsic as ExtrinsicT>::Call,
-		public: Self::Public,
-		account: <Runtime as system::Trait>::AccountId,
+impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
+	Call: From<LocalCall>,
+{
+	fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+		call: Call,
+		public: <Signature as Verify>::Signer,
+		account: AccountId,
 		nonce: <Runtime as system::Trait>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		let period = BlockHashCount::get()
@@ -445,12 +446,26 @@ impl system::offchain::CreateTransaction<Runtime, UncheckedExtrinsic> for Runtim
 			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
-			debug::warn!("Unable to create signed payload: {:?}", e)
+			debug::warn!("Unable to create signed payload: {:?}", e);
 		}).ok()?;
-		let signature = TSigner::sign(public, &raw_payload)?;
+		let signature = raw_payload.using_encoded(|payload| {
+			C::sign(payload, public)
+		})?;
 		let (call, extra, _) = raw_payload.deconstruct();
 		Some((call, (account, signature, extra)))
 	}
+}
+
+impl system::offchain::SigningTypes for Runtime {
+	type Public = <Signature as Verify>::Signer;
+	type Signature = Signature;
+}
+
+impl<C> system::offchain::SendTransactionTypes<C> for Runtime where
+	Call: From<C>,
+{
+	type OverarchingCall = Call;
+	type Extrinsic = UncheckedExtrinsic;
 }
 
 parameter_types! {
