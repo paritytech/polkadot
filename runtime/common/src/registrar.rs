@@ -676,7 +676,7 @@ mod tests {
 			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
 			CollatorPair, CandidateCommitments,
 		},
-		Balance, BlockNumber, Header,
+		Balance, BlockNumber, Header, Signature,
 	};
 	use frame_support::{
 		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},
@@ -743,6 +743,13 @@ mod tests {
 		type AccountData = balances::AccountData<u128>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
+	}
+
+	impl<C> system::offchain::SendTransactionTypes<C> for Test where
+		Call: From<C>,
+	{
+		type OverarchingCall = Call;
+		type Extrinsic = TestXt<Call, ()>;
 	}
 
 	parameter_types! {
@@ -834,7 +841,6 @@ mod tests {
 		type NextNewSession = Session;
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
-		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
 		type UnsignedPriority = StakingUnsignedPriority;
 	}
 
@@ -851,7 +857,8 @@ mod tests {
 
 	// This is needed for a custom `AccountId` type which is `u64` in testing here.
 	pub mod test_keys {
-		use sp_core::crypto::KeyTypeId;
+		use sp_core::{crypto::KeyTypeId, sr25519};
+		use primitives::Signature;
 
 		pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
 
@@ -872,10 +879,16 @@ mod tests {
 		}
 
 		pub type ReporterId = app::Public;
-		pub type ReporterSignature = app::Signature;
+		pub struct ReporterAuthorityId;
+		impl system::offchain::AppCrypto<ReporterId, Signature> for ReporterAuthorityId {
+			type RuntimeAppPublic = ReporterId;
+			type GenericSignature = sr25519::Signature;
+			type GenericPublic = sr25519::Public;
+		}
 	}
 
 	impl parachains::Trait for Test {
+		type AuthorityId = test_keys::ReporterAuthorityId;
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
@@ -893,27 +906,26 @@ mod tests {
 		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 		type ReportOffence = ();
 		type BlockHashConversion = sp_runtime::traits::Identity;
-		type SubmitSignedTransaction = system::offchain::TransactionSubmitter<
-			test_keys::ReporterId,
-			Test,
-			Extrinsic,
-		>;
 	}
 
 	type Extrinsic = TestXt<Call, ()>;
 
-	impl system::offchain::CreateTransaction<Test, Extrinsic> for Test {
-		type Public = test_keys::ReporterId;
-		type Signature = test_keys::ReporterSignature;
-
-		fn create_transaction<F: system::offchain::Signer<Self::Public, Self::Signature>>(
-			call: <Extrinsic as ExtrinsicT>::Call,
-			_public: Self::Public,
+	impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Test where
+		Call: From<LocalCall>,
+	{
+		fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+			call: Call,
+			_public: test_keys::ReporterId,
 			_account: <Test as system::Trait>::AccountId,
 			nonce: <Test as system::Trait>::Index,
-		) -> Option<(<Extrinsic as ExtrinsicT>::Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+		) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
 			Some((call, (nonce, ())))
 		}
+	}
+
+	impl system::offchain::SigningTypes for Test {
+		type Public = test_keys::ReporterId;
+		type Signature = Signature;
 	}
 
 	parameter_types! {

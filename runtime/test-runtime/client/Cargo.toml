@@ -10,11 +10,13 @@ sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "
 substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-test-runtime = { path = ".." }
-substrate-test-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-runtime-common = { path = "../../common" }
+polkadot-primitives = { path = "../../../primitives" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.1"
