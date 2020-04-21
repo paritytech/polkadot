@@ -26,6 +26,7 @@ use codec::{Decode, Encode};
 use sp_core::storage::ChildInfo;
 use sp_core::traits::CallInWasm;
 use sp_wasm_interface::HostFunctions as _;
+use sp_externalities::Extensions;
 
 #[cfg(not(target_os = "unknown"))]
 pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC};
@@ -171,7 +172,11 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 	encoded_call_data: &[u8],
 	externalities: E,
 ) -> Result<ValidationResult, Error> {
-	let mut ext = ValidationExternalities(ParachainExt::new(externalities));
+	let mut extensions = Extensions::new();
+	extensions.register(ParachainExt::new(externalities));
+	extensions.register(sp_core::traits::TaskExecutorExt(sp_core::tasks::executor()));
+
+	let mut ext = ValidationExternalities(extensions);
 
 	let executor = sc_executor::WasmExecutor::new(
 		sc_executor::WasmExecutionMethod::Interpreted,
@@ -194,7 +199,7 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 
 /// The validation externalities that will panic on any storage related access. They just provide
 /// access to the parachain extension.
-struct ValidationExternalities(ParachainExt);
+struct ValidationExternalities(Extensions);
 
 impl sp_externalities::Externalities for ValidationExternalities {
 	fn storage(&self, _: &[u8]) -> Option<Vec<u8>> {
@@ -268,25 +273,24 @@ impl sp_externalities::Externalities for ValidationExternalities {
 
 impl sp_externalities::ExtensionStore for ValidationExternalities {
 	fn extension_by_type_id(&mut self, type_id: TypeId) -> Option<&mut dyn Any> {
-		if type_id == TypeId::of::<ParachainExt>() {
-			Some(&mut self.0)
-		} else {
-			None
-		}
+		self.0.get_mut(type_id)
 	}
 
 	fn register_extension_with_type_id(
 		&mut self,
-		_type_id: TypeId,
-		_extension: Box<dyn sp_externalities::Extension>,
+		type_id: TypeId,
+		extension: Box<dyn sp_externalities::Extension>,
 	) -> Result<(), sp_externalities::Error> {
-		panic!("register_extension_with_type_id: unsupported feature for parachain validation")
+		self.0.register_with_type_id(type_id, extension)
 	}
 
 	fn deregister_extension_by_type_id(
 		&mut self,
-		_type_id: TypeId,
+		type_id: TypeId,
 	) -> Result<(), sp_externalities::Error> {
-		panic!("deregister_extension_by_type_id: unsupported feature for parachain validation")
+		match self.0.deregister(type_id) {
+			Some(_) => Ok(()),
+			None => Err(sp_externalities::Error::ExtensionIsNotRegistered(type_id))
+		}
 	}
 }
