@@ -1559,7 +1559,7 @@ mod tests {
 	use super::Call as ParachainsCall;
 	use bitvec::{bitvec, vec::BitVec};
 	use sp_io::TestExternalities;
-	use sp_core::{H256, Blake2Hasher};
+	use sp_core::{H256, Blake2Hasher, sr25519};
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
 		impl_opaque_keys,
@@ -1839,8 +1839,7 @@ mod tests {
 
 	// This is needed for a custom `AccountId` type which is `u64` in testing here.
 	pub mod test_keys {
-		use sp_core::crypto::KeyTypeId;
-
+		use sp_core::{crypto::KeyTypeId, sr25519};
 		pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
 
 		mod app {
@@ -1859,10 +1858,9 @@ mod tests {
 		}
 
 		pub type ReporterId = app::Public;
-		pub type ReporterSignature = app::Signature;
 		pub struct ReporterAuthorityId;
-		impl system::offchain::AppCrypto<<ReporterSignature as Verify>::Signer, ReporterSignature> for ReporterAuthorityId {
-			type RuntimeAppPublic = app::Public;
+		impl system::offchain::AppCrypto<ReporterId, sr25519::Signature> for ReporterAuthorityId {
+			type RuntimeAppPublic = ReporterId;
 			type GenericSignature = sr25519::Signature;
 			type GenericPublic = sr25519::Public;
 		}
@@ -1898,17 +1896,17 @@ mod tests {
 	{
 		fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
 			call: Call,
-			_public: <Signature as Verify>::Signer,
-			_account: AccountId,
-			_nonce: <Runtime as system::Trait>::Index,
-		) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
+			_public: test_keys::ReporterId,
+			_account: <Test as system::Trait>::AccountId,
+			nonce: <Test as system::Trait>::Index,
+		) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
 			Some((call, (nonce, ())))
 		}
 	}
 
 	impl system::offchain::SigningTypes for Test {
-		type Public = <Signature as Verify>::Signer;
-		type Signature = Signature;
+		type Public = test_keys::ReporterId;
+		type Signature = sr25519::Signature;
 	}
 
 	type Parachains = Module<Test>;

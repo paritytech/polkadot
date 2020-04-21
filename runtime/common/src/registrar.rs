@@ -676,7 +676,7 @@ mod tests {
 			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
 			CollatorPair, CandidateCommitments,
 		},
-		Balance, BlockNumber, Header,
+		Balance, BlockNumber, Header, Signature,
 	};
 	use frame_support::{
 		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},
@@ -857,7 +857,8 @@ mod tests {
 
 	// This is needed for a custom `AccountId` type which is `u64` in testing here.
 	pub mod test_keys {
-		use sp_core::crypto::KeyTypeId;
+		use sp_core::{crypto::KeyTypeId, sr25519};
+		use primitives::Signature;
 
 		pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
 
@@ -878,10 +879,9 @@ mod tests {
 		}
 
 		pub type ReporterId = app::Public;
-		pub type ReporterSignature = app::Signature;
 		pub struct ReporterAuthorityId;
-		impl system::offchain::AppCrypto<<ReporterSignature as Verify>::Signer, ReporterSignature> for ReporterAuthorityId {
-			type RuntimeAppPublic = app::Public;
+		impl system::offchain::AppCrypto<ReporterId, Signature> for ReporterAuthorityId {
+			type RuntimeAppPublic = ReporterId;
 			type GenericSignature = sr25519::Signature;
 			type GenericPublic = sr25519::Public;
 		}
@@ -915,16 +915,16 @@ mod tests {
 	{
 		fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
 			call: Call,
-			_public: <Signature as Verify>::Signer,
-			_account: AccountId,
-			_nonce: <Runtime as system::Trait>::Index,
-		) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
+			_public: test_keys::ReporterId,
+			_account: <Test as system::Trait>::AccountId,
+			nonce: <Test as system::Trait>::Index,
+		) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
 			Some((call, (nonce, ())))
 		}
 	}
 
 	impl system::offchain::SigningTypes for Test {
-		type Public = <Signature as Verify>::Signer;
+		type Public = test_keys::ReporterId;
 		type Signature = Signature;
 	}
 
