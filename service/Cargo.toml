@@ -59,6 +59,7 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 [dev-dependencies]
 polkadot-test-runtime-client = { path = "../runtime/test-runtime/client" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+env_logger = "0.7.0"
 
 [features]
 default = ["db", "full-node"]

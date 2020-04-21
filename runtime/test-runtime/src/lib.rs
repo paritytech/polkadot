@@ -68,6 +68,8 @@ pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
+#[cfg(feature = "std")]
+pub mod genesismap;
 use constants::{time::*, currency::*, fee::*};
 
 // Make the WASM binary available.
@@ -79,7 +81,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot-test-runtime"),
 	impl_name: create_runtime_str!("parity-polkadot-test-runtime"),
 	authoring_version: 2,
-	spec_version: 1050,
+	spec_version: 1051,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -210,7 +212,7 @@ impl transaction_payment::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
+	pub const MinimumPeriod: u64 = 0;
 }
 impl timestamp::Trait for Runtime {
 	type Moment = u64;
