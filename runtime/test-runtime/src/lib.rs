@@ -69,6 +69,8 @@ pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
+#[cfg(feature = "std")]
+pub mod genesismap;
 use constants::{time::*, currency::*, fee::*};
 
 // Make the WASM binary available.
@@ -204,7 +206,7 @@ impl transaction_payment::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
+	pub const MinimumPeriod: u64 = 0;
 }
 impl timestamp::Trait for Runtime {
 	type Moment = u64;
