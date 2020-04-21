@@ -118,7 +118,7 @@ impl substrate_test_client::GenesisInit for GenesisParameters {
 
 		let mut storage = self.genesis_config().genesis_map();
 
-		let child_roots = storage.children.iter().map(|(sk, child_content)| {
+		let child_roots = storage.children_default.iter().map(|(sk, child_content)| {
 			let state_root = <<<runtime::Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
 				child_content.data.clone().into_iter().collect()
 			);
@@ -198,7 +198,7 @@ pub trait TestClientBuilderExt<B>: Sized {
 		let key = key.into();
 		assert!(!storage_key.is_empty());
 		assert!(!key.is_empty());
-		self.genesis_init_mut().extra_storage.children
+		self.genesis_init_mut().extra_storage.children_default
 			.entry(storage_key)
 			.or_insert_with(|| StorageChild {
 				data: Default::default(),
