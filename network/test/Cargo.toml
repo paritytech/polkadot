@@ -19,5 +19,4 @@ sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "mas
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-env_logger = "0.7.0"
 polkadot-test-runtime-client = { path = "../../runtime/test-runtime/client" }

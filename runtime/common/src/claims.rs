@@ -19,7 +19,6 @@
 use sp_std::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error};
-use frame_support::weights::SimpleDispatchInfo;
 use frame_support::traits::{Currency, Get, VestingSchedule};
 use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
@@ -184,7 +183,7 @@ decl_module! {
 		///
 		/// Total Complexity: O(1)
 		/// </weight>
-		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000_000)]
+		#[weight = 1_000_000_000]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
@@ -231,7 +230,7 @@ decl_module! {
 		///
 		/// Total Complexity: O(1)
 		/// </weight>
-		#[weight = SimpleDispatchInfo::FixedNormal(30_000_000)]
+		#[weight = 30_000_000]
 		fn mint_claim(origin,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
