@@ -19,7 +19,7 @@
 use sp_std::prelude::*;
 use sp_std::result;
 use codec::{Decode, Encode};
-
+use sp_core::sr25519;
 use sp_runtime::{
 	KeyTypeId, Perbill, RuntimeDebug,
 	traits::{
@@ -41,19 +41,23 @@ use frame_support::{
 use primitives::{
 	Balance,
 	BlockNumber,
+	Signature,
 	parachain::{
 		Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
 		LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
-		ValidatorSignature, SigningContext, HeadData, ValidationCode,
+		ValidatorSignature, SigningContext, HeadData, ValidationCode, FishermanId,
 	},
 };
 use frame_support::{
 	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
-use sp_runtime::transaction_validity::InvalidTransaction;
+use sp_runtime::{
+	transaction_validity::InvalidTransaction,
+	traits::Verify,
+};
 
 use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
 
@@ -64,23 +68,12 @@ use system::{
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
 
-pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"para");
-
-pub mod crypto {
-	use super::KEY_TYPE;
-	use sp_runtime::{
-		app_crypto::{app_crypto, sr25519},
-		traits::Verify,
-	};
-	use sp_core::sr25519::Signature as Sr25519Signature;
-	app_crypto!(sr25519, KEY_TYPE);
-
-	pub struct AuthorityId;
-	impl system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature> for AuthorityId {
-		type RuntimeAppPublic = Public;
-		type GenericSignature = Sr25519Signature;
-		type GenericPublic = sp_core::sr25519::Public;
-	}
+// An `AppCrypto` type to facilitate submitting signed transactions.
+pub struct FishermanAuthorityId;
+impl system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAuthorityId {
+	type RuntimeAppPublic = FishermanId;
+	type GenericSignature = sr25519::Signature;
+	type GenericPublic = sp_core::sr25519::Public;
 }
 
 // ranges for iteration of general block number don't work, so this
@@ -818,8 +811,9 @@ impl<T: Trait> Module<T> {
 				move |_account| {
 					Call::report_double_vote(report.clone())
 				}
-			);
-		return Some(())
+			)
+			.iter()
+			.find_map(|(_, res)| res.ok().map(|_| ()))
 	}
 
 	/// Dispatch some messages from a parachain.
