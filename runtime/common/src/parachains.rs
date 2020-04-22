@@ -806,21 +806,14 @@ impl<T: Trait> Module<T> {
 	pub fn submit_double_vote_report(
 		report: DoubleVoteReport<T::Proof>,
 	) -> Option<()> {
-		let results = Signer::<T, T::AuthorityId>::all_accounts()
+		Signer::<T, T::AuthorityId>::all_accounts()
 			.send_signed_transaction(
 				move |_account| {
 					Call::report_double_vote(report.clone())
 				}
-			);
-		// Make sure at least one account has successfully
-		// submitted the transaction.
-		let failed = results.iter().filter(|(_, res)| {
-			res.is_err()
-		});
-		if failed.count() == results.len() {
-			return None
-		}
-		return Some(())
+			)
+			.iter()
+			.find_map(|(_, res)| res.ok().map(|_| ()))
 	}
 
 	/// Dispatch some messages from a parachain.
