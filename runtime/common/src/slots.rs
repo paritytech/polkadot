@@ -26,7 +26,7 @@ use codec::{Encode, Decode, Codec};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
-	weights::{MINIMUM_WEIGHT, SimpleDispatchInfo, Weight},
+	weights::{MINIMUM_WEIGHT, DispatchClass, Weight},
 };
 use primitives::parachain::{
 	SwapAux, PARACHAIN_INFO, Id as ParaId, ValidationCode, HeadData,
@@ -309,7 +309,7 @@ decl_module! {
 		/// This can only happen when there isn't already an auction in progress and may only be
 		/// called by the root origin. Accepts the `duration` of this auction and the
 		/// `lease_period_index` of the initial lease period of the four that are to be auctioned.
-		#[weight = SimpleDispatchInfo::FixedOperational(100_000_000)]
+		#[weight = (100_000_000, DispatchClass::Operational)]
 		pub fn new_auction(origin,
 			#[compact] duration: T::BlockNumber,
 			#[compact] lease_period_index: LeasePeriodOf<T>
@@ -344,7 +344,7 @@ decl_module! {
 		/// absolute lease period index value, not an auction-specific offset.
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
-		#[weight = SimpleDispatchInfo::FixedNormal(500_000_000)]
+		#[weight = 500_000_000]
 		pub fn bid(origin,
 			#[compact] sub: SubId,
 			#[compact] auction_index: AuctionIndex,
@@ -372,7 +372,7 @@ decl_module! {
 		/// absolute lease period index value, not an auction-specific offset.
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
-		#[weight = SimpleDispatchInfo::FixedNormal(500_000_000)]
+		#[weight = 500_000_000]
 		fn bid_renew(origin,
 			#[compact] auction_index: AuctionIndex,
 			#[compact] first_slot: LeasePeriodOf<T>,
@@ -391,7 +391,7 @@ decl_module! {
 		/// The origin *must* be a parachain account.
 		///
 		/// - `dest` is the destination account to receive the parachain's deposit.
-		#[weight = SimpleDispatchInfo::FixedNormal(1_000_000_000)]
+		#[weight = 1_000_000_000]
 		pub fn set_offboarding(origin, dest: <T::Lookup as StaticLookup>::Source) {
 			let who = ensure_signed(origin)?;
 			let dest = T::Lookup::lookup(dest)?;
@@ -407,7 +407,7 @@ decl_module! {
 		/// - `para_id` is the parachain ID allotted to the winning bidder.
 		/// - `code_hash` is the hash of the parachain's Wasm validation function.
 		/// - `initial_head_data` is the parachain's initial head data.
-		#[weight = SimpleDispatchInfo::FixedNormal(500_000_000)]
+		#[weight = 500_000_000]
 		pub fn fix_deploy_data(origin,
 			#[compact] sub: SubId,
 			#[compact] para_id: ParaId,
@@ -449,7 +449,7 @@ decl_module! {
 		/// - `_origin` is irrelevant.
 		/// - `para_id` is the parachain ID whose code will be elaborated.
 		/// - `code` is the preimage of the registered `code_hash` of `para_id`.
-		#[weight = SimpleDispatchInfo::FixedNormal(5_000_000_000)]
+		#[weight = 5_000_000_000]
 		pub fn elaborate_deploy_data(
 			_origin,
 			#[compact] para_id: ParaId,
