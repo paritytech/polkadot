@@ -40,7 +40,7 @@ use sp_runtime::{
 	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto, IdentityLookup,
-		DispatchInfoOf, StaticLookup, Extrinsic as ExtrinsicT, SaturatedConversion,
+		DispatchInfoOf, Extrinsic as ExtrinsicT, SaturatedConversion,
 	},
 };
 #[cfg(feature = "runtime-benchmarks")]
@@ -561,7 +561,7 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
-		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>},
+		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		Offences: offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
