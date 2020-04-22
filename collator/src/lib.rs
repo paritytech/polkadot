@@ -83,12 +83,12 @@ pub trait Network: Send + Sync {
 	/// The returned stream will not terminate, so it is required to make sure that the stream is
 	/// dropped when it is not required anymore. Otherwise, it will stick around in memory
 	/// infinitely.
-	fn checked_statements(&self, relay_parent: Hash) -> Pin<Box<dyn Stream<Item=SignedStatement>>>;
+	fn checked_statements(&self, relay_parent: Hash) -> Pin<Box<dyn Stream<Item=SignedStatement> + Send>>;
 }
 
 impl Network for polkadot_network::protocol::Service {
-	fn checked_statements(&self, relay_parent: Hash) -> Pin<Box<dyn Stream<Item=SignedStatement>>> {
-		polkadot_network::protocol::Service::checked_statements(self, relay_parent)
+	fn checked_statements(&self, relay_parent: Hash) -> Pin<Box<dyn Stream<Item=SignedStatement> + Send>> {
+		polkadot_network::protocol::Service::checked_statements(self, relay_parent).boxed()
 	}
 }
 
@@ -241,12 +241,14 @@ fn build_collator_service<S, P, Extrinsic>(
 	let (service, handles) = service;
 	let spawner = service.spawn_task_handle();
 
-	let polkadot_network = match handles.polkadot_network {
-		None => return Err(
-			"Collator cannot run when Polkadot-specific networking has not been started".into()
-		),
-		Some(n) => n,
-	};
+	let polkadot_network = handles.polkadot_network
+		.ok_or_else(|| "Collator cannot run when Polkadot-specific networking has not been started")?;
+
+	// We don't require this here, but we need to make sure that the validation service is started.
+	// This service makes sure the collator is joining the correct gossip topics and receives the appropiate
+	// messages.
+	handles.validation_service_handle
+		.ok_or_else(|| "Collator cannot run when validation networking has not been started")?;
 
 	let client = service.client();
 
