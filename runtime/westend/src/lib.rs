@@ -41,7 +41,7 @@ use sp_runtime::{
 	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto, IdentityLookup,
-		DispatchInfoOf, StaticLookup, Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
+		DispatchInfoOf, Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
 #[cfg(feature = "runtime-benchmarks")]

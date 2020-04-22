@@ -35,8 +35,8 @@ use sp_staking::{
 };
 use frame_support::{
 	traits::KeyOwnerProofSystem,
-	dispatch::IsSubType,
-	weights::{SimpleDispatchInfo, Weight, MINIMUM_WEIGHT},
+	dispatch::{IsSubType},
+	weights::{DispatchClass, Weight, MINIMUM_WEIGHT},
 };
 use primitives::{
 	Balance,
@@ -571,7 +571,7 @@ decl_module! {
 		}
 
 		/// Provide candidate receipts for parachains, in ascending order by id.
-		#[weight = SimpleDispatchInfo::FixedMandatory(1_000_000_000)]
+		#[weight = (1_000_000_000, DispatchClass::Mandatory)]
 		pub fn set_heads(origin, heads: Vec<AttestedCandidate>) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), Error::<T>::TooManyHeadUpdates);
@@ -651,7 +651,7 @@ decl_module! {
 		///
 		/// The weight is 0; in order to avoid DoS a `SignedExtension` validation
 		/// is implemented.
-		#[weight = SimpleDispatchInfo::FixedNormal(0)]
+		#[weight = 0]
 		pub fn report_double_vote(
 			origin,
 			report: DoubleVoteReport<
