@@ -38,17 +38,34 @@ release_text="Kusama native runtime: $kusama_spec
 
 Westend native runtime: $westend_spec
 "
+
+runtime_changes=""
+
 while IFS= read -r line; do
   pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
   if has_label 'paritytech/polkadot' "$pr_id" 'B1-silent'; then
     continue
   fi
+
+  # If the PR has a runtimenoteworthy label, add to the runtime_changes section
+  if has_label 'paritytech/polkadot' "$pr_id" 'B1-runtimenoteworthy'; then
+    runtime_changes="$runtime_changes
+$line"
+  else
+  # otherwise, add the PR to the main list of changes
   release_text="$release_text
 $line"
+  fi
 done <<< "$(sanitised_git_logs "$last_version" "$version" | \
   sed '/^\[contracts\].*/d' | \
   sed '/^contracts:.*/d' )"
 
+if [ -n "$runtime_changes" ]; then
+    release_text="$release_text
+
+## Runtime
+$runtime_changes"
+fi
 echo "$release_text"
 
 # Get substrate changes between last polkadot version and current
@@ -96,30 +113,26 @@ if [ -n "$substrate_runtime_changes" ] ||
    [ -n "$substrate_api_changes" ] ||
    [ -n "$substrate_client_changes" ]; then
   substrate_changes=$(cat << EOF
-Substrate changes
------------------
+# Substrate changes
 
 EOF
 )
   if [ -n "$substrate_runtime_changes" ]; then
     substrate_changes="$substrate_changes
 
-Runtime
--------
+## Runtime
 $substrate_runtime_changes"
   fi
   if [ -n "$substrate_client_changes" ]; then
     substrate_changes="$substrate_changes
 
-Client
-------
+## Client
 $substrate_client_changes"
   fi
   if [ -n "$substrate_api_changes" ]; then
     substrate_changes="$substrate_changes
 
-API
----
+## API
 $substrate_api_changes"
   fi
   release_text="$release_text
