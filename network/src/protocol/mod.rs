@@ -208,6 +208,7 @@ impl<N> Clone for Service<N> {
 }
 
 impl<N> Service<N> {
+	/// Returns the `NetworkService`
 	pub fn network_service(&self) -> Arc<N> {
 		self.network_service.clone()
 	}
