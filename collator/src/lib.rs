@@ -217,8 +217,8 @@ fn build_collator_service<S, P, Extrinsic>(
 ) -> Result<S, polkadot_service::Error>
 	where
 		S: AbstractService<Block = service::Block>,
-		sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi>: ProvideRuntimeApi<Block>,
-		<sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi> as ProvideRuntimeApi<Block>>::Api:
+		sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::Runtime>: ProvideRuntimeApi<Block>,
+		<sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::Runtime> as ProvideRuntimeApi<Block>>::Api:
 			RuntimeApiCollection<
 				Extrinsic,
 				Error = sp_blockchain::Error,
