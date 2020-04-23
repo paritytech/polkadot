@@ -4150,7 +4150,6 @@ dependencies = [
 name = "polkadot-network-test"
 version = "0.8.0"
 dependencies = [
- "env_logger 0.7.1",
  "futures 0.3.4",
  "log 0.4.8",
  "parking_lot 0.10.2",
@@ -4334,6 +4333,7 @@ dependencies = [
 name = "polkadot-service"
 version = "0.7.30"
 dependencies = [
+ "env_logger 0.7.1",
  "frame-benchmarking",
  "frame-system-rpc-runtime-api",
  "futures 0.3.4",
@@ -4457,7 +4457,10 @@ name = "polkadot-test-runtime-client"
 version = "2.0.0"
 dependencies = [
  "futures 0.3.4",
+ "pallet-timestamp",
  "parity-scale-codec",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
  "polkadot-test-runtime",
  "sc-block-builder",
  "sc-client",
@@ -4467,7 +4470,6 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "substrate-test-client",
- "substrate-test-runtime",
 ]
 
 [[package]]
