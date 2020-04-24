@@ -425,9 +425,9 @@ mod tests {
 	impl BuildParachainContext for BuildDummyParachainContext {
 		type ParachainContext = DummyParachainContext;
 
-		fn build<B, E, R, SP, Extrinsic>(
+		fn build<C, SP, Extrinsic>(
 			self,
-			_: Arc<PolkadotClient<B, E, R>>,
+			_: Arc<C>,
 			_: SP,
 			_: impl Network + Clone + 'static,
 		) -> Result<Self::ParachainContext, ()> {
