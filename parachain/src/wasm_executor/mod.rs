@@ -269,6 +269,10 @@ impl sp_externalities::Externalities for ValidationExternalities {
 	fn commit(&mut self) {
 		panic!("commit: unsupported feature for parachain validation")
 	}
+
+	fn set_offchain_storage(&mut self, _: &[u8], _: std::option::Option<&[u8]>) {
+		panic!("set_offchain_storage: unsupported feature for parachain validation")
+	}
 }
 
 impl sp_externalities::ExtensionStore for ValidationExternalities {
