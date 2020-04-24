@@ -735,7 +735,6 @@ mod tests {
 		pub const MinContribution: u64 = 10;
 		pub const RetirementPeriod: u64 = 5;
 		pub const CrowdfundModuleId: ModuleId = ModuleId(*b"py/cfund");
-
 	}
 	impl Trait for Test {
 		type Event = ();
