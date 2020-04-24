@@ -30,14 +30,43 @@ esac
 # Start with referencing current native runtime
 # and find any referenced PRs since last release
 # Note: Drop any changes that begin with '[contracts]' or 'contracts:'
-spec=$(grep spec_version runtime/kusama/src/lib.rs | tail -n 1 | grep -Eo '[0-9]{4}')
-echo "[+] Spec version: $spec"
-release_text="Native for runtime $spec.
+kusama_spec=$(grep spec_version runtime/kusama/src/lib.rs | tail -n 1 | grep -Eo '[0-9]+')
+echo "[+] Kusama spec version: $kusama_spec"
+westend_spec=$(grep spec_version runtime/westend/src/lib.rs | tail -n 1 | grep -Eo '[0-9]+')
+echo "[+] Westend spec version: $westend_spec"
+release_text="Kusama native runtime: $kusama_spec
 
-$(sanitised_git_logs "$last_version" "$version" | \
+Westend native runtime: $westend_spec
+"
+
+runtime_changes=""
+
+while IFS= read -r line; do
+  pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
+  if has_label 'paritytech/polkadot' "$pr_id" 'B1-silent'; then
+    continue
+  fi
+
+  # If the PR has a runtimenoteworthy label, add to the runtime_changes section
+  if has_label 'paritytech/polkadot' "$pr_id" 'B1-runtimenoteworthy'; then
+    runtime_changes="$runtime_changes
+$line"
+  else
+  # otherwise, add the PR to the main list of changes
+  release_text="$release_text
+$line"
+  fi
+done <<< "$(sanitised_git_logs "$last_version" "$version" | \
   sed '/^\[contracts\].*/d' | \
-  sed '/^contracts:.*/d' \
-)"
+  sed '/^contracts:.*/d' )"
+
+if [ -n "$runtime_changes" ]; then
+    release_text="$release_text
+
+## Runtime
+$runtime_changes"
+fi
+echo "$release_text"
 
 # Get substrate changes between last polkadot version and current
 cur_substrate_commit=$(grep -A 2 'name = "sc-cli"' Cargo.lock | grep -E -o '[a-f0-9]{40}')
@@ -45,7 +74,7 @@ git checkout "$last_version"
 old_substrate_commit=$(grep -A 2 'name = "sc-cli"' Cargo.lock | grep -E -o '[a-f0-9]{40}')
 
 pushd $substrate_dir || exit
-  git checkout polkadot-master > /dev/null
+  git checkout master > /dev/null
   git pull > /dev/null
   all_substrate_changes="$(sanitised_git_logs "$old_substrate_commit" "$cur_substrate_commit" | sed 's/(#/(paritytech\/substrate#/')"
   substrate_runtime_changes=""
@@ -84,30 +113,26 @@ if [ -n "$substrate_runtime_changes" ] ||
    [ -n "$substrate_api_changes" ] ||
    [ -n "$substrate_client_changes" ]; then
   substrate_changes=$(cat << EOF
-Substrate changes
------------------
+# Substrate changes
 
 EOF
 )
   if [ -n "$substrate_runtime_changes" ]; then
     substrate_changes="$substrate_changes
 
-Runtime
--------
+## Runtime
 $substrate_runtime_changes"
   fi
   if [ -n "$substrate_client_changes" ]; then
     substrate_changes="$substrate_changes
 
-Client
-------
+## Client
 $substrate_client_changes"
   fi
   if [ -n "$substrate_api_changes" ]; then
     substrate_changes="$substrate_changes
 
-API
----
+## API
 $substrate_api_changes"
   fi
   release_text="$release_text
