@@ -31,7 +31,7 @@ use sp_runtime::{
 use frame_support::{
 	decl_storage, decl_module, decl_event, decl_error, ensure,
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
-	weights::{SimpleDispatchInfo, Weight, WeighData},
+	weights::{DispatchClass, Weight, MINIMUM_WEIGHT},
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
@@ -264,7 +264,7 @@ decl_module! {
 		///
 		/// Unlike the `Registrar` trait function of the same name, this
 		/// checks the code and head data against size limits.
-		#[weight = SimpleDispatchInfo::FixedOperational(5_000_000)]
+		#[weight = (5_000_000_000, DispatchClass::Operational)]
 		pub fn register_para(origin,
 			#[compact] id: ParaId,
 			info: ParaInfo,
@@ -289,7 +289,7 @@ decl_module! {
 		}
 
 		/// Deregister a parachain with given id
-		#[weight = SimpleDispatchInfo::FixedOperational(10_000)]
+		#[weight = (10_000_000, DispatchClass::Operational)]
 		pub fn deregister_para(origin, #[compact] id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			<Self as Registrar<T::AccountId>>::deregister_para(id)
@@ -300,7 +300,7 @@ decl_module! {
 		/// - `count`: The number of parathreads.
 		///
 		/// Must be called from Root origin.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = MINIMUM_WEIGHT]
 		fn set_thread_count(origin, count: u32) {
 			ensure_root(origin)?;
 			ThreadCount::put(count);
@@ -314,7 +314,7 @@ decl_module! {
 		/// Unlike `register_para`, this function does check that the maximum code size
 		/// and head data size are respected, as parathread registration is an atomic
 		/// action.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = MINIMUM_WEIGHT]
 		fn register_parathread(origin,
 			code: ValidationCode,
 			initial_head_data: HeadData,
@@ -354,7 +354,7 @@ decl_module! {
 		/// This is a kind of special transaction that should be heavily prioritized in the
 		/// transaction pool according to the `value`; only `ThreadCount` of them may be presented
 		/// in any single block.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = MINIMUM_WEIGHT]
 		fn select_parathread(origin,
 			#[compact] _id: ParaId,
 			_collator: CollatorId,
@@ -371,7 +371,7 @@ decl_module! {
 		/// Ensure that before calling this that any funds you want emptied from the parathread's
 		/// account is moved out; after this it will be impossible to retrieve them (without
 		/// governance intervention).
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = MINIMUM_WEIGHT]
 		fn deregister_parathread(origin) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -395,7 +395,7 @@ decl_module! {
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
-		#[weight = SimpleDispatchInfo::default()]
+		#[weight = MINIMUM_WEIGHT]
 		fn swap(origin, #[compact] other: ParaId) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -466,7 +466,7 @@ decl_module! {
 
 			Active::put(paras);
 
-			SimpleDispatchInfo::default().weigh_data(())
+			MINIMUM_WEIGHT
 		}
 
 		fn on_finalize() {
@@ -563,6 +563,15 @@ impl<T: Trait> ActiveParas for Module<T> {
 pub struct LimitParathreadCommits<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
 
+impl<T: Trait + Send + Sync> LimitParathreadCommits<T> where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+{
+	/// Create a new `LimitParathreadCommits` struct.
+	pub fn new() -> Self {
+		LimitParathreadCommits(sp_std::marker::PhantomData)
+	}
+}
+
 impl<T: Trait + Send + Sync> sp_std::fmt::Debug for LimitParathreadCommits<T> where
 	<T as system::Trait>::Call: IsSubType<Module<T>, T>
 {
@@ -658,7 +667,7 @@ mod tests {
 	use sp_runtime::{
 		traits::{
 			BlakeTwo256, IdentityLookup, Dispatchable,
-			AccountIdConversion,
+			AccountIdConversion, Extrinsic as ExtrinsicT,
 		}, testing::{UintAuthorityId, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::{
@@ -667,7 +676,7 @@ mod tests {
 			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
 			CollatorPair, CandidateCommitments,
 		},
-		Balance, BlockNumber, Header,
+		Balance, BlockNumber, Header, Signature,
 	};
 	use frame_support::{
 		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},
@@ -726,6 +735,7 @@ mod tests {
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
+		type DbWeight = ();
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
@@ -733,6 +743,13 @@ mod tests {
 		type AccountData = balances::AccountData<u128>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
+	}
+
+	impl<C> system::offchain::SendTransactionTypes<C> for Test where
+		Call: From<C>,
+	{
+		type OverarchingCall = Call;
+		type Extrinsic = TestXt<Call, ()>;
 	}
 
 	parameter_types! {
@@ -824,7 +841,6 @@ mod tests {
 		type NextNewSession = Session;
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
-		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
 		type UnsignedPriority = StakingUnsignedPriority;
 	}
 
@@ -839,7 +855,40 @@ mod tests {
 		type FullIdentificationOf = staking::ExposureOf<Self>;
 	}
 
+	// This is needed for a custom `AccountId` type which is `u64` in testing here.
+	pub mod test_keys {
+		use sp_core::{crypto::KeyTypeId, sr25519};
+		use primitives::Signature;
+
+		pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
+
+		mod app {
+			use super::super::Parachains;
+			use sp_application_crypto::{app_crypto, sr25519};
+
+			app_crypto!(sr25519, super::KEY_TYPE);
+
+			impl sp_runtime::traits::IdentifyAccount for Public {
+				type AccountId = u64;
+
+				fn into_account(self) -> Self::AccountId {
+					let id = self.0.clone().into();
+					Parachains::authorities().iter().position(|b| *b == id).unwrap() as u64
+				}
+			}
+		}
+
+		pub type ReporterId = app::Public;
+		pub struct ReporterAuthorityId;
+		impl system::offchain::AppCrypto<ReporterId, Signature> for ReporterAuthorityId {
+			type RuntimeAppPublic = ReporterId;
+			type GenericSignature = sr25519::Signature;
+			type GenericPublic = sr25519::Public;
+		}
+	}
+
 	impl parachains::Trait for Test {
+		type AuthorityId = test_keys::ReporterAuthorityId;
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = balances::Module<Test>;
@@ -857,6 +906,26 @@ mod tests {
 		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 		type ReportOffence = ();
 		type BlockHashConversion = sp_runtime::traits::Identity;
+	}
+
+	type Extrinsic = TestXt<Call, ()>;
+
+	impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Test where
+		Call: From<LocalCall>,
+	{
+		fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+			call: Call,
+			_public: test_keys::ReporterId,
+			_account: <Test as system::Trait>::AccountId,
+			nonce: <Test as system::Trait>::Index,
+		) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+			Some((call, (nonce, ())))
+		}
+	}
+
+	impl system::offchain::SigningTypes for Test {
+		type Public = test_keys::ReporterId;
+		type Signature = Signature;
 	}
 
 	parameter_types! {

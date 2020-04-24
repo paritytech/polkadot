@@ -158,9 +158,9 @@ macro_rules! new_full_start {
 			.with_select_chain(|_, backend| {
 				Ok(sc_client::LongestChain::new(backend.clone()))
 			})?
-			.with_transaction_pool(|config, client, _fetcher| {
+			.with_transaction_pool(|config, client, _fetcher, prometheus_registry| {
 				let pool_api = sc_transaction_pool::FullChainApi::new(client.clone());
-				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api));
+				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api), prometheus_registry);
 				Ok(pool)
 			})?
 			.with_import_queue(|config, client, mut select_chain, _| {
@@ -320,9 +320,12 @@ pub fn westend_new_full(
 /// Handles to other sub-services that full nodes instantiate, which consumers
 /// of the node may use.
 #[cfg(feature = "full-node")]
+#[derive(Default)]
 pub struct FullNodeHandles {
 	/// A handle to the Polkadot networking protocol.
 	pub polkadot_network: Option<network_protocol::Service>,
+	/// A handle to the validation service.
+	pub validation_service_handle: Option<consensus::ServiceHandle>,
 }
 
 /// Builds a new service for a full client.
@@ -363,10 +366,9 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let is_authority = role.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
 	let max_block_data_size = max_block_data_size;
-	let db_path = if let DatabaseConfig::Path { ref path, .. } = config.database {
-		path.clone()
-	} else {
-		return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into());
+	let db_path = match config.database.path() {
+		Some(path) => std::path::PathBuf::from(path),
+		None => return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into()),
 	};
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
@@ -390,7 +392,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let client = service.client();
 	let known_oracle = client.clone();
 
-	let mut handles = FullNodeHandles { polkadot_network: None };
+	let mut handles = FullNodeHandles::default();
 	let select_chain = if let Some(select_chain) = service.select_chain() {
 		select_chain
 	} else {
@@ -428,7 +430,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 		service.spawn_task_handle(),
 	).map_err(|e| format!("Could not spawn network worker: {:?}", e))?;
 
-	if let Role::Authority { sentry_nodes } = &role {
+	let authority_handles = if is_collator || role.is_authority() {
 		let availability_store = {
 			use std::path::PathBuf;
 
@@ -465,6 +467,18 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 
 		service.spawn_essential_task("validation-service", Box::pin(validation_service));
 
+		handles.validation_service_handle = Some(validation_service_handle.clone());
+
+		Some((validation_service_handle, availability_store))
+	} else {
+		None
+	};
+
+	if role.is_authority() {
+		let (validation_service_handle, availability_store) = authority_handles
+			.clone()
+			.expect("Authority handles are set for authority nodes; qed");
+
 		let proposer = consensus::ProposerFactory::new(
 			client.clone(),
 			service.transaction_pool(),
@@ -499,8 +513,24 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 
 		let babe = babe::start_babe(babe_config)?;
 		service.spawn_essential_task("babe", babe);
+	}
 
+	if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
 		if authority_discovery_enabled {
+			let (sentries, authority_discovery_role) = match role {
+				Role::Authority { ref sentry_nodes } => (
+					sentry_nodes.clone(),
+					authority_discovery::Role::Authority (
+						service.keystore(),
+					),
+				),
+				Role::Sentry {..} => (
+					vec![],
+					authority_discovery::Role::Sentry,
+				),
+				_ => unreachable!("Due to outer matches! constraint; qed."),
+			};
+
 			let network = service.network();
 			let network_event_stream = network.event_stream("authority-discovery");
 			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
@@ -510,11 +540,12 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
 				service.client(),
 				network,
-				sentry_nodes.clone(),
-				service.keystore(),
+				sentries,
 				dht_event_stream,
+				authority_discovery_role,
 				service.prometheus_registry(),
 			);
+
 			service.spawn_task("authority-discovery", authority_discovery);
 		}
 	}
@@ -686,12 +717,12 @@ where
 		.with_select_chain(|_, backend| {
 			Ok(LongestChain::new(backend.clone()))
 		})?
-		.with_transaction_pool(|config, client, fetcher| {
+		.with_transaction_pool(|config, client, fetcher, prometheus_registry| {
 			let fetcher = fetcher
 				.ok_or_else(|| "Trying to start light transaction pool without active fetcher")?;
 			let pool_api = sc_transaction_pool::LightChainApi::new(client.clone(), fetcher.clone());
 			let pool = sc_transaction_pool::BasicPool::with_revalidation_type(
-				config, Arc::new(pool_api), sc_transaction_pool::RevalidationType::Light,
+				config, Arc::new(pool_api), prometheus_registry, sc_transaction_pool::RevalidationType::Light,
 			);
 			Ok(pool)
 		})?

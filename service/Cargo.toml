@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.7.29"
+version = "0.7.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -59,9 +59,10 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 [dev-dependencies]
 polkadot-test-runtime-client = { path = "../runtime/test-runtime/client" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+env_logger = "0.7.0"
 
 [features]
-default = ["rocksdb", "full-node"]
-rocksdb = ["service/rocksdb"]
+default = ["db", "full-node"]
+db = ["service/db"]
 runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks", "westend-runtime/runtime-benchmarks"]
 full-node = ["av_store", "consensus", "polkadot-network"]

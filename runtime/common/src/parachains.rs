@@ -19,7 +19,7 @@
 use sp_std::prelude::*;
 use sp_std::result;
 use codec::{Decode, Encode};
-
+use sp_core::sr25519;
 use sp_runtime::{
 	KeyTypeId, Perbill, RuntimeDebug,
 	traits::{
@@ -36,30 +36,45 @@ use sp_staking::{
 use frame_support::{
 	traits::KeyOwnerProofSystem,
 	dispatch::{IsSubType},
-	weights::{SimpleDispatchInfo, Weight, WeighData},
+	weights::{DispatchClass, Weight, MINIMUM_WEIGHT},
 };
 use primitives::{
 	Balance,
 	BlockNumber,
+	Signature,
 	parachain::{
 		Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
 		LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
-		ValidatorSignature, SigningContext, HeadData, ValidationCode,
+		ValidatorSignature, SigningContext, HeadData, ValidationCode, FishermanId,
 	},
 };
 use frame_support::{
 	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
-use sp_runtime::transaction_validity::InvalidTransaction;
+use sp_runtime::{
+	transaction_validity::InvalidTransaction,
+	traits::Verify,
+};
 
 use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
 
-use system::{ensure_none, ensure_signed};
+use system::{
+	ensure_none, ensure_signed,
+	offchain::{CreateSignedTransaction, SendSignedTransaction, Signer},
+};
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
+
+// An `AppCrypto` type to facilitate submitting signed transactions.
+pub struct FishermanAuthorityId;
+impl system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAuthorityId {
+	type RuntimeAppPublic = FishermanId;
+	type GenericSignature = sr25519::Signature;
+	type GenericPublic = sp_core::sr25519::Public;
+}
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -249,12 +264,15 @@ impl GetSessionNumber for session::historical::Proof {
 	}
 }
 
-pub trait Trait: attestations::Trait + session::historical::Trait {
+pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + session::historical::Trait {
+	// The transaction signing authority
+	type AuthorityId: system::offchain::AppCrypto<Self::Public, Self::Signature>;
+
 	/// The outer origin type.
 	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
 
 	/// The outer call dispatch type.
-	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin>;
+	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin> + From<Call<Self>>;
 
 	/// Some way of interacting with balances for fees and transfers.
 	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
@@ -595,7 +613,7 @@ decl_module! {
 			Self::do_old_code_pruning(now);
 
 			// TODO https://github.com/paritytech/polkadot/issues/977: set correctly
-			SimpleDispatchInfo::default().weigh_data(())
+			MINIMUM_WEIGHT
 		}
 
 		fn on_finalize() {
@@ -603,7 +621,7 @@ decl_module! {
 		}
 
 		/// Provide candidate receipts for parachains, in ascending order by id.
-		#[weight = SimpleDispatchInfo::FixedMandatory(1_000_000)]
+		#[weight = (1_000_000_000, DispatchClass::Mandatory)]
 		pub fn set_heads(origin, heads: Vec<AttestedCandidate>) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!<DidUpdate>::exists(), Error::<T>::TooManyHeadUpdates);
@@ -683,7 +701,7 @@ decl_module! {
 		///
 		/// The weight is 0; in order to avoid DoS a `SignedExtension` validation
 		/// is implemented.
-		#[weight = SimpleDispatchInfo::FixedNormal(0)]
+		#[weight = 0]
 		pub fn report_double_vote(
 			origin,
 			report: DoubleVoteReport<
@@ -857,6 +875,20 @@ impl<T: Trait> Module<T> {
 			session_index,
 			parent_hash: T::BlockHashConversion::convert(parent_hash),
 		}
+	}
+
+	/// Submit a double vote report.
+	pub fn submit_double_vote_report(
+		report: DoubleVoteReport<T::Proof>,
+	) -> Option<()> {
+		Signer::<T, T::AuthorityId>::all_accounts()
+			.send_signed_transaction(
+				move |_account| {
+					Call::report_double_vote(report.clone())
+				}
+			)
+			.iter()
+			.find_map(|(_, res)| res.ok().map(|_| ()))
 	}
 
 	/// Dispatch some messages from a parachain.
@@ -1501,6 +1533,13 @@ impl<T> sp_std::fmt::Debug for ValidateDoubleVoteReports<T> where
 	}
 }
 
+impl<T> ValidateDoubleVoteReports<T> {
+	/// Create a new `ValidateDoubleVoteReports` struct.
+	pub fn new() -> Self {
+		ValidateDoubleVoteReports(sp_std::marker::PhantomData)
+	}
+}
+
 /// Custom validity error used while validating double vote reports.
 #[derive(RuntimeDebug)]
 #[repr(u8)]
@@ -1590,14 +1629,14 @@ mod tests {
 	use super::Call as ParachainsCall;
 	use bitvec::{bitvec, vec::BitVec};
 	use sp_io::TestExternalities;
-	use sp_core::{H256, Blake2Hasher};
+	use sp_core::{H256, Blake2Hasher, sr25519};
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
 		impl_opaque_keys,
 		Perbill, curve::PiecewiseLinear,
 		traits::{
 			BlakeTwo256, IdentityLookup, SaturatedConversion,
-			OpaqueKeys,
+			OpaqueKeys, Extrinsic as ExtrinsicT,
 		},
 		testing::TestXt,
 	};
@@ -1668,6 +1707,7 @@ mod tests {
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
+		type DbWeight = ();
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
@@ -1675,6 +1715,13 @@ mod tests {
 		type AccountData = balances::AccountData<u128>;
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
+	}
+
+	impl<C> system::offchain::SendTransactionTypes<C> for Test where
+		Call: From<C>,
+	{
+		type OverarchingCall = Call;
+		type Extrinsic = TestXt<Call, ()>;
 	}
 
 	parameter_types! {
@@ -1806,7 +1853,6 @@ mod tests {
 		type NextNewSession = Session;
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
-		type SubmitTransaction = system::offchain::TransactionSubmitter<(), Test, TestXt<Call, ()>>;
 		type UnsignedPriority = StakingUnsignedPriority;
 	}
 
@@ -1861,7 +1907,37 @@ mod tests {
 		pub const SlashPeriod: BlockNumber = 50;
 	}
 
+	// This is needed for a custom `AccountId` type which is `u64` in testing here.
+	pub mod test_keys {
+		use sp_core::{crypto::KeyTypeId, sr25519};
+		pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
+
+		mod app {
+			use sp_application_crypto::{app_crypto, sr25519};
+			use super::super::Parachains;
+
+			app_crypto!(sr25519, super::KEY_TYPE);
+
+			impl sp_runtime::traits::IdentifyAccount for Public {
+				type AccountId = u64;
+
+				fn into_account(self) -> Self::AccountId {
+					Parachains::authorities().iter().position(|b| *b == self.0.clone().into()).unwrap() as u64
+				}
+			}
+		}
+
+		pub type ReporterId = app::Public;
+		pub struct ReporterAuthorityId;
+		impl system::offchain::AppCrypto<ReporterId, sr25519::Signature> for ReporterAuthorityId {
+			type RuntimeAppPublic = ReporterId;
+			type GenericSignature = sr25519::Signature;
+			type GenericPublic = sr25519::Public;
+		}
+	}
+
 	impl Trait for Test {
+		type AuthorityId = test_keys::ReporterAuthorityId;
 		type Origin = Origin;
 		type Call = Call;
 		type ParachainCurrency = Balances;
@@ -1881,6 +1957,26 @@ mod tests {
 		type ReportOffence = Offences;
 		type BlockHashConversion = sp_runtime::traits::Identity;
 		type KeyOwnerProofSystem = Historical;
+	}
+
+	type Extrinsic = TestXt<Call, ()>;
+
+	impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Test where
+		Call: From<LocalCall>,
+	{
+		fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+			call: Call,
+			_public: test_keys::ReporterId,
+			_account: <Test as system::Trait>::AccountId,
+			nonce: <Test as system::Trait>::Index,
+		) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+			Some((call, (nonce, ())))
+		}
+	}
+
+	impl system::offchain::SigningTypes for Test {
+		type Public = test_keys::ReporterId;
+		type Signature = sr25519::Signature;
 	}
 
 	type Parachains = Module<Test>;
