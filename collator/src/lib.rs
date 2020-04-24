@@ -52,7 +52,7 @@ use std::pin::Pin;
 
 use futures::{future, Future, Stream, FutureExt, TryFutureExt, StreamExt, task::Spawn};
 use log::warn;
-use sc_client::BlockchainEvents;
+use sc_client_api::{BlockchainEvents, StateBackend};
 use sp_core::Pair;
 use sp_runtime::traits::BlakeTwo256;
 use polkadot_primitives::{
@@ -72,7 +72,9 @@ pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
 pub use sc_network::PeerId;
 pub use service::RuntimeApiCollection;
+use sc_service::ClientProvider;
 pub use sc_cli::SubstrateCli;
+use sp_api::{ConstructRuntimeApi, ApiExt, HashFor};
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -114,34 +116,24 @@ impl fmt::Display for Error {
 	}
 }
 
-/// The Polkadot client type.
-pub type PolkadotClient<B, E, R> = sc_client::Client<B, E, Block, R>;
-
 /// Something that can build a `ParachainContext`.
 pub trait BuildParachainContext {
 	/// The parachain context produced by the `build` function.
 	type ParachainContext: self::ParachainContext;
 
 	/// Build the `ParachainContext`.
-	fn build<B, E, R, SP, Extrinsic>(
+	fn build<Client, SP, Extrinsic>(
 		self,
-		client: Arc<PolkadotClient<B, E, R>>,
+		client: Arc<Client>,
 		spawner: SP,
 		network: impl Network + Clone + 'static,
 	) -> Result<Self::ParachainContext, ()>
 		where
-			PolkadotClient<B, E, R>: ProvideRuntimeApi<Block>,
-			<PolkadotClient<B, E, R> as ProvideRuntimeApi<Block>>::Api: RuntimeApiCollection<Extrinsic>,
-			// Rust bug: https://github.com/rust-lang/rust/issues/24159
-			<<PolkadotClient<B, E, R> as ProvideRuntimeApi<Block>>::Api as sp_api::ApiExt<Block>>::StateBackend:
-				sp_api::StateBackend<BlakeTwo256>,
+			Client: ProvideRuntimeApi<Block>,
+			Client::Api: RuntimeApiCollection<Extrinsic>,
+			<Client::Api as ApiExt<Block>>::StateBackend: StateBackend<HashFor<Block>>,
 			Extrinsic: codec::Codec + Send + Sync + 'static,
-			E: sc_client::CallExecutor<Block> + Clone + Send + Sync + 'static,
-			SP: Spawn + Clone + Send + Sync + 'static,
-			R: Send + Sync + 'static,
-			B: sc_client_api::Backend<Block> + 'static,
-			// Rust bug: https://github.com/rust-lang/rust/issues/24159
-			B::State: sp_api::StateBackend<BlakeTwo256>;
+			SP: Spawn + Clone + Send + Sync + 'static;
 }
 
 /// Parachain context needed for collation.
@@ -209,30 +201,36 @@ pub async fn collate<P>(
 	Ok(collation)
 }
 
-fn build_collator_service<S, P, Extrinsic>(
-	service: (S, polkadot_service::FullNodeHandles),
+fn build_collator_service<Service, P, Extrinsic>(
+	service: (Service, polkadot_service::FullNodeHandles),
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
-) -> Result<S, polkadot_service::Error>
+) -> Result<Service, polkadot_service::Error>
 	where
-		S: AbstractService<Block = service::Block>,
-		sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi>: ProvideRuntimeApi<Block>,
-		<sc_client::Client<S::Backend, S::CallExecutor, service::Block, S::RuntimeApi> as ProvideRuntimeApi<Block>>::Api:
+		Service: AbstractService,
+		Service::Client: ClientProvider<
+			service::Block,
+			Service::Backend,
+			Service::CallExecutor,
+			Service::RuntimeApi
+		>,
+		Service::RuntimeApi: ConstructRuntimeApi<service::Block, Service::Client>,
+		<Service::RuntimeApi as ConstructRuntimeApi<service::Block, Service::Client>>::RuntimeApi:
 			RuntimeApiCollection<
 				Extrinsic,
 				Error = sp_blockchain::Error,
-				StateBackend = sc_client_api::StateBackendFor<S::Backend, Block>
+				StateBackend = sc_client_api::StateBackendFor<Service::Backend, Block>
 			>,
+		// // Rust bug: https://github.com/rust-lang/rust/issues/24159
+		Service::Backend: service::Backend<service::Block>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		S::Backend: service::Backend<service::Block>,
+		<Service::Backend as service::Backend<service::Block>>::State:
+			sp_api::StateBackend<BlakeTwo256>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		<S::Backend as service::Backend<service::Block>>::State:
-			sp_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
+		Service::CallExecutor: service::CallExecutor<service::Block>,
 		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		S::CallExecutor: service::CallExecutor<service::Block>,
-		// Rust bug: https://github.com/rust-lang/rust/issues/24159
-		S::SelectChain: service::SelectChain<service::Block>,
+		Service::SelectChain: service::SelectChain<service::Block>,
 		P: BuildParachainContext,
 		P::ParachainContext: Send + 'static,
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
@@ -359,18 +357,32 @@ where
 		).into(),
 		(true, _) =>
 			build_collator_service(
-				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
+				service::kusama_new_full(
+					config,
+					Some((key.public(), para_id)),
+					None,
+					false,
+					6000,
+					None
+				)?,
 				para_id,
 				key,
 				build_parachain_context,
 			)?.await,
-		(false, _) =>
-			build_collator_service(
-				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
-				para_id,
-				key,
-				build_parachain_context,
-			)?.await,
+		(false, _) => Ok(())
+			// build_collator_service(
+			// 	service::polkadot_new_full(
+			// 		config,
+			// 		Some((key.public(), para_id)),
+			// 		None,
+			// 		false,
+			// 		6000,
+			// 		None
+			// 	)?,
+			// 	para_id,
+			// 	key,
+			// 	build_parachain_context,
+			// )?.await,
 	}
 }
 
