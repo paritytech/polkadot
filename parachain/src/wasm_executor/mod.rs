@@ -262,6 +262,21 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("next_storage_key: unsupported feature for parachain validation")
 	}
 
+	fn storage_accumulator_push(
+		&mut self,
+		_key: &[u8],
+		_appended: Vec<u8>,
+	) {
+		panic!("storage_accumulator_push: unsupported feature for parachain validation")
+	}
+
+	fn storage_accumulator_commit(
+		&mut self,
+		_key: &[u8],
+	) -> u32 {
+		panic!("storage_accumulator_commit: unsupported feature for parachain validation")
+	}
+
 	fn wipe(&mut self) {
 		panic!("wipe: unsupported feature for parachain validation")
 	}
