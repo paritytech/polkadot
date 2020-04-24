@@ -82,8 +82,6 @@ use codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::parachain::{Id as ParaId, HeadData};
 
-const MODULE_ID: ModuleId = ModuleId(*b"py/cfund");
-
 pub type BalanceOf<T> =
 	<<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 #[allow(dead_code)]
@@ -92,6 +90,9 @@ pub type NegativeImbalanceOf<T> =
 
 pub trait Trait: slots::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+
+	/// ModuleID for the crowdfund module. An appropriate value could be ```ModuleId(*b"py/cfund")```
+	type ModuleId: Get<ModuleId>;
 
 	/// The amount to be held on deposit by the owner of a crowdfund.
 	type SubmissionDeposit: Get<BalanceOf<Self>>;
@@ -246,6 +247,8 @@ decl_error! {
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
+
+		const ModuleId: ModuleId = T::ModuleId::get();
 
 		fn deposit_event() = default;
 
@@ -525,7 +528,7 @@ impl<T: Trait> Module<T> {
 	/// This actually does computation. If you need to keep using it, then make sure you cache the
 	/// value and only call this once.
 	pub fn fund_account_id(index: FundIndex) -> T::AccountId {
-		MODULE_ID.into_sub_account(index)
+		T::ModuleId::get().into_sub_account(index)
 	}
 
 	pub fn id_from_index(index: FundIndex) -> child::ChildInfo {
@@ -632,6 +635,7 @@ mod tests {
 		pub const TipFindersFee: Percent = Percent::from_percent(20);
 		pub const TipReportDepositBase: u64 = 1;
 		pub const TipReportDepositPerByte: u64 = 1;
+		pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
 	}
 	pub struct Nobody;
 	impl Contains<u64> for Nobody {
@@ -655,6 +659,7 @@ mod tests {
 		type TipFindersFee = TipFindersFee;
 		type TipReportDepositBase = TipReportDepositBase;
 		type TipReportDepositPerByte = TipReportDepositPerByte;
+		type ModuleId = TreasuryModuleId;
 	}
 
 	thread_local! {
@@ -729,6 +734,7 @@ mod tests {
 		pub const SubmissionDeposit: u64 = 1;
 		pub const MinContribution: u64 = 10;
 		pub const RetirementPeriod: u64 = 5;
+		pub const CrowdfundModuleId: ModuleId = ModuleId(*b"py/cfund");
 	}
 	impl Trait for Test {
 		type Event = ();
@@ -736,6 +742,7 @@ mod tests {
 		type MinContribution = MinContribution;
 		type RetirementPeriod = RetirementPeriod;
 		type OrphanedFunds = Treasury;
+		type ModuleId = CrowdfundModuleId;
 	}
 
 	type System = system::Module<Test>;

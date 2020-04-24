@@ -34,7 +34,7 @@ use primitives::{
 	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext}, ValidityError,
 };
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys,
+	create_runtime_str, generic, impl_opaque_keys, ModuleId,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill, RuntimeDebug,
 	transaction_validity::{
 		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource, TransactionPriority,
@@ -56,7 +56,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
-	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness},
+	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier},
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -393,6 +393,7 @@ parameter_types! {
 	/// 13 members initially, to be increased to 23 eventually.
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 20;
+	pub const ElectionsPhragmenModuleId: LockIdentifier = *b"phrelect";
 }
 
 impl elections_phragmen::Trait for Runtime {
@@ -409,6 +410,7 @@ impl elections_phragmen::Trait for Runtime {
 	type DesiredMembers = DesiredMembers;
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
+	type ModuleId = ElectionsPhragmenModuleId;
 }
 
 parameter_types! {
@@ -439,6 +441,7 @@ parameter_types! {
 	pub const ProposalBondMinimum: Balance = 100 * DOLLARS;
 	pub const SpendPeriod: BlockNumber = 24 * DAYS;
 	pub const Burn: Permill = Permill::from_percent(1);
+	pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
 
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
@@ -461,6 +464,7 @@ impl treasury::Trait for Runtime {
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
+	type ModuleId = TreasuryModuleId;
 }
 
 impl offences::Trait for Runtime {
