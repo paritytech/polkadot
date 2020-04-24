@@ -23,7 +23,7 @@
 use runtime_common::{attestations, claims, parachains, registrar, slots,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
-	MaximumBlockLength, BlockExecutionWeight,
+	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight,
 };
 
 use sp_std::prelude::*;
@@ -152,7 +152,7 @@ impl system::Trait for Runtime {
 	type MaximumBlockWeight = MaximumBlockWeight;
 	type DbWeight = ();
 	type BlockExecutionWeight = BlockExecutionWeight;
-	type ExtrinsicBaseWeight = ();
+	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;

@@ -29,7 +29,7 @@ use primitives::{
 use runtime_common::{attestations, parachains, registrar,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
-	BlockExecutionWeight,
+	BlockExecutionWeight, ExtrinsicBaseWeight
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -146,7 +146,7 @@ impl system::Trait for Runtime {
 	type MaximumBlockWeight = MaximumBlockWeight;
 	type DbWeight = ();
 	type BlockExecutionWeight = BlockExecutionWeight;
-	type ExtrinsicBaseWeight = ();
+	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
