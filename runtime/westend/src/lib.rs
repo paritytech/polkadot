@@ -483,6 +483,7 @@ parameter_types! {
 	pub const SubAccountDeposit: Balance = 2 * DOLLARS;   // 53 bytes on-chain
 	pub const MaxSubAccounts: u32 = 100;
 	pub const MaxAdditionalFields: u32 = 100;
+	pub const MaxRegistrars: u32 = 20;
 }
 
 impl identity::Trait for Runtime {
@@ -494,6 +495,7 @@ impl identity::Trait for Runtime {
 	type SubAccountDeposit = SubAccountDeposit;
 	type MaxSubAccounts = MaxSubAccounts;
 	type MaxAdditionalFields = MaxAdditionalFields;
+	type MaxRegistrars = MaxRegistrars;
 	type RegistrarOrigin = system::EnsureRoot<AccountId>;
 	type ForceOrigin = system::EnsureRoot<AccountId>;
 }
@@ -741,19 +743,19 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl babe_primitives::BabeApi<Block> for Runtime {
-		fn configuration() -> babe_primitives::BabeConfiguration {
+		fn configuration() -> babe_primitives::BabeGenesisConfiguration {
 			// The choice of `c` parameter (where `1 - c` represents the
 			// probability of a slot being empty), is done in accordance to the
 			// slot duration and expected target block time, for safely
 			// resisting network delays of maximum two seconds.
 			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
-			babe_primitives::BabeConfiguration {
+			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
 				c: PRIMARY_PROBABILITY,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				secondary_slots: true,
+				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
 			}
 		}
 
