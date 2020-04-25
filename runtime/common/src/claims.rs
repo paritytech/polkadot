@@ -443,7 +443,7 @@ mod tests {
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
-	fn new_test_ext() -> sp_io::TestExternalities {
+	pub fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		// We use default for brevity, but you can configure as desired if needed.
 		balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
@@ -672,27 +672,34 @@ mod benchmarking {
 			let u in 0 .. 1000;
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&u.encode())).unwrap();
 			let eth_address = eth(&secret_key);
-			let account: T::AccountId = account("user", u, SEED);
+			let account: T::AccountId = account("caller", u, SEED);
 			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
 			let signature = sig::<T>(&secret_key, &account.encode());
 			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting)?;
+			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
 		}: _(RawOrigin::None, account, signature)
+		verify {
+			assert_eq!(Claims::<T>::get(eth_address), None);
+		}
 
 		// Benchmark `mint_claim` when there already exists `c` claims in storage.
 		mint_claim {
 			let c in ...;
-			let account = account("user", c, SEED);
+			let eth_address = account("eth_address", c, SEED);
 			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
-		}: _(RawOrigin::Root, account, VALUE.into(), vesting)
+		}: _(RawOrigin::Root, eth_address, VALUE.into(), vesting)
+		verify {
+			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
+		}
 
 		// Benchmark the time it takes to execute `validate_unsigned`
 		validate_unsigned {
 			let c in ...;
 			// Crate signature
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
-			let account: T::AccountId = account("user", c, SEED);
-			let signature = sig::<T>(&secret_key, &account.encode());
-			let call = Call::<T>::claim(account, signature);
+			let caller: T::AccountId = account("caller", c, SEED);
+			let signature = sig::<T>(&secret_key, &caller.encode());
+			let call = Call::<T>::claim(caller, signature);
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
 			super::Module::<T>::validate_unsigned(source, &call)?
@@ -713,13 +720,31 @@ mod benchmarking {
 			let i in 0 .. 1_000;
 			// Crate signature
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&i.encode())).unwrap();
-			let account: T::AccountId = account("user", i, SEED);
+			let account: T::AccountId = account("caller", i, SEED);
 			let signature = sig::<T>(&secret_key, &account.encode());
 			let data = account.using_encoded(to_ascii_hex);
 		}: {
 			for _ in 0 .. i {
-				let _maybe_signer = super::Module::<T>::eth_recover(&signature, &data);
+				assert!(super::Module::<T>::eth_recover(&signature, &data).is_some());
 			}
+		}
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use crate::claims::tests::{new_test_ext, Test};
+		use frame_support::assert_ok;
+
+		#[test]
+		fn test_benchmarks() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_claim::<Test>());
+				assert_ok!(test_benchmark_mint_claim::<Test>());
+				assert_ok!(test_benchmark_validate_unsigned::<Test>());
+				assert_ok!(test_benchmark_keccak256::<Test>());
+				assert_ok!(test_benchmark_eth_recover::<Test>());
+			});
 		}
 	}
 }
