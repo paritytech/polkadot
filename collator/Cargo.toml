@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 futures = "0.3.4"
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }

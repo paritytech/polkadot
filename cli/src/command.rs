@@ -93,7 +93,7 @@ pub fn run() -> Result<()> {
 							authority_discovery_enabled,
 							6000,
 							grandpa_pause
-						).map(|(s, _)| s)
+						).map(|(s, _, _)| s)
 					},
 					service::KusamaExecutor::native_version().runtime_version
 				)
@@ -110,7 +110,7 @@ pub fn run() -> Result<()> {
 							authority_discovery_enabled,
 							6000,
 							grandpa_pause
-						).map(|(s, _)| s)
+						).map(|(s, _, _)| s)
 					},
 					service::WestendExecutor::native_version().runtime_version
 				)
@@ -127,7 +127,7 @@ pub fn run() -> Result<()> {
 							authority_discovery_enabled,
 							6000,
 							grandpa_pause
-						).map(|(s, _)| s)
+						).map(|(s, _, _)| s)
 					},
 					service::PolkadotExecutor::native_version().runtime_version
 				)

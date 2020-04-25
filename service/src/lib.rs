@@ -31,7 +31,7 @@ use log::info;
 pub use service::{
 	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec, ServiceBuilderCommand,
+	Configuration, ChainSpec, ServiceBuilderCommand, ClientProvider,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
@@ -259,7 +259,7 @@ macro_rules! new_full {
 			select_chain
 		} else {
 			info!("The node cannot start as an authority because it can't select chain.");
-			return Ok((service, handles));
+			return Ok((service, client, handles));
 		};
 		let gossip_validator_select_chain = select_chain.clone();
 
@@ -362,7 +362,7 @@ macro_rules! new_full {
 
 			let babe_config = babe::BabeParams {
 				keystore: service.keystore(),
-				client,
+				client: client.clone(),
 				select_chain,
 				block_import,
 				env: proposer,
@@ -474,14 +474,14 @@ macro_rules! new_full {
 			);
 		} else {
 			grandpa::setup_disabled_grandpa(
-				service.client(),
+				client.clone(),
 				&inherent_data_providers,
 				service.network(),
 			)?;
 		}
 
 		handles.polkadot_network = Some(polkadot_network_service);
-		(service, handles)
+		(service, client, handles)
 	}}
 }
 
@@ -578,17 +578,17 @@ pub fn polkadot_new_full(
 	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
-		impl AbstractService<
-			Block = Block,
-			RuntimeApi = polkadot_runtime::RuntimeApi,
-			Backend = TFullBackend<Block>,
-			SelectChain = LongestChain<TFullBackend<Block>, Block>,
-			CallExecutor = TFullCallExecutor<Block, PolkadotExecutor>,
-		>,
+		impl AbstractService,
+		Arc<impl ClientProvider<
+			Block,
+			TFullBackend<Block>,
+			TFullCallExecutor<Block, PolkadotExecutor>,
+			polkadot_runtime::RuntimeApi
+		>>,
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, handles) = new_full!(
+	let (service, client, handles) = new_full!(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -599,7 +599,7 @@ pub fn polkadot_new_full(
 		PolkadotExecutor
 	);
 
-	Ok((service, handles))
+	Ok((service, client, handles))
 }
 
 /// Create a new Kusama service for a full node.
@@ -612,16 +612,18 @@ pub fn kusama_new_full(
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
-	impl AbstractService<
-		Block = Block,
-		RuntimeApi = kusama_runtime::RuntimeApi,
-		Backend = TFullBackend<Block>,
-		SelectChain = LongestChain<TFullBackend<Block>, Block>,
-		CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
-	>, FullNodeHandles
+		impl AbstractService,
+		Arc<impl ClientProvider<
+			Block,
+			TFullBackend<Block>,
+			TFullCallExecutor<Block, KusamaExecutor>,
+			kusama_runtime::RuntimeApi
+			>
+		>,
+		FullNodeHandles
 	), ServiceError>
 {
-	let (service, handles) = new_full!(
+	let (service, client, handles) = new_full!(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -632,7 +634,7 @@ pub fn kusama_new_full(
 		KusamaExecutor
 	);
 
-	Ok((service, handles))
+	Ok((service, client, handles))
 }
 
 /// Create a new Kusama service for a full node.
@@ -646,17 +648,17 @@ pub fn westend_new_full(
 	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
-		impl AbstractService<
-			Block = Block,
-			RuntimeApi = westend_runtime::RuntimeApi,
-			Backend = TFullBackend<Block>,
-			SelectChain = LongestChain<TFullBackend<Block>, Block>,
-			CallExecutor = TFullCallExecutor<Block, KusamaExecutor>,
-		>,
+		impl AbstractService,
+		Arc<impl ClientProvider<
+			Block,
+			TFullBackend<Block>,
+			TFullCallExecutor<Block, KusamaExecutor>,
+			westend_runtime::RuntimeApi
+		>>,
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, handles) = new_full!(
+	let (service, client, handles) = new_full!(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -667,7 +669,7 @@ pub fn westend_new_full(
 		KusamaExecutor
 	);
 
-	Ok((service, handles))
+	Ok((service, client, handles))
 }
 
 /// Handles to other sub-services that full nodes instantiate, which consumers
