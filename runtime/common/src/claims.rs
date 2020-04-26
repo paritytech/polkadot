@@ -674,7 +674,7 @@ mod benchmarking {
 			let u in 0 .. 1000;
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&u.encode())).unwrap();
 			let eth_address = eth(&secret_key);
-			let account: T::AccountId = account("caller", u, SEED);
+			let account: T::AccountId = account("user", u, SEED);
 			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
 			let signature = sig::<T>(&secret_key, &account.encode());
 			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting)?;
@@ -699,7 +699,7 @@ mod benchmarking {
 			let c in ...;
 			// Crate signature
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
-			let caller: T::AccountId = account("caller", c, SEED);
+			let caller: T::AccountId = account("user", c, SEED);
 			let signature = sig::<T>(&secret_key, &caller.encode());
 			let call = Call::<T>::claim(caller, signature);
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
@@ -722,7 +722,7 @@ mod benchmarking {
 			let i in 0 .. 1_000;
 			// Crate signature
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&i.encode())).unwrap();
-			let account: T::AccountId = account("caller", i, SEED);
+			let account: T::AccountId = account("user", i, SEED);
 			let signature = sig::<T>(&secret_key, &account.encode());
 			let data = account.using_encoded(to_ascii_hex);
 		}: {
