@@ -31,7 +31,7 @@ use sp_runtime::{
 use frame_support::{
 	decl_storage, decl_module, decl_event, decl_error, ensure,
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
-	weights::{DispatchClass, Weight, MINIMUM_WEIGHT},
+	weights::{DispatchClass, Weight},
 };
 use system::{self, ensure_root, ensure_signed};
 use primitives::parachain::{
@@ -300,7 +300,7 @@ decl_module! {
 		/// - `count`: The number of parathreads.
 		///
 		/// Must be called from Root origin.
-		#[weight = MINIMUM_WEIGHT]
+		#[weight = 0]
 		fn set_thread_count(origin, count: u32) {
 			ensure_root(origin)?;
 			ThreadCount::put(count);
@@ -314,7 +314,7 @@ decl_module! {
 		/// Unlike `register_para`, this function does check that the maximum code size
 		/// and head data size are respected, as parathread registration is an atomic
 		/// action.
-		#[weight = MINIMUM_WEIGHT]
+		#[weight = 0]
 		fn register_parathread(origin,
 			code: ValidationCode,
 			initial_head_data: HeadData,
@@ -354,7 +354,7 @@ decl_module! {
 		/// This is a kind of special transaction that should be heavily prioritized in the
 		/// transaction pool according to the `value`; only `ThreadCount` of them may be presented
 		/// in any single block.
-		#[weight = MINIMUM_WEIGHT]
+		#[weight = 0]
 		fn select_parathread(origin,
 			#[compact] _id: ParaId,
 			_collator: CollatorId,
@@ -371,7 +371,7 @@ decl_module! {
 		/// Ensure that before calling this that any funds you want emptied from the parathread's
 		/// account is moved out; after this it will be impossible to retrieve them (without
 		/// governance intervention).
-		#[weight = MINIMUM_WEIGHT]
+		#[weight = 0]
 		fn deregister_parathread(origin) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -395,7 +395,7 @@ decl_module! {
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
-		#[weight = MINIMUM_WEIGHT]
+		#[weight = 0]
 		fn swap(origin, #[compact] other: ParaId) {
 			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -466,7 +466,7 @@ decl_module! {
 
 			Active::put(paras);
 
-			MINIMUM_WEIGHT
+			0
 		}
 
 		fn on_finalize() {
@@ -736,6 +736,8 @@ mod tests {
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
 		type DbWeight = ();
+		type BlockExecutionWeight = ();
+		type ExtrinsicBaseWeight = ();
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
