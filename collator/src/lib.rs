@@ -344,7 +344,7 @@ where
 {
 	let is_kusama = config.chain_spec.is_kusama();
 	match (is_kusama, &config.role) {
-		(_, Role::Light) => return Err(
+		(_, Role::Light) => Err(
 			polkadot_service::Error::Other("light nodes are unsupported as collator".into())
 		).into(),
 		(true, _) => {
@@ -357,32 +357,34 @@ where
 				None
 			)?;
 			let spawn_handle = service.spawn_task_handle();
-			let work_task = build_collator_service(
-					spawn_handle,
-					handlers,
-					client,
-					para_id,
-					key,
-					build_parachain_context
-			)?;
-
-			service.spawn_essential_task("collation", work_task);
-			Ok(())
+			build_collator_service(
+				spawn_handle,
+				handlers,
+				client,
+				para_id,
+				key,
+				build_parachain_context
+			)?.await
 		},
-		(false, _) => Ok(())
-			// build_collator_service(
-			// 	service::polkadot_new_full(
-			// 		config,
-			// 		Some((key.public(), para_id)),
-			// 		None,
-			// 		false,
-			// 		6000,
-			// 		None
-			// 	)?,
-			// 	para_id,
-			// 	key,
-			// 	build_parachain_context,
-			// )?.await,
+		(false, _) => {
+			let (service, client, handles) = service::polkadot_new_full(
+				config,
+				Some((key.public(), para_id)),
+				None,
+				false,
+				6000,
+				None
+			)?;
+			let spawn_handle = service.spawn_task_handle();
+			build_collator_service(
+				spawn_handle,
+				handles,
+				client,
+				para_id,
+				key,
+				build_parachain_context,
+			)?.await
+		}
 	}
 }
 
