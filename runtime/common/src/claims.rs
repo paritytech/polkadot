@@ -699,9 +699,9 @@ mod benchmarking {
 			let c in ...;
 			// Crate signature
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
-			let caller: T::AccountId = account("user", c, SEED);
-			let signature = sig::<T>(&secret_key, &caller.encode());
-			let call = Call::<T>::claim(caller, signature);
+			let account: T::AccountId = account("user", c, SEED);
+			let signature = sig::<T>(&secret_key, &account.encode());
+			let call = Call::<T>::claim(account, signature);
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
 			super::Module::<T>::validate_unsigned(source, &call)?
