@@ -364,7 +364,8 @@ where
 				para_id,
 				key,
 				build_parachain_context
-			)?.await
+			)?.await;
+			Ok(())
 		},
 		(false, _) => {
 			let (service, client, handles) = service::polkadot_new_full(
@@ -383,7 +384,8 @@ where
 				para_id,
 				key,
 				build_parachain_context,
-			)?.await
+			)?.await;
+			Ok(())
 		}
 	}
 }
