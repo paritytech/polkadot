@@ -211,24 +211,24 @@ fn build_collator_service<SP,P, C, E, R, Extrinsic>(
 	build_parachain_context: P,
 ) -> Result<impl Future<Output = ()> + Send + 'static, polkadot_service::Error>
 	where
-		C: 'static + ClientProvider<
+		C: ClientProvider<
 			service::Block,
 			service::TFullBackend<service::Block>,
 			service::TFullCallExecutor<service::Block, E>,
 			R
-			>,
+		> + 'static,
 		R: ConstructRuntimeApi<service::Block, C> + Sync + Send,
 		<R as ConstructRuntimeApi<service::Block, C>>::RuntimeApi:
 			sp_api::ApiExt<
 				service::Block,
 				StateBackend = <service::TFullBackend<service::Block> as service::Backend<service::Block>>::State,
-				>
-			+RuntimeApiCollection<
+			>
+			+ RuntimeApiCollection<
 				Extrinsic,
 				StateBackend = <service::TFullBackend<service::Block> as service::Backend<service::Block>>::State,
 			>
 			+ Sync + Send,
-		E: 'static + sc_executor::NativeExecutionDispatch,
+		E: sc_executor::NativeExecutionDispatch + 'static,
 		P: BuildParachainContext,
 		P::ParachainContext: Send + 'static,
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
