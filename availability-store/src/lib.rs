@@ -33,7 +33,7 @@ use polkadot_primitives::{
 	},
 };
 use sp_runtime::traits::HashFor;
-use sp_blockchain::{Result as ClientResult};
+use sp_blockchain::Result as ClientResult;
 use client::{
 	BlockchainEvents, BlockBackend,
 };
@@ -58,7 +58,7 @@ use worker::{
 	Worker, WorkerHandle, IncludedParachainBlocks, WorkerMsg, MakeAvailable, Chunks
 };
 
-use store::{Store as InnerStore};
+use store::Store as InnerStore;
 
 const LOG_TARGET: &str = "availability";
 

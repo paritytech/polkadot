@@ -21,22 +21,6 @@ use core::{intrinsics, panic};
 use parachain::primitives::{ValidationResult, HeadData as GenericHeadData};
 use codec::{Encode, Decode};
 
-#[panic_handler]
-#[no_mangle]
-pub fn panic(_info: &panic::PanicInfo) -> ! {
-	unsafe {
-		intrinsics::abort()
-	}
-}
-
-#[alloc_error_handler]
-#[no_mangle]
-pub fn oom(_: core::alloc::Layout) -> ! {
-	unsafe {
-		intrinsics::abort();
-	}
-}
-
 #[no_mangle]
 pub extern fn validate_block(params: *const u8, len: usize) -> u64 {
 	let params = unsafe { parachain::load_params(params, len) };

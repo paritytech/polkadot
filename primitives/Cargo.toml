@@ -27,6 +27,7 @@ pretty_assertions = "0.5.1"
 [features]
 default = ["std"]
 std = [
+	"application-crypto/std",
 	"parity-scale-codec/std",
 	"primitives/std",
 	"inherents/std",
