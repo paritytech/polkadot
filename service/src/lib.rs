@@ -26,7 +26,7 @@ use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
 #[cfg(feature = "full-node")]
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
 use service::{error::Error as ServiceError, ServiceBuilder};
-use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
+use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider, SharedVoterState};
 use inherents::InherentDataProviders;
 use sc_executor::native_executor_instance;
 use log::info;
@@ -151,6 +151,7 @@ macro_rules! new_full_start {
 		set_prometheus_registry(&mut $config)?;
 
 		let mut import_setup = None;
+		let mut rpc_setup = None;
 		let inherent_data_providers = inherents::InherentDataProviders::new();
 		let builder = service::ServiceBuilder::new_full::<
 			Block, $runtime, $executor
@@ -202,10 +203,19 @@ macro_rules! new_full_start {
 				Ok(import_queue)
 			})?
 			.with_rpc_extensions(|builder| -> Result<polkadot_rpc::RpcExtension, _> {
-				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool()))
+				let grandpa_link = import_setup.as_ref().map(|s| &s.1)
+					.expect("GRANDPA LinkHalf is present for full services or set up failed; qed.");
+				let shared_authority_set = grandpa_link.shared_authority_set();
+				let shared_voter_state = SharedVoterState::new(None);
+				let grandpa_deps = polkadot_rpc::GrandpaDeps {
+					shared_voter_state: shared_voter_state.clone(),
+					shared_authority_set: shared_authority_set.clone(),
+				};
+				rpc_setup = Some((shared_voter_state));
+				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool(), grandpa_deps))
 			})?;
 
-		(builder, import_setup, inherent_data_providers)
+		(builder, import_setup, inherent_data_providers, rpc_setup)
 	}}
 }
 
@@ -375,7 +385,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 	let authority_discovery_enabled = authority_discovery_enabled;
 	let slot_duration = slot_duration;
 
-	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config, Runtime, Dispatch);
+	let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) = new_full_start!(config, Runtime, Dispatch);
 
 	let backend = builder.backend().clone();
 
@@ -388,6 +398,9 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 
 	let (block_import, link_half, babe_link) = import_setup.take()
 		.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
+
+	let shared_voter_state = rpc_setup.take()
+		.expect("SharedVoterState is present for Full Services or setup failed before. qed");
 
 	let client = service.client();
 	let known_oracle = client.clone();
@@ -604,6 +617,7 @@ pub fn new_full<Runtime, Dispatch, Extrinsic>(
 			telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 			voting_rule,
 			prometheus_registry: service.prometheus_registry(),
+			shared_voter_state,
 		};
 
 		service.spawn_essential_task(
