@@ -26,7 +26,7 @@ use codec::{Encode, Decode, Codec};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
-	weights::{MINIMUM_WEIGHT, DispatchClass, Weight},
+	weights::{DispatchClass, Weight},
 };
 use primitives::parachain::{
 	SwapAux, PARACHAIN_INFO, Id as ParaId, ValidationCode, HeadData,
@@ -286,7 +286,7 @@ decl_module! {
 				Self::manage_lease_period_start(lease_period_index);
 			}
 
-			MINIMUM_WEIGHT
+			0
 		}
 
 		fn on_finalize(now: T::BlockNumber) {
@@ -922,6 +922,8 @@ mod tests {
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
 		type DbWeight = ();
+		type BlockExecutionWeight = ();
+		type ExtrinsicBaseWeight = ();
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
