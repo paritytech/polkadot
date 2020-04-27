@@ -561,11 +561,13 @@ pub trait TestNetFactory: Sized {
 		);
 		let verifier = VerifierAdapter::new(Arc::new(Mutex::new(Box::new(verifier) as Box<_>)));
 
+		let spawner = |future| spawn_task_handle.spawn_blocking("import-queue-worker", future);
 		let import_queue = Box::new(BasicQueue::new(
 			verifier.clone(),
 			Box::new(block_import.clone()),
 			justification_import,
 			finality_proof_import,
+			spawner,
 		));
 
 		let listen_addr = build_multiaddr![Memory(rand::random::<u64>())];
