@@ -29,6 +29,7 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "seu
 sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }

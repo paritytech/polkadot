@@ -35,7 +35,8 @@ pub use service::{
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
-pub use sc_client_api::{Backend, LongestChain, ExecutionStrategy, CallExecutor};
+pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
+pub use sc_consensus::LongestChain;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::{HashFor, NumberFor};
 pub use consensus_common::{SelectChain, BlockImport, block_validation::Chain};
@@ -153,7 +154,7 @@ macro_rules! new_full_start {
 			Block, $runtime, $executor
 		>($config)?
 			.with_select_chain(|_, backend| {
-				Ok(sc_client_api::LongestChain::new(backend.clone()))
+				Ok(sc_consensus::LongestChain::new(backend.clone()))
 			})?
 			.with_transaction_pool(|config, client, _fetcher, prometheus_registry| {
 				let pool_api = sc_transaction_pool::FullChainApi::new(client.clone());
@@ -494,7 +495,7 @@ macro_rules! new_light {
 
 		ServiceBuilder::new_light::<Block, $runtime, $dispatch>($config)?
 			.with_select_chain(|_, backend| {
-				Ok(sc_client_api::LongestChain::new(backend.clone()))
+				Ok(sc_consensus::LongestChain::new(backend.clone()))
 			})?
 			.with_transaction_pool(|config, client, fetcher, prometheus_registry| {
 				let fetcher = fetcher
