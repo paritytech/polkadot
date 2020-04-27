@@ -36,7 +36,7 @@ use sp_staking::{
 use frame_support::{
 	traits::KeyOwnerProofSystem,
 	dispatch::{IsSubType},
-	weights::{DispatchClass, Weight, MINIMUM_WEIGHT},
+	weights::{DispatchClass, Weight},
 };
 use primitives::{
 	Balance,
@@ -556,7 +556,7 @@ decl_module! {
 			Self::do_old_code_pruning(now);
 
 			// TODO https://github.com/paritytech/polkadot/issues/977: set correctly
-			MINIMUM_WEIGHT
+			0
 		}
 
 		fn on_finalize() {
@@ -1633,6 +1633,8 @@ mod tests {
 		type BlockHashCount = BlockHashCount;
 		type MaximumBlockWeight = MaximumBlockWeight;
 		type DbWeight = ();
+		type BlockExecutionWeight = ();
+		type ExtrinsicBaseWeight = ();
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();

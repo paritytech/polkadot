@@ -30,7 +30,7 @@ use primitives::{
 use runtime_common::{attestations, claims, parachains, registrar, slots,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
-	MaximumBlockLength,
+	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
@@ -55,6 +55,7 @@ use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
 	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier},
+  weights::RuntimeDbWeight,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -131,6 +132,13 @@ parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
 
+parameter_types! {
+	pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight {
+		read: 60_000_000,
+		write: 200_000_000,
+	};
+}
+
 impl system::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
@@ -144,7 +152,9 @@ impl system::Trait for Runtime {
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type MaximumBlockWeight = MaximumBlockWeight;
-	type DbWeight = ();
+	type DbWeight = DbWeight;
+	type BlockExecutionWeight = BlockExecutionWeight;
+	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
@@ -206,7 +216,6 @@ impl balances::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const TransactionBaseFee: Balance = 1 * CENTS;
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
 	// for a sane configuration, this should always be less than `AvailableBlockRatio`.
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
@@ -215,7 +224,6 @@ parameter_types! {
 impl transaction_payment::Trait for Runtime {
 	type Currency = Balances;
 	type OnTransactionPayment = DealWithFees;
-	type TransactionBaseFee = TransactionBaseFee;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness, Self>;
