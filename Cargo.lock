@@ -2223,7 +2223,7 @@ dependencies = [
 
 [[package]]
 name = "kusama-runtime"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -2249,10 +2249,12 @@ dependencies = [
  "pallet-membership",
  "pallet-nicks",
  "pallet-offences",
+ "pallet-offences-benchmarking",
  "pallet-randomness-collective-flip",
  "pallet-recovery",
  "pallet-scheduler",
  "pallet-session",
+ "pallet-session-benchmarking",
  "pallet-society",
  "pallet-staking",
  "pallet-staking-reward-curve",
@@ -3426,6 +3428,7 @@ name = "pallet-im-online"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#05275e80676946d04e37f9622f10fefd58d9b1a3"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "pallet-authorship",
@@ -3500,6 +3503,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-offences-benchmarking"
+version = "2.0.0-dev"
+source = "git+https://github.com/paritytech/substrate#05275e80676946d04e37f9622f10fefd58d9b1a3"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-im-online",
+ "pallet-offences",
+ "pallet-session",
+ "pallet-staking",
+ "parity-scale-codec",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-randomness-collective-flip"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#05275e80676946d04e37f9622f10fefd58d9b1a3"
@@ -3561,6 +3583,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-session-benchmarking"
+version = "2.0.0-dev"
+source = "git+https://github.com/paritytech/substrate#05275e80676946d04e37f9622f10fefd58d9b1a3"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-session",
+ "pallet-staking",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-society"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#05275e80676946d04e37f9622f10fefd58d9b1a3"
@@ -3580,11 +3616,13 @@ name = "pallet-staking"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#05275e80676946d04e37f9622f10fefd58d9b1a3"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
+ "rand_chacha 0.2.2",
  "serde",
  "sp-application-crypto",
  "sp-core",
@@ -3633,6 +3671,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-inherents",
+ "sp-io",
  "sp-runtime",
  "sp-std",
  "sp-timestamp",
@@ -3687,6 +3726,7 @@ name = "pallet-treasury"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#05275e80676946d04e37f9622f10fefd58d9b1a3"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "pallet-balances",
@@ -3701,6 +3741,7 @@ name = "pallet-utility"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#05275e80676946d04e37f9622f10fefd58d9b1a3"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
@@ -3717,6 +3758,7 @@ version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#05275e80676946d04e37f9622f10fefd58d9b1a3"
 dependencies = [
  "enumflags2",
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
@@ -4023,7 +4065,7 @@ checksum = "feb3b2b1033b8a60b4da6ee470325f887758c95d5320f52f9ce0df055a55940e"
 
 [[package]]
 name = "polkadot"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "assert_cmd",
  "futures 0.3.4",
@@ -4036,7 +4078,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-availability-store"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "derive_more 0.99.5",
  "exit-future",
@@ -4063,7 +4105,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-cli"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "frame-benchmarking-cli",
  "futures 0.3.4",
@@ -4088,7 +4130,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-collator"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "futures 0.3.4",
  "futures-timer 2.0.2",
@@ -4114,7 +4156,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-erasure-coding"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "derive_more 0.15.0",
  "parity-scale-codec",
@@ -4126,7 +4168,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-network"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "arrayvec 0.4.12",
  "bytes 0.5.4",
@@ -4175,7 +4217,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-parachain"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "derive_more 0.99.5",
  "log 0.4.8",
@@ -4194,7 +4236,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-primitives"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "bitvec",
  "parity-scale-codec",
@@ -4215,7 +4257,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-rpc"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "jsonrpc-core",
  "pallet-transaction-payment-rpc",
@@ -4231,7 +4273,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -4257,9 +4299,11 @@ dependencies = [
  "pallet-membership",
  "pallet-nicks",
  "pallet-offences",
+ "pallet-offences-benchmarking",
  "pallet-randomness-collective-flip",
  "pallet-scheduler",
  "pallet-session",
+ "pallet-session-benchmarking",
  "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-sudo",
@@ -4297,7 +4341,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-common"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -4338,7 +4382,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-service"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "env_logger 0.7.1",
  "frame-benchmarking",
@@ -4397,7 +4441,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-statement-table"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
@@ -4406,7 +4450,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-runtime"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -4481,7 +4525,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-validation"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "bitvec",
  "derive_more 0.14.1",
@@ -7450,7 +7494,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-adder"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "dlmalloc",
  "parity-scale-codec",
@@ -7490,7 +7534,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-halt"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -8360,7 +8404,7 @@ dependencies = [
 
 [[package]]
 name = "westend-runtime"
-version = "0.7.30"
+version = "0.7.31-dev"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -8386,10 +8430,12 @@ dependencies = [
  "pallet-membership",
  "pallet-nicks",
  "pallet-offences",
+ "pallet-offences-benchmarking",
  "pallet-randomness-collective-flip",
  "pallet-recovery",
  "pallet-scheduler",
  "pallet-session",
+ "pallet-session-benchmarking",
  "pallet-society",
  "pallet-staking",
  "pallet-staking-reward-curve",

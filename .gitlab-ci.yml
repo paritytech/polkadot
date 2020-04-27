@@ -126,7 +126,7 @@ test-linux-stable:                 &test
     RUSTFLAGS: -Cdebug-assertions=y
     TARGET: native
   script:
-    - time cargo test --all --release --verbose --locked
+    - time cargo test --all --release --verbose --locked --features runtime-benchmarks
     - sccache -s
 
 
@@ -281,4 +281,3 @@ deploy-polkasync-kusama:
     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
-
