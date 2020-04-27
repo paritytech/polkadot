@@ -4112,6 +4112,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-core-primitives"
+version = "0.7.30"
+dependencies = [
+ "parity-scale-codec",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "polkadot-erasure-coding"
 version = "0.7.30"
 dependencies = [
@@ -4180,6 +4190,7 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
+ "polkadot-core-primitives",
  "sc-executor",
  "serde",
  "shared_memory",
@@ -4197,6 +4208,7 @@ version = "0.7.30"
 dependencies = [
  "bitvec",
  "parity-scale-codec",
+ "polkadot-core-primitives",
  "polkadot-parachain",
  "pretty_assertions",
  "serde",

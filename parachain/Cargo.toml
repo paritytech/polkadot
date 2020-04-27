@@ -13,6 +13,7 @@ codec = { package = "parity-scale-codec", version = "1.1.0", default-features = 
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 
 # all optional crates.
 derive_more = { version = "0.99.2", optional = true }
@@ -44,4 +45,5 @@ std = [
 	"sp-externalities",
 	"sc-executor",
 	"sp-io",
+	"polkadot-core-primitives/std",
 ]

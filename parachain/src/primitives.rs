@@ -28,9 +28,8 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use sp_core::bytes;
 
-/// The block number of the relay chain.
-/// 32-bits will allow for 136 years of blocks assuming 1 block per second.
-pub type RelayChainBlockNumber = u32;
+/// Block number type used by the relay chain.
+pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
@@ -212,13 +211,13 @@ pub struct ValidationParams {
 	/// The maximum head-data size permitted, in bytes.
 	pub max_head_data_size: u32,
 	/// The current relay-chain block number.
-	pub relay_chain_height: RelayChainBlockNumber,
+	pub relay_chain_height: polkadot_core_primitives::BlockNumber,
 	/// Whether a code upgrade is allowed or not, and at which height the upgrade
 	/// would be applied after, if so. The parachain logic should apply any upgrade
 	/// issued in this block after the first block
 	/// with `relay_chain_height` at least this value, if `Some`. if `None`, issue
 	/// no upgrade.
-	pub code_upgrade_allowed: Option<RelayChainBlockNumber>,
+	pub code_upgrade_allowed: Option<polkadot_core_primitives::BlockNumber>,
 }
 
 /// The result of parachain validation.

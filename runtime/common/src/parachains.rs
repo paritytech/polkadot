@@ -34,8 +34,7 @@ use sp_staking::{
 	offence::{ReportOffence, Offence, Kind},
 };
 use frame_support::{
-	traits::KeyOwnerProofSystem,
-	dispatch::{IsSubType},
+	traits::KeyOwnerProofSystem, dispatch::IsSubType,
 	weights::{DispatchClass, Weight, MINIMUM_WEIGHT},
 };
 use primitives::{
@@ -49,6 +48,7 @@ use primitives::{
 		LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
 		ValidatorSignature, SigningContext, HeadData, ValidationCode, FishermanId,
 	},
+	Remark, DownwardMessage
 };
 use frame_support::{
 	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure,
@@ -489,27 +489,6 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	}
 }
 
-/// The information that goes alongside a transfer_into_parachain operation. Entirely opaque, it
-/// will generally be used for identifying the reason for the transfer. Typically it will hold the
-/// destination account to which the transfer should be credited. If still more information is
-/// needed, then this should be a hash with the pre-image presented via an off-chain mechanism on
-/// the parachain.
-pub type Remark = [u8; 32];
-
-/// These are special "control" messages that can be passed from the Relaychain to a parachain.
-/// They should be handled by all parachains.
-#[derive(Encode, Decode, Clone, RuntimeDebug)]
-pub enum DownwardMessage<AccountId> {
-	/// Some funds were transferred into the parachain's account. The hash is the identifier that
-	/// was given with the transfer.
-	TransferInto(AccountId, Balance, Remark),
-	/// An opaque blob of data. The relay chain must somehow know how to form this so that the
-	/// destination parachain does something sensible.
-	///
-	/// NOTE: Be very careful not to allow users to place arbitrary size information in here.
-	Opaque(Vec<u8>),
-}
-
 decl_storage! {
 	trait Store for Module<T: Trait> as Parachains {
 		/// All authorities' keys at the moment.
@@ -738,7 +717,7 @@ decl_module! {
 		}
 
 		/// Transfer some tokens into a parachain and leave a message in the downward queue for it.
-		#[weight = SimpleDispatchInfo::FixedNormal(100_000)]
+		#[weight = 100_000]
 		pub fn transfer_to_parachain(
 			origin,
 			to: ParaId,

@@ -16,6 +16,7 @@ sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", 
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
+polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 
@@ -37,5 +38,6 @@ std = [
 	"runtime_primitives/std",
 	"serde",
 	"polkadot-parachain/std",
+	"polkadot-core-primitives/std",
 	"bitvec/std",
 ]
