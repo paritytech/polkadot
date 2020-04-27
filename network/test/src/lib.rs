@@ -561,7 +561,9 @@ pub trait TestNetFactory: Sized {
 		);
 		let verifier = VerifierAdapter::new(Arc::new(Mutex::new(Box::new(verifier) as Box<_>)));
 
-		let spawner = |future| spawn_task_handle.spawn_blocking("import-queue-worker", future);
+		let threads_pool = futures::executor::ThreadPool::new().unwrap();
+		let spawner = |future| threads_pool.spawn_ok(future);
+
 		let import_queue = Box::new(BasicQueue::new(
 			verifier.clone(),
 			Box::new(block_import.clone()),
@@ -638,7 +640,9 @@ pub trait TestNetFactory: Sized {
 		);
 		let verifier = VerifierAdapter::new(Arc::new(Mutex::new(Box::new(verifier) as Box<_>)));
 
-		let spawner = |future| spawn_task_handle.spawn_blocking("import-queue-worker", future);
+		let threads_pool = futures::executor::ThreadPool::new().unwrap();
+		let spawner = |future| threads_pool.spawn_ok(future);
+
 		let import_queue = Box::new(BasicQueue::new(
 			verifier.clone(),
 			Box::new(block_import.clone()),
