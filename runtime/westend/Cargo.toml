@@ -61,7 +61,10 @@ timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 utility = { package = "pallet-utility", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
@@ -141,11 +144,23 @@ std = [
 	"runtime-common/std",
 ]
 runtime-benchmarks = [
-	"collective/runtime-benchmarks",
+	"runtime-common/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
-	"runtime-common/runtime-benchmarks",
-	"elections-phragmen/runtime-benchmarks",
-	"society/runtime-benchmarks",
 	"system/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+	"balances/runtime-benchmarks",
+	"collective/runtime-benchmarks",
+	"democracy/runtime-benchmarks",
+	"elections-phragmen/runtime-benchmarks",
+	"identity/runtime-benchmarks",
+	"im-online/runtime-benchmarks",
+	"society/runtime-benchmarks",
+	"staking/runtime-benchmarks",
+	"timestamp/runtime-benchmarks",
+	"treasury/runtime-benchmarks",
+	"utility/runtime-benchmarks",
+	"vesting/runtime-benchmarks",
+	"pallet-offences-benchmarking",
+	"pallet-session-benchmarking",
 ]
