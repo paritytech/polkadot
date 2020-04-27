@@ -183,7 +183,6 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
 		Some(1024),
 		HostFunctions::host_functions(),
-		false,
 		8
 	);
 	let res = executor.call_in_wasm(
@@ -192,6 +191,7 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 		"validate_block",
 		encoded_call_data,
 		&mut ext,
+		sp_core::traits::MissingHostFunctions::Allow,
 	)?;
 
 	ValidationResult::decode(&mut &res[..]).map_err(|_| Error::BadReturn.into())
@@ -268,6 +268,10 @@ impl sp_externalities::Externalities for ValidationExternalities {
 
 	fn commit(&mut self) {
 		panic!("commit: unsupported feature for parachain validation")
+	}
+
+	fn set_offchain_storage(&mut self, _: &[u8], _: std::option::Option<&[u8]>) {
+		panic!("set_offchain_storage: unsupported feature for parachain validation")
 	}
 }
 
