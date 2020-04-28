@@ -182,8 +182,13 @@ decl_module! {
 		/// - One deposit event.
 		///
 		/// Total Complexity: O(1)
+		/// ----------------------------
+		/// Base Weight: 622.6 µs
+		/// DB Weight:
+		/// - Read: Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
+		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting
 		/// </weight>
-		#[weight = 1_000_000_000]
+		#[weight = T::DbWeight::get().reads_writes(6, 6) + 650_000_000]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
@@ -229,8 +234,13 @@ decl_module! {
 		/// - Up to one storage write to add a new vesting schedule.
 		///
 		/// Total Complexity: O(1)
+		/// ---------------------
+		/// Base Weight: 25.64 µs
+		/// DB Weight:
+		/// - Reads: Total
+		/// - Writes: Total, Claims, Vesting
 		/// </weight>
-		#[weight = 30_000_000]
+		#[weight = T::DbWeight::get().reads_writes(1, 3) + 25_000_000]
 		fn mint_claim(origin,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
@@ -292,6 +302,10 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 		const PRIORITY: u64 = 100;
 
 		match call {
+			// <weight>
+			// Base Weight: 370 µs
+			// DB Weight: 1 Read (Claims)
+			// </weight>
 			Call::claim(account, ethereum_signature) => {
 				let data = account.using_encoded(to_ascii_hex);
 				let maybe_signer = Self::eth_recover(&ethereum_signature, &data);
