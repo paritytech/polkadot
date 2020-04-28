@@ -844,7 +844,7 @@ mod tests {
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
 		type UnsignedPriority = StakingUnsignedPriority;
-		// type MaxIterations = ();
+		type MaxIterations = ();
 	}
 
 	impl timestamp::Trait for Test {

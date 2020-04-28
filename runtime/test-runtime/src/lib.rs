@@ -311,7 +311,7 @@ impl staking::Trait for Runtime {
 	type ElectionLookahead = ElectionLookahead;
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
-	// type MaxIterations = MaxIterations;
+	type MaxIterations = MaxIterations;
 }
 
 impl grandpa::Trait for Runtime {
