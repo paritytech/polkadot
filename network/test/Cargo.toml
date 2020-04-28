@@ -10,6 +10,7 @@ log = "0.4.8"
 parking_lot = "0.10.0"
 futures = "0.3.1"
 rand = "0.7.2"
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 sc-service = { git = "https://github.com/paritytech/substrate", features = ["test-helpers"], branch = "seun-the-great-client-refactor" }
 sc-network-test = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }

@@ -27,7 +27,8 @@ use sp_core::{sr25519, ChangesTrieConfiguration, map, twox_128};
 use sp_core::storage::{ChildInfo, Storage, StorageChild};
 use polkadot_test_runtime::genesismap::GenesisConfig;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Hash as HashT, HashFor};
-use sc_client_api::{LongestChain, light::{RemoteCallRequest, RemoteBodyRequest}};
+use sc_consensus::LongestChain;
+use sc_client_api::light::{RemoteCallRequest, RemoteBodyRequest};
 use sc_service::client::{
 	light::{
 		call_executor::GenesisCallExecutor, backend as light_backend,
@@ -292,7 +293,12 @@ pub fn new_light() -> (
 	let blockchain =new_light_blockchain(storage);
 	let backend = new_light_backend(blockchain.clone());
 	let executor = new_native_executor();
-	let local_call_executor = LocalCallExecutor::new(backend.clone(), executor, sp_core::tasks::executor(),);
+	let local_call_executor = LocalCallExecutor::new(
+		backend.clone(),
+		executor,
+		sp_core::tasks::executor(),
+		Default::default()
+	);
 	let call_executor = LightExecutor::new(
 		backend.clone(),
 		local_call_executor,

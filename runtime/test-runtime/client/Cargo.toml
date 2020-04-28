@@ -7,6 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor", features = ["test-helpers"],  default-features = false }
 substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "seun-the-great-client-refactor" }

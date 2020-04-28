@@ -230,7 +230,7 @@ Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of 
 
 ## License
 
-[LICENSE](https://github.com/paritytech/polkadot/blob/master/LICENSE)
+Polkadot is [GPL 3.0 licensed](LICENSE).
 
 ## Important Notice
 
