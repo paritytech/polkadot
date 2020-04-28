@@ -52,7 +52,7 @@ use std::pin::Pin;
 
 use futures::{future, Future, Stream, FutureExt, TryFutureExt, StreamExt, task::Spawn};
 use log::warn;
-use sc_client_api::StateBackend;
+use sc_client_api::{StateBackend, BlockchainEvents};
 use sp_core::Pair;
 use polkadot_primitives::{
 	BlockId, Hash, Block,
@@ -128,7 +128,7 @@ pub trait BuildParachainContext {
 		network: impl Network + Clone + 'static,
 	) -> Result<Self::ParachainContext, ()>
 		where
-			Client: ProvideRuntimeApi<Block>,
+			Client: ProvideRuntimeApi<Block> + Send + Sync + BlockchainEvents<Block> + 'static,
 			Client::Api: RuntimeApiCollection<Extrinsic>,
 			<Client::Api as ApiExt<Block>>::StateBackend: StateBackend<HashFor<Block>>,
 			Extrinsic: codec::Codec + Send + Sync + 'static,
@@ -199,7 +199,6 @@ pub async fn collate<P>(
 
 	Ok(collation)
 }
-
 
 fn build_collator_service<SP, P, C, E, R, Extrinsic>(
 	spawner: SP,
