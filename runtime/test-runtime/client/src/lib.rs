@@ -22,16 +22,19 @@ use std::sync::Arc;
 use std::collections::BTreeMap;
 pub use substrate_test_client::*;
 pub use polkadot_test_runtime as runtime;
-pub use sc_client::LongestChain;
 
 use sp_core::{sr25519, ChangesTrieConfiguration, map, twox_128};
 use sp_core::storage::{ChildInfo, Storage, StorageChild};
 use polkadot_test_runtime::genesismap::GenesisConfig;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Hash as HashT, HashFor};
-use sc_client::{
-	light::fetcher::{
-		RemoteCallRequest, RemoteBodyRequest,
+use sc_consensus::LongestChain;
+use sc_client_api::light::{RemoteCallRequest, RemoteBodyRequest};
+use sc_service::client::{
+	light::{
+		call_executor::GenesisCallExecutor, backend as light_backend,
+		new_light_blockchain, new_light_backend,
 	},
+	genesis, Client as SubstrateClient, LocalCallExecutor
 };
 
 /// A prelude to import in tests.
@@ -57,7 +60,7 @@ sc_executor::native_executor_instance! {
 pub type Backend = substrate_test_client::Backend<polkadot_test_runtime::Block>;
 
 /// Test client executor.
-pub type Executor = sc_client::LocalCallExecutor<
+pub type Executor = LocalCallExecutor<
 	Backend,
 	NativeExecutor<LocalExecutor>,
 >;
@@ -66,10 +69,10 @@ pub type Executor = sc_client::LocalCallExecutor<
 pub type LightBackend = substrate_test_client::LightBackend<polkadot_test_runtime::Block>;
 
 /// Test client light executor.
-pub type LightExecutor = sc_client::light::call_executor::GenesisCallExecutor<
+pub type LightExecutor = GenesisCallExecutor<
 	LightBackend,
-	sc_client::LocalCallExecutor<
-		sc_client::light::backend::Backend<
+	LocalCallExecutor<
+		light_backend::Backend<
 			sc_client_db::light::LightStorage<polkadot_test_runtime::Block>,
 			HashFor<polkadot_test_runtime::Block>
 		>,
@@ -120,7 +123,7 @@ impl substrate_test_client::GenesisInit for GenesisParameters {
 		let state_root = <<<runtime::Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
 			storage.top.clone().into_iter().chain(child_roots).collect()
 		);
-		let block: runtime::Block = sc_client::genesis::construct_genesis_block(state_root);
+		let block: runtime::Block = genesis::construct_genesis_block(state_root);
 		storage.top.extend(additional_storage_with_genesis(&block));
 
 		storage
@@ -136,9 +139,9 @@ pub type TestClientBuilder<E, B> = substrate_test_client::TestClientBuilder<
 >;
 
 /// Test client type with `LocalExecutor` and generic Backend.
-pub type Client<B> = sc_client::Client<
+pub type Client<B> = SubstrateClient<
 	B,
-	sc_client::LocalCallExecutor<B, sc_executor::NativeExecutor<LocalExecutor>>,
+	LocalCallExecutor<B, sc_executor::NativeExecutor<LocalExecutor>>,
 	polkadot_test_runtime::Block,
 	polkadot_test_runtime::RuntimeApi,
 >;
@@ -212,21 +215,21 @@ pub trait TestClientBuilderExt<B>: Sized {
 	}
 
 	/// Build the test client and longest chain selector.
-	fn build_with_longest_chain(self) -> (Client<B>, sc_client::LongestChain<B, polkadot_test_runtime::Block>);
+	fn build_with_longest_chain(self) -> (Client<B>, LongestChain<B, polkadot_test_runtime::Block>);
 
 	/// Build the test client and the backend.
 	fn build_with_backend(self) -> (Client<B>, Arc<B>);
 }
 
 impl TestClientBuilderExt<Backend> for TestClientBuilder<
-	sc_client::LocalCallExecutor<Backend, sc_executor::NativeExecutor<LocalExecutor>>,
+	LocalCallExecutor<Backend, sc_executor::NativeExecutor<LocalExecutor>>,
 	Backend
 > {
 	fn genesis_init_mut(&mut self) -> &mut GenesisParameters {
 		Self::genesis_init_mut(self)
 	}
 
-	fn build_with_longest_chain(self) -> (Client<Backend>, sc_client::LongestChain<Backend, polkadot_test_runtime::Block>) {
+	fn build_with_longest_chain(self) -> (Client<Backend>, LongestChain<Backend, polkadot_test_runtime::Block>) {
 		self.build_with_native_executor(None)
 	}
 
@@ -277,15 +280,25 @@ pub fn new() -> Client<Backend> {
 
 /// Creates new light client instance used for tests.
 pub fn new_light() -> (
-	sc_client::Client<LightBackend, LightExecutor, polkadot_test_runtime::Block, polkadot_test_runtime::RuntimeApi>,
+	SubstrateClient<
+		LightBackend,
+		LightExecutor,
+		polkadot_test_runtime::Block,
+		polkadot_test_runtime::RuntimeApi
+	>,
 	Arc<LightBackend>,
 ) {
 
 	let storage = sc_client_db::light::LightStorage::new_test();
-	let blockchain = Arc::new(sc_client::light::blockchain::Blockchain::new(storage));
-	let backend = Arc::new(LightBackend::new(blockchain.clone()));
+	let blockchain =new_light_blockchain(storage);
+	let backend = new_light_backend(blockchain.clone());
 	let executor = new_native_executor();
-	let local_call_executor = sc_client::LocalCallExecutor::new(backend.clone(), executor, sp_core::tasks::executor(), Default::default(),);
+	let local_call_executor = LocalCallExecutor::new(
+		backend.clone(),
+		executor,
+		sp_core::tasks::executor(),
+		Default::default()
+	);
 	let call_executor = LightExecutor::new(
 		backend.clone(),
 		local_call_executor,
