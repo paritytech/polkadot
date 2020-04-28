@@ -63,8 +63,7 @@ use polkadot_primitives::{
 	}
 };
 use polkadot_cli::{
-	ProvideRuntimeApi, AbstractService, ParachainHost, IdentifyVariant,
-	service::{self, Role}
+	ProvideRuntimeApi, AbstractService, ParachainHost, service,
 };
 pub use polkadot_cli::service::Configuration;
 pub use polkadot_cli::Cli;
@@ -72,6 +71,9 @@ pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
 pub use sc_network::PeerId;
 pub use service::RuntimeApiCollection;
+use service::{
+	BlockAnnounceValidator, PolkadotExecutor, KusamaExecutor, polkadot_runtime, kusama_runtime, westend_runtime, Role,
+};
 pub use sc_cli::SubstrateCli;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
@@ -339,39 +341,103 @@ fn build_collator_service<S, P, Extrinsic>(
 	Ok(service)
 }
 
-/// Async function that will run the collator node with the given `RelayChainContext` and `ParachainContext`
+macro_rules! start_collator {
+	(
+		$new_full:path, $config:expr, $key:expr, $para_id:expr, $build_parachain_context:expr,
+		$block_announce_validator:expr $(,)?
+	) => {
+		if matches!($config.role, Role::Light) {
+			Err(service::Error::Other("light nodes are unsupported as collator".into()))
+		} else {
+			$new_full($config, Some(($key.public(), $para_id)), None, false, 6000, None, $block_announce_validator)
+				.and_then(|service|
+					$crate::build_collator_service(
+						service,
+						$para_id,
+						$key,
+						$build_parachain_context,
+					)
+				)
+		}
+	};
+}
+
+/// Async function that will run the polkadot collator node with the given `RelayChainContext` and `ParachainContext`
 /// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
-pub async fn start_collator<P>(
+pub async fn start_collator_polkadot<P>(
 	build_parachain_context: P,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	config: Configuration,
+	block_announce_validator_builder:
+		Option<Box<dyn FnOnce(Arc<service::TFullClient<Block, polkadot_runtime::RuntimeApi,
+			PolkadotExecutor>>) -> Box<dyn BlockAnnounceValidator<Block> + Send> + Send + 'static>>,
 ) -> Result<(), polkadot_service::Error>
 where
 	P: BuildParachainContext,
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
-	let is_kusama = config.chain_spec.is_kusama();
-	match (is_kusama, &config.role) {
-		(_, Role::Light) => return Err(
-			polkadot_service::Error::Other("light nodes are unsupported as collator".into())
-		).into(),
-		(true, _) =>
-			build_collator_service(
-				service::kusama_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
-				para_id,
-				key,
-				build_parachain_context,
-			)?.await,
-		(false, _) =>
-			build_collator_service(
-				service::polkadot_new_full(config, Some((key.public(), para_id)), None, false, 6000, None)?,
-				para_id,
-				key,
-				build_parachain_context,
-			)?.await,
-	}
+	start_collator!(
+		service::polkadot_new_full,
+		config,
+		key,
+		para_id,
+		build_parachain_context,
+		block_announce_validator_builder,
+	)?.await
+}
+
+/// Async function that will run the kusama collator node with the given `RelayChainContext` and `ParachainContext`
+/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
+pub async fn start_collator_kusama<P>(
+	build_parachain_context: P,
+	para_id: ParaId,
+	key: Arc<CollatorPair>,
+	config: Configuration,
+	block_announce_validator_builder:
+		Option<Box<dyn FnOnce(Arc<service::TFullClient<Block, kusama_runtime::RuntimeApi,
+			KusamaExecutor>>) -> Box<dyn BlockAnnounceValidator<Block> + Send> + Send + 'static>>,
+) -> Result<(), polkadot_service::Error>
+where
+	P: BuildParachainContext,
+	P::ParachainContext: Send + 'static,
+	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
+{
+	start_collator!(
+		service::kusama_new_full,
+		config,
+		key,
+		para_id,
+		build_parachain_context,
+		block_announce_validator_builder,
+	)?.await
+}
+
+/// Async function that will run the westend collator node with the given `RelayChainContext` and `ParachainContext`
+/// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
+pub async fn start_collator_westend<P>(
+	build_parachain_context: P,
+	para_id: ParaId,
+	key: Arc<CollatorPair>,
+	config: Configuration,
+	block_announce_validator_builder:
+		Option<Box<dyn FnOnce(Arc<service::TFullClient<Block, westend_runtime::RuntimeApi,
+			KusamaExecutor>>) -> Box<dyn BlockAnnounceValidator<Block> + Send> + Send + 'static>>,
+) -> Result<(), polkadot_service::Error>
+where
+	P: BuildParachainContext,
+	P::ParachainContext: Send + 'static,
+	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
+{
+	start_collator!(
+		service::westend_new_full,
+		config,
+		key,
+		para_id,
+		build_parachain_context,
+		block_announce_validator_builder,
+	)?.await
 }
 
 fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRoster) -> HashSet<ValidatorId> {
@@ -423,7 +489,7 @@ mod tests {
 		}
 	}
 
-	// Make sure that the future returned by `start_collator` implementes `Send`.
+	// Make sure that the future returned by `start_collator` implements `Send`.
 	#[test]
 	fn start_collator_is_send() {
 		fn check_send<T: Send>(_: T) {}
@@ -432,11 +498,12 @@ mod tests {
 		let task_executor = Arc::new(|_| unimplemented!());
 		let config = cli.create_configuration(&cli.run.base, task_executor).unwrap();
 
-		check_send(start_collator(
+		check_send(start_collator_polkadot(
 			BuildDummyParachainContext,
 			0.into(),
 			Arc::new(CollatorPair::generate().0),
 			config,
+			None,
 		));
 	}
 }
