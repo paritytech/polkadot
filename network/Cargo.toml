@@ -23,7 +23,6 @@ futures = "0.3.4"
 log = "0.4.8"
 exit-future = "0.2.0"
 futures-timer = "2.0"
-sc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 wasm-timer = "0.2.4"
