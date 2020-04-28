@@ -201,8 +201,7 @@ pub async fn collate<P>(
 }
 
 
-
-fn build_collator_service<SP,P, C, E, R, Extrinsic>(
+fn build_collator_service<SP, P, C, E, R, Extrinsic>(
 	spawner: SP,
 	handles: polkadot_service::FullNodeHandles,
 	client: Arc<C>,
