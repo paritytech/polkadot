@@ -48,9 +48,9 @@ const DEFAULT_PROTOCOL_ID: &str = "dot";
 #[serde(rename_all = "camelCase")]
 pub struct Extensions {
 	/// Block numbers with known hashes.
-	pub fork_blocks: sc_client::ForkBlocks<polkadot_primitives::Block>,
+	pub fork_blocks: sc_client_api::ForkBlocks<polkadot_primitives::Block>,
 	/// Known bad block hashes.
-	pub bad_blocks: sc_client::BadBlocks<polkadot_primitives::Block>,
+	pub bad_blocks: sc_client_api::BadBlocks<polkadot_primitives::Block>,
 }
 
 /// The `ChainSpec parametrised for polkadot runtime`.
