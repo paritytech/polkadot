@@ -39,7 +39,6 @@ std = [
 	"sp-core/std",
 	"parking_lot",
 	"log",
-	"sp-runtime-interface",
 	"sp-runtime-interface/std",
 	"sp-externalities",
 	"sc-executor",
