@@ -38,23 +38,26 @@ libsecp256k1 = { version = "0.3.2", default-features = false, optional = true }
 hex-literal = "0.2.1"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
-treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "master" }
 trie-db = "0.20.0"
 serde_json = "1.0.41"
 libsecp256k1 = "0.3.2"
 
 [features]
-default = []
+default = ["std"]
 no_std = []
 std = [
 	"bitvec/std",
-	"primitives/std",
-	"rustc-hex/std",
 	"codec/std",
+	"log",
+	"rustc-hex/std",
+	"serde_derive",
+	"serde/std",
+	"primitives/std",
 	"inherents/std",
 	"sp-core/std",
 	"sp-api/std",
@@ -70,9 +73,6 @@ std = [
 	"system/std",
 	"timestamp/std",
 	"vesting/std",
-	"serde_derive",
-	"serde/std",
-	"log",
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
