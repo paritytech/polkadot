@@ -666,7 +666,7 @@ pub fn westend_new_full(
 		slot_duration,
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
-		KusamaExecutor
+		WestendExecutor
 	);
 
 	Ok((service, client, handles))
