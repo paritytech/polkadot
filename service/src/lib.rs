@@ -32,7 +32,7 @@ use log::info;
 pub use service::{
 	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec, ServiceBuilderCommand, ClientProvider,
+	Configuration, ChainSpec, ServiceBuilderCommand,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
