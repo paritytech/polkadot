@@ -385,6 +385,8 @@ impl democracy::Trait for Runtime {
 
 parameter_types! {
 	pub const CouncilMotionDuration: BlockNumber = 7 * DAYS;
+	pub const CouncilMaxMembers: collective::MemberCount = 100;
+	pub const CouncilMaxProposals: u32 = 100;
 }
 
 type CouncilCollective = collective::Instance1;
@@ -393,6 +395,8 @@ impl collective::Trait<CouncilCollective> for Runtime {
 	type Proposal = Call;
 	type Event = Event;
 	type MotionDuration = CouncilMotionDuration;
+	type MaxMembers = CouncilMaxMembers;
+	type MaxProposals = CouncilMaxProposals;
 }
 
 parameter_types! {
@@ -425,6 +429,8 @@ impl elections_phragmen::Trait for Runtime {
 
 parameter_types! {
 	pub const TechnicalMotionDuration: BlockNumber = 7 * DAYS;
+	pub const TechnicalMaxMembers: collective::MemberCount = 100;
+	pub const TechnicalMaxProposals: u32 = 100;
 }
 
 type TechnicalCollective = collective::Instance2;
@@ -433,6 +439,8 @@ impl collective::Trait<TechnicalCollective> for Runtime {
 	type Proposal = Call;
 	type Event = Event;
 	type MotionDuration = TechnicalMotionDuration;
+	type MaxMembers = TechnicalMaxMembers;
+	type MaxProposals = TechnicalMaxProposals;
 }
 
 impl membership::Trait<membership::Instance1> for Runtime {
