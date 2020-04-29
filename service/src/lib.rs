@@ -163,7 +163,7 @@ macro_rules! new_full_start {
 				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api), prometheus_registry);
 				Ok(pool)
 			})?
-			.with_import_queue(|config, client, mut select_chain, _| {
+			.with_import_queue(|config, client, mut select_chain, _, spawn_task_handle| {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 
@@ -189,6 +189,7 @@ macro_rules! new_full_start {
 					client.clone(),
 				)?;
 
+				let spawner = |future| spawn_task_handle.spawn_blocking("import-queue-worker", future);
 				let import_queue = babe::import_queue(
 					babe_link.clone(),
 					block_import.clone(),
@@ -196,6 +197,7 @@ macro_rules! new_full_start {
 					None,
 					client,
 					inherent_data_providers.clone(),
+					spawner,
 				)?;
 
 				import_setup = Some((block_import, grandpa_link, babe_link));
@@ -508,7 +510,7 @@ macro_rules! new_light {
 				);
 				Ok(pool)
 			})?
-			.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _| {
+			.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _, spawn_task_handle| {
 				let fetch_checker = fetcher
 					.map(|fetcher| fetcher.checker().clone())
 					.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
@@ -526,6 +528,7 @@ macro_rules! new_light {
 					client.clone(),
 				)?;
 
+				let spawner = |future| spawn_task_handle.spawn_blocking("importe-queue-worker", future);
 				// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
 				let import_queue = babe::import_queue(
 					babe_link,
@@ -534,6 +537,7 @@ macro_rules! new_light {
 					Some(Box::new(finality_proof_import)),
 					client,
 					inherent_data_providers.clone(),
+					spawner,
 				)?;
 
 				Ok((import_queue, finality_proof_request_builder))
