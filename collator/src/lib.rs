@@ -441,7 +441,7 @@ mod tests {
 		fn check_send<T: Send>(_: T) {}
 
 		let cli = Cli::from_iter(&["-dev"]);
-		let task_executor = Arc::new(|_| unimplemented!());
+		let task_executor = Arc::new(|_, _| unimplemented!());
 		let config = cli.create_configuration(&cli.run.base, task_executor).unwrap();
 
 		check_send(start_collator(
