@@ -653,7 +653,7 @@ pub fn westend_new_full(
 		Arc<impl ClientProvider<
 			Block,
 			TFullBackend<Block>,
-			TFullCallExecutor<Block, KusamaExecutor>,
+			TFullCallExecutor<Block, WestendExecutor>,
 			westend_runtime::RuntimeApi
 		>>,
 		FullNodeHandles,
@@ -667,7 +667,7 @@ pub fn westend_new_full(
 		slot_duration,
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
-		KusamaExecutor
+		WestendExecutor
 	);
 
 	Ok((service, client, handles))
