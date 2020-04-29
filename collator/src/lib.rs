@@ -71,9 +71,9 @@ pub use polkadot_validation::SignedStatement;
 pub use polkadot_primitives::parachain::CollatorId;
 pub use sc_network::PeerId;
 pub use service::RuntimeApiCollection;
-use sc_service::ClientProvider;
 pub use sc_cli::SubstrateCli;
 use sp_api::{ConstructRuntimeApi, ApiExt, HashFor};
+use polkadot_service::PolkadotClient;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -200,7 +200,7 @@ pub async fn collate<P>(
 	Ok(collation)
 }
 
-fn build_collator_service<SP, P, C, E, R, Extrinsic>(
+fn build_collator_service<SP, P, C, R, Extrinsic>(
 	spawner: SP,
 	handles: polkadot_service::FullNodeHandles,
 	client: Arc<C>,
@@ -209,10 +209,9 @@ fn build_collator_service<SP, P, C, E, R, Extrinsic>(
 	build_parachain_context: P,
 ) -> Result<impl Future<Output = ()> + Send + 'static, polkadot_service::Error>
 	where
-		C: ClientProvider<
+		C: PolkadotClient<
 			service::Block,
 			service::TFullBackend<service::Block>,
-			service::TFullCallExecutor<service::Block, E>,
 			R
 		> + 'static,
 		R: ConstructRuntimeApi<service::Block, C> + Sync + Send,
@@ -226,7 +225,6 @@ fn build_collator_service<SP, P, C, E, R, Extrinsic>(
 				StateBackend = <service::TFullBackend<service::Block> as service::Backend<service::Block>>::State,
 			>
 			+ Sync + Send,
-		E: sc_executor::NativeExecutionDispatch + 'static,
 		P: BuildParachainContext,
 		P::ParachainContext: Send + 'static,
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,

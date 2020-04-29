@@ -18,6 +18,7 @@
 
 pub mod chain_spec;
 mod grandpa_support;
+mod client;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -51,6 +52,7 @@ pub use polkadot_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
 use prometheus_endpoint::Registry;
+pub use self::client::PolkadotClient;
 
 native_executor_instance!(
 	pub PolkadotExecutor,
@@ -584,10 +586,9 @@ pub fn polkadot_new_full(
 )
 	-> Result<(
 		impl AbstractService,
-		Arc<impl ClientProvider<
+		Arc<impl PolkadotClient<
 			Block,
 			TFullBackend<Block>,
-			TFullCallExecutor<Block, PolkadotExecutor>,
 			polkadot_runtime::RuntimeApi
 		>>,
 		FullNodeHandles,
@@ -618,10 +619,9 @@ pub fn kusama_new_full(
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
 		impl AbstractService,
-		Arc<impl ClientProvider<
+		Arc<impl PolkadotClient<
 			Block,
 			TFullBackend<Block>,
-			TFullCallExecutor<Block, KusamaExecutor>,
 			kusama_runtime::RuntimeApi
 			>
 		>,
@@ -654,10 +654,9 @@ pub fn westend_new_full(
 )
 	-> Result<(
 		impl AbstractService,
-		Arc<impl ClientProvider<
+		Arc<impl PolkadotClient<
 			Block,
 			TFullBackend<Block>,
-			TFullCallExecutor<Block, KusamaExecutor>,
 			westend_runtime::RuntimeApi
 		>>,
 		FullNodeHandles,
@@ -671,7 +670,7 @@ pub fn westend_new_full(
 		slot_duration,
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
-		KusamaExecutor
+		WestendExecutor
 	);
 
 	Ok((service, client, handles))
