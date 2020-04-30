@@ -34,8 +34,8 @@ use sc_client_api::{
 	client::BlockBackend,
 	backend::{TransactionFor, AuxStore, Backend, Finalizer},
 };
+use sc_consensus::LongestChain;
 use sc_block_builder::{BlockBuilder, BlockBuilderProvider};
-use sc_client::LongestChain;
 use sp_consensus::block_validation::DefaultBlockAnnounceValidator;
 use sp_consensus::import_queue::{
 	BasicQueue, BoxJustificationImport, Verifier, BoxFinalityProofImport,
@@ -53,14 +53,23 @@ use sp_runtime::generic::BlockId;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
 use sp_runtime::Justification;
 pub use sc_network_test::PassThroughVerifier;
+use sc_service::client::Client;
 
 pub use polkadot_test_runtime_client::runtime::{Block, Extrinsic, Hash};
 pub use polkadot_test_runtime_client::{TestClient, TestClientBuilder, TestClientBuilderExt};
 
-pub type PeersFullClient =
-	sc_client::Client<polkadot_test_runtime_client::Backend, polkadot_test_runtime_client::Executor, Block, polkadot_test_runtime_client::runtime::RuntimeApi>;
-pub type PeersLightClient =
-	sc_client::Client<polkadot_test_runtime_client::LightBackend, polkadot_test_runtime_client::LightExecutor, Block, polkadot_test_runtime_client::runtime::RuntimeApi>;
+pub type PeersFullClient = Client<
+	polkadot_test_runtime_client::Backend,
+	polkadot_test_runtime_client::Executor,
+	Block,
+	polkadot_test_runtime_client::runtime::RuntimeApi
+>;
+pub type PeersLightClient = Client<
+	polkadot_test_runtime_client::LightBackend,
+	polkadot_test_runtime_client::LightExecutor,
+	Block,
+	polkadot_test_runtime_client::runtime::RuntimeApi
+>;
 
 #[derive(Clone)]
 pub enum PeersClient {
@@ -561,11 +570,15 @@ pub trait TestNetFactory: Sized {
 		);
 		let verifier = VerifierAdapter::new(Arc::new(Mutex::new(Box::new(verifier) as Box<_>)));
 
+		let threads_pool = futures::executor::ThreadPool::new().unwrap();
+		let spawner = |future| threads_pool.spawn_ok(future);
+
 		let import_queue = Box::new(BasicQueue::new(
 			verifier.clone(),
 			Box::new(block_import.clone()),
 			justification_import,
 			finality_proof_import,
+			spawner,
 		));
 
 		let listen_addr = build_multiaddr![Memory(rand::random::<u64>())];
@@ -636,11 +649,15 @@ pub trait TestNetFactory: Sized {
 		);
 		let verifier = VerifierAdapter::new(Arc::new(Mutex::new(Box::new(verifier) as Box<_>)));
 
+		let threads_pool = futures::executor::ThreadPool::new().unwrap();
+		let spawner = |future| threads_pool.spawn_ok(future);
+
 		let import_queue = Box::new(BasicQueue::new(
 			verifier.clone(),
 			Box::new(block_import.clone()),
 			justification_import,
 			finality_proof_import,
+			spawner,
 		));
 
 		let listen_addr = build_multiaddr![Memory(rand::random::<u64>())];

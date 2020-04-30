@@ -313,6 +313,7 @@ parameter_types! {
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	// quarter of the last session will be for election.
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
+	pub const MaxIterations: u32 = 5;
 }
 
 impl staking::Trait for Runtime {
@@ -335,6 +336,7 @@ impl staking::Trait for Runtime {
 	type ElectionLookahead = ElectionLookahead;
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
+	type MaxIterations = MaxIterations;
 }
 
 parameter_types! {
@@ -925,10 +927,31 @@ sp_api::impl_runtime_apis! {
 			repeat: u32,
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, RuntimeString> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark};
+			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
+			// To get around that, we separated the Session benchmarks into its own crate, which is why
+			// we need these two lines below.
+			use pallet_session_benchmarking::Module as SessionBench;
+			use pallet_offences_benchmarking::Module as OffencesBench;
+
+			impl pallet_session_benchmarking::Trait for Runtime {}
+			impl pallet_offences_benchmarking::Trait for Runtime {}
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&pallet, &benchmark, &lowest_range_values, &highest_range_values, &steps, repeat);
+			// Polkadot
 			add_benchmark!(params, batches, b"claims", Claims);
+			// Substrate
+			add_benchmark!(params, batches, b"balances", Balances);
+			add_benchmark!(params, batches, b"collective", Council);
+			add_benchmark!(params, batches, b"democracy", Democracy);
+			add_benchmark!(params, batches, b"im-online", ImOnline);
+			add_benchmark!(params, batches, b"offences", OffencesBench::<Runtime>);
+			add_benchmark!(params, batches, b"session", SessionBench::<Runtime>);
+			add_benchmark!(params, batches, b"staking", Staking);
+			add_benchmark!(params, batches, b"timestamp", Timestamp);
+			add_benchmark!(params, batches, b"treasury", Treasury);
+			add_benchmark!(params, batches, b"vesting", Vesting);
+
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
