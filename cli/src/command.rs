@@ -15,9 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use log::info;
-use sp_runtime::traits::BlakeTwo256;
-use service::{IdentifyVariant, Block, self, RuntimeApiCollection, TFullClient};
-use sp_api::ConstructRuntimeApi;
+use service::{IdentifyVariant, self};
+use sc_executor::NativeExecutionDispatch;
 use sc_cli::{SubstrateCli, Result};
 use crate::cli::{Cli, Subcommand};
 
@@ -82,23 +81,56 @@ pub fn run() -> Result<()> {
 				info!("     KUSAMA FOUNDATION      ");
 				info!("----------------------------");
 
-				run_node::<
-					service::kusama_runtime::RuntimeApi,
-					service::KusamaExecutor,
-					service::kusama_runtime::UncheckedExtrinsic,
-				>(runtime, authority_discovery_enabled, grandpa_pause)
+				runtime.run_node(
+					|config| {
+						service::kusama_new_light(config)
+					},
+					|config| {
+						service::kusama_new_full(
+							config,
+							None,
+							None,
+							authority_discovery_enabled,
+							6000,
+							grandpa_pause
+						).map(|(s, _, _)| s)
+					},
+					service::KusamaExecutor::native_version().runtime_version
+				)
 			} else if config.chain_spec.is_westend() {
-				run_node::<
-					service::westend_runtime::RuntimeApi,
-					service::WestendExecutor,
-					service::westend_runtime::UncheckedExtrinsic,
-				>(runtime, authority_discovery_enabled, grandpa_pause)
+				runtime.run_node(
+					|config| {
+						service::westend_new_light(config)
+					},
+					|config| {
+						service::westend_new_full(
+							config,
+							None,
+							None,
+							authority_discovery_enabled,
+							6000,
+							grandpa_pause
+						).map(|(s, _, _)| s)
+					},
+					service::WestendExecutor::native_version().runtime_version
+				)
 			} else {
-				run_node::<
-					service::polkadot_runtime::RuntimeApi,
-					service::PolkadotExecutor,
-					service::polkadot_runtime::UncheckedExtrinsic,
-				>(runtime, authority_discovery_enabled, grandpa_pause)
+				runtime.run_node(
+					|config| {
+						service::polkadot_new_light(config)
+					},
+					|config| {
+						service::polkadot_new_full(
+							config,
+							None,
+							None,
+							authority_discovery_enabled,
+							6000,
+							grandpa_pause
+						).map(|(s, _, _)| s)
+					},
+					service::PolkadotExecutor::native_version().runtime_version
+				)
 			}
 		},
 		Some(Subcommand::Base(subcommand)) => {
@@ -160,55 +192,3 @@ pub fn run() -> Result<()> {
 		},
 	}
 }
-
-fn run_node<R, D, E>(
-	runtime: sc_cli::Runner<Cli>,
-	authority_discovery_enabled: bool,
-	grandpa_pause: Option<(u32, u32)>,
-) -> sc_cli::Result<()>
-where
-	R: ConstructRuntimeApi<Block, service::TFullClient<Block, R, D>>
-		+ Send + Sync + 'static,
-	<R as ConstructRuntimeApi<Block, service::TFullClient<Block, R, D>>>::RuntimeApi:
-		RuntimeApiCollection<E, StateBackend = sc_client_api::StateBackendFor<service::TFullBackend<Block>, Block>>,
-	<R as ConstructRuntimeApi<Block, service::TLightClient<Block, R, D>>>::RuntimeApi:
-		RuntimeApiCollection<E, StateBackend = sc_client_api::StateBackendFor<service::TLightBackend<Block>, Block>>,
-	E: service::Codec + Send + Sync + 'static,
-	D: service::NativeExecutionDispatch + 'static,
-	// Rust bug: https://github.com/rust-lang/rust/issues/24159
-	<<R as ConstructRuntimeApi<Block, TFullClient<Block, R, D>>>::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend:
-		sp_api::StateBackend<BlakeTwo256>,
-	// Rust bug: https://github.com/rust-lang/rust/issues/43580
-	R: ConstructRuntimeApi<
-		Block,
-		TLightClient<R, D>
-	>,
-{
-	runtime.run_node(
-		|config| service::new_light::<R, D, E>(config),
-		|config| service::new_full::<R, D, E>(
-			config,
-			None,
-			None,
-			authority_discovery_enabled,
-			6000,
-			grandpa_pause,
-		).map(|(s, _)| s),
-		D::native_version().runtime_version,
-	)
-}
-
-// We can't simply use `service::TLightClient` due to a
-// Rust bug: https://github.com/rust-lang/rust/issues/43580
-type TLightClient<Runtime, Dispatch> = sc_client::Client<
-	sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
-	sc_client::light::call_executor::GenesisCallExecutor<
-		sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
-		sc_client::LocalCallExecutor<
-			sc_client::light::backend::Backend<sc_client_db::light::LightStorage<Block>, BlakeTwo256>,
-			sc_executor::NativeExecutor<Dispatch>
-		>
-	>,
-	Block,
-	Runtime
->;

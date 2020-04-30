@@ -1836,6 +1836,7 @@ mod tests {
 		type ElectionLookahead = ElectionLookahead;
 		type Call = Call;
 		type UnsignedPriority = StakingUnsignedPriority;
+		type MaxIterations = ();
 	}
 
 	impl attestations::Trait for Test {

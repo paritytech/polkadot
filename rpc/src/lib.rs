@@ -23,6 +23,8 @@ use std::sync::Arc;
 use polkadot_primitives::{Block, AccountId, Nonce, Balance};
 use sp_api::ProvideRuntimeApi;
 use txpool_api::TransactionPool;
+use sp_blockchain::HeaderBackend;
+use sc_client_api::light::{Fetcher, RemoteBlockchain};
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
@@ -30,7 +32,7 @@ pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
 /// Instantiate all RPC extensions.
 pub fn create_full<C, P, UE>(client: Arc<C>, pool: Arc<P>) -> RpcExtension where
 	C: ProvideRuntimeApi<Block>,
-	C: client::blockchain::HeaderBackend<Block>,
+	C: HeaderBackend<Block>,
 	C: Send + Sync + 'static,
 	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UE>,
@@ -53,18 +55,18 @@ pub fn create_full<C, P, UE>(client: Arc<C>, pool: Arc<P>) -> RpcExtension where
 /// Instantiate all RPC extensions for light node.
 pub fn create_light<C, P, F, UE>(
 	client: Arc<C>,
-	remote_blockchain: Arc<dyn client::light::blockchain::RemoteBlockchain<Block>>,
+	remote_blockchain: Arc<dyn RemoteBlockchain<Block>>,
 	fetcher: Arc<F>,
 	pool: Arc<P>,
 ) -> RpcExtension
 	where
 		C: ProvideRuntimeApi<Block>,
-		C: client::blockchain::HeaderBackend<Block>,
+		C: HeaderBackend<Block>,
 		C: Send + Sync + 'static,
 		C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
 		C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UE>,
 		P: TransactionPool + Sync + Send + 'static,
-		F: client::light::fetcher::Fetcher<Block> + 'static,
+		F: Fetcher<Block> + 'static,
 		UE: codec::Codec + Send + Sync + 'static,
 {
 	use frame_rpc_system::{LightSystem, SystemApi};

@@ -101,9 +101,9 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build<B, E, R, SP, Extrinsic>(
+	fn build<Client, SP, Extrinsic>(
 		self,
-		_: Arc<collator::PolkadotClient<B, E, R>>,
+		_: Arc<Client>,
 		_: SP,
 		network: impl Network + Clone + 'static,
 	) -> Result<Self::ParachainContext, ()> {
