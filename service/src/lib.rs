@@ -189,7 +189,6 @@ macro_rules! new_full_start {
 					client.clone(),
 				)?;
 
-				let spawner = |future| spawn_task_handle.spawn_blocking("import-queue-worker", future);
 				let import_queue = babe::import_queue(
 					babe_link.clone(),
 					block_import.clone(),
@@ -197,7 +196,7 @@ macro_rules! new_full_start {
 					None,
 					client,
 					inherent_data_providers.clone(),
-					spawner,
+					spawn_task_handle,
 				)?;
 
 				import_setup = Some((block_import, grandpa_link, babe_link));
@@ -528,7 +527,6 @@ macro_rules! new_light {
 					client.clone(),
 				)?;
 
-				let spawner = |future| spawn_task_handle.spawn_blocking("importe-queue-worker", future);
 				// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
 				let import_queue = babe::import_queue(
 					babe_link,
@@ -537,7 +535,7 @@ macro_rules! new_light {
 					Some(Box::new(finality_proof_import)),
 					client,
 					inherent_data_providers.clone(),
-					spawner,
+					spawn_task_handle,
 				)?;
 
 				Ok((import_queue, finality_proof_request_builder))
