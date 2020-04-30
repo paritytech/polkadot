@@ -81,7 +81,7 @@ pub type Remark = [u8; 32];
 
 /// These are special "control" messages that can be passed from the Relaychain to a parachain.
 /// They should be handled by all parachains.
-#[derive(codec::Encode, codec::Decode, Clone, sp_runtime::RuntimeDebug)]
+#[derive(codec::Encode, codec::Decode, Clone, sp_runtime::RuntimeDebug, PartialEq)]
 pub enum DownwardMessage<AccountId = crate::AccountId> {
 	/// Some funds were transferred into the parachain's account. The hash is the identifier that
 	/// was given with the transfer.
