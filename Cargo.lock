@@ -1188,6 +1188,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "finality-grandpa"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d7907cc24468e29b5d3ea2097e78104492b6650c55f96af1f14e7915dc155ad"
+dependencies = [
+ "either",
+ "futures 0.3.4",
+ "futures-timer 2.0.2",
+ "log 0.4.8",
+ "num-traits 0.2.11",
+ "parity-scale-codec",
+ "parking_lot 0.9.0",
+]
+
+[[package]]
 name = "fixed-hash"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1227,6 +1242,14 @@ checksum = "2fad85553e09a6f881f739c29f0b00b0f01357c743266d478b68951ce23285f3"
 [[package]]
 name = "fork-tree"
 version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "fork-tree"
+version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "parity-scale-codec",
@@ -1242,11 +1265,11 @@ dependencies = [
  "linregress",
  "parity-scale-codec",
  "paste",
- "sp-api",
- "sp-io",
- "sp-runtime",
- "sp-runtime-interface",
- "sp-std",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -1258,12 +1281,12 @@ dependencies = [
  "parity-scale-codec",
  "sc-cli",
  "sc-client-db",
- "sc-executor",
+ "sc-executor 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-service",
- "sp-core",
- "sp-externalities",
- "sp-runtime",
- "sp-state-machine",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "structopt",
 ]
 
@@ -1276,10 +1299,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "sp-tracing",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-tracing 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -1289,8 +1312,8 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core",
- "sp-std",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -1307,14 +1330,14 @@ dependencies = [
  "parity-scale-codec",
  "paste",
  "serde",
- "sp-arithmetic",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-runtime",
- "sp-state-machine",
- "sp-std",
- "sp-tracing",
+ "sp-arithmetic 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-tracing 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -1359,11 +1382,11 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "sp-version",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -1372,7 +1395,7 @@ version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "parity-scale-codec",
- "sp-api",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -2270,22 +2293,22 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "sp-api",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-authority-discovery",
- "sp-block-builder",
- "sp-consensus-babe",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-keyring",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-offchain",
- "sp-runtime",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-session",
  "sp-staking",
- "sp-std",
- "sp-transaction-pool",
- "sp-trie",
- "sp-version",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
  "trie-db",
@@ -3266,12 +3289,12 @@ dependencies = [
  "pallet-session",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-authority-discovery",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3284,11 +3307,11 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "sp-authorship",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3302,14 +3325,14 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "serde",
- "sp-consensus-babe",
- "sp-consensus-vrf",
- "sp-inherents",
- "sp-io",
- "sp-runtime",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-vrf 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-staking",
- "sp-std",
- "sp-timestamp",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-timestamp 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3322,9 +3345,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3337,10 +3360,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3353,9 +3376,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3368,8 +3391,8 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-phragmen",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3382,10 +3405,10 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
- "sp-finality-tracker",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
+ "sp-finality-tracker 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3399,11 +3422,11 @@ dependencies = [
  "pallet-session",
  "parity-scale-codec",
  "serde",
- "sp-core",
- "sp-finality-grandpa",
- "sp-runtime",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-finality-grandpa 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-staking",
- "sp-std",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3417,9 +3440,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3434,12 +3457,12 @@ dependencies = [
  "pallet-session",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto",
- "sp-core",
- "sp-io",
- "sp-runtime",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-staking",
- "sp-std",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3451,11 +3474,11 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core",
- "sp-io",
- "sp-keyring",
- "sp-runtime",
- "sp-std",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3467,9 +3490,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3481,9 +3504,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3496,9 +3519,9 @@ dependencies = [
  "pallet-balances",
  "parity-scale-codec",
  "serde",
- "sp-runtime",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-staking",
- "sp-std",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3514,10 +3537,10 @@ dependencies = [
  "pallet-session",
  "pallet-staking",
  "parity-scale-codec",
- "sp-io",
- "sp-runtime",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-staking",
- "sp-std",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3529,8 +3552,8 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "safe-mix",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3543,9 +3566,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3558,9 +3581,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3574,11 +3597,11 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "serde",
- "sp-io",
- "sp-runtime",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-staking",
- "sp-std",
- "sp-trie",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3591,8 +3614,8 @@ dependencies = [
  "frame-system",
  "pallet-session",
  "pallet-staking",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3605,9 +3628,9 @@ dependencies = [
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3623,13 +3646,13 @@ dependencies = [
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "serde",
- "sp-application-crypto",
- "sp-core",
- "sp-io",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-phragmen",
- "sp-runtime",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-staking",
- "sp-std",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "static_assertions",
 ]
 
@@ -3653,9 +3676,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3669,11 +3692,11 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
- "sp-inherents",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "sp-timestamp",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-timestamp 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3685,8 +3708,8 @@ dependencies = [
  "frame-system",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3700,11 +3723,11 @@ dependencies = [
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
  "serde",
- "sp-api",
- "sp-blockchain",
- "sp-core",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-rpc",
- "sp-runtime",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3715,9 +3738,9 @@ dependencies = [
  "frame-support",
  "parity-scale-codec",
  "serde",
- "sp-api",
- "sp-runtime",
- "sp-std",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3731,8 +3754,8 @@ dependencies = [
  "pallet-balances",
  "parity-scale-codec",
  "serde",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3745,10 +3768,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -3762,9 +3785,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -4090,14 +4113,14 @@ dependencies = [
  "parking_lot 0.9.0",
  "polkadot-erasure-coding",
  "polkadot-primitives",
- "sc-client-api",
- "sc-keystore",
- "sc-network",
- "sp-api",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-runtime",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-keystore 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "tokio 0.2.19",
 ]
 
@@ -4110,13 +4133,13 @@ dependencies = [
  "log 0.4.8",
  "polkadot-service",
  "sc-cli",
- "sc-client-api",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-client-db",
- "sc-executor",
+ "sc-executor 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-service",
- "sp-api",
- "sp-core",
- "sp-runtime",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "structopt",
  "substrate-browser-utils",
  "substrate-build-script-utils",
@@ -4139,16 +4162,16 @@ dependencies = [
  "polkadot-service",
  "polkadot-validation",
  "sc-cli",
- "sc-client-api",
- "sc-executor",
- "sc-network",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-executor 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-service",
- "sp-api",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-keyring",
- "sp-runtime",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "tokio 0.2.19",
 ]
 
@@ -4160,8 +4183,8 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "reed-solomon-erasure",
- "sp-core",
- "sp-trie",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -4181,14 +4204,14 @@ dependencies = [
  "polkadot-erasure-coding",
  "polkadot-primitives",
  "polkadot-validation",
- "sc-network",
- "sc-network-gossip",
- "sp-api",
- "sp-blockchain",
- "sp-core",
- "sp-keyring",
- "sp-runtime",
- "sp-state-machine",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network-gossip 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "wasm-timer",
 ]
 
@@ -4201,16 +4224,16 @@ dependencies = [
  "parking_lot 0.10.2",
  "polkadot-test-runtime-client",
  "rand 0.7.3",
- "sc-block-builder",
- "sc-client-api",
- "sc-consensus",
- "sc-network",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-network-test",
  "sc-service",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-runtime",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -4221,15 +4244,15 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sc-executor",
+ "sc-executor 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "serde",
  "shared_memory",
- "sp-core",
- "sp-externalities",
- "sp-io",
- "sp-runtime-interface",
- "sp-std",
- "sp-wasm-interface",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -4241,16 +4264,16 @@ dependencies = [
  "polkadot-parachain",
  "pretty_assertions",
  "serde",
- "sp-api",
- "sp-application-crypto",
- "sp-core",
- "sp-inherents",
- "sp-runtime",
- "sp-serializer",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-serializer 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-staking",
- "sp-std",
- "sp-trie",
- "sp-version",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -4261,12 +4284,14 @@ dependencies = [
  "pallet-transaction-payment-rpc",
  "parity-scale-codec",
  "polkadot-primitives",
- "sc-client-api",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-finality-grandpa 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-finality-grandpa-rpc",
  "sc-rpc",
- "sp-api",
- "sp-blockchain",
- "sp-runtime",
- "sp-transaction-pool",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-frame-rpc-system",
 ]
 
@@ -4318,21 +4343,21 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "sp-api",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-authority-discovery",
- "sp-block-builder",
- "sp-consensus-babe",
- "sp-core",
- "sp-inherents",
- "sp-keyring",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-offchain",
- "sp-runtime",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-session",
  "sp-staking",
- "sp-std",
- "sp-transaction-pool",
- "sp-trie",
- "sp-version",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
  "trie-db",
@@ -4366,16 +4391,16 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "sp-api",
- "sp-application-crypto",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-keyring",
- "sp-runtime",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-staking",
- "sp-std",
- "sp-trie",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "trie-db",
 ]
 
@@ -4405,36 +4430,36 @@ dependencies = [
  "polkadot-test-runtime-client",
  "polkadot-validation",
  "sc-authority-discovery",
- "sc-block-builder",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-chain-spec",
- "sc-client-api",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-client-db",
- "sc-consensus",
+ "sc-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-consensus-babe",
- "sc-executor",
- "sc-finality-grandpa",
- "sc-keystore",
- "sc-network",
+ "sc-executor 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-finality-grandpa 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-keystore 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-service",
- "sc-telemetry",
+ "sc-telemetry 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-transaction-pool",
  "serde",
  "slog",
- "sp-api",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-authority-discovery",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-finality-grandpa",
- "sp-inherents",
- "sp-io",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-finality-grandpa 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-offchain",
- "sp-runtime",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-session",
- "sp-transaction-pool",
- "substrate-prometheus-endpoint",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "westend-runtime",
 ]
 
@@ -4444,7 +4469,7 @@ version = "0.7.32"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
- "sp-core",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -4483,20 +4508,20 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "sp-api",
- "sp-block-builder",
- "sp-consensus-babe",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-keyring",
- "sp-runtime",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-session",
  "sp-staking",
- "sp-std",
- "sp-transaction-pool",
- "sp-trie",
- "sp-version",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
  "trie-db",
@@ -4512,14 +4537,14 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-test-runtime",
- "sc-block-builder",
- "sc-client-api",
- "sc-consensus",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-service",
- "sp-api",
- "sp-blockchain",
- "sp-core",
- "sp-runtime",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-test-client",
 ]
 
@@ -4541,21 +4566,21 @@ dependencies = [
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-statement-table",
- "sc-block-builder",
- "sc-client-api",
- "sc-finality-grandpa",
- "sc-keystore",
- "sp-api",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-inherents",
- "sp-keyring",
- "sp-runtime",
- "sp-timestamp",
- "sp-transaction-pool",
- "sp-trie",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-finality-grandpa 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-keystore 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-timestamp 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "tokio 0.2.19",
 ]
 
@@ -5292,16 +5317,32 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.7.3",
- "sc-client-api",
- "sc-keystore",
- "sc-network",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-keystore 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "serde_json",
- "sp-api",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-authority-discovery",
- "sp-blockchain",
- "sp-core",
- "sp-runtime",
- "substrate-prometheus-endpoint",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sc-block-builder"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "parity-scale-codec",
+ "sc-client-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -5310,14 +5351,14 @@ version = "0.8.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "parity-scale-codec",
- "sc-client-api",
- "sp-api",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-runtime",
- "sp-state-machine",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -5327,13 +5368,13 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "impl-trait-for-tuples",
  "sc-chain-spec-derive",
- "sc-network",
- "sc-telemetry",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-telemetry 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "serde",
  "serde_json",
  "sp-chain-spec",
- "sp-core",
- "sp-runtime",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -5368,25 +5409,61 @@ dependencies = [
  "parity-util-mem",
  "regex",
  "rpassword",
- "sc-client-api",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-informant",
- "sc-network",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-service",
- "sc-telemetry",
+ "sc-telemetry 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-tracing",
  "serde_json",
- "sp-blockchain",
- "sp-core",
- "sp-keyring",
- "sp-panic-handler",
- "sp-runtime",
- "sp-state-machine",
- "sp-utils",
- "sp-version",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-panic-handler 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "structopt",
- "substrate-prometheus-endpoint",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "time",
  "tokio 0.2.19",
+]
+
+[[package]]
+name = "sc-client-api"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "derive_more 0.99.5",
+ "fnv",
+ "futures 0.3.4",
+ "hash-db",
+ "hex-literal",
+ "kvdb",
+ "lazy_static",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "sc-executor 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sc-telemetry 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-database 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-storage 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-trie 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-utils 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-version 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -5404,25 +5481,25 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sc-executor",
- "sc-telemetry",
- "sp-api",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-database",
- "sp-externalities",
- "sp-inherents",
- "sp-keyring",
- "sp-runtime",
- "sp-state-machine",
- "sp-std",
- "sp-storage",
- "sp-transaction-pool",
- "sp-trie",
- "sp-utils",
- "sp-version",
- "substrate-prometheus-endpoint",
+ "sc-executor 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-telemetry 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-database 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-storage 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -5441,17 +5518,28 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "parking_lot 0.10.2",
- "sc-client-api",
- "sc-executor",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-executor 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-state-db",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-database",
- "sp-runtime",
- "sp-state-machine",
- "sp-trie",
- "substrate-prometheus-endpoint",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-database 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sc-consensus"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "sc-client-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -5459,10 +5547,10 @@ name = "sc-consensus"
 version = "0.8.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
- "sc-client-api",
- "sp-blockchain",
- "sp-consensus",
- "sp-runtime",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -5471,7 +5559,7 @@ version = "0.8.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "derive_more 0.99.5",
- "fork-tree",
+ "fork-tree 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "futures 0.3.4",
  "futures-timer 3.0.2",
  "log 0.4.8",
@@ -5483,27 +5571,27 @@ dependencies = [
  "parking_lot 0.10.2",
  "pdqselect",
  "rand 0.7.3",
- "sc-client-api",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-consensus-epochs",
  "sc-consensus-slots",
  "sc-consensus-uncles",
- "sc-keystore",
- "sc-telemetry",
+ "sc-keystore 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-telemetry 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "schnorrkel",
  "serde",
- "sp-api",
- "sp-application-crypto",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-consensus-vrf",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-runtime",
- "sp-timestamp",
- "sp-version",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-vrf 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-timestamp 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -5511,12 +5599,12 @@ name = "sc-consensus-epochs"
 version = "0.8.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
- "fork-tree",
+ "fork-tree 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sc-client-api",
- "sp-blockchain",
- "sp-runtime",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -5529,15 +5617,15 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sc-client-api",
- "sc-telemetry",
- "sp-api",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-inherents",
- "sp-runtime",
- "sp-state-machine",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-telemetry 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -5546,12 +5634,39 @@ version = "0.8.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "log 0.4.8",
- "sc-client-api",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-authorship",
- "sp-consensus",
- "sp-core",
- "sp-inherents",
- "sp-runtime",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sc-executor"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "derive_more 0.99.5",
+ "lazy_static",
+ "libsecp256k1",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "parity-wasm",
+ "parking_lot 0.10.2",
+ "sc-executor-common 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sc-executor-wasmi 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-io 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-panic-handler 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-serializer 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-trie 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-version 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "wasmi",
 ]
 
 [[package]]
@@ -5566,19 +5681,36 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm",
  "parking_lot 0.10.2",
- "sc-executor-common",
- "sc-executor-wasmi",
+ "sc-executor-common 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-executor-wasmi 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-executor-wasmtime",
- "sp-api",
- "sp-core",
- "sp-externalities",
- "sp-io",
- "sp-panic-handler",
- "sp-runtime-interface",
- "sp-serializer",
- "sp-trie",
- "sp-version",
- "sp-wasm-interface",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-panic-handler 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-serializer 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "wasmi",
+]
+
+[[package]]
+name = "sc-executor-common"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "derive_more 0.99.5",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "parity-wasm",
+ "sp-allocator 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-serializer 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
  "wasmi",
 ]
 
@@ -5591,11 +5723,26 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "parity-wasm",
- "sp-allocator",
- "sp-core",
- "sp-runtime-interface",
- "sp-serializer",
- "sp-wasm-interface",
+ "sp-allocator 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-serializer 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "wasmi",
+]
+
+[[package]]
+name = "sc-executor-wasmi"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "log 0.4.8",
+ "parity-scale-codec",
+ "sc-executor-common 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-allocator 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
  "wasmi",
 ]
 
@@ -5606,11 +5753,11 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
- "sc-executor-common",
- "sp-allocator",
- "sp-core",
- "sp-runtime-interface",
- "sp-wasm-interface",
+ "sc-executor-common 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-allocator 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "wasmi",
 ]
 
@@ -5624,12 +5771,12 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "parity-wasm",
- "sc-executor-common",
+ "sc-executor-common 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "scoped-tls",
- "sp-allocator",
- "sp-core",
- "sp-runtime-interface",
- "sp-wasm-interface",
+ "sp-allocator 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-wasmtime",
  "substrate-wasmtime-runtime",
  "wasmtime-environ",
@@ -5638,11 +5785,12 @@ dependencies = [
 [[package]]
 name = "sc-finality-grandpa"
 version = "0.8.0-dev"
-source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
 dependencies = [
  "assert_matches",
- "finality-grandpa",
- "fork-tree",
+ "derive_more 0.99.5",
+ "finality-grandpa 0.12.0",
+ "fork-tree 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
  "futures 0.3.4",
  "futures-timer 3.0.2",
  "log 0.4.8",
@@ -5650,25 +5798,78 @@ dependencies = [
  "parking_lot 0.10.2",
  "pin-project",
  "rand 0.7.3",
- "sc-block-builder",
- "sc-client-api",
- "sc-consensus",
- "sc-keystore",
- "sc-network",
- "sc-network-gossip",
- "sc-telemetry",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sc-client-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sc-consensus 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sc-keystore 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sc-network 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sc-network-gossip 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sc-telemetry 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
  "serde_json",
- "sp-api",
- "sp-arithmetic",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-finality-grandpa",
- "sp-finality-tracker",
- "sp-inherents",
- "sp-runtime",
- "sp-utils",
- "substrate-prometheus-endpoint",
+ "sp-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-arithmetic 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-finality-grandpa 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-finality-tracker 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-utils 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+]
+
+[[package]]
+name = "sc-finality-grandpa"
+version = "0.8.0-dev"
+source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
+dependencies = [
+ "assert_matches",
+ "finality-grandpa 0.11.2",
+ "fork-tree 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "futures 0.3.4",
+ "futures-timer 3.0.2",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "pin-project",
+ "rand 0.7.3",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-keystore 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network-gossip 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-telemetry 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "serde_json",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-arithmetic 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-finality-grandpa 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-finality-tracker 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sc-finality-grandpa-rpc"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "derive_more 0.99.5",
+ "finality-grandpa 0.12.0",
+ "futures 0.3.4",
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "log 0.4.8",
+ "sc-finality-grandpa 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -5680,12 +5881,27 @@ dependencies = [
  "futures 0.3.4",
  "log 0.4.8",
  "parity-util-mem",
- "sc-client-api",
- "sc-network",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-service",
- "sp-blockchain",
- "sp-runtime",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "wasm-timer",
+]
+
+[[package]]
+name = "sc-keystore"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "derive_more 0.99.5",
+ "hex",
+ "parking_lot 0.10.2",
+ "rand 0.7.3",
+ "serde_json",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "subtle 2.2.2",
 ]
 
 [[package]]
@@ -5698,15 +5914,15 @@ dependencies = [
  "parking_lot 0.10.2",
  "rand 0.7.3",
  "serde_json",
- "sp-application-crypto",
- "sp-core",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "subtle 2.2.2",
 ]
 
 [[package]]
 name = "sc-network"
 version = "0.8.0-dev"
-source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
 dependencies = [
  "bitflags",
  "bytes 0.5.4",
@@ -5714,7 +5930,7 @@ dependencies = [
  "either",
  "erased-serde",
  "fnv",
- "fork-tree",
+ "fork-tree 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
  "futures 0.3.4",
  "futures-timer 3.0.2",
  "futures_codec",
@@ -5732,27 +5948,95 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.7.3",
- "sc-block-builder",
- "sc-client-api",
- "sc-peerset",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sc-client-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sc-peerset 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
  "serde",
  "serde_json",
  "slog",
  "slog_derive",
  "smallvec 0.6.13",
- "sp-arithmetic",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-runtime",
- "sp-utils",
- "substrate-prometheus-endpoint",
+ "sp-arithmetic 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-utils 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
  "thiserror",
  "unsigned-varint",
  "void",
  "wasm-timer",
  "zeroize",
+]
+
+[[package]]
+name = "sc-network"
+version = "0.8.0-dev"
+source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
+dependencies = [
+ "bitflags",
+ "bytes 0.5.4",
+ "derive_more 0.99.5",
+ "either",
+ "erased-serde",
+ "fnv",
+ "fork-tree 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "futures 0.3.4",
+ "futures-timer 3.0.2",
+ "futures_codec",
+ "hex",
+ "ip_network",
+ "libp2p",
+ "linked-hash-map",
+ "linked_hash_set",
+ "log 0.4.8",
+ "lru",
+ "nohash-hasher",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "pin-project",
+ "prost",
+ "prost-build",
+ "rand 0.7.3",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-peerset 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "serde",
+ "serde_json",
+ "slog",
+ "slog_derive",
+ "smallvec 0.6.13",
+ "sp-arithmetic 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "thiserror",
+ "unsigned-varint",
+ "void",
+ "wasm-timer",
+ "zeroize",
+]
+
+[[package]]
+name = "sc-network-gossip"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "futures 0.3.4",
+ "futures-timer 3.0.2",
+ "libp2p",
+ "log 0.4.8",
+ "lru",
+ "sc-network 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-utils 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "wasm-timer",
 ]
 
 [[package]]
@@ -5765,9 +6049,9 @@ dependencies = [
  "libp2p",
  "log 0.4.8",
  "lru",
- "sc-network",
- "sp-runtime",
- "sp-utils",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "wasm-timer",
 ]
 
@@ -5783,16 +6067,16 @@ dependencies = [
  "log 0.4.8",
  "parking_lot 0.10.2",
  "rand 0.7.3",
- "sc-block-builder",
- "sc-client-api",
- "sc-consensus",
- "sc-network",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-service",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-runtime",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-test-runtime",
  "substrate-test-runtime-client",
  "tempfile",
@@ -5814,15 +6098,28 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "rand 0.7.3",
- "sc-client-api",
- "sc-keystore",
- "sc-network",
- "sp-api",
- "sp-core",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-keystore 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-offchain",
- "sp-runtime",
- "sp-utils",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "threadpool",
+]
+
+[[package]]
+name = "sc-peerset"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "futures 0.3.4",
+ "libp2p",
+ "log 0.4.8",
+ "serde_json",
+ "sp-utils 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "wasm-timer",
 ]
 
 [[package]]
@@ -5834,7 +6131,7 @@ dependencies = [
  "libp2p",
  "log 0.4.8",
  "serde_json",
- "sp-utils",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "wasm-timer",
 ]
 
@@ -5850,24 +6147,24 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sc-block-builder",
- "sc-client-api",
- "sc-executor",
- "sc-keystore",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-executor 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-keystore 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-rpc-api",
  "serde_json",
- "sp-api",
- "sp-blockchain",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-chain-spec",
- "sp-core",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-offchain",
  "sp-rpc",
- "sp-runtime",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-session",
- "sp-state-machine",
- "sp-transaction-pool",
- "sp-utils",
- "sp-version",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -5887,11 +6184,11 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-chain-spec",
- "sp-core",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-rpc",
- "sp-runtime",
- "sp-transaction-pool",
- "sp-version",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -5906,7 +6203,7 @@ dependencies = [
  "log 0.4.8",
  "serde",
  "serde_json",
- "sp-runtime",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -5930,38 +6227,38 @@ dependencies = [
  "pin-project",
  "procfs",
  "rand 0.7.3",
- "sc-block-builder",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-chain-spec",
- "sc-client-api",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-client-db",
- "sc-executor",
- "sc-keystore",
- "sc-network",
+ "sc-executor 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-keystore 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-offchain",
  "sc-rpc",
  "sc-rpc-server",
- "sc-telemetry",
+ "sc-telemetry 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-tracing",
  "sc-transaction-pool",
  "serde",
  "serde_json",
  "slog",
- "sp-api",
- "sp-application-crypto",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-externalities",
- "sp-io",
- "sp-runtime",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-session",
- "sp-state-machine",
- "sp-transaction-pool",
- "sp-trie",
- "sp-utils",
- "sp-version",
- "substrate-prometheus-endpoint",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sysinfo",
  "tracing",
  "wasm-timer",
@@ -5977,8 +6274,30 @@ dependencies = [
  "parity-util-mem",
  "parity-util-mem-derive",
  "parking_lot 0.10.2",
- "sc-client-api",
- "sp-core",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sc-telemetry"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "bytes 0.5.4",
+ "futures 0.3.4",
+ "futures-timer 3.0.2",
+ "libp2p",
+ "log 0.4.8",
+ "parking_lot 0.10.2",
+ "pin-project",
+ "rand 0.7.3",
+ "serde",
+ "slog",
+ "slog-json",
+ "slog-scope",
+ "take_mut",
+ "void",
+ "wasm-timer",
 ]
 
 [[package]]
@@ -6011,7 +6330,7 @@ dependencies = [
  "erased-serde",
  "log 0.4.8",
  "parking_lot 0.10.2",
- "sc-telemetry",
+ "sc-telemetry 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "serde",
  "serde_json",
  "slog",
@@ -6030,11 +6349,11 @@ dependencies = [
  "parity-util-mem",
  "parking_lot 0.10.2",
  "serde",
- "sp-blockchain",
- "sp-core",
- "sp-runtime",
- "sp-transaction-pool",
- "sp-utils",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "wasm-timer",
 ]
 
@@ -6051,16 +6370,16 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "parking_lot 0.10.2",
- "sc-client-api",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-transaction-graph",
- "sp-api",
- "sp-blockchain",
- "sp-core",
- "sp-runtime",
- "sp-tracing",
- "sp-transaction-pool",
- "sp-utils",
- "substrate-prometheus-endpoint",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-tracing 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "substrate-prometheus-endpoint 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "wasm-timer",
 ]
 
@@ -6426,13 +6745,40 @@ dependencies = [
 [[package]]
 name = "sp-allocator"
 version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "derive_more 0.99.5",
+ "log 0.4.8",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+]
+
+[[package]]
+name = "sp-allocator"
+version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "derive_more 0.99.5",
  "log 0.4.8",
- "sp-core",
- "sp-std",
- "sp-wasm-interface",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-api"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "hash-db",
+ "parity-scale-codec",
+ "sp-api-proc-macro 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-version 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6442,12 +6788,24 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "hash-db",
  "parity-scale-codec",
- "sp-api-proc-macro",
- "sp-core",
- "sp-runtime",
- "sp-state-machine",
- "sp-std",
- "sp-version",
+ "sp-api-proc-macro 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-api-proc-macro"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "blake2-rfc",
+ "proc-macro-crate",
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.18",
 ]
 
 [[package]]
@@ -6465,13 +6823,39 @@ dependencies = [
 [[package]]
 name = "sp-application-crypto"
 version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-io 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+]
+
+[[package]]
+name = "sp-application-crypto"
+version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core",
- "sp-io",
- "sp-std",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-arithmetic"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "integer-sqrt",
+ "num-traits 0.2.11",
+ "parity-scale-codec",
+ "primitive-types",
+ "serde",
+ "sp-debug-derive 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6484,8 +6868,8 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "serde",
- "sp-debug-derive",
- "sp-std",
+ "sp-debug-derive 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -6494,10 +6878,10 @@ version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "parity-scale-codec",
- "sp-api",
- "sp-application-crypto",
- "sp-runtime",
- "sp-std",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -6506,9 +6890,21 @@ version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "parity-scale-codec",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-block-builder"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "parity-scale-codec",
+ "sp-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6517,10 +6913,26 @@ version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "parity-scale-codec",
- "sp-api",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-blockchain"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "derive_more 0.99.5",
+ "log 0.4.8",
+ "lru",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6533,10 +6945,10 @@ dependencies = [
  "lru",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sp-block-builder",
- "sp-consensus",
- "sp-runtime",
- "sp-state-machine",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -6546,6 +6958,28 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "sp-consensus"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "derive_more 0.99.5",
+ "futures 0.3.4",
+ "futures-timer 3.0.2",
+ "libp2p",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "serde",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-utils 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-version 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6561,13 +6995,13 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "serde",
- "sp-core",
- "sp-inherents",
- "sp-runtime",
- "sp-state-machine",
- "sp-std",
- "sp-utils",
- "sp-version",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -6576,12 +7010,28 @@ version = "0.8.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "parity-scale-codec",
- "sp-api",
- "sp-application-crypto",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
- "sp-timestamp",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-timestamp 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-consensus-babe"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "parity-scale-codec",
+ "sp-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-consensus-vrf 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-timestamp 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6590,14 +7040,26 @@ version = "0.8.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "parity-scale-codec",
- "sp-api",
- "sp-application-crypto",
- "sp-consensus",
- "sp-consensus-vrf",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
- "sp-timestamp",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-vrf 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-timestamp 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-consensus-vrf"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "parity-scale-codec",
+ "schnorrkel",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6607,9 +7069,50 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
- "sp-core",
- "sp-runtime",
- "sp-std",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-core"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "base58",
+ "blake2-rfc",
+ "byteorder",
+ "ed25519-dalek",
+ "futures 0.3.4",
+ "hash-db",
+ "hash256-std-hasher",
+ "hex",
+ "impl-serde 0.3.0",
+ "lazy_static",
+ "libsecp256k1",
+ "log 0.4.8",
+ "merlin",
+ "num-traits 0.2.11",
+ "parity-scale-codec",
+ "parity-util-mem",
+ "parking_lot 0.10.2",
+ "primitive-types",
+ "rand 0.7.3",
+ "regex",
+ "schnorrkel",
+ "serde",
+ "sha2",
+ "sp-debug-derive 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-storage 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "substrate-bip39",
+ "tiny-bip39",
+ "tiny-keccak 2.0.2",
+ "twox-hash",
+ "wasmi",
+ "zeroize",
 ]
 
 [[package]]
@@ -6640,11 +7143,11 @@ dependencies = [
  "schnorrkel",
  "serde",
  "sha2",
- "sp-debug-derive",
- "sp-externalities",
- "sp-runtime-interface",
- "sp-std",
- "sp-storage",
+ "sp-debug-derive 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-storage 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-bip39",
  "tiny-bip39",
  "tiny-keccak 2.0.2",
@@ -6656,10 +7159,29 @@ dependencies = [
 [[package]]
 name = "sp-database"
 version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "kvdb",
+ "parking_lot 0.10.2",
+]
+
+[[package]]
+name = "sp-database"
+version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "kvdb",
  "parking_lot 0.10.2",
+]
+
+[[package]]
+name = "sp-debug-derive"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.18",
 ]
 
 [[package]]
@@ -6675,12 +7197,36 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "environmental",
+ "parity-scale-codec",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-storage 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+]
+
+[[package]]
+name = "sp-externalities"
+version = "0.8.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std",
- "sp-storage",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-storage 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-finality-grandpa"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6690,10 +7236,20 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-api",
- "sp-application-crypto",
- "sp-runtime",
- "sp-std",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-finality-tracker"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "parity-scale-codec",
+ "sp-inherents 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6702,8 +7258,20 @@ version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "parity-scale-codec",
- "sp-inherents",
- "sp-std",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-inherents"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "derive_more 0.99.5",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6714,8 +7282,28 @@ dependencies = [
  "derive_more 0.99.5",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sp-core",
- "sp-std",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-io"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "futures 0.3.4",
+ "hash-db",
+ "libsecp256k1",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-trie 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6729,13 +7317,24 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sp-core",
- "sp-externalities",
- "sp-runtime-interface",
- "sp-state-machine",
- "sp-std",
- "sp-trie",
- "sp-wasm-interface",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-keyring"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "lazy_static",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "strum",
 ]
 
 [[package]]
@@ -6744,8 +7343,8 @@ version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "lazy_static",
- "sp-core",
- "sp-runtime",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "strum",
 ]
 
@@ -6754,9 +7353,18 @@ name = "sp-offchain"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
- "sp-api",
- "sp-core",
- "sp-runtime",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-panic-handler"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "backtrace",
+ "log 0.4.8",
 ]
 
 [[package]]
@@ -6775,9 +7383,9 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-arithmetic",
+ "sp-arithmetic 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-phragmen-compact",
- "sp-std",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -6797,7 +7405,28 @@ version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "serde",
- "sp-core",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-runtime"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "hash256-std-hasher",
+ "impl-trait-for-tuples",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "parity-util-mem",
+ "paste",
+ "rand 0.7.3",
+ "serde",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-arithmetic 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-io 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
 ]
 
 [[package]]
@@ -6813,12 +7442,27 @@ dependencies = [
  "paste",
  "rand 0.7.3",
  "serde",
- "sp-application-crypto",
- "sp-arithmetic",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-std",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-arithmetic 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-runtime-interface"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "parity-scale-codec",
+ "primitive-types",
+ "sp-externalities 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime-interface-proc-macro 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-tracing 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "static_assertions",
 ]
 
 [[package]]
@@ -6828,12 +7472,24 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities",
- "sp-runtime-interface-proc-macro",
- "sp-std",
- "sp-tracing",
- "sp-wasm-interface",
+ "sp-externalities 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime-interface-proc-macro 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-tracing 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-wasm-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "static_assertions",
+]
+
+[[package]]
+name = "sp-runtime-interface-proc-macro"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "Inflector",
+ "proc-macro-crate",
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.18",
 ]
 
 [[package]]
@@ -6851,6 +7507,15 @@ dependencies = [
 [[package]]
 name = "sp-serializer"
 version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "sp-serializer"
+version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "serde",
@@ -6862,10 +7527,10 @@ name = "sp-session"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
- "sp-api",
- "sp-core",
- "sp-runtime",
- "sp-std",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -6874,8 +7539,27 @@ version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "parity-scale-codec",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-state-machine"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "hash-db",
+ "log 0.4.8",
+ "num-traits 0.2.11",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "rand 0.7.3",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-panic-handler 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-trie 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "trie-db",
+ "trie-root",
 ]
 
 [[package]]
@@ -6889,13 +7573,18 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "rand 0.7.3",
- "sp-core",
- "sp-externalities",
- "sp-panic-handler",
- "sp-trie",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-externalities 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-panic-handler 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "trie-db",
  "trie-root",
 ]
+
+[[package]]
+name = "sp-std"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
 
 [[package]]
 name = "sp-std"
@@ -6905,13 +7594,39 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 [[package]]
 name = "sp-storage"
 version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "impl-serde 0.2.3",
+ "ref-cast",
+ "serde",
+ "sp-debug-derive 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+]
+
+[[package]]
+name = "sp-storage"
+version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "impl-serde 0.2.3",
  "ref-cast",
  "serde",
- "sp-debug-derive",
- "sp-std",
+ "sp-debug-derive 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-timestamp"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "impl-trait-for-tuples",
+ "parity-scale-codec",
+ "sp-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "wasm-timer",
 ]
 
 [[package]]
@@ -6921,11 +7636,19 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-api",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "wasm-timer",
+]
+
+[[package]]
+name = "sp-tracing"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "tracing",
 ]
 
 [[package]]
@@ -6939,6 +7662,21 @@ dependencies = [
 [[package]]
 name = "sp-transaction-pool"
 version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "derive_more 0.99.5",
+ "futures 0.3.4",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "serde",
+ "sp-api 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-utils 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+]
+
+[[package]]
+name = "sp-transaction-pool"
+version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "derive_more 0.99.5",
@@ -6946,9 +7684,23 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "serde",
- "sp-api",
- "sp-runtime",
- "sp-utils",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-utils 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-trie"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "hash-db",
+ "memory-db",
+ "parity-scale-codec",
+ "sp-core 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "trie-db",
+ "trie-root",
 ]
 
 [[package]]
@@ -6959,10 +7711,21 @@ dependencies = [
  "hash-db",
  "memory-db",
  "parity-scale-codec",
- "sp-core",
- "sp-std",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "trie-db",
  "trie-root",
+]
+
+[[package]]
+name = "sp-utils"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "futures 0.3.4",
+ "futures-core",
+ "lazy_static",
+ "prometheus",
 ]
 
 [[package]]
@@ -6979,13 +7742,36 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "impl-serde 0.2.3",
+ "parity-scale-codec",
+ "serde",
+ "sp-runtime 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+]
+
+[[package]]
+name = "sp-version"
+version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36e1aea1bd0751db"
 dependencies = [
  "impl-serde 0.2.3",
  "parity-scale-codec",
  "serde",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "sp-wasm-interface"
+version = "2.0.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "impl-trait-for-tuples",
+ "parity-scale-codec",
+ "sp-std 2.0.0-dev (git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc)",
+ "wasmi",
 ]
 
 [[package]]
@@ -6995,7 +7781,7 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-std",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "wasmi",
 ]
 
@@ -7136,9 +7922,9 @@ dependencies = [
  "rand 0.7.3",
  "sc-chain-spec",
  "sc-informant",
- "sc-network",
+ "sc-network 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-service",
- "sp-database",
+ "sp-database 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -7163,13 +7949,27 @@ dependencies = [
  "jsonrpc-derive",
  "log 0.4.8",
  "parity-scale-codec",
- "sc-client-api",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "serde",
- "sp-api",
- "sp-blockchain",
- "sp-core",
- "sp-runtime",
- "sp-transaction-pool",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+]
+
+[[package]]
+name = "substrate-prometheus-endpoint"
+version = "0.8.0-dev"
+source = "git+https://github.com/octol/substrate?branch=jon/issue-4921-expose-grandpa-round-state-try-shared-arc#23536a002bc90d93bb43493f9ee6b321ebeeeb42"
+dependencies = [
+ "async-std",
+ "derive_more 0.99.5",
+ "futures-util",
+ "hyper 0.13.5",
+ "log 0.4.8",
+ "prometheus",
+ "tokio 0.2.19",
 ]
 
 [[package]]
@@ -7194,17 +7994,17 @@ dependencies = [
  "futures 0.3.4",
  "hash-db",
  "parity-scale-codec",
- "sc-client-api",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-client-db",
- "sc-consensus",
- "sc-executor",
+ "sc-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-executor 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-service",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-keyring",
- "sp-runtime",
- "sp-state-machine",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-state-machine 0.8.0-dev (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -7225,23 +8025,23 @@ dependencies = [
  "parity-util-mem",
  "sc-service",
  "serde",
- "sp-api",
- "sp-application-crypto",
- "sp-block-builder",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-application-crypto 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-consensus-aura",
- "sp-consensus-babe",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-keyring",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-offchain",
- "sp-runtime",
- "sp-runtime-interface",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime-interface 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-session",
- "sp-std",
- "sp-transaction-pool",
- "sp-trie",
- "sp-version",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-wasm-builder-runner 1.0.5 (git+https://github.com/paritytech/substrate)",
  "trie-db",
 ]
@@ -7253,15 +8053,15 @@ source = "git+https://github.com/paritytech/substrate#58e3b3717de726714c948bef36
 dependencies = [
  "futures 0.3.4",
  "parity-scale-codec",
- "sc-block-builder",
- "sc-client-api",
- "sc-consensus",
+ "sc-block-builder 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-service",
- "sp-api",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-runtime",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-blockchain 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-test-client",
  "substrate-test-runtime",
 ]
@@ -7480,7 +8280,7 @@ dependencies = [
  "dlmalloc",
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-io",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
 ]
@@ -7495,8 +8295,8 @@ dependencies = [
  "polkadot-collator",
  "polkadot-parachain",
  "polkadot-primitives",
- "sc-client-api",
- "sp-core",
+ "sc-client-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "test-parachain-adder",
 ]
 
@@ -7507,7 +8307,7 @@ dependencies = [
  "dlmalloc",
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-io",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
 ]
@@ -8434,22 +9234,22 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "sp-api",
+ "sp-api 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-authority-discovery",
- "sp-block-builder",
- "sp-consensus-babe",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-keyring",
+ "sp-block-builder 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe 0.8.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-core 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-inherents 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-io 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keyring 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-offchain",
- "sp-runtime",
+ "sp-runtime 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-session",
  "sp-staking",
- "sp-std",
- "sp-transaction-pool",
- "sp-trie",
- "sp-version",
+ "sp-std 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-transaction-pool 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-trie 2.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-version 2.0.0-dev (git+https://github.com/paritytech/substrate)",
  "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
  "trie-db",

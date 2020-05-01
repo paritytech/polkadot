@@ -64,7 +64,10 @@ pub fn create_full<C, P, UE>(client: Arc<C>, pool: Arc<P>, grandpa_deps: Grandpa
 		TransactionPaymentApi::to_delegate(TransactionPayment::new(client))
 	);
 	io.extend_with(
-		GrandpaApi::to_delegate(GrandpaRpcHandler::new(shared_voter_state, shared_authority_set))
+		GrandpaApi::to_delegate(GrandpaRpcHandler::new(
+			shared_authority_set,
+			shared_voter_state,
+		))
 	);
 	io
 }
