@@ -73,7 +73,7 @@ pub mod fee {
 	impl Convert<Weight, Balance> for WeightToFee {
 		fn convert(x: Weight) -> Balance {
 			// in Kusama, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
-			Balance::from(x).saturating_mul(super::currency::CENTS / (10 * ExtrinsicBaseWeight::get() as u128))
+			Balance::from(x).saturating_mul(super::currency::CENTS / 10) / Balance::from(ExtrinsicBaseWeight::get())
 		}
 	}
 }
