@@ -20,7 +20,7 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::{Block, AccountId, Nonce, Balance};
+use polkadot_primitives::{Block, BlockNumber, AccountId, Nonce, Balance, Hash};
 use sp_api::ProvideRuntimeApi;
 use txpool_api::TransactionPool;
 use sp_blockchain::HeaderBackend;
@@ -29,8 +29,16 @@ use sc_client_api::light::{Fetcher, RemoteBlockchain};
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
 
+/// Dependencies for GRANDPA
+pub struct GrandpaDeps {
+	/// Voting round info.
+	pub shared_voter_state: sc_finality_grandpa::SharedVoterState,
+	/// Authority set info.
+	pub shared_authority_set: sc_finality_grandpa::SharedAuthoritySet<Hash, BlockNumber>,
+}
+
 /// Instantiate all RPC extensions.
-pub fn create_full<C, P, UE>(client: Arc<C>, pool: Arc<P>) -> RpcExtension where
+pub fn create_full<C, P, UE>(client: Arc<C>, pool: Arc<P>, grandpa_deps: GrandpaDeps) -> RpcExtension where
 	C: ProvideRuntimeApi<Block>,
 	C: HeaderBackend<Block>,
 	C: Send + Sync + 'static,
@@ -41,13 +49,25 @@ pub fn create_full<C, P, UE>(client: Arc<C>, pool: Arc<P>) -> RpcExtension where
 {
 	use frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
+	use sc_finality_grandpa_rpc::{GrandpaApi, GrandpaRpcHandler};
 
 	let mut io = jsonrpc_core::IoHandler::default();
+	let GrandpaDeps {
+		shared_voter_state,
+		shared_authority_set,
+	} = grandpa_deps;
+
 	io.extend_with(
 		SystemApi::to_delegate(FullSystem::new(client.clone(), pool))
 	);
 	io.extend_with(
 		TransactionPaymentApi::to_delegate(TransactionPayment::new(client))
+	);
+	io.extend_with(
+		GrandpaApi::to_delegate(GrandpaRpcHandler::new(
+			shared_authority_set,
+			shared_voter_state,
+		))
 	);
 	io
 }
