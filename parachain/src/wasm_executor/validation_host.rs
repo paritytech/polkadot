@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-#![cfg(not(target_os = "unknown"))]
+#![cfg(not(any(target_os = "android", target_os = "unknown")))]
 
 use std::{process, env, sync::Arc, sync::atomic, mem};
 use codec::{Decode, Encode, EncodeAppend};
