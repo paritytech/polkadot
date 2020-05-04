@@ -30,7 +30,7 @@ use primitives::{
 use runtime_common::{attestations, claims, parachains, registrar, slots,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
-	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight,
+	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, DbWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
@@ -55,7 +55,6 @@ use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
 	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier},
-  weights::RuntimeDbWeight,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -130,13 +129,6 @@ impl SignedExtension for RestrictFunctionality {
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
-}
-
-parameter_types! {
-	pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight {
-		read: 60_000_000,
-		write: 200_000_000,
-	};
 }
 
 impl system::Trait for Runtime {
