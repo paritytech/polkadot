@@ -164,14 +164,8 @@ pub fn run() -> Result<()> {
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
 			sc_cli::init_logger("");
-
-			if cfg!(feature = "browser") {
-				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
-			} else {
-				#[cfg(not(feature = "browser"))]
-				service::run_validation_worker(&cmd.mem_id)?;
-				Ok(())
-			}
+			service::run_validation_worker(&cmd.mem_id)?;
+			Ok(())
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runtime = cli.create_runner(cmd)?;
