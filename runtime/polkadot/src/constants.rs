@@ -80,7 +80,6 @@ mod tests {
 	#[test]
 	// This function tests that the fee for `MaximumBlockWeight` of weight is correct
 	fn full_block_fee_is_correct() {
-		println!("{:?}", MaximumBlockWeight::get());
 		// A full block should cost 16 DOLLARS
 		assert_eq!(WeightToFee::convert(MaximumBlockWeight::get()), 16 * DOLLARS)
 	}
