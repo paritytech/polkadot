@@ -23,11 +23,36 @@ use std::sync::Arc;
 use polkadot_primitives::{Block, BlockNumber, AccountId, Nonce, Balance, Hash};
 use sp_api::ProvideRuntimeApi;
 use txpool_api::TransactionPool;
-use sp_blockchain::HeaderBackend;
+use sp_blockchain::{HeaderBackend, HeaderMetadata, Error as BlockChainError};
+use sp_consensus::SelectChain;
 use sc_client_api::light::{Fetcher, RemoteBlockchain};
+use sc_consensus_babe::Epoch;
+use sp_consensus_babe::BabeApi;
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
+
+/// Light client extra dependencies.
+pub struct LightDeps<C, F, P> {
+	/// The client instance to use.
+	pub client: Arc<C>,
+	/// Transaction pool instance.
+	pub pool: Arc<P>,
+	/// Remote access to the blockchain (async).
+	pub remote_blockchain: Arc<dyn RemoteBlockchain<Block>>,
+	/// Fetcher instance.
+	pub fetcher: Arc<F>,
+}
+
+/// Extra dependencies for BABE.
+pub struct BabeDeps {
+	/// BABE protocol config.
+	pub babe_config: sc_consensus_babe::Config,
+	/// BABE pending epoch changes.
+	pub shared_epoch_changes: sc_consensus_epochs::SharedEpochChanges<Block, Epoch>,
+	/// The keystore that manages the keys of the node.
+	pub keystore: sc_keystore::KeyStorePtr,
+}
 
 /// Dependencies for GRANDPA
 pub struct GrandpaDeps {
@@ -37,31 +62,65 @@ pub struct GrandpaDeps {
 	pub shared_authority_set: sc_finality_grandpa::SharedAuthoritySet<Hash, BlockNumber>,
 }
 
+/// Full client dependencies
+pub struct FullDeps<C, P, SC> {
+	/// The client instance to use.
+	pub client: Arc<C>,
+	/// Transaction pool instance.
+	pub pool: Arc<P>,
+	/// The SelectChain Strategy
+	pub select_chain: SC,
+	/// BABE specific dependencies.
+	pub babe: BabeDeps,
+	/// GRANDPA specific dependencies.
+	pub grandpa: GrandpaDeps,
+}
+
 /// Instantiate all RPC extensions.
-pub fn create_full<C, P, UE>(client: Arc<C>, pool: Arc<P>, grandpa_deps: GrandpaDeps) -> RpcExtension where
+pub fn create_full<C, P, UE, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 	C: ProvideRuntimeApi<Block>,
-	C: HeaderBackend<Block>,
+	C: HeaderBackend<Block> + HeaderMetadata<Block, Error=BlockChainError>,
 	C: Send + Sync + 'static,
 	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UE>,
+	C::Api: BabeApi<Block>,
 	P: TransactionPool + Sync + Send + 'static,
 	UE: codec::Codec + Send + Sync + 'static,
+	SC: SelectChain<Block> + 'static,
 {
 	use frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
 	use sc_finality_grandpa_rpc::{GrandpaApi, GrandpaRpcHandler};
+	use sc_consensus_babe_rpc::BabeRPCHandler;
 
 	let mut io = jsonrpc_core::IoHandler::default();
+	let FullDeps {
+		client,
+		pool,
+		select_chain,
+		babe,
+		grandpa,
+	} = deps;
+	let BabeDeps {
+		keystore,
+		babe_config,
+		shared_epoch_changes,
+	} = babe;
 	let GrandpaDeps {
 		shared_voter_state,
 		shared_authority_set,
-	} = grandpa_deps;
+	} = grandpa;
 
 	io.extend_with(
 		SystemApi::to_delegate(FullSystem::new(client.clone(), pool))
 	);
 	io.extend_with(
-		TransactionPaymentApi::to_delegate(TransactionPayment::new(client))
+		TransactionPaymentApi::to_delegate(TransactionPayment::new(client.clone()))
+	);
+	io.extend_with(
+		sc_consensus_babe_rpc::BabeApi::to_delegate(
+			BabeRPCHandler::new(client, shared_epoch_changes, keystore, babe_config, select_chain)
+		)
 	);
 	io.extend_with(
 		GrandpaApi::to_delegate(GrandpaRpcHandler::new(
@@ -73,12 +132,7 @@ pub fn create_full<C, P, UE>(client: Arc<C>, pool: Arc<P>, grandpa_deps: Grandpa
 }
 
 /// Instantiate all RPC extensions for light node.
-pub fn create_light<C, P, F, UE>(
-	client: Arc<C>,
-	remote_blockchain: Arc<dyn RemoteBlockchain<Block>>,
-	fetcher: Arc<F>,
-	pool: Arc<P>,
-) -> RpcExtension
+pub fn create_light<C, P, F, UE>(deps: LightDeps<C, F, P>) -> RpcExtension
 	where
 		C: ProvideRuntimeApi<Block>,
 		C: HeaderBackend<Block>,
@@ -91,6 +145,12 @@ pub fn create_light<C, P, F, UE>(
 {
 	use frame_rpc_system::{LightSystem, SystemApi};
 
+	let LightDeps {
+		client,
+		pool,
+		remote_blockchain,
+		fetcher,
+	} = deps;
 	let mut io = jsonrpc_core::IoHandler::default();
 	io.extend_with(
 		SystemApi::<AccountId, Nonce>::to_delegate(LightSystem::new(client, remote_blockchain, fetcher, pool))
