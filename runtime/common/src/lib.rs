@@ -31,8 +31,10 @@ use primitives::BlockNumber;
 use sp_runtime::Perbill;
 use frame_support::{
 	parameter_types, traits::Currency,
-	weights::{Weight, RuntimeDbWeight},
+	weights::{Weight, constants::WEIGHT_PER_SECOND},
 };
+
+pub use frame_support::weights::constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -50,15 +52,7 @@ pub type NegativeImbalance<T> = <balances::Module<T> as Currency<<T as system::T
 
 parameter_types! {
 	pub const BlockHashCount: BlockNumber = 250;
-	pub const MaximumBlockWeight: Weight = 2_000_000_000_000;
+	pub const MaximumBlockWeight: Weight = 2 * WEIGHT_PER_SECOND;
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
-	/// Executing 10,000 System remarks (no-op) txs takes ~1.26 seconds -> ~125 µs per tx
-	pub const ExtrinsicBaseWeight: Weight = 125_000_000;
-	/// Importing a block with 0 txs takes ~5 ms
-	pub const BlockExecutionWeight: Weight = 5_000_000_000;
-	pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight {
-		read: 25_000_000, // ~25 µs @ 200,000 items
-		write: 100_000_000, // ~100 µs @ 200,000 items
-	};
 }
