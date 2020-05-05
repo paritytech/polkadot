@@ -31,8 +31,10 @@ use primitives::BlockNumber;
 use sp_runtime::Perbill;
 use frame_support::{
 	parameter_types, traits::Currency,
-	weights::Weight,
+	weights::{Weight, constants::WEIGHT_PER_SECOND},
 };
+
+pub use frame_support::weights::constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -50,9 +52,7 @@ pub type NegativeImbalance<T> = <balances::Module<T> as Currency<<T as system::T
 
 parameter_types! {
 	pub const BlockHashCount: BlockNumber = 250;
-	pub const MaximumBlockWeight: Weight = 2_000_000_000_000;
+	pub const MaximumBlockWeight: Weight = 2 * WEIGHT_PER_SECOND;
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
-	pub const ExtrinsicBaseWeight: Weight = 100_000_000; // TODO: Confirm/Update
-	pub const BlockExecutionWeight: Weight = 1_000_000_000; // TODO: Confirm/Update
 }
