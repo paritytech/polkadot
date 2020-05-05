@@ -17,6 +17,7 @@ inherents = { package = "sp-inherents", git = "https://github.com/paritytech/sub
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
@@ -67,6 +68,7 @@ std = [
 	"authorship/std",
 	"balances/std",
 	"sp-runtime/std",
+	"sp-session/std",
 	"sp-staking/std",
 	"session/std",
 	"staking/std",

@@ -904,9 +904,12 @@ mod tests {
 		type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
 		type ValidationUpgradeDelay = ValidationUpgradeDelay;
 		type SlashPeriod = SlashPeriod;
-		type Proof = session::historical::Proof;
+		type Proof = sp_session::MembershipProof;
 		type KeyOwnerProofSystem = session::historical::Module<Test>;
-		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
+		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+			KeyTypeId,
+			Vec<u8>,
+		)>>::IdentificationTuple;
 		type ReportOffence = ();
 		type BlockHashConversion = sp_runtime::traits::Identity;
 	}
