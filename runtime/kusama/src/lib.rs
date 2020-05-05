@@ -485,7 +485,7 @@ impl im_online::Trait for Runtime {
 	type Event = Event;
 	type ReportUnresponsiveness = Offences;
 	type SessionDuration = SessionDuration;
-	type UnsignedPriority = StakingUnsignedPriority;
+	type UnsignedPriority = ImOnlineUnsignedPriority;
 }
 
 impl grandpa::Trait for Runtime {
