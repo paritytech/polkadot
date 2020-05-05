@@ -29,7 +29,7 @@ use primitives::{
 use runtime_common::{attestations, parachains, registrar,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
-	BlockExecutionWeight, ExtrinsicBaseWeight
+	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -55,7 +55,6 @@ use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
 	traits::{KeyOwnerProofSystem, Randomness},
-	weights::RuntimeDbWeight,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -84,7 +83,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 6,
+	spec_version: 7,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -132,13 +131,6 @@ parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
 
-parameter_types! {
-	pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight {
-		read: 60_000_000,
-		write: 200_000_000,
-	};
-}
-
 impl system::Trait for Runtime {
 	type Origin = Origin;
 	type Call = Call;
@@ -152,8 +144,8 @@ impl system::Trait for Runtime {
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type MaximumBlockWeight = MaximumBlockWeight;
-	type DbWeight = DbWeight;
-  type BlockExecutionWeight = BlockExecutionWeight;
+	type DbWeight = RocksDbWeight;
+	type BlockExecutionWeight = BlockExecutionWeight;
 	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
