@@ -879,7 +879,7 @@ sp_api::impl_runtime_apis! {
 		fn submit_report_equivocation_extrinsic(
 			equivocation_proof: fg_primitives::EquivocationProof<
 				<Block as BlockT>::Hash,
-			sp_runtime::traits::NumberFor<Block>,
+				sp_runtime::traits::NumberFor<Block>,
 			>,
 			key_owner_proof: fg_primitives::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
