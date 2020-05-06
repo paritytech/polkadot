@@ -495,11 +495,11 @@ impl grandpa::Trait for Runtime {
 	type KeyOwnerProofSystem = Historical;
 
 	type KeyOwnerProof =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::Proof;
+		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
 
 	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
-		Vec<u8>,
+		GrandpaId,
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation = grandpa::EquivocationHandler<
