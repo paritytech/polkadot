@@ -19,7 +19,6 @@
 use sp_std::prelude::*;
 use sp_std::result;
 use codec::{Decode, Encode};
-use sp_core::sr25519;
 use sp_runtime::{
 	KeyTypeId, Perbill, RuntimeDebug,
 	traits::{
@@ -41,13 +40,12 @@ use frame_support::{
 use primitives::{
 	Balance,
 	BlockNumber,
-	Signature,
 	parachain::{
 		Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
 		LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
-		ValidatorSignature, SigningContext, HeadData, ValidationCode, FishermanId,
+		ValidatorSignature, SigningContext, HeadData, ValidationCode,
 	},
 };
 use frame_support::{
@@ -56,7 +54,6 @@ use frame_support::{
 };
 use sp_runtime::{
 	transaction_validity::InvalidTransaction,
-	traits::Verify,
 };
 
 use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
@@ -67,14 +64,6 @@ use system::{
 };
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
-
-// An `AppCrypto` type to facilitate submitting signed transactions.
-pub struct FishermanAuthorityId;
-impl system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAuthorityId {
-	type RuntimeAppPublic = FishermanId;
-	type GenericSignature = sr25519::Signature;
-	type GenericPublic = sp_core::sr25519::Public;
-}
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -221,12 +210,12 @@ impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
 	}
 }
 
-/// A trait to get a session number the `Proof` belongs to.
+/// A trait to get a session number the `MembershipProof` belongs to.
 pub trait GetSessionNumber {
 	fn session(&self) -> SessionIndex;
 }
 
-impl GetSessionNumber for session::historical::Proof {
+impl GetSessionNumber for sp_session::MembershipProof {
 	fn session(&self) -> SessionIndex {
 		self.session()
 	}
@@ -1996,7 +1985,7 @@ mod tests {
 	}
 
 	fn report_double_vote(
-		report: DoubleVoteReport<session::historical::Proof>,
+		report: DoubleVoteReport<sp_session::MembershipProof>,
 	) -> Result<ParachainsCall<Test>, TransactionValidityError> {
 		let inner = ParachainsCall::report_double_vote(report);
 		let call = Call::Parachains(inner.clone());

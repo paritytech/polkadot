@@ -31,7 +31,6 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight,
 };
-use sp_core::sr25519;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, Perbill, Perquintill, RuntimeDebug, KeyTypeId,
@@ -316,6 +315,19 @@ impl staking::Trait for Runtime {
 
 impl grandpa::Trait for Runtime {
 	type Event = Event;
+	type Call = Call;
+
+	type KeyOwnerProofSystem = ();
+
+	type KeyOwnerProof =
+		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		GrandpaId,
+	)>>::IdentificationTuple;
+
+	type HandleEquivocation = ();
 }
 
 parameter_types! {
@@ -338,7 +350,7 @@ parameter_types! {
 }
 
 impl parachains::Trait for Runtime {
-	type AuthorityId = FishermanAuthorityId;
+	type AuthorityId = primitives::fisherman::FishermanAppCrypto;
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
@@ -353,20 +365,13 @@ impl parachains::Trait for Runtime {
 	type ValidationUpgradeDelay = ValidationUpgradeDelay;
 	type SlashPeriod = SlashPeriod;
 
-	type Proof = session::historical::Proof;
+	type Proof = sp_session::MembershipProof;
 	type KeyOwnerProofSystem = session::historical::Module<Self>;
 	type IdentificationTuple = <
 			Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>
 		>::IdentificationTuple;
 	type ReportOffence = Offences;
 	type BlockHashConversion = sp_runtime::traits::Identity;
-}
-
-pub struct FishermanAuthorityId;
-impl system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAuthorityId {
-	type RuntimeAppPublic = parachain::FishermanId;
-	type GenericSignature = sr25519::Signature;
-	type GenericPublic = sr25519::Public;
 }
 
 impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
@@ -644,6 +649,23 @@ sp_api::impl_runtime_apis! {
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
 		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
 			Grandpa::grandpa_authorities()
+		}
+
+		fn submit_report_equivocation_extrinsic(
+			_equivocation_proof: fg_primitives::EquivocationProof<
+				<Block as BlockT>::Hash,
+				sp_runtime::traits::NumberFor<Block>,
+			>,
+			_key_owner_proof: fg_primitives::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			None
+		}
+
+		fn generate_key_ownership_proof(
+			_set_id: fg_primitives::SetId,
+			_authority_id: fg_primitives::AuthorityId,
+		) -> Option<fg_primitives::OpaqueKeyOwnershipProof> {
+			None
 		}
 	}
 
