@@ -913,9 +913,9 @@ impl<T: Trait> Module<T> {
 				*len += upward_messages.iter()
 					.fold(0, |a, x| a + x.data.len()) as u32;
 			});
-			// Should never be able to fail assuming our state is uncorrupted, but best not
-			// to panic, even if it does.
-			let _ = RelayDispatchQueue::append(id, upward_messages);
+
+			upward_messages.iter().for_each(|m| RelayDispatchQueue::append(id, m));
+
 			if let Err(i) = ordered_needs_dispatch.binary_search(&id) {
 				// same.
 				ordered_needs_dispatch.insert(i, id);
