@@ -10,9 +10,11 @@ labels=(
   'B1-silent'
 )
 
+echo "[+] Checking labels for $CI_COMMIT_BRANCH"
+
 for label in "${labels[@]}"; do
   if has_label 'paritytech/polkadot' "$CI_COMMIT_BRANCH" "$label"; then
-    echo '[+] Label detected, test passed'
+    echo "[+] Label $label detected, test passed"
     exit 0
   fi
 done
