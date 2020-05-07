@@ -44,8 +44,11 @@ use sp_consensus::block_import::{BlockImport, ImportResult};
 use sp_consensus::Error as ConsensusError;
 use sp_consensus::{BlockOrigin, BlockImportParams, BlockCheckParams, JustificationImport};
 use futures::prelude::*;
-use sc_network::{NetworkWorker, NetworkService, ReportHandle, config::ProtocolId};
-use sc_network::config::{NetworkConfiguration, TransportConfig, BoxFinalityProofRequestBuilder};
+use sc_network::{NetworkWorker, NetworkService, config::ProtocolId};
+use sc_network::config::{
+	NetworkConfiguration, TransportConfig, BoxFinalityProofRequestBuilder, TransactionImport,
+	TransactionImportFuture
+};
 use parking_lot::Mutex;
 use sp_core::H256;
 use sc_network::{PeerId, config::{ProtocolConfig, TransactionPool}};
@@ -350,14 +353,9 @@ impl TransactionPool<Hash, Block> for EmptyTransactionPool {
 		Hash::default()
 	}
 
-	fn import(
-		&self,
-		_report_handle: ReportHandle,
-		_who: PeerId,
-		_rep_change_good: sc_network::ReputationChange,
-		_rep_change_bad: sc_network::ReputationChange,
-		_transaction: Extrinsic
-	) {}
+	fn import(&self, _transaction: Extrinsic) -> TransactionImportFuture {
+		Box::pin(futures::future::ready(TransactionImport::None))
+	}
 
 	fn on_broadcasted(&self, _: HashMap<Hash, Vec<String>>) {}
 
