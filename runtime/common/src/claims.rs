@@ -20,6 +20,7 @@ use sp_std::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error};
 use frame_support::traits::{Currency, Get, VestingSchedule};
+use frame_support::weights::constants::WEIGHT_PER_MICROS;
 use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
@@ -183,12 +184,13 @@ decl_module! {
 		///
 		/// Total Complexity: O(1)
 		/// ----------------------------
-		/// Base Weight: 622.6 µs
+		/// Base Weight: 279.4 µs
+		/// + Validate Unsigned Weight (184.9 µs)
 		/// DB Weight:
 		/// - Read: Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
 		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting
 		/// </weight>
-		#[weight = T::DbWeight::get().reads_writes(6, 6) + 650_000_000]
+		#[weight = T::DbWeight::get().reads_writes(6, 6) + (280 + 200) * WEIGHT_PER_MICROS]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
@@ -235,12 +237,12 @@ decl_module! {
 		///
 		/// Total Complexity: O(1)
 		/// ---------------------
-		/// Base Weight: 25.64 µs
+		/// Base Weight: 9.954 µs
 		/// DB Weight:
 		/// - Reads: Total
 		/// - Writes: Total, Claims, Vesting
 		/// </weight>
-		#[weight = T::DbWeight::get().reads_writes(1, 3) + 25_000_000]
+		#[weight = T::DbWeight::get().reads_writes(1, 3) + 10 * WEIGHT_PER_MICROS]
 		fn mint_claim(origin,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
@@ -303,7 +305,7 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 
 		match call {
 			// <weight>
-			// Base Weight: 370 µs
+			// Base Weight: 184.9 µs
 			// DB Weight: 1 Read (Claims)
 			// </weight>
 			Call::claim(account, ethereum_signature) => {
