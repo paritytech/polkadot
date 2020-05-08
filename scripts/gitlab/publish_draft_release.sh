@@ -151,7 +151,7 @@ data=$(jq -Rs --arg version "$version" \
   --arg release_text "$release_text" \
 '{
   "tag_name": $version,
-  "target_commitish": "master",
+  "target_commitish": "seun-sc-cli-subkey",
   "name": $release_name,
   "body": $release_text,
   "draft": true,

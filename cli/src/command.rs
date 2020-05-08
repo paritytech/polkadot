@@ -139,7 +139,7 @@ pub fn run() -> Result<()> {
 			let runtime = cli.create_runner(subcommand)?;
 
 			if runtime.config().chain_spec.is_kusama() {
-				runtime.run_subcommand(subcommand, |config|
+				runtime.run_subcommand::<service::kusama_runtime::Runtime, _, _, _>(subcommand, |config|
 					service::new_chain_ops::<
 						service::kusama_runtime::RuntimeApi,
 						service::KusamaExecutor,
@@ -147,7 +147,7 @@ pub fn run() -> Result<()> {
 					>(config)
 				)
 			} else if runtime.config().chain_spec.is_westend() {
-				runtime.run_subcommand(subcommand, |config|
+				runtime.run_subcommand::<service::westend_runtime::Runtime, _, _, _>(subcommand, |config|
 					service::new_chain_ops::<
 						service::westend_runtime::RuntimeApi,
 						service::WestendExecutor,
@@ -155,7 +155,7 @@ pub fn run() -> Result<()> {
 					>(config)
 				)
 			} else {
-				runtime.run_subcommand(subcommand, |config|
+				runtime.run_subcommand::<service::polkadot_runtime::Runtime, _, _, _>(subcommand, |config|
 					service::new_chain_ops::<
 						service::polkadot_runtime::RuntimeApi,
 						service::PolkadotExecutor,
