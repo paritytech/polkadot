@@ -74,7 +74,11 @@ pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
+#[cfg(feature = "std")]
+pub mod genesismap;
 use constants::{time::*, currency::*, fee::*};
+
+mod tests;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -770,6 +774,9 @@ pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+/// Type for extrinsics.
+pub type Extrinsic = <Block as BlockT>::Extrinsic;
 
 sp_api::impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {

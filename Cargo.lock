@@ -4392,6 +4392,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-runtime-test-client"
+version = "2.0.0"
+dependencies = [
+ "futures 0.3.4",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "polkadot-primitives",
+ "polkadot-runtime",
+ "polkadot-runtime-common",
+ "sc-block-builder",
+ "sc-client-api",
+ "sc-consensus",
+ "sc-service",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-runtime",
+ "substrate-test-client",
+]
+
+[[package]]
 name = "polkadot-service"
 version = "0.7.33"
 dependencies = [
