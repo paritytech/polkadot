@@ -372,7 +372,7 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
 	use frame_support::{
-		impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types
+		impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types,
 	};
 	use balances;
 
