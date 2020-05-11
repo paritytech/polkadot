@@ -19,14 +19,14 @@
 use sp_std::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error};
-use frame_support::traits::{Currency, Get, VestingSchedule};
+use frame_support::{traits::{Currency, Get, VestingSchedule}, weights::Pays};
 use system::{ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
 #[cfg(feature = "std")]
 use sp_runtime::traits::Zero;
-use sp_runtime::traits::CheckedSub;
+use sp_runtime::traits::{CheckedSub, SignedExtension, DispatchInfoOf};
 use sp_runtime::{
 	RuntimeDebug,
 	transaction_validity::{
@@ -36,6 +36,7 @@ use sp_runtime::{
 };
 use primitives::ValidityError;
 use system;
+use sp_runtime::transaction_validity::TransactionValidityError;
 
 type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as system::Trait>::AccountId>>::Currency;
 type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -334,13 +335,16 @@ decl_module! {
 		}
 
 		/// Attest to a statement, needed to finalize the claims process.
-		#[weight = T::DbWeight::get().reads_writes(6, 6) + 650_000_000]
-		fn attest(origin, attested_statement: Vec<u8>) {
+		///
+		/// WARNING: Insecure unless your chain includes `PrevalidateAttests` as a `SignedExtension`.
+		#[weight = (
+			T::DbWeight::get().reads_writes(6, 6) + 650_000_000,
+			DispatchClass::Normal,
+			Pays::No
+		)]
+		fn attest(origin, _attested_statement: Vec<u8>) {
 			let who = ensure_signed(origin)?;
 			let signer = Preclaims::get(&who).ok_or(Error::<T>::SenderHasNoClaim)?;
-			if let Some(s) = Signing::get(signer) {
-				ensure!(&attested_statement == s.as_statement(), Error::<T>::InvalidStatement);
-			}
 			Self::process_claim(signer, who)?;
 		}
 	}
@@ -450,6 +454,70 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 			}
 			_ => Err(InvalidTransaction::Call.into()),
 		}
+	}
+}
+
+/// Validate `attest` calls prior to execution. Needed to avoid a DoS attack since they are
+/// otherwise free to place on chain.
+#[derive(Encode, Decode, Clone, Eq, PartialEq)]
+pub struct PrevalidateAttests<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>);
+
+impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> {
+	#[cfg(feature = "std")]
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+		write!(f, "PrevalidateAttests")
+	}
+
+	#[cfg(not(feature = "std"))]
+	fn fmt(&self, _: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+		Ok(())
+	}
+}
+
+impl<T: Trait + Send + Sync> PrevalidateAttests<T> {
+	/// Create new `SignedExtension` to check runtime version.
+	pub fn new() -> Self {
+		Self(sp_std::marker::PhantomData)
+	}
+}
+
+impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> {
+	type AccountId = T::AccountId;
+	type Call = <T as Trait>::Call;
+	type AdditionalSigned = ();
+	type Pre = ();
+	const IDENTIFIER: &'static str = "PrevalidateAttests";
+
+	fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
+		Ok(())
+	}
+
+	fn validate(
+		&self,
+		who: &Self::AccountId,
+		call: &Self::Call,
+		_info: &DispatchInfoOf<Self::Call>,
+		_len: usize,
+	) -> TransactionValidity {
+		if let Some(local_call) = call.is_sub_type() {
+			if let Call::attest(attested_statement) = local_call {
+				let signer = match Preclaims::get(who) {
+					Ok(x) => x,
+					Err(_) =>
+						return Err(InvalidTransaction::Custom(
+							ValidityError::SignerHasNoClaim.into()
+						).into()),
+				};
+				if let Some(s) = Signing::get(signer) {
+					if &attested_statement != s.as_statement() {
+						return Err(InvalidTransaction::Custom(
+							ValidityError::InvalidStatement.into()
+						).into())
+					}
+				}
+			}
+		}
+		Ok(ValidTransaction::default())
 	}
 }
 
