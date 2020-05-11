@@ -16,27 +16,26 @@
 
 //! Module to process claims from Ethereum addresses.
 
-use sp_std::prelude::*;
+use sp_std::{prelude::*, fmt::Debug};
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
-use frame_support::{decl_event, decl_storage, decl_module, decl_error};
-use frame_support::{traits::{Currency, Get, VestingSchedule}, weights::Pays};
-use system::{ensure_root, ensure_none};
+use frame_support::{
+	decl_event, decl_storage, decl_module, decl_error, ensure,
+	traits::{Currency, Get, VestingSchedule}, weights::{Pays, DispatchClass}, dispatch::IsSubType
+};
+use system::{ensure_signed, ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
 #[cfg(feature = "std")]
 use sp_runtime::traits::Zero;
-use sp_runtime::traits::{CheckedSub, SignedExtension, DispatchInfoOf};
 use sp_runtime::{
-	RuntimeDebug,
+	traits::{CheckedSub, SignedExtension, DispatchInfoOf}, RuntimeDebug, DispatchResult,
 	transaction_validity::{
-		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction, TransactionSource,
+		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction,
+		TransactionSource, TransactionValidityError,
 	},
-	DispatchResult,
 };
 use primitives::ValidityError;
-use system;
-use sp_runtime::transaction_validity::TransactionValidityError;
 
 type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as system::Trait>::AccountId>>::Currency;
 type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -50,6 +49,8 @@ pub trait Trait: system::Trait {
 }
 
 /// The kind of a statement this account needs to make for a claim to be valid.
+#[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum StatementKind {
 	/// One kind of statement; this is the default.
 	Default,
@@ -59,7 +60,7 @@ pub enum StatementKind {
 
 impl StatementKind {
 	/// Convert this to the (English) statement it represents.
-	fn to_statement() -> &[u8] {
+	fn to_text(self) -> &'static [u8] {
 		&[][..]
 	}
 }
@@ -150,10 +151,10 @@ decl_storage! {
 	// keep things around between blocks.
 	trait Store for Module<T: Trait> as Claims {
 		Claims get(fn claims) build(|config: &GenesisConfig<T>| {
-			config.claims.iter().map(|(a, b, _i, _s)| (a.clone(), b.clone())).collect::<Vec<_>>()
+			config.claims.iter().map(|(a, b, _, _)| (a.clone(), b.clone())).collect::<Vec<_>>()
 		}): map hasher(identity) EthereumAddress => Option<BalanceOf<T>>;
 		Total get(fn total) build(|config: &GenesisConfig<T>| {
-			config.claims.iter().fold(Zero::zero(), |acc: BalanceOf<T>, &(_, n)| acc + n)
+			config.claims.iter().fold(Zero::zero(), |acc: BalanceOf<T>, &(_, b, _, _)| acc + b)
 		}): BalanceOf<T>;
 		/// Vesting schedule for a claim.
 		/// First balance is the total amount that should be held for vesting.
@@ -166,19 +167,19 @@ decl_storage! {
 		/// The statement kind that must be signed, if any.
 		Signing build(|config: &GenesisConfig<T>| {
 			config.claims.iter()
-				.filter_map(|(a, _, _, s)| Some(a.clone(), s.clone()?))
+				.filter_map(|(a, _, _, s)| Some((a.clone(), s.clone()?)))
 				.collect::<Vec<_>>()
 		}): map hasher(identity) EthereumAddress => Option<StatementKind>;
 
 		/// Pre-claimed Ethereum accounts, by the Account ID that they are claimed to.
 		Preclaims build(|config: &GenesisConfig<T>| {
 			config.claims.iter()
-				.filter_map(|(a, _, i, _)| Some(i.clone()?, a.clone()))
+				.filter_map(|(a, _, i, _)| Some((i.clone()?, a.clone())))
 				.collect::<Vec<_>>()
-		}): map hasher(identity) AccountId => EthereumAddress;
+		}): map hasher(identity) T::AccountId => Option<EthereumAddress>;
 	}
 	add_extra_genesis {
-		config(claims): Vec<(EthereumAddress, BalanceOf<T>, Option<AccountId>, Option<StatementKind>)>;
+		config(claims): Vec<(EthereumAddress, BalanceOf<T>, Option<T::AccountId>, Option<StatementKind>)>;
 	}
 }
 
@@ -234,7 +235,7 @@ decl_module! {
 			ensure_none(origin)?;
 
 			let data = dest.using_encoded(to_ascii_hex);
-			let signer = Self::eth_recover(&ethereum_signature, &data, statement)
+			let signer = Self::eth_recover(&ethereum_signature, &data, &[][..])
 				.ok_or(Error::<T>::InvalidEthereumSignature)?;
 
 			Self::process_claim(signer, dest)?;
@@ -326,7 +327,7 @@ decl_module! {
 			ensure_none(origin)?;
 
 			let data = dest.using_encoded(to_ascii_hex);
-			let signer = Self::eth_recover(&ethereum_signature, &data, statement)
+			let signer = Self::eth_recover(&ethereum_signature, &data, statement.to_text())
 				.ok_or(Error::<T>::InvalidEthereumSignature)?;
 			if let Some(s) = Signing::get(signer) {
 				ensure!(s == statement, Error::<T>::InvalidStatement);
@@ -344,7 +345,7 @@ decl_module! {
 		)]
 		fn attest(origin, _attested_statement: Vec<u8>) {
 			let who = ensure_signed(origin)?;
-			let signer = Preclaims::get(&who).ok_or(Error::<T>::SenderHasNoClaim)?;
+			let signer = Preclaims::<T>::get(&who).ok_or(Error::<T>::SenderHasNoClaim)?;
 			Self::process_claim(signer, who)?;
 		}
 	}
@@ -429,7 +430,7 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 			// </weight>
 			Call::claim(account, ethereum_signature) => {
 				let data = account.using_encoded(to_ascii_hex);
-				let maybe_signer = Self::eth_recover(&ethereum_signature, &data);
+				let maybe_signer = Self::eth_recover(&ethereum_signature, &data, &[][..]);
 				let signer = if let Some(s) = maybe_signer {
 					s
 				} else {
@@ -460,9 +461,12 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 /// Validate `attest` calls prior to execution. Needed to avoid a DoS attack since they are
 /// otherwise free to place on chain.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
-pub struct PrevalidateAttests<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>);
+pub struct PrevalidateAttests<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
 
-impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> {
+impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+{
 	#[cfg(feature = "std")]
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
 		write!(f, "PrevalidateAttests")
@@ -474,16 +478,20 @@ impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> {
 	}
 }
 
-impl<T: Trait + Send + Sync> PrevalidateAttests<T> {
+impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+{
 	/// Create new `SignedExtension` to check runtime version.
 	pub fn new() -> Self {
 		Self(sp_std::marker::PhantomData)
 	}
 }
 
-impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> {
+impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> where
+	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+{
 	type AccountId = T::AccountId;
-	type Call = <T as Trait>::Call;
+	type Call = <T as system::Trait>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
 	const IDENTIFIER: &'static str = "PrevalidateAttests";
@@ -501,15 +509,15 @@ impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> {
 	) -> TransactionValidity {
 		if let Some(local_call) = call.is_sub_type() {
 			if let Call::attest(attested_statement) = local_call {
-				let signer = match Preclaims::get(who) {
-					Ok(x) => x,
-					Err(_) =>
+				let signer = match Preclaims::<T>::get(who) {
+					Some(x) => x,
+					None =>
 						return Err(InvalidTransaction::Custom(
 							ValidityError::SignerHasNoClaim.into()
 						).into()),
 				};
 				if let Some(s) = Signing::get(signer) {
-					if &attested_statement != s.as_statement() {
+					if &attested_statement[..] != s.to_text() {
 						return Err(InvalidTransaction::Custom(
 							ValidityError::InvalidStatement.into()
 						).into())
@@ -535,7 +543,7 @@ mod secp_utils {
 		res
 	}
 	pub fn sig<T: Trait>(secret: &secp256k1::SecretKey, what: &[u8]) -> EcdsaSignature {
-		let msg = keccak_256(&<super::Module<T>>::ethereum_signable_message(&to_ascii_hex(what)[..]));
+		let msg = keccak_256(&<super::Module<T>>::ethereum_signable_message(&to_ascii_hex(what)[..], &[][..]));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), secret);
 		let mut r = [0u8; 65];
 		r[0..64].copy_from_slice(&sig.serialize()[..]);
@@ -649,7 +657,7 @@ mod tests {
 		// We use default for brevity, but you can configure as desired if needed.
 		balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
 		GenesisConfig::<Test>{
-			claims: vec![(eth(&alice()), 100)],
+			claims: vec![(eth(&alice()), 100, None, None)],
 			vesting: vec![(eth(&alice()), (50, 10, 1))],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
@@ -801,7 +809,7 @@ mod tests {
 			let sig = hex!["444023e89b67e67c0562ed0305d252a5dd12b2af5ac51d6d3cb69a0b486bc4b3191401802dc29d26d586221f7256cd3329fe82174bdf659baea149a40e1c495d1c"];
 			let sig = EcdsaSignature(sig);
 			let who = 42u64.using_encoded(to_ascii_hex);
-			let signer = Claims::eth_recover(&sig, &who).unwrap();
+			let signer = Claims::eth_recover(&sig, &who, &[][..]).unwrap();
 			assert_eq!(signer.0, hex!["6d31165d5d932d571f3b44695653b46dcc327e84"]);
 		});
 	}
