@@ -27,6 +27,7 @@ use keyring::AccountKeyring;
 use primitives::AccountId;
 use polkadot_runtime::{self, Runtime};
 use polkadot_runtime::constants::{currency::*, fee::*};
+use staking::Call as StakingCall;
 
 #[test]
 fn sanity_check_weight_per_second_is_as_expected() {
@@ -122,6 +123,71 @@ fn weight_of_transfer_keep_alive_is_correct() {
 	polkadot_runtime::BalancesCall::transfer_keep_alive::<Runtime>(alice, 42 * DOLLARS)
 		.get_dispatch_info()
 		.weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_set_timestamp_is_correct() {
+	// #[weight = T::DbWeight::get().reads_writes(2, 1) + 9_000_000]
+	let expected_weight = 159_000_000;
+	let weight = polkadot_runtime::TimestampCall::set::<Runtime>(1234).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_staking_bond_is_correct() {
+	let controller: AccountId = AccountKeyring::Alice.into();
+
+	// #[weight = 500_000_000]
+	let expected_weight = 500_000_000;
+	let weight = StakingCall::bond::<Runtime>(controller, 1 * DOLLARS, Default::default()).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_staking_bond_extra_is_correct() {
+	// #[weight = 500_000_000]
+	let expected_weight = 500_000_000;
+	let weight = StakingCall::bond_extra::<Runtime>(1 * DOLLARS).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_staking_unbond_is_correct() {
+	// #[weight = 400_000_000]
+	let expected_weight = 400_000_000;
+	let weight = StakingCall::unbond::<Runtime>(Default::default()).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_staking_widthdraw_unbonded_is_correct() {
+	// #[weight = 400_000_000]
+	let expected_weight = 400_000_000;
+	let weight = StakingCall::withdraw_unbonded::<Runtime>().get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_staking_validate_is_correct() {
+	// #[weight = 750_000_000]
+	let expected_weight = 750_000_000;
+	let weight = StakingCall::validate::<Runtime>(Default::default()).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_staking_nominate_is_correct() {
+	// #[weight = 750_000_000]
+	let expected_weight = 750_000_000;
+	let weight = StakingCall::nominate::<Runtime>(vec![]).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
