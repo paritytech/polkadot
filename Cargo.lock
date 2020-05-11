@@ -4325,6 +4325,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-runtime-common",
+ "polkadot-runtime-test-client",
  "rustc-hex",
  "serde",
  "serde_derive",

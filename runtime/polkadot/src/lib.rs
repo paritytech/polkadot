@@ -78,8 +78,6 @@ pub mod constants;
 pub mod genesismap;
 use constants::{time::*, currency::*, fee::*};
 
-mod tests;
-
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
