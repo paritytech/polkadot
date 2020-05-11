@@ -32,6 +32,7 @@ use sp_runtime::{
 	transaction_validity::{
 		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction, TransactionSource,
 	},
+	DispatchResult,
 };
 use primitives::ValidityError;
 use system;
@@ -45,6 +46,27 @@ pub trait Trait: system::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 	type VestingSchedule: VestingSchedule<Self::AccountId, Moment=Self::BlockNumber>;
 	type Prefix: Get<&'static [u8]>;
+}
+
+/// The kind of a statement this account needs to make for a claim to be valid.
+pub enum StatementKind {
+	/// One kind of statement; this is the default.
+	Default,
+	/// Another kind of statement(!).
+	Alternative,
+}
+
+impl StatementKind {
+	/// Convert this to the (English) statement it represents.
+	fn to_statement() -> &[u8] {
+		&[][..]
+	}
+}
+
+impl Default for StatementKind {
+	fn default() -> Self {
+		StatementKind::Default
+	}
 }
 
 /// An Ethereum address (i.e. 20 bytes, used to represent an Ethereum account).
@@ -109,11 +131,15 @@ decl_error! {
 		InvalidEthereumSignature,
 		/// Ethereum address has no claim.
 		SignerHasNoClaim,
+		/// Account ID sending tx has no claim.
+		SenderHasNoClaim,
 		/// The destination is already vesting and cannot be the target of a further claim.
 		DestinationVesting,
 		/// There's not enough in the pot to pay out some unvested amount. Generally implies a logic
 		/// error.
 		PotUnderflow,
+		/// A needed statement was not included.
+		InvalidStatement,
 	}
 }
 
@@ -123,7 +149,7 @@ decl_storage! {
 	// keep things around between blocks.
 	trait Store for Module<T: Trait> as Claims {
 		Claims get(fn claims) build(|config: &GenesisConfig<T>| {
-			config.claims.iter().map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>()
+			config.claims.iter().map(|(a, b, _i, _s)| (a.clone(), b.clone())).collect::<Vec<_>>()
 		}): map hasher(identity) EthereumAddress => Option<BalanceOf<T>>;
 		Total get(fn total) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().fold(Zero::zero(), |acc: BalanceOf<T>, &(_, n)| acc + n)
@@ -135,9 +161,23 @@ decl_storage! {
 		Vesting get(fn vesting) config():
 			map hasher(identity) EthereumAddress
 			=> Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>;
+
+		/// The statement kind that must be signed, if any.
+		Signing build(|config: &GenesisConfig<T>| {
+			config.claims.iter()
+				.filter_map(|(a, _, _, s)| Some(a.clone(), s.clone()?))
+				.collect::<Vec<_>>()
+		}): map hasher(identity) EthereumAddress => Option<StatementKind>;
+
+		/// Pre-claimed Ethereum accounts, by the Account ID that they are claimed to.
+		Preclaims build(|config: &GenesisConfig<T>| {
+			config.claims.iter()
+				.filter_map(|(a, _, i, _)| Some(i.clone()?, a.clone()))
+				.collect::<Vec<_>>()
+		}): map hasher(identity) AccountId => EthereumAddress;
 	}
 	add_extra_genesis {
-		config(claims): Vec<(EthereumAddress, BalanceOf<T>)>;
+		config(claims): Vec<(EthereumAddress, BalanceOf<T>, Option<AccountId>, Option<StatementKind>)>;
 	}
 }
 
@@ -193,29 +233,10 @@ decl_module! {
 			ensure_none(origin)?;
 
 			let data = dest.using_encoded(to_ascii_hex);
-			let signer = Self::eth_recover(&ethereum_signature, &data)
+			let signer = Self::eth_recover(&ethereum_signature, &data, statement)
 				.ok_or(Error::<T>::InvalidEthereumSignature)?;
 
-			let balance_due = <Claims<T>>::get(&signer)
-				.ok_or(Error::<T>::SignerHasNoClaim)?;
-
-			let new_total = Self::total().checked_sub(&balance_due).ok_or(Error::<T>::PotUnderflow)?;
-
-			// Check if this claim should have a vesting schedule.
-			if let Some(vs) = <Vesting<T>>::get(&signer) {
-				// If this fails, destination account already has a vesting schedule
-				// applied to it, and this claim should not be processed.
-				T::VestingSchedule::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)
-					.map_err(|_| Error::<T>::DestinationVesting)?;
-			}
-
-			CurrencyOf::<T>::deposit_creating(&dest, balance_due);
-			<Total<T>>::put(new_total);
-			<Claims<T>>::remove(&signer);
-			<Vesting<T>>::remove(&signer);
-
-			// Let's deposit an event to let the outside world know this happened.
-			Self::deposit_event(RawEvent::Claimed(dest, signer, balance_due));
+			Self::process_claim(signer, dest)?;
 		}
 
 		/// Mint a new claim to collect DOTs.
@@ -254,6 +275,74 @@ decl_module! {
 				<Vesting<T>>::insert(who, vs);
 			}
 		}
+
+		/// Make a claim to collect your DOTs.
+		///
+		/// The dispatch origin for this call must be _None_.
+		///
+		/// Unsigned Validation:
+		/// A call to claim is deemed valid if the signature provided matches
+		/// the expected signed message of:
+		///
+		/// > Ethereum Signed Message:
+		/// > (configured prefix string)(address)(statement)
+		///
+		/// and `address` matches the `dest` account; the `statement` must match that which is
+		/// expected according to your purchase arrangement.
+		///
+		/// Parameters:
+		/// - `dest`: The destination account to payout the claim.
+		/// - `ethereum_signature`: The signature of an ethereum signed message
+		///    matching the format described above.
+		/// - `statement`: The identity of the statement which is being attested to in the signature.
+		///
+		/// <weight>
+		/// The weight of this call is invariant over the input parameters.
+		/// - One `eth_recover` operation which involves a keccak hash and a
+		///   ecdsa recover.
+		/// - Four storage reads to check if a claim exists for the user, to
+		///   get the current pot size, to see if there exists a vesting schedule, to get the
+		///   required statement.
+		/// - Up to one storage write for adding a new vesting schedule.
+		/// - One `deposit_creating` Currency call.
+		/// - One storage write to update the total.
+		/// - Two storage removals for vesting and claims information.
+		/// - One deposit event.
+		///
+		/// Total Complexity: O(1)
+		/// ----------------------------
+		/// Base Weight: 622.6 µs
+		/// DB Weight:
+		/// - Read: Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
+		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting
+		/// </weight>
+		#[weight = T::DbWeight::get().reads_writes(7, 6) + 650_000_000]
+		fn claim_attest(origin,
+			dest: T::AccountId,
+			ethereum_signature: EcdsaSignature,
+			statement: StatementKind,
+		) {
+			ensure_none(origin)?;
+
+			let data = dest.using_encoded(to_ascii_hex);
+			let signer = Self::eth_recover(&ethereum_signature, &data, statement)
+				.ok_or(Error::<T>::InvalidEthereumSignature)?;
+			if let Some(s) = Signing::get(signer) {
+				ensure!(s == statement, Error::<T>::InvalidStatement);
+			}
+			Self::process_claim(signer, dest)?;
+		}
+
+		/// Attest to a statement, needed to finalize the claims process.
+		#[weight = T::DbWeight::get().reads_writes(6, 6) + 650_000_000]
+		fn attest(origin, attested_statement: Vec<u8>) {
+			let who = ensure_signed(origin)?;
+			let signer = Preclaims::get(&who).ok_or(Error::<T>::SenderHasNoClaim)?;
+			if let Some(s) = Signing::get(signer) {
+				ensure!(&attested_statement == s.as_statement(), Error::<T>::InvalidStatement);
+			}
+			Self::process_claim(signer, who)?;
+		}
 	}
 }
 
@@ -270,9 +359,9 @@ fn to_ascii_hex(data: &[u8]) -> Vec<u8> {
 
 impl<T: Trait> Module<T> {
 	// Constructs the message that Ethereum RPC's `personal_sign` and `eth_sign` would sign.
-	fn ethereum_signable_message(what: &[u8]) -> Vec<u8> {
+	fn ethereum_signable_message(what: &[u8], extra: &[u8]) -> Vec<u8> {
 		let prefix = T::Prefix::get();
-		let mut l = prefix.len() + what.len();
+		let mut l = prefix.len() + what.len() + extra.len();
 		let mut rev = Vec::new();
 		while l > 0 {
 			rev.push(b'0' + (l % 10) as u8);
@@ -282,16 +371,44 @@ impl<T: Trait> Module<T> {
 		v.extend(rev.into_iter().rev());
 		v.extend_from_slice(&prefix[..]);
 		v.extend_from_slice(what);
+		v.extend_from_slice(extra);
 		v
 	}
 
 	// Attempts to recover the Ethereum address from a message signature signed by using
 	// the Ethereum RPC's `personal_sign` and `eth_sign`.
-	fn eth_recover(s: &EcdsaSignature, what: &[u8]) -> Option<EthereumAddress> {
-		let msg = keccak_256(&Self::ethereum_signable_message(what));
+	fn eth_recover(s: &EcdsaSignature, what: &[u8], extra: &[u8]) -> Option<EthereumAddress> {
+		let msg = keccak_256(&Self::ethereum_signable_message(what, extra));
 		let mut res = EthereumAddress::default();
 		res.0.copy_from_slice(&keccak_256(&secp256k1_ecdsa_recover(&s.0, &msg).ok()?[..])[12..]);
 		Some(res)
+	}
+
+	fn process_claim(signer: EthereumAddress, dest: T::AccountId) -> DispatchResult {
+		let balance_due = <Claims<T>>::get(&signer)
+			.ok_or(Error::<T>::SignerHasNoClaim)?;
+
+		let new_total = Self::total().checked_sub(&balance_due).ok_or(Error::<T>::PotUnderflow)?;
+
+		// Check if this claim should have a vesting schedule.
+		if let Some(vs) = <Vesting<T>>::get(&signer) {
+			// If this fails, destination account already has a vesting schedule
+			// applied to it, and this claim should not be processed.
+			T::VestingSchedule::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)
+				.map_err(|_| Error::<T>::DestinationVesting)?;
+		}
+
+		CurrencyOf::<T>::deposit_creating(&dest, balance_due);
+		<Total<T>>::put(new_total);
+		<Claims<T>>::remove(&signer);
+		<Vesting<T>>::remove(&signer);
+		Signing::remove(&signer);
+		Preclaims::<T>::remove(&dest);
+
+		// Let's deposit an event to let the outside world know this happened.
+		Self::deposit_event(RawEvent::Claimed(dest, signer, balance_due));
+
+		Ok(())
 	}
 }
 
