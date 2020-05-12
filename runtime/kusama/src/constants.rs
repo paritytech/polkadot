@@ -54,6 +54,7 @@ pub mod fee {
 	use primitives::Balance;
 	use frame_support::weights::Weight;
 	use sp_runtime::traits::Convert;
+	use runtime_common::ExtrinsicBaseWeight;
 
 	/// The block saturation level. Fees will be updates based on this value.
 	pub const TARGET_BLOCK_FULLNESS: Perbill = Perbill::from_percent(25);
@@ -71,8 +72,30 @@ pub mod fee {
 	pub struct WeightToFee;
 	impl Convert<Weight, Balance> for WeightToFee {
 		fn convert(x: Weight) -> Balance {
-			// in Kusama a weight of 10_000_000 (smallest non-zero weight) is mapped to 1/10 CENT:
-			Balance::from(x).saturating_mul(super::currency::CENTS / (10 * 10_000_000))
+			// in Kusama, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
+			Balance::from(x).saturating_mul(super::currency::CENTS / 10) / Balance::from(ExtrinsicBaseWeight::get())
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use sp_runtime::traits::Convert;
+	use runtime_common::{MaximumBlockWeight, ExtrinsicBaseWeight};
+	use super::fee::WeightToFee;
+	use super::currency::{CENTS, DOLLARS};
+
+	#[test]
+	// This function tests that the fee for `MaximumBlockWeight` of weight is correct
+	fn full_block_fee_is_correct() {
+		// A full block should cost 16 DOLLARS
+		assert_eq!(WeightToFee::convert(MaximumBlockWeight::get()), 16 * DOLLARS)
+	}
+
+	#[test]
+	// This function tests that the fee for `ExtrinsicBaseWeight` of weight is correct
+	fn extrinsic_base_fee_is_correct() {
+		// `ExtrinsicBaseWeight` should cost 1/10 of a CENT
+		assert_eq!(WeightToFee::convert(ExtrinsicBaseWeight::get()), CENTS / 10)
 	}
 }

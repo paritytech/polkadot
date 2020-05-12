@@ -61,6 +61,8 @@ impl SubstrateCli for Cli {
 
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run() -> Result<()> {
+	sc_cli::reset_signal_pipe_handler()?;
+
 	let cli = Cli::from_args();
 
 	match &cli.subcommand {
