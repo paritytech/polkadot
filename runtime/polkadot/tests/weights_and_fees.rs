@@ -30,6 +30,7 @@ use polkadot_runtime::constants::{currency::*, fee::*};
 use runtime_common::{MaximumBlockWeight, ExtrinsicBaseWeight};
 
 use democracy::Call as DemocracyCall;
+use elections_phragmen::Call as PhragmenCall;
 use session::Call as SessionCall;
 use staking::Call as StakingCall;
 use system::Call as SystemCall;
@@ -296,6 +297,33 @@ fn weight_of_democracy_enact_proposal_is_correct() {
 	// #[weight = T::MaximumBlockWeight::get()]
 	let expected_weight = MaximumBlockWeight::get();
 	let weight = DemocracyCall::enact_proposal::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_phragment_vote_is_correct() {
+	// #[weight = 100_000_000]
+	let expected_weight = 100_000_000;
+	let weight = PhragmenCall::vote::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_phragment_submit_candidacy_is_correct() {
+	// #[weight = 500_000_000]
+	let expected_weight = 500_000_000;
+	let weight = PhragmenCall::submit_candidacy::<Runtime>().get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_phragment_renounce_candidacy_is_correct() {
+	// #[weight = (2_000_000_000, DispatchClass::Operational)]
+	let expected_weight = 2_000_000_000;
+	let weight = PhragmenCall::renounce_candidacy::<Runtime>().get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
