@@ -22,12 +22,12 @@
 //!  - Read: 25 * WEIGHT_PER_MICROS = 25 * 100_000_000,
 //!  - Write: 100 * WEIGHT_PER_MICROS = 25 * 100_000_000,
 
-use frame_support::weights::{GetDispatchInfo, constants::*};
+use frame_support::weights::{constants::*, GetDispatchInfo};
 use keyring::AccountKeyring;
-use primitives::AccountId;
+use polkadot_runtime::constants::currency::*;
 use polkadot_runtime::{self, Runtime};
-use polkadot_runtime::constants::{currency::*, fee::*};
-use runtime_common::{MaximumBlockWeight, ExtrinsicBaseWeight};
+use primitives::AccountId;
+use runtime_common::MaximumBlockWeight;
 
 use democracy::Call as DemocracyCall;
 use elections_phragmen::Call as PhragmenCall;
@@ -65,69 +65,54 @@ fn sanity_check_weight_per_nanos_is_as_expected() {
 }
 
 #[test]
-fn weight_of_transfer_is_correct() {
-	let alice: AccountId = AccountKeyring::Alice.into();
-
+fn weight_of_balances_transfer_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 70_000_000]
 	let expected_weight = 195_000_000;
 
-	let weight = polkadot_runtime::BalancesCall::transfer::<Runtime>(alice, 42 * DOLLARS).get_dispatch_info().weight;
+	let weight = polkadot_runtime::BalancesCall::transfer::<Runtime>(Default::default(), Default::default())
+		.get_dispatch_info()
+		.weight;
 	assert_eq!(weight, expected_weight);
 }
 
 #[test]
-fn transfer_fees_are_correct() {
-	use sp_runtime::traits::Convert;
-
-	let alice: AccountId = AccountKeyring::Alice.into();
-
-	let expected_fee = 15_600_000;
-
-	let weight = polkadot_runtime::BalancesCall::transfer::<Runtime>(alice, 42 * DOLLARS).get_dispatch_info().weight;
-	let fee = WeightToFee::convert(weight);
-	assert_eq!(fee, expected_fee);
-}
-
-#[test]
-fn weight_of_set_balance_is_correct() {
-	let alice: AccountId = AccountKeyring::Alice.into();
-
+fn weight_of_balances_set_balance_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 35_000_000]
 	let expected_weight = 160_000_000;
 
-	let weight =
-	polkadot_runtime::BalancesCall::set_balance::<Runtime>(alice, 12 * DOLLARS, 34 * DOLLARS)
-		.get_dispatch_info()
-		.weight;
+	let weight = polkadot_runtime::BalancesCall::set_balance::<Runtime>(
+		Default::default(),
+		Default::default(),
+		Default::default(),
+	)
+	.get_dispatch_info()
+	.weight;
 
 	assert_eq!(weight, expected_weight);
 }
 
 #[test]
-fn weight_of_force_transfer_is_correct() {
-	let alice: AccountId = AccountKeyring::Alice.into();
-	let bob: AccountId = AccountKeyring::Alice.into();
-
+fn weight_of_balances_force_transfer_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(2, 2) + 70_000_000]
 	let expected_weight = 320_000_000;
 
-	let weight =
-	polkadot_runtime::BalancesCall::force_transfer::<Runtime>(alice, bob, 34 * DOLLARS)
-		.get_dispatch_info()
-		.weight;
+	let weight = polkadot_runtime::BalancesCall::force_transfer::<Runtime>(
+		Default::default(),
+		Default::default(),
+		Default::default(),
+	)
+	.get_dispatch_info()
+	.weight;
 
 	assert_eq!(weight, expected_weight);
 }
 
 #[test]
-fn weight_of_transfer_keep_alive_is_correct() {
-	let alice: AccountId = AccountKeyring::Alice.into();
-
+fn weight_of_balances_transfer_keep_alive_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 50_000_000]
 	let expected_weight = 175_000_000;
 
-	let weight =
-	polkadot_runtime::BalancesCall::transfer_keep_alive::<Runtime>(alice, 42 * DOLLARS)
+	let weight = polkadot_runtime::BalancesCall::transfer_keep_alive::<Runtime>(Default::default(), Default::default())
 		.get_dispatch_info()
 		.weight;
 
@@ -135,10 +120,10 @@ fn weight_of_transfer_keep_alive_is_correct() {
 }
 
 #[test]
-fn weight_of_set_timestamp_is_correct() {
+fn weight_of_timestap_set_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(2, 1) + 9_000_000]
 	let expected_weight = 159_000_000;
-	let weight = polkadot_runtime::TimestampCall::set::<Runtime>(1234).get_dispatch_info().weight;
+	let weight = polkadot_runtime::TimestampCall::set::<Runtime>(Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
@@ -281,10 +266,7 @@ fn weight_of_democracy_propose_is_correct() {
 #[test]
 fn weight_of_democracy_vote_is_correct() {
 	use democracy::AccountVote;
-	let vote = AccountVote::Standard {
-		vote: Default::default(),
-		balance: Default::default(),
-	};
+	let vote = AccountVote::Standard { vote: Default::default(), balance: Default::default() };
 
 	// #[weight = 200_000_000]
 	let expected_weight = 200_000_000;
@@ -297,7 +279,8 @@ fn weight_of_democracy_vote_is_correct() {
 fn weight_of_democracy_enact_proposal_is_correct() {
 	// #[weight = T::MaximumBlockWeight::get()]
 	let expected_weight = MaximumBlockWeight::get();
-	let weight = DemocracyCall::enact_proposal::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
+	let weight =
+		DemocracyCall::enact_proposal::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
@@ -333,7 +316,8 @@ fn weight_of_phragment_renounce_candidacy_is_correct() {
 fn weight_of_treasury_propose_spend_is_correct() {
 	// #[weight = 120_000_000 + T::DbWeight::get().reads_writes(1, 2)]
 	let expected_weight = 345_000_000;
-	let weight = TreasuryCall::propose_spend::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
+	let weight =
+		TreasuryCall::propose_spend::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
