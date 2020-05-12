@@ -28,6 +28,7 @@ use primitives::AccountId;
 use polkadot_runtime::{self, Runtime};
 use polkadot_runtime::constants::{currency::*, fee::*};
 use runtime_common::{MaximumBlockWeight, ExtrinsicBaseWeight};
+use session::Call as SessionCall;
 use staking::Call as StakingCall;
 use system::Call as SystemCall;
 
@@ -235,6 +236,31 @@ fn weight_of_system_remark_is_correct() {
 	// #[weight = 700_000]
 	let expected_weight = 700_000;
 	let weight = SystemCall::remark::<Runtime>(vec![]).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_session_set_keys_is_correct() {
+	// #[weight = 200_000_000
+	// 	+ T::DbWeight::get().reads(2 + T::Keys::key_ids().len() as Weight)
+	// 	+ T::DbWeight::get().writes(1 + T::Keys::key_ids().len() as Weight)]
+	//
+	// Polkadot has five possible session keys, so we default to key_ids.len() = 5
+	let expected_weight = 975_000_000;
+	let weight = SessionCall::set_keys::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_session_purge_keys_is_correct() {
+	// #[weight = 120_000_000
+	// 	+ T::DbWeight::get().reads_writes(2, 1 + T::Keys::key_ids().len() as Weight)]
+	//
+	// Polkadot has five possible session keys, so we default to key_ids.len() = 5
+	let expected_weight = 770_000_000;
+	let weight = SessionCall::purge_keys::<Runtime>().get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
