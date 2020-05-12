@@ -166,10 +166,9 @@ build-wasm-release:
   <<:                             *collect-artifacts
   <<:                             *docker-env
   <<:                             *compiler_info
+  # Note: We likely only want to do this for tagged releases, hence the 'only:'
   only:
-    #FIXME: Remove before merging
-    - /^[0-9]+$/
-    #- /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
+    - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
   script:
     - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path cli/Cargo.toml --no-default-features --features browser --release
     - mkdir -p ./artifacts
@@ -177,19 +176,13 @@ build-wasm-release:
     - sha256sum ./artifacts/polkadot_cli.wasm |
       tee ./artifacts/polkadot_cli.wasm.sha256
     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
-    # Probably don't need these since build-linux-release will do it
-    # - echo -n ${VERSION} > ./artifacts/VERSION
-    # - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
 
 build-linux-release:               &build
   stage:                           build
   <<:                              *collect-artifacts
+  <<:                              *build-refs
   <<:                              *docker-env
   <<:                              *compiler_info
-  only:
-    #FIXME: Remove before merging
-    - /^[0-9]+$/
-    #- /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
   script:
     - time cargo build --release --verbose
     - mkdir -p ./artifacts
