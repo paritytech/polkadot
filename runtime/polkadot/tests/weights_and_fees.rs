@@ -34,6 +34,7 @@ use elections_phragmen::Call as PhragmenCall;
 use session::Call as SessionCall;
 use staking::Call as StakingCall;
 use system::Call as SystemCall;
+use treasury::Call as TreasuryCall;
 
 #[test]
 fn sanity_check_weight_per_second_is_as_expected() {
@@ -324,6 +325,34 @@ fn weight_of_phragment_renounce_candidacy_is_correct() {
 	// #[weight = (2_000_000_000, DispatchClass::Operational)]
 	let expected_weight = 2_000_000_000;
 	let weight = PhragmenCall::renounce_candidacy::<Runtime>().get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_treasury_propose_spend_is_correct() {
+	// #[weight = 120_000_000 + T::DbWeight::get().reads_writes(1, 2)]
+	let expected_weight = 345_000_000;
+	let weight = TreasuryCall::propose_spend::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_treasury_approve_proposal_is_correct() {
+	// #[weight = (34_000_000 + T::DbWeight::get().reads_writes(2, 1), DispatchClass::Operational)]
+	let expected_weight = 184_000_000;
+	let weight = TreasuryCall::approve_proposal::<Runtime>(Default::default()).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_treasury_tip_is_correct() {
+	// #[weight = 68_000_000 + 2_000_000 * T::Tippers::max_len() as Weight
+	// 	+ T::DbWeight::get().reads_writes(2, 1)]
+	let expected_weight = 244_000_000;
+	let weight = TreasuryCall::tip::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
