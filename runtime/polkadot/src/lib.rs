@@ -341,7 +341,6 @@ parameter_types! {
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 1 * CENTS;
 	pub const InstantAllowed: bool = false;
-	pub const MaxVetoers: u32 = 10;
 	pub const MaxVotes: u32 = 100;
 }
 
