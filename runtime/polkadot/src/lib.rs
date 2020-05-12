@@ -374,7 +374,6 @@ impl democracy::Trait for Runtime {
 	type PreimageByteDeposit = PreimageByteDeposit;
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
-	type MaxVetoers = MaxVetoers;
 	type MaxVotes = MaxVotes;
 }
 
