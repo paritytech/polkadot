@@ -233,10 +233,10 @@ build-linux-release:               &build
 
 list-all-artifacts:
   <<: *publish-build
+  only:
+    - /^[0-9]+$/
   script:
     - find ./artifacts
-
-
 
 publish-docker-release:
   <<:                              *publish-build
