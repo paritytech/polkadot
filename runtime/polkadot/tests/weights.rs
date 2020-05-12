@@ -17,6 +17,11 @@
 //! Tests to make sure that Polkadot's weights and fees match what we
 //! expect from Substrate.
 //!
+//! These test are not meant to be exhaustive, as it is inevitable that
+//! weights in Substrate will change. Instead they are supposed to provide
+//! some sort of indicator that calls we consider important (e.g Balances::transfer)
+//! have not suddenly changed from under us.
+//!
 //! NOTE: All the tests assume RocksDB as the RuntimeDbWeight type
 //! which gives us the following weights:
 //!  - Read: 25 * WEIGHT_PER_MICROS = 25 * 100_000_000,
