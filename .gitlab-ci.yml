@@ -216,12 +216,11 @@ build-linux-release:               &build
     - sccache -s
 
 
-
-
 .publish-build:                    &publish-build
   stage:                           publish
   dependencies:
     - build-linux-release
+    - build-wasm-release
   cache:                           {}
   <<:                              *build-refs
   <<:                              *kubernetes-env
@@ -232,6 +231,10 @@ build-linux-release:               &build
     - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
 
+list-all-artifacts:
+  <<: *publish-build
+  script:
+    - find ./artifacts
 
 
 
