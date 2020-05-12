@@ -27,7 +27,9 @@ use keyring::AccountKeyring;
 use primitives::AccountId;
 use polkadot_runtime::{self, Runtime};
 use polkadot_runtime::constants::{currency::*, fee::*};
+use runtime_common::{MaximumBlockWeight, ExtrinsicBaseWeight};
 use staking::Call as StakingCall;
+use system::Call as SystemCall;
 
 #[test]
 fn sanity_check_weight_per_second_is_as_expected() {
@@ -188,6 +190,51 @@ fn weight_of_staking_nominate_is_correct() {
 	// #[weight = 750_000_000]
 	let expected_weight = 750_000_000;
 	let weight = StakingCall::nominate::<Runtime>(vec![]).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_system_set_code_is_correct() {
+	// #[weight = (T::MaximumBlockWeight::get(), DispatchClass::Operational)]
+	let expected_weight = MaximumBlockWeight::get();
+	let weight = SystemCall::set_code::<Runtime>(vec![]).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_system_set_code_without_checks_is_correct() {
+	// #[weight = (T::MaximumBlockWeight::get(), DispatchClass::Operational)]
+	let expected_weight = MaximumBlockWeight::get();
+	let weight = SystemCall::set_code_without_checks::<Runtime>(vec![]).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_system_set_storage_is_correct() {
+	let storage_items = vec![(vec![12], vec![34])];
+
+	// #[weight = FunctionOf(
+	// 	|(items,): (&Vec<KeyValue>,)| {
+	// 		T::DbWeight::get().writes(items.len() as Weight)
+	// 			.saturating_add((items.len() as Weight).saturating_mul(600_000))
+	// 	},
+	// 	DispatchClass::Operational,
+	// 	Pays::Yes,
+	// )]
+	let expected_weight = 100_600_000;
+	let weight = SystemCall::set_storage::<Runtime>(storage_items).get_dispatch_info().weight;
+
+	assert_eq!(weight, expected_weight);
+}
+
+#[test]
+fn weight_of_system_remark_is_correct() {
+	// #[weight = 700_000]
+	let expected_weight = 700_000;
+	let weight = SystemCall::remark::<Runtime>(vec![]).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
