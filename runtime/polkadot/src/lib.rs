@@ -377,6 +377,8 @@ impl democracy::Trait for Runtime {
 
 parameter_types! {
 	pub const CouncilMotionDuration: BlockNumber = 7 * DAYS;
+	/// 13 members initially, to be increased to 23 eventually.
+	pub const DesiredMembers: u32 = 13;
 }
 
 type CouncilCollective = collective::Instance1;
@@ -385,6 +387,7 @@ impl collective::Trait<CouncilCollective> for Runtime {
 	type Proposal = Call;
 	type Event = Event;
 	type MotionDuration = CouncilMotionDuration;
+	type MaxMembers = DesiredMembers;
 }
 
 parameter_types! {
@@ -392,8 +395,6 @@ parameter_types! {
 	pub const VotingBond: Balance = 5 * DOLLARS;
 	/// Weekly council elections initially, later monthly.
 	pub const TermDuration: BlockNumber = 7 * DAYS;
-	/// 13 members initially, to be increased to 23 eventually.
-	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 20;
 	pub const ElectionsPhragmenModuleId: LockIdentifier = *b"phrelect";
 }
@@ -417,6 +418,7 @@ impl elections_phragmen::Trait for Runtime {
 
 parameter_types! {
 	pub const TechnicalMotionDuration: BlockNumber = 7 * DAYS;
+	pub const TechnicalMaxMembers: collective::MemberCount = 100;
 }
 
 type TechnicalCollective = collective::Instance2;
@@ -425,6 +427,7 @@ impl collective::Trait<TechnicalCollective> for Runtime {
 	type Proposal = Call;
 	type Event = Event;
 	type MotionDuration = TechnicalMotionDuration;
+	type MaxMembers = TechnicalMaxMembers;
 }
 
 impl membership::Trait<membership::Instance1> for Runtime {
