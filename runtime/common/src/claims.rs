@@ -682,7 +682,7 @@ mod tests {
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Claims::total(), 100);
+			assert_eq!(Claims::total(), 600);
 			assert_eq!(Claims::claims(&eth(&alice())), Some(100));
 			assert_eq!(Claims::claims(&eth(&dave())), Some(200));
 			assert_eq!(Claims::claims(&eth(&eve())), Some(300));
@@ -801,14 +801,13 @@ mod tests {
 	#[test]
 	fn claiming_while_vested_doesnt_work() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Claims::total(), 100);
 			// A user is already vested
 			assert_ok!(<Test as Trait>::VestingSchedule::add_vesting_schedule(&69, 1000, 100, 10));
 			CurrencyOf::<Test>::make_free_balance_be(&69, 1000);
 			assert_eq!(Balances::free_balance(69), 1000);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
 			// New total
-			assert_eq!(Claims::total(), 300);
+			assert_eq!(Claims::total(), 800);
 
 			// They should not be able to claim
 			assert_noop!(
@@ -816,7 +815,7 @@ mod tests {
 				Error::<Test>::DestinationVesting
 			);
 			// Everything should be unchanged
-			assert_eq!(Claims::total(), 300);
+			assert_eq!(Claims::total(), 800);
 			assert_eq!(Balances::free_balance(69), 1000);
 			assert_eq!(Vesting::vesting_balance(&69), Some(1000));
 		});
