@@ -175,10 +175,10 @@ build-wasm-release:
     - cargo install wasm-pack
     - time wasm-pack build --target web --out-dir wasm --release cli -- --no-default-features --features browser
     - mkdir -p ./artifacts
-    - mv ./cli/wasm/polkadot_cli* ./artifacts/.
-    - find ./artifacts/
-    - sha256sum ./artifacts/polkadot_cli.wasm |
-      tee ./artifacts/polkadot_cli.wasm.sha256
+    - cd ./cli/wasm/
+    - for f in polkadot_cli*; do sha256sum "${f}" > "${f}.sha256"; done
+    - mv ./polkadot_cli* ../../artifacts/.
+    - find ../../artifacts/
 
 build-linux-release:               &build
   stage:                           build
