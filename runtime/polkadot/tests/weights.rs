@@ -76,8 +76,8 @@ fn weight_of_balances_transfer_keep_alive_is_correct() {
 
 #[test]
 fn weight_of_timestamp_set_is_correct() {
-	// #[weight = T::DbWeight::get().reads_writes(2, 1) + 9_000_000]
-	let expected_weight = (2 * DbWeight::get().read) + DbWeight::get().write + 9_000_000;
+	// #[weight = T::DbWeight::get().reads_writes(2, 1) + 8_000_000]
+	let expected_weight = (2 * DbWeight::get().read) + DbWeight::get().write + 8_000_000;
 	let weight = polkadot_runtime::TimestampCall::set::<Runtime>(Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
