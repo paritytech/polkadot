@@ -175,7 +175,6 @@ build-wasm-release:
     - mv ./target/wasm32-unknown-unknown/release/polkadot_cli.wasm ./artifacts/.
     - sha256sum ./artifacts/polkadot_cli.wasm |
       tee ./artifacts/polkadot_cli.wasm.sha256
-    - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
 
 build-linux-release:               &build
   stage:                           build
