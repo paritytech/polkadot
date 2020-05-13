@@ -439,7 +439,7 @@ impl RegisteredMessageValidator {
 			gossip_engine.lock().messages_for(topic)
 		} else {
 			log::error!("Called gossip_messages_for on a test engine");
-			futures::channel::mpsc::unbounded().1
+			futures::channel::mpsc::channel(0).1
 		};
 
 		GossipMessageStream::new(topic_stream.boxed())

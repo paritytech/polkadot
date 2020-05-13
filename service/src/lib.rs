@@ -18,6 +18,7 @@
 
 pub mod chain_spec;
 mod grandpa_support;
+mod client;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,13 +26,13 @@ use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
 #[cfg(feature = "full-node")]
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
 use service::{error::Error as ServiceError, ServiceBuilder};
-use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
+use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider, SharedVoterState};
 use sc_executor::native_executor_instance;
 use log::info;
 pub use service::{
 	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec, ServiceBuilderCommand, ClientProvider,
+	Configuration, ChainSpec, ServiceBuilderCommand,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
@@ -44,13 +45,14 @@ pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
-#[cfg(not(target_os = "unknown"))]
+#[cfg(feature = "full-node")]
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
 use prometheus_endpoint::Registry;
+pub use self::client::PolkadotClient;
 
 native_executor_instance!(
 	pub PolkadotExecutor,
@@ -78,6 +80,7 @@ pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static>:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
+	+ grandpa_primitives::GrandpaApi<Block>
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
@@ -97,6 +100,7 @@ where
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
+	+ grandpa_primitives::GrandpaApi<Block>
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
@@ -149,6 +153,7 @@ macro_rules! new_full_start {
 		set_prometheus_registry(&mut $config)?;
 
 		let mut import_setup = None;
+		let mut rpc_setup = None;
 		let inherent_data_providers = inherents::InherentDataProviders::new();
 		let builder = service::ServiceBuilder::new_full::<
 			Block, $runtime, $executor
@@ -161,7 +166,7 @@ macro_rules! new_full_start {
 				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api), prometheus_registry);
 				Ok(pool)
 			})?
-			.with_import_queue(|config, client, mut select_chain, _| {
+			.with_import_queue(|config, client, mut select_chain, _, spawn_task_handle| {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 
@@ -194,16 +199,26 @@ macro_rules! new_full_start {
 					None,
 					client,
 					inherent_data_providers.clone(),
+					spawn_task_handle,
 				)?;
 
 				import_setup = Some((block_import, grandpa_link, babe_link));
 				Ok(import_queue)
 			})?
 			.with_rpc_extensions(|builder| -> Result<polkadot_rpc::RpcExtension, _> {
-				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool()))
+				let grandpa_link = import_setup.as_ref().map(|s| &s.1)
+					.expect("GRANDPA LinkHalf is present for full services or set up failed; qed.");
+				let shared_authority_set = grandpa_link.shared_authority_set();
+				let shared_voter_state = SharedVoterState::empty();
+				let grandpa_deps = polkadot_rpc::GrandpaDeps {
+					shared_voter_state: shared_voter_state.clone(),
+					shared_authority_set: shared_authority_set.clone(),
+				};
+				rpc_setup = Some((shared_voter_state));
+				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool(), grandpa_deps))
 			})?;
 
-		(builder, import_setup, inherent_data_providers)
+		(builder, import_setup, inherent_data_providers, rpc_setup)
 	}}
 }
 
@@ -238,7 +253,8 @@ macro_rules! new_full {
 		let authority_discovery_enabled = $authority_discovery_enabled;
 		let slot_duration = $slot_duration;
 
-		let (builder, mut import_setup, inherent_data_providers) = new_full_start!($config, $runtime, $dispatch);
+		let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) =
+			new_full_start!($config, $runtime, $dispatch);
 
 		let backend = builder.backend().clone();
 
@@ -251,6 +267,9 @@ macro_rules! new_full {
 
 		let (block_import, link_half, babe_link) = import_setup.take()
 			.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
+
+		let shared_voter_state = rpc_setup.take()
+			.expect("The SharedVoterState is present for Full Services or setup failed before. qed");
 
 		let client = service.client();
 		let known_oracle = client.clone();
@@ -467,6 +486,7 @@ macro_rules! new_full {
 				telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 				voting_rule,
 				prometheus_registry: service.prometheus_registry(),
+				shared_voter_state,
 			};
 
 			service.spawn_essential_task(
@@ -506,7 +526,7 @@ macro_rules! new_light {
 				);
 				Ok(pool)
 			})?
-			.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _| {
+			.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _, spawn_task_handle| {
 				let fetch_checker = fetcher
 					.map(|fetcher| fetcher.checker().clone())
 					.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
@@ -532,6 +552,7 @@ macro_rules! new_light {
 					Some(Box::new(finality_proof_import)),
 					client,
 					inherent_data_providers.clone(),
+					spawn_task_handle,
 				)?;
 
 				Ok((import_queue, finality_proof_request_builder))
@@ -580,10 +601,9 @@ pub fn polkadot_new_full(
 )
 	-> Result<(
 		impl AbstractService,
-		Arc<impl ClientProvider<
+		Arc<impl PolkadotClient<
 			Block,
 			TFullBackend<Block>,
-			TFullCallExecutor<Block, PolkadotExecutor>,
 			polkadot_runtime::RuntimeApi
 		>>,
 		FullNodeHandles,
@@ -614,10 +634,9 @@ pub fn kusama_new_full(
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
 		impl AbstractService,
-		Arc<impl ClientProvider<
+		Arc<impl PolkadotClient<
 			Block,
 			TFullBackend<Block>,
-			TFullCallExecutor<Block, KusamaExecutor>,
 			kusama_runtime::RuntimeApi
 			>
 		>,
@@ -650,10 +669,9 @@ pub fn westend_new_full(
 )
 	-> Result<(
 		impl AbstractService,
-		Arc<impl ClientProvider<
+		Arc<impl PolkadotClient<
 			Block,
 			TFullBackend<Block>,
-			TFullCallExecutor<Block, KusamaExecutor>,
 			westend_runtime::RuntimeApi
 		>>,
 		FullNodeHandles,
@@ -667,7 +685,7 @@ pub fn westend_new_full(
 		slot_duration,
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
-		KusamaExecutor
+		WestendExecutor
 	);
 
 	Ok((service, client, handles))
