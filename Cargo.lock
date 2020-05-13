@@ -2318,12 +2318,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "kvdb"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e763b2a9b500ba47948061d1e8bc3b5f03a8a1f067dbcf822a4d2c84d2b54a3a"
+dependencies = [
+ "parity-util-mem",
+ "smallvec 1.4.0",
+]
+
+[[package]]
 name = "kvdb-memorydb"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4aa954d12cfac958822dfd77aab34f3eec71f103b918c4ab79ab59a36ee594ea"
 dependencies = [
- "kvdb",
+ "kvdb 0.5.0",
+ "parity-util-mem",
+ "parking_lot 0.10.2",
+]
+
+[[package]]
+name = "kvdb-memorydb"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73027d5e228de6f503b5b7335d530404fc26230a6ae3e09b33ec6e45408509a4"
+dependencies = [
+ "kvdb 0.6.0",
  "parity-util-mem",
  "parking_lot 0.10.2",
 ]
@@ -2336,14 +2357,32 @@ checksum = "b3f14c3a10c8894d26175e57e9e26032e6d6c49c30cbe2468c5bf5f6b64bb0be"
 dependencies = [
  "fs-swap",
  "interleaved-ordered",
- "kvdb",
+ "kvdb 0.5.0",
  "log 0.4.8",
  "num_cpus",
  "owning_ref",
  "parity-util-mem",
  "parking_lot 0.10.2",
  "regex",
- "rocksdb",
+ "rocksdb 0.13.0",
+ "smallvec 1.4.0",
+]
+
+[[package]]
+name = "kvdb-rocksdb"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "84384eca250c7ff67877eda5336f28a86586aaee24acb945643590671f6bfce1"
+dependencies = [
+ "fs-swap",
+ "kvdb 0.6.0",
+ "log 0.4.8",
+ "num_cpus",
+ "owning_ref",
+ "parity-util-mem",
+ "parking_lot 0.10.2",
+ "regex",
+ "rocksdb 0.14.0",
  "smallvec 1.4.0",
 ]
 
@@ -2355,8 +2394,8 @@ checksum = "26f96eec962af83cdf7c83036b3dbb0ae6a1249ddab746820618e2567ca8ebcd"
 dependencies = [
  "futures 0.3.4",
  "js-sys",
- "kvdb",
- "kvdb-memorydb",
+ "kvdb 0.5.0",
+ "kvdb-memorydb 0.5.0",
  "log 0.4.8",
  "parity-util-mem",
  "send_wrapper 0.3.0",
@@ -4091,9 +4130,9 @@ dependencies = [
  "derive_more 0.99.5",
  "exit-future",
  "futures 0.3.4",
- "kvdb",
- "kvdb-memorydb",
- "kvdb-rocksdb",
+ "kvdb 0.6.0",
+ "kvdb-memorydb 0.6.0",
+ "kvdb-rocksdb 0.8.0",
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.9.0",
@@ -5196,6 +5235,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rocksdb"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61aa17a99a2413cd71c1106691bf59dad7de0cd5099127f90e9d99c429c40d4a"
+dependencies = [
+ "libc",
+ "librocksdb-sys",
+]
+
+[[package]]
 name = "rpassword"
 version = "4.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5423,7 +5472,7 @@ dependencies = [
  "futures 0.3.4",
  "hash-db",
  "hex-literal",
- "kvdb",
+ "kvdb 0.5.0",
  "lazy_static",
  "log 0.4.8",
  "parity-scale-codec",
@@ -5456,9 +5505,9 @@ source = "git+https://github.com/paritytech/substrate#b85fc50a814fbd9d84409b2afe
 dependencies = [
  "blake2-rfc",
  "hash-db",
- "kvdb",
- "kvdb-memorydb",
- "kvdb-rocksdb",
+ "kvdb 0.5.0",
+ "kvdb-memorydb 0.5.0",
+ "kvdb-rocksdb 0.7.0",
  "linked-hash-map",
  "log 0.4.8",
  "parity-db",
@@ -6699,7 +6748,7 @@ name = "sp-database"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#b85fc50a814fbd9d84409b2afe6fb4433235fdcd"
 dependencies = [
- "kvdb",
+ "kvdb 0.5.0",
  "parking_lot 0.10.2",
 ]
 
