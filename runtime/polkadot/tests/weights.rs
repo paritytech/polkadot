@@ -63,38 +63,6 @@ fn weight_of_balances_transfer_is_correct() {
 }
 
 #[test]
-fn weight_of_balances_set_balance_is_correct() {
-	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 35_000_000]
-	let expected_weight = DbWeight::get().read + DbWeight::get().write + 35_000_000;
-
-	let weight = polkadot_runtime::BalancesCall::set_balance::<Runtime>(
-		Default::default(),
-		Default::default(),
-		Default::default(),
-	)
-	.get_dispatch_info()
-	.weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_balances_force_transfer_is_correct() {
-	// #[weight = T::DbWeight::get().reads_writes(2, 2) + 70_000_000]
-	let expected_weight = (2 * DbWeight::get().read) + (2 * DbWeight::get().write) + 70_000_000;
-
-	let weight = polkadot_runtime::BalancesCall::force_transfer::<Runtime>(
-		Default::default(),
-		Default::default(),
-		Default::default(),
-	)
-	.get_dispatch_info()
-	.weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
 fn weight_of_balances_transfer_keep_alive_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 50_000_000]
 	let expected_weight = DbWeight::get().read + DbWeight::get().write + 50_000_000;
@@ -127,33 +95,6 @@ fn weight_of_staking_bond_is_correct() {
 }
 
 #[test]
-fn weight_of_staking_bond_extra_is_correct() {
-	// #[weight = 500_000_000]
-	let expected_weight = 500_000_000;
-	let weight = StakingCall::bond_extra::<Runtime>(1 * DOLLARS).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_staking_unbond_is_correct() {
-	// #[weight = 400_000_000]
-	let expected_weight = 400_000_000;
-	let weight = StakingCall::unbond::<Runtime>(Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_staking_widthdraw_unbonded_is_correct() {
-	// #[weight = 400_000_000]
-	let expected_weight = 400_000_000;
-	let weight = StakingCall::withdraw_unbonded::<Runtime>().get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
 fn weight_of_staking_validate_is_correct() {
 	// #[weight = 750_000_000]
 	let expected_weight = 750_000_000;
@@ -176,15 +117,6 @@ fn weight_of_system_set_code_is_correct() {
 	// #[weight = (T::MaximumBlockWeight::get(), DispatchClass::Operational)]
 	let expected_weight = MaximumBlockWeight::get();
 	let weight = SystemCall::set_code::<Runtime>(vec![]).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_system_set_code_without_checks_is_correct() {
-	// #[weight = (T::MaximumBlockWeight::get(), DispatchClass::Operational)]
-	let expected_weight = MaximumBlockWeight::get();
-	let weight = SystemCall::set_code_without_checks::<Runtime>(vec![]).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
@@ -274,7 +206,7 @@ fn weight_of_democracy_enact_proposal_is_correct() {
 }
 
 #[test]
-fn weight_of_phragment_vote_is_correct() {
+fn weight_of_phragmen_vote_is_correct() {
 	// #[weight = 100_000_000]
 	let expected_weight = 100_000_000;
 	let weight = PhragmenCall::vote::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
@@ -283,7 +215,7 @@ fn weight_of_phragment_vote_is_correct() {
 }
 
 #[test]
-fn weight_of_phragment_submit_candidacy_is_correct() {
+fn weight_of_phragmen_submit_candidacy_is_correct() {
 	// #[weight = 500_000_000]
 	let expected_weight = 500_000_000;
 	let weight = PhragmenCall::submit_candidacy::<Runtime>().get_dispatch_info().weight;
@@ -292,7 +224,7 @@ fn weight_of_phragment_submit_candidacy_is_correct() {
 }
 
 #[test]
-fn weight_of_phragment_renounce_candidacy_is_correct() {
+fn weight_of_phragmen_renounce_candidacy_is_correct() {
 	// #[weight = (2_000_000_000, DispatchClass::Operational)]
 	let expected_weight = 2_000_000_000;
 	let weight = PhragmenCall::renounce_candidacy::<Runtime>().get_dispatch_info().weight;
