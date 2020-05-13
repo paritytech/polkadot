@@ -21,13 +21,11 @@
 //! weights in Substrate will change. Instead they are supposed to provide
 //! some sort of indicator that calls we consider important (e.g Balances::transfer)
 //! have not suddenly changed from under us.
-//!
-//! NOTE: All the tests assume RocksDB as the RuntimeDbWeight type
-//! which gives us the following weights:
-//!  - Read: 25 * WEIGHT_PER_MICROS = 25 * 100_000_000,
-//!  - Write: 100 * WEIGHT_PER_MICROS = 25 * 100_000_000,
 
-use frame_support::weights::{constants::*, GetDispatchInfo};
+use frame_support::{
+	traits::ContainsLengthBound,
+	weights::{constants::*, GetDispatchInfo, Weight},
+};
 use keyring::AccountKeyring;
 use polkadot_runtime::constants::currency::*;
 use polkadot_runtime::{self, Runtime};
@@ -40,6 +38,8 @@ use session::Call as SessionCall;
 use staking::Call as StakingCall;
 use system::Call as SystemCall;
 use treasury::Call as TreasuryCall;
+
+type DbWeight = <Runtime as system::Trait>::DbWeight;
 
 #[test]
 fn sanity_check_weight_per_time_constants_are_as_expected() {
@@ -54,7 +54,7 @@ fn sanity_check_weight_per_time_constants_are_as_expected() {
 #[test]
 fn weight_of_balances_transfer_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 70_000_000]
-	let expected_weight = 195_000_000;
+	let expected_weight = DbWeight::get().read + DbWeight::get().write + 70_000_000;
 
 	let weight = polkadot_runtime::BalancesCall::transfer::<Runtime>(Default::default(), Default::default())
 		.get_dispatch_info()
@@ -65,7 +65,7 @@ fn weight_of_balances_transfer_is_correct() {
 #[test]
 fn weight_of_balances_set_balance_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 35_000_000]
-	let expected_weight = 160_000_000;
+	let expected_weight = DbWeight::get().read + DbWeight::get().write + 35_000_000;
 
 	let weight = polkadot_runtime::BalancesCall::set_balance::<Runtime>(
 		Default::default(),
@@ -81,7 +81,7 @@ fn weight_of_balances_set_balance_is_correct() {
 #[test]
 fn weight_of_balances_force_transfer_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(2, 2) + 70_000_000]
-	let expected_weight = 320_000_000;
+	let expected_weight = (2 * DbWeight::get().read) + (2 * DbWeight::get().write) + 70_000_000;
 
 	let weight = polkadot_runtime::BalancesCall::force_transfer::<Runtime>(
 		Default::default(),
@@ -97,7 +97,7 @@ fn weight_of_balances_force_transfer_is_correct() {
 #[test]
 fn weight_of_balances_transfer_keep_alive_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 50_000_000]
-	let expected_weight = 175_000_000;
+	let expected_weight = DbWeight::get().read + DbWeight::get().write + 50_000_000;
 
 	let weight = polkadot_runtime::BalancesCall::transfer_keep_alive::<Runtime>(Default::default(), Default::default())
 		.get_dispatch_info()
@@ -107,9 +107,9 @@ fn weight_of_balances_transfer_keep_alive_is_correct() {
 }
 
 #[test]
-fn weight_of_timestap_set_is_correct() {
+fn weight_of_timestamp_set_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(2, 1) + 9_000_000]
-	let expected_weight = 159_000_000;
+	let expected_weight = (2 * DbWeight::get().read) + DbWeight::get().write + 9_000_000;
 	let weight = polkadot_runtime::TimestampCall::set::<Runtime>(Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -191,7 +191,8 @@ fn weight_of_system_set_code_without_checks_is_correct() {
 
 #[test]
 fn weight_of_system_set_storage_is_correct() {
-	let storage_items = vec![(vec![12], vec![34])];
+	let storage_items = vec![(vec![12], vec![34]), (vec![45], vec![83])];
+	let len = storage_items.len() as Weight;
 
 	// #[weight = FunctionOf(
 	// 	|(items,): (&Vec<KeyValue>,)| {
@@ -201,7 +202,7 @@ fn weight_of_system_set_storage_is_correct() {
 	// 	DispatchClass::Operational,
 	// 	Pays::Yes,
 	// )]
-	let expected_weight = 100_600_000;
+	let expected_weight = (DbWeight::get().write * len).saturating_add(len.saturating_mul(600_000));
 	let weight = SystemCall::set_storage::<Runtime>(storage_items).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -223,7 +224,7 @@ fn weight_of_session_set_keys_is_correct() {
 	// 	+ T::DbWeight::get().writes(1 + T::Keys::key_ids().len() as Weight)]
 	//
 	// Polkadot has five possible session keys, so we default to key_ids.len() = 5
-	let expected_weight = 975_000_000;
+	let expected_weight = 200_000_000 + (DbWeight::get().read * (2 + 5)) + (DbWeight::get().write * (1 + 5));
 	let weight = SessionCall::set_keys::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -235,7 +236,7 @@ fn weight_of_session_purge_keys_is_correct() {
 	// 	+ T::DbWeight::get().reads_writes(2, 1 + T::Keys::key_ids().len() as Weight)]
 	//
 	// Polkadot has five possible session keys, so we default to key_ids.len() = 5
-	let expected_weight = 770_000_000;
+	let expected_weight = 120_000_000 + (DbWeight::get().read * 2) + (DbWeight::get().write * (1 + 5));
 	let weight = SessionCall::purge_keys::<Runtime>().get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -302,7 +303,7 @@ fn weight_of_phragment_renounce_candidacy_is_correct() {
 #[test]
 fn weight_of_treasury_propose_spend_is_correct() {
 	// #[weight = 120_000_000 + T::DbWeight::get().reads_writes(1, 2)]
-	let expected_weight = 345_000_000;
+	let expected_weight = 120_000_000 + DbWeight::get().read + 2 * DbWeight::get().write;
 	let weight =
 		TreasuryCall::propose_spend::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
@@ -312,7 +313,7 @@ fn weight_of_treasury_propose_spend_is_correct() {
 #[test]
 fn weight_of_treasury_approve_proposal_is_correct() {
 	// #[weight = (34_000_000 + T::DbWeight::get().reads_writes(2, 1), DispatchClass::Operational)]
-	let expected_weight = 184_000_000;
+	let expected_weight = 34_000_000 + 2 * DbWeight::get().read + DbWeight::get().write;
 	let weight = TreasuryCall::approve_proposal::<Runtime>(Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -320,9 +321,11 @@ fn weight_of_treasury_approve_proposal_is_correct() {
 
 #[test]
 fn weight_of_treasury_tip_is_correct() {
+	let max_len: Weight = <Runtime as treasury::Trait>::Tippers::max_len() as Weight;
+
 	// #[weight = 68_000_000 + 2_000_000 * T::Tippers::max_len() as Weight
 	// 	+ T::DbWeight::get().reads_writes(2, 1)]
-	let expected_weight = 244_000_000;
+	let expected_weight = 68_000_000 + 2_000_000 * max_len + 2 * DbWeight::get().read + DbWeight::get().write;
 	let weight = TreasuryCall::tip::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
