@@ -58,6 +58,7 @@ pub use parachain::wasm_executor::run_worker as run_validation_worker;
 mod dynamic_inclusion;
 mod error;
 mod shared_table;
+mod metrics;
 
 pub mod block_production;
 pub mod collation;

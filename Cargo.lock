@@ -4569,6 +4569,7 @@ dependencies = [
  "sp-timestamp",
  "sp-transaction-pool",
  "sp-trie",
+ "substrate-prometheus-endpoint",
  "tokio 0.2.19",
 ]
 
