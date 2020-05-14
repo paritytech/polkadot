@@ -60,7 +60,6 @@ use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::{historical as session_historical};
-use claims::PrevalidateAttests;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -847,7 +846,6 @@ pub type SignedExtra = (
 	registrar::LimitParathreadCommits<Runtime>,
 	parachains::ValidateDoubleVoteReports<Runtime>,
 	grandpa::ValidateEquivocationReport<Runtime>,
-	claims::PrevalidateAttests<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
