@@ -572,7 +572,7 @@ mod tests {
 	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, assert_noop, parameter_types,
-		weights::GetDispatchInfo,
+		weights::{Pays, GetDispatchInfo},
 	};
 	use balances;
 	use crate::claims;
@@ -761,8 +761,25 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			let p = PrevalidateAttests::<Test>::new();
 			let c = Call::Claims(ClaimsCall::attest(StatementKind::Alternative.to_text().to_vec()));
-			let r = p.validate(&42,&c,&c.get_dispatch_info(),20);
+			let di = c.get_dispatch_info();
+			assert_eq!(di.pays_fee, Pays::No);
+			let r = p.validate(&42, &c, &di, 20);
 			assert_eq!(r, TransactionValidity::Ok(ValidTransaction::default()));
+		});
+	}
+
+	#[test]
+	fn invalid_attest_transactions_are_recognised() {
+		new_test_ext().execute_with(|| {
+			let p = PrevalidateAttests::<Test>::new();
+			let c = Call::Claims(ClaimsCall::attest(StatementKind::Default.to_text().to_vec()));
+			let di = c.get_dispatch_info();
+			let r = p.validate(&42, &c, &di, 20);
+			assert!(r.is_err());
+			let c = Call::Claims(ClaimsCall::attest(StatementKind::Alternative.to_text().to_vec()));
+			let di = c.get_dispatch_info();
+			let r = p.validate(&69, &c, &di, 20);
+			assert!(r.is_err());
 		});
 	}
 
