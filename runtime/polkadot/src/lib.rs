@@ -612,6 +612,7 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			registrar::LimitParathreadCommits::<Runtime>::new(),
 			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 			grandpa::ValidateEquivocationReport::<Runtime>::new(),
+			claims::PrevalidateAttests::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
 			debug::warn!("Unable to create signed payload: {:?}", e);
