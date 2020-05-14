@@ -60,6 +60,7 @@ use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::{historical as session_historical};
+use static_assertions::const_assert;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -372,6 +373,7 @@ impl democracy::Trait for Runtime {
 
 parameter_types! {
 	pub const CouncilMotionDuration: BlockNumber = 3 * DAYS;
+	pub const CouncilMaxProposals: u32 = 100;
 }
 
 type CouncilCollective = collective::Instance1;
@@ -380,17 +382,21 @@ impl collective::Trait<CouncilCollective> for Runtime {
 	type Proposal = Call;
 	type Event = Event;
 	type MotionDuration = CouncilMotionDuration;
+	type MaxProposals = CouncilMaxProposals;
 }
 
+const DESIRED_MEMBERS: u32 = 13;
 parameter_types! {
 	pub const CandidacyBond: Balance = 1 * DOLLARS;
 	pub const VotingBond: Balance = 5 * CENTS;
 	/// Daily council elections.
 	pub const TermDuration: BlockNumber = 24 * HOURS;
-	pub const DesiredMembers: u32 = 13;
+	pub const DesiredMembers: u32 = DESIRED_MEMBERS;
 	pub const DesiredRunnersUp: u32 = 7;
 	pub const ElectionsPhragmenModuleId: LockIdentifier = *b"phrelect";
 }
+// Make sure that there are no more than MAX_MEMBERS members elected via phragmen.
+const_assert!(DESIRED_MEMBERS <= collective::MAX_MEMBERS);
 
 impl elections_phragmen::Trait for Runtime {
 	type Event = Event;
@@ -411,6 +417,7 @@ impl elections_phragmen::Trait for Runtime {
 
 parameter_types! {
 	pub const TechnicalMotionDuration: BlockNumber = 3 * DAYS;
+	pub const TechnicalMaxProposals: u32 = 100;
 }
 
 type TechnicalCollective = collective::Instance2;
@@ -419,6 +426,7 @@ impl collective::Trait<TechnicalCollective> for Runtime {
 	type Proposal = Call;
 	type Event = Event;
 	type MotionDuration = TechnicalMotionDuration;
+	type MaxProposals = TechnicalMaxProposals;
 }
 
 impl membership::Trait<membership::Instance1> for Runtime {
