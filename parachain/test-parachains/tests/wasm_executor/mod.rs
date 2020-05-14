@@ -16,9 +16,8 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-use parachain;
-use crate::{adder, DummyExt};
-use crate::parachain::{
+use crate::adder;
+use parachain::{
 	primitives::{BlockData, ValidationParams},
 	wasm_executor::EXECUTION_TIMEOUT_SEC,
 };
@@ -40,7 +39,6 @@ fn terminates_on_timeout() {
 			relay_chain_height: 1,
 			code_upgrade_allowed: None,
 		},
-		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	);
 	match result {
@@ -70,7 +68,6 @@ fn parallel_execution() {
 			relay_chain_height: 1,
 			code_upgrade_allowed: None,
 		},
-		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool2),
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
@@ -83,7 +80,6 @@ fn parallel_execution() {
 			relay_chain_height: 1,
 			code_upgrade_allowed: None,
 		},
-		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	);
 	thread.join().unwrap();

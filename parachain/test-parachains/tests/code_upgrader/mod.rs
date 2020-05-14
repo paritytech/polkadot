@@ -16,15 +16,10 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-use parachain;
-
-use crate::{
-	DummyExt,
-	parachain::primitives::{
-		BlockData as GenericBlockData,
-		HeadData as GenericHeadData,
-		ValidationParams, ValidationCode,
-	},
+use parachain::primitives::{
+	BlockData as GenericBlockData,
+	HeadData as GenericHeadData,
+	ValidationParams, ValidationCode,
 };
 use codec::{Decode, Encode};
 use code_upgrader::{hash_state, HeadData, BlockData, State};
@@ -56,7 +51,6 @@ pub fn execute_good_no_upgrade() {
 			relay_chain_height: 1,
 			code_upgrade_allowed: None,
 		},
-		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	).unwrap();
 
@@ -93,7 +87,6 @@ pub fn execute_good_with_upgrade() {
 			relay_chain_height: 1,
 			code_upgrade_allowed: Some(20),
 		},
-		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	).unwrap();
 
@@ -137,7 +130,6 @@ pub fn code_upgrade_not_allowed() {
 			relay_chain_height: 1,
 			code_upgrade_allowed: None,
 		},
-		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	).unwrap();
 }
@@ -168,7 +160,6 @@ pub fn applies_code_upgrade_after_delay() {
 				relay_chain_height: 1,
 				code_upgrade_allowed: Some(2),
 			},
-			DummyExt,
 			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 		).unwrap();
 
@@ -204,7 +195,6 @@ pub fn applies_code_upgrade_after_delay() {
 				relay_chain_height: 2,
 				code_upgrade_allowed: None,
 			},
-			DummyExt,
 			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 		).unwrap();
 

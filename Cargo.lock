@@ -4238,7 +4238,6 @@ dependencies = [
  "sp-core",
  "sp-externalities",
  "sp-io",
- "sp-runtime-interface",
  "sp-std",
  "sp-wasm-interface",
 ]
@@ -7493,6 +7492,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-io",
+ "sp-std",
  "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
 ]
@@ -7520,6 +7520,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-io",
+ "sp-std",
  "substrate-wasm-builder-runner 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
 ]

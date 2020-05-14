@@ -18,16 +18,7 @@ mod adder;
 mod code_upgrader;
 mod wasm_executor;
 
-use parachain::{
-	self, primitives::UpwardMessage, wasm_executor::{Externalities, run_worker},
-};
-
-struct DummyExt;
-impl Externalities for DummyExt {
-	fn post_upward_message(&mut self, _: UpwardMessage) -> Result<(), String> {
-		Ok(())
-	}
-}
+use parachain::wasm_executor::run_worker;
 
 // This is not an actual test, but rather an entry point for out-of process WASM executor.
 // When executing tests the executor spawns currently executing binary, which happens to be test binary.

@@ -48,6 +48,7 @@ pub extern fn validate_block(params: *const u8, len: usize) -> u64 {
 			&ValidationResult {
 				head_data: GenericHeadData(output.head_data.encode()),
 				new_validation_code: output.new_validation_code,
+				upward_messages: sp_std::vec::Vec::new(),
 			}
 		),
 		Err(_) => panic!("execution failure"),

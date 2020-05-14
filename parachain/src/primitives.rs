@@ -185,10 +185,6 @@ impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
 
 /// A message from a parachain to its Relay Chain.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(
-	any(feature = "std", feature = "wasm-api"),
-	derive(sp_runtime_interface::pass_by::PassByCodec,
-))]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct UpwardMessage {
 	/// The origin for the message to be sent from.
@@ -229,4 +225,6 @@ pub struct ValidationResult {
 	pub head_data: HeadData,
 	/// An update to the validation code that should be scheduled in the relay chain.
 	pub new_validation_code: Option<ValidationCode>,
+	/// Upward messages send by the Parachain.
+	pub upward_messages: Vec<UpwardMessage>,
 }

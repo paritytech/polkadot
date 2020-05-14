@@ -16,15 +16,11 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-use crate::{
-	DummyExt,
-	parachain,
-	parachain::primitives::{
-		RelayChainBlockNumber,
-		BlockData as GenericBlockData,
-		HeadData as GenericHeadData,
-		ValidationParams,
-	},
+use parachain::primitives::{
+	RelayChainBlockNumber,
+	BlockData as GenericBlockData,
+	HeadData as GenericHeadData,
+	ValidationParams,
 };
 use codec::{Decode, Encode};
 
@@ -83,7 +79,6 @@ pub fn execute_good_on_parent() {
 			relay_chain_height: 1,
 			code_upgrade_allowed: None,
 		},
-		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	).unwrap();
 
@@ -123,7 +118,6 @@ fn execute_good_chain_on_parent() {
 				relay_chain_height: number as RelayChainBlockNumber + 1,
 				code_upgrade_allowed: None,
 			},
-			DummyExt,
 			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 		).unwrap();
 
@@ -164,7 +158,6 @@ fn execute_bad_on_parent() {
 			relay_chain_height: 1,
 			code_upgrade_allowed: None,
 		},
-		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 	).unwrap_err();
 }

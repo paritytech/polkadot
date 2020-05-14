@@ -16,29 +16,6 @@
 
 //! Utilities for writing parachain WASM.
 
-#[cfg(any(feature = "std", all(not(feature = "std"), feature = "wasm-api")))]
-use crate::primitives::UpwardMessage;
-#[cfg(any(feature = "std", all(not(feature = "std"), feature = "wasm-api")))]
-use sp_runtime_interface::runtime_interface;
-#[cfg(feature = "std")]
-use sp_externalities::ExternalitiesExt;
-
-/// The parachain api for posting messages.
-// Either activate on `std` to get access to the `HostFunctions` or when `wasm-api` is given and on
-// `no_std`.
-#[cfg(any(feature = "std", all(not(feature = "std"), feature = "wasm-api")))]
-#[runtime_interface]
-pub trait Parachain {
-	/// Post a message to this parachain's relay chain.
-	#[allow(dead_code)]
-	fn post_upward_message(&mut self, msg: UpwardMessage) {
-		self.extension::<crate::wasm_executor::ParachainExt>()
-			.expect("No `ParachainExt` associated with the current context.")
-			.post_upward_message(msg)
-			.expect("Failed to post upward message")
-	}
-}
-
 /// Load the validation params from memory when implementing a Rust parachain.
 ///
 /// Offset and length must have been provided by the validation
