@@ -571,12 +571,21 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
 	use frame_support::{
-		impl_outer_origin, assert_ok, assert_err, assert_noop, parameter_types
+		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, assert_noop, parameter_types,
+		weights::GetDispatchInfo,
 	};
 	use balances;
+	use crate::claims;
+	use super::Call as ClaimsCall;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
+	}
+
+	impl_outer_dispatch! {
+		pub enum Call for Test where origin: Origin {
+			claims::Claims,
+		}
 	}
 	// For testing the module, we construct most of a mock runtime. This means
 	// first constructing a configuration type (`Test`) which `impl`s each of the
@@ -591,7 +600,7 @@ mod tests {
 	}
 	impl system::Trait for Test {
 		type Origin = Origin;
-		type Call = ();
+		type Call = Call;
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -716,11 +725,22 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
 			let s = sig::<Test>(&dave(), &42u64.encode(), StatementKind::Alternative.to_text());
-			assert_noop!(Claims::claim_attest(Origin::NONE, 42, s, StatementKind::Alternative), Error::<Test>::InvalidStatement);
+			let r = Claims::claim_attest(Origin::NONE, 42, s.clone(), StatementKind::Alternative);
+			assert_noop!(r, Error::<Test>::InvalidStatement);
+
+			let r = Claims::claim_attest(Origin::NONE, 42, s, StatementKind::Default);
+			assert_noop!(r, Error::<Test>::SignerHasNoClaim);
+			// ^^^ we use ecdsa_recover, so an invalid signature just results in a random signer id
+			// being recovered, which realistically will never have a claim.
+
 			let s = sig::<Test>(&dave(), &42u64.encode(), StatementKind::Default.to_text());
 			assert_ok!(Claims::claim_attest(Origin::NONE, 42, s, StatementKind::Default));
 			assert_eq!(Balances::free_balance(&42), 200);
 			assert_eq!(Claims::total(), 400);
+
+			let s = sig::<Test>(&dave(), &42u64.encode(), StatementKind::Default.to_text());
+			let r = Claims::claim_attest(Origin::NONE, 42, s, StatementKind::Default);
+			assert_noop!(r, Error::<Test>::SignerHasNoClaim);
 		});
 	}
 
@@ -728,10 +748,21 @@ mod tests {
 	fn attesting_works() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
+			assert_noop!(Claims::attest(Origin::signed(69), StatementKind::Alternative.to_text().to_vec()), Error::<Test>::SenderHasNoClaim);
 			assert_noop!(Claims::attest(Origin::signed(42), StatementKind::Default.to_text().to_vec()), Error::<Test>::InvalidStatement);
 			assert_ok!(Claims::attest(Origin::signed(42), StatementKind::Alternative.to_text().to_vec()));
 			assert_eq!(Balances::free_balance(&42), 300);
 			assert_eq!(Claims::total(), 300);
+		});
+	}
+
+	#[test]
+	fn valid_attest_transactions_are_free() {
+		new_test_ext().execute_with(|| {
+			let p = PrevalidateAttests::<Test>::new();
+			let c = Call::Claims(ClaimsCall::attest(StatementKind::Alternative.to_text().to_vec()));
+			let r = p.validate(&42,&c,&c.get_dispatch_info(),20);
+			assert_eq!(r, TransactionValidity::Ok(ValidTransaction::default()));
 		});
 	}
 
@@ -862,7 +893,7 @@ mod tests {
 
 		new_test_ext().execute_with(|| {
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(source, &Call::claim(1, sig::<Test>(&alice(), &1u64.encode(), &[][..]))),
+				<Module<Test>>::validate_unsigned(source, &ClaimsCall::claim(1, sig::<Test>(&alice(), &1u64.encode(), &[][..]))),
 				Ok(ValidTransaction {
 					priority: 100,
 					requires: vec![],
@@ -872,15 +903,15 @@ mod tests {
 				})
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(source, &Call::claim(0, EcdsaSignature([0; 65]))),
+				<Module<Test>>::validate_unsigned(source, &ClaimsCall::claim(0, EcdsaSignature([0; 65]))),
 				InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()).into(),
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(source, &Call::claim(1, sig::<Test>(&bob(), &1u64.encode(), &[][..]))),
+				<Module<Test>>::validate_unsigned(source, &ClaimsCall::claim(1, sig::<Test>(&bob(), &1u64.encode(), &[][..]))),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(source, &Call::claim(0, sig::<Test>(&bob(), &1u64.encode(), &[][..]))),
+				<Module<Test>>::validate_unsigned(source, &ClaimsCall::claim(0, sig::<Test>(&bob(), &1u64.encode(), &[][..]))),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 		});
