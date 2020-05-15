@@ -929,7 +929,7 @@ mod tests {
 				Ok(ValidTransaction {
 					priority: 100,
 					requires: vec![],
-					provides: vec![("claims", eth(&alice())).encode()],
+					provides: vec![("claims", eth(&dave())).encode()],
 					longevity: TransactionLongevity::max_value(),
 					propagate: true,
 				})
