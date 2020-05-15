@@ -1137,6 +1137,24 @@ mod benchmarking {
 			assert_eq!(Claims::<T>::get(eth_address), None);
 		}
 
+		// Benchmark `attest` for different users.
+		attest {
+			let u in 0 .. 1000;
+			let attest_u = u32::max_value() - u;
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_u.encode())).unwrap();
+			let eth_address = eth(&secret_key);
+			let account: T::AccountId = account("user", u, SEED);
+			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+			let statement = StatementKind::Default;
+			let signature = sig::<T>(&secret_key, &account.encode(), statement.to_text());
+			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, Some(statement))?;
+			Preclaims::<T>::insert(&account, eth_address);
+			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
+		}: _(RawOrigin::Signed(account), statement.to_text().to_vec())
+		verify {
+			assert_eq!(Claims::<T>::get(eth_address), None);
+		}
+
 		// Benchmark the time it takes to execute `validate_unsigned` for `claim`
 		validate_unsigned_claim {
 			let c in ...;
@@ -1162,6 +1180,28 @@ mod benchmarking {
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
 			super::Module::<T>::validate_unsigned(source, &call)?
+		}
+
+		validate_prevalidate_attests {
+			let c in ...;
+			let attest_c = u32::max_value() - c;
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
+			let eth_address = eth(&secret_key);
+			let account: T::AccountId = account("user", c, SEED);
+			Preclaims::<T>::insert(&account, eth_address);
+			let call = super::Call::attest(StatementKind::Default.to_text().to_vec());
+			// We have to copy the validate statement here because of trait issues... :(
+			let validate = |who: &T::AccountId, call: &super::Call<T>| -> DispatchResult {
+				if let Call::attest(attested_statement) = call {
+					let signer = Preclaims::<T>::get(who).ok_or("signer has no claim")?;
+					if let Some(s) = Signing::get(signer) {
+						ensure!(&attested_statement[..] == s.to_text(), "invalid statement");
+					}
+				}
+				Ok(())
+			};
+		}: {
+			validate(&account, &call)?
 		}
 
 		// Benchmark the time it takes to do `repeat` number of keccak256 hashes
@@ -1202,8 +1242,10 @@ mod benchmarking {
 				assert_ok!(test_benchmark_claim::<Test>());
 				assert_ok!(test_benchmark_mint_claim::<Test>());
 				assert_ok!(test_benchmark_claim_attest::<Test>());
+				assert_ok!(test_benchmark_attest::<Test>());
 				assert_ok!(test_benchmark_validate_unsigned_claim::<Test>());
 				assert_ok!(test_benchmark_validate_unsigned_claim_attest::<Test>());
+				assert_ok!(test_benchmark_validate_prevalidate_attests::<Test>());
 				assert_ok!(test_benchmark_keccak256::<Test>());
 				assert_ok!(test_benchmark_eth_recover::<Test>());
 			});
