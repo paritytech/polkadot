@@ -1087,8 +1087,8 @@ mod benchmarking {
 
 	benchmarks! {
 		_ {
-			// Create claims in storage.
-			let c in 0 .. MAX_CLAIMS => {
+			// Create claims in storage. Two are created at a time!
+			let c in 0 .. MAX_CLAIMS / 2 => {
 				create_claim::<T>(c)?;
 				create_claim_attest::<T>(u32::max_value() - c)?;
 			};
