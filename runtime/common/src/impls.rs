@@ -86,8 +86,8 @@ pub struct TargetedFeeAdjustment<T, R>(sp_std::marker::PhantomData<(T, R)>);
 
 impl<T: Get<Perquintill>, R: system::Trait> Convert<Fixed128, Fixed128> for TargetedFeeAdjustment<T, R> {
 	fn convert(multiplier: Fixed128) -> Fixed128 {
-		let block_weight = <system::Module<R>>::all_extrinsics_weight();
 		let max_weight = MaximumBlockWeight::get();
+		let block_weight = <system::Module<R>>::all_extrinsics_weight().total().min(max_weight);
 		let target_weight = (T::get() * max_weight) as u128;
 		let block_weight = block_weight as u128;
 

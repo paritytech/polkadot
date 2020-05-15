@@ -217,7 +217,7 @@ pub trait GetSessionNumber {
 
 impl GetSessionNumber for sp_session::MembershipProof {
 	fn session(&self) -> SessionIndex {
-		self.session()
+		self.session
 	}
 }
 

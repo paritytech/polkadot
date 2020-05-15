@@ -63,6 +63,7 @@ use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
+use static_assertions::const_assert;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -87,7 +88,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 2,
-	spec_version: 1010,
+	spec_version: 1011,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -342,6 +343,7 @@ parameter_types! {
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 1 * CENTS;
 	pub const InstantAllowed: bool = false;
+	pub const MaxVotes: u32 = 100;
 }
 
 impl democracy::Trait for Runtime {
@@ -374,10 +376,12 @@ impl democracy::Trait for Runtime {
 	type PreimageByteDeposit = PreimageByteDeposit;
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
+	type MaxVotes = MaxVotes;
 }
 
 parameter_types! {
 	pub const CouncilMotionDuration: BlockNumber = 7 * DAYS;
+	pub const CouncilMaxProposals: u32 = 100;
 }
 
 type CouncilCollective = collective::Instance1;
@@ -386,18 +390,22 @@ impl collective::Trait<CouncilCollective> for Runtime {
 	type Proposal = Call;
 	type Event = Event;
 	type MotionDuration = CouncilMotionDuration;
+	type MaxProposals = CouncilMaxProposals;
 }
 
+const DESIRED_MEMBERS: u32 = 13;
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
 	/// Weekly council elections initially, later monthly.
 	pub const TermDuration: BlockNumber = 7 * DAYS;
 	/// 13 members initially, to be increased to 23 eventually.
-	pub const DesiredMembers: u32 = 13;
+	pub const DesiredMembers: u32 = DESIRED_MEMBERS;
 	pub const DesiredRunnersUp: u32 = 20;
 	pub const ElectionsPhragmenModuleId: LockIdentifier = *b"phrelect";
 }
+// Make sure that there are no more than MAX_MEMBERS members elected via phragmen.
+const_assert!(DESIRED_MEMBERS <= collective::MAX_MEMBERS);
 
 impl elections_phragmen::Trait for Runtime {
 	type Event = Event;
@@ -418,6 +426,7 @@ impl elections_phragmen::Trait for Runtime {
 
 parameter_types! {
 	pub const TechnicalMotionDuration: BlockNumber = 7 * DAYS;
+	pub const TechnicalMaxProposals: u32 = 100;
 }
 
 type TechnicalCollective = collective::Instance2;
@@ -426,6 +435,7 @@ impl collective::Trait<TechnicalCollective> for Runtime {
 	type Proposal = Call;
 	type Event = Event;
 	type MotionDuration = TechnicalMotionDuration;
+	type MaxProposals = TechnicalMaxProposals;
 }
 
 impl membership::Trait<membership::Instance1> for Runtime {
@@ -600,7 +610,8 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 		let tip = 0;
 		let extra: SignedExtra = (
 			OnlyStakingAndClaims,
-			system::CheckVersion::<Runtime>::new(),
+			system::CheckSpecVersion::<Runtime>::new(),
+			system::CheckTxVersion::<Runtime>::new(),
 			system::CheckGenesis::<Runtime>::new(),
 			system::CheckEra::<Runtime>::from(generic::Era::mortal(period, current_block)),
 			system::CheckNonce::<Runtime>::from(nonce),
@@ -758,7 +769,8 @@ pub type BlockId = generic::BlockId<Block>;
 pub type SignedExtra = (
 	// RELEASE: remove this for release build.
 	OnlyStakingAndClaims,
-	system::CheckVersion<Runtime>,
+	system::CheckSpecVersion<Runtime>,
+	system::CheckTxVersion<Runtime>,
 	system::CheckGenesis<Runtime>,
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
