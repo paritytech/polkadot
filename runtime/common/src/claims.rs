@@ -429,38 +429,42 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
 		const PRIORITY: u64 = 100;
 
-		match call {
+		let maybe_signer = match call {
 			// <weight>
 			// Base Weight: 370 µs
 			// DB Weight: 1 Read (Claims)
 			// </weight>
 			Call::claim(account, ethereum_signature) => {
 				let data = account.using_encoded(to_ascii_hex);
-				let maybe_signer = Self::eth_recover(&ethereum_signature, &data, &[][..]);
-				let signer = if let Some(s) = maybe_signer {
-					s
-				} else {
-					return InvalidTransaction::Custom(
-						ValidityError::InvalidEthereumSignature.into(),
-					).into();
-				};
-
-				if !<Claims<T>>::contains_key(&signer) {
-					return Err(InvalidTransaction::Custom(
-						ValidityError::SignerHasNoClaim.into(),
-					).into());
-				}
-
-				Ok(ValidTransaction {
-					priority: PRIORITY,
-					requires: vec![],
-					provides: vec![("claims", signer).encode()],
-					longevity: TransactionLongevity::max_value(),
-					propagate: true,
-				})
+				Self::eth_recover(&ethereum_signature, &data, &[][..])
 			}
-			_ => Err(InvalidTransaction::Call.into()),
-		}
+			Call::claim_attest(account, ethereum_signature, statement) => {
+				let data = account.using_encoded(to_ascii_hex);
+				let maybe_signer = Self::eth_recover(&ethereum_signature, &data, statement.to_text());
+				if let Some(ref signer) = maybe_signer {
+					if let Some(s) = Signing::get(signer) {
+						let e = InvalidTransaction::Custom(ValidityError::InvalidStatement.into());
+						ensure!(&s == statement, e);
+					}
+				}
+				maybe_signer
+			}
+			_ => return Err(InvalidTransaction::Call.into()),
+		};
+
+		let signer = maybe_signer
+			.ok_or(InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()))?;
+
+		let e = InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into());
+		ensure!(<Claims<T>>::contains_key(&signer), e);
+
+		Ok(ValidTransaction {
+			priority: PRIORITY,
+			requires: vec![],
+			provides: vec![("claims", signer).encode()],
+			longevity: TransactionLongevity::max_value(),
+			propagate: true,
+		})
 	}
 }
 
@@ -515,19 +519,11 @@ impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> where
 	) -> TransactionValidity {
 		if let Some(local_call) = call.is_sub_type() {
 			if let Call::attest(attested_statement) = local_call {
-				let signer = match Preclaims::<T>::get(who) {
-					Some(x) => x,
-					None =>
-						return Err(InvalidTransaction::Custom(
-							ValidityError::SignerHasNoClaim.into()
-						).into()),
-				};
+				let signer = Preclaims::<T>::get(who)
+					.ok_or(InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()))?;
 				if let Some(s) = Signing::get(signer) {
-					if &attested_statement[..] != s.to_text() {
-						return Err(InvalidTransaction::Custom(
-							ValidityError::InvalidStatement.into()
-						).into())
-					}
+					let e = InvalidTransaction::Custom(ValidityError::InvalidStatement.into());
+					ensure!(&attested_statement[..] == s.to_text(), e);
 				}
 			}
 		}
@@ -575,7 +571,6 @@ mod tests {
 		weights::{Pays, GetDispatchInfo},
 	};
 	use balances;
-	use crate::claims;
 	use super::Call as ClaimsCall;
 
 	impl_outer_origin! {
