@@ -922,9 +922,42 @@ mod tests {
 				<Module<Test>>::validate_unsigned(source, &ClaimsCall::claim(1, sig::<Test>(&bob(), &1u64.encode(), &[][..]))),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
+			let s = sig::<Test>(&dave(), &1u64.encode(), StatementKind::Default.to_text());
+			let call = ClaimsCall::claim_attest(1, s, StatementKind::Default);
 			assert_eq!(
-				<Module<Test>>::validate_unsigned(source, &ClaimsCall::claim(0, sig::<Test>(&bob(), &1u64.encode(), &[][..]))),
+				<Module<Test>>::validate_unsigned(source, &call),
+				Ok(ValidTransaction {
+					priority: 100,
+					requires: vec![],
+					provides: vec![("claims", eth(&alice())).encode()],
+					longevity: TransactionLongevity::max_value(),
+					propagate: true,
+				})
+			);
+			assert_eq!(
+				<Module<Test>>::validate_unsigned(source, &ClaimsCall::claim_attest(1, EcdsaSignature([0; 65]), StatementKind::Default)),
+				InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()).into(),
+			);
+
+			let s = sig::<Test>(&bob(), &1u64.encode(), StatementKind::Default.to_text());
+			let call = ClaimsCall::claim_attest(1, s, StatementKind::Default);
+			assert_eq!(
+				<Module<Test>>::validate_unsigned(source, &call),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
+			);
+
+			let s = sig::<Test>(&dave(), &1u64.encode(), StatementKind::Alternative.to_text());
+			let call = ClaimsCall::claim_attest(1, s, StatementKind::Default);
+			assert_eq!(
+				<Module<Test>>::validate_unsigned(source, &call),
+				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
+			);
+
+			let s = sig::<Test>(&dave(), &1u64.encode(), StatementKind::Alternative.to_text());
+			let call = ClaimsCall::claim_attest(1, s, StatementKind::Alternative);
+			assert_eq!(
+				<Module<Test>>::validate_unsigned(source, &call),
+				InvalidTransaction::Custom(ValidityError::InvalidStatement.into()).into(),
 			);
 		});
 	}
