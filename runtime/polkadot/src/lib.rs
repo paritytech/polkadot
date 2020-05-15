@@ -62,7 +62,6 @@ use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
-use claims::PrevalidateAttests;
 use static_assertions::const_assert;
 
 #[cfg(feature = "std")]
