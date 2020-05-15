@@ -184,8 +184,8 @@ fn weight_of_session_purge_keys_is_correct() {
 
 #[test]
 fn weight_of_democracy_propose_is_correct() {
-	// #[weight = 5_000_000_000]
-	let expected_weight = 5_000_000_000;
+	// #[weight = 50_000_000 + T::DbWeight::get().reads_writes(2, 3)]
+	let expected_weight = 50_000_000 + (DbWeight::get().read * 2) + (DbWeight::get().write * 3);
 	let weight = DemocracyCall::propose::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -196,8 +196,11 @@ fn weight_of_democracy_vote_is_correct() {
 	use democracy::AccountVote;
 	let vote = AccountVote::Standard { vote: Default::default(), balance: Default::default() };
 
-	// #[weight = 200_000_000]
-	let expected_weight = 200_000_000;
+	// #[weight = 50_000_000 + 350_000 * Weight::from(T::MaxVotes::get()) + T::DbWeight::get().reads_writes(3, 3)]
+	let expected_weight = 50_000_000
+		+ 350_000 * (Weight::from(polkadot_runtime::MaxVotes::get()))
+		+ (DbWeight::get().read * 3)
+		+ (DbWeight::get().write * 3);
 	let weight = DemocracyCall::vote::<Runtime>(Default::default(), vote).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
