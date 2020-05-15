@@ -87,8 +87,8 @@ fn weight_of_timestamp_set_is_correct() {
 fn weight_of_staking_bond_is_correct() {
 	let controller: AccountId = AccountKeyring::Alice.into();
 
-	// #[weight = 500_000_000]
-	let expected_weight = 500_000_000;
+	// #[weight = 67 * WEIGHT_PER_MICROS + T::DbWeight::get().reads_writes(5, 4)]
+	let expected_weight = 67 * WEIGHT_PER_MICROS + (DbWeight::get().read * 5) + (DbWeight::get().write * 4);
 	let weight = StakingCall::bond::<Runtime>(controller, 1 * DOLLARS, Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -96,8 +96,8 @@ fn weight_of_staking_bond_is_correct() {
 
 #[test]
 fn weight_of_staking_validate_is_correct() {
-	// #[weight = 750_000_000]
-	let expected_weight = 750_000_000;
+	// #[weight = 17 * WEIGHT_PER_MICROS + T::DbWeight::get().reads_writes(2, 2)]
+	let expected_weight = 17 * WEIGHT_PER_MICROS + (DbWeight::get().read * 2) + (DbWeight::get().write * 2);
 	let weight = StakingCall::validate::<Runtime>(Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -105,9 +105,17 @@ fn weight_of_staking_validate_is_correct() {
 
 #[test]
 fn weight_of_staking_nominate_is_correct() {
-	// #[weight = 750_000_000]
-	let expected_weight = 750_000_000;
-	let weight = StakingCall::nominate::<Runtime>(vec![]).get_dispatch_info().weight;
+	let targets: Vec<AccountId> = vec![Default::default(), Default::default(), Default::default()];
+
+	// #[weight = T::DbWeight::get().reads_writes(3, 2)
+	// 	.saturating_add(22 * WEIGHT_PER_MICROS)
+	// 	.saturating_add((360 * WEIGHT_PER_NANOS).saturating_mul(targets.len() as Weight))
+	// ]
+	let db_weight = (DbWeight::get().read * 3) + (DbWeight::get().write * 2);
+	let targets_weight = (360 * WEIGHT_PER_NANOS).saturating_mul(targets.len() as Weight);
+
+	let expected_weight = db_weight.saturating_add(22 * WEIGHT_PER_MICROS).saturating_add(targets_weight);
+	let weight = StakingCall::nominate::<Runtime>(targets).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
