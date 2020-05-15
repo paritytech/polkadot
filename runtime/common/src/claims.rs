@@ -240,7 +240,7 @@ decl_module! {
 			let data = dest.using_encoded(to_ascii_hex);
 			let signer = Self::eth_recover(&ethereum_signature, &data, &[][..])
 				.ok_or(Error::<T>::InvalidEthereumSignature)?;
-			ensure!(!Signing::exists(&signer), Error::<T>::InvalidStatement);
+			ensure!(Signing::get(&signer).is_none(), Error::<T>::InvalidStatement);
 
 			Self::process_claim(signer, dest)?;
 		}
@@ -430,33 +430,27 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
 		const PRIORITY: u64 = 100;
 
-		let maybe_signer = match call {
+		let (maybe_signer, maybe_statement) = match call {
 			// <weight>
 			// Base Weight: 370 µs
 			// DB Weight: 1 Read (Claims)
 			// </weight>
 			Call::claim(account, ethereum_signature) => {
 				let data = account.using_encoded(to_ascii_hex);
-				Self::eth_recover(&ethereum_signature, &data, &[][..])
-				let e = InvalidTransaction::Custom(ValidityError::InvalidStatement.into());
-				ensure!(!Signing::exists(signer), e);
+				(Self::eth_recover(&ethereum_signature, &data, &[][..]), None)
 			}
 			Call::claim_attest(account, ethereum_signature, statement) => {
 				let data = account.using_encoded(to_ascii_hex);
-				let maybe_signer = Self::eth_recover(&ethereum_signature, &data, statement.to_text());
-				if let Some(ref signer) = maybe_signer {
-					if let Some(s) = Signing::get(signer) {
-						let e = InvalidTransaction::Custom(ValidityError::InvalidStatement.into());
-						ensure!(&s == statement, e);
-					}
-				}
-				maybe_signer
+				(Self::eth_recover(&ethereum_signature, &data, statement.to_text()), Some(*statement))
 			}
 			_ => return Err(InvalidTransaction::Call.into()),
 		};
 
 		let signer = maybe_signer
 			.ok_or(InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()))?;
+
+		let e = InvalidTransaction::Custom(ValidityError::InvalidStatement.into());
+		ensure!(Signing::get(signer) == maybe_statement, e);
 
 		let e = InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into());
 		ensure!(<Claims<T>>::contains_key(&signer), e);
@@ -789,6 +783,16 @@ mod tests {
 			let di = c.get_dispatch_info();
 			let r = p.validate(&69, &c, &di, 20);
 			assert!(r.is_err());
+		});
+	}
+
+	#[test]
+	fn cannot_bypass_attest_claiming() {
+		new_test_ext().execute_with(|| {
+			assert_eq!(Balances::free_balance(42), 0);
+			let s = sig::<Test>(&dave(), &42u64.encode(), &[]);
+			let r = Claims::claim(Origin::NONE, 42, s.clone());
+			assert_noop!(r, Error::<Test>::InvalidStatement);
 		});
 	}
 
