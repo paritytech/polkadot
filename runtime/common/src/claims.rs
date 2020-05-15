@@ -352,7 +352,8 @@ decl_module! {
 			if let Some(s) = Signing::get(signer) {
 				ensure!(s.to_text() == &statement[..], Error::<T>::InvalidStatement);
 			}
-			Self::process_claim(signer, who)?;
+			Self::process_claim(signer, who.clone())?;
+			Preclaims::<T>::remove(&who);
 		}
 	}
 }
@@ -414,7 +415,6 @@ impl<T: Trait> Module<T> {
 		<Claims<T>>::remove(&signer);
 		<Vesting<T>>::remove(&signer);
 		Signing::remove(&signer);
-		Preclaims::<T>::remove(&dest);
 
 		// Let's deposit an event to let the outside world know this happened.
 		Self::deposit_event(RawEvent::Claimed(dest, signer, balance_due));
@@ -748,6 +748,17 @@ mod tests {
 			assert_ok!(Claims::attest(Origin::signed(42), StatementKind::Alternative.to_text().to_vec()));
 			assert_eq!(Balances::free_balance(&42), 300);
 			assert_eq!(Claims::total(), 300);
+		});
+	}
+
+	#[test]
+	fn claim_cannot_clobber_preclaim() {
+		new_test_ext().execute_with(|| {
+			assert_eq!(Balances::free_balance(42), 0);
+			assert_ok!(Claims::claim(Origin::NONE, 42, sig::<Test>(&alice(), &42u64.encode(), &[][..])));
+			assert_ok!(Claims::attest(Origin::signed(42), StatementKind::Alternative.to_text().to_vec()));
+			assert_eq!(Balances::free_balance(&42), 400);
+			assert_eq!(Claims::total(), 200);
 		});
 	}
 
