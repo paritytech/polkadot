@@ -272,6 +272,7 @@ decl_module! {
 			who: EthereumAddress,
 			value: BalanceOf<T>,
 			vesting_schedule: Option<(BalanceOf<T>, BalanceOf<T>, T::BlockNumber)>,
+			statement: Option<StatementKind>,
 		) {
 			ensure_root(origin)?;
 
@@ -279,6 +280,9 @@ decl_module! {
 			<Claims<T>>::insert(who, value);
 			if let Some(vs) = vesting_schedule {
 				<Vesting<T>>::insert(who, vs);
+			}
+			if let Some(s) = statement {
+				Signing::insert(who, s);
 			}
 		}
 
@@ -831,7 +835,7 @@ mod tests {
 	fn add_claim_works() {
 		new_test_ext().execute_with(|| {
 			assert_noop!(
-				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, None),
+				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, None, None),
 				sp_runtime::traits::BadOrigin,
 			);
 			assert_eq!(Balances::free_balance(42), 0);
@@ -839,7 +843,7 @@ mod tests {
 				Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
 				Error::<Test>::SignerHasNoClaim,
 			);
-			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None));
+			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None, None));
 			assert_eq!(Claims::total(), total_claims() + 200);
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])));
 			assert_eq!(Balances::free_balance(&69), 200);
@@ -852,7 +856,7 @@ mod tests {
 	fn add_claim_with_vesting_works() {
 		new_test_ext().execute_with(|| {
 			assert_noop!(
-				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, Some((50, 10, 1))),
+				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, Some((50, 10, 1)), None),
 				sp_runtime::traits::BadOrigin,
 			);
 			assert_eq!(Balances::free_balance(42), 0);
@@ -860,7 +864,7 @@ mod tests {
 				Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
 				Error::<Test>::SignerHasNoClaim
 			);
-			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
+			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1)), None));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])));
 			assert_eq!(Balances::free_balance(&69), 200);
 			assert_eq!(Vesting::vesting_balance(&69), Some(50));
@@ -897,7 +901,7 @@ mod tests {
 			assert_ok!(<Test as Trait>::VestingSchedule::add_vesting_schedule(&69, total_claims(), 100, 10));
 			CurrencyOf::<Test>::make_free_balance_be(&69, total_claims());
 			assert_eq!(Balances::free_balance(69), total_claims());
-			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1))));
+			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1)), None));
 			// New total
 			assert_eq!(Claims::total(), total_claims() + 200);
 
@@ -1032,14 +1036,31 @@ mod benchmarking {
 		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
 		let eth_address = eth(&secret_key);
 		let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
-		super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting)?;
+		super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, None)?;
+		Ok(())
+	}
+
+	fn create_claim_attest<T: Trait>(input: u32) -> DispatchResult {
+		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
+		let eth_address = eth(&secret_key);
+		let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+		super::Module::<T>::mint_claim(
+			RawOrigin::Root.into(),
+			eth_address,
+			VALUE.into(),
+			vesting,
+			Some(Default::default())
+		)?;
 		Ok(())
 	}
 
 	benchmarks! {
 		_ {
 			// Create claims in storage.
-			let c in 0 .. MAX_CLAIMS => create_claim::<T>(c)?;
+			let c in 0 .. MAX_CLAIMS => {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			};
 		}
 
 		// Benchmark `claim` for different users.
@@ -1050,7 +1071,7 @@ mod benchmarking {
 			let account: T::AccountId = account("user", u, SEED);
 			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
 			let signature = sig::<T>(&secret_key, &account.encode(), &[][..]);
-			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting)?;
+			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, None)?;
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
 		}: _(RawOrigin::None, account, signature)
 		verify {
@@ -1062,19 +1083,51 @@ mod benchmarking {
 			let c in ...;
 			let eth_address = account("eth_address", c, SEED);
 			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
-		}: _(RawOrigin::Root, eth_address, VALUE.into(), vesting)
+			let statement = StatementKind::Default;
+		}: _(RawOrigin::Root, eth_address, VALUE.into(), vesting, Some(statement))
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
 		}
 
-		// Benchmark the time it takes to execute `validate_unsigned`
-		validate_unsigned {
+		// Benchmark `claim_attest` for different users.
+		claim_attest {
+			let u in 0 .. 1000;
+			let attest_u = u32::max_value() - u;
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_u.encode())).unwrap();
+			let eth_address = eth(&secret_key);
+			let account: T::AccountId = account("user", u, SEED);
+			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+			let statement = StatementKind::Default;
+			let signature = sig::<T>(&secret_key, &account.encode(), statement.to_text());
+			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, Some(statement))?;
+			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
+		}: _(RawOrigin::None, account, signature, statement.to_text().to_vec())
+		verify {
+			assert_eq!(Claims::<T>::get(eth_address), None);
+		}
+
+		// Benchmark the time it takes to execute `validate_unsigned` for `claim`
+		validate_unsigned_claim {
 			let c in ...;
 			// Crate signature
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
 			let account: T::AccountId = account("user", c, SEED);
 			let signature = sig::<T>(&secret_key, &account.encode(), &[][..]);
 			let call = Call::<T>::claim(account, signature);
+			let source = sp_runtime::transaction_validity::TransactionSource::External;
+		}: {
+			super::Module::<T>::validate_unsigned(source, &call)?
+		}
+
+		// Benchmark the time it takes to execute `validate_unsigned` for `claim_attest`
+		validate_unsigned_claim_attest {
+			let c in ...;
+			// Crate signature
+			let attest_c = u32::max_value() - c;
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
+			let account: T::AccountId = account("user", c, SEED);
+			let signature = sig::<T>(&secret_key, &account.encode(), StatementKind::Default.to_text());
+			let call = Call::<T>::claim_attest(account, signature, StatementKind::Default.to_text().to_vec());
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
 			super::Module::<T>::validate_unsigned(source, &call)?
@@ -1117,7 +1170,9 @@ mod benchmarking {
 			new_test_ext().execute_with(|| {
 				assert_ok!(test_benchmark_claim::<Test>());
 				assert_ok!(test_benchmark_mint_claim::<Test>());
-				assert_ok!(test_benchmark_validate_unsigned::<Test>());
+				assert_ok!(test_benchmark_claim_attest::<Test>());
+				assert_ok!(test_benchmark_validate_unsigned_claim::<Test>());
+				assert_ok!(test_benchmark_validate_unsigned_claim_attest::<Test>());
 				assert_ok!(test_benchmark_keccak256::<Test>());
 				assert_ok!(test_benchmark_eth_recover::<Test>());
 			});
