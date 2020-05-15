@@ -5,7 +5,6 @@
 # pipelines can be triggered manually in the web
 # setting DEPLOY_TAG will only deploy the tagged image
 
-
 stages:
   - test
   - build
@@ -22,7 +21,6 @@ variables:
   CI_SERVER_NAME:                  "GitLab CI"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-
 
 .collect-artifacts:                &collect-artifacts
   artifacts:
@@ -55,8 +53,6 @@ variables:
     - rustup show
     - cargo --version
     - sccache -s
-
-
 
 .build-refs:                       &build-refs
   only:
@@ -100,7 +96,6 @@ check-runtime:
   interruptible:                   true
   allow_failure:                   true
 
-
 check-line-width:
   stage:                           test
   image:                           parity/tools:latest
@@ -138,7 +133,6 @@ test-linux-stable:                 &test
     - time cargo test --all --release --verbose --locked --features runtime-benchmarks
     - sccache -s
 
-
 check-web-wasm:                    &test
   stage:                           test
   <<:                              *test-refs
@@ -167,6 +161,22 @@ check-runtime-benchmarks:          &test
     - time cargo check --features runtime-benchmarks
     - sccache -s
 
+build-wasm-release:
+  stage:                          build
+  <<:                             *collect-artifacts
+  <<:                             *docker-env
+  <<:                             *compiler_info
+  # Note: We likely only want to do this for tagged releases, hence the 'only:'
+  only:
+    # FIXME remove when ready to merge
+    - /^[0-9]+$/
+    # - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
+  script:
+    - time wasm-pack build --target web --out-dir wasm --release cli -- --no-default-features --features browser
+    - mkdir -p ./artifacts/wasm
+    - cd ./cli/wasm/
+    - for f in polkadot_cli*; do sha256sum "${f}" > "${f}.sha256"; done
+    - mv ./polkadot_cli* ../../artifacts/wasm/.
 
 build-linux-release:               &build
   stage:                           build
@@ -193,13 +203,11 @@ build-linux-release:               &build
     - cp -r scripts/docker/* ./artifacts
     - sccache -s
 
-
-
-
 .publish-build:                    &publish-build
   stage:                           publish
   dependencies:
     - build-linux-release
+    - build-wasm-release
   cache:                           {}
   <<:                              *build-refs
   <<:                              *kubernetes-env
@@ -209,9 +217,6 @@ build-linux-release:               &build
     - VERSION="$(cat ./artifacts/VERSION)"
     - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
-
-
-
 
 publish-docker-release:
   <<:                              *publish-build
@@ -243,9 +248,6 @@ publish-docker-release:
     # only VERSION information is needed for the deployment
     - find ./artifacts/ -depth -not -name VERSION -not -name artifacts -delete
 
-
-
-
 publish-s3-release:
   <<:                              *publish-build
   image:                           parity/awscli:latest
@@ -275,12 +277,6 @@ publish-s3-release:
   after_script:
     - aws s3 ls s3://${BUCKET}/${PREFIX}/${EXTRATAG}/
         --recursive --human-readable --summarize
-
-
-
-
-
-
 
 deploy-polkasync-kusama:
   stage:                           deploy
