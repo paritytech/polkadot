@@ -197,7 +197,6 @@ macro_rules! new_full_start {
 					babe::Config::get_or_compute(&*client)?,
 					grandpa_block_import,
 					client.clone(),
-					registry,
 				)?;
 
 				let import_queue = babe::import_queue(
@@ -208,6 +207,7 @@ macro_rules! new_full_start {
 					client,
 					inherent_data_providers.clone(),
 					spawn_task_handle,
+					registry,
 				)?;
 
 				import_setup = Some((block_import, grandpa_link, babe_link));
@@ -559,7 +559,6 @@ macro_rules! new_light {
 					babe::Config::get_or_compute(&*client)?,
 					grandpa_block_import,
 					client.clone(),
-					registry,
 				)?;
 
 				// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
@@ -571,6 +570,7 @@ macro_rules! new_light {
 					client,
 					inherent_data_providers.clone(),
 					spawn_task_handle,
+					registry,
 				)?;
 
 				Ok((import_queue, finality_proof_request_builder))
