@@ -132,7 +132,7 @@ test-linux-stable:                 &test
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
     # but still want to have debug assertions.
-    RUSTFLAGS: -Cdebug-assertions=y
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
     TARGET: native
   script:
     - time cargo test --all --release --verbose --locked --features runtime-benchmarks
