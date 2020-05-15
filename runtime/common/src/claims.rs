@@ -872,6 +872,37 @@ mod tests {
 	}
 
 	#[test]
+	fn add_claim_with_statement_works() {
+		new_test_ext().execute_with(|| {
+			assert_noop!(
+				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, None, Some(StatementKind::Default)),
+				sp_runtime::traits::BadOrigin,
+			);
+			assert_eq!(Balances::free_balance(42), 0);
+			let signature = sig::<Test>(&bob(), &69u64.encode(), StatementKind::Default.to_text());
+			assert_noop!(
+				Claims::claim_attest(
+					Origin::NONE, 69, signature.clone(), StatementKind::Default.to_text().to_vec()
+				),
+				Error::<Test>::SignerHasNoClaim
+			);
+			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, None, Some(StatementKind::Default)));
+			assert_noop!(
+				Claims::claim_attest(
+					Origin::NONE, 69, signature.clone(), vec![],
+				),
+				Error::<Test>::SignerHasNoClaim
+			);
+			assert_ok!(
+				Claims::claim_attest(
+					Origin::NONE, 69, signature.clone(), StatementKind::Default.to_text().to_vec()
+				)
+			);
+			assert_eq!(Balances::free_balance(&69), 200);
+		});
+	}
+
+	#[test]
 	fn origin_signed_claiming_fail() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
