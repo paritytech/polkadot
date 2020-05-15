@@ -1063,9 +1063,10 @@ mod benchmarking {
 			let account: T::AccountId = account("user", i, SEED);
 			let signature = sig::<T>(&secret_key, &account.encode(), &[][..]);
 			let data = account.using_encoded(to_ascii_hex);
+			let extra = StatementKind::default().to_text();
 		}: {
 			for _ in 0 .. i {
-				assert!(super::Module::<T>::eth_recover(&signature, &data).is_some());
+				assert!(super::Module::<T>::eth_recover(&signature, &data, extra).is_some());
 			}
 		}
 	}
