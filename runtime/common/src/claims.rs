@@ -461,13 +461,17 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 
 		let (maybe_signer, maybe_statement) = match call {
 			// <weight>
-			// Base Weight: 370 µs
-			// DB Weight: 1 Read (Claims)
+			// Base Weight: 188.7 µs (includes the full logic of `validate_unsigned`)
+			// DB Weight: 2 Read (Claims, Signing)
 			// </weight>
 			Call::claim(account, ethereum_signature) => {
 				let data = account.using_encoded(to_ascii_hex);
 				(Self::eth_recover(&ethereum_signature, &data, &[][..]), None)
 			}
+			// <weight>
+			// Base Weight: 190.1 µs (includes the full logic of `validate_unsigned`)
+			// DB Weight: 2 Read (Claims, Signing)
+			// </weight>
 			Call::claim_attest(account, ethereum_signature, statement) => {
 				let data = account.using_encoded(to_ascii_hex);
 				(Self::eth_recover(&ethereum_signature, &data, &statement), Some(statement.as_slice()))
@@ -539,6 +543,10 @@ impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> where
 		Ok(())
 	}
 
+	// <weight>
+	// Base Weight: 8.631 µs
+	// DB Weight: 2 Read (Preclaims, Signing)
+	// </weight>
 	fn validate(
 		&self,
 		who: &Self::AccountId,
