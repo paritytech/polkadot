@@ -11,9 +11,15 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "mas
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master"}
+sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "master"}
+sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "master"}
 sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master"}
 txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master"  }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -4276,11 +4276,17 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "sc-client-api",
+ "sc-consensus-babe",
+ "sc-consensus-babe-rpc",
+ "sc-consensus-epochs",
  "sc-finality-grandpa",
  "sc-finality-grandpa-rpc",
+ "sc-keystore",
  "sc-rpc",
  "sp-api",
  "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-babe",
  "sp-runtime",
  "sp-transaction-pool",
  "substrate-frame-rpc-system",
@@ -5534,6 +5540,28 @@ dependencies = [
  "sp-timestamp",
  "sp-version",
  "substrate-prometheus-endpoint",
+]
+
+[[package]]
+name = "sc-consensus-babe-rpc"
+version = "0.8.0-dev"
+source = "git+https://github.com/paritytech/substrate#c0ccc24d02080ab4fbb2c65440327fc72acb6c42"
+dependencies = [
+ "derive_more 0.99.5",
+ "futures 0.3.4",
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "sc-consensus-babe",
+ "sc-consensus-epochs",
+ "sc-keystore",
+ "serde",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-babe",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]

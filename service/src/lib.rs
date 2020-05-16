@@ -214,16 +214,29 @@ macro_rules! new_full_start {
 				Ok(import_queue)
 			})?
 			.with_rpc_extensions(|builder| -> Result<polkadot_rpc::RpcExtension, _> {
+				let babe_link = import_setup.as_ref().map(|s| &s.2)
+					.expect("BabeLink is present for full services or set up faile; qed.");
 				let grandpa_link = import_setup.as_ref().map(|s| &s.1)
 					.expect("GRANDPA LinkHalf is present for full services or set up failed; qed.");
 				let shared_authority_set = grandpa_link.shared_authority_set();
 				let shared_voter_state = SharedVoterState::empty();
-				let grandpa_deps = polkadot_rpc::GrandpaDeps {
-					shared_voter_state: shared_voter_state.clone(),
-					shared_authority_set: shared_authority_set.clone(),
+				let deps = polkadot_rpc::FullDeps {
+					client: builder.client().clone(),
+					pool: builder.pool(),
+					select_chain: builder.select_chain().cloned()
+						.expect("SelectChain is present for full services or set up failed; qed."),
+					babe: polkadot_rpc::BabeDeps {
+						keystore: builder.keystore(),
+						babe_config: babe::BabeLink::config(babe_link).clone(),
+						shared_epoch_changes: babe::BabeLink::epoch_changes(babe_link).clone(),
+					},
+					grandpa: polkadot_rpc::GrandpaDeps {
+						shared_voter_state: shared_voter_state.clone(),
+						shared_authority_set: shared_authority_set.clone(),
+					},
 				};
 				rpc_setup = Some((shared_voter_state));
-				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool(), grandpa_deps))
+				Ok(polkadot_rpc::create_full(deps))
 			})?;
 
 		(builder, import_setup, inherent_data_providers, rpc_setup)
@@ -586,7 +599,13 @@ macro_rules! new_light {
 				let remote_blockchain = builder.remote_backend()
 					.ok_or_else(|| "Trying to start node RPC without active remote blockchain")?;
 
-				Ok(polkadot_rpc::create_light(builder.client().clone(), remote_blockchain, fetcher, builder.pool()))
+				let light_deps = polkadot_rpc::LightDeps {
+					remote_blockchain,
+					fetcher,
+					client: builder.client().clone(),
+					pool: builder.pool(),
+				};
+				Ok(polkadot_rpc::create_light(light_deps))
 			})?
 			.build()
 	}}
