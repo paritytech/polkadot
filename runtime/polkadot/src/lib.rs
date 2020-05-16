@@ -342,6 +342,7 @@ parameter_types! {
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 1 * CENTS;
 	pub const InstantAllowed: bool = false;
+	pub const MaxVotes: u32 = 100;
 }
 
 impl democracy::Trait for Runtime {
@@ -374,6 +375,7 @@ impl democracy::Trait for Runtime {
 	type PreimageByteDeposit = PreimageByteDeposit;
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
+	type MaxVotes = MaxVotes;
 }
 
 parameter_types! {
@@ -612,6 +614,7 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			registrar::LimitParathreadCommits::<Runtime>::new(),
 			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 			grandpa::ValidateEquivocationReport::<Runtime>::new(),
+			claims::PrevalidateAttests::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
 			debug::warn!("Unable to create signed payload: {:?}", e);
@@ -771,6 +774,7 @@ pub type SignedExtra = (
 	registrar::LimitParathreadCommits<Runtime>,
 	parachains::ValidateDoubleVoteReports<Runtime>,
 	grandpa::ValidateEquivocationReport<Runtime>,
+	claims::PrevalidateAttests<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;

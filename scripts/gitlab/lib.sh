@@ -24,7 +24,7 @@ check_tag () {
   if [ -n "$GITHUB_RELEASE_TOKEN" ]; then
     tag_out=$(curl -H "Authorization: token $GITHUB_RELEASE_TOKEN" -s "$api_base/$repo/git/refs/tags/$tagver")
   else
-    tag_out=$(curl -s "$api_base/$repo/git/refs/tags/$tagver")
+    tag_out=$(curl -H "Authorization: token $GITHUB_PR_TOKEN" -s "$api_base/$repo/git/refs/tags/$tagver")
   fi
   tag_sha=$(echo "$tag_out" | jq -r .object.sha)
   object_url=$(echo "$tag_out" | jq -r .object.url)
@@ -53,7 +53,7 @@ has_label(){
   if [ -n "$GITHUB_RELEASE_TOKEN" ]; then
     out=$(curl -H "Authorization: token $GITHUB_RELEASE_TOKEN" -s "$api_base/$repo/pulls/$pr_id")
   else
-    out=$(curl -s "$api_base/$repo/pulls/$pr_id")
+    out=$(curl -H "Authorization: token $GITHUB_PR_TOKEN" -s "$api_base/$repo/pulls/$pr_id")
   fi
   [ -n "$(echo "$out" | tr -d '\r\n' | jq ".labels | .[] | select(.name==\"$label\")")" ]
 }
