@@ -228,12 +228,13 @@ decl_module! {
 		///
 		/// Total Complexity: O(1)
 		/// ----------------------------
-		/// Base Weight: 622.6 µs
+		/// Base Weight: 269.7 µs
 		/// DB Weight:
-		/// - Read: Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
-		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting
+		/// - Read: Signing, Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
+		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
+		/// Validate Unsigned: +188.7 µs
 		/// </weight>
-		#[weight = T::DbWeight::get().reads_writes(6, 6) + 650_000_000]
+		#[weight = T::DbWeight::get().reads_writes(7, 7) + 270_000_000 + 190_000_000]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
@@ -262,12 +263,18 @@ decl_module! {
 		///
 		/// Total Complexity: O(1)
 		/// ---------------------
-		/// Base Weight: 25.64 µs
+		/// Base Weight: 10.46 µs
 		/// DB Weight:
 		/// - Reads: Total
-		/// - Writes: Total, Claims, Vesting
+		/// - Writes: Total, Claims
+		/// - Maybe Write: Vesting, Statement
 		/// </weight>
-		#[weight = T::DbWeight::get().reads_writes(1, 3) + 25_000_000]
+		#[weight =
+			T::DbWeight::get().reads_writes(1, 2)
+			+ T::DbWeight::get().writes(vesting_schedule.is_some().into())
+			+ T::DbWeight::get().writes(statement.is_some().into())
+			+ 10_000_000
+		]
 		fn mint_claim(origin,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
@@ -286,12 +293,12 @@ decl_module! {
 			}
 		}
 
-		/// Make a claim to collect your DOTs.
+		/// Make a claim to collect your DOTs by signing a statement.
 		///
 		/// The dispatch origin for this call must be _None_.
 		///
 		/// Unsigned Validation:
-		/// A call to claim is deemed valid if the signature provided matches
+		/// A call to `claim_attest` is deemed valid if the signature provided matches
 		/// the expected signed message of:
 		///
 		/// > Ethereum Signed Message:
@@ -321,12 +328,13 @@ decl_module! {
 		///
 		/// Total Complexity: O(1)
 		/// ----------------------------
-		/// Base Weight: 622.6 µs
+		/// Base Weight: 270.2 µs
 		/// DB Weight:
-		/// - Read: Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
-		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting
+		/// - Read: Signing, Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
+		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
+		/// Validate Unsigned: +190.1 µs
 		/// </weight>
-		#[weight = T::DbWeight::get().reads_writes(7, 6) + 650_000_000]
+		#[weight = T::DbWeight::get().reads_writes(7, 7) + 270_000_000 + 190_000_000]
 		fn claim_attest(origin,
 			dest: T::AccountId,
 			ethereum_signature: EcdsaSignature,
@@ -346,8 +354,25 @@ decl_module! {
 		/// Attest to a statement, needed to finalize the claims process.
 		///
 		/// WARNING: Insecure unless your chain includes `PrevalidateAttests` as a `SignedExtension`.
+		///
+		/// Unsigned Validation:
+		/// A call to attest is deemed valid if the sender has a `Preclaim` registered
+		/// and provides a `statement` which is expected for the account.
+		///
+		/// Parameters:
+		/// - `statement`: The identity of the statement which is being attested to in the signature.
+		///
+		/// <weight>
+		/// Total Complexity: O(1)
+		/// ----------------------------
+		/// Base Weight: 93.3 µs
+		/// DB Weight:
+		/// - Read: Preclaims, Signing, Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
+		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing, Preclaims
+		/// Validate PreValidateAttests: +8.631 µs
+		/// </weight>
 		#[weight = (
-			T::DbWeight::get().reads_writes(6, 6) + 650_000_000,
+			T::DbWeight::get().reads_writes(8, 8) + 90_000_000 + 10_000_000,
 			DispatchClass::Normal,
 			Pays::No
 		)]
